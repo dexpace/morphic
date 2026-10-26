@@ -23,7 +23,7 @@ func nested(key string, n int) string {
 
 // placedNesting runs nestingWithin over src under limit, placing its finding by
 // pointer as load does.
-func placedNesting(t *testing.T, src string, limit int64) (ir.Diagnostic, bool) {
+func placedNesting(t *testing.T, src string, limit int) (ir.Diagnostic, bool) {
 	t.Helper()
 	idx := indexOf(t, []byte(src))
 	return nestingWithin(t.Context(), InTree(0, Pointers(t.Context(), idx.Root())), idx, limit)
@@ -35,7 +35,7 @@ func placedNesting(t *testing.T, src string, limit int64) (ir.Diagnostic, bool) 
 func TestNesting_RefusesPastTheBoundAndNotAtIt(t *testing.T) {
 	t.Parallel()
 	at := indexOf(t, []byte(nested("k", MaxNesting)+"\n"))
-	require.Equal(t, int64(MaxNesting), at.Nesting())
+	require.Equal(t, MaxNesting, at.Nesting())
 	_, refused := Nesting(t.Context(), InSource(0), at)
 	assert.False(t, refused, "a document at the bound is admitted")
 
@@ -120,8 +120,8 @@ func TestNesting_CountsTheExpandedTree(t *testing.T) {
 		fmt.Fprintf(&b, "a%d: &a%d {k: {k: {k: *a%d}}}\n", i, i, i-1)
 	}
 	idx := indexOf(t, []byte(b.String()))
-	require.Equal(t, int64(13), idx.Nesting())
-	require.Less(t, sourceindex.Build(t.Context(), idx.Root(), sourceindex.MaxIndexedNodes).Nodes(), int64(40))
+	require.Equal(t, 13, idx.Nesting())
+	require.Less(t, sourceindex.Build(t.Context(), idx.Root(), sourceindex.MaxIndexedNodes).Nodes(), 40)
 
 	d, refused := placedNesting(t, b.String(), 10)
 	require.True(t, refused)
@@ -137,7 +137,7 @@ func TestNesting_LeavesARecursiveAnchorToItsOwnRefusal(t *testing.T) {
 	src := "x: &a " + strings.Repeat("{k: ", 3) + "*a" + strings.Repeat("}", 3) + "\n"
 	idx := indexOf(t, []byte(src))
 	require.NotEmpty(t, idx.AnchorCycles())
-	require.Greater(t, idx.Nesting(), int64(5), "one turn round the anchor counts past the bound below")
+	require.Greater(t, idx.Nesting(), 5, "one turn round the anchor counts past the bound below")
 
 	_, refused := placedNesting(t, src, 5)
 	assert.False(t, refused)

@@ -146,5 +146,5 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 	if d, deep := scan.Nesting(ctx, locate, idx); deep {
 		diags = append(diags, d)
 	}
-	return append(diags, scan.Aliases(ctx, locate, idx, int64(opts.MaxAliasSurplus.Cap()))...)
+	return append(diags, scan.Aliases(ctx, locate, idx, opts.MaxAliasSurplus)...)
 }

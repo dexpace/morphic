@@ -148,14 +148,17 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
-	// document root and nothing else: an index of what the source says is not
-	// allowed to depend on what any consumer of it wants to say about that.
-	"compilers/openapi/internal/sourceindex": {
+	// document root and budget for the steps its measure takes, and nothing
+	// else: an index of what the source says is not allowed to depend on what
+	// any consumer of it wants to say about that.
+	"compilers/openapi/internal/sourceindex": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The pre-lowering refusals. They read the source through nodeview and the
-	// index built over it, report through diag, and reach no part of the
-	// lowering — nothing here has a document to lower yet.
+	// index built over it, weigh it against its budgets through budget, report
+	// through diag, and reach no part of the lowering — nothing here has a
+	// document to lower yet.
 	"compilers/openapi/internal/scan": {module + "/ir",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/sourceindex", "go.yaml.in/yaml/v3"},

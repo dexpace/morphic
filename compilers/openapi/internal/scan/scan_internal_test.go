@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
@@ -210,7 +211,7 @@ func TestAliases_LegalAliasAndMergeUseIsClean(t *testing.T) {
 // document is the only sourceless index the scan can be handed.
 func TestAliases_EmptyDocumentIsNoCycle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, Aliases(t.Context(), InSource(0), sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), defaultSurplus))
+	assert.Empty(t, Aliases(t.Context(), InSource(0), sourceindex.Build(t.Context(), nil, sourceindex.MaxIndexedNodes), budget.AtMost(defaultSurplus)))
 	assert.Empty(t, scanBytes(t, nil))
 }
 
@@ -225,7 +226,7 @@ const defaultSurplus = 1 << 18
 // the default alias budget.
 func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
-	return Aliases(t.Context(), InSource(0), indexOf(t, data), defaultSurplus)
+	return Aliases(t.Context(), InSource(0), indexOf(t, data), budget.AtMost(defaultSurplus))
 }
 
 // scanPlaced is scanBytes with each diagnostic placed by its pointer too, as
@@ -233,7 +234,7 @@ func scanBytes(t *testing.T, data []byte) []ir.Diagnostic {
 func scanPlaced(t *testing.T, data []byte) []ir.Diagnostic {
 	t.Helper()
 	idx := indexOf(t, data)
-	return Aliases(t.Context(), InTree(0, Pointers(t.Context(), idx.Root())), idx, defaultSurplus)
+	return Aliases(t.Context(), InTree(0, Pointers(t.Context(), idx.Root())), idx, budget.AtMost(defaultSurplus))
 }
 
 // indexOf decodes source bytes and indexes the tree. A fixture that does not
@@ -448,7 +449,7 @@ func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 				return ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}
 			}
 
-			got := Aliases(t.Context(), locate, indexOf(t, readReproducer(t, fixture)), defaultSurplus)
+			got := Aliases(t.Context(), locate, indexOf(t, readReproducer(t, fixture)), budget.AtMost(defaultSurplus))
 			require.Len(t, got, 1)
 			assert.Equal(t, ir.Provenance{Source: 9, Pointer: "/somewhere/the/locator/decided"}, got[0].Provenance)
 			assert.NotNil(t, seen, "the locator was handed the node the refusal is about")
@@ -465,7 +466,7 @@ func TestAliases_AnchorsThroughTheLocator(t *testing.T) {
 func TestAliases_RefusesTheYAMLShapesAndNotTheOpenAPIOnes(t *testing.T) {
 	t.Parallel()
 	aliases := func(src string) []ir.Diagnostic {
-		return Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), defaultSurplus)
+		return Aliases(t.Context(), InSource(0), indexOf(t, []byte(src)), budget.AtMost(defaultSurplus))
 	}
 
 	anchor := aliases("a: &x [*x]\n")
@@ -499,7 +500,7 @@ func TestAliases_DegradesAScanFaultToAWarning(t *testing.T) {
 		return ir.Provenance{Source: 0}
 	}
 
-	got := Aliases(t.Context(), panicking, indexOf(t, []byte("a: &x [*x]\n")), defaultSurplus)
+	got := Aliases(t.Context(), panicking, indexOf(t, []byte("a: &x [*x]\n")), budget.AtMost(defaultSurplus))
 
 	require.Len(t, got, 1)
 	assert.Equal(t, diag.CycleScanFailed, got[0].Code)

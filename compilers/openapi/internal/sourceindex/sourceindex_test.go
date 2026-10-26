@@ -27,9 +27,9 @@ func TestBuild_EmptyDocumentIndexesNothing(t *testing.T) {
 			t.Parallel()
 			idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 			assert.Nil(t, idx.Root(), "an empty document has no content node")
-			assert.Equal(t, int64(0), idx.Nodes())
+			assert.Equal(t, 0, idx.Nodes())
 			assert.False(t, idx.Truncated(), "nothing to index is fully indexed")
-			assert.Equal(t, int64(0), idx.Nesting())
+			assert.Equal(t, 0, idx.Nesting())
 			assert.Empty(t, idx.AnchorCycles())
 			assert.Empty(t, idx.TaggedMappings())
 		})
@@ -47,8 +47,8 @@ func TestBuild_WhitespaceOnlySourceIsOneEmptyNode(t *testing.T) {
 
 	require.NotNil(t, idx.Root())
 	assert.Equal(t, yaml.Kind(0), idx.Root().Kind, "yaml.v3 leaves the node untouched")
-	assert.Equal(t, int64(1), idx.Nodes())
-	assert.Equal(t, int64(0), idx.Nesting(), "a node of no kind nests nothing")
+	assert.Equal(t, 1, idx.Nodes())
+	assert.Equal(t, 0, idx.Nesting(), "a node of no kind nests nothing")
 	assert.Empty(t, idx.AnchorCycles())
 }
 
@@ -70,7 +70,7 @@ func TestBuild_CountsEveryNodeOnce(t *testing.T) {
 		ynode.Scalar("a"), ynode.Scalar("1"),
 		ynode.Scalar("b"), ynode.Seq(ynode.Scalar("x"), ynode.Scalar("y")),
 	)
-	assert.Equal(t, int64(7), sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).Nodes())
+	assert.Equal(t, 7, sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).Nodes())
 }
 
 // TestBuild_AnAliasCountsOnceAndIsNotFollowed pins the count to the document's
@@ -85,7 +85,7 @@ func TestBuild_AnAliasCountsOnceAndIsNotFollowed(t *testing.T) {
 		ynode.Scalar("reuse"), ynode.Alias(base),
 	)
 	// root, "base", base's 3, "reuse", the alias = 7.
-	assert.Equal(t, int64(7), sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).Nodes(),
+	assert.Equal(t, 7, sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes).Nodes(),
 		"the alias contributes one node, not a copy of its target")
 }
 
@@ -95,7 +95,7 @@ func TestBuild_NilChildIsSkipped(t *testing.T) {
 	root.Content = append(root.Content, nil)
 
 	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
-	assert.Equal(t, int64(3), idx.Nodes(),
+	assert.Equal(t, 3, idx.Nodes(),
 		"the nil child contributes nothing and costs no dereference")
 	assert.False(t, idx.Truncated())
 }
@@ -104,7 +104,7 @@ func TestBuild_NonPositiveBoundIndexesNothing(t *testing.T) {
 	t.Parallel()
 	idx := sourceindex.Build(t.Context(), ynode.Map(ynode.Scalar("a"), ynode.Scalar("1")), 0)
 	assert.True(t, idx.Truncated(), "a bound that admits no node admits no answer either")
-	assert.Equal(t, int64(0), idx.Nodes())
+	assert.Equal(t, 0, idx.Nodes())
 	assert.NotNil(t, idx.Root(), "the tree is still named, so a caller can say what it refused")
 }
 
@@ -165,7 +165,7 @@ func TestAnchorCycle_AliasWithoutATargetIsNotACycle(t *testing.T) {
 
 	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	assert.Empty(t, idx.AnchorCycles(), "an alias that names nothing cannot name an ancestor")
-	assert.Equal(t, int64(3), idx.Nodes(), "it is still one of the document's nodes")
+	assert.Equal(t, 3, idx.Nodes(), "it is still one of the document's nodes")
 }
 
 // TestAnchorCycles_EveryOneIsListedInDocumentOrder pins that the walk lists
@@ -210,7 +210,7 @@ func TestBuild_TracksAncestorsOnlyToItsDepthBound(t *testing.T) {
 	assert.False(t, idx.Truncated())
 	// root, then two nodes per link (its key and the mapping it names), then the
 	// deepest mapping's own key and alias.
-	assert.Equal(t, int64(2*links+3), idx.Nodes(),
+	assert.Equal(t, 2*links+3, idx.Nodes(),
 		"every node below the tracked depth is still counted")
 	assert.Empty(t, idx.AnchorCycles(),
 		"an alias deeper than the tracked depth is out of the walk's reach, as it was before")
@@ -352,7 +352,7 @@ func TestNesting_CountsTheMappingsAndSequencesOnTheDeepestPath(t *testing.T) {
 	tests := []struct {
 		name string
 		src  string
-		want int64
+		want int
 	}{
 		{"a scalar document", "x\n", 0},
 		{"an empty mapping", "{}\n", 1},
@@ -380,7 +380,7 @@ func TestNesting_AnAliasNestsAsItsTarget(t *testing.T) {
 	tests := []struct {
 		name string
 		src  string
-		want int64
+		want int
 	}{
 		{"one alias", "a: &x {b: {c: 1}}\nd: {e: *x}\n", 4},
 		{"an alias at the top", "a: &x {b: 1}\nc: *x\n", 2},
@@ -417,7 +417,7 @@ func TestNesting_CountsAMergeValueWhereItIsWritten(t *testing.T) {
 	tests := []struct {
 		name string
 		src  string
-		want int64
+		want int
 	}{
 		{"an inline merge", "a: {<<: {k: {v: 1}}}\n", 4},
 		{"a merge through an alias", "b: &b {k: {v: 1}}\na: {<<: *b}\n", 4},
@@ -444,7 +444,7 @@ func TestNesting_DoesNotReadAnchorNames(t *testing.T) {
 
 	target := ynode.Map(ynode.Scalar("k"), ynode.Map(ynode.Scalar("v"), ynode.Scalar("1")))
 	built := ynode.Map(ynode.Scalar("a"), target, ynode.Scalar("b"), ynode.Map(ynode.Scalar("c"), ynode.Alias(target)))
-	assert.Equal(t, int64(4), sourceindex.Build(t.Context(), built, sourceindex.MaxIndexedNodes).Nesting(), "a hand-built alias to an unnamed node")
+	assert.Equal(t, 4, sourceindex.Build(t.Context(), built, sourceindex.MaxIndexedNodes).Nesting(), "a hand-built alias to an unnamed node")
 }
 
 // TestNesting_AnAnchorCycleCountsOneTurn pins that a recursive anchor, which
@@ -458,7 +458,7 @@ func TestNesting_AnAnchorCycleCountsOneTurn(t *testing.T) {
 
 	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	require.Len(t, idx.AnchorCycles(), 1)
-	assert.Equal(t, int64(4), idx.Nesting(), "root, inner, and one turn back through root and inner")
+	assert.Equal(t, 4, idx.Nesting(), "root, inner, and one turn back through root and inner")
 }
 
 // TestNesting_DeepTreeCostsNoStack pins that neither the walk nor the measure
@@ -478,8 +478,8 @@ func TestNesting_DeepTreeCostsNoStack(t *testing.T) {
 
 	idx := sourceindex.Build(t.Context(), root, sourceindex.MaxIndexedNodes)
 	require.False(t, idx.Truncated())
-	assert.Equal(t, int64(depth+1), idx.Nesting())
-	assert.Equal(t, int64(depth), sourceindex.NewMeasure(sourceindex.MaxIndexedNodes).Of(t.Context(), deep))
+	assert.Equal(t, depth+1, idx.Nesting())
+	assert.Equal(t, depth, sourceindex.NewMeasure(sourceindex.MaxIndexedNodes).Of(t.Context(), deep))
 }
 
 // TestBuild_MeasuresAnAliasTargetUnderItsContext pins that the index measures

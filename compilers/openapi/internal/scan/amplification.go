@@ -2,10 +2,12 @@ package scan
 
 import (
 	"context"
+	"math"
 	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -36,25 +38,27 @@ const minExpandedNodes = 1 << 15 // 32768
 //
 // Two bounds apply. The ratio (maxAliasAmplification, floored at
 // minExpandedNodes) catches compounding aliasing, as diag.AliasAmplification
-// whatever the budget. surplus, the nodes aliasing may add beyond raw (zero for
-// none), catches one anchor repeated in a flat list, whose ratio stays put
-// while memory climbs, as diag.BudgetExceeded.
+// whatever the budget. surplus, the nodes aliasing may add beyond raw,
+// catches one anchor repeated in a flat list, whose ratio stays put while
+// memory climbs, as diag.BudgetExceeded.
 //
 // Run it only once recursive anchors are refused, which makes the alias graph
 // a DAG (see Aliases).
-func aliasAmplification(ctx context.Context, locate Locator, root *yaml.Node, raw, surplus int64) (ir.Diagnostic, bool) {
+func aliasAmplification(ctx context.Context, locate Locator, root *yaml.Node, raw int, surplus budget.Limit,
+) (ir.Diagnostic, bool) {
 	shape := shapeAllowance(raw)
 	// A surplus the ratio already bounds more tightly can never be the bound
-	// crossed, and leaving it out also keeps raw+surplus from overflowing.
-	budgeted := surplus > 0 && surplus < shape-raw
-	bound := shape
+	// crossed, so only a tighter one is weighed against.
+	bound := budget.AtMost(raw).Plus(surplus)
+	budgeted := bound.Cap() < shape.Cap()
+	allowance := shape
 	if budgeted {
-		bound = raw + surplus
+		allowance = bound
 	}
 
 	// One walk against whichever bound binds, so a document refused by neither —
 	// every document a compile goes on to lower — costs a single walk.
-	culprits := newAliasWeigher(bound).weigh(ctx, root)
+	culprits := newAliasWeigher(allowance).weigh(ctx, root)
 	if len(culprits) == 0 {
 		return ir.Diagnostic{}, false
 	}
@@ -71,33 +75,36 @@ func aliasAmplification(ctx context.Context, locate Locator, root *yaml.Node, ra
 	return aliasBudgetDiag(locate, Least(ctx, root, culprits), surplus, raw), true
 }
 
-// shapeAllowance returns the expanded weight the ratio rule admits for a
-// document of raw nodes: maxAliasAmplification times its size, floored at
-// minExpandedNodes.
-func shapeAllowance(raw int64) int64 {
-	return max(maxAliasAmplification*raw, minExpandedNodes)
+// shapeAllowance returns the bound the ratio rule sets on the expanded weight
+// of a document of raw nodes: maxAliasAmplification times its size, floored at
+// minExpandedNodes and held at math.MaxInt.
+func shapeAllowance(raw int) budget.Limit {
+	if raw > math.MaxInt/maxAliasAmplification {
+		return budget.AtMost(math.MaxInt)
+	}
+	return budget.AtMost(max(maxAliasAmplification*raw, minExpandedNodes))
 }
 
 // aliasAmplificationDiag builds a diag.AliasAmplification error diagnostic
 // anchored where locate puts n, the innermost node past allowance that
 // aliasAmplification names. The reported node count is a lower bound ("at
-// least"), not the exact expansion: aliasWeigher saturates its arithmetic one
-// past the allowance, so the true expansion of a severe bomb (the 10-level x
-// 10-way fixture expands past 37 billion nodes) is never actually computed,
-// only proven to exceed the allowance.
-func aliasAmplificationDiag(locate Locator, n *yaml.Node, allowance, raw int64) ir.Diagnostic {
+// least"), not the exact expansion: aliasWeigher holds its sums one past the
+// allowance, so the true expansion of a severe bomb (the 10-level x 10-way
+// fixture expands past 37 billion nodes) is never actually computed, only
+// proven to exceed the allowance.
+func aliasAmplificationDiag(locate Locator, n *yaml.Node, allowance budget.Limit, raw int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.AliasAmplification, locate(n),
 		"YAML alias expansion reaches at least %d nodes, past the %d-node allowance for a %d-node document",
-		allowance+1, allowance, raw)
+		allowance.Past(), allowance.Cap(), raw)
 }
 
 // aliasBudgetDiag builds the diag.BudgetExceeded error diagnostic for a
 // document whose aliases add more nodes than the surplus budget, anchored as
 // aliasAmplificationDiag anchors its own and a lower bound for the same reason.
-func aliasBudgetDiag(locate Locator, n *yaml.Node, surplus, raw int64) ir.Diagnostic {
+func aliasBudgetDiag(locate Locator, n *yaml.Node, surplus budget.Limit, raw int) ir.Diagnostic {
 	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, locate(n),
 		"YAML aliases add at least %d nodes to a %d-node document, past the %d-node alias budget",
-		surplus+1, raw, surplus)
+		surplus.Past(), raw, surplus.Cap())
 }
 
 // weighFrame is one entry of aliasWeigher's iterative post-order stack: a
@@ -108,7 +115,7 @@ type weighFrame struct {
 	expanded bool
 }
 
-// aliasWeigher computes expandedWeight(n), held to at most one past its
+// aliasWeigher computes expandedWeight(n), held at the first count past its
 // allowance, for every node reachable from a root. A nil node weighs 0, an
 // alias weighs what its target weighs, and any other node weighs 1 plus the
 // weight of its Content.
@@ -118,12 +125,11 @@ type weighFrame struct {
 // for aliases and an over-count, the safe side, for `<<` merge keys, whose
 // pairs are deduplicated.
 type aliasWeigher struct {
-	allowance int64
-	ceiling   int64
-	weight    map[*yaml.Node]int64
+	allowance budget.Limit
+	weight    map[*yaml.Node]int
 	inFlight  map[*yaml.Node]bool
 	// cut holds each node a cycle reached while it was in flight, whose weight is
-	// the ceiling it was saturated to rather than one weighed.
+	// the first count past the allowance rather than one weighed.
 	cut map[*yaml.Node]bool
 
 	// computations counts how many times computeWeight actually ran, as
@@ -132,17 +138,16 @@ type aliasWeigher struct {
 	// computed at most once, however many aliases point to it — is a plain
 	// equality check (computations == len(weight)) rather than something only
 	// a timing bound can observe.
-	computations int64
+	computations int
 }
 
-// newAliasWeigher returns a weigher that refuses at allowance, capping every
-// intermediate sum at allowance+1 so no addition can overflow regardless of
+// newAliasWeigher returns a weigher that refuses past allowance, holding every
+// sum at the first count past it, so no addition can overflow regardless of
 // how large the document's true expansion is.
-func newAliasWeigher(allowance int64) *aliasWeigher {
+func newAliasWeigher(allowance budget.Limit) *aliasWeigher {
 	return &aliasWeigher{
 		allowance: allowance,
-		ceiling:   allowance + 1,
-		weight:    map[*yaml.Node]int64{},
+		weight:    map[*yaml.Node]int{},
 		inFlight:  map[*yaml.Node]bool{},
 		cut:       map[*yaml.Node]bool{},
 	}
@@ -181,7 +186,7 @@ func (w *aliasWeigher) weigh(ctx context.Context, root *yaml.Node) []*yaml.Node 
 		w.computations++
 		w.weight[top.n] = wt
 		stack = stack[:len(stack)-1]
-		if wt > w.allowance && !w.dependsOnAmplifier(top.n) {
+		if !w.allowance.Admits(wt) && !w.dependsOnAmplifier(top.n) {
 			innermost = append(innermost, top.n)
 		}
 	}
@@ -194,7 +199,7 @@ func (w *aliasWeigher) weigh(ctx context.Context, root *yaml.Node) []*yaml.Node 
 // node depending on it is the innermost there is.
 func (w *aliasWeigher) dependsOnAmplifier(n *yaml.Node) bool {
 	return slices.ContainsFunc(childrenOf(n), func(c *yaml.Node) bool {
-		return !w.cut[c] && w.weight[c] > w.allowance
+		return !w.cut[c] && !w.allowance.Admits(w.weight[c])
 	})
 }
 
@@ -202,16 +207,16 @@ func (w *aliasWeigher) dependsOnAmplifier(n *yaml.Node) bool {
 // child whose weight is already known is not re-pushed. A child already in
 // flight is a cycle that slipped past anchorCycle having refused every
 // recursive anchor — unreachable from a parsed document, but defended against
-// anyway: rather than re-enter it and loop, its weight is saturated at
-// w.ceiling, which is always large enough to carry the document to refusal
-// without ever pretending the cyclic subtree is small.
+// anyway: rather than re-enter it and loop, its weight is held at the first
+// count past the allowance, which is always large enough to carry the
+// document to refusal without ever pretending the cyclic subtree is small.
 func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, n *yaml.Node) {
 	for _, c := range childrenOf(n) {
 		if c == nil {
 			continue
 		}
 		if w.inFlight[c] {
-			w.weight[c], w.cut[c] = w.ceiling, true
+			w.weight[c], w.cut[c] = w.allowance.Past(), true
 			continue
 		}
 		if _, done := w.weight[c]; done {
@@ -225,25 +230,25 @@ func (w *aliasWeigher) pushChildren(stack *[]*weighFrame, n *yaml.Node) {
 // on (via childrenOf) already has a recorded weight. An alias node's weight is
 // exactly its target's — substituting a copy of the target, unexpanded
 // further, is what an alias stands in for. Every other node's weight is 1
-// (itself) plus its children's, saturated at w.ceiling so the running sum can
-// never overflow, with the loop exiting the moment the total already exceeds
-// the allowance, since nothing further down the same Content list can change
-// that verdict.
-func (w *aliasWeigher) computeWeight(n *yaml.Node) int64 {
+// (itself) plus its children's, counted against the allowance and held at the
+// first count past it, with the loop exiting the moment the total exceeds the
+// allowance, since nothing further down the same Content list can change that
+// verdict.
+func (w *aliasWeigher) computeWeight(n *yaml.Node) int {
 	if n.Kind == yaml.AliasNode {
 		if n.Alias == nil {
 			return 0
 		}
 		return w.weight[n.Alias]
 	}
-	total := int64(1)
+	total := budget.New(w.allowance)
+	total.Spend(1)
 	for _, c := range n.Content {
-		total = saturatingAdd(total, w.weight[c], w.ceiling)
-		if total > w.allowance {
-			return total
+		if !total.Spend(w.weight[c]) {
+			break
 		}
 	}
-	return total
+	return min(total.Spent(), w.allowance.Past())
 }
 
 // childrenOf returns the nodes n's expandedWeight depends on: an alias node
@@ -259,15 +264,4 @@ func childrenOf(n *yaml.Node) []*yaml.Node {
 		return []*yaml.Node{n.Alias}
 	}
 	return n.Content
-}
-
-// saturatingAdd returns a+b clamped to ceiling. Both aliasWeigher's addends
-// are always non-negative and individually at most ceiling, which is what
-// makes the comparison overflow-free: b >= ceiling-a can be evaluated without
-// a+b ever being computed when it would exceed ceiling.
-func saturatingAdd(a, b, ceiling int64) int64 {
-	if b >= ceiling-a {
-		return ceiling
-	}
-	return a + b
 }
