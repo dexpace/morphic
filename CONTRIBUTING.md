@@ -190,15 +190,19 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    `ValidateName` are in `pass/validate.go`: an exported type, and a constant holding its stable
    `Name()`, unique among the engine's passes. A pass whose rules fall into families keeps each
    family in a `<name>_<family>.go` beside that file, as `validate` does, and a new rule joins the
-   family it belongs to or starts one. `Run` never mutates its input, returns its input when it only
-   analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
+   family it belongs to or starts one. `Run` never mutates its input, never panics, returns its input
+   when it only analyses, and reports through its diagnostics alone. `ir.ForEachOperation` walks the
    operations, and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
    *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
    `make vet` for a registry built, or an entry of one written, other than through an `ir.Editor`.
-   Nothing fails for a rule in another family's file.
+   A run fails with an error wrapping `pass.ErrContract` for a pass that panics, returns no document
+   or another IR version, moves a source or puts findings on the document, and under
+   `morphic compile --verify` for one that changes its input or returns a document that breaks
+   `irverify`'s invariants; run your pass that way before relying on it. Nothing fails for a rule in
+   another family's file.
 2. **Test it** beside it in `pass/`, table-driven, against documents built in the test: a file's
    cases in the `_test.go` named after it, and a scenario that several files decide in one named for
    the scenario, as `validate_propids_test.go` is. `pass/validate_test.go` has builders (`validDoc`,
@@ -274,6 +278,8 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    it takes to be swept. Order-invariance permutes YAML and JSON mappings, so a source that is
    neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
    the package's `TestMain`.
+   `morphic compile --verify <spec>` holds your compiler's document, and every pass's, to the same
+   invariants while you write it.
    *Fails if missed:* `TestHarness_InRepoCorpus`, which sweeps the corpus and requires every
    fixture in it to be listed, so one that no registered compiler recognizes fails there instead of
    dropping out of the sweep, and `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.

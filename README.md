@@ -222,7 +222,13 @@ registered compilers which one recognizes it, compiles, and runs the passes in o
 document the one before it returned. `RunOptions.DisablePasses` turns passes off by name
 (`engine.ValidatePass` names the `validate` pass), and a name no pass carries fails the run with
 `engine.ErrUnknownPass`. A compiler breaking its contract, say by returning a document whose source
-table does not describe the spec, fails the run with an error wrapping `compilers.ErrContract`.
+table does not describe the spec, or by panicking, fails the run with an error wrapping
+`compilers.ErrContract`; a pass doing so fails it with one wrapping `pass.ErrContract`. A panic
+arrives as a `*barrier.PanicError` in the chain, which keeps the value and the stack beside the
+one-line message. A stage that ignores `ctx` holds `Run` until it returns, and the run stops at the
+next stage. The structural duties only `irverify` checks are left to the harness, unless
+`RunOptions.Verify` is set: it holds each stage's document to them, and each pass to leaving its
+input alone, and fails the run with an `*engine.VerifyError` listing what broke.
 
 ```go
 eng, err := engine.New()
@@ -273,10 +279,11 @@ entry in that test allows, and nothing from a layer above its own.
 
 | Package | Layer | Imports |
 |---|---|---|
+| `barrier/` | 0: turns a panic in code the caller does not own into an error | stdlib only |
 | `ir/` | 0: IR nodes, IDs, traversal, editing, JSON round-trip | stdlib only |
 | `ir/irfacts/` | 0: what a document implies and does not state (subtypes, exposed properties, usage, recursion), never stored | `ir` only |
 | `ir/irverify/`, `ir/irtest/` | 0: structural-invariant checker; golden-snapshot and fixture helpers | `ir` (`irtest` also `go-cmp`) |
-| `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` only |
+| `compilers/` | 1: the `Compiler` contract and the format-keyed registry | `ir` + `barrier` |
 | `compilers/compile/` | 1: what every compiler shares (type registry, diagnostics, naming and identifier grammars) | `ir` only |
 | `compilers/*` | 1: one compiler per format; a public face over its own `internal/` packages | `ir` + `compilers` + `compilers/compile` + own `internal/*` + format libs |
 | `pass/` | 1: IR → IR passes | `ir` + `ir/irfacts` |
