@@ -36,22 +36,11 @@ type valueCycle struct {
 	Path, Entered, Type string
 }
 
-// cycleRecorder is an ir.CycleVisitor that is shown everything and records each
-// cycle its walk meets, in walk order.
-type cycleRecorder struct {
-	cycles []valueCycle
-}
-
-func (*cycleRecorder) Visit(reflect.Value, ir.WalkPath) bool { return true }
-
-func (r *cycleRecorder) Cycle(at, entered ir.WalkPath, ref reflect.Type) {
-	r.cycles = append(r.cycles, valueCycle{Path: at.String(), Entered: entered.String(), Type: ref.String()})
-}
-
-// valueCycles walks root from "doc" with a cycleRecorder and returns the cycles
-// it recorded, with whether the depth cap truncated the walk.
+// valueCycles walks root from "doc" with a recorder that prunes nothing and
+// returns the cycles it was told of, in walk order, with whether the depth cap
+// truncated the walk.
 func valueCycles(root any) ([]valueCycle, bool) {
-	var r cycleRecorder
+	var r recorder
 	truncated := ir.WalkValues(root, "doc", &r)
 	return r.cycles, truncated
 }
