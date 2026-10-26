@@ -186,14 +186,15 @@ directory will not take a temp file, such as `/dev/null` or a read-only director
 written to at all.
 
 SIGINT, SIGTERM or SIGHUP stops a run, which then has no exit code of its own: once the run has
-stopped, morphic ends by the same signal, so a shell reports 128 plus its number and a script
-running morphic stops with it. A run stopped while compiling writes nothing. A document `-o` was
-writing is abandoned and its temporary file removed, so the destination keeps its previous content
-unless the document was already being moved into place; one already going to stdout is written
-whole, as a stream gets all of a document or none of it. A second signal ends morphic at once,
-which can leave the temporary file behind: a dot, the destination's name, then digits. A signal
-morphic was started ignoring stays ignored, as a shell starts a background job ignoring SIGINT and
-`nohup` a command ignoring SIGHUP.
+stopped, morphic ends by the same signal, so a shell reports 128 plus its number, and a script
+interrupted with Ctrl-C stops instead of going on to its next command. What is written by then
+depends on when the signal came. During the compile, nothing is. During the diagnostics, they are
+finished, as is an `--explain` report, and no document follows. During the document, a file `-o`
+names keeps its previous content, its temporary file removed, unless the document was already being
+moved into place; stdout gets the whole document if its write had begun and none of it if not. A
+second signal ends morphic at once, which can leave the temporary file behind: a dot, the
+destination's name, then digits. A signal morphic was started ignoring stays ignored, as a script's
+shell starts a background job ignoring SIGINT and `nohup` a command ignoring SIGHUP.
 
 #### Compiler options
 

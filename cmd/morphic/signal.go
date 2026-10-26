@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"sync"
 	"syscall"
 	"time"
 )
@@ -22,10 +23,11 @@ func stopSignals() []os.Signal {
 	return []os.Signal{os.Interrupt, syscall.SIGTERM, syscall.SIGHUP}
 }
 
-// catchable returns the signals of sigs that are not ignored. A shell starts a
-// background job with SIGINT ignored, and nohup a command with SIGHUP ignored,
-// so that neither reaches it. Catching one would undo that: signal.Notify
-// replaces an ignored disposition with a handler.
+// catchable returns the signals of sigs that are not ignored. A shell without
+// job control, as a script's is, starts a background job with SIGINT ignored,
+// and nohup a command with SIGHUP ignored, so that neither reaches it. Catching
+// one would undo that: signal.Notify replaces an ignored disposition with a
+// handler.
 func catchable(sigs []os.Signal) []os.Signal {
 	return slices.DeleteFunc(slices.Clone(sigs), signal.Ignored)
 }
@@ -51,7 +53,8 @@ func signalledBy(ctx context.Context) (*signalled, bool) {
 }
 
 // watchSignals returns a context the first of sigs to arrive cancels, with a
-// *signalled cause, and a stop function that ends the watch and must be called.
+// *signalled cause, and a stop function that ends the watch: it must be called,
+// and calling it again does nothing, as calling a context's cancel again does.
 // The first signal also releases them all, so a second takes its default
 // action and ends the process at once: a run that does not stop can still be
 // stopped. Given no sigs it watches none, where signal.Notify would relay all.
@@ -63,7 +66,7 @@ func watchSignals(parent context.Context, sigs []os.Signal) (context.Context, fu
 	w := newWatch(cancel)
 	signal.Notify(w.caught, sigs...)
 	go w.await()
-	return ctx, w.stop
+	return ctx, sync.OnceFunc(w.stop)
 }
 
 // watch turns the first signal relayed to caught into the cancellation of the
@@ -114,10 +117,10 @@ func (w *watch) stop() {
 }
 
 // raise ends the process by sig, which must no longer be caught, as sig's
-// default action ends a process that never caught it. A shell then sees a
-// command a signal stopped, and stops the script running it as well, which an
-// exit status alone does not make it do. raise returns only when sig cannot be
-// sent, or has not ended the process within raiseWait.
+// default action ends a process that never caught it. After a Ctrl-C, a shell
+// stops the script running morphic only if SIGINT ended morphic, not if it
+// exited 130. raise returns only when sig cannot be sent, or has not ended the
+// process within raiseWait.
 func raise(sig os.Signal) {
 	p, err := os.FindProcess(os.Getpid())
 	if err == nil {

@@ -13,9 +13,9 @@ import (
 )
 
 // The tests here change how this process handles signals, which is
-// process-wide, so none of them runs in parallel. The signals they send
-// themselves are SIGUSR1 and SIGUSR2, which a Go program that has not asked
-// for them ignores, so one that arrives with no test watching does no harm.
+// process-wide, so none of them runs in parallel. The one signal they send
+// themselves is SIGUSR1, which a Go program that has not asked for it ignores,
+// so one that arrives with no test watching does no harm.
 
 // arrival bounds the wait for a signal a test sent itself, which takes far
 // less, so only a failing test waits it out.
@@ -26,8 +26,8 @@ const arrival = 10 * time.Second
 // that one rarely does.
 const settle = 200 * time.Millisecond
 
-// noNumber is an os.Signal with no number, which no signal os/signal delivers
-// on this platform is: what raise cannot send and exitCode cannot number.
+// noNumber is an os.Signal without a number, unlike every signal os/signal
+// delivers on this platform: one raise cannot send and exitCode cannot number.
 type noNumber struct{}
 
 func (noNumber) String() string { return "numberless" }
@@ -96,18 +96,17 @@ func TestWatchSignals_TheFirstSignalCancelsTheContext(t *testing.T) {
 }
 
 // TestWatchSignals_StopEndsAWatchThatCaughtNothing pins that stop cancels the
-// context with no signal as its cause, and that a signal after it is no longer
-// the watch's to report.
+// context with no signal as its cause when none came, and that calling it
+// again does nothing, as calling a context's cancel again does.
 func TestWatchSignals_StopEndsAWatchThatCaughtNothing(t *testing.T) {
 	ctx, stop := watchSignals(t.Context(), []os.Signal{syscall.SIGUSR1})
 
 	stop()
-	signalSelf(t)
-	time.Sleep(settle)
+	require.NotPanics(t, stop, "a second stop")
 
 	assert.ErrorIs(t, context.Cause(ctx), context.Canceled)
 	_, ok := signalledBy(ctx)
-	assert.False(t, ok, "a signal after stop is not the run's")
+	assert.False(t, ok, "no signal came, so none is the cause")
 }
 
 // TestWatchSignals_NoSignalsWatchesNone pins the guard on an empty list:
@@ -189,9 +188,13 @@ func TestRaise_SendsTheSignalToThisProcess(t *testing.T) {
 }
 
 // TestRaise_ReturnsASignalItCannotSend pins that a signal the platform cannot
-// send leaves the caller to exit, rather than failing in some other way.
+// send leaves the caller to exit at once: there is nothing to wait for.
 func TestRaise_ReturnsASignalItCannotSend(t *testing.T) {
-	assert.NotPanics(t, func() { raise(noNumber{}) })
+	start := time.Now()
+
+	raise(noNumber{})
+
+	assert.Less(t, time.Since(start), raiseWait, "raise waited for a signal it never sent")
 }
 
 // TestExitStatus_EndsAStoppedRunByItsSignal pins the last step of main: a run

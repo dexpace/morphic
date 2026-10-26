@@ -391,9 +391,9 @@ func TestMain_ASecondSignalEndsARunThatHasNotStopped(t *testing.T) {
 }
 
 // TestMain_ASignalTheShellIgnoredStaysIgnored pins that morphic catches no
-// signal it was started ignoring, as a shell starts a background job with
-// SIGINT and nohup a command with SIGHUP: catching one would undo that. The
-// run ignores both and ends as if neither had been sent.
+// signal it was started ignoring, as a script's shell starts a background job
+// with SIGINT and nohup a command with SIGHUP: catching one would undo that.
+// The run ignores both and ends as if neither had been sent.
 func TestMain_ASignalTheShellIgnoredStaysIgnored(t *testing.T) {
 	t.Parallel()
 	ctx := childContext(t)
