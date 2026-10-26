@@ -68,25 +68,20 @@ func isScalar(k reflect.Kind) bool {
 // control characters a terminal would act on, and at most maxText bytes, cut on
 // a rune boundary and marked when it was cut.
 func oneLine(text string) string {
-	cut := false
-	if len(text) > scanLimit {
-		text, cut = text[:runeStart(text, scanLimit)], true
-	}
-
+	text, readCut := clip(text, scanLimit)
 	text = strings.ToValidUTF8(text, string(utf8.RuneError))
 	text = strings.Join(strings.Fields(text), " ")
 	text = strings.Map(visible, text)
+	text, keptCut := clip(text, maxText)
 
-	if len(text) > maxText {
-		text, cut = text[:runeStart(text, maxText)], true
-	}
-	if cut {
+	switch {
+	case readCut || keptCut:
 		return text + elidedMarker
-	}
-	if text == "" {
+	case text == "":
 		return noText
+	default:
+		return text
 	}
-	return text
 }
 
 // visible maps a control character, which Fields has left only where it is not
@@ -98,11 +93,13 @@ func visible(r rune) rune {
 	return r
 }
 
-// runeStart returns the largest index at most i where a rune of s starts. i
-// must index s.
-func runeStart(s string, i int) int {
-	for i > 0 && !utf8.RuneStart(s[i]) {
-		i--
+// clip returns s cut to at most n bytes, on a rune boundary, and whether it cut.
+func clip(s string, n int) (string, bool) {
+	if len(s) <= n {
+		return s, false
 	}
-	return i
+	for n > 0 && !utf8.RuneStart(s[n]) {
+		n--
+	}
+	return s[:n], true
 }

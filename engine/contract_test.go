@@ -340,7 +340,12 @@ func TestEngine_RunHoldsAPassToWhatItsOutputMustKeep(t *testing.T) {
 		for _, via := range passEntries {
 			t.Run(tt.name+"/"+via.name, func(t *testing.T) {
 				t.Parallel()
-				eng := engineOf(t, faulty{}, tt.pass, unreachedAfter(t, tt.want != nil))
+				// The pass after the one under test must not run after a breach.
+				var after pass.Pass = notePass("after")
+				if tt.want != nil {
+					after = unreachedPass{t: t, name: "after"}
+				}
+				eng := engineOf(t, faulty{}, tt.pass, after)
 
 				res, err := via.run(t, eng, engine.RunOptions{})
 
@@ -357,16 +362,6 @@ func TestEngine_RunHoldsAPassToWhatItsOutputMustKeep(t *testing.T) {
 			})
 		}
 	}
-}
-
-// unreachedAfter is the pass that follows the one under test: it fails the test
-// if it runs after a breach, and otherwise does nothing.
-func unreachedAfter(t *testing.T, afterABreach bool) pass.Pass {
-	t.Helper()
-	if afterABreach {
-		return unreachedPass{t: t, name: "after"}
-	}
-	return notePass("after")
 }
 
 // TestEngine_RunRefusesACompilerStampingAnotherIRVersion is the compile side of

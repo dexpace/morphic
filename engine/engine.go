@@ -270,7 +270,7 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 	if err != nil {
 		return nil, err
 	}
-	out, found, err := runPasses(ctx, doc, sum, p)
+	out, found, err := p.runPasses(ctx, doc, sum)
 	if err != nil {
 		return nil, err
 	}
@@ -370,7 +370,7 @@ func (e *Engine) compile(ctx context.Context, source compilers.Source, docs comp
 	// passes' contract leaves Document.Diagnostics to the engine: a transform
 	// that builds a fresh document cannot lose what the compiler stored on the
 	// old one.
-	doc, found, err := runPasses(ctx, doc, sum, p)
+	doc, found, err := p.runPasses(ctx, doc, sum)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/dexpace/morphic/barrier"
 	"github.com/dexpace/morphic/pass"
 )
 
@@ -68,10 +67,8 @@ func bindPasses(ps []pass.Pass) ([]namedPass, error) {
 // nameOf asks p for its name, behind a barrier.
 func nameOf(p pass.Pass) (string, error) {
 	var name string
-	if perr := barrier.Catch(func() { name = p.Name() }); perr != nil {
-		return "", fmt.Errorf("%w: %w", panicked("Name", perr), pass.ErrContract)
-	}
-	return name, nil
+	err := caught("Name", func() { name = p.Name() })
+	return name, err
 }
 
 // isNilPass reports whether p is unsafe to call: an untyped nil interface or a

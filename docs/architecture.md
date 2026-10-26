@@ -151,14 +151,13 @@ bug, never the spec's.
 A panic is a breach too. Every call the `compilers` package makes of a compiler (`Formats`,
 `Detect`, configuring it through `DecodeOptions`, `Compile` and `SourceTable`) runs behind
 `barrier.Catch`, and the panic comes back as an error wrapping `compilers.ErrContract` and the
-`*barrier.PanicError`. Its message is one line: the method, the value's text bounded and stripped of
-what a terminal would act on, and where the panic was raised. The value and the stack stay beside it
-for a caller that wants them. The registry asks `Formats` once, when the compiler registers, and
-keeps a copy, so no later call can panic outside the registration or disagree with it. A barrier
-recovers the calling goroutine only: a fatal error such as stack exhaustion, a panic on a goroutine
-the compiler started, and a call that never returns are not its to catch. A compiler that ignores
-its context holds `Run` until it returns, because the engine cannot stop a call it did not start on
-a goroutine of its own, and abandoning one would leave it reading the caller's bytes after `Run` had
+`*barrier.PanicError`, whose message is one line and whose value and stack stay beside it for a
+caller that wants them. The registry asks `Formats` once, when the compiler registers, and keeps a
+copy, so no later call can panic outside the registration or disagree with it. A barrier recovers
+the calling goroutine only: a fatal error such as stack exhaustion, a panic on a goroutine the
+compiler started, and a call that never returns are not its to catch. A compiler that ignores its
+context holds `Run` until it returns, because the engine cannot stop a call it did not start on a
+goroutine of its own, and abandoning one would leave it reading the caller's bytes after `Run` had
 returned. The next stage boundary then stops the run, or `Run` returns what it finished if none is
 left.
 

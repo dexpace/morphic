@@ -37,7 +37,7 @@ var errDiagnosticsChanged = errors.New("changed Document.Diagnostics, which the 
 // carries does (Result.Sources).
 var errSourceOutOfRange = errors.New("reported a diagnostic indexing no source")
 
-// runPasses runs passes in order, each over the document the one before it
+// runPasses runs the plan's passes in order, each over the document the one before it
 // returned, and returns the last document with every diagnostic they reported.
 // A pass takes no context, so ctx is checked before each one: a cancelled run
 // stops at the next pass rather than running the rest, and a pass that
@@ -45,7 +45,7 @@ var errSourceOutOfRange = errors.New("reported a diagnostic indexing no source")
 //
 // sum is the fingerprint of doc when the plan verifies, which each pass's
 // result is then held to.
-func runPasses(ctx context.Context, doc *ir.Document, sum fingerprint, p plan) (*ir.Document, []ir.Diagnostic, error) {
+func (p plan) runPasses(ctx context.Context, doc *ir.Document, sum fingerprint) (*ir.Document, []ir.Diagnostic, error) {
 	var found []ir.Diagnostic
 	for _, np := range p.passes {
 		if err := ctx.Err(); err != nil {
@@ -71,8 +71,8 @@ func (p namedPass) run(doc *ir.Document) (*ir.Document, []ir.Diagnostic, error) 
 		next  *ir.Document
 		diags []ir.Diagnostic
 	)
-	if perr := barrier.Catch(func() { next, diags = p.pass.Run(doc) }); perr != nil {
-		return nil, nil, p.breach(panicked("Run", perr))
+	if err := caught("Run", func() { next, diags = p.pass.Run(doc) }); err != nil {
+		return nil, nil, fmt.Errorf("engine: run pass %q: %w", p.name, err)
 	}
 	if err := checkOutput(doc, next, diags); err != nil {
 		return nil, nil, p.breach(err)
@@ -80,9 +80,14 @@ func (p namedPass) run(doc *ir.Document) (*ir.Document, []ir.Diagnostic, error) 
 	return next, diags, nil
 }
 
-// panicked is a panic in one of a pass's methods, as the cause of a breach.
-func panicked(method string, perr error) error {
-	return fmt.Errorf("%s: %w", method, perr)
+// caught runs f, a call of one of a pass's methods, behind a barrier. A panic in
+// it is a breach of that method: the method, what the barrier recovered, then
+// pass.ErrContract.
+func caught(method string, f func()) error {
+	if perr := barrier.Catch(f); perr != nil {
+		return fmt.Errorf("%s: %w: %w", method, perr, pass.ErrContract)
+	}
+	return nil
 }
 
 // breach is err, a duty the pass left unmet, as the error a run fails with.
