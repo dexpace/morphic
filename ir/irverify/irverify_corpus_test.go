@@ -46,12 +46,10 @@ func corpusSpecs(t *testing.T) []string {
 }
 
 // TestVerify_Corpus runs the structural oracle over every document the OpenAPI
-// compiler produces from the committed corpus.
-//
-// It adds the specs harness.Check never reaches: that returns at the first
-// error diagnostic, before irverify.Verify, so the fixtures under
-// testdata/dangling go unverified there. Faulting on a spec is no licence to
-// return a document with a dangling reference.
+// compiler produces from the committed corpus, before any pass and outside the
+// engine: irverify's own hold on real documents, whatever internal/harness
+// does with them. Faulting on a spec is no licence to return a document with a
+// dangling reference.
 //
 // Every dangling fixture is verified, but most of testdata/openapi is cyclic or
 // amplifying by construction and is declined outright, so those subtests skip.

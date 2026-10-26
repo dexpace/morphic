@@ -14,9 +14,9 @@ import (
 	"github.com/dexpace/morphic/barrier"
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
+	"github.com/dexpace/morphic/pass"
 )
 
 // Outcome classifies how a spec fared under the oracles.
@@ -31,10 +31,11 @@ const (
 	OutcomePanic            Outcome = "panic"
 	OutcomeError            Outcome = "error"
 	OutcomeUnrecognized     Outcome = "unrecognized"
-	OutcomeErrorDiag        Outcome = "error-diagnostic"
 	OutcomeViolations       Outcome = "violations"
+	OutcomeErrorDiag        Outcome = "error-diagnostic"
 	OutcomeRoundtrip        Outcome = "roundtrip-mismatch"
 	OutcomeNondeterministic Outcome = "nondeterministic"
+	OutcomeNonIdempotent    Outcome = "non-idempotent"
 	OutcomeOrderDependent   Outcome = "order-dependent"
 )
 
@@ -49,12 +50,13 @@ type Result struct {
 	Detail string
 }
 
-// Check compiles data through the registered compilers under recover() and
-// applies every oracle in order, returning the first failure or OutcomeOK. A
-// panic anywhere in compilation or the oracles is captured as OutcomePanic
-// rather than escaping to the caller. A caller mistake (nil ctx, empty spec
-// identifier) is reported as OutcomeError with a harness-prefixed Detail, so it
-// is never misattributed to the spec as a compiler panic.
+// Check runs data through the engine as `morphic compile --verify` runs a
+// spec, its passes included, under recover() and applies every oracle in order,
+// returning the first failure or OutcomeOK. A panic anywhere in the run or the
+// oracles is captured as OutcomePanic rather than escaping to the caller. A
+// caller mistake (nil ctx, empty spec identifier) is reported as OutcomeError
+// with a harness-prefixed Detail, so it is never misattributed to the spec as a
+// compiler panic.
 func Check(ctx context.Context, spec string, data []byte) (res Result) {
 	res = Result{Spec: spec, Outcome: OutcomeOK}
 	defer func() {
@@ -70,24 +72,40 @@ func Check(ctx context.Context, spec string, data []byte) (res Result) {
 		return Result{Spec: spec, Outcome: OutcomeError, Detail: "harness: empty spec identifier"}
 	}
 
-	doc, diags, err := compile(ctx, spec, data)
+	doc, diags, err := compile(ctx, spec, data, passes())
 	if errors.Is(err, errUnrecognized) {
 		return Result{Spec: spec, Outcome: OutcomeUnrecognized, Detail: err.Error()}
+	}
+	if verr, ok := errors.AsType[*engine.VerifyError](err); ok {
+		return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%s: %+v", verr.Stage, verr.Violations)}
 	}
 	if err != nil {
 		return Result{Spec: spec, Outcome: OutcomeError, Detail: err.Error()}
 	}
-	if d, ok := ir.FirstError(diags); ok {
-		return Result{Spec: spec, Outcome: OutcomeErrorDiag, Detail: d.Code + ": " + d.Message}
+	// Before the spec's own errors: a document breaking the invariants is a
+	// compiler's or a pass's bug whatever the spec says, and the run returns it.
+	// Only a refusal, an error and no document, has nothing to hold. The run's
+	// verification does not reach the findings the engine writes onto the
+	// document after its last stage (#1121), so this hold stays beside it.
+	first, failed := ir.FirstError(diags)
+	if doc != nil || !failed {
+		if vs := irverify.Verify(doc); len(vs) > 0 {
+			return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%+v", vs)}
+		}
 	}
-	if vs := irverify.Verify(doc); len(vs) > 0 {
-		return Result{Spec: spec, Outcome: OutcomeViolations, Detail: fmt.Sprintf("%+v", vs)}
+	if failed {
+		return Result{Spec: spec, Outcome: OutcomeErrorDiag, Detail: first.Code + ": " + first.Message}
 	}
 	if detail, ok := roundTrip(doc); !ok {
 		return Result{Spec: spec, Outcome: OutcomeRoundtrip, Detail: detail}
 	}
 	if detail, ok := deterministic(ctx, spec, data, doc); !ok {
 		return Result{Spec: spec, Outcome: OutcomeNondeterministic, Detail: detail}
+	}
+	// After deterministic: a pass that is not even same-input-same-output would
+	// read as one that changes its own output.
+	if detail, ok := idempotent(ctx, spec, data, doc); !ok {
+		return Result{Spec: spec, Outcome: OutcomeNonIdempotent, Detail: detail}
 	}
 	// Last, and after deterministic: this one permutes the input, so a compiler
 	// that is not even same-input-same-output should be reported as that rather
@@ -107,65 +125,69 @@ var errUnrecognized = errors.New("unrecognized source")
 // compile is, for tests that need a compiler the engine does not carry.
 var registered = engine.Compilers
 
-// newRegistry registers the compilers into a registry of its own. Each call
-// builds a fresh one, so no sweep shares a registry with another. An empty set
-// is refused: every source would then read as unrecognized, blaming the spec
-// for a misconfigured harness.
-func newRegistry() (*compilers.Registry, error) {
-	cs := registered()
-	if len(cs) == 0 {
-		return nil, errors.New("harness: no compilers registered")
-	}
+// passes is the pass list a sweep runs: the engine's default, so a pass that
+// joins it is swept, and held to the idempotence oracle, with no change here.
+// It is a seam, as registered is, for tests that need a pass the default list
+// does not hold.
+var passes = engine.Passes
 
-	reg := compilers.NewRegistry()
-	for i, c := range cs {
-		if err := reg.Register(c); err != nil {
-			return nil, fmt.Errorf("harness: register compiler %d: %w", i, err)
-		}
+// runOptions is what every engine run a sweep makes runs under: verified, so
+// each document a compiler or a pass returns, in every run an oracle makes, is
+// held to irverify's invariants, and each pass to leaving the document it is
+// handed as it was. The walk costs a run more than its compile does; the sweep
+// pays it for the reach. A verify error on the first compile is
+// OutcomeViolations; on a later run, the oracle making it reports it, with the
+// engine's account in its detail.
+func runOptions() engine.RunOptions { return engine.RunOptions{Verify: true} }
+
+// newEngine builds the engine a sweep runs: the registered compilers, and ps
+// as its passes, in order.
+func newEngine(ps []pass.Pass) (*engine.Engine, error) {
+	e, err := engine.New(engine.WithCompilers(registered()...), engine.WithPasses(ps...))
+	if err != nil {
+		return nil, fmt.Errorf("harness: %w", err)
 	}
-	return reg, nil
+	return e, nil
 }
 
-// sweepOptions is what every compiler detects and compiles a swept source
-// with: its defaults, reading the documents a source's references name from
-// disk as a run of the engine does, inside the spec's directory.
-func sweepOptions(compilers.Compiler) (compilers.Options, error) {
-	return compilers.Options{Reader: reader.Disk{}}, nil
-}
-
-// compile lowers one in-memory source with the compiler that claims it, under
-// sweepOptions and without the passes, and holds the outcome to the compiler
-// contract. It returns every finding the compile reported, on either of the
-// compiler's channels. It is a package-level seam: production always uses the
-// registry wired here, while tests replace it to drive the oracle-failure paths
-// a correct compiler never produces — a panic, a document with structural
-// violations, a non-round-tripping document, or a nondeterministic recompile.
-var compile = func(ctx context.Context, spec string, data []byte) (*ir.Document, []ir.Diagnostic, error) {
-	reg, err := newRegistry()
+// compile runs one in-memory source through the engine as `morphic compile
+// --verify` runs a spec, with ps as the passes: data is held as the file at
+// spec, and what its references name is read from disk beside it. It returns
+// the document and every finding of the run, the compiler's and the passes', or
+// errUnrecognized for a source no registered compiler takes.
+//
+// It is a package-level seam: production always runs the engine, while tests
+// replace it to drive the oracle-failure paths a correct compiler never
+// produces: a panic, structural violations, a non-round-tripping document, or
+// a nondeterministic recompile.
+var compile = func(ctx context.Context, spec string, data []byte, ps []pass.Pass) (*ir.Document, []ir.Diagnostic, error) {
+	e, err := newEngine(ps)
 	if err != nil {
 		return nil, nil, err
 	}
-
-	det, ok, err := reg.Detect(ctx, compilers.Source{Path: spec, Data: data}, sweepOptions)
+	res, err := e.RunSpec(ctx, compilers.Source{Path: spec, Data: data}, runOptions())
 	if err != nil {
-		return nil, nil, fmt.Errorf("harness: detect: %w", reraise(err))
+		return nil, nil, fmt.Errorf("harness: %w", reraise(err))
 	}
-	if !ok {
-		diags, err := unrecognized(det)
-		return nil, diags, err
+	if d, ok := ir.FirstError(res.Diagnostics); ok && undetected(d.Code) {
+		return nil, nil, fmt.Errorf("%s: %w", d.Message, errUnrecognized)
 	}
-
-	out, err := det.Compile(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("harness: compile: %w", reraise(err))
-	}
-	return out.Document, out.Diagnostics, nil
+	return res.Document, res.Diagnostics, nil
 }
 
-// reraise returns err, or raises again the panic it records. The registry
-// recovers a compiler's panic into an error, and the first oracle is that none
-// occurs, in the first compile of a source and in each recompile alike, so the
-// panic goes on to Check's recover as it would have without the registry's.
+// undetected reports whether code is one the engine raises, with no document,
+// for a source no registered compiler takes: one nobody recognized, or one in
+// a format this build does not compile, as with Swagger 2.0. A compiler
+// declining a source with its own diagnostics has said the source is its own
+// and broken, which is a refusal like any other.
+func undetected(code string) bool {
+	return code == engine.CodeUnrecognizedFormat || code == engine.CodeNoCompilerForFormat
+}
+
+// reraise returns err, or raises again the panic it records. The engine
+// recovers a compiler's or a pass's panic into an error, and the first oracle
+// is that none occurs, in every run an oracle makes of a source, so the panic
+// goes on to Check's recover as it would have without the engine's.
 func reraise(err error) error {
 	if perr, ok := errors.AsType[*barrier.PanicError](err); ok {
 		panic(perr)
@@ -173,28 +195,13 @@ func reraise(err error) error {
 	return err
 }
 
-// unrecognized answers for a source no registered compiler takes. A compiler
-// that declined it with diagnostics has said why in its own words, with an
-// error (compilers.Compiler.Detect), so those are returned for Check to classify
-// like any refusal, as the engine reports them. Otherwise the source is
-// unrecognized, naming the format a compiler recognized and none serves, as
-// with Swagger 2.0.
-func unrecognized(det compilers.Detection) ([]ir.Diagnostic, error) {
-	if len(det.Declined) > 0 {
-		return det.Declined, nil
-	}
-	if format := det.Recognition.Format; format.Name != "" {
-		return nil, fmt.Errorf("no registered compiler serves %s: %w", format, errUnrecognized)
-	}
-	return nil, fmt.Errorf("no registered compiler recognizes the source: %w", errUnrecognized)
-}
-
 // reserializeJSON re-encodes a value that has already survived a marshal or a
-// compile: the decoded document in roundTrips and the recompiled document in
-// deterministic. It is a package-level seam over json.Marshal that defaults to
-// json.Marshal in production, where such a value can never fail to re-marshal;
-// tests replace it to exercise that otherwise-unreachable defensive error path.
-var reserializeJSON = func(v any) ([]byte, error) { return json.Marshal(v) }
+// compile: the decoded document in roundTrips, the recompiled document in
+// deterministic, and each document the idempotence oracle compares, which a
+// verified run has encoded already. It is a package-level seam over
+// json.Marshal, where such a value can never fail to re-marshal; tests replace
+// it to exercise that otherwise-unreachable defensive error path.
+var reserializeJSON = json.Marshal
 
 // roundTrip is the round-trip oracle Check applies: a package-level seam over
 // roundTrips for the same reason compile is one. A test swaps it to drive
@@ -233,7 +240,7 @@ func deterministic(ctx context.Context, spec string, data []byte, doc *ir.Docume
 	if err != nil {
 		return "marshal first: " + err.Error(), false
 	}
-	recompiled, _, err := compile(ctx, spec, data)
+	recompiled, _, err := compile(ctx, spec, data, passes())
 	if err != nil {
 		return "recompile: " + err.Error(), false
 	}

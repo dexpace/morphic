@@ -270,13 +270,15 @@ if res.Failed {
 return output.ReplaceDocument(ctx, "api.ir.json", res.Document, output.Compact)
 ```
 
-`RunSources` compiles sources already in memory: the first is the spec, every source is a document
-its references or its settings may name by its `Path`, and nothing else is read, so a spec split
-across files compiles without a file written. `RunDocument` runs the passes over a document already
-compiled, such as one decoded from a file. `engine/report` renders diagnostics and `--explain`
-(`report.Explain`) exactly as the CLI prints them, and `engine/output` writes a document as the CLI
-does: to a stream whole or not at all, or to a file replaced atomically. Both take the run's
-context, and a write it cancels leaves no partial document behind.
+`RunSpec` compiles a spec held in memory, such as an edited buffer, as the file at its path, and
+reads every other document from disk as `Run` does. `RunSources` compiles sources already in
+memory: the first is the spec, every source is a document its references or its settings may name
+by its `Path`, and nothing else is read, so a spec split across files compiles without a file
+written. `RunDocument` runs the passes over a document already compiled, such as one decoded from
+a file. `engine/report` renders diagnostics and `--explain` (`report.Explain`) exactly as the CLI
+prints them, and `engine/output` writes a document as the CLI does: to a stream whole or not at
+all, or to a file replaced atomically. Both take the run's context, and a write it cancels leaves
+no partial document behind.
 
 A Go error from `Run` means misuse, I/O or a stage breaking its contract. Everything wrong with the spec itself, including a spec
 no compiler can lower, is a diagnostic in the result, with a nil `Document` when nothing could be
@@ -352,11 +354,12 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   [OpenAPI lowering specification](docs/compilers/openapi.md) it pins. The suite fails on a spec
   with no entry, on a case no rule names, and on a matrix row OpenAPI can express that no case
   witnesses, unless `matrix.md` lists the row as uncovered with a reason.
-- **Oracle harness.** `go run ./cmd/morphic-harness <file|dir>` sweeps specs through the
-  bug-catching oracles, stopping at the first that fires for each: no panic, no error diagnostic,
-  the `ir/irverify` structural invariants, JSON round-trip, determinism, and order-invariance. It
-  exits `1` if any spec fails. `testdata/` holds negative fixtures that fail on purpose, so sweep
-  it with `go test ./internal/harness`, which knows which ones are expected to.
+- **Oracle harness.** `go run ./cmd/morphic-harness <file|dir>` runs specs as
+  `morphic compile --verify` does, passes included, through the bug-catching oracles, stopping at
+  the first that fires for each: no panic, the `ir/irverify` structural invariants, no error
+  diagnostic, JSON round-trip, determinism, pass idempotence, and order-invariance. It exits `1` if
+  any spec fails. `testdata/` holds negative fixtures that fail on purpose, so sweep it with
+  `go test ./internal/harness`, which knows which ones are expected to.
 - **IR census.** `go run ./cmd/morphic-census <file|dir>...` compiles the specs and lists every
   fact of the IR with the number of documents that set it and the number of instances, zeros
   included: each member of its structs, the emptiness of a member whose empty value differs from

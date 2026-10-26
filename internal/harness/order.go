@@ -3,6 +3,7 @@ package harness
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 
@@ -29,7 +30,7 @@ const maxReverseDepth = 1025
 // catches a lowering that depends on which declaration reached a pointer
 // first (#108, #112). Both arms compile the encoder's output (see
 // reencodeMappings). A source whose reversal changes its meaning, or whose
-// re-encoding does not compile, is excluded rather than reported. It proves
+// re-encoding yields no document, is excluded rather than reported. It proves
 // order-independence only for the constructs its input contains, so it runs
 // over the corpus.
 func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool) {
@@ -44,14 +45,18 @@ func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool
 	if bytes.Equal(reversed, baseline) {
 		return "", true // nothing to permute; the oracle has no question to ask
 	}
-	doc, _, err := compile(ctx, spec, baseline)
+	doc, _, err := compile(ctx, spec, baseline, passes())
+	if errors.Is(err, errUnrecognized) {
+		return "", true // the re-encoding reads as no spec, so there is no baseline
+	}
 	if err != nil {
-		return "", true // the re-encoding does not compile, so there is no baseline
+		// A Go error is never the spec's, so it is reported, as on the other arm.
+		return "compile re-encoded: " + err.Error(), false
 	}
 	if doc == nil {
-		return "", true // nor does a source the compiler declines outright
+		return "", true // nor does a re-encoding the compiler declines outright
 	}
-	other, otherDiags, err := compile(ctx, spec, reversed)
+	other, otherDiags, err := compile(ctx, spec, reversed, passes())
 	if err != nil {
 		return "recompile permuted: " + err.Error(), false
 	}
