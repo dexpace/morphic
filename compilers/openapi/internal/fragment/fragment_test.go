@@ -2,6 +2,7 @@ package fragment_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"net/url"
 	"strings"
 	"testing"
@@ -113,7 +114,27 @@ func TestForResolver_SpellsOnlyWhatTheResolverMisreads(t *testing.T) {
 	}
 }
 
-func TestOf_RoundTripsThroughPointerAndTheResolver(t *testing.T) {
+// percentEncoded spells pointer as a fragment with every byte outside a plain
+// set percent-encoded, '+', '%', '#' and whitespace included, so a reader that
+// decodes escapes and nothing else reads exactly pointer back.
+func percentEncoded(pointer jsontext.Pointer) string {
+	const plain = "/~$-_.!*'(),;:@&=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	out := make([]byte, 0, len(pointer))
+	for i := range len(pointer) {
+		b := pointer[i]
+		if strings.IndexByte(plain, b) >= 0 {
+			out = append(out, b)
+			continue
+		}
+		out = append(out, fmt.Sprintf("%%%02X", b)...)
+	}
+	return string(out)
+}
+
+// TestPointer_AgreesWithTheResolverOnAnEncodedFragment pins that Pointer and
+// the resolver read a fragment spelling every special byte as an escape back as
+// the same pointer: neither is left a '+' to read apart.
+func TestPointer_AgreesWithTheResolverOnAnEncodedFragment(t *testing.T) {
 	t.Parallel()
 	tests := []jsontext.Pointer{
 		"/$defs/a+b",
@@ -125,23 +146,23 @@ func TestOf_RoundTripsThroughPointerAndTheResolver(t *testing.T) {
 	for _, p := range tests {
 		t.Run(string(p), func(t *testing.T) {
 			t.Parallel()
-			ref := "#" + fragment.Of(p)
+			ref := "#" + percentEncoded(p)
 			assert.Equal(t, p, fragment.Pointer(ref))
 			assert.Equal(t, p, jsontext.Pointer(references.Reference(ref).GetJSONPointer()))
 		})
 	}
 }
 
-// TestOf_RoundTripsEveryByte holds the same property for every byte value at
-// the start, the middle and the end of a key. The resolver trims the fragment
-// before it decodes it, and a '#' ends it, so those are the places a byte left
-// unencoded would be lost.
-func TestOf_RoundTripsEveryByte(t *testing.T) {
+// TestPointer_ReadsEveryEncodedByte holds the same property for every byte
+// value at the start, the middle and the end of a key. The resolver trims the
+// fragment before it decodes it, and a '#' ends it, so those are the places a
+// byte left unencoded would be lost.
+func TestPointer_ReadsEveryEncodedByte(t *testing.T) {
 	t.Parallel()
 	for b := range 256 {
 		for _, key := range []string{string([]byte{byte(b), 'a'}), string([]byte{'a', byte(b), 'b'}), string([]byte{'a', byte(b)})} {
 			p := jsontext.Pointer("/$defs/" + key)
-			ref := references.Reference("#" + fragment.Of(p))
+			ref := references.Reference("#" + percentEncoded(p))
 			require.Equal(t, p, jsontext.Pointer(ref.GetJSONPointer()), "byte 0x%02x in %q", b, key)
 			require.Equal(t, p, fragment.Pointer(string(ref)), "byte 0x%02x in %q", b, key)
 			require.Empty(t, ref.GetURI(), "byte 0x%02x in %q", b, key)

@@ -225,17 +225,17 @@ type mappingKey struct {
 func (b *binder) mapping(k mappingKey) Mapping {
 	// A discriminator is a position its document holds, so the path reaches it.
 	path, _ := b.docs.path(k.at)
-	m := Mapping{At: k.at, Value: k.value, Hop: b.resolve(k.at, path, k.value, false)}
+	m := Mapping{At: k.at, Hop: b.resolve(k.at, path, k.value, false)}
 	if b.work.over() {
 		m.Hop = Hop{Ref: k.value, Status: OverBudget}
 	}
 	if m.Hop.Status != Resolved {
-		m.Chain = Chain{Status: m.Hop.Status, Failed: k.at}
+		m.Chain = Chain{Status: m.Hop.Status}
 		return m
 	}
 	b.find.landed(m.Hop)
 	if !b.holdsRef(m.Hop.Target) {
-		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Role: m.Hop.Role, Hops: 1}
+		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Hops: 1}
 		return m
 	}
 	m.Chain = b.chain(m.Hop.Target)

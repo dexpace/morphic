@@ -46,6 +46,3 @@ func (d *Diags) AppendAll(xs []ir.Diagnostic) {
 // that owns this Diags, on its way out of Compile. Callers must not retain or
 // mutate it across further Append calls.
 func (d *Diags) List() []ir.Diagnostic { return d.list }
-
-// Len reports how many distinct diagnostics were recorded.
-func (d *Diags) Len() int { return len(d.list) }

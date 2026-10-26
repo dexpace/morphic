@@ -32,9 +32,9 @@ func (b *binder) follow(p Position, path *[]Position, on map[Position]int) Chain
 			return c
 		}
 		if i, looped := on[p]; looped {
-			id := b.closeLoop((*path)[i:])
+			b.closeLoop((*path)[i:])
 			*path = (*path)[:i]
-			return Chain{Status: Cyclic, Loop: id}
+			return Chain{Status: Cyclic}
 		}
 		h := b.hop(p)
 		if b.work.over() {
@@ -44,9 +44,9 @@ func (b *binder) follow(p Position, path *[]Position, on map[Position]int) Chain
 		*path = append(*path, p)
 		switch {
 		case h.Status != Resolved:
-			return Chain{Status: Unresolved, Failed: p}
+			return Chain{Status: Unresolved}
 		case !b.holdsRef(h.Target):
-			return Chain{Status: Resolved, End: h.Target, Role: h.Role}
+			return Chain{Status: Resolved, End: h.Target}
 		}
 		p = h.Target
 	}
@@ -59,16 +59,13 @@ func (b *binder) holdsRef(p Position) bool {
 	return ok
 }
 
-// closeLoop records members as a loop, each settled as its member, and
-// returns the loop's index.
-func (b *binder) closeLoop(members []Position) int {
-	id := len(b.loops)
+// closeLoop records members as a loop, each settled as its member.
+func (b *binder) closeLoop(members []Position) {
 	sorted := slices.SortedFunc(slices.Values(members), b.docs.compare)
 	b.loops = append(b.loops, Loop{Members: sorted})
 	for _, m := range members {
-		b.chains[m] = Chain{Status: Cyclic, Loop: id, Member: true}
+		b.chains[m] = Chain{Status: Cyclic, Member: true}
 	}
-	return id
 }
 
 // placeLoops sets where each loop is reported: its least member, which is

@@ -1,6 +1,8 @@
 package oas_test
 
 import (
+	"go/constant"
+	"go/types"
 	"slices"
 	"strings"
 	"testing"
@@ -10,36 +12,55 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	"github.com/dexpace/morphic/internal/decls"
 )
 
 // minors lists the minors the table covers.
 func minors() []oas.Minor { return []oas.Minor{oas.V30, oas.V31, oas.V32} }
 
-// TestTable_EveryKindHasOneObject pins that the table covers each kind once and
-// that Object finds it.
+// declaredKinds returns the Kind constants package oas declares, read
+// type-checked, so a kind added there is held to the table with no list here to
+// keep in step.
+func declaredKinds(t *testing.T) []oas.Kind {
+	t.Helper()
+	p, err := decls.Load("github.com/dexpace/morphic/compilers/openapi/internal/oas")
+	require.NoError(t, err)
+	kind, err := p.Named("Kind")
+	require.NoError(t, err)
+	var out []oas.Kind
+	for c := range p.Objects[*types.Const]() {
+		if !types.Identical(c.Type(), kind) {
+			continue
+		}
+		v, exact := constant.Uint64Val(c.Val())
+		require.True(t, exact, "%s is no small integer", c.Name())
+		out = append(out, oas.Kind(v))
+	}
+	require.NotEmpty(t, out, "found no kind, so this proves nothing")
+	return out
+}
+
+// TestTable_EveryKindHasOneObject pins that the table covers each declared kind
+// once, that Object finds it, and that it holds no object of a kind the package
+// does not declare.
 func TestTable_EveryKindHasOneObject(t *testing.T) {
 	spec := oas.Table()
+	kinds := declaredKinds(t)
 	seen := map[oas.Kind]bool{}
 	for _, o := range spec.Objects() {
 		assert.False(t, seen[o.Kind], "%s is declared twice", o.Name)
+		assert.Contains(t, kinds, o.Kind, "%s is of no declared kind", o.Name)
 		assert.NotEmpty(t, o.Name)
 		seen[o.Kind] = true
 	}
-	for _, k := range oas.Kinds() {
+	for _, k := range kinds {
 		got, ok := spec.Object(k)
 		require.True(t, ok, "kind %d has no object", k)
 		assert.Equal(t, k, got.Kind)
 	}
+	assert.NotContains(t, kinds, oas.Kind(0), "the zero kind is no object")
 	_, ok := spec.Object(0)
 	assert.False(t, ok, "the zero kind names no object")
-}
-
-// TestTable_ObjectsReturnsACopy pins that a caller cannot edit the table.
-func TestTable_ObjectsReturnsACopy(t *testing.T) {
-	spec := oas.Table()
-	objs := spec.Objects()
-	objs[0].Name = "changed"
-	assert.NotEqual(t, "changed", spec.Objects()[0].Name)
 }
 
 // TestTable_EveryRowCitesTheSpecification pins that each field, pattern and
@@ -74,14 +95,14 @@ func itoa(n int) string { return string(rune('0' + n)) }
 // TestTable_SpansAreWellFormed pins every span the table states.
 func TestTable_SpansAreWellFormed(t *testing.T) {
 	for _, o := range oas.Table().Objects() {
-		assert.True(t, o.Referenceable.Valid(), o.Name)
-		assert.True(t, o.Boolean.Valid(), o.Name)
-		assert.True(t, o.RefSiblings.Valid(), o.Name)
+		assert.True(t, validSpan(o.Referenceable), o.Name)
+		assert.True(t, validSpan(o.Boolean), o.Name)
+		assert.True(t, validSpan(o.RefSiblings), o.Name)
 		for _, f := range o.Fields {
 			where := o.Name + "." + f.Name
-			assert.False(t, f.Defined.Empty(), where+": a field is defined at some minor")
+			assert.NotZero(t, f.Defined, where+": a field is defined at some minor")
 			for _, s := range []oas.Span{f.Defined, f.Required, f.NonEmpty} {
-				assert.True(t, s.Valid(), where)
+				assert.True(t, validSpan(s), where)
 			}
 			for _, m := range minors() {
 				if f.Required.Holds(m) {
@@ -89,18 +110,18 @@ func TestTable_SpansAreWellFormed(t *testing.T) {
 				}
 			}
 			for _, v := range f.Values {
-				assert.True(t, v.Span.Valid() && !v.Span.Empty(), where+" value "+v.Name)
+				assert.True(t, validSpan(v.Span) && v.Span != (oas.Span{}), where+" value "+v.Name)
 			}
 			for _, a := range f.Alts {
-				assert.True(t, a.Span.Valid(), where)
+				assert.True(t, validSpan(a.Span), where)
 			}
 		}
 		for _, p := range o.Patterned {
-			assert.True(t, p.Span.Valid(), o.Name+"."+p.Name)
+			assert.True(t, validSpan(p.Span), o.Name+"."+p.Name)
 		}
 		for i, r := range o.Rules {
-			assert.True(t, r.Span.Valid(), o.Name+" rule "+itoa(i))
-			assert.False(t, r.Span.Empty(), o.Name+" rule "+itoa(i)+" never applies")
+			assert.True(t, validSpan(r.Span), o.Name+" rule "+itoa(i))
+			assert.NotZero(t, r.Span, o.Name+" rule "+itoa(i)+" never applies")
 		}
 	}
 }
@@ -112,7 +133,7 @@ func TestTable_FieldNamesDoNotCollide(t *testing.T) {
 		for i, a := range o.Fields {
 			for _, b := range o.Fields[i+1:] {
 				if a.Name == b.Name {
-					assert.False(t, a.Defined.Overlaps(b.Defined), "%s.%s is defined twice at one minor", o.Name, a.Name)
+					assert.False(t, overlaps(a.Defined, b.Defined), "%s.%s is defined twice at one minor", o.Name, a.Name)
 				}
 			}
 		}
@@ -293,15 +314,4 @@ func TestTable_AgreesWithTheConstructsLaterMinorsAdded(t *testing.T) {
 	slices.SortFunc(want, order)
 	slices.SortFunc(got, order)
 	assert.Empty(t, cmp.Diff(want, got))
-}
-
-// TestKinds_ListsEveryKindOnce pins the enumeration the table tests lean on.
-func TestKinds_ListsEveryKindOnce(t *testing.T) {
-	kinds := oas.Kinds()
-	require.NotEmpty(t, kinds)
-	assert.Equal(t, oas.Document, kinds[0])
-	assert.Equal(t, oas.SecurityRequirement, kinds[len(kinds)-1])
-	for i := 1; i < len(kinds); i++ {
-		assert.Equal(t, kinds[i-1]+1, kinds[i], "the kinds run in sequence")
-	}
 }

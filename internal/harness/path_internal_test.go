@@ -66,6 +66,18 @@ func TestSpecFiles_AnEmptyCompilerSetIsAnError(t *testing.T) {
 	assert.Contains(t, err.Error(), "no compilers registered")
 }
 
+// TestSpecFiles_ACompilerTheRegistryRefusesIsAnError holds listing to the
+// registry it asks: a set the registry refuses, here one carrying a nil
+// compiler, is the harness's fault, named by position, and lists nothing.
+func TestSpecFiles_ACompilerTheRegistryRefusesIsAnError(t *testing.T) {
+	withCompilers(t, nil)
+
+	files, err := SpecFiles(context.Background(), t.TempDir())
+	require.Error(t, err)
+	assert.Nil(t, files)
+	assert.Contains(t, err.Error(), "harness: register compiler 1")
+}
+
 // namelessClaim recognizes every source and names no dialect for it, which the
 // registry refuses as a breach of the compiler contract.
 type namelessClaim struct{ stubCompiler }

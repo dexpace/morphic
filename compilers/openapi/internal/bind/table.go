@@ -303,7 +303,7 @@ func (t *Table) Mapping(at Position, value string) (Mapping, bool) {
 	return m, ok
 }
 
-// Loops returns every loop of $refs, indexed as Chain.Loop indexes them.
+// Loops returns every loop of $refs.
 func (t *Table) Loops() []Loop { return slices.Clone(t.loops) }
 
 // Landings returns every landing, ordered by position.

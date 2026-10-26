@@ -14,11 +14,12 @@ var ErrContract = errors.New("pass broke its contract")
 // Pass is one IR-to-IR step the engine schedules.
 //
 // Name is stable and unique among an engine's passes: a caller disables one by
-// it. Run never panics, never mutates doc and never returns nil: a transform
-// returns a new document sharing what it left unchanged, and an analysis
-// returns doc. Either keeps the IR version and each Sources entry at its index,
-// though it may append more, and reports through diagnostics alone, as the
-// engine owns Document.Diagnostics. A Pass holds no mutable state.
+// it. Run never panics, mutates doc or returns nil: a transform returns a new
+// document sharing what it left unchanged, and an analysis returns doc. Either
+// keeps the IR version and each Sources entry at its index, though it may
+// append, reports through diagnostics alone, as the engine owns
+// Document.Diagnostics, and is idempotent over its run's result, Diagnostics
+// aside. A Pass holds no mutable state.
 //
 // A pass breaking one fails the run, wrapping ErrContract. architecture.md §2.2
 // explains Run's signature.

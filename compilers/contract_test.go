@@ -283,8 +283,7 @@ func TestRegistry_RegisterRefusesAFormatNamingNoDialect(t *testing.T) {
 			err := reg.Register(&stubCompiler{formats: []compilers.SourceFormat{alpha, format}})
 			require.ErrorIs(t, err, compilers.ErrContract)
 			assert.Contains(t, err.Error(), "names no dialect")
-			_, registered := reg.Lookup(alpha)
-			assert.False(t, registered, "on failure nothing is registered")
+			assert.Empty(t, reg.Formats(), "on failure nothing is registered")
 		})
 	}
 }

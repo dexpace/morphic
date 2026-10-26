@@ -94,9 +94,7 @@ func TestRegistry_RegisterRefusesACompilerWhoseFormatsPanic(t *testing.T) {
 
 	requirePanic(t, err, "formats exploded")
 	assert.Contains(t, err.Error(), "compilers: register: Formats: panic: formats exploded")
-	_, found := reg.Lookup(alpha)
-	assert.False(t, found, "on failure nothing is registered")
-	assert.Empty(t, reg.Formats())
+	assert.Empty(t, reg.Formats(), "on failure nothing is registered")
 }
 
 // TestRegistry_DetectRefusesACompilerThatPanics requires a panic in each call
@@ -200,9 +198,7 @@ func TestRegistry_FormatsAreAskedOnce(t *testing.T) {
 	require.NoError(t, compileErr)
 	assert.Equal(t, 1, b.asked["Formats"], "asked at registration alone")
 	assert.Equal(t, alpha, det.Recognition.Format)
-	owner, found := reg.Lookup(alpha)
-	require.True(t, found)
-	assert.Same(t, compilers.Compiler(b), owner)
+	assert.Same(t, compilers.Compiler(b), det.Compiler, "the format it registered under is its own")
 	assert.Equal(t, []compilers.SourceFormat{alpha}, reg.Formats())
 }
 

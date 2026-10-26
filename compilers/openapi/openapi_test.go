@@ -146,10 +146,15 @@ func TestCompile_RecordsSelfURI(t *testing.T) {
 func TestCompile_RegistersInRegistry(t *testing.T) {
 	t.Parallel()
 	reg := compilers.NewRegistry()
-	require.NoError(t, reg.Register(openapi.New()))
-	got, ok := reg.Lookup(compilers.SourceFormat{Name: "openapi", Version: "3.1"})
-	require.True(t, ok)
-	assert.NotNil(t, got)
+	c := openapi.New()
+	require.NoError(t, reg.Register(c))
+	assert.Equal(t, c.Formats(), reg.Formats())
+
+	src := compilers.Source{Data: []byte("openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\n")}
+	det, ok, err := reg.Detect(t.Context(), src, nil)
+	require.NoError(t, err)
+	require.True(t, ok, "the registry hands it the documents it reads")
+	assert.Same(t, compilers.Compiler(c), det.Compiler)
 }
 
 func TestCompile_JSONRoundTrip(t *testing.T) {

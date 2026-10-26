@@ -8,6 +8,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/pass"
 )
 
 // emptySHA256 is the SHA-256 of zero bytes in lowercase hex, the digest a
@@ -70,4 +71,12 @@ func replaceRegistered(t *testing.T, f func() []compilers.Compiler) {
 	orig := registered
 	t.Cleanup(func() { registered = orig })
 	registered = f
+}
+
+// withPasses makes sweeps run ps as their passes for the rest of the test.
+func withPasses(t *testing.T, ps ...pass.Pass) {
+	t.Helper()
+	orig := passes
+	t.Cleanup(func() { passes = orig })
+	passes = func() []pass.Pass { return ps }
 }

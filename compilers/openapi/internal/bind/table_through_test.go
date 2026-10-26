@@ -403,16 +403,16 @@ x-lib:
 `, self)
 	disc := at("/components/schemas/P/discriminator")
 	for value, want := range map[string]bind.Chain{
-		"#/x-lib/a":       {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 2},
-		"#/$defs/D":       {Status: bind.Resolved, End: at("/components/schemas/P/$defs/D"), Role: bind.Schema, Hops: 1},
-		"#/x-lib/h":       {Status: bind.Resolved, End: at("/components/schemas/Holder/$defs/X"), Role: bind.Schema, Hops: 3},
-		"#/x-lib/b":       {Status: bind.Resolved, End: at("/x-lib/b"), Role: bind.Raw, Hops: 1},
-		"#/x-lib/missing": {Status: bind.Unresolved, Failed: disc},
+		"#/x-lib/a":       {Status: bind.Resolved, End: at("/x-lib/b"), Hops: 2},
+		"#/$defs/D":       {Status: bind.Resolved, End: at("/components/schemas/P/$defs/D"), Hops: 1},
+		"#/x-lib/h":       {Status: bind.Resolved, End: at("/components/schemas/Holder/$defs/X"), Hops: 3},
+		"#/x-lib/b":       {Status: bind.Resolved, End: at("/x-lib/b"), Hops: 1},
+		"#/x-lib/missing": {Status: bind.Unresolved},
 	} {
 		m, ok := table.Mapping(disc, value)
 		require.True(t, ok, value)
 		assert.Equal(t, want, m.Chain, value)
-		assert.Equal(t, value, m.Value)
+		assert.Equal(t, disc, m.At, value)
 	}
 	_, ok := table.Mapping(disc, "Cat")
 	assert.False(t, ok, "a bare name is the lowering's to read")

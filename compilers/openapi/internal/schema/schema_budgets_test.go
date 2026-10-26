@@ -77,7 +77,7 @@ components:
 // phase boundary above. The boundary would report the same cancellation with no
 // check here at all, so the assertion is about what was interned: a document
 // declaring components that reaches an already-cancelled walk must leave the
-// registry untouched.
+// registry untouched, holding nothing built or promised once it is finished.
 func TestLowerComponentSchemas_CanceledContextStopsBeforeTheFirstComponent(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -89,12 +89,13 @@ components:
     B: {type: object, properties: {n: {type: string}}}
 `
 	l, _ := schema.LoweredFor(t, spec)
-	require.Zero(t, l.Types.Len(), "nothing is interned before the walk runs")
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	diags := schema.LowerComponentSchemas(ctx, l.Ctx, l.Types)
 
 	assert.Empty(t, diags)
-	assert.Zero(t, l.Types.Len(), "a cancelled walk lowers no component")
+	reg, finished := l.Types.Finish(t.Context())
+	assert.Empty(t, finished)
+	assert.Empty(t, reg, "a cancelled walk lowers no component")
 }

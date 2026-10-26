@@ -151,10 +151,11 @@ type Compiler interface {
 // no package-level default and no init()-time self-registration; the engine
 // composes its registry explicitly. The zero value is a usable empty registry.
 //
-// Concurrent Lookup is safe once registration is complete. Register is not: it
-// writes an unsynchronized map, so every Register must happen before the first
-// concurrent Lookup. Compose a Registry fully before publishing it, the way
-// engine.New registers into a fresh one and only then wraps it.
+// Concurrent Detect and Formats are safe once registration is complete.
+// Register is not: it writes an unsynchronized map, so every Register must
+// happen before the first concurrent read. Compose a Registry fully before
+// publishing it, the way engine.New registers into a fresh one and only then
+// wraps it.
 type Registry struct {
 	// byFormat finds a compiler by format. ordered is registration order, the one
 	// order a caller controls and the order Detect asks in; ranging byFormat would
@@ -478,13 +479,4 @@ func (r *Registry) Formats() []SourceFormat {
 		return strings.Compare(a.Version, b.Version)
 	})
 	return formats
-}
-
-// Lookup returns the compiler registered for format.
-func (r *Registry) Lookup(format SourceFormat) (Compiler, bool) {
-	e, ok := r.byFormat[format]
-	if !ok {
-		return nil, false
-	}
-	return e.c, true
 }

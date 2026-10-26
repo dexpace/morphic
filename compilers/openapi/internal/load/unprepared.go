@@ -494,13 +494,12 @@ func unprepared(doc *soa.OpenAPI, read *externalReads, used []usedDocument) []us
 }
 
 // trail is what a reference's resolution recorded: the document each hop read,
-// first hop first, and either the target it ended on, by absolute reference, or
-// the reference it stopped at unresolved. cut marks a trail followed only as far
-// as maxResolutionHops. endsInSource marks the last document as the source,
-// which a hop resolves against as the model, not as a parsed tree.
+// first hop first, and the reference it stopped at unresolved, if it did. cut
+// marks a trail followed only as far as maxResolutionHops. endsInSource marks
+// the last document as the source, which a hop resolves against as the model,
+// not as a parsed tree.
 type trail struct {
 	docs         []string
-	target       references.Reference
 	stopped      references.Reference
 	cut          bool
 	endsInSource bool
@@ -533,7 +532,6 @@ type chain struct {
 // it, not cut from the absolute one: a document's path may hold a '#'.
 type record struct {
 	path         string
-	target       references.Reference
 	pointer      jsontext.Pointer
 	object       any
 	walk         func(context.Context) iter.Seq[soa.WalkItem]
@@ -568,14 +566,9 @@ func (c chain) endsOnNothing() bool {
 // trail reads what c's records say about where the resolution went.
 func (c chain) trail() trail {
 	t := trail{stopped: c.stopped, cut: c.cut}
-	var last references.Reference
 	for _, r := range c.records {
 		t.docs = append(t.docs, r.path)
 		t.endsInSource = r.inSource()
-		last = r.target
-	}
-	if !c.cut && t.stopped == "" {
-		t.target = last
 	}
 	return t
 }
@@ -631,7 +624,7 @@ func recordsOf[S any, R interface {
 			c.cut = true
 			return c
 		}
-		c.records = append(c.records, record{path: info.AbsoluteDocumentPath, target: info.AbsoluteReference,
+		c.records = append(c.records, record{path: info.AbsoluteDocumentPath,
 			pointer: fragment.Pointer(string(hop.GetReference())), object: info.Object,
 			node: R(info.Object).GetRootNode(), walk: walkOf(info.Object),
 			document: &info.ResolvedDocument, documentPath: &info.AbsoluteDocumentPath, replace: replacing(info)})
