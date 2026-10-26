@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/barrier"
 )
@@ -142,6 +141,7 @@ func TestLine_BoundsTheText(t *testing.T) {
 		{"a megabyte of lines", strings.Repeat("a line\n", 1<<17), true},
 		{"a megabyte of white space before the text", strings.Repeat(" ", 1<<20) + "tail", true},
 		{"sixty-four megabytes", strings.Repeat("y", 64<<20), true},
+		{"bytes of no rune past the read", strings.Repeat("\x80", barrier.ScanLimit+1), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -154,16 +154,22 @@ func TestLine_BoundsTheText(t *testing.T) {
 	}
 }
 
+// TestLine_CutsOnARuneBoundary puts the bound at each byte of a four-byte
+// rune in turn, so the cut backs up none, one, two and three bytes.
 func TestLine_CutsOnARuneBoundary(t *testing.T) {
 	t.Parallel()
-	require.NotZero(t, barrier.MaxText%3, "a euro sign is three bytes, so a cut at the bound lands inside one")
+	const clef = "\U0001D11E"
+	for pad := range len(clef) {
+		head := strings.Repeat("x", pad)
 
-	got := barrier.Line(strings.Repeat("€", 10_000))
+		got := barrier.Line(head + strings.Repeat(clef, barrier.MaxText/len(clef)+1))
 
-	kept := strings.TrimSuffix(got, barrier.ElidedMarker)
-	assert.NotEqual(t, got, kept, "the text was cut")
-	assert.Equal(t, strings.Repeat("€", len(kept)/3), kept, "only whole runes are kept")
-	assert.Greater(t, len(kept), barrier.MaxText-3, "and the cut backs up no further than it must")
+		kept := strings.TrimSuffix(got, barrier.ElidedMarker)
+		assert.NotEqual(t, got, kept, "pad %d: the text was cut", pad)
+		runes := strings.TrimPrefix(kept, head)
+		assert.Equal(t, strings.Repeat(clef, len(runes)/len(clef)), runes, "pad %d: only whole runes are kept", pad)
+		assert.Greater(t, len(kept), barrier.MaxText-len(clef), "pad %d: the cut backs up no further than it must", pad)
+	}
 }
 
 // TestLine_IsBoundedInWorkNotOnlyOutput holds the bound to one on work: past
