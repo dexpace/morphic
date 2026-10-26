@@ -260,9 +260,9 @@ reads every other document from disk as `Run` does. `RunSources` compiles source
 memory: the first is the spec, every source is a document its references or its settings may name
 by its `Path`, and nothing else is read, so a spec split across files compiles without a file
 written. `RunDocument` runs the passes over a document already compiled, such as one decoded from
-a file. `engine/report` renders diagnostics and `--explain`
-(`report.Explain`) exactly as the CLI prints them, and `engine/output` writes a document as the CLI
-does: to a stream whole or not at all, or to a file replaced atomically.
+a file. `engine/report` renders diagnostics and `--explain` (`report.Explain`) exactly as the CLI
+prints them, and `engine/output` writes a document as the CLI does: to a stream whole or not at
+all, or to a file replaced atomically.
 
 A Go error from `Run` means misuse, I/O or a stage breaking its contract. Everything wrong with the spec itself, including a spec
 no compiler can lower, is a diagnostic in the result, with a nil `Document` when nothing could be
