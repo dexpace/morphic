@@ -43,6 +43,9 @@ const (
 type Walk struct {
 	// Nodes bounds how many nodes the walk visits. A walk that would visit
 	// more stops there and reports itself Cut; a bound below one visits none.
+	// It is a cap, not a budget.Limit, whose zero is unbounded: a walk left
+	// unbounded by omission is the one thing it rules out. A walk under a
+	// budget passes the limit's Cap or Past.
 	Nodes int
 	// Depth, when above zero, bounds how deep the walk visits, the root at
 	// depth zero: a node deeper is not visited, and the walk is Cut. Nodes

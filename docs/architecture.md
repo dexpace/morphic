@@ -136,20 +136,22 @@ byte budget, a parsed-node budget and an alias budget for one source document, a
 one enum, and a budget on how many documents external references read in one compile, each with a
 documented default and each settable — zero takes the default, negative turns the budget off.
 Crossing one is a spec problem like any other, so it is an `openapi/budget-exceeded` diagnostic
-rather than a Go error. The byte budget also bounds the read: `Compiler.SourceLimit` reports it, the
-registry takes the largest among the compilers it would ask, and the engine reads the spec, a
-regular file and never a FIFO or a device, no further than one byte past it, where every compiler
-declines it unread. A spec past every budget costs the budget and a byte, not its size, and an
-overlay is read the same way. Time is bounded by the caller instead of by a constant: the work a
-compile does in proportion to the document honours the `context.Context` it is given, so a deadline
-or a cancellation stops it between items and the error reaches the caller unwrapped. In the load
-that is the parse of the source's bytes and every walk of its YAML tree and of the model built from
-it, and in the lowering the walks over what it lowers and the settling after them. The lowering's index of
-`$dynamicAnchor` declarations is the exception: built when a `$dynamicRef` is first lowered, it
-walks the tree reading no context. The load also asks before and after each phase, so no phase
-starts once the context is done and none cut short is built on. Within a phase it asks again before
-each call into the parser library, which reads no context, so a screen or walk a cancel cut short is
-never followed by the library's work on what it left;
+rather than a Go error. Inside the compiler every budget and every work bound counts through one
+type, `compilers/openapi/internal/budget`, so "unbounded" has one spelling and no count overflows;
+what crossing one does stays with the site that counts. The byte budget also bounds the read:
+`Compiler.SourceLimit` reports it, the registry takes the largest among the compilers it would ask,
+and the engine reads the spec, a regular file and never a FIFO or a device, no further than one byte
+past it, where every compiler declines it unread. A spec past every budget costs the budget and a
+byte, not its size, and an overlay is read the same way. Time is bounded by the caller instead of by
+a constant: the work a compile does in proportion to the document honours the `context.Context` it
+is given, so a deadline or a cancellation stops it between items and the error reaches the caller
+unwrapped. In the load that is the parse of the source's bytes and every walk of its YAML tree and
+of the model built from it, and in the lowering the walks over what it lowers and the settling after
+them. The lowering's index of `$dynamicAnchor` declarations is the exception: built when a
+`$dynamicRef` is first lowered, it walks the tree reading no context. The load also asks before and
+after each phase, so no phase starts once the context is done and none cut short is built on. Within
+a phase it asks again before each call into the parser library, which reads no context, so a screen
+or walk a cancel cut short is never followed by the library's work on what it left;
 `TestLoad_DoesNextToNothingOnceItRefusesACancel` counts that work. In the load, the one step a
 cancel waits out is the model build itself, a single call
 ([`parser-library.md`](parser-library.md#context-unread)).
