@@ -15,16 +15,17 @@ import (
 // channel or message by its key, but an Operation, OperationGroup, Service or
 // Property has none, and ir.IDDeclarations drops an empty ID before
 // checkDuplicateIDs sees it (GitHub #289). Classes with a registry are skipped.
-func checkDeclaredIDs(doc *ir.Document) walkCheck {
-	keyed := ir.DocumentRegistries(doc)
+func checkDeclaredIDs(*ir.Document) walkCheck {
+	keyed := ir.KeyedClasses()
+	var ids ir.IDReader
 	var vs []Violation
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
-			class, id, declares := ir.DeclaredIDOf(v)
+			class, id, declares := ids.DeclaredIDOf(v)
 			if !declares {
 				return true
 			}
-			if _, hasRegistry := keyed[class]; hasRegistry {
+			if keyed[class] {
 				return true // the registry key is where these classes are read
 			}
 			vs = appendDeclaredIDViolations(vs, v, class, id, at)

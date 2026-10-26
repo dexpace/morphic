@@ -7,7 +7,7 @@
 // through JSON deterministically. Passes edit types with an [Editor].
 //
 // It also owns shared traversals and helpers: [WalkValues], the bounded,
-// cycle-guarded, deterministic reflection walk; [DocumentRegistries]; the typed
+// cycle-guarded, deterministic reflection walk; [IDReferences]; the typed
 // [ForEachOperation] and [TypeEdges]; [AliasBase], [Supertypes], [IsSubtype]
 // and [ExposedProps] for composition; and [AsMap].
 //

@@ -219,7 +219,7 @@ func TestValidate_WalksTheDocumentOnce(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, walks, "the walking checks must share one walk of the document")
-	assert.Equal(t, 3, visitors, "the walk carries the declarations, the references and the PropIDs")
+	assert.Equal(t, 2, visitors, "the walk carries the references with what they resolve against, and the PropIDs")
 	assert.Equal(t, "validate's", under, "the walk runs under Validate's context")
 	assert.Contains(t, irtest.DiagCodes(got), "ir/dangling-type-ref")
 	assert.Empty(t, cmp.Diff(validated(t, doc), got), "the counted run reports what Validate does")

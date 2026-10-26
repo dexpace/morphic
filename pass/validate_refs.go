@@ -14,24 +14,24 @@ import (
 // into doc.Types, a SchemeUse.Scheme into doc.Auth.
 //
 // Sites and registries come from reflection over the document's own shape
-// (ir.WalkValues, ir.DocumentRegistries), not a list of field names, which
-// would drift behind the IR unnoticed. Integer-index references are enumerated
-// by hand in validate_indices.go, and ir.PropID is checkPropIDRefs's.
+// (ir.IDReferences, which ir/irverify resolves through too), not a list of field
+// names, which would drift behind the IR unnoticed. Integer-index references are
+// enumerated by hand in validate_indices.go, and ir.PropID is checkPropIDRefs's.
 // Provenance.Source is irverify's: a stale index is a compiler bug, and this
 // pass's own ir.NoSource diagnostics would make a document-wide check report
 // its own output.
-func checkDanglingRefs(refs *refSites, decls []ir.IDDeclaration, truncated bool) []ir.Diagnostic {
+func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	if truncated {
 		diags = append(diags, diag(ir.SeverityError, "ir/walk-truncated",
 			"document nests deeper than the bounded reference walk; some references went unchecked",
 			ir.DocumentPath))
 	}
-	for _, s := range refs.unresolved(decls, truncated) {
-		noun := ir.RefNoun(s.idType)
+	for _, ref := range byLocation(refs.Unresolved(truncated)) {
+		noun := ir.RefNoun(ref.Class)
 		diags = append(diags, diag(ir.SeverityError, "ir/dangling-"+noun+"-ref",
-			fmt.Sprintf("%s reference %q at %s resolves to no %s in the registry", noun, s.id, s.where, noun),
-			s.where))
+			fmt.Sprintf("%s reference %q at %s resolves to no %s in the registry", noun, ref.ID, ref.Path, noun),
+			ref.Path))
 	}
 	return diags
 }
@@ -49,90 +49,17 @@ func checkDanglingRefs(refs *refSites, decls []ir.IDDeclaration, truncated bool)
 // Docs.Description's {t:TypeID} tokens are left unchecked: reaching them needs
 // a token parser, and a false positive in prose is noisier than a missing
 // check.
-func checkPropIDRefs(props *propIDSites, decls []ir.IDDeclaration) []ir.Diagnostic {
-	declared := map[ir.PropID]bool{}
-	for _, d := range decls {
-		if d.Class == propIDType {
-			declared[ir.PropID(d.ID)] = true
-		}
-	}
+func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	for _, s := range byLocation(props.sites) {
-		if declared[ir.PropID(s.id)] {
+	for _, ref := range byLocation(props.sites) {
+		if refs.Declares(propIDType, ref.ID) {
 			continue
 		}
 		diags = append(diags, diag(ir.SeverityError, "ir/dangling-prop-ref",
-			fmt.Sprintf("prop reference %q at %s resolves to no property declared in the document", s.id, s.where),
-			s.where))
+			fmt.Sprintf("prop reference %q at %s resolves to no property declared in the document", ref.ID, ref.Path),
+			ref.Path))
 	}
 	return diags
-}
-
-// refSite is one discovered ID reference: the class that made it a reference,
-// its value, and a human-readable location used for diagnostic provenance.
-type refSite struct {
-	idType reflect.Type
-	id     string
-	where  string
-}
-
-// refSites gathers, as an ir.Visitor, the references a walk reaches that may
-// not resolve. The traversal is ir.WalkValues, the one ir/irverify takes too,
-// so both read a document with one bound, cycle guard, order and path spelling.
-//
-// A reference into a registry Document keys by its class resolves or not as the
-// walk reaches it, so only one that does not is kept, path and all. A declared
-// class's registry is complete only once the walk is over, so every reference to
-// one is kept for unresolved to settle. An empty ID is no reference.
-type refSites struct {
-	keyed ir.Registries
-	all   ir.Registries
-	sites []refSite
-}
-
-// newRefSites returns a gatherer of doc's references.
-func newRefSites(doc *ir.Document) *refSites {
-	keyed := ir.DocumentRegistries(doc)
-	return &refSites{keyed: keyed, all: keyed.WithDeclarations(nil)}
-}
-
-// Visit keeps v if it is a reference that may not resolve.
-func (r *refSites) Visit(v reflect.Value, at ir.WalkPath) bool {
-	if v.Kind() != reflect.String || v.String() == "" {
-		return true
-	}
-	t := v.Type()
-	if _, isRef := r.all[t]; !isRef {
-		return true
-	}
-	if reg, keyed := r.keyed[t]; keyed && reg.Has(v.String()) {
-		return true
-	}
-	r.sites = append(r.sites, refSite{idType: t, id: v.String(), where: at.String()})
-	return true
-}
-
-// unresolved returns the kept references that resolve in no registry, sorted by
-// location. Document has no map for OpID, ServiceID or GroupID: an ir.Operation
-// and an ir.OperationGroup are declared in the Service→OperationGroup tree and
-// an ir.Service in a slice (GitHub #50), so their registries come from decls.
-//
-// A registry built from a truncated walk says "not declared" of a node it never
-// reached, so a legitimate operation past the depth bound would be reported as
-// dangling. Dropping those classes can only under-report; checkDanglingRefs's
-// walk-truncated diagnostic says why nothing is claimed for them.
-func (r *refSites) unresolved(decls []ir.IDDeclaration, truncated bool) []refSite {
-	regs := r.keyed
-	if !truncated {
-		regs = r.keyed.WithDeclarations(decls)
-	}
-	var out []refSite
-	for _, s := range r.sites {
-		if reg, held := regs[s.idType]; held && !reg.Has(s.id) {
-			out = append(out, s)
-		}
-	}
-	return byLocation(out)
 }
 
 // byLocation sorts sites by location, in place, and returns them.
@@ -143,9 +70,9 @@ func (r *refSites) unresolved(decls []ir.IDDeclaration, truncated bool) []refSit
 // leaving the pair to sort.Interface's unspecified swap order. Determinism
 // (invariant 7) rests on the ordered map walk: sorting cannot repair a site set
 // whose membership varies under a randomized walk of an aliased graph.
-func byLocation(sites []refSite) []refSite {
-	slices.SortStableFunc(sites, func(a, b refSite) int {
-		return strings.Compare(a.where, b.where)
+func byLocation(sites []ir.IDReference) []ir.IDReference {
+	slices.SortStableFunc(sites, func(a, b ir.IDReference) int {
+		return strings.Compare(a.Path, b.Path)
 	})
 	return sites
 }
@@ -156,9 +83,10 @@ func byLocation(sites []refSite) []refSite {
 // PropID, and the nodes that declare them.
 var propIDType = reflect.TypeFor[ir.PropID]()
 
-// propIDSites gathers, as an ir.Visitor, every ir.PropID reference a walk
-// reaches. The declarations it is resolved against come from the same walk, so
-// a new PropID-carrying field or Property-bearing list is covered at once.
+// propIDSites gathers, as an ir.Visitor, the ir.PropID references a walk
+// reaches that may not resolve. One naming a property refs has already read,
+// the property's own ID among them, resolves, so it is not kept and its path
+// never rendered.
 //
 // A PropID reached as a map key is left out. The one PropID-keyed map the IR
 // declares is Content.Encoding, and checkEncodingKeys resolves those keys
@@ -166,17 +94,21 @@ var propIDType = reflect.TypeFor[ir.PropID]()
 // the same defect. Reporting both would give one defect two codes, which the
 // package doc rules out.
 type propIDSites struct {
-	sites []refSite
+	refs  *ir.IDReferences
+	sites []ir.IDReference
 }
 
-// Visit keeps v if it is a PropID reference.
+// Visit keeps v if it is a PropID reference that may not resolve.
 func (p *propIDSites) Visit(v reflect.Value, at ir.WalkPath) bool {
 	if v.Kind() != reflect.String || v.Type() != propIDType || v.String() == "" {
 		return true
 	}
+	if p.refs.Declares(propIDType, v.String()) {
+		return true
+	}
 	where := at.String()
 	if !strings.HasSuffix(where, ir.MapKeySuffix) {
-		p.sites = append(p.sites, refSite{idType: propIDType, id: v.String(), where: where})
+		p.sites = append(p.sites, ir.IDReference{Class: propIDType, ID: v.String(), Path: where})
 	}
 	return true
 }

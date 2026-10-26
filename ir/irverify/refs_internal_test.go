@@ -2,7 +2,6 @@ package irverify
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,56 +23,6 @@ func docWithRef(target ir.TypeID) *ir.Document {
 		}},
 	}
 	return &ir.Document{Types: ir.TypeRegistry{holder.ID: holder}}
-}
-
-// keptRefs returns the references a refsCollector keeps from one walk of doc.
-func keptRefs(doc *ir.Document) []refSite {
-	refs := newRefsCollector(doc)
-	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(refs.visit))
-	return refs.sites
-}
-
-func TestRefsCollector_KeepsAnUnresolvedTypeRefTarget(t *testing.T) {
-	sites := keptRefs(docWithRef("t/x/Missing"))
-	require.Len(t, sites, 1, "reflection walk should discover the property TypeRef target")
-	assert.Equal(t, refSite{
-		idType: reflect.TypeFor[ir.TypeID](),
-		id:     "t/x/Missing",
-		path:   "doc.Types[t/x/Holder].Properties[0].Type.Target",
-	}, sites[0])
-}
-
-// TestRefsCollector_KeepsNoResolvedKeyedRef holds the collector to settling a
-// reference into a Document-keyed registry as the walk reaches it: one that
-// resolves is not kept, so its path is never rendered.
-func TestRefsCollector_KeepsNoResolvedKeyedRef(t *testing.T) {
-	doc := docWithRef("t/x/Holder")
-	assert.Empty(t, keptRefs(doc), "the holder's own ID and the target both resolve in types")
-}
-
-// TestRefsCollector_KeepsEveryDeclaredClassRef holds the other half: a declared
-// class's registry is complete only once the walk is over, so a reference to one
-// is kept whether or not it will resolve, the declaring node's own ID included.
-func TestRefsCollector_KeepsEveryDeclaredClassRef(t *testing.T) {
-	doc := &ir.Document{Services: []ir.Service{{
-		ID:     "s/x",
-		Groups: []ir.OperationGroup{{ID: "g/x/G", Operations: []ir.Operation{{ID: "op/x/A", OverloadOf: new(ir.OpID("op/x/A"))}}}},
-	}}}
-	kept := keptRefs(doc)
-	ids := make([]string, 0, len(kept))
-	for _, s := range kept {
-		ids = append(ids, s.path+"="+s.id)
-	}
-	assert.Equal(t, []string{
-		"doc.Services[0].ID=s/x",
-		"doc.Services[0].Groups[0].ID=g/x/G",
-		"doc.Services[0].Groups[0].Operations[0].ID=op/x/A",
-		"doc.Services[0].Groups[0].Operations[0].OverloadOf=op/x/A",
-	}, ids)
-}
-
-func TestRefsCollector_SkipsEmptyIDs(t *testing.T) {
-	assert.Empty(t, keptRefs(docWithRef("")), "an empty target is no reference")
 }
 
 // refViolations runs the reference check and drops the truncation flag, which

@@ -81,18 +81,18 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
 	return []func() []ir.Diagnostic{
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
-		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.decls, read.truncated) },
+		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.truncated) },
 		func() []ir.Diagnostic { return checkGroupWalkTruncated(doc) },
 		func() []ir.Diagnostic { return checkServerIndices(doc) },
 		func() []ir.Diagnostic { return checkResponseIndices(doc) },
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },
-		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.decls) },
+		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.refs) },
 		func() []ir.Diagnostic { return checkDiscriminators(doc, facts) },
 		func() []ir.Diagnostic { return checkDuplicateWireNames(doc) },
 		func() []ir.Diagnostic { return checkAmbiguousAliases(doc) },
 		func() []ir.Diagnostic { return checkDuplicateMemberIDs(doc) },
-		func() []ir.Diagnostic { return checkParams(doc, read.decls) },
+		func() []ir.Diagnostic { return checkParams(doc, read.refs) },
 		func() []ir.Diagnostic { return checkIdempotency(doc) },
 		func() []ir.Diagnostic { return checkMessageBindings(doc) },
 		func() []ir.Diagnostic { return checkOneWay(doc) },
@@ -102,11 +102,10 @@ func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir
 }
 
 // walked is what one walk of a document reads for the checks that need it: the
-// identities it declares, the references that may dangle, its PropIDs, and
-// whether the walk was cut short.
+// references that may dangle with the identities they resolve against, its
+// PropIDs, and whether the walk was cut short.
 type walked struct {
-	decls     ir.IDDeclarations
-	refs      *refSites
+	refs      *ir.IDReferences
 	props     *propIDSites
 	truncated bool
 }
@@ -114,8 +113,9 @@ type walked struct {
 // walkDocument reads doc in one walk, taken with walk under ctx, and returns
 // ctx's error alone if the walk stopped at it.
 func walkDocument(ctx context.Context, doc *ir.Document, walk walkFunc) (walked, error) {
-	w := walked{refs: newRefSites(doc), props: &propIDSites{}}
-	truncated, err := walk(ctx, doc, ir.DocumentPath, &w.decls, w.refs, w.props)
+	refs := ir.NewIDReferences(doc)
+	w := walked{refs: refs, props: &propIDSites{refs: refs}}
+	truncated, err := walk(ctx, doc, ir.DocumentPath, w.refs, w.props)
 	if err != nil {
 		return walked{}, err
 	}
