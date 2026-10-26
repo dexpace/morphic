@@ -292,6 +292,26 @@ func TestSequence_DoesNotRefuseOnAnOverstatedCharge(t *testing.T) {
 	assert.Equal(t, int64(before), countNodes(t.Context(), root, maxNodes))
 }
 
+// TestSequence_RefusesNoActionThatBuildsNothing pins that an action adding no
+// node is applied however large the tree it runs on: here a remove, on a tree
+// already past the budget, which it brings back within. Refused, it was
+// reported as growing the document.
+func TestSequence_RefusesNoActionThatBuildsNothing(t *testing.T) {
+	t.Parallel()
+	const head = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n"
+	ov := head + "  - target: $.paths\n    remove: true\n"
+
+	var fresh yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &fresh))
+	before := countNodes(t.Context(), &fresh, maxNodes)
+
+	root, diags, ok := budgetedOverlay(t, ov, int(before)-1)
+
+	require.True(t, ok, "a remove builds nothing, so no budget refuses it: %+v", diags)
+	assert.Empty(t, diags)
+	assert.Less(t, countNodes(t.Context(), root, maxNodes), before-1, "and it was applied")
+}
+
 // TestSequence_AppliesNoActionOnceItsContextRefused cancels a sequence at
 // every check of its context a whole one makes, the recounts its overstated
 // charges take among them, and requires the tree it leaves to be the tree as

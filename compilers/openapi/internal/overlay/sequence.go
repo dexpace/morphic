@@ -92,13 +92,19 @@ func runSequence(ctx context.Context, doc *soaoverlay.Overlay, root *yaml.Node, 
 func (s *sequence) budgeted() bool { return s.maxNodes > 0 }
 
 // charge adds what action can build to the running size and reports whether it
-// still fits, and if not, the size it would reach.
+// still fits, and if not, the size it would reach. An action that builds
+// nothing, a remove among them, fits however large the tree: the source may be
+// past the budget until an action shrinks it, and the node budget is read of
+// the tree the overlay leaves.
 func (s *sequence) charge(ctx context.Context, action soaoverlay.Action) (int64, bool) {
 	if !s.budgeted() {
 		return 0, true
 	}
 	limit := int64(s.maxNodes)
 	cost := s.cost(action, limit)
+	if cost == 0 {
+		return 0, true
+	}
 	if s.size+cost > limit {
 		// The running size only ever overstates, so take the real count before
 		// refusing on it.

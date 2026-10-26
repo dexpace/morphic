@@ -219,6 +219,30 @@ func TestLoad_AnOverlayBuildsWithinTheNodeBudget(t *testing.T) {
 	require.NotNil(t, doc, "the same overlay fits a budget with room for it: %+v", diags)
 }
 
+// TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves pins that a source past
+// the node budget compiles when its overlay removes what crosses it: the
+// budget counts the patched tree, and an action that builds nothing is not
+// refused on the way there.
+func TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves(t *testing.T) {
+	t.Parallel()
+	src := minimal31 + "x-junk: [" + strings.Repeat("j, ", 200) + "j]\n"
+	ov := "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n" +
+		"  - target: $.x-junk\n    remove: true\n"
+
+	bare := Options{MaxSourceNodes: 100}
+	doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(src), bare)
+	require.NoError(t, err)
+	require.Nil(t, doc, "sanity: the source alone is past the budget")
+	require.Equal(t, 1, countErrorsAt(diags, diag.BudgetExceeded), "diagnostics: %+v", diags)
+
+	opts := overlayOf(ov)
+	opts.MaxSourceNodes = bare.MaxSourceNodes
+	doc, diags, err = Load(t.Context(), 0, openapitest.SourceOf(src), opts)
+	require.NoError(t, err)
+	assert.NotNil(t, doc, "the overlay brings it within the budget: %+v", diags)
+	assert.Zero(t, countErrorsAt(diags, diag.BudgetExceeded), "diagnostics: %+v", diags)
+}
+
 // TestLoad_AnOverlayIsHeldToTheByteBudget pins the budget the overlay document
 // never had. It is an input like the source, read in full twice — by the
 // pre-apply refusals and by the library — so it is held to the byte budget the
