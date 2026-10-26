@@ -798,7 +798,8 @@ actions:
 // on instead of merely one it could have.
 func unmodeledEntriesByPath(doc *ir.Document) map[string]ir.UnmodeledEntry {
 	out := map[string]ir.UnmodeledEntry{}
-	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		path := at.String()
 		if !v.CanInterface() {
 			return true
 		}
@@ -806,7 +807,7 @@ func unmodeledEntriesByPath(doc *ir.Document) map[string]ir.UnmodeledEntry {
 			out[path] = entry
 		}
 		return true
-	})
+	}))
 	return out
 }
 

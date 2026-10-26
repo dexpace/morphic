@@ -30,13 +30,14 @@ func newFilled(t *testing.T, kind ir.TypeKind) ir.TypeDef {
 // reaches from td except td's own ID, in the order it reaches them, with the
 // path of each.
 func reflectedEdges(td ir.TypeDef) (ids []ir.TypeID, paths []string) {
-	ir.WalkValues(td, "<root>", func(v reflect.Value, path string) bool {
+	ir.WalkValues(td, "<root>", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		path := at.String()
 		if v.Kind() == reflect.String && v.Type() == typeIDReflect && v.String() != "" && path != "<root>.ID" {
 			ids = append(ids, ir.TypeID(v.String()))
 			paths = append(paths, path)
 		}
 		return true
-	})
+	}))
 	return ids, paths
 }
 
@@ -227,7 +228,7 @@ func TestTypeEdges_OnlyTruncatesWhereTheWalkAlreadyHas(t *testing.T) {
 			t.Parallel()
 			lit := nestedLiteral(wrap, ir.MaxWalkDepth+1)
 			require.Empty(t, slices.Collect(ir.TypeEdges(lit)), "the value is past TypeEdges' bound")
-			assert.True(t, ir.WalkValues(lit, "<root>", func(reflect.Value, string) bool { return true }),
+			assert.True(t, ir.WalkValues(lit, "<root>", ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })),
 				"WalkValues must have truncated on it too")
 		})
 	}

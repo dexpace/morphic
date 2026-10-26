@@ -17,37 +17,39 @@ var (
 // declared entry: Service.Servers and Channel.Servers into Document.Servers,
 // and HTTPBinding.SuccessStatus's keys into the owning operation's Responses.
 //
-// Nothing in an int's type marks it as a reference, so collectRefs cannot reach
-// these: the carriers are named here, and a new one must be too.
+// Nothing in an int's type marks it as a reference, so checkReferentialIntegrity
+// cannot reach these: the carriers are named here, and a new one must be too.
 // Provenance.Source is checked in provenance.go.
 //
 // Reaching fields by name is unchecked by the compiler: a renamed
 // ir.Service.Servers would make the Len() below panic. indexCarrierFields fails
 // when a name or shape drifts, and integerFields fails when the IR grows an
 // integer field nobody has classified.
-func checkIndices(doc *ir.Document, _ declarations) ([]Violation, bool) {
+func checkIndices(doc *ir.Document) walkCheck {
 	declared := len(doc.Servers)
 	var vs []Violation
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.Struct {
-			return true
-		}
-		switch v.Type() {
-		case serviceType, channelType:
-			vs = appendServerIndexViolations(vs, v.FieldByName("Servers"), declared, path)
-		case operationType:
-			vs = appendResponseIndexViolations(vs, v, path)
-		default:
-			// Every other struct carries no index reference of its own.
-		}
-		return true // a service still owns the operations nested below it
-	})
-	return vs, truncated
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Kind() != reflect.Struct {
+				return true
+			}
+			switch v.Type() {
+			case serviceType, channelType:
+				vs = appendServerIndexViolations(vs, v.FieldByName("Servers"), declared, at)
+			case operationType:
+				vs = appendResponseIndexViolations(vs, v, at)
+			default:
+				// Every other struct carries no index reference of its own.
+			}
+			return true // a service still owns the operations nested below it
+		},
+		report: reporting(&vs),
+	}
 }
 
 // appendServerIndexViolations appends to vs a violation per entry of a Servers
 // field that addresses none of the declared servers.
-func appendServerIndexViolations(vs []Violation, servers reflect.Value, declared int, path string) []Violation {
+func appendServerIndexViolations(vs []Violation, servers reflect.Value, declared int, at ir.WalkPath) []Violation {
 	for i := range servers.Len() {
 		index := int(servers.Index(i).Int())
 		if index >= 0 && index < declared {
@@ -57,7 +59,7 @@ func appendServerIndexViolations(vs []Violation, servers reflect.Value, declared
 			Code: "ir/server-index-out-of-range",
 			Message: "server index " + strconv.Itoa(index) + " addresses none of the " +
 				strconv.Itoa(declared) + " declared servers",
-			Path: path + ".Servers[" + strconv.Itoa(i) + "]",
+			Path: at.String() + ".Servers[" + strconv.Itoa(i) + "]",
 		})
 	}
 	return vs
@@ -65,13 +67,12 @@ func appendServerIndexViolations(vs []Violation, servers reflect.Value, declared
 
 // appendResponseIndexViolations appends to vs a violation per SuccessStatus key
 // on one operation's HTTP bindings that addresses no response it declares.
-func appendResponseIndexViolations(vs []Violation, op reflect.Value, path string) []Violation {
+func appendResponseIndexViolations(vs []Violation, op reflect.Value, at ir.WalkPath) []Violation {
 	declared := op.FieldByName("Responses").Len()
 	bindings := op.FieldByName("Bindings").FieldByName("HTTP")
 	for i := range bindings.Len() {
-		at := path + ".Bindings.HTTP[" + strconv.Itoa(i) + "]"
 		status := bindings.Index(i).FieldByName("SuccessStatus")
-		vs = appendSuccessStatusViolations(vs, status, declared, at)
+		vs = appendSuccessStatusViolations(vs, status, declared, at, i)
 	}
 	return vs
 }
@@ -80,7 +81,7 @@ func appendResponseIndexViolations(vs []Violation, op reflect.Value, path string
 // SuccessStatus map that addresses none of the declared responses. Keys need no
 // sorting first: every violation carries its own key in Path, and Verify orders
 // the whole result by (Code, Path) before returning it.
-func appendSuccessStatusViolations(vs []Violation, status reflect.Value, declared int, path string) []Violation {
+func appendSuccessStatusViolations(vs []Violation, status reflect.Value, declared int, op ir.WalkPath, binding int) []Violation {
 	iter := status.MapRange()
 	for iter.Next() {
 		index := int(iter.Key().Int())
@@ -91,7 +92,7 @@ func appendSuccessStatusViolations(vs []Violation, status reflect.Value, declare
 			Code: "ir/response-index-out-of-range",
 			Message: "response index " + strconv.Itoa(index) + " addresses none of the " +
 				strconv.Itoa(declared) + " declared responses",
-			Path: path + ".SuccessStatus[" + strconv.Itoa(index) + "]",
+			Path: op.String() + ".Bindings.HTTP[" + strconv.Itoa(binding) + "].SuccessStatus[" + strconv.Itoa(index) + "]",
 		})
 	}
 	return vs

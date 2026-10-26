@@ -129,7 +129,7 @@ func (c *cloner) entries(dst, v reflect.Value, depth int) {
 	c.copies[key] = out
 	dst.Set(out)
 	elem := v.Type().Elem()
-	for _, e := range orderedEntries(v) {
+	for _, e := range appendOrderedEntries(nil, v) {
 		value := reflect.New(elem).Elem()
 		c.fill(value, e.value, depth+1)
 		out.SetMapIndex(e.key, value)

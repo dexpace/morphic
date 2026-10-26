@@ -26,12 +26,16 @@ func checkIDs(doc *ir.Document) []Violation {
 		if ir.IsNilTypeDef(td) {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
-		vs = appendIDViolations(vs, ir.IDKindType, string(id),
-			td.Common().Provenance, "types["+string(id)+"]")
+		if v, bad := idDefect(ir.IDKindType, string(id), td.Common().Provenance); bad {
+			v.Path = "types[" + string(id) + "]"
+			vs = append(vs, v)
+		}
 	}
 	for id, scheme := range doc.Auth {
-		vs = appendIDViolations(vs, ir.IDKindAuth, string(id),
-			scheme.Provenance, "auth["+string(id)+"]")
+		if v, bad := idDefect(ir.IDKindAuth, string(id), scheme.Provenance); bad {
+			v.Path = "auth[" + string(id) + "]"
+			vs = append(vs, v)
+		}
 	}
 	return append(vs, checkMemberIDs(doc)...)
 }
@@ -70,13 +74,13 @@ var pointerDerived = map[reflect.Type]bool{
 //
 // It is the grammar checkIDs holds a type's or a scheme's to, for the classes
 // that have no registry for checkIDs to read.
-func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflect.Type, id, path string) []Violation {
+func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflect.Type, id string, at ir.WalkPath) []Violation {
 	if id == "" {
 		noun := ir.RefNoun(class)
 		return append(vs, Violation{
 			Code:    "ir/empty-" + noun + "-id",
 			Message: noun + " declares no identity of its own, so nothing can reference it",
-			Path:    path,
+			Path:    at.String(),
 		})
 	}
 	prefix, held := kindPrefixes[class]
@@ -87,7 +91,12 @@ func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflec
 	if pointerDerived[class] {
 		prov.Pointer = recordedPointer(node)
 	}
-	return appendIDViolations(vs, prefix, id, prov, path)
+	v, bad := idDefect(prefix, id, prov)
+	if !bad {
+		return vs
+	}
+	v.Path = at.String()
+	return append(vs, v)
 }
 
 // recordedPointer returns the pointer the Provenance beside a node's ID records,
@@ -167,27 +176,27 @@ func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind, path st
 	})
 }
 
-// appendIDViolations reports the ways one ID can fail to be a derived one.
-func appendIDViolations(vs []Violation, kind, id string, prov ir.Provenance, path string) []Violation {
+// idDefect returns the way one ID fails to be a derived one, if it does, with
+// no Path: the caller spells where, and only once there is a defect to place.
+// The two ways exclude each other, since a malformed ID has no path to compare.
+func idDefect(kind, id string, prov ir.Provenance) (Violation, bool) {
 	if !ir.WellFormedID(kind, id) {
-		return append(vs, Violation{
+		return Violation{
 			Code:    "ir/id-malformed",
 			Message: "id " + strconv.Quote(id) + " is not " + kind + "/<space>[/<path>]; every segment must be non-empty",
-			Path:    path,
-		})
+		}, true
 	}
 	if prov.Pointer == "" {
-		return vs // nothing was recorded to disagree with
+		return Violation{}, false // nothing was recorded to disagree with
 	}
 	idPath, _ := ir.IDPath(kind, id)
 	want := strings.TrimPrefix(string(prov.Pointer), ir.IDSeparator)
 	if idPath == want {
-		return vs
+		return Violation{}, false
 	}
-	return append(vs, Violation{
+	return Violation{
 		Code: "ir/id-provenance-disagreement",
 		Message: "id " + strconv.Quote(id) + " carries path " + strconv.Quote(idPath) +
 			", which is not the source pointer " + strconv.Quote(string(prov.Pointer)) + " it records",
-		Path: path,
-	})
+	}, true
 }

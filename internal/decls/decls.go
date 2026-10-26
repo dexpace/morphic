@@ -289,6 +289,35 @@ func (p *Package) TypesDeclaring(method string) []string {
 	return out
 }
 
+// FuncsUsing returns, sorted, the names of the package's functions and methods
+// whose declarations name obj, in the receiver, the signature or the body. obj
+// is compared as an object, so it must be the copy the package sees, as
+// Imported reaches it.
+func (p *Package) FuncsUsing(obj types.Object) []string {
+	var out []string
+	for _, f := range p.Syntax {
+		for _, decl := range f.Decls {
+			fn, isFunc := decl.(*ast.FuncDecl)
+			if isFunc && p.names(fn, obj) {
+				out = append(out, fn.Name.Name)
+			}
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// names reports whether fn's declaration names obj anywhere in it.
+func (p *Package) names(fn *ast.FuncDecl, obj types.Object) bool {
+	for node := range ast.Preorder(fn) {
+		ident, isIdent := node.(*ast.Ident)
+		if isIdent && p.Info.Uses[ident] == obj {
+			return true
+		}
+	}
+	return false
+}
+
 // declares reports whether named declares the method itself.
 func declares(named *types.Named, method string) bool {
 	for m := range named.Methods() {

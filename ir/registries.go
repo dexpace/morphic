@@ -161,26 +161,23 @@ type IDDeclaration struct {
 	Path string
 }
 
-// DeclaredIDs returns every identity the nodes of doc declare, in walk order,
-// and reports whether the bounded walk was cut short.
-//
-// Reading declarations off the value graph covers a new ID-bearing node the
-// moment it exists. It answers what [DocumentRegistries] cannot: which IDs a
-// class declares when Document holds no map for it, and whether one ID is
-// declared twice, which a map key cannot express.
+// IDDeclarations collects, as a [Visitor], the identities the values its walk
+// reaches declare, in walk order. Reading them off the value graph covers a new
+// ID-bearing node the moment it exists, and answers what [DocumentRegistries]
+// cannot: which IDs a class declares when Document holds no map for it, and
+// whether one ID is declared twice.
 //
 // An empty ID is skipped, since nothing can reference one and several nodes
 // carrying one are not duplicates. Reporting it is irverify.checkRegistryKeys's
 // job for a map-keyed class and irverify.checkDeclaredIDs's for the rest.
-func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
-	var decls []IDDeclaration
-	truncated := WalkValues(doc, DocumentPath, func(v reflect.Value, path string) bool {
-		if class, id, declares := DeclaredIDOf(v); declares && id != "" {
-			decls = append(decls, IDDeclaration{Class: class, ID: id, Path: path})
-		}
-		return true
-	})
-	return decls, truncated
+type IDDeclarations []IDDeclaration
+
+// Visit records the identity v declares, if any, and asks for v's children.
+func (d *IDDeclarations) Visit(v reflect.Value, at WalkPath) bool {
+	if class, id, declares := DeclaredIDOf(v); declares && id != "" {
+		*d = append(*d, IDDeclaration{Class: class, ID: id, Path: at.String()})
+	}
+	return true
 }
 
 // DeclaredIDOf returns the class of ID v declares for itself, that ID, and
@@ -189,7 +186,7 @@ func DeclaredIDs(doc *Document) ([]IDDeclaration, bool) {
 // struct's declaration, not v's.
 //
 // An empty ID is reported with declares true, so a checker can flag it where
-// [DeclaredIDs] drops it. A value that is no such struct, a pointer, a
+// [IDDeclarations] drops it. A value that is no such struct, a pointer, a
 // non-struct and the zero [reflect.Value] included, declares nothing.
 func DeclaredIDOf(v reflect.Value) (class reflect.Type, id string, declares bool) {
 	if !v.IsValid() {

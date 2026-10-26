@@ -228,6 +228,21 @@ func TestVerify_InvalidRawConfigValueIsAViolation(t *testing.T) {
 	}
 }
 
+// TestVerify_RawConfigEntryWithAnEmptyKeyIsSpelledAsTheWalkSpellsIt pins the
+// path of a protocol config entry keyed "", which the walk renders as empty
+// brackets. An Unmodeled entry so keyed spells "" quoted instead, because its
+// empty key is a defect of its own.
+func TestVerify_RawConfigEntryWithAnEmptyKeyIsSpelledAsTheWalkSpellsIt(t *testing.T) {
+	doc := validDoc()
+	doc.Servers = []ir.Server{{Name: named("a"), URLTemplate: "https://x", Bindings: map[string]ir.RawConfig{
+		"kafka": {"": ir.RawValue(`{`)},
+	}}}
+	got := verifyDeclared(doc)
+	require.Len(t, got, 1)
+	assert.Equal(t, "ir/invalid-raw-value", got[0].Code)
+	assert.Equal(t, "doc.Servers[0].Bindings[kafka][]", got[0].Path)
+}
+
 // TestVerify_ValidRawConfigIsClean pins the negative half at every carrier: a
 // declared protocol binding holding real JSON must pass everywhere.
 func TestVerify_ValidRawConfigIsClean(t *testing.T) {

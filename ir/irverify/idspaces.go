@@ -23,11 +23,19 @@ const idSpacesPath = ir.DocumentPath + ".IDSpaces"
 //
 // A document declaring nothing while carrying IDs is reported once, as a
 // producer that forgot, like a missing irVersion.
-func checkIDSpaces(doc *ir.Document, decls declarations) ([]Violation, bool) {
+func checkIDSpaces(doc *ir.Document) walkCheck {
+	// The declarations are all it reads, so it visits nothing itself.
+	return walkCheck{report: func(decls declarations) []Violation {
+		return idSpaceViolations(doc, decls.ids)
+	}}
+}
+
+// idSpaceViolations is checkIDSpaces' finding over the identities decls.
+func idSpaceViolations(doc *ir.Document, decls []ir.IDDeclaration) []Violation {
 	vs := declarationViolations(doc.IDSpaces)
 	declared := declaredSpaces(doc.IDSpaces)
 	var carried int
-	for _, d := range decls.ids {
+	for _, d := range decls {
 		prefix, held := kindPrefixes[d.Class]
 		if !held {
 			continue
@@ -53,7 +61,7 @@ func checkIDSpaces(doc *ir.Document, decls declarations) ([]Violation, bool) {
 			Path:    idSpacesPath,
 		})
 	}
-	return vs, decls.truncated
+	return vs
 }
 
 // declaredSpaces returns the declaration as sets, for membership.
