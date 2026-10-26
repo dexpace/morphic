@@ -61,9 +61,7 @@ func CanonicalWords(name string) string {
 	if len(name) > stackRendering/2 {
 		return canonicalWordsExactly(name)
 	}
-	// Rendered on the stack, so the string is the one allocation: a name
-	// renders in at most twice its length, as
-	// TestCanonicalWords_RendersInAtMostTwiceItsLength holds of every rune.
+	// Rendered on the stack, so the string is the one allocation.
 	var buf [stackRendering]byte
 	words := buf[:0]
 	for r := range canonicalRunes(name) {
@@ -76,8 +74,9 @@ func CanonicalWords(name string) string {
 }
 
 // stackRendering is how many bytes CanonicalWords renders a name into on the
-// stack. A name renders in at most twice its length, so one of up to half of
-// it fits there; a longer name takes canonicalWordsExactly.
+// stack. A name renders in at most twice its length, as
+// TestCanonicalWords_RendersInAtMostTwiceItsLength holds of every rune, so one
+// of up to half of it fits there; a longer name takes canonicalWordsExactly.
 const stackRendering = 256
 
 // canonicalWordsExactly is CanonicalWords for a name whose canonical form could
