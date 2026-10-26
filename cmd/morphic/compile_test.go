@@ -476,9 +476,10 @@ func (c cancellingCompile) Compile(ctx context.Context, sources []compilers.Sour
 
 // TestRunPipeline_ARunCancelledInItsLastStageWritesNothing pins what a run
 // cancelled in its last stage leaves, whatever that stage made of it: a
-// detection that declined, a compile that refused, or a pass that handed back
-// what the compile found. No diagnostic and no document are written, and the
-// run fails naming what cancelled it. The engine fails a run whose stage
+// detection that declined, a compile that refused with a finding, or a pass
+// that handed back the document of a compile that found something. No
+// diagnostic and no document are written, and the run fails naming what
+// cancelled it. The engine fails a run whose stage
 // returned once its context had ended, and the CLI reports a stop only for a
 // run that failed.
 func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {

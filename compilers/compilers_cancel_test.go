@@ -12,9 +12,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// cancellingDetect is a compiler whose Detect cancels the run and answers what
-// no detection may: a claim naming no format, which the registry would refuse
-// as a breach were it judged, or, when declines is set, a silent decline.
+// cancellingDetect is a compiler whose Detect cancels the run and then answers
+// in a way that would mislead were it judged: a claim naming no format, which
+// the registry would refuse as a breach, or, when declines is set, a silent
+// decline, which would report a source no compiler takes.
 type cancellingDetect struct {
 	stubCompiler
 	cancel   context.CancelFunc
