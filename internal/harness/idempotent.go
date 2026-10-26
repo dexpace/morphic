@@ -18,10 +18,10 @@ import (
 // it returned, and each twice: the second time over what its first run
 // returned, findings and all, which it must return again (pass.Pass). Then it
 // holds result, what the sweep's run of every pass returned, to being settled.
+// No run that turns passes off is swept on its own.
 //
 // RunDocument holds the pass to the rest of its contract on every run.
-// Diagnostics are not compared, since the engine writes them and a rerun may
-// report differently.
+// Diagnostics are not compared (encodeOwn).
 func idempotent(ctx context.Context, spec string, data []byte, result *ir.Document) (string, bool) {
 	alone, err := eachAlone(passes())
 	if err != nil {
