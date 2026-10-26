@@ -3,7 +3,7 @@ package nodeview
 import (
 	"slices"
 
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // Step is what a Walk's visitor asks of the node it was handed.

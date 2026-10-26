@@ -65,7 +65,7 @@ linters:
       # member declares is not refused: it is dead, and a literal spelling a
       # member's value does not count as naming that member.
       default-signifies-exhaustive: false
-      ignore-enum-types: ^([^.]+|gopkg\.in/yaml\.v3|github\.com/speakeasy-api/openapi/.+|github\.com/dexpace/morphic/([^i.][^.]*|i[^r.][^.]*|ir[^.]+|i))\.\w+$
+      ignore-enum-types: ^([^.]+|go\.yaml\.in/yaml/v3|github\.com/speakeasy-api/openapi/.+|github\.com/dexpace/morphic/([^i.][^.]*|i[^r.][^.]*|ir[^.]+|i))\.\w+$
     forbidigo:
       # Invariant 5: a pipeline stage writes nothing to stdout or stderr and
       # logs nothing. It returns diagnostics, and the engine or the CLI decides

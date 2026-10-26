@@ -9,7 +9,7 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	"github.com/speakeasy-api/openapi/marshaller"
-	yaml "gopkg.in/yaml.v3"
+	yaml "go.yaml.in/yaml/v3"
 )
 
 // maxNavigableHops bounds how many objects ReadingOf reads through to the one
