@@ -1,10 +1,12 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -284,30 +286,31 @@ func (e *Engine) RunDocument(ctx context.Context, doc *ir.Document, opts RunOpti
 
 // runHeld runs the pipeline over spec, whose bytes it holds, and judges the
 // Result at failOn. A reference or a setting naming spec.Path is served those
-// bytes, so the run reads one spec even where a compiler asks for it again.
-// Every other document is read from disk.
+// bytes, each named as its own reader names a document, so the run reads one
+// spec even where a compiler asks for it again. Every other document is read
+// from disk.
 func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, passes []pass.Pass,
 	failOn threshold,
 ) (*Result, error) {
-	held := hold(spec)
+	// A setting names a file as os.ReadFile does, with no URI and no context,
+	// so whether it names the spec is a comparison of paths, not a read that
+	// could fail for another reason and send the read to disk.
 	readFile := func(name string) ([]byte, error) {
-		if held != nil {
-			if data, err := held.ReadDocument(ctx, compilers.DocumentRequest{Location: name}); err == nil {
-				return data, nil
-			}
+		if filepath.Clean(name) == filepath.Clean(spec.Path) {
+			return bytes.Clone(spec.Data), nil
 		}
 		return os.ReadFile(name)
 	}
-	res, err := e.compile(ctx, spec, reader.Layered{Held: held}, readFile, opts, passes)
+	res, err := e.compile(ctx, spec, reader.Layered{Held: hold(spec)}, readFile, opts, passes)
 	if err != nil {
 		return nil, err
 	}
 	return failOn.judge(res)
 }
 
-// hold returns a Memory serving spec at its path, or nil for a path no request
-// can name, such as a file whose name reads as an opaque URI: no reference can
-// name that spec either, so there is nothing to serve.
+// hold returns a Memory serving spec at its path to the references, or nil for
+// a path no document request can name, such as a file whose name reads as an
+// opaque URI: no reference can name that spec either.
 func hold(spec compilers.Source) *reader.Memory {
 	held, err := reader.NewMemory([]compilers.Source{spec})
 	if err != nil {

@@ -2,6 +2,8 @@ package engine_test
 
 import (
 	"context"
+	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,13 +22,17 @@ import (
 // names its document by what that read returned, so a test sees which bytes a
 // run serves for the spec's own path. Its "read" setting names a file to read
 // as a setting does, whose bytes become the document's Version. before, when
-// set, runs ahead of the read.
+// set, runs ahead of the read, and decoding ahead of decoding the settings.
 type rereadCompiler struct {
 	stubFront
-	before func(path string)
+	before   func(path string)
+	decoding func()
 }
 
-func (rereadCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
+func (c rereadCompiler) DecodeOptions(set compilers.OptionSet) (any, error) {
+	if c.decoding != nil {
+		c.decoding()
+	}
 	name, ok := set.Settings["read"]
 	if !ok {
 		return nil, nil
@@ -72,18 +78,20 @@ func TestEngine_RunSpecCompilesTheHeldBytesBesideFilesOnDisk(t *testing.T) {
 
 // TestEngine_RunSpecServesTheHeldSpecWhereverItsPathIsRead pins that the held
 // bytes stand for the file through the whole run: a compiler reading the
-// spec's path again is served them, and so is a setting naming that path,
-// while a setting naming another file reads it from disk.
+// spec's path again is served them, and so is a setting naming that path, dot
+// segments or none, while a setting naming another file reads it from disk.
 func TestEngine_RunSpecServesTheHeldSpecWhereverItsPathIsRead(t *testing.T) {
 	t.Parallel()
 	eng, err := engine.New(engine.WithCompilers(rereadCompiler{}))
 	require.NoError(t, err)
 	spec := writeNamed(t, "spec.yaml", "on disk")
-	other := filepath.Join(filepath.Dir(spec), "other.yaml")
+	dir, sep := filepath.Dir(spec), string(filepath.Separator)
+	other := filepath.Join(dir, "other.yaml")
 	require.NoError(t, os.WriteFile(other, []byte("other"), 0o644))
 
 	for _, tc := range []struct{ name, setting, want string }{
 		{"a setting naming the spec", spec, "held"},
+		{"a setting naming the spec with dot segments", dir + sep + "." + sep + "spec.yaml", "held"},
 		{"a setting naming another file", other, "other"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -138,6 +146,69 @@ func TestEngine_RunSpecAtAPathNoRequestCanName(t *testing.T) {
 	require.NotNil(t, res.Document, "diagnostics: %+v", res.Diagnostics)
 	assert.Equal(t, "Patched", res.Document.Name)
 	assert.Equal(t, "file:held.yaml", res.Sources[0].Path)
+}
+
+// settingCompiler names its document by what its "read" setting read, and
+// reads nothing through the reader, so a spec no request can name compiles.
+type settingCompiler struct{ rereadCompiler }
+
+func (settingCompiler) Compile(_ context.Context, sources []compilers.Source, opts compilers.Options) (*ir.Document, []ir.Diagnostic, error) {
+	setting, _ := opts.FormatOptions.(string)
+	return &ir.Document{Name: setting, Types: ir.TypeRegistry{}, Sources: sourcesOf("openapi@3.1", sources)}, nil, nil
+}
+
+// TestEngine_RunSpecServesASettingNamingASpecNoRequestCanName pins that a
+// spec at a path no reference can name is still the file a setting names by
+// that path: the setting is served the held bytes, though no file is there.
+func TestEngine_RunSpecServesASettingNamingASpecNoRequestCanName(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New(engine.WithCompilers(settingCompiler{}))
+	require.NoError(t, err)
+
+	res, err := eng.RunSpec(t.Context(), compilers.Source{Path: "file:held.yaml", Data: []byte("held")},
+		engine.RunOptions{CompilerOptions: map[string]string{"read": "file:held.yaml"}})
+
+	require.NoError(t, err)
+	require.NotNil(t, res.Document)
+	assert.Equal(t, "held", res.Document.Name)
+}
+
+// TestEngine_RunSpecReadsASettingAsAPath pins that holding the spec leaves a
+// setting naming files as it names every other: by path, as os.ReadFile does.
+// A file URI naming the spec is a path no file has, so the run fails as one
+// naming any missing file does.
+func TestEngine_RunSpecReadsASettingAsAPath(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New(engine.WithCompilers(rereadCompiler{}))
+	require.NoError(t, err)
+	spec := writeNamed(t, "spec.yaml", "on disk")
+	uri := (&url.URL{Scheme: "file", Path: filepath.ToSlash(spec)}).String()
+
+	res, err := eng.RunSpec(t.Context(), compilers.Source{Path: spec, Data: []byte("held")},
+		engine.RunOptions{CompilerOptions: map[string]string{"read": uri}})
+
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	assert.Nil(t, res)
+}
+
+// TestEngine_RunSpecCancelledWhileDecodingFailsAsCancelled pins that a
+// setting naming the spec is served the held bytes whatever the run's context
+// says, so a run cancelled meanwhile fails as cancelled, never as the missing
+// file an unsaved buffer has, and reads nothing at the spec's path.
+func TestEngine_RunSpecCancelledWhileDecodingFailsAsCancelled(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	eng, err := engine.New(engine.WithCompilers(rereadCompiler{decoding: cancel}))
+	require.NoError(t, err)
+	unsaved := filepath.Join(t.TempDir(), "unsaved.yaml")
+
+	res, err := eng.RunSpec(ctx, compilers.Source{Path: unsaved, Data: []byte("held")},
+		engine.RunOptions{CompilerOptions: map[string]string{"read": unsaved}})
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.NotErrorIs(t, err, fs.ErrNotExist)
+	assert.Nil(t, res)
 }
 
 // TestEngine_RunSpecAgreesWithRun pins that a spec held in memory is the spec
