@@ -211,7 +211,7 @@ func TestHarness_InRepoCorpus(t *testing.T) {
 		if invalid[r.Spec] {
 			seenInvalid[r.Spec] = true
 			assert.Equal(t, harness.OutcomeErrorDiag, r.Outcome,
-				"fixture %s is listed as known-invalid, failing with an error diagnostic; update knownInvalid: %s",
+				"known-invalid fixture %s must fail with an error diagnostic; fix it or update knownInvalid: %s",
 				r.Spec, r.Detail)
 			continue
 		}
