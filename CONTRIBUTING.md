@@ -76,9 +76,10 @@ Read the documents for your layer, and skip the rest until you need them.
 - **Code only tests call is test code.** A production function no binary reaches, itself or
   through what calls it, is deleted or moved into the tests it serves: into the test file that
   calls it, or into the package's `export_test.go` when an external test does, as `compile`'s
-  `Types.Len` is. One kept for a caller the module does not have yet, such as the engine's API for
-  a program driving it from Go, is named with that caller in `internal/archtest`'s `apiRoots`, and
-  a package whose production files exist for tests, such as `openapitest`, in its `testSupport`.
+  `Types.Len` is. One kept for a caller the module does not have yet, such as `engine`'s
+  `RunSources` for a driver holding a spec in memory, is named with that caller in
+  `internal/archtest`'s `apiRoots`, and a package whose production files exist for tests, such as
+  `openapitest`, in its `testSupport`.
   *Fails if missed:* `TestReachability_OnlyTestsReachNoFunction`, which also fails on an `apiRoots`
   entry a binary reaches and on a `testSupport` entry that spares no function. Nothing fails for a
   field or a constant only tests read, or for an exported method of a type the program converts to

@@ -25,7 +25,8 @@ import (
 const (
 	compilerAPI = "the OpenAPI compiler's Go API: a caller building Options starts from the default " +
 		"rather than transcribing it, and the CLI sets options as text"
-	embedderAPI  = "the engine's API for a program driving it from Go, which the CLI does not need"
+	embedderAPI = "the engine's API for a driver compiling a spec held wholly in memory, as an editor " +
+		"integration would (docs/architecture.md); no binary of the module does"
 	transformAPI = "how a transform pass edits a document (docs/architecture.md); no transform ships yet"
 	relationAPI  = "a relation ir-design §4.3 defines for the IR's consumers, which no shipped one reads yet"
 	factAPI      = "a fact ir-design §4.9 derives for emitters, which are not built yet"
