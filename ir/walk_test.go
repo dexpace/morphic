@@ -416,8 +416,8 @@ func walkHolders(n int) []walkHolder {
 }
 
 // TestWalkValues_MapEntriesCostNoAllocation holds the walk's cost per map entry
-// at nothing once its map type's storage fits, since every node of a document
-// sits in a map and pass.Validate walks one on every compile.
+// at nothing once its map type's storage fits, since every type node of a
+// document sits in Document.Types and pass.Validate walks one on every compile.
 // reflect.MapIter.Key and Value copy each entry into an allocation of its own,
 // two for each of the hundreds of entries more the larger walk reaches. It is
 // not run in parallel: AllocsPerRun measures the process.
@@ -490,22 +490,31 @@ func TestWalkValues_NestedMapsOfOneTypeKeepTheirEntries(t *testing.T) {
 	assert.Empty(t, cmp.Diff(want, got))
 }
 
-// TestWalkValues_MapEntriesAreTheWalksCopies pins what Visitor.Visit says of a
-// map's key and value: each is a copy the walk owns, which a visitor can set,
-// and setting it, or a field of it, changes nothing in the map.
+// TestWalkValues_MapEntriesAreTheWalksCopies pins where Visitor.Visit draws a
+// map entry's copy: the key and value, and what the value holds by value, are
+// the walk's own, which a visitor can set without changing the map, while what
+// a slice in it leads to is the document's own.
 func TestWalkValues_MapEntriesAreTheWalksCopies(t *testing.T) {
 	t.Parallel()
-	m := map[string]walkEntry{"a": {Name: "x"}}
-	set := 0
+	type entry struct {
+		Name  string
+		Items []int
+	}
+	m := map[string]entry{"a": {Name: "x", Items: []int{1}}}
+	copies := 0
 	ir.WalkValues(m, "doc", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
-		if v.Kind() == reflect.String && v.CanSet() {
+		switch {
+		case v.Kind() == reflect.String && v.CanSet():
 			v.SetString("changed")
-			set++
+			copies++
+		case v.Kind() == reflect.Int && v.CanSet():
+			v.SetInt(2)
 		}
 		return true
 	}))
-	require.Equal(t, 2, set, "the key and the value's field are each the walk's own copy")
-	assert.Equal(t, map[string]walkEntry{"a": {Name: "x"}}, m)
+	require.Equal(t, 2, copies, "the key and the value's field are each the walk's own copy")
+	assert.Equal(t, "x", m["a"].Name, "setting the walk's copy changes nothing in the map")
+	assert.Equal(t, []int{2}, m["a"].Items, "a slice in the entry leads to the document's own elements")
 }
 
 // TestWalkValues_MapBehindAnUnexportedFieldIsReached holds the walk to a map it
@@ -542,14 +551,14 @@ func growingMaps(n int) []map[string]int {
 	for k := range keys {
 		keys[k] = strconv.Itoa(k)
 	}
-	maps := make([]map[string]int, n)
-	for i := range maps {
-		maps[i] = map[string]int{}
+	sized := make([]map[string]int, n)
+	for i := range sized {
+		sized[i] = map[string]int{}
 		for k := range i + 1 {
-			maps[i][keys[k]] = k
+			sized[i][keys[k]] = k
 		}
 	}
-	return maps
+	return sized
 }
 
 // TestWalkValues_MapStorageGrowsByDoubling holds the storage a walk copies map
@@ -561,8 +570,8 @@ func growingMaps(n int) []map[string]int {
 func TestWalkValues_MapStorageGrowsByDoubling(t *testing.T) {
 	visit := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 	allocs := func(n int) float64 {
-		maps := growingMaps(n)
-		return testing.AllocsPerRun(5, func() { _ = ir.WalkValues(maps, "doc", visit) })
+		sized := growingMaps(n)
+		return testing.AllocsPerRun(5, func() { _ = ir.WalkValues(sized, "doc", visit) })
 	}
 	small, medium, large := allocs(32), allocs(64), allocs(128)
 	assert.Equal(t, medium-small, large-medium, "walking 32, 64 and 128 ever larger maps cost %v, %v and %v", small, medium, large)

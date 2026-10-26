@@ -120,7 +120,9 @@ func (c *cloner) slice(dst, v reflect.Value, depth int) {
 
 // entries copies a non-nil map, once per map. A key is kept as it is, since
 // every key type the IR declares is a string or an integer. Each value is
-// filled into one holder, which fill overwrites whole and SetMapIndex copies.
+// filled into one holder, which SetMapIndex copies into the map: fill
+// overwrites it whole, unless the depth cap cuts the copy, which is then
+// discarded.
 func (c *cloner) entries(dst, v reflect.Value, depth int) {
 	if v.IsNil() {
 		dst.Set(v)

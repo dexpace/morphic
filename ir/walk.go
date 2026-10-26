@@ -34,10 +34,11 @@ type Visitor interface {
 	// visitor is to be shown what v holds; false prunes v's children for it
 	// alone.
 	//
-	// A map's key or value, and what v holds inside one, is the walk's own
-	// copy, since Go gives a map entry no address: setting it changes nothing
-	// in the map, and the walk reuses it once it has left the map. A visitor
-	// keeps what it reads from v, then, not v, as it keeps a path's String.
+	// A map's key or value, with all it holds by value, is the walk's own copy,
+	// as Go gives a map entry no address: setting it changes nothing in the
+	// map, and the walk reuses it once it has left the map, so a visitor keeps
+	// what it reads, not v, as it keeps a path's String. What a pointer, slice
+	// or map in it leads to is the document's own.
 	Visit(v reflect.Value, at WalkPath) bool
 }
 

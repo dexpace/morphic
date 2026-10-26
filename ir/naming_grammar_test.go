@@ -106,8 +106,8 @@ func TestCanonicalWords_IsIdempotent(t *testing.T) {
 // hasCanonicalCases pins HasCanonicalWords where a comparison can go wrong:
 // spellings one edit from a canonical form, mismatched inside a word that a
 // separator, a case boundary or a letter/digit boundary ends, at a separator,
-// and past the last word. The rows that hold pin that it reads no further than
-// the grammar renders.
+// and past the last word. The rows that hold pin what it accepts: the
+// grammar's own rendering, a rune whose lowercase is longer included.
 var hasCanonicalCases = []struct {
 	rule  string
 	name  string

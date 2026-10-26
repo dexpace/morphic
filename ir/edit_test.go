@@ -759,8 +759,9 @@ func wireNames(n int) map[string]string {
 	return names
 }
 
-// editedOnce returns a document of the models ids, each carrying the overrides
-// ids names, and an edit of it that has updated each model once.
+// editedOnce returns a document holding a model for each entry of ids, with as
+// many wire-name overrides as the entry gives, and an edit of it that has
+// updated each model once.
 func editedOnce(t *testing.T, ids map[ir.TypeID]int) (*ir.Document, *ir.Editor) {
 	t.Helper()
 	doc := &ir.Document{Types: ir.TypeRegistry{}}

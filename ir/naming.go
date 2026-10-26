@@ -81,8 +81,9 @@ func CanonicalWords(name string) string {
 const stackRendering = 256
 
 // canonicalWordsExactly is CanonicalWords for a name whose canonical form could
-// outgrow the stack. It reads name once to see whether it is canonical already
-// and once to size the result, so the result is still the one allocation.
+// outgrow the stack. It reads name three times, to see whether it is canonical
+// already, to size the result and to write it, so the result is still the one
+// allocation.
 func canonicalWordsExactly(name string) string {
 	if HasCanonicalWords(name, name) {
 		return name
@@ -119,8 +120,8 @@ func HasCanonicalWords(name, words string) bool {
 // canonicalRunes yields the runes of CanonicalWords(name) in order: each word
 // rune lowercased, and "_" between two words. Lowercasing rune by rune is what
 // strings.ToLower does to a valid string, and a word holds only runes that
-// decoded. It is the one rendering of the grammar's words, which everything
-// above reads.
+// decoded. It is the one rendering of the grammar's words, which
+// CanonicalWords and HasCanonicalWords both read.
 func canonicalRunes(name string) iter.Seq[rune] {
 	return func(yield func(rune) bool) {
 		first := true
