@@ -269,13 +269,14 @@ const asksAfterRefusal = 8
 // more of each than asksAfterRefusal.
 func TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly(t *testing.T) {
 	t.Parallel()
+	dir := t.TempDir()
+	split := splitSpec(t, dir, 12, 0)
 	for name, load := range map[string]func(ctx context.Context) (*Document, []ir.Diagnostic, error){
 		"one document": func(ctx context.Context) (*Document, []ir.Diagnostic, error) {
 			return Load(ctx, 0, openapitest.SourceOf(phasedSpec), phasedOptions(nil))
 		},
 		"split across documents": func(ctx context.Context) (*Document, []ir.Diagnostic, error) {
-			dir := t.TempDir()
-			return Load(ctx, 0, splitSpec(t, dir, 12, 0), Options{Reader: reader.Disk{}, Within: dir})
+			return Load(ctx, 0, split, Options{Reader: reader.Disk{}, Within: dir})
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
