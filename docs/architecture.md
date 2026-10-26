@@ -537,8 +537,9 @@ over operations, type edges and composition. A pass or emitter calls them rather
 own. That is a convention review holds, not a rule a test checks, since no test can tell a
 hand-written walker from any other loop. The reflection walk shows each value to any number of
 visitors in one traversal, each seeing what it would walking alone, and builds a path only for a
-visitor that reads it. `irverify` and `pass.Validate` each read a document in one such walk shared
-by all their walking checks, which their tests hold them to.
+visitor that reads it. `irverify` reads a document in one such walk shared by all its walking
+checks, and `pass.Validate` in one shared by its three reflection checks, which their tests hold
+them to.
 
 ## 4. Diagnostics & provenance
 
