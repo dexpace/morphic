@@ -68,8 +68,8 @@ var testSupport = map[string]string{
 	"compilers/openapi/internal/ynode":       "the YAML node builders the compiler's internal tests share",
 	"internal/decls": "the type-checked reads of declarations the tests pinning hand-written lists " +
 		"share; the census binary reads one load of it",
-	"internal/harness": "the annotation-retention vocabulary each format's retention test shares; " +
-		"the rest drives the harness binary",
+	"internal/harness": "the annotation-retention vocabulary each format's retention test shares, " +
+		"which leaves the rest of the package unread until the vocabulary moves out (#1123)",
 	"internal/jsonshape": "the IR's JSON shape, which IRVersion's pin test describes and the census counts",
 	"internal/keydoc":    "the one reader of the keyed documents, for the tests holding each to the code",
 	"internal/leakcheck": "the goroutine leak check each test binary's TestMain runs",
