@@ -29,9 +29,9 @@ const elidedMarker = "… (elided)"
 // Line renders v, what code the caller does not own returned or panicked with,
 // as text a one-line message can quote: each line's white space collapsed to
 // single spaces, and the lines joined with "; ", or with a space after one
-// ending in a colon. It is well-formed UTF-8 of at most 4 KiB, cut on a rune
-// boundary and marked. Control characters other than line breaks are kept for
-// the renderer to escape.
+// that ends in ":", ";", ",", ".", "!" or "?". It is well-formed UTF-8, never
+// empty, cut on a rune boundary at 4 KiB and then marked, and keeps other
+// control characters for the renderer to escape.
 //
 // An error, a Stringer, a string, a number and a bool render as they say; any
 // other value, and one whose text panics, is named by its type.
@@ -98,18 +98,23 @@ func render(text string, glyph func(rune) rune) string {
 	}
 }
 
+// spaceAfter holds the marks after which the next line follows a space rather
+// than "; ": a colon heads what follows, and the others already end a clause,
+// which a semicolon after them would end twice.
+const spaceAfter = ":;,.!?"
+
 // joinLines puts text on one line: the white space within each line collapsed
 // to single spaces, blank lines dropped, and the rest joined with "; ", or with
-// a space after a line ending in a colon. It stops once past maxText, so the
-// work is bounded by what clip keeps.
+// a space after a line ending in a mark of spaceAfter. It stops once past
+// maxText, so the work is bounded by what clip keeps.
 func joinLines(text string) string {
 	var out strings.Builder
 	for line := range strings.FieldsFuncSeq(text, isLineBreak) {
 		sep := "; "
-		switch {
-		case out.Len() == 0:
+		switch s := out.String(); {
+		case s == "":
 			sep = ""
-		case strings.HasSuffix(out.String(), ":"):
+		case strings.IndexByte(spaceAfter, s[len(s)-1]) >= 0:
 			sep = " "
 		}
 		for word := range strings.FieldsSeq(line) {

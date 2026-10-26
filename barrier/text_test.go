@@ -32,6 +32,8 @@ func TestLine_JoinsTheLinesALibraryWrote(t *testing.T) {
 		{"carriage returns alone", "one\rtwo", "one; two"},
 		{"every mandatory break", "a\nb\r\nc\vd\fe\u0085f\u2028g\u2029h", "a; b; c; d; e; f; g; h"},
 		{"a colon heads one line only", "head:\nitem\nnext", "head: item; next"},
+		{"a line that ends a clause", "one;\ntwo,\nthree.\nfour!\nfive?\nsix", "one; two, three. four! five? six"},
+		{"a mark inside a line", "a.b\nc", "a.b; c"},
 		{"empty", "", barrier.NoText},
 		{"white space alone", " \n\t\r\n ", barrier.NoText},
 	}
