@@ -40,8 +40,9 @@ type RunOptions struct {
 	// Verify holds the document the compiler returns, and each pass's, to the
 	// invariants ir/irverify states, and each pass to leaving the document it was
 	// handed as it found it. The first stage to break one fails the run with a
-	// *VerifyError, or an error wrapping pass.ErrContract. It costs about as
-	// much as compiling again, so it is for developing a stage.
+	// *VerifyError, or an error wrapping pass.ErrContract. It costs more than the
+	// compile itself, and ctx does not interrupt it, so it is for developing a
+	// stage.
 	Verify bool `json:"verify,omitzero"`
 }
 

@@ -148,24 +148,25 @@ opening name what else the compile read, such as a document a reference names, w
 reads no input to know of. Each breach is a Go error wrapping `compilers.ErrContract`: a compiler
 bug, never the spec's.
 
-A panic is a breach too. Every call the registry makes of a compiler (`Formats`, `Detect`,
-configuring it through `DecodeOptions`, `Compile` and `SourceTable`) runs behind `barrier.Catch`,
-and the panic comes back as an error wrapping `compilers.ErrContract` and the `*barrier.PanicError`.
-Its message is one line: the method, the value's text bounded and stripped of what a terminal would
-act on, and where the panic was raised. The value and the stack stay beside it for a caller that
-wants them. The registry asks `Formats` once, when the compiler registers, and keeps a copy, so no
-later call can panic outside the registration or disagree with it. A barrier recovers the calling
-goroutine only: a fatal error such as stack exhaustion, a panic on a goroutine the compiler started,
-and a call that never returns are not its to catch. A compiler that ignores its context holds `Run`
-until it returns, because the engine cannot stop a call it did not start on a goroutine of its own,
-and abandoning one would leave it reading the caller's bytes after `Run` had returned. The next
-stage boundary then stops the run, or `Run` returns what it finished if none is left.
+A panic is a breach too. Every call the `compilers` package makes of a compiler (`Formats`,
+`Detect`, configuring it through `DecodeOptions`, `Compile` and `SourceTable`) runs behind
+`barrier.Catch`, and the panic comes back as an error wrapping `compilers.ErrContract` and the
+`*barrier.PanicError`. Its message is one line: the method, the value's text bounded and stripped of
+what a terminal would act on, and where the panic was raised. The value and the stack stay beside it
+for a caller that wants them. The registry asks `Formats` once, when the compiler registers, and
+keeps a copy, so no later call can panic outside the registration or disagree with it. A barrier
+recovers the calling goroutine only: a fatal error such as stack exhaustion, a panic on a goroutine
+the compiler started, and a call that never returns are not its to catch. A compiler that ignores
+its context holds `Run` until it returns, because the engine cannot stop a call it did not start on
+a goroutine of its own, and abandoning one would leave it reading the caller's bytes after `Run` had
+returned. The next stage boundary then stops the run, or `Run` returns what it finished if none is
+left.
 
 What a document holds whatever produced it, the namespaces, a service and a well-formed source table
 among them, is `irverify`'s, and `compile.Types.Finish` hands a compiler its registry with the
 diagnostics it reports, a `compile/registry-refused` error for each entry the registry refused among
-them. The engine does not run `irverify` by default. It costs about as much as compiling again, and
-the harness holds the shipped compiler to it over the whole corpus. `RunOptions.Verify` (`--verify`)
+them. The engine does not run `irverify` by default. It costs more than the compile itself, and the
+harness holds the shipped compiler to it over the whole corpus. `RunOptions.Verify` (`--verify`)
 runs it for a compiler under development, over the compiler's document and over each document a pass
 returns, and over the one `RunDocument` is handed, and fails the run with an `engine.VerifyError`
 carrying every violation, wrapping the contract error of the stage that returned the document. It

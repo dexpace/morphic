@@ -43,11 +43,12 @@ func describe(r any) (text string) {
 		return v.String()
 	case string:
 		return v
+	default:
+		if r != nil && isScalar(reflect.TypeOf(r).Kind()) {
+			return fmt.Sprint(r)
+		}
+		return fmt.Sprintf("%T", r)
 	}
-	if r != nil && isScalar(reflect.TypeOf(r).Kind()) {
-		return fmt.Sprint(r)
-	}
-	return fmt.Sprintf("%T", r)
 }
 
 // isScalar reports whether a value of kind k prints as itself in finite space.
