@@ -39,6 +39,9 @@ type Editor struct {
 	// was refused.
 	// finished records that Finish has returned out, which ends the edit.
 	changing, intruded, finished bool
+	// copying holds the map entries an UpdateType copy reads, kept from one
+	// copy to the next, so copying a map costs nothing per entry.
+	copying entryStack
 }
 
 // NewEditor starts an edit of doc. A nil doc is refused, and the edit then
@@ -111,7 +114,7 @@ func (e *Editor) copyFor(id TypeID, change func(TypeDef)) (TypeDef, bool) {
 		e.refuse("update rejected: %q holds the node of %q, which belongs at its own ID", id, current.Common().ID)
 		return nil, false
 	}
-	next, copied := cloneTypeDef(current)
+	next, copied := cloneTypeDef(current, &e.copying)
 	if !copied {
 		e.refuse("update rejected: %q nests deeper than %d levels, past what an edit copies", id, MaxWalkDepth)
 	}

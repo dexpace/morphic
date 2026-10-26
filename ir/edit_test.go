@@ -5,6 +5,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -746,4 +747,67 @@ func ExampleNewEditor() {
 	// Output:
 	// [t/elem t/kept] 0
 	// [t/elem t/kept t/lost]
+}
+
+// wireNames returns n wire-name overrides, a map whose entries the copy keeps
+// nothing of its own for.
+func wireNames(n int) map[string]string {
+	names := map[string]string{}
+	for i := range n {
+		names["format"+strconv.Itoa(i)] = "name"
+	}
+	return names
+}
+
+// editedOnce returns a document of the models ids, each carrying the overrides
+// ids names, and an edit of it that has updated each model once.
+func editedOnce(t *testing.T, ids map[ir.TypeID]int) (*ir.Document, *ir.Editor) {
+	t.Helper()
+	doc := &ir.Document{Types: ir.TypeRegistry{}}
+	for id, n := range ids {
+		model := &ir.Model{ID: id}
+		if n > 0 {
+			model.WireNameByFormat = wireNames(n)
+		}
+		doc.Types[id] = model
+	}
+	e := ir.NewEditor(doc)
+	for id := range ids {
+		e.UpdateType(id, func(ir.TypeDef) {})
+	}
+	return doc, e
+}
+
+// updating returns a call updating id in e, changing nothing.
+func updating(e *ir.Editor, id ir.TypeID) func() {
+	return func() { e.UpdateType(id, func(ir.TypeDef) {}) }
+}
+
+// TestEditor_CopiesMapEntriesWithoutAllocatingEach holds a copy's cost per map
+// entry at nothing beyond what the copy keeps, here nothing: an edit reads
+// entries into storage it keeps, where reflect.MapIter.Key and Value copy each
+// into an allocation of its own. Both maps fit one map group, so six more
+// entries must cost no more. It is not run in parallel: AllocsPerRun measures
+// the process.
+func TestEditor_CopiesMapEntriesWithoutAllocatingEach(t *testing.T) {
+	_, e := editedOnce(t, map[ir.TypeID]int{"t/few": 2, "t/many": 8})
+	assert.Equal(t, testing.AllocsPerRun(10, updating(e, "t/few")), testing.AllocsPerRun(10, updating(e, "t/many")))
+	_, diags := e.Finish()
+	assert.Empty(t, diags)
+}
+
+// TestEditor_KeepsEntryStorageFromCopyToCopy holds the storage an edit reads
+// map entries into to being set up once for the edit, not once for each copy:
+// in an edit that has copied before, a node's map costs only its own copy,
+// less than in an edit copying for the first time each time. It is not run in
+// parallel: AllocsPerRun measures the process.
+func TestEditor_KeepsEntryStorageFromCopyToCopy(t *testing.T) {
+	ids := map[ir.TypeID]int{"t/plain": 0, "t/mapped": 8}
+	doc, e := editedOnce(t, ids)
+	kept := testing.AllocsPerRun(10, updating(e, "t/mapped")) - testing.AllocsPerRun(10, updating(e, "t/plain"))
+	afresh := func(id ir.TypeID) func() {
+		return func() { ir.NewEditor(doc).UpdateType(id, func(ir.TypeDef) {}) }
+	}
+	first := testing.AllocsPerRun(10, afresh("t/mapped")) - testing.AllocsPerRun(10, afresh("t/plain"))
+	assert.Less(t, kept, first, "an edit that has copied a map before sets up nothing for the next")
 }

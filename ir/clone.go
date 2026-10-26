@@ -5,14 +5,14 @@ import "reflect"
 // cloneTypeDef returns a deep copy of td, which must not be nil, that shares no
 // pointer, slice or map with it, so changing the copy leaves td as it was. It
 // reports false for a td nesting past [MaxWalkDepth] levels, where the copy
-// stops.
+// stops. Map entries are read into ranging.
 //
 // The copy is by reflection, as [WalkValues] is, so a field added to the IR is
 // copied the moment it exists. Aliasing is kept: a pointer, a map, or a slice
 // of one length td reaches twice is copied once, and a cycle comes out as the
 // same cycle.
-func cloneTypeDef(td TypeDef) (TypeDef, bool) {
-	c := cloner{copies: map[refKey]reflect.Value{}}
+func cloneTypeDef(td TypeDef, ranging *entryStack) (TypeDef, bool) {
+	c := cloner{copies: map[refKey]reflect.Value{}, ranging: ranging}
 	v := reflect.ValueOf(td)
 	out := reflect.New(v.Type()).Elem()
 	c.fill(out, v, 0)
@@ -25,9 +25,14 @@ func cloneTypeDef(td TypeDef) (TypeDef, bool) {
 }
 
 // cloner is one deep copy: the copy made of each reference it has met, keyed
-// as the walk keys one, and whether the depth cap cut it short.
+// as the walk keys one, the stack holding the entries of the maps it is
+// copying, and whether the depth cap cut it short.
+//
+// The stack is held by pointer: escape analysis does not tell fields apart, so
+// a stack inside the cloner would move copies onto the heap with it.
 type cloner struct {
 	copies    map[refKey]reflect.Value
+	ranging   *entryStack
 	truncated bool
 }
 
@@ -114,7 +119,8 @@ func (c *cloner) slice(dst, v reflect.Value, depth int) {
 }
 
 // entries copies a non-nil map, once per map. A key is kept as it is, since
-// every key type the IR declares is a string or an integer.
+// every key type the IR declares is a string or an integer. Each value is
+// filled into one holder, which fill overwrites whole and SetMapIndex copies.
 func (c *cloner) entries(dst, v reflect.Value, depth int) {
 	if v.IsNil() {
 		dst.Set(v)
@@ -128,12 +134,15 @@ func (c *cloner) entries(dst, v reflect.Value, depth int) {
 	out := reflect.MakeMapWithSize(v.Type(), v.Len())
 	c.copies[key] = out
 	dst.Set(out)
-	elem := v.Type().Elem()
-	for _, e := range appendOrderedEntries(nil, v) {
-		value := reflect.New(elem).Elem()
+	f := c.ranging.push(v)
+	value := reflect.New(v.Type().Elem()).Elem()
+	for i := f.base; i < f.end; i++ {
+		// Indexed afresh: a nested map can move the stack while stacking its own.
+		e := c.ranging.entries[i]
 		c.fill(value, e.value, depth+1)
 		out.SetMapIndex(e.key, value)
 	}
+	c.ranging.pop(f)
 }
 
 // holdsReference reports whether a value of kind k can hold a pointer, slice or

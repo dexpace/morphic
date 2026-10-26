@@ -44,13 +44,13 @@ func TestCloner_CopiesMapEntriesInKeyOrder(t *testing.T) {
 		"b": chainTo(deep, shared),
 	}}
 	alone := reflect.ValueOf(cloneProbe{Entries: map[string]*cloneLink{"b": probe.Entries["b"]}})
-	control := cloner{copies: map[refKey]reflect.Value{}}
+	control := cloner{copies: map[refKey]reflect.Value{}, ranging: &entryStack{}}
 	control.fill(reflect.New(alone.Type()).Elem(), alone, 0)
 	require.True(t, control.truncated, "copied first, the deep entry must reach past the cap, or no order is tested")
 	v := reflect.ValueOf(probe)
 
 	for range 64 {
-		c := cloner{copies: map[refKey]reflect.Value{}}
+		c := cloner{copies: map[refKey]reflect.Value{}, ranging: &entryStack{}}
 		out := reflect.New(v.Type()).Elem()
 		c.fill(out, v, 0)
 
@@ -67,4 +67,37 @@ func chainEnd(link *cloneLink, n int) *cloneLink {
 		link = link.Next
 	}
 	return link
+}
+
+// TestCloneTypeDef_CopyingANodeWithNoMapAllocatesOnlyTheCopy pins why the
+// cloner holds its entry stack by pointer: escape analysis does not tell a
+// struct's fields apart, so a stack held inside the cloner would take its copies
+// map, and the map's first group, onto the heap for every copy. A node holding
+// no reference costs three: the cell out is, the copy, and the interface it is
+// returned through. It is not run in parallel: AllocsPerRun measures the
+// process.
+func TestCloneTypeDef_CopyingANodeWithNoMapAllocatesOnlyTheCopy(t *testing.T) {
+	var ranging entryStack
+	td := TypeDef(&Primitive{ID: "t/p"})
+	assert.Equal(t, 3.0, testing.AllocsPerRun(10, func() { _, _ = cloneTypeDef(td, &ranging) }))
+}
+
+// TestCloneTypeDef_LeavesTheEntryStackAsItFoundIt holds a copy to releasing
+// what it read maps into, nested maps included: an edit keeps one stack for
+// every copy it makes, so entries a copy left behind would pile up for the
+// whole edit, changing no result.
+func TestCloneTypeDef_LeavesTheEntryStackAsItFoundIt(t *testing.T) {
+	t.Parallel()
+	var ranging entryStack
+	td := TypeDef(&Model{ID: "t/m", WireNameByFormat: map[string]string{"json": "m", "xml": "M"},
+		Properties: []Property{{ID: "p/a", WireNameByFormat: map[string]string{"json": "a"}}}})
+	for range 3 {
+		_, copied := cloneTypeDef(td, &ranging)
+		require.True(t, copied)
+		assert.Empty(t, ranging.entries, "entries left on the stack")
+		for typ, st := range ranging.stores {
+			assert.Zero(t, st.used, "%s slots left in use", typ)
+		}
+	}
+	assert.NotEmpty(t, ranging.stores, "the copy read its maps through the stack")
 }

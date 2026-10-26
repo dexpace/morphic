@@ -198,6 +198,10 @@ var integerFields = map[string]string{
 	"valueWalk.all":   "the set of a walk's visitors, one bit each, not a position",
 	"valueWalk.seen":  "for each pointer, the set of visitors that entered it, not a position",
 	"valueWalk.shown": "how many values a walk has shown, which spaces its asks of a context, not a position",
+	"entryFrame.base": "where a map's entries start on the traversal's own stack, not a position in any IR slice",
+	"entryFrame.end":  "where a map's entries end on the traversal's own stack, not a position in any IR slice",
+	"entryFrame.slot": "the first of a map's slots in the traversal's own copy storage, not a position in any IR slice",
+	"entryStore.used": "how many slots of the traversal's own copy storage are in use, not a position in any IR slice",
 
 	// The ir package's reading of its own types, which is not IR data either.
 	"idField.index":       "the field through which a struct type declares its identity, read off the type",

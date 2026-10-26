@@ -2,12 +2,10 @@ package ir
 
 import (
 	"context"
-	"fmt"
 	"math/bits"
 	"reflect"
 	"slices"
 	"strconv"
-	"strings"
 )
 
 // MaxWalkDepth bounds a [WalkValues] traversal (the bounded-recursion rule).
@@ -35,6 +33,11 @@ type Visitor interface {
 	// Visit is called on v, reached by the path at, and reports whether this
 	// visitor is to be shown what v holds; false prunes v's children for it
 	// alone.
+	//
+	// A map's key or value, and what v holds inside one, is the walk's own
+	// copy, since Go gives a map entry no address: setting it changes nothing
+	// in the map, and the walk reuses it once it has left the map. A visitor
+	// keeps what it reads from v, then, not v, as it keeps a path's String.
 	Visit(v reflect.Value, at WalkPath) bool
 }
 
@@ -227,7 +230,7 @@ type valueWalk struct {
 	seen      map[refKey]visitorSet
 	inside    []insideRef
 	steps     []pathStep
-	ranging   []mapEntry
+	ranging   entryStack
 	truncated bool
 	// ask is what the walk asks whether to stop (WalkValuesContext), or nil for
 	// a walk to the end. shown counts the values shown, which spaces the asks,
@@ -351,7 +354,7 @@ func (w *valueWalk) children(v reflect.Value, depth int, active visitorSet) {
 // Which visitors have entered a pointer is recorded per pointer, so one
 // visitor's pruning never decides where another meets a shared value. Which
 // referrer wins is decided by traversal order, so the walk's order has to be
-// fixed rather than incidental; appendOrderedEntries is where that is arranged.
+// fixed rather than incidental; entryStack.push is where that is arranged.
 func (w *valueWalk) pointer(v reflect.Value, depth int, active visitorSet) {
 	if v.IsNil() {
 		return
@@ -450,80 +453,14 @@ func (w *valueWalk) mapping(v reflect.Value, depth int, active visitorSet) {
 
 // entries descends into each key and value of a map, in rendered-key order.
 // The entries sit on one stack the walk reuses: a map nested inside an entry
-// stacks its own above them and takes them off again, so ranging over a map
-// allocates nothing once the stack has grown to the walk's widest.
+// stacks its own above them and takes them off again.
 func (w *valueWalk) entries(v reflect.Value, depth int, active visitorSet) {
-	base := len(w.ranging)
-	w.ranging = appendOrderedEntries(w.ranging, v)
-	for i := base; i < len(w.ranging); i++ {
+	f := w.ranging.push(v)
+	for i := f.base; i < f.end; i++ {
 		// Indexed afresh: a nested map can move the stack while stacking its own.
-		e := w.ranging[i]
+		e := w.ranging.entries[i]
 		w.step(pathStep{kind: stepMapKey, label: e.label}, e.key, depth+1, active)
 		w.step(pathStep{kind: stepMapValue, label: e.label}, e.value, depth+1, active)
 	}
-	w.ranging = w.ranging[:base]
-}
-
-// mapEntry is one map entry paired with its rendered key, which both spells the
-// entry's path and orders the walk.
-type mapEntry struct {
-	label string
-	key   reflect.Value
-	value reflect.Value
-}
-
-// appendOrderedEntries appends v's entries to dst ordered by rendered key rather
-// than Go's randomized map order. A pointer reachable from two entries is
-// descended into at whichever the walk reaches first, so a random order would
-// change the result set, not just its order, and no later sort repairs that
-// (invariant 7). The rendering is the one the path uses, which keeps the two in
-// step, and it is a total order for every key type the IR declares: named
-// string types, plain strings and ints all render distinct keys distinctly.
-func appendOrderedEntries(dst []mapEntry, v reflect.Value) []mapEntry {
-	base := len(dst)
-	plain := rendersPlainly(v.Type().Key())
-	// MapRange rather than v.Seq2(), which puts the loop body on the heap.
-	for iter := v.MapRange(); iter.Next(); {
-		k := iter.Key()
-		dst = append(dst, mapEntry{label: keyLabel(k, plain), key: k, value: iter.Value()})
-	}
-	slices.SortFunc(dst[base:], func(a, b mapEntry) int { return strings.Compare(a.label, b.label) })
-	return dst
-}
-
-// The interfaces through which fmt lets a type spell itself under %v.
-var (
-	formatterType = reflect.TypeFor[fmt.Formatter]()
-	stringerType  = reflect.TypeFor[fmt.Stringer]()
-	errorType     = reflect.TypeFor[error]()
-)
-
-// rendersPlainly reports whether fmt's %v spells a key of type t as its plain
-// string or decimal integer: a string or integer kind with none of the methods
-// through which fmt lets a type spell itself.
-func rendersPlainly(t reflect.Type) bool {
-	switch t.Kind() {
-	case reflect.String, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		return !t.Implements(formatterType) && !t.Implements(stringerType) && !t.Implements(errorType)
-	default:
-		return false
-	}
-}
-
-// keyLabel renders a map key as fmt's %v does, which is how a path spells it,
-// without fmt's two allocations for a key that renders plainly: a string key is
-// its own label.
-func keyLabel(k reflect.Value, plain bool) string {
-	if !plain {
-		return fmt.Sprintf("%v", k)
-	}
-	switch k.Kind() {
-	case reflect.String:
-		return k.String()
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return strconv.FormatInt(k.Int(), 10)
-	default:
-		return strconv.FormatUint(k.Uint(), 10)
-	}
+	w.ranging.pop(f)
 }

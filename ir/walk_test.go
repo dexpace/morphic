@@ -2,12 +2,15 @@ package ir_test
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -386,4 +389,181 @@ func TestWalkValues_StructsAndMapsCostNoAllocation(t *testing.T) {
 		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(shallow, "doc", visit) }),
 		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(deep, "doc", visit) }),
 		"three more structs and maps must cost no more allocations")
+}
+
+// Small maps of entries no pointer leads to, of a struct and behind an
+// interface as Document.Types holds its nodes, for a walk whose cost per entry
+// is its own.
+type (
+	walkEntry  struct{ Name string }
+	walkHolder struct {
+		Structs map[string]walkEntry
+		Boxed   map[string]any
+	}
+)
+
+// walkHolders returns n holders, each map of three entries.
+func walkHolders(n int) []walkHolder {
+	holders := make([]walkHolder, n)
+	for i := range holders {
+		holders[i] = walkHolder{Structs: map[string]walkEntry{}, Boxed: map[string]any{}}
+		for _, k := range []string{"a", "b", "c"} {
+			holders[i].Structs[k] = walkEntry{Name: k}
+			holders[i].Boxed[k] = walkEntry{Name: k}
+		}
+	}
+	return holders
+}
+
+// TestWalkValues_MapEntriesCostNoAllocation holds the walk's cost per map entry
+// at nothing once its map type's storage fits, since every node of a document
+// sits in a map and pass.Validate walks one on every compile.
+// reflect.MapIter.Key and Value copy each entry into an allocation of its own,
+// two for each of the hundreds of entries more the larger walk reaches. It is
+// not run in parallel: AllocsPerRun measures the process.
+func TestWalkValues_MapEntriesCostNoAllocation(t *testing.T) {
+	few, many := walkHolders(4), walkHolders(64)
+	visit := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
+	assert.Equal(t,
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(few, "doc", visit) }),
+		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(many, "doc", visit) }),
+		"sixty more holders of six entries must cost no more allocations")
+}
+
+// walkNode nests maps of one type, which share the walk's storage for it.
+type walkNode struct {
+	N    int
+	Kids map[string]walkNode
+}
+
+// walkKids returns n nodes keyed "k00" on, numbered from first.
+func walkKids(first, n int) map[string]walkNode {
+	kids := map[string]walkNode{}
+	for i := range n {
+		kids[fmt.Sprintf("k%02d", i)] = walkNode{N: first + i}
+	}
+	return kids
+}
+
+// nodeNumbers records under each node's path the number it holds, read by
+// plain Go rather than by the walk.
+func nodeNumbers(path string, n walkNode, into map[string]int64) {
+	into[path+".N"] = int64(n.N)
+	for key, kid := range n.Kids {
+		nodeNumbers(path+".Kids["+key+"]", kid, into)
+	}
+}
+
+// TestWalkValues_NestedMapsOfOneTypeKeepTheirEntries holds a map's entries to
+// the map: one ranged over inside another of its type takes storage of its own
+// beside the outer one's, whether the storage fits both or has to grow while
+// the outer map is in it. An inner map writing over the outer one's entries
+// would show the walk the inner entries in the outer's place.
+func TestWalkValues_NestedMapsOfOneTypeKeepTheirEntries(t *testing.T) {
+	t.Parallel()
+	root := struct{ Wide, Nested, Grown walkNode }{
+		// Wide grows the storage to ten entries first, so Nested's maps all fit.
+		Wide: walkNode{Kids: walkKids(100, 10)},
+		Nested: walkNode{Kids: map[string]walkNode{
+			"a": {N: 1, Kids: walkKids(10, 2)},
+			"b": {N: 2, Kids: walkKids(20, 1)},
+			"c": {N: 3},
+		}},
+		Grown: walkNode{Kids: map[string]walkNode{
+			"a": {N: 4, Kids: walkKids(30, 40)},
+			"b": {N: 5},
+		}},
+	}
+	want := map[string]int64{}
+	nodeNumbers("doc.Wide", root.Wide, want)
+	nodeNumbers("doc.Nested", root.Nested, want)
+	nodeNumbers("doc.Grown", root.Grown, want)
+
+	got := map[string]int64{}
+	truncated := ir.WalkValues(root, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		if path := at.String(); strings.HasSuffix(path, ".N") {
+			got[path] = v.Int()
+		}
+		return true
+	}))
+	require.False(t, truncated)
+	assert.Empty(t, cmp.Diff(want, got))
+}
+
+// TestWalkValues_MapEntriesAreTheWalksCopies pins what Visitor.Visit says of a
+// map's key and value: each is a copy the walk owns, which a visitor can set,
+// and setting it, or a field of it, changes nothing in the map.
+func TestWalkValues_MapEntriesAreTheWalksCopies(t *testing.T) {
+	t.Parallel()
+	m := map[string]walkEntry{"a": {Name: "x"}}
+	set := 0
+	ir.WalkValues(m, "doc", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
+		if v.Kind() == reflect.String && v.CanSet() {
+			v.SetString("changed")
+			set++
+		}
+		return true
+	}))
+	require.Equal(t, 2, set, "the key and the value's field are each the walk's own copy")
+	assert.Equal(t, map[string]walkEntry{"a": {Name: "x"}}, m)
+}
+
+// TestWalkValues_MapBehindAnUnexportedFieldIsReached holds the walk to a map it
+// reaches through an unexported field, whose entries it cannot copy into the
+// storage it keeps, since reflect refuses to read such a map that way. It
+// reaches each entry all the same, and reads it right.
+func TestWalkValues_MapBehindAnUnexportedFieldIsReached(t *testing.T) {
+	t.Parallel()
+	holder := struct{ hidden map[string]int }{hidden: map[string]int{"b": 2, "a": 1}}
+	var got []string
+	ir.WalkValues(holder, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		switch v.Kind() {
+		case reflect.String:
+			got = append(got, at.String()+"="+v.String())
+		case reflect.Int:
+			got = append(got, at.String()+"="+strconv.FormatInt(v.Int(), 10))
+		default:
+			got = append(got, at.String())
+		}
+		return true
+	}))
+	assert.Equal(t, []string{
+		"doc", "doc.hidden",
+		"doc.hidden[a].key=a", "doc.hidden[a]=1",
+		"doc.hidden[b].key=b", "doc.hidden[b]=2",
+	}, got)
+}
+
+// growingMaps returns maps of one type sized 1 to n, smallest first, so each
+// needs more storage than any before it. Keys are strings, which label
+// themselves; an integer key from 100 up allocates its label.
+func growingMaps(n int) []map[string]int {
+	keys := make([]string, n)
+	for k := range keys {
+		keys[k] = strconv.Itoa(k)
+	}
+	maps := make([]map[string]int, n)
+	for i := range maps {
+		maps[i] = map[string]int{}
+		for k := range i + 1 {
+			maps[i][keys[k]] = k
+		}
+	}
+	return maps
+}
+
+// TestWalkValues_MapStorageGrowsByDoubling holds the storage a walk copies map
+// entries into to growing by doubling: a walk meeting ever larger maps of one
+// type pays for each doubling of the largest, so twice as many maps, each
+// larger, cost one doubling more, as the last twice as many did. Growing to
+// fit each map exactly would cost a growth per map. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestWalkValues_MapStorageGrowsByDoubling(t *testing.T) {
+	visit := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
+	allocs := func(n int) float64 {
+		maps := growingMaps(n)
+		return testing.AllocsPerRun(5, func() { _ = ir.WalkValues(maps, "doc", visit) })
+	}
+	small, medium, large := allocs(32), allocs(64), allocs(128)
+	assert.Equal(t, medium-small, large-medium, "walking 32, 64 and 128 ever larger maps cost %v, %v and %v", small, medium, large)
 }
