@@ -231,6 +231,7 @@ func (r *cancelling) Read(p []byte) (int, error) {
 // what is wrong, and a failed read and a failed close are each reported.
 func TestReadSource_ReportsWhatTheFileSystemSays(t *testing.T) {
 	t.Parallel()
+	statFailed := errors.New("stat failed")
 	readFailed := errors.New("read failed")
 	closeFailed := errors.New("close failed")
 	tests := []struct {
@@ -238,7 +239,7 @@ func TestReadSource_ReportsWhatTheFileSystemSays(t *testing.T) {
 		fsys   *scriptedFiles
 		wantIs []error
 	}{
-		{name: "a missing file", fsys: &scriptedFiles{statErr: fs.ErrNotExist, openErr: fs.ErrNotExist},
+		{name: "a path Stat cannot read", fsys: &scriptedFiles{statErr: statFailed, openErr: fs.ErrNotExist},
 			wantIs: []error{fs.ErrNotExist}},
 		{name: "a read that fails", fsys: &scriptedFiles{stat: sizedInfo{},
 			file: &scriptedFile{info: sizedInfo{}, body: iotest.ErrReader(readFailed)}},
