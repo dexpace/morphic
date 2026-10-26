@@ -38,24 +38,25 @@ func (Validator) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.
 // An engine run that compiles satisfies this by validating a document no other
 // run can reach; RunDocument leaves it to its caller.
 func Validate(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
-	return validate(ctx, doc, ir.WalkValues)
+	return validate(ctx, doc, ir.WalkValuesContext)
 }
 
-// walkFunc is how validate walks the document: ir.WalkValues, unless a test is
-// counting the walks.
-type walkFunc func(root any, path string, visitors ...ir.Visitor) bool
+// walkFunc is how validate walks the document: ir.WalkValuesContext, unless a
+// test is counting the walks.
+type walkFunc func(ctx context.Context, root any, path string, visitors ...ir.Visitor) (bool, error)
 
 // validate is Validate walking the document with walk.
 func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagnostic, error) {
 	if doc == nil {
 		return nil, nil
 	}
-	if err := ctx.Err(); err != nil {
+	// One walk reads what the reference, PropID and parameter checks need, and
+	// asks ctx as it goes. checkParams leaves to the dangling check exactly what
+	// it reports.
+	read, err := walkDocument(ctx, doc, walk)
+	if err != nil {
 		return nil, err
 	}
-	// One walk reads what the reference, PropID and parameter checks need.
-	// checkParams leaves to the dangling check exactly what it reports.
-	read := walkDocument(doc, walk)
 	// One index for the run: a discriminator's routes and tag, and a part's
 	// encoding key, are walked while that is cheap and answered from the document
 	// indexed once after that (#850).
@@ -110,9 +111,14 @@ type walked struct {
 	truncated bool
 }
 
-// walkDocument reads doc in one walk, taken with walk.
-func walkDocument(doc *ir.Document, walk walkFunc) walked {
+// walkDocument reads doc in one walk, taken with walk under ctx, and returns
+// ctx's error alone if the walk stopped at it.
+func walkDocument(ctx context.Context, doc *ir.Document, walk walkFunc) (walked, error) {
 	w := walked{refs: newRefSites(doc), props: &propIDSites{}}
-	w.truncated = walk(doc, ir.DocumentPath, &w.decls, w.refs, w.props)
-	return w
+	truncated, err := walk(ctx, doc, ir.DocumentPath, &w.decls, w.refs, w.props)
+	if err != nil {
+		return walked{}, err
+	}
+	w.truncated = truncated
+	return w, nil
 }

@@ -839,7 +839,7 @@ func TestValidate_PerOperationAuthOverride(t *testing.T) {
 func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 	t.Parallel()
 	deep, target := irtest.NestedOverloadDoc(ir.MaxWalkDepth)
-	diags := danglingRefs(deep)
+	diags := danglingRefs(t, deep)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
 	for _, d := range diags {
@@ -850,7 +850,7 @@ func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 	// The other half: the same shape within the cap resolves, so the case above
 	// is not passing on a walk that collects no reference at all.
 	shallow, _ := irtest.NestedOverloadDoc(0)
-	assert.Empty(t, danglingRefs(shallow))
+	assert.Empty(t, danglingRefs(t, shallow))
 }
 
 // TestCheckDanglingRefs_NilTypeDefIsNotFollowed pins report-only behaviour on
@@ -859,7 +859,7 @@ func TestCheckDanglingRefs_TruncatedWalkClaimsNoDeclarations(t *testing.T) {
 func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Types: ir.TypeRegistry{"t/nil": nil}}
-	assert.Empty(t, danglingRefs(doc))
+	assert.Empty(t, danglingRefs(t, doc))
 }
 
 // TestRefSites_KeepOnlyWhatTheWalkCannotSettle holds the walk to settling a
@@ -869,7 +869,7 @@ func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 // walk is over.
 func TestRefSites_KeepOnlyWhatTheWalkCannotSettle(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, pass.KeptRefs(validDoc()), "the model's own ID and its target both resolve in types")
+	assert.Empty(t, pass.KeptRefs(t, validDoc()), "the model's own ID and its target both resolve in types")
 
 	doc := docWithOperation(ir.Operation{ID: "op/o", OverloadOf: new(ir.OpID("op/o"))})
 	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
@@ -880,11 +880,12 @@ func TestRefSites_KeepOnlyWhatTheWalkCannotSettle(t *testing.T) {
 		"doc.Services[0].Groups[0].Operations[0].ID",
 		"doc.Services[0].Groups[0].Operations[0].OverloadOf",
 		"doc.Types[t/m].Properties[0].Type.Target",
-	}, pass.KeptRefs(doc))
+	}, pass.KeptRefs(t, doc))
 }
 
 // danglingRefs runs checkDanglingRefs over what one walk of doc gathers, as
 // Validate does.
-func danglingRefs(doc *ir.Document) []ir.Diagnostic {
-	return pass.DanglingRefs(doc)
+func danglingRefs(t *testing.T, doc *ir.Document) []ir.Diagnostic {
+	t.Helper()
+	return pass.DanglingRefs(t, doc)
 }

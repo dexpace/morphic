@@ -204,9 +204,9 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    family it belongs to or starts one. `Run` never mutates its input, never panics, returns its input
    when it only analyses, reports through its diagnostics alone, and is idempotent: over the
    document a run of it returned, which carries that run's findings, it returns an equal one,
-   `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does between its
-   rule families, and stops soon once it is done: the engine then fails the run, reading nothing it
-   returned. `ir.ForEachOperation` walks the operations, and the package's `diag` helper in
+   `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
+   between its rule families, and stops soon once it is done: the engine then fails the run, reading
+   nothing it returned. `ir.ForEachOperation` walks the operations, and the package's `diag` helper in
    `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`

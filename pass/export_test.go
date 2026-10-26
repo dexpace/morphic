@@ -1,23 +1,40 @@
 package pass
 
-import "github.com/dexpace/morphic/ir"
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir"
+)
 
 // DanglingRefs is checkDanglingRefs over what one walk of doc reads, as validate
 // runs it, for the external tests.
-func DanglingRefs(doc *ir.Document) []ir.Diagnostic {
-	w := walkDocument(doc, ir.WalkValues)
+func DanglingRefs(tb testing.TB, doc *ir.Document) []ir.Diagnostic {
+	tb.Helper()
+	w := walkedFor(tb, doc)
 	return checkDanglingRefs(w.refs, w.decls, w.truncated)
 }
 
 // KeptRefs returns where the references one walk of doc keeps for
 // checkDanglingRefs to settle sit, in walk order, for the external tests.
-func KeptRefs(doc *ir.Document) []string {
-	sites := walkDocument(doc, ir.WalkValues).refs.sites
+func KeptRefs(tb testing.TB, doc *ir.Document) []string {
+	tb.Helper()
+	sites := walkedFor(tb, doc).refs.sites
 	where := make([]string, len(sites))
 	for i, s := range sites {
 		where[i] = s.where
 	}
 	return where
+}
+
+// walkedFor is what validate's one walk of doc reads under tb's context,
+// failing tb unless the walk finishes.
+func walkedFor(tb testing.TB, doc *ir.Document) walked {
+	tb.Helper()
+	w, err := walkDocument(tb.Context(), doc, ir.WalkValuesContext)
+	require.NoError(tb, err)
+	return w
 }
 
 // AppendTypeIDs is appendTypeIDs, for the external tests.

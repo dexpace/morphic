@@ -178,7 +178,7 @@ func TestCheckDanglingRefs_DeepValueTreeIsTruncated(t *testing.T) {
 	m := &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}
 	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 
-	diags := danglingRefs(doc)
+	diags := danglingRefs(t, doc)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)

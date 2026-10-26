@@ -197,6 +197,7 @@ var integerFields = map[string]string{
 	"pathStep.index":  "the field or element a step took, set by the walk as it took it, not IR data",
 	"valueWalk.all":   "the set of a walk's visitors, one bit each, not a position",
 	"valueWalk.seen":  "for each pointer, the set of visitors that entered it, not a position",
+	"valueWalk.shown": "how many values a walk has shown, which spaces its asks of a context, not a position",
 
 	"Property.WireID":       "protobuf field number / thrift id, not a position",
 	"Variant.WireID":        "protobuf oneof field number or ordinal, not a position",

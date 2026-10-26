@@ -157,9 +157,9 @@ func danglingDoc() *ir.Document {
 // TestValidate_ACancelAtAnyCheckReportsNothing cancels a Validate at every check
 // of its context a whole one makes, one Validate per check, and requires the
 // same end each time: the context's error, no finding, and no ask after the
-// refusal. A whole Validate asks before it reads the document, between every
-// two families and after the last, so a cancel waits out one family at most and
-// a family cut short is never reported.
+// refusal. A whole Validate asks as its walk goes, between every two families
+// and after the last, so a cancel waits out one family at most and a family or
+// a walk cut short is never reported.
 func TestValidate_ACancelAtAnyCheckReportsNothing(t *testing.T) {
 	t.Parallel()
 	doc := danglingDoc()
@@ -167,7 +167,7 @@ func TestValidate_ACancelAtAnyCheckReportsNothing(t *testing.T) {
 	diags, err := pass.Validate(whole, doc)
 	require.NoError(t, err)
 	require.NotEmpty(t, diags, "a whole Validate has findings a cut one could leak")
-	require.Equal(t, pass.Families()+2, whole.Calls)
+	require.Greater(t, whole.Calls, pass.Families()+1, "the walk asks too, not only the families")
 
 	for left := range whole.Calls {
 		ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
@@ -195,24 +195,32 @@ func TestValidator_RunReportsNothingOnceItsContextIsDone(t *testing.T) {
 	assert.Nil(t, got)
 }
 
+// ctxKey keys the value TestValidate_WalksTheDocumentOnce puts on a context.
+type ctxKey struct{}
+
 // TestValidate_WalksTheDocumentOnce counts the walks Validate makes through the
-// walk validate is handed: one, carrying what its three walking checks read.
-// No result can show it, since a walk per check reports the same. The counted
-// run must report what Validate does, so the count is of the real run, and the
-// document carries a dangling reference so that run reports something.
+// walk validate is handed: one, carrying what its three walking checks read,
+// under Validate's context. No result can show it, since a walk per check
+// reports the same. The counted run must report what Validate does, so the
+// count is of the real run, and the document carries a dangling reference so
+// that run reports something.
 func TestValidate_WalksTheDocumentOnce(t *testing.T) {
 	t.Parallel()
 	doc := danglingDoc()
+	ctx := context.WithValue(t.Context(), ctxKey{}, "validate's")
 	var walks, visitors int
-	got, err := pass.ValidateWith(t.Context(), doc, func(root any, path string, vs ...ir.Visitor) bool {
+	var under any
+	got, err := pass.ValidateWith(ctx, doc, func(ctx context.Context, root any, path string, vs ...ir.Visitor) (bool, error) {
 		walks++
 		visitors = len(vs)
-		return ir.WalkValues(root, path, vs...)
+		under = ctx.Value(ctxKey{})
+		return ir.WalkValuesContext(ctx, root, path, vs...)
 	})
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, walks, "the walking checks must share one walk of the document")
 	assert.Equal(t, 3, visitors, "the walk carries the declarations, the references and the PropIDs")
+	assert.Equal(t, "validate's", under, "the walk runs under Validate's context")
 	assert.Contains(t, irtest.DiagCodes(got), "ir/dangling-type-ref")
 	assert.Empty(t, cmp.Diff(validated(t, doc), got), "the counted run reports what Validate does")
 }
@@ -220,16 +228,18 @@ func TestValidate_WalksTheDocumentOnce(t *testing.T) {
 // TestValidate_WalksOnlyThroughTheSharedWalk holds the other half, which counting
 // cannot see: a check that walked the document itself would not go through the
 // walk validate is handed. Of the reflection walks ir offers, the pass may name
-// ir.WalkValues only in Validate, which hands it on, and in appendTypeIDs, which
-// walks one GraphQL operation rather than the document.
+// ir.WalkValuesContext only in Validate, which hands it on, and ir.WalkValues
+// only in appendTypeIDs, which walks one GraphQL operation rather than the
+// document.
 func TestValidate_WalksOnlyThroughTheSharedWalk(t *testing.T) {
 	t.Parallel()
 	p, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
 	require.NoError(t, err)
 	irAsSeen, reaches := p.Imported(reflect.TypeFor[ir.Document]().PkgPath())
 	require.True(t, reaches, "the pass must import ir")
-	walkValues := irAsSeen.Scope().Lookup("WalkValues")
-	require.NotNil(t, walkValues, "the ir package must declare WalkValues")
-	assert.Equal(t, []string{"Validate", "appendTypeIDs"}, p.FuncsUsing(walkValues),
-		"the functions that walk through ir.WalkValues")
+	for name, want := range map[string][]string{"WalkValuesContext": {"Validate"}, "WalkValues": {"appendTypeIDs"}} {
+		walk := irAsSeen.Scope().Lookup(name)
+		require.NotNil(t, walk, "the ir package must declare %s", name)
+		assert.Equal(t, want, p.FuncsUsing(walk), "the functions that walk through ir.%s", name)
+	}
 }

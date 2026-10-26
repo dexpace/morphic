@@ -223,13 +223,13 @@ emitter's `Generate` has none (emitter-design.md §2): whatever a pass cannot ha
 is a diagnostic, and anything else is a bug in the pass.
 
 `Run` takes the run's context, though a pass works on a document already in memory, because that
-work is not small beside the compile's: `validate` alone takes about 2 s on the golden spec, nearly
-all of it walking the whole document (morphic @7a3f437b, spec @d04a1ddd). A pass stops soon once
-the context is done, as `validate` does between its rule families. The engine asks the context
-before each pass, so a cancelled run starts no other, and after each, so a pass returning once it
-is done fails the run with the context's error, unjudged, as a compile does (§2.1): a pass cut
-short may return what its contract forbids. Verification (§2.1) reads no context, and the engine
-asks after it too, so a run cancelled anywhere returns no document.
+work grows with the document: `validate` alone walks the whole of it, under half a second on the
+golden spec (morphic @e5557ddd, spec @d04a1ddd), and the document has no bound. A pass stops soon
+once the context is done, as `validate` does in its walk (`ir.WalkValuesContext`) and between its
+rule families. The engine asks the context before each pass, so a cancelled run starts no other, and
+after each, so a pass returning once it is done fails the run with the context's error, unjudged, as
+a compile does (§2.1): a pass cut short may return what its contract forbids. Verification (§2.1)
+reads no context, and the engine asks after it too, so a run cancelled anywhere returns no document.
 
 A transform replaces and removes types through an `ir.Editor` (`ir.NewEditor`), which is to a pass
 what `compile.Types` is to a compiler: its way into the type registry. The edit copies the registry
