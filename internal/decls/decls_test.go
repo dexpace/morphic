@@ -342,10 +342,11 @@ func TestLoadAlone_Refusals(t *testing.T) {
 }
 
 // TestFuncsUsing_NamesTheFunctionsThatNameAnObject holds the reader to the
-// functions and methods whose bodies name an object, and to the importer's copy
-// of it: a function naming the object only through a variable that holds it is
-// not listed, nor is the package-level declaration naming it outside any
-// function.
+// functions and methods whose declarations name an object, and to the
+// importer's copy of it: a function naming the object only through a variable
+// that holds it is not listed, nor is the package-level declaration naming it
+// outside any function. A name in a signature counts: Other names Color only in
+// its result.
 func TestFuncsUsing_NamesTheFunctionsThatNameAnObject(t *testing.T) {
 	t.Parallel()
 	p, err := decls.Load(goodDir + "/uses")
@@ -356,5 +357,7 @@ func TestFuncsUsing_NamesTheFunctionsThatNameAnObject(t *testing.T) {
 	require.NotNil(t, red)
 
 	assert.Equal(t, []string{"Choose", "Pick", "Pick"}, p.FuncsUsing(red), "sorted, the function and the method of one name both")
+	assert.Equal(t, []string{"Choose", "Other", "Pick", "Pick"}, p.FuncsUsing(seen.Scope().Lookup("Color")),
+		"a function naming a type only in its signature uses it too")
 	assert.Empty(t, p.FuncsUsing(seen.Scope().Lookup("Hello")), "nothing in uses calls Hello")
 }

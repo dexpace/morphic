@@ -290,8 +290,9 @@ func (p *Package) TypesDeclaring(method string) []string {
 }
 
 // FuncsUsing returns, sorted, the names of the package's functions and methods
-// whose bodies name obj. obj is compared as an object, so it must be the copy
-// the package sees, as Imported reaches it.
+// whose declarations name obj, in the receiver, the signature or the body. obj
+// is compared as an object, so it must be the copy the package sees, as
+// Imported reaches it.
 func (p *Package) FuncsUsing(obj types.Object) []string {
 	var out []string
 	for _, f := range p.Syntax {
@@ -306,7 +307,7 @@ func (p *Package) FuncsUsing(obj types.Object) []string {
 	return out
 }
 
-// names reports whether fn's body names obj.
+// names reports whether fn's declaration names obj anywhere in it.
 func (p *Package) names(fn *ast.FuncDecl, obj types.Object) bool {
 	for node := range ast.Preorder(fn) {
 		ident, isIdent := node.(*ast.Ident)
