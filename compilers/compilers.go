@@ -102,9 +102,9 @@ type Compiler interface {
 	// recognizes it, which is not support: it may name a format it does not
 	// serve. An ok answer names a format as Formats does: the one Compile reads.
 	//
-	// Detection honors the bounds opts sets for reading src.
-	// FormatOptions of another compiler's type mean this one's defaults; only
-	// Compile rejects them.
+	// Detection honors the bounds opts sets for reading src. FormatOptions of
+	// another compiler's type mean this one's defaults; only Compile rejects
+	// them.
 	//
 	// diags is read only when ok is false. Declining another format's bytes is
 	// silent; diags is for this compiler's own source, unreadable or one opts
