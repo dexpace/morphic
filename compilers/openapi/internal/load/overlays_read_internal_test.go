@@ -98,9 +98,9 @@ func TestLoad_ANamedOverlayPastTheBudgetIsRefused(t *testing.T) {
 
 // TestLoad_ANamedOverlayThatCannotBeReadIsAGoError pins the failures that are
 // the caller's, as an unreadable spec is: a file that is not there, a read the
-// context stopped, no reader to read it through, and a URL, which no setting
-// may take the compile to, each a Go error naming the overlay, with no
-// document and no diagnostic. A URL is refused before the reader is asked.
+// context stopped, no reader to read it through, no path, and a URL, which no
+// setting may take the compile to, each a Go error, with no document and no
+// diagnostic. No path and a URL are refused before the reader is asked.
 func TestLoad_ANamedOverlayThatCannotBeReadIsAGoError(t *testing.T) {
 	t.Parallel()
 	const urlRefusal = "names a URL; an overlay is read from a local file"
@@ -110,6 +110,7 @@ func TestLoad_ANamedOverlayThatCannotBeReadIsAGoError(t *testing.T) {
 		reader  *fakeReader
 		wantIs  error
 		wantMsg string
+		unread  bool
 	}{
 		{name: "a missing file", path: "patch.yaml", reader: &fakeReader{err: fs.ErrNotExist},
 			wantIs: fs.ErrNotExist, wantMsg: "openapi: read overlay patch.yaml"},
@@ -117,10 +118,12 @@ func TestLoad_ANamedOverlayThatCannotBeReadIsAGoError(t *testing.T) {
 			wantIs: context.Canceled, wantMsg: "openapi: read overlay patch.yaml"},
 		{name: "no reader", path: "patch.yaml",
 			wantMsg: "openapi: overlay patch.yaml holds no bytes, and no reader was supplied to read it"},
+		{name: "no path", reader: &fakeReader{data: []byte(describingOverlay)},
+			wantMsg: "openapi: the overlay holds no bytes and names no file to read", unread: true},
 		{name: "an http URL", path: "http://example.com/patch.yaml",
-			reader: &fakeReader{data: []byte(describingOverlay)}, wantMsg: urlRefusal},
+			reader: &fakeReader{data: []byte(describingOverlay)}, wantMsg: urlRefusal, unread: true},
 		{name: "an https URL spelled in capitals", path: "HTTPS://example.com/patch.yaml",
-			reader: &fakeReader{data: []byte(describingOverlay)}, wantMsg: urlRefusal},
+			reader: &fakeReader{data: []byte(describingOverlay)}, wantMsg: urlRefusal, unread: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -140,8 +143,8 @@ func TestLoad_ANamedOverlayThatCannotBeReadIsAGoError(t *testing.T) {
 			assert.Contains(t, err.Error(), tc.wantMsg)
 			assert.Nil(t, doc)
 			assert.Empty(t, diags)
-			if tc.wantMsg == urlRefusal {
-				assert.Empty(t, tc.reader.seen(), "a URL is refused unread")
+			if tc.unread {
+				assert.Empty(t, tc.reader.seen(), "refused before the reader is asked")
 			}
 		})
 	}

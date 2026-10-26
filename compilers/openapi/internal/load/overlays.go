@@ -20,12 +20,15 @@ import (
 // opts.Reader and held to the byte budget as the source is. One past the
 // budget is refused with the diagnostic an overlay handed in bytes gets
 // (overlayRefusals). One that cannot be read is the caller's I/O failure, a Go
-// error, as an unreadable spec is, and so is a path naming a document on the
-// network: a caller naming the overlay names a file, and no setting may take a
-// compile onto the network unasked.
+// error, as an unreadable spec is, and so are an empty path and a network URL:
+// a caller naming the overlay names a file, and no setting may take a compile
+// onto the network unasked.
 func readOverlay(ctx context.Context, opts Options) (Options, []ir.Diagnostic, error) {
 	if opts.Overlay == nil || len(opts.Overlay.Data) > 0 {
 		return opts, nil, nil
+	}
+	if opts.Overlay.Path == "" {
+		return opts, nil, errors.New("openapi: the overlay holds no bytes and names no file to read")
 	}
 	if overNetwork(opts.Overlay.Path) {
 		return opts, nil, fmt.Errorf("openapi: overlay %s names a URL; an overlay is read from a local file",
