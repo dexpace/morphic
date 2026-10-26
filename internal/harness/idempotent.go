@@ -41,42 +41,43 @@ func idempotent(ctx context.Context, spec string, data []byte) (string, bool) {
 }
 
 // twice runs p over doc, then over what that run returned, and returns the
-// first run's document, or what the second run changed. The first is encoded
-// before the second run, so a pass writing into the document it is handed
+// first run's document, or what the second run changed. Each run is encoded
+// before the next begins, so a pass writing into the document it is handed
 // cannot hide a change by making it to both.
 func twice(ctx context.Context, p pass.Pass, doc *ir.Document) (*ir.Document, string, bool) {
 	e, err := newEngine([]pass.Pass{p})
 	if err != nil {
 		return nil, err.Error(), false
 	}
-	once, err := e.RunDocument(ctx, doc, engine.RunOptions{})
+	once, first, err := runEncoded(ctx, e, doc)
 	if err != nil {
 		return nil, fmt.Sprintf("pass %q: %v", p.Name(), err), false
 	}
-	first, err := passOutput(once.Document)
-	if err != nil {
-		return nil, fmt.Sprintf("pass %q: encode its output: %v", p.Name(), err), false
-	}
-	again, err := e.RunDocument(ctx, once.Document, engine.RunOptions{})
+	_, second, err := runEncoded(ctx, e, once)
 	if err != nil {
 		return nil, fmt.Sprintf("pass %q over its own output: %v", p.Name(), err), false
-	}
-	second, err := passOutput(again.Document)
-	if err != nil {
-		return nil, fmt.Sprintf("pass %q over its own output: encode: %v", p.Name(), err), false
 	}
 	if !bytes.Equal(first, second) {
 		return nil, fmt.Sprintf("pass %q changes its own output (-once +twice):\n%s",
 			p.Name(), cmp.Diff(string(first), string(second))), false
 	}
-	return once.Document, "", true
+	return once, "", true
 }
 
-// passOutput encodes what a pass returned, indented so that a difference reads
-// line by line, and without Document.Diagnostics: the engine writes those, and
-// a rerun may report what the first run did not.
-func passOutput(doc *ir.Document) ([]byte, error) {
-	own := *doc
+// runEncoded runs e's passes over doc and returns the document the run
+// returned, beside its encoding: indented so that a difference reads line by
+// line, and without Document.Diagnostics, which the engine writes and a rerun
+// may report differently.
+func runEncoded(ctx context.Context, e *engine.Engine, doc *ir.Document) (*ir.Document, []byte, error) {
+	res, err := e.RunDocument(ctx, doc, engine.RunOptions{})
+	if err != nil {
+		return nil, nil, err
+	}
+	own := *res.Document
 	own.Diagnostics = nil
-	return json.Marshal(&own, jsontext.WithIndent("  "))
+	encoded, err := json.Marshal(&own, jsontext.WithIndent("  "))
+	if err != nil {
+		return nil, nil, fmt.Errorf("encode its output: %w", err)
+	}
+	return res.Document, encoded, nil
 }
