@@ -86,9 +86,10 @@ func Classify(n *yaml.Node) (Scalar, error) {
 }
 
 // text classifies a scalar YAML resolved to a string. A plain one that spells
-// a finite decimal is a number all the same: yaml.v3 resolves a number past
-// float64's range to a string, and the source wrote a number (GitHub #16). A
-// quoted one, or one tagged !!str outright, is the string it says.
+// a decimal a BigVal holds is a number all the same: yaml.v3 resolves a number past
+// float64's range to a string, and the source wrote a number (GitHub #16). One
+// past ir.MaxDecimalExp stays a string, unreported (GitHub #1115). A quoted one,
+// or one tagged !!str outright, is the string it says.
 //
 // `<<` written as a value, which yaml.v3 tags !!merge wherever it stands, is
 // the text it spells: only a key merges.
@@ -158,8 +159,7 @@ func NumericLiteral(node *yaml.Node) (ir.BigVal, error) {
 // A magnitude past uint64 reaches an !!int node only when the source tags one
 // explicitly (yaml.v3 resolves an untagged one as !!float), so nothing can
 // decode it and its text is taken at face value. That is safe only for a
-// spelling with no base prefix; every prefix starts with a zero, so a plain
-// decimal run is the test.
+// spelling readsInBaseTen accepts: one with no base prefix.
 func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
 	var signed int64
 	if err := node.Decode(&signed); err == nil {
@@ -170,16 +170,18 @@ func decodeIntLiteral(node *yaml.Node) (ir.BigVal, error) {
 		return ir.NewBigVal(strconv.FormatUint(unsigned, 10))
 	}
 	plain := strings.ReplaceAll(node.Value, "_", "")
-	if !isPlainDecimal(plain) {
+	if !readsInBaseTen(plain) {
 		return "", fmt.Errorf("openapi: integer literal %q resolves to no base-10 value", node.Value)
 	}
 	return ir.NewBigVal(plain)
 }
 
-// isPlainDecimal reports whether s is an optionally signed run of digits with no
-// leading zero — the spellings whose value in base 10 is what they say, with no
-// YAML base prefix to reinterpret.
-func isPlainDecimal(s string) bool {
+// readsInBaseTen reports whether YAML reads the !!int spelling s in base 10.
+// Every YAML base prefix (0b, 0o, 0x, and YAML 1.1's bare 0) starts with a
+// zero, so an optionally signed digit run with no leading zero is the base-10
+// spelling. The decimal grammar cannot answer this: 0644 is a decimal literal,
+// and YAML's 420.
+func readsInBaseTen(s string) bool {
 	if s != "" && (s[0] == '+' || s[0] == '-') {
 		s = s[1:]
 	}

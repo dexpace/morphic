@@ -252,6 +252,8 @@ func TestConstraints_LosslessNumericLiterals(t *testing.T) {
 	}{
 		{"beyond float64 range", "1.8e308", "1.8e308"},
 		{"far beyond float64 range", "1e400", "1e400"},
+		{"past a binary float's range", "1e2000000000", "1e2000000000"},
+		{"at the edge of the exponent range", "1e999999999999999999", "1e999999999999999999"},
 		{"leading dot spelling", ".5", "0.5"},
 		{"trailing dot spelling", "5.", "5"},
 		{"huge integer beyond int64", "123456789012345678901234567890", "123456789012345678901234567890"},
@@ -270,6 +272,25 @@ func TestConstraints_LosslessNumericLiterals(t *testing.T) {
 			require.NotNil(t, c.Min)
 			assert.Equal(t, tc.want, *c.Min)
 		})
+	}
+}
+
+// TestConstraints_ABoundPastTheExponentRangeIsRefused pins the far side of the
+// range the rows above reach the edge of: a bound whose leading digit carries a
+// power of ten past ir.MaxDecimalExp is reported once, as the numeric-precision
+// error every unreadable bound draws, and is dropped rather than recorded.
+func TestConstraints_ABoundPastTheExponentRangeIsRefused(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.ComponentSpec("    S:\n      type: object\n      properties:\n        n: {type: number, minimum: 1e1000000000000000000}\n")
+	doc, diags := schema.LowerSpec(t, spec)
+
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.NumericPrecision, ir.SeverityError),
+		"one numeric-precision error, got: %+v", diags)
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, m.Properties, 1)
+	if c := m.Properties[0].Constraints; c != nil {
+		assert.Nil(t, c.Min, "a refused bound is dropped, not recorded")
 	}
 }
 

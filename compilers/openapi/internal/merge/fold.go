@@ -384,7 +384,7 @@ func (f *folding) foldAnnotations() {
 		return p.Deprecation, p.Deprecation != nil
 	}, func(a, b *ir.Deprecation) bool { return *a == *b })
 	if i := slices.IndexFunc(f.decls, func(d declaration) bool { return d.prop.Deprecation != nil }); i > 0 {
-		f.merged.Provenance.Inferred = joinMarkers(f.merged.Provenance.Inferred, f.decls[i].prop.Provenance.Inferred)
+		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, f.decls[i].prop.Provenance.Inferred)
 	}
 	f.merged.XML = firstWritten(f, "xml", func(_ int, p *ir.Property) (*ir.XMLHints, bool) {
 		return p.XML, p.XML != nil

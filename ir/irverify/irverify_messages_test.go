@@ -56,6 +56,14 @@ func messageCases() []messageCase {
 			return typesDoc(m)
 		}, "ir/bigval-not-numeric",
 			fmt.Sprintf("numeric value %q is not a decimal literal, so it does not read back as a JSON number", illFormed)},
+		{"bigval out of range", func() *ir.Document {
+			m := namedModel("t/x/A")
+			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},
+				Default: &ir.Value{Kind: ir.ValueNumber, Num: "1e1000000000000000000"}}}
+			return typesDoc(m)
+		}, "ir/bigval-out-of-range",
+			`numeric value "1e1000000000000000000" is a decimal literal whose leading digit carries a power of ten ` +
+				`past the ±999999999999999999 a BigVal holds`},
 		{"bigval not canonical", func() *ir.Document {
 			m := namedModel("t/x/A")
 			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},

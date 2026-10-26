@@ -42,6 +42,15 @@ func TestValidate_PropPathSegmentResolves(t *testing.T) {
 		"a segment naming no property is reported")
 }
 
+// TestValidate_APropIDSpelledAsAnotherClassesIDDangles pins that only a
+// property declares a PropID: a segment spelling the operation's own ID, an
+// OpID, names no property.
+func TestValidate_APropIDSpelledAsAnotherClassesIDDangles(t *testing.T) {
+	t.Parallel()
+	bad := pass.Validate(docWithOperation(propPathOperation([]ir.PropID{"op/o"})))
+	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-prop-ref")
+}
+
 // TestValidate_ParamPathSegmentResolves covers the second carrier shape, whose
 // segments sit inside a parameter binding rather than a body path. Both are
 // reached by the same walk, so this is the assertion that the walk's reach —

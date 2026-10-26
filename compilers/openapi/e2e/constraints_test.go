@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,6 +53,57 @@ func TestCompile_ComponentScalarConstraintsPreserved(t *testing.T) {
 			assert.Equal(t, tc.wantMin, *sc.Constraints.Min)
 		})
 	}
+}
+
+// TestCompile_ANumericFieldIsReadPastARationalsRange pins the validation table's
+// reading of a numeric field through the compiler's front door: a magnitude
+// math/big will not build as a rational, or no BigVal holds, is judged by its
+// sign and integrality alone, and a bound past what a BigVal holds is the
+// lowering's to refuse. Only diagnostic codes are asserted, never the lowered
+// maxLength, which #1050 tracks.
+func TestCompile_ANumericFieldIsReadPastARationalsRange(t *testing.T) {
+	t.Parallel()
+	const (
+		head     = "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents: {schemas: {N: "
+		mismatch = "openapi/validation/validation-type-mismatch"
+		invalid  = "openapi/invalid-numeric-literal"
+	)
+	cases := []struct {
+		name, body string
+		want       []string // diagnostic codes of error severity, in order
+		pointer    string   // suffix of the first error's pointer, when there is one
+	}{
+		{"an integer length past a rational", "{type: string, maxLength: 1e1000001}}}", nil, ""},
+		{"an integer length past what a BigVal holds", "{type: string, maxLength: 1e1000000000000000000}}}", nil, ""},
+		{"a negative step past a rational", "{type: number, multipleOf: -1e1000001}}}", []string{mismatch}, "/multipleOf"},
+		{"a bound past a binary float", "{type: number, minimum: 1e2000000000}}}", nil, ""},
+		{"a bound past what a BigVal holds", "{type: number, minimum: 1e1000000000000000000}}}", []string{invalid}, "/schemas/N"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "t.yaml", Data: []byte(head + tc.body + "\n")}}, compilers.Options{})
+			require.NoError(t, err)
+			require.NotNil(t, doc)
+
+			var got []string
+			for _, d := range diags {
+				if d.Severity == ir.SeverityError {
+					got = append(got, d.Code)
+					assert.True(t, strings.HasSuffix(string(d.Provenance.Pointer), tc.pointer), "pointer %q", d.Provenance.Pointer)
+				}
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
+
+	doc := compileComponentSpec(t, head+"{type: number, minimum: 1e2000000000}}}\n")
+	sc, ok := doc.Types["t/openapi/components/schemas/N"].(*ir.Scalar)
+	require.True(t, ok, "N lowers to a scalar")
+	require.NotNil(t, sc.Constraints)
+	require.NotNil(t, sc.Constraints.Min)
+	assert.Equal(t, ir.BigVal("1e2000000000"), *sc.Constraints.Min)
 }
 
 // TestCompile_HoistedSubSchemaConstraintsPreserved pins that a $ref to an internal

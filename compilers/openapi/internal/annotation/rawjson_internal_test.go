@@ -71,6 +71,7 @@ func TestRawFromNode_KeepsNumericLiteralsExact(t *testing.T) {
 		{"int64 boundary", "9223372036854775807", "9223372036854775807"},
 		{"uint64 boundary", "18446744073709551615", "18446744073709551615"},
 		{"tiny magnitude", "1.5e-300", "1.5e-300"},
+		{"past a binary float's range", "1e2000000000", "1e2000000000"},
 		{"explicitly tagged huge int", `!!int 12345678901234567890123`, "12345678901234567890123"},
 		{"nested in a mapping", "{a: 12345678901234567890123}", `{"a":12345678901234567890123}`},
 		{"nested in a sequence", "[1.000000000000000000001]", "[1.000000000000000000001]"},

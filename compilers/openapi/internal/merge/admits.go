@@ -3,7 +3,6 @@ package merge
 import (
 	"math/big"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -67,10 +66,10 @@ func admits(k ir.PrimKind, v ir.Value) bool {
 	case ir.PrimUint64:
 		return inRange(v, "0", uint64Max)
 	case ir.PrimInteger:
-		r, ok := reading(v)
-		return ok && r.Integral
+		d, ok := decimalOf(v)
+		return ok && d.IsInt()
 	case ir.PrimNumber, ir.PrimFloat, ir.PrimDecimal:
-		_, ok := reading(v)
+		_, ok := decimalOf(v)
 		return ok
 	case ir.PrimDecimal128:
 		return admitsDecimal128(v)
@@ -97,40 +96,39 @@ func admits(k ir.PrimKind, v ir.Value) bool {
 	}
 }
 
-// reading reads v as a number, reporting false for any other kind of value.
-func reading(v ir.Value) (annotation.DecimalReading, bool) {
+// decimalOf reads v as a number, reporting false for any other kind of value and
+// for a number no Decimal holds: reading that as zero would admit it everywhere.
+func decimalOf(v ir.Value) (ir.Decimal, bool) {
 	if v.Kind != ir.ValueNumber {
-		return annotation.DecimalReading{}, false
+		return ir.Decimal{}, false
 	}
-	return annotation.ReadDecimal(v.Num)
+	d, err := v.Num.Decimal()
+	return d, err == nil
 }
 
-// inRange reports whether v is an integral number from lo to hi inclusive.
+// inRange reports whether v is an integral number from lo to hi inclusive. An
+// end that reads as no number admits nothing.
 func inRange(v ir.Value, lo, hi ir.BigVal) bool {
-	r, ok := reading(v)
-	if !ok || !r.Integral {
-		return false
-	}
-	below, lowOK := annotation.CompareBigVal(v.Num, lo)
-	above, highOK := annotation.CompareBigVal(v.Num, hi)
-	return lowOK && highOK && below >= 0 && above <= 0
+	d, ok := decimalOf(v)
+	low, lowErr := lo.Decimal()
+	high, highErr := hi.Decimal()
+	return ok && lowErr == nil && highErr == nil && d.IsInt() && d.Cmp(low) >= 0 && d.Cmp(high) <= 0
 }
 
 // admitsDecimal128 reports whether v fits IEEE 754 decimal128: at most 34
 // significant digits, the leading one no higher than 10^6144 and the last no
 // lower than 10^-6176.
 func admitsDecimal128(v ir.Value) bool {
-	r, ok := reading(v)
+	d, ok := decimalOf(v)
 	if !ok {
 		return false
 	}
-	if r.Zero {
+	if d.Sign() == 0 {
 		return true
 	}
-	lowest := new(big.Int).Sub(r.MsdExp, big.NewInt(int64(r.Digits-1)))
-	return r.Digits <= decimal128Digits &&
-		r.MsdExp.Cmp(big.NewInt(decimal128MaxMsdExp)) <= 0 &&
-		lowest.Cmp(big.NewInt(decimal128MinLowExp)) >= 0
+	digits := int64(len(d.Digits()))
+	lowest := d.Exponent() - (digits - 1)
+	return digits <= decimal128Digits && d.Exponent() <= decimal128MaxMsdExp && lowest >= decimal128MinLowExp
 }
 
 // admitsFloat reports whether v rounds to a finite value of a binary float
@@ -138,13 +136,13 @@ func admitsDecimal128(v ir.Value) bool {
 // 2^maxExp - 2^(maxExp-mantissa-1), the point at which round-to-nearest
 // overflows. Rounding is allowed, as OpenAPI floats round.
 func admitsFloat(v ir.Value, mantissa, maxExp uint) bool {
-	if _, ok := reading(v); !ok {
-		return false
-	}
+	d, ok := decimalOf(v)
 	limit := new(big.Int).Lsh(big.NewInt(1), maxExp)
 	limit.Sub(limit, new(big.Int).Lsh(big.NewInt(1), maxExp-mantissa-1))
 	text := limit.String()
-	below, upOK := annotation.CompareBigVal(v.Num, ir.BigVal(text))
-	above, downOK := annotation.CompareBigVal(v.Num, ir.BigVal("-"+text))
-	return upOK && downOK && below < 0 && above > 0
+	// The limits are plain digit runs and always read. The guards keep a failed read
+	// from passing as the zero Decimal, which would put the limit at zero.
+	up, upErr := ir.ParseDecimal(text)
+	down, downErr := ir.ParseDecimal("-" + text)
+	return ok && upErr == nil && downErr == nil && d.Cmp(up) < 0 && d.Cmp(down) > 0
 }

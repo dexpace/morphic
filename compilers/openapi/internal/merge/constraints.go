@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"fmt"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -128,10 +127,26 @@ func constraintsConflict(a, b *ir.Constraints) (keyword int, detail string, conf
 // one may be the stricter, so silence would loosen the validation the spec
 // intended.
 func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
-	if a == nil || b == nil || annotation.BigValEqual(*a, *b) {
+	if a == nil || b == nil || sameNumber(*a, *b) {
 		return "", false
 	}
 	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, a.String(), b.String()), true
+}
+
+// sameNumber reports whether a and b denote the same value, so one magnitude
+// spelled two ways, 10, 10.0 and 1e1, is one value.
+//
+// Identical text is one literal and needs no reading. A pair with a literal no
+// Decimal holds is judged by its text alone: differing spellings are reported
+// unequal rather than guessed at, since reading either as zero would fold two
+// bounds into one the source never wrote.
+func sameNumber(a, b ir.BigVal) bool {
+	if a == b {
+		return true
+	}
+	da, errA := a.Decimal()
+	db, errB := b.Decimal()
+	return errA == nil && errB == nil && da == db
 }
 
 // intConflictDetail reports whether two optional integer bounds are both

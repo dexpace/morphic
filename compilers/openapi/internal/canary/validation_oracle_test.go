@@ -87,7 +87,7 @@ var validationReasons = map[string]string{
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
 		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
-		"reports one that is no finite decimal (docs/compilers/openapi.md#constraints)",
+		"reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
 	"over-strict": "the library warns of a field written beside a type it does not apply to; the specification's " +
 		"'Applies To' column says where a field has meaning and bars it nowhere (3.2.0 §Security Scheme Object: " +
 		"bearerFormat applies to http), so the table accepts it, and the security scheme lowering keeps the field " +

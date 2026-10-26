@@ -332,6 +332,24 @@ func TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
 	}
 }
 
+// TestPromoteEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere is the marker
+// pin its deprecation twin makes, at this carrier: a name already in the list
+// survives the promotion, and a second reading of the node adds none.
+func TestPromoteEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere(t *testing.T) {
+	t.Parallel()
+	c := promotionCtx(lowering.ExtensionPromotions{})
+	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`true`)}
+	enum := ir.Enum{Closed: true}
+	prov := ir.Provenance{Inferred: "an-earlier-heuristic"}
+
+	c.PromoteEnumOpenness(unmodeled, &enum, &prov)
+	assert.Equal(t, "an-earlier-heuristic,extension-promotion", prov.Inferred)
+
+	c.PromoteEnumOpenness(unmodeled, &enum, &prov)
+	assert.Equal(t, "an-earlier-heuristic,extension-promotion", prov.Inferred,
+		"a second reading of the same node adds no second marker")
+}
+
 // TestPromoteEnumOpenness_LeavesTheEntryItRead is the losslessness half, for
 // the same reason its deprecation twin is: the promotion is a second reading of
 // a preserved entry, so a consumer that disagrees still has what was written —

@@ -149,7 +149,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims
 	// After both payload lowerings, which are what it reads.
 	streaming, streamDiags := applyStreaming(c, &op, decl)
 	diags = append(diags, streamDiags...)
-	op.Provenance.Inferred = joinInferred(opCtx.inferred, streaming)
+	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, opCtx.inferred, streaming)
 	var extra []ir.Operation
 	if opCtx.withCallbacks {
 		var cbExt ir.Unmodeled

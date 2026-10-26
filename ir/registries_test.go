@@ -146,6 +146,70 @@ func TestDeclaredIDs_NilDocumentDeclaresNothing(t *testing.T) {
 	assert.False(t, truncated)
 }
 
+// The shapes DeclaredIDOf has to tell apart. The IR holds only the first: every
+// promoted ID is a TypeID, and no node declares a plain-string ID, so a walk
+// over a Document cannot separate the clauses of the predicate.
+type (
+	idDeclarer    struct{ ID ir.OpID }
+	idPromoter    struct{ idDeclarer }
+	plainID       struct{ ID string }
+	noID          struct{ Name string }
+	pointerID     struct{ ID *ir.OpID }
+	ID            string
+	embeddedID    struct{ ID }
+	otherDeclarer struct{ ID ir.TypeID }
+	twoPromoters  struct {
+		idDeclarer
+		otherDeclarer
+	}
+	shadowing struct {
+		idDeclarer
+		ID ir.TypeID
+	}
+)
+
+// TestDeclaredIDOf_ClassifiesEachShape pins each clause of the declared-ID
+// predicate: the field is named ID, the struct declares it rather than
+// promotes it, and its type is a named string. A value that is no struct
+// declares nothing, and neither does the zero Value, so no caller can make
+// the lookup panic.
+func TestDeclaredIDOf_ClassifiesEachShape(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		v        reflect.Value
+		class    reflect.Type
+		id       string
+		declares bool
+	}{
+		{"a named string ID the type declares", reflect.ValueOf(idDeclarer{ID: "op/a"}),
+			reflect.TypeFor[ir.OpID](), "op/a", true},
+		{"an empty ID is still a declaration", reflect.ValueOf(idDeclarer{}),
+			reflect.TypeFor[ir.OpID](), "", true},
+		{"an ID reached only by promotion", reflect.ValueOf(idPromoter{}), nil, "", false},
+		{"a plain string named ID", reflect.ValueOf(plainID{ID: "x"}), nil, "", false},
+		{"no ID field", reflect.ValueOf(noID{Name: "x"}), nil, "", false},
+		{"a pointer to an ID class", reflect.ValueOf(pointerID{}), nil, "", false},
+		{"an embedded named string type called ID", reflect.ValueOf(embeddedID{ID: "e"}),
+			reflect.TypeFor[ID](), "e", true},
+		{"two promoted IDs", reflect.ValueOf(twoPromoters{}), nil, "", false},
+		{"a direct ID beside a promoted one", reflect.ValueOf(shadowing{ID: "t/x"}),
+			reflect.TypeFor[ir.TypeID](), "t/x", true},
+		{"a value that is no struct", reflect.ValueOf(ir.OpID("op/a")), nil, "", false},
+		{"the zero Value", reflect.Value{}, nil, "", false},
+		{"a pointer to a struct", reflect.ValueOf(&idDeclarer{ID: "op/a"}), nil, "", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			class, id, declares := ir.DeclaredIDOf(tc.v)
+
+			assert.Equal(t, tc.declares, declares)
+			assert.Equal(t, tc.class, class)
+			assert.Equal(t, tc.id, id)
+		})
+	}
+}
+
 // TestWithDeclarations_ResolvesOnlyTheClassesNoMapCovers pins which classes the
 // declaration-derived registries answer for. A class Document keys a map by keeps
 // that map, PropID stays out because a property is a position inside its model,

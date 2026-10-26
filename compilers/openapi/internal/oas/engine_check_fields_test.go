@@ -72,7 +72,7 @@ func TestCheck_ShapesFollowTheField(t *testing.T) {
 
 // TestCheck_NumbersFollowTheirShape pins the numeric shapes, and that the numeric
 // bounds the schema lowering reads off the raw node are left to it: it reports a
-// value that is no finite decimal, a null included, or is in the other
+// value that is no decimal a BigVal holds, a null included, or is in the other
 // dialect's form, and takes a quoted number as the decimal it spells. A number
 // outside a bound's range, a multipleOf no greater than 0, quoted or not, is
 // the table's.
@@ -84,11 +84,23 @@ func TestCheck_NumbersFollowTheirShape(t *testing.T) {
 		{"natural: fraction", "3.1.0", oas.Schema, `{maxLength: 1.5}`, []finding{at(mismatch, "/maxLength")}},
 		{"natural: hex", "3.1.0", oas.Schema, `{maxLength: 0x10}`, nil},
 		{"natural: underscored", "3.1.0", oas.Schema, `{maxLength: 1_000}`, nil},
+		{"natural: an underscored whole float", "3.1.0", oas.Schema, `{maxLength: 1_0.0}`, nil},
 		{"natural: a fraction is text", "3.1.0", oas.Schema, `{maxLength: 4/2}`, []finding{at(mismatch, "/maxLength")}},
 		{"natural: a binary exponent is text", "3.1.0", oas.Schema, `{maxLength: 0x1p4}`,
 			[]finding{at(mismatch, "/maxLength")}},
 		{"natural: quoted", "3.1.0", oas.Schema, `{maxLength: "5"}`, []finding{at(mismatch, "/maxLength")}},
 		{"natural: infinity", "3.1.0", oas.Schema, `{maxLength: .inf}`, []finding{at(mismatch, "/maxLength")}},
+		{"natural: past a rational's range", "3.1.0", oas.Schema, `{maxLength: 1e1000001}`, nil},
+		{"natural: whole with a point, past it", "3.1.0", oas.Schema, `{maxLength: 1.5e1000001}`, nil},
+		{"natural: negative past it", "3.1.0", oas.Schema, `{maxLength: -1e1000001}`,
+			[]finding{at(mismatch, "/maxLength")}},
+		{"natural: a fraction past it", "3.1.0", oas.Schema, `{maxLength: 1e-1000001}`,
+			[]finding{at(mismatch, "/maxLength")}},
+		{"natural: past the range a BigVal holds", "3.1.0", oas.Schema, `{maxLength: 1e1000000000000000000}`, nil},
+		{"natural: negative past that range", "3.1.0", oas.Schema, `{maxLength: -1e1000000000000000000}`,
+			[]finding{at(mismatch, "/maxLength")}},
+		{"natural: a fraction past that range", "3.1.0", oas.Schema, `{maxLength: 1e-1000000000000000000}`,
+			[]finding{at(mismatch, "/maxLength")}},
 		{"bound: exponent", "3.1.0", oas.Schema, `{maximum: 1e3, minimum: -2.5, multipleOf: 0.5}`, nil},
 		{"bound: past float64's range", "3.1.0", oas.Schema, `{maximum: 1e999, minLength: 1e30}`, nil},
 		{"bound: no number is the lowering's", "3.1.0", oas.Schema,
@@ -101,6 +113,15 @@ func TestCheck_NumbersFollowTheirShape(t *testing.T) {
 		{"bound: a quoted multipleOf of zero", "3.1.0", oas.Schema, `{multipleOf: "0"}`, []finding{at(mismatch, "/multipleOf")}},
 		{"bound: a quoted multipleOf above zero is the lowering's", "3.1.0", oas.Schema, `{multipleOf: "0.5"}`, nil},
 		{"bound: a null is the lowering's", "3.1.0", oas.Schema, `{maximum: ~}`, nil},
+		{"bound: a negative multipleOf past a rational's range", "3.1.0", oas.Schema, `{multipleOf: -1e1000001}`,
+			[]finding{at(mismatch, "/multipleOf")}},
+		{"bound: a negative multipleOf below one", "3.1.0", oas.Schema, `{multipleOf: -1e-1000001}`,
+			[]finding{at(mismatch, "/multipleOf")}},
+		{"bound: a multipleOf above zero below one", "3.1.0", oas.Schema, `{multipleOf: 1e-1000001}`, nil},
+		{"bound: past the range a BigVal holds is the lowering's", "3.1.0", oas.Schema,
+			`{multipleOf: 1e1000000000000000000}`, nil},
+		{"bound: a negative multipleOf past that range", "3.1.0", oas.Schema,
+			`{multipleOf: -1e1000000000000000000}`, []finding{at(mismatch, "/multipleOf")}},
 	})
 }
 

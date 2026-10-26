@@ -4,7 +4,6 @@ import (
 	"encoding/json/v2"
 	"maps"
 	"slices"
-	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
@@ -133,7 +132,7 @@ func (c Ctx) PromoteDeprecation(unmodeled ir.Unmodeled, dep *ir.Deprecation, pro
 		promoted = true
 	}
 	if promoted {
-		markInferred(prov, ExtensionPromotionHeuristic)
+		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
 	return diags
 }
@@ -161,7 +160,7 @@ func (c Ctx) PromoteEnumOpenness(unmodeled ir.Unmodeled, e *ir.Enum, prov *ir.Pr
 			continue
 		}
 		e.Closed = false
-		markInferred(prov, ExtensionPromotionHeuristic)
+		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 		return
 	}
 }
@@ -219,27 +218,6 @@ func extensionOpenness(raw ir.RawValue) bool {
 		return true
 	}
 	return *open
-}
-
-// markInferred adds one heuristic's name to a provenance, keeping any already
-// there. Provenance.Inferred holds a single string and more than one heuristic
-// can reach a node — an operation grouped by path prefix whose deprecation
-// reason was promoted is reached by two — so they are listed rather than one
-// overwriting the other.
-//
-// Adding a name already listed is a no-op. A node reached by two references is
-// annotated once per reference, and a marker repeated as many times as a
-// component happens to be used would make the field depend on the document's
-// reference count rather than on which heuristics ran.
-func markInferred(prov *ir.Provenance, marker string) {
-	if prov.Inferred == "" {
-		prov.Inferred = marker
-		return
-	}
-	if slices.Contains(strings.Split(prov.Inferred, ","), marker) {
-		return
-	}
-	prov.Inferred += "," + marker
 }
 
 // promotionSet normalizes a policy into the map PromoteDeprecation reads, or

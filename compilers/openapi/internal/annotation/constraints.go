@@ -27,8 +27,8 @@ const (
 // bounds are read where lists are lowered.
 //
 // Numeric bounds come from the raw YAML nodes, never the *float64 model fields,
-// to keep full decimal precision; a non-finite literal is skipped with an error
-// diag.NumericPrecision diagnostic.
+// to keep full decimal precision; a literal no BigVal holds is skipped with an
+// error diag.NumericPrecision diagnostic.
 //
 // exclusiveBoolean selects the exclusiveMinimum/exclusiveMaximum dialect (see
 // applyExclusive); the caller decides it.

@@ -58,6 +58,14 @@ components:
         loose:
           type: number
           default: 09
+        # Magnitudes no rational is built for: bounds past what a binary float
+        # scales to, and a step past what big.Rat builds. Each is read, never
+        # materialized.
+        vast:
+          type: number
+          minimum: -1e2000000000
+          maximum: 1e2000000000
+          multipleOf: 1e-1000001
         # Everything above rides the Value/BigVal channel. The constructs kept
         # verbatim as raw JSON are a second channel with the same requirement,
         # and it is the one that had no corpus case: a vendor extension, and a
