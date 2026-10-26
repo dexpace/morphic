@@ -213,7 +213,7 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    through `engine.WithPasses`.
    Once in the list, the pass runs on every corpus spec `TestHarness_InRepoCorpus` sweeps: an error
    it reports there fails the sweep, as it fails `morphic compile`, and the idempotence oracle runs
-   it twice over the document it returns, failing a transform whose second run changes it.
+   it again over the document it returned, failing a transform whose second run changes that.
    A default pass runs on every CLI test's spec. One that reports on the shared specs in
    `internal/testspec` breaks the `cmd/morphic` tests that expect a clean run, such as
    `TestRun_ValidateExitCodes/clean_spec`, so keep those specs clean of what it reports.

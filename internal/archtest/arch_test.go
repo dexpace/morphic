@@ -741,7 +741,8 @@ func TestImportGraph_EveryPackageIsRuledOrExempt(t *testing.T) {
 		_, own := rules[dir]
 		assert.False(t, ownEntryRequired(dir) && !own,
 			"%s has no rules entry of its own: a package under compilers/ or emitters/ needs one, since an "+
-				"inherited allowlist says nothing about where it sits (CONTRIBUTING.md, Add a compiler, step 2)", dir)
+				"inherited allowlist says nothing about where it sits (for a compiler, CONTRIBUTING.md, Add a "+
+				"compiler, step 2)", dir)
 	}
 	for dir := range exempt {
 		assert.Contains(t, pkgs, dir, "exempt names %s, which holds no production Go files", dir)

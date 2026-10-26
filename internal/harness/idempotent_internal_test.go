@@ -107,9 +107,10 @@ func unencodable(own *ir.Document) *ir.Document {
 }
 
 // TestCheck_IdempotenceOutcome pins what the oracle asks of a sweep's passes:
-// an idempotent transform and the default passes are OK, a transform that
-// changes its own output is non-idempotent, named, with what its second run
-// changed, and so is one whose two outputs share what it writes into.
+// the default passes, an idempotent transform and one reporting only over its
+// own output are OK; a transform that changes its own output is
+// non-idempotent, named, with what its second run changed, and so is one whose
+// two outputs share what it writes into.
 func TestCheck_IdempotenceOutcome(t *testing.T) {
 	for _, tc := range []struct {
 		name   string

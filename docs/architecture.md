@@ -236,8 +236,8 @@ leaves the document depending on how many times it went through the list, and `R
 the list over a document that may have been through it already. What a pass reports may differ the
 second time, as a filter that removed an operation finds none left to remove, so the findings are
 left out of the comparison. The harness's idempotence oracle holds each pass of the default list to
-this over every corpus spec, running it twice over the document a run hands it, after the passes
-before it (§5).
+this over every corpus spec: it runs the pass over the document a run hands it, after the passes
+before it, and again over what that returned (§5).
 
 A caller turns a pass off by name (`RunOptions.DisablePasses`, `--disable-pass`); a name no pass
 carries is a Go error (`engine.ErrUnknownPass`), not a diagnostic, because it names no defect in the
