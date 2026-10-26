@@ -164,12 +164,12 @@ func TestValidate_ArgsCheckFailsOpenWhenWalkTruncated(t *testing.T) {
 	assert.Contains(t, past, "ir/walk-truncated", "and the truncation must be reported instead")
 }
 
-// TestCollectTypeIDs_DeepValueTreeIsTruncated drives what this pass does with a
-// truncated walk: a value tree nested past the shared cap must not be silently
-// under-checked, so the flag comes back out of the collector and Validate turns
-// it into a diagnostic rather than claiming the document is referentially closed.
-// The bound itself is ir.MaxWalkDepth's to hold; this is the reporting half.
-func TestCollectTypeIDs_DeepValueTreeIsTruncated(t *testing.T) {
+// TestCheckDanglingRefs_DeepValueTreeIsTruncated drives what this pass does with
+// a truncated walk: a value tree nested past the shared cap must not be silently
+// under-checked, so Validate turns the walk's flag into a diagnostic rather than
+// claiming the document is referentially closed. The bound itself is
+// ir.MaxWalkDepth's to hold; this is the reporting half.
+func TestCheckDanglingRefs_DeepValueTreeIsTruncated(t *testing.T) {
 	t.Parallel()
 	v := ir.Value{Kind: ir.ValueNull}
 	for range ir.MaxWalkDepth {
@@ -178,25 +178,20 @@ func TestCollectTypeIDs_DeepValueTreeIsTruncated(t *testing.T) {
 	m := &ir.Model{ID: "t/m", Examples: []ir.Example{{Value: &v}}}
 	doc := &ir.Document{Types: ir.TypeRegistry{m.ID: m}}
 
-	_, truncated := pass.CollectTypeIDs(doc, "doc")
-	assert.True(t, truncated, "a tree nested past the cap must report truncation")
-
 	diags := danglingRefs(doc)
 	require.NotEmpty(t, diags)
 	assert.Equal(t, "ir/walk-truncated", diags[0].Code)
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
-// TestCollectTypeIDs_UnmodeledBytesYieldNoReference states the result the byte
+// TestAppendTypeIDs_UnmodeledBytesYieldNoReference states the result the byte
 // payloads must produce: a preserved JSON blob is opaque data, so bytes that
 // happen to spell a type ID are not a reference.
-func TestCollectTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
+func TestAppendTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{Unmodeled: ir.Unmodeled{"openapi:x-thing": {
 		Reason: ir.ReasonVendorExtension,
 		Value:  ir.RawValue(`"t/ghost/in-bytes"`),
 	}}}
-	sites, truncated := pass.CollectTypeIDs(doc, "doc")
-	assert.False(t, truncated)
-	assert.Empty(t, sites)
+	assert.Empty(t, pass.AppendTypeIDs(nil, doc))
 }

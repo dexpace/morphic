@@ -11,10 +11,9 @@ import (
 )
 
 // declaredIDViolations runs the empty-identity check and drops the truncation
-// flag, which the cases below assert nothing about;
-// TestWalkChecks_EachReportsTruncation holds that half.
+// flag, which the cases below assert nothing about.
 func declaredIDViolations(doc *ir.Document) []Violation {
-	vs, _ := checkDeclaredIDs(doc, declarations{})
+	vs, _ := runCheck(checkDeclaredIDs, doc)
 	return vs
 }
 
@@ -62,19 +61,19 @@ func pick[T ~string](present bool, want T) T {
 }
 
 // TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode is the guard on this check's
-// reach. ir.DeclaredIDs answers only for the non-empty identities, so the check
-// reads the value graph itself, through ir.DeclaredIDOf, and a change to what
-// that recognizes has to move both sides together or this test fails.
+// reach. ir.IDDeclarations answers only for the non-empty identities, so the
+// check reads the value graph itself, through ir.DeclaredIDOf, and a change to
+// what that recognizes has to move both sides together or this test fails.
 //
 // The two are compared on the same fixture read two ways: every declaration
-// ir.DeclaredIDs finds for a class with no registry must be reported when that
-// same node carries nothing, at the same path. Nothing here is hand-listed, so a
-// new ID-bearing node type joins both sides at once.
+// ir.IDDeclarations collects for a class with no registry must be reported when
+// that same node carries nothing, at the same path. Nothing here is
+// hand-listed, so a new ID-bearing node type joins both sides at once.
 func TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode(t *testing.T) {
 	t.Parallel()
 	filled := idBearingDoc(true)
-	decls, truncated := ir.DeclaredIDs(filled)
-	require.False(t, truncated)
+	var decls ir.IDDeclarations
+	require.False(t, ir.WalkValues(filled, ir.DocumentPath, &decls))
 	require.NotEmpty(t, decls)
 
 	keyed := ir.DocumentRegistries(filled)
@@ -93,7 +92,7 @@ func TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode(t *testing.T) {
 		got = append(got, v.Code+" "+v.Path)
 	}
 	assert.Empty(t, cmp.Diff(want, got),
-		"this check and ir.DeclaredIDs must find the same declarations (-ir +irverify)")
+		"this check and ir.IDDeclarations must find the same declarations (-ir +irverify)")
 }
 
 // TestCheckDeclaredIDs_PopulatedIDsAreClean is the silent half. The fixture
@@ -106,7 +105,7 @@ func TestCheckDeclaredIDs_PopulatedIDsAreClean(t *testing.T) {
 
 // TestCheckDeclaredIDs_EmptyOperationServiceAndGroupIDs is the reported shape:
 // no such class has a registry key for checkRegistryKeys to read, and
-// ir.DeclaredIDs drops an empty ID before checkDuplicateIDs could see it, so
+// ir.IDDeclarations drops an empty ID before checkDuplicateIDs could see it, so
 // before this check nothing said anything about any of them.
 func TestCheckDeclaredIDs_EmptyOperationServiceAndGroupIDs(t *testing.T) {
 	t.Parallel()

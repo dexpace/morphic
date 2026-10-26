@@ -15,61 +15,94 @@ type refSite struct {
 	path   string
 }
 
-// collectRefs walks doc and returns every non-empty typed-ID reference regs
-// recognizes, plus whether the bounded walk was truncated. It inspects both map
-// keys and values: most keys are an entry's own ID and resolve trivially, but
-// some — Service.Renames's map[TypeID]Naming keys — are genuine references into
-// a registry that must resolve.
-//
-// An empty ID is skipped because it is no reference: some positions spell
-// "none" with one (Discriminator.Default). Whether a position may hold one is a
-// different question: answered for ir.TypeRef by checkTypeRefs and for the bare
-// ID positions by checkEmptyRefs (GitHub #473).
-func collectRefs(doc *ir.Document, regs ir.Registries) ([]refSite, bool) {
-	var sites []refSite
-	truncated := ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
-		if v.Kind() != reflect.String || v.String() == "" {
-			return true
-		}
-		if _, isRef := regs[v.Type()]; isRef {
-			sites = append(sites, refSite{idType: v.Type(), id: v.String(), path: path})
-		}
-		return true
-	})
-	return sites, truncated
-}
-
-// checkReferentialIntegrity asserts every discovered reference resolves in its
-// registry, reporting each unresolved one as dangling.
+// checkReferentialIntegrity asserts every typed-ID reference, map keys
+// included, resolves in its registry, reporting each unresolved one as dangling.
+// Most keys are an entry's own ID, but Service.Renames's are references.
 //
 // The registries come from Document's own shape, so a new one is checked at
 // once, under the code pass.Validate gives it. ir.Operation and ir.Service have
 // no map, so ir.Registries.WithDeclarations supplies them from the declared
-// identities (GitHub #50), unless the declaration walk truncated: a partial
-// walk would report a reference to an unreached operation as dangling.
+// identities (GitHub #50), unless the walk truncated: a partial walk would report
+// a reference to an unreached operation as dangling.
 //
 // ir.PropID stays out: pass.Validate's checkPropIDRefs holds it to a declared
-// property. The returned flag, which Verify reports as ir/walk-truncated, folds
-// in decls.truncated rather than relying on collectRefs tripping the cap first
-// (#55).
-func checkReferentialIntegrity(doc *ir.Document, decls declarations) ([]Violation, bool) {
-	regs := ir.DocumentRegistries(doc)
+// property.
+func checkReferentialIntegrity(doc *ir.Document) walkCheck {
+	refs := newRefsCollector(doc)
+	return walkCheck{
+		visit: refs.visit,
+		report: func(decls declarations) []Violation {
+			unresolved := refs.unresolved(decls)
+			vs := make([]Violation, 0, len(unresolved))
+			for _, s := range unresolved {
+				vs = append(vs, Violation{
+					Code:    "ir/dangling-" + ir.RefNoun(s.idType) + "-ref",
+					Message: "reference " + strconv.Quote(s.id) + " does not resolve in " + refs.label(s.idType),
+					Path:    s.path,
+				})
+			}
+			return vs
+		},
+	}
+}
+
+// refsCollector gathers the references a walk reaches that may not resolve.
+//
+// A reference into a registry Document keys by its class resolves or not as the
+// walk reaches it, so only one that does not is kept, path and all. A declared
+// class's registry is complete only once the walk is over, so every reference to
+// one is kept for unresolved to settle.
+//
+// An empty ID is skipped because it is no reference: some positions spell
+// "none" with one (Discriminator.Default). Whether a position may hold one is
+// checkTypeRefs's question for ir.TypeRef and checkEmptyRefs's for the bare ID
+// positions (GitHub #473).
+type refsCollector struct {
+	keyed ir.Registries
+	all   ir.Registries
+	sites []refSite
+}
+
+// newRefsCollector returns a collector of doc's references.
+func newRefsCollector(doc *ir.Document) *refsCollector {
+	keyed := ir.DocumentRegistries(doc)
+	return &refsCollector{keyed: keyed, all: keyed.WithDeclarations(nil)}
+}
+
+// visit keeps v if it is a reference that may not resolve.
+func (c *refsCollector) visit(v reflect.Value, at ir.WalkPath) bool {
+	if v.Kind() != reflect.String || v.String() == "" {
+		return true
+	}
+	t := v.Type()
+	if _, isRef := c.all[t]; !isRef {
+		return true
+	}
+	if reg, keyed := c.keyed[t]; keyed && reg.Has(v.String()) {
+		return true
+	}
+	c.sites = append(c.sites, refSite{idType: t, id: v.String(), path: at.String()})
+	return true
+}
+
+// unresolved returns the kept references that resolve in no registry, in walk
+// order. A declared class has a registry only when the walk read every
+// declaration; when it was cut short, references to one are claimed for none.
+func (c *refsCollector) unresolved(decls declarations) []refSite {
+	regs := c.keyed
 	if !decls.truncated {
-		regs = regs.WithDeclarations(decls.ids)
+		regs = c.keyed.WithDeclarations(decls.ids)
 	}
-	sites, truncated := collectRefs(doc, regs)
-	truncated = truncated || decls.truncated
-	var vs []Violation
-	for _, s := range sites {
-		reg := regs[s.idType]
-		if reg.Has(s.id) {
-			continue
+	var out []refSite
+	for _, s := range c.sites {
+		if reg, held := regs[s.idType]; held && !reg.Has(s.id) {
+			out = append(out, s)
 		}
-		vs = append(vs, Violation{
-			Code:    "ir/dangling-" + ir.RefNoun(s.idType) + "-ref",
-			Message: "reference " + strconv.Quote(s.id) + " does not resolve in " + reg.Label,
-			Path:    s.path,
-		})
 	}
-	return vs, truncated
+	return out
+}
+
+// label is the name a report spells the registry of class t with.
+func (c *refsCollector) label(t reflect.Type) string {
+	return c.all[t].Label
 }

@@ -18,10 +18,9 @@ func docWithServers() *ir.Document {
 }
 
 // indexViolations runs the index check and drops the truncation flag, which the
-// cases below assert nothing about; TestWalkChecks_EachReportsTruncation holds
-// that half.
+// cases below assert nothing about.
 func indexViolations(doc *ir.Document) []Violation {
-	vs, _ := checkIndices(doc, readDeclarations(doc))
+	vs, _ := runCheck(checkIndices, doc)
 	return vs
 }
 
@@ -86,6 +85,18 @@ func TestCheckIndices_ResponseIndexOutOfRange(t *testing.T) {
 	got = indexViolations(docWithSuccessStatus(map[int]int{1: 202}))
 	require.Len(t, got, 1)
 	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].SuccessStatus[1]", got[0].Path)
+}
+
+// TestCheckIndices_ResponseIndexIsPlacedOnItsBinding holds the path to the
+// binding the key sits on: here only the second binding is out of range.
+func TestCheckIndices_ResponseIndexIsPlacedOnItsBinding(t *testing.T) {
+	doc := docWithSuccessStatus(map[int]int{0: 200})
+	op := &doc.Services[0].Groups[0].Operations[0]
+	op.Bindings.HTTP = append(op.Bindings.HTTP, ir.HTTPBinding{Method: "POST", SuccessStatus: map[int]int{3: 201}})
+
+	got := indexViolations(doc)
+	require.Len(t, got, 1)
+	assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[1].SuccessStatus[3]", got[0].Path)
 }
 
 func TestCheckIndices_ResponseIndexInRangeIsClean(t *testing.T) {
@@ -177,9 +188,15 @@ var integerFields = map[string]string{
 	// The ir package's own traversal machinery, which is not IR data at all: the
 	// scan reaches every integer field the package declares, and classifying one
 	// costs less than a filter that could hide a real index behind it.
-	"refKey.ptr":   "address that identifies a reference the walk has met, not a position",
-	"refKey.n":     "slice length that identifies a reference the walk has met, not a position",
-	"descentRef.n": "slice length that identifies a reference a traversal is inside, not a position",
+	"refKey.ptr":      "address that identifies a reference the walk has met, not a position",
+	"refKey.n":        "slice length that identifies a reference the walk has met, not a position",
+	"descentRef.n":    "slice length that identifies a reference a traversal is inside, not a position",
+	"insideRef.depth": "how many steps led the walk into a reference, not a position in any IR slice",
+	"WalkPath.depth":  "how many of the walk's steps lead to a value, not a position in any IR slice",
+	"pathStep.kind":   "how a step reaches its value, an enumeration rather than a position",
+	"pathStep.index":  "the field or element a step took, set by the walk as it took it, not IR data",
+	"valueWalk.all":   "the set of a walk's visitors, one bit each, not a position",
+	"valueWalk.seen":  "for each pointer, the set of visitors that entered it, not a position",
 
 	"Property.WireID":       "protobuf field number / thrift id, not a position",
 	"Variant.WireID":        "protobuf oneof field number or ordinal, not a position",

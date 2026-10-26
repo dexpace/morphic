@@ -86,7 +86,7 @@ func (c *Census) add(root any) error {
 		values:     map[valueKey]int{},
 		undeclared: map[valueKey]constant.Value{},
 	}
-	truncated := ir.WalkValues(root, ir.DocumentPath, d.visit)
+	truncated := ir.WalkValues(root, ir.DocumentPath, ir.VisitFunc(d.visit))
 	if d.err != nil {
 		return d.err
 	}
@@ -126,7 +126,7 @@ type docCount struct {
 
 // visit counts v and descends into it, and counts nothing once a value could
 // not be counted.
-func (d *docCount) visit(v reflect.Value, _ string) bool {
+func (d *docCount) visit(v reflect.Value, _ ir.WalkPath) bool {
 	if d.err != nil {
 		return false
 	}

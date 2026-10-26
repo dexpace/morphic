@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json/v2"
 	"math"
+	"reflect"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -11,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/internal/ctxtest"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
@@ -191,4 +193,43 @@ func TestValidator_RunReportsNothingOnceItsContextIsDone(t *testing.T) {
 
 	assert.Same(t, doc, out)
 	assert.Nil(t, got)
+}
+
+// TestValidate_WalksTheDocumentOnce counts the walks Validate makes through the
+// walk validate is handed: one, carrying what its three walking checks read.
+// No result can show it, since a walk per check reports the same. The counted
+// run must report what Validate does, so the count is of the real run, and the
+// document carries a dangling reference so that run reports something.
+func TestValidate_WalksTheDocumentOnce(t *testing.T) {
+	t.Parallel()
+	doc := danglingDoc()
+	var walks, visitors int
+	got, err := pass.ValidateWith(t.Context(), doc, func(root any, path string, vs ...ir.Visitor) bool {
+		walks++
+		visitors = len(vs)
+		return ir.WalkValues(root, path, vs...)
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, walks, "the walking checks must share one walk of the document")
+	assert.Equal(t, 3, visitors, "the walk carries the declarations, the references and the PropIDs")
+	assert.Contains(t, irtest.DiagCodes(got), "ir/dangling-type-ref")
+	assert.Empty(t, cmp.Diff(validated(t, doc), got), "the counted run reports what Validate does")
+}
+
+// TestValidate_WalksOnlyThroughTheSharedWalk holds the other half, which counting
+// cannot see: a check that walked the document itself would not go through the
+// walk validate is handed. Of the reflection walks ir offers, the pass may name
+// ir.WalkValues only in Validate, which hands it on, and in appendTypeIDs, which
+// walks one GraphQL operation rather than the document.
+func TestValidate_WalksOnlyThroughTheSharedWalk(t *testing.T) {
+	t.Parallel()
+	p, err := decls.Load(reflect.TypeFor[pass.Validator]().PkgPath())
+	require.NoError(t, err)
+	irAsSeen, reaches := p.Imported(reflect.TypeFor[ir.Document]().PkgPath())
+	require.True(t, reaches, "the pass must import ir")
+	walkValues := irAsSeen.Scope().Lookup("WalkValues")
+	require.NotNil(t, walkValues, "the ir package must declare WalkValues")
+	assert.Equal(t, []string{"Validate", "appendTypeIDs"}, p.FuncsUsing(walkValues),
+		"the functions that walk through ir.WalkValues")
 }

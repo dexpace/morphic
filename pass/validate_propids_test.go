@@ -4,9 +4,13 @@
 package pass_test
 
 import (
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
@@ -48,6 +52,26 @@ func TestValidate_APropIDSpelledAsAnotherClassesIDDangles(t *testing.T) {
 	t.Parallel()
 	bad := validated(t, docWithOperation(propPathOperation([]ir.PropID{"op/o"})))
 	assert.Contains(t, irtest.DiagCodes(bad), "ir/dangling-prop-ref")
+}
+
+// TestValidate_DanglingPropIDsAreReportedByLocation holds the diagnostics to
+// the order of their locations, which is not the walk's: eleven segments are
+// walked [0] to [10], and "[10]" sorts between "[0]" and "[1]".
+func TestValidate_DanglingPropIDsAreReportedByLocation(t *testing.T) {
+	t.Parallel()
+	segments := make([]ir.PropID, 11)
+	for i := range segments {
+		segments[i] = ir.PropID(fmt.Sprintf("p/m/ghost%d", i))
+	}
+	var where []string
+	for _, d := range validated(t, docWithOperation(propPathOperation(segments))) {
+		if d.Code == "ir/dangling-prop-ref" {
+			where = append(where, d.Provenance.Node)
+		}
+	}
+	require.Len(t, where, 11)
+	assert.True(t, slices.IsSorted(where), "reported in location order, got %v", where)
+	assert.True(t, strings.HasSuffix(where[1], ".Segments[10]"), "[10] comes second, got %v", where)
 }
 
 // TestValidate_ParamPathSegmentResolves covers the second carrier shape, whose

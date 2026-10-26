@@ -17,7 +17,8 @@ import (
 func SpacesUsed(doc *ir.Document) map[string][]string {
 	kinds := ir.IDKinds()
 	var out map[string][]string
-	decls, _ := ir.DeclaredIDs(doc)
+	var decls ir.IDDeclarations
+	ir.WalkValues(doc, ir.DocumentPath, &decls)
 	for _, d := range decls {
 		kind, _, found := strings.Cut(d.ID, ir.IDSeparator)
 		if !found || !slices.Contains(kinds, kind) {

@@ -9,8 +9,8 @@ import (
 
 // checkParams holds every reference an operation makes to a parameter — its
 // HTTP bindings, its pagination inputs and its idempotency token — to the
-// parameters it declares. decls is ir.DeclaredIDs(doc), read once per
-// validation for the dangling walk and this check alike.
+// parameters it declares. decls is what the one walk of the document declared,
+// which the dangling check resolves against too.
 func checkParams(doc *ir.Document, decls []ir.IDDeclaration) []ir.Diagnostic {
 	declared := declaredParamIDs(decls)
 	return append(checkParamBindings(doc, declared), checkParamReferences(doc, declared)...)

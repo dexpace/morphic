@@ -862,9 +862,29 @@ func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 	assert.Empty(t, danglingRefs(doc))
 }
 
-// danglingRefs runs checkDanglingRefs over the declarations of doc, as Validate
-// does.
+// TestRefSites_KeepOnlyWhatTheWalkCannotSettle holds the walk to settling a
+// reference into a registry Document keys as it reaches it: one that resolves is
+// not kept, so its path is never rendered. A reference to a declared class is
+// kept whether or not it resolves, since its registry is complete only when the
+// walk is over.
+func TestRefSites_KeepOnlyWhatTheWalkCannotSettle(t *testing.T) {
+	t.Parallel()
+	assert.Empty(t, pass.KeptRefs(validDoc()), "the model's own ID and its target both resolve in types")
+
+	doc := docWithOperation(ir.Operation{ID: "op/o", OverloadOf: new(ir.OpID("op/o"))})
+	doc.Types["t/m"] = &ir.Model{ID: "t/m", Properties: []ir.Property{
+		{ID: "p/m/a", WireName: "a", Type: ir.TypeRef{Target: "t/missing"}},
+	}}
+	assert.Equal(t, []string{
+		"doc.Services[0].ID",
+		"doc.Services[0].Groups[0].Operations[0].ID",
+		"doc.Services[0].Groups[0].Operations[0].OverloadOf",
+		"doc.Types[t/m].Properties[0].Type.Target",
+	}, pass.KeptRefs(doc))
+}
+
+// danglingRefs runs checkDanglingRefs over what one walk of doc gathers, as
+// Validate does.
 func danglingRefs(doc *ir.Document) []ir.Diagnostic {
-	decls, truncated := ir.DeclaredIDs(doc)
-	return pass.CheckDanglingRefs(doc, decls, truncated)
+	return pass.DanglingRefs(doc)
 }

@@ -308,12 +308,13 @@ func TestVerify_AliasPathIsSpelledAsTheWalkWould(t *testing.T) {
 	doc := modelNamed(ir.Naming{Source: "m", Canonical: "m", Aliases: aliases})
 
 	walked := map[string]string{} // alias → the path the walk renders for it
-	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		path := at.String()
 		if v.Kind() == reflect.String && v.String() != "" {
 			walked[v.String()] = path
 		}
 		return true
-	})
+	}))
 	for _, alias := range aliases {
 		require.Contains(t, walked, alias, "the walk reaches every entry when nothing prunes it")
 	}

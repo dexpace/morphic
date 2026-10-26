@@ -17,10 +17,10 @@ import (
 // plus whether the depth cap cut the walk short.
 func walkPaths(root any) ([]string, bool) {
 	var paths []string
-	truncated := ir.WalkValues(root, "doc", func(_ reflect.Value, path string) bool {
-		paths = append(paths, path)
+	truncated := ir.WalkValues(root, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+		paths = append(paths, at.String())
 		return true
-	})
+	}))
 	return paths, truncated
 }
 
@@ -71,6 +71,21 @@ func TestWalkValues_MapEntriesAreVisitedInRenderedKeyOrder(t *testing.T) {
 	}
 	require.Len(t, entries, 4)
 	assert.True(t, slices.IsSorted(entries), "entries are walked in rendered-key order, got %v", entries)
+}
+
+// TestWalkValues_NestedMapsAreWalkedEntryByEntry holds a map's entries to the
+// map that holds them: a walk ranging over an outer map meets an inner one in
+// one of its entries, walks the inner entries there, and goes back to the outer
+// map's next entry, not on to the inner map's.
+func TestWalkValues_NestedMapsAreWalkedEntryByEntry(t *testing.T) {
+	t.Parallel()
+	paths, truncated := walkPaths(map[string]map[string]int{"a": {"x": 1}, "b": {"y": 2}})
+	require.False(t, truncated)
+	assert.Equal(t, []string{
+		"doc",
+		"doc[a].key", "doc[a]", "doc[a][x].key", "doc[a][x]",
+		"doc[b].key", "doc[b]", "doc[b][y].key", "doc[b][y]",
+	}, paths)
 }
 
 // TestWalkValues_DeepValueTreeIsTruncated drives the depth cap from both sides:
@@ -170,10 +185,10 @@ func TestWalkValues_VisitorPrunesChildren(t *testing.T) {
 	}}
 
 	var pruned []string
-	ir.WalkValues(doc, "doc", func(v reflect.Value, path string) bool {
-		pruned = append(pruned, path)
+	ir.WalkValues(doc, "doc", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		pruned = append(pruned, at.String())
 		return v.Type() != reflect.TypeFor[ir.TypeRegistry]()
-	})
+	}))
 
 	assert.Contains(t, pruned, "doc.Types")
 	for _, p := range pruned {
@@ -213,8 +228,8 @@ func TestWalkValues_ArrayElementsAreReached(t *testing.T) {
 	assert.Contains(t, paths, "doc.IDs[1]")
 }
 
-// A chain of structs, each embedding the next and an empty map. Embedded fields
-// add no path segment, so walking the chain builds no string at all.
+// A chain of structs, each embedding the next and an empty map, for a walk whose
+// visitor reads no path.
 type (
 	walkEmptyMap map[string]int
 	walkLevel4   struct{ walkEmptyMap }
@@ -236,8 +251,8 @@ type (
 // and per map at nothing, since pass.Validate walks a whole document on every
 // compile. Ranging over reflect.Value.Fields or Seq2 instead of indexing puts
 // the loop body on the heap each time, which on Petstore adds more than half
-// again to Validate's allocations. The chain builds no path string, so any
-// growth with depth is the walk's own. It is not run in parallel: AllocsPerRun
+// again to Validate's allocations. The visitor reads no path, so any growth
+// with depth is the walk's own. It is not run in parallel: AllocsPerRun
 // measures the process.
 func TestWalkValues_StructsAndMapsCostNoAllocation(t *testing.T) {
 	var shallow, deep any = walkLevel4{walkEmptyMap: walkEmptyMap{}}, walkLevel1{
@@ -253,7 +268,7 @@ func TestWalkValues_StructsAndMapsCostNoAllocation(t *testing.T) {
 	paths, _ := walkPaths(deep)
 	require.Len(t, paths, 8, "four structs and the four maps they embed are all reached")
 
-	visit := func(reflect.Value, string) bool { return true }
+	visit := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 	assert.Equal(t,
 		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(shallow, "doc", visit) }),
 		testing.AllocsPerRun(10, func() { _ = ir.WalkValues(deep, "doc", visit) }),

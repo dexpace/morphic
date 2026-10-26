@@ -32,39 +32,56 @@ func chainedDiscriminators(n int) *ir.Document {
 	return &ir.Document{IRVersion: ir.IRVersion, Name: "t", Version: "1", Types: types}
 }
 
-// validateWork returns how many allocations and bytes one Validate of the
-// chained document of size n makes, and how many routes it reported as not
-// subtypes.
-func validateWork(t *testing.T, n int) (allocs, bytes float64, rejected int) {
+// spread is how many sizes costAround averages over across one doubling.
+const spread = 8
+
+// costAround returns the allocations and bytes one Validate of build's document
+// makes, averaged over spread sizes spread evenly across the doubling from n,
+// after holding each document to holds.
+//
+// Maps double and slices grow by about a quarter as they fill, so the bytes one
+// size allocates step up wherever a table or a backing array happens to grow.
+// Averaged across a whole doubling the steps cancel, rather than one falling
+// between two of the sizes a test compares and reading as superlinear growth.
+func costAround(t *testing.T, n int, build func(n int) *ir.Document,
+	holds func(t *testing.T, size int, diags []ir.Diagnostic),
+) (allocs, bytes float64) {
 	t.Helper()
-	doc := chainedDiscriminators(n)
-	allocs, bytes = validateCost(t, doc)
-	for _, d := range validated(t, doc) {
-		if d.Code == "pass/discriminator-missing-variant" {
-			rejected++
-		}
+	for j := range spread {
+		size := int(math.Round(float64(n) * math.Exp2(float64(j)/spread)))
+		doc := build(size)
+		holds(t, size, validated(t, doc))
+		a, b := validateCost(t, doc)
+		allocs += a / spread
+		bytes += b / spread
 	}
-	return allocs, bytes, rejected
+	return allocs, bytes
 }
 
 // TestValidate_DiscriminatorRoutesCostLinearWork holds the work of validating
 // #850's document to linear growth, counted in allocations and in bytes rather
-// than timed, at three sizes: the growth of each from 2n to 4n is at most 2.5
-// times its growth from n to 2n, so fixed costs cancel, linear work gives 2
-// and a walk of the chain per route 4. Bytes catch a walk that reuses its
-// buffers, which allocates few times for much work. It does not run in
-// parallel, since both counts are process-wide.
+// than timed, around three sizes (see costAround): the growth of each from 2n
+// to 4n is at most 2.5 times its growth from n to 2n, so fixed costs cancel,
+// linear work gives 2 and a walk of the chain per route 4. Bytes catch a walk
+// that reuses its buffers, which allocates few times for much work. It does not
+// run in parallel, since both counts are process-wide.
 func TestValidate_DiscriminatorRoutesCostLinearWork(t *testing.T) {
 	var allocs, bytes [3]float64
-	for k, n := range []int{500, 1000, 2000} {
-		var rejected int
-		allocs[k], bytes[k], rejected = validateWork(t, n)
-		require.Equal(t, n, rejected, "every base's route must reach the subtype question, or the count compares nothing")
+	for k, n := range []int{250, 500, 1000} {
+		allocs[k], bytes[k] = costAround(t, n, chainedDiscriminators, func(t *testing.T, size int, diags []ir.Diagnostic) {
+			var rejected int
+			for _, d := range diags {
+				if d.Code == "pass/discriminator-missing-variant" {
+					rejected++
+				}
+			}
+			require.Equal(t, size, rejected, "every base's route must reach the subtype question, or the count compares nothing")
+		})
 	}
 	assert.LessOrEqual(t, allocs[2]-allocs[1], 2.5*(allocs[1]-allocs[0]),
-		"allocations at 500, 1000, 2000: %v", allocs)
+		"allocations around 250, 500, 1000: %v", allocs)
 	assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
-		"bytes at 500, 1000, 2000: %v", bytes)
+		"bytes around 250, 500, 1000: %v", bytes)
 }
 
 // chainedProperties is n+1 models chained by Base, the top declaring property
@@ -138,8 +155,8 @@ func validateCost(t *testing.T, doc *ir.Document) (allocs, bytes float64) {
 }
 
 // TestValidate_ExposedPropertiesCostLinearBytes holds the bytes validating each
-// exposure shape allocates to linear growth at three sizes, as the test above
-// does for routes. Bytes, not allocations: a walk per question
+// exposure shape allocates to linear growth around three sizes, as the test
+// above does for routes. Bytes, not allocations: a walk per question
 // collects into maps that grow by doubling, which allocates few times for
 // work that grows with the chain. It does not run in parallel, since the count
 // is process-wide.
@@ -147,16 +164,16 @@ func TestValidate_ExposedPropertiesCostLinearBytes(t *testing.T) {
 	for name, build := range exposureShapes() {
 		t.Run(name, func(t *testing.T) {
 			var bytes [3]float64
-			for k, n := range []int{500, 1000, 2000} {
-				doc := build(n)
-				for _, d := range validated(t, doc) {
-					require.NotContains(t, []string{"pass/discriminator-unknown-property", "ir/encoding-key-unknown-property"}, d.Code,
-						"every question must be answered yes, or the sizes compare different work")
-				}
-				_, bytes[k] = validateCost(t, doc)
+			for k, n := range []int{250, 500, 1000} {
+				_, bytes[k] = costAround(t, n, build, func(t *testing.T, _ int, diags []ir.Diagnostic) {
+					for _, d := range diags {
+						require.NotContains(t, []string{"pass/discriminator-unknown-property", "ir/encoding-key-unknown-property"}, d.Code,
+							"every question must be answered yes, or the sizes compare different work")
+					}
+				})
 			}
 			assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]),
-				"bytes at 500, 1000, 2000: %v", bytes)
+				"bytes around 250, 500, 1000: %v", bytes)
 		})
 	}
 }

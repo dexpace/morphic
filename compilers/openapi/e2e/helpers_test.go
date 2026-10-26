@@ -317,7 +317,8 @@ type unmodeledSite struct {
 func unmodeledSites(doc *ir.Document) []unmodeledSite {
 	unmodeledType := reflect.TypeFor[ir.Unmodeled]()
 	var out []unmodeledSite
-	ir.WalkValues(doc, ir.DocumentPath, func(v reflect.Value, path string) bool {
+	ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		path := at.String()
 		if v.Type() != unmodeledType || !v.CanInterface() {
 			return true
 		}
@@ -329,7 +330,7 @@ func unmodeledSites(doc *ir.Document) []unmodeledSite {
 			out = append(out, unmodeledSite{key: key, path: path, entry: entry})
 		}
 		return true
-	})
+	}))
 	return out
 }
 

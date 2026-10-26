@@ -2,6 +2,7 @@ package irverify
 
 import (
 	"cmp"
+	"reflect"
 	"slices"
 	"strconv"
 
@@ -26,6 +27,15 @@ type Violation struct {
 // violations, sorted by (Code, Path) for deterministic output. A structurally
 // sound document yields nil.
 func Verify(doc *ir.Document) []Violation {
+	return verify(doc, ir.WalkValues)
+}
+
+// walkFunc is how verify walks the document: ir.WalkValues, unless a test is
+// counting the walks.
+type walkFunc func(root any, path string, visitors ...ir.Visitor) bool
+
+// verify is Verify walking the document with walk.
+func verify(doc *ir.Document, walk walkFunc) []Violation {
 	if doc == nil {
 		return []Violation{{Code: "ir/nil-document", Message: "document is nil"}}
 	}
@@ -42,7 +52,7 @@ func Verify(doc *ir.Document) []Violation {
 	vs = append(vs, checkRequires(doc)...)
 	vs = append(vs, checkVersion(doc)...)
 	vs = append(vs, checkDocument(doc)...)
-	vs = append(vs, runWalkChecks(doc)...)
+	vs = append(vs, runWalkChecks(doc, walk)...)
 
 	// Stable: two violations can share a (Code, Path) — an embedded field
 	// contributes no path segment, so two promoted fields of the same name would
@@ -57,33 +67,51 @@ func Verify(doc *ir.Document) []Violation {
 // declarations is the identities a document's nodes declare, plus whether the
 // walk that read them was cut short.
 //
-// Reading them costs a full walk, and two checks need them:
-// checkReferentialIntegrity to resolve the classes Document keys no map by, and
-// checkDuplicateIDs to hold each to being declared once. They are read once per
-// run and handed down; the checks that do not need them still take them,
-// because one signature is what lets walkChecks be a list.
+// The walk every check shares reads them, and three checks need them once it is
+// over: checkReferentialIntegrity to resolve the classes Document keys no map
+// by, checkDuplicateIDs to hold each to being declared once, and checkIDSpaces
+// to place each in a declared namespace.
 //
 // The zero value says the document declares none, so every OpID, ServiceID and
-// GroupID reference reports as dangling. Read one with readDeclarations.
+// GroupID reference reports as dangling.
 type declarations struct {
 	ids       []ir.IDDeclaration
 	truncated bool
 }
 
-// readDeclarations reads the identities doc's nodes declare. It memoizes
-// nothing; runWalkChecks is what calls it once and shares the result.
-func readDeclarations(doc *ir.Document) declarations {
-	ids, truncated := ir.DeclaredIDs(doc)
-	return declarations{ids: ids, truncated: truncated}
+// walkCheck is one check's part in the walk every check shares: visit is shown
+// each value the walk reaches, as an ir.Visitor's Visit is, and report returns
+// what the check found once the walk is over, given the declarations the same
+// walk read. A nil visit is shown nothing, and a nil cycle is told of no cycle.
+type walkCheck struct {
+	visit  func(v reflect.Value, at ir.WalkPath) bool
+	cycle  func(at, entered ir.WalkPath, ref reflect.Type)
+	report func(decls declarations) []Violation
 }
 
-// walkChecks are the checks that reach their subject through a bounded walk of
-// the document. Each returns whether the walk its result rests on was cut short,
-// so the flag is part of the signature rather than a value a check can quietly
-// drop — whether the check runs that walk itself or reads a declarations value
-// walked once for the run.
-func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
-	return []func(*ir.Document, declarations) ([]Violation, bool){
+// Visit calls c.visit, so a walkCheck is an ir.Visitor.
+func (c walkCheck) Visit(v reflect.Value, at ir.WalkPath) bool {
+	return c.visit != nil && c.visit(v, at)
+}
+
+// Cycle calls c.cycle, so a walkCheck is an ir.CycleVisitor.
+func (c walkCheck) Cycle(at, entered ir.WalkPath, ref reflect.Type) {
+	if c.cycle != nil {
+		c.cycle(at, entered, ref)
+	}
+}
+
+// reporting is the report of a check whose visits find everything it reports:
+// it hands back *vs as the walk left it.
+func reporting(vs *[]Violation) func(declarations) []Violation {
+	return func(declarations) []Violation { return *vs }
+}
+
+// walkChecks are the checks that reach their subject through the walk. Each is
+// built afresh for the document it checks, since it gathers what it finds as the
+// walk goes.
+func walkChecks() []func(*ir.Document) walkCheck {
+	return []func(*ir.Document) walkCheck{
 		checkReferentialIntegrity,
 		checkTypeRefs,
 		checkDuplicateIDs,
@@ -104,26 +132,15 @@ func walkChecks() []func(*ir.Document, declarations) ([]Violation, bool) {
 	}
 }
 
-// runWalkChecks runs every walking check and folds their truncation flags into
-// one ir/walk-truncated violation.
+// runWalkChecks runs every walking check over doc in one walk, and folds the
+// walk's truncation into one ir/walk-truncated violation.
 //
 // Truncation is a fact about the document, not about a check, so it is reported
 // once. Not reporting it left the pruning walks silently under-checking a
-// too-deep document (GitHub #55).
-//
-// The seed is decls.truncated rather than false because the declaration walk
-// runs here and a function that walks owns its own flag. The checks reading the
-// declarations return it too, so seeding from false reports the same today, but
-// relying on a callee for a walk performed here is the coincidence #55 was.
-func runWalkChecks(doc *ir.Document) []Violation {
-	decls := readDeclarations(doc)
-	var vs []Violation
-	truncated := decls.truncated
-	for _, check := range walkChecks() {
-		found, cut := check(doc, decls)
-		vs = append(vs, found...)
-		truncated = truncated || cut
-	}
+// too-deep document (GitHub #55); with one walk there is one flag, and nothing a
+// check can drop.
+func runWalkChecks(doc *ir.Document, walk walkFunc) []Violation {
+	vs, truncated := walkWith(doc, walk, walkChecks())
 	if !truncated {
 		return vs
 	}
@@ -132,6 +149,28 @@ func runWalkChecks(doc *ir.Document) []Violation {
 		Message: "document nests deeper than the bounded verifier walk; part of it went unchecked",
 		Path:    ir.DocumentPath,
 	})
+}
+
+// walkWith builds each of checks for doc and walks doc once for all of them,
+// reading the declarations in the same walk. It returns what they report, in
+// the order given, and whether the walk was cut short.
+func walkWith(doc *ir.Document, walk walkFunc, checks []func(*ir.Document) walkCheck) ([]Violation, bool) {
+	built := make([]walkCheck, len(checks))
+	var ids ir.IDDeclarations
+	visitors := make([]ir.Visitor, 0, 1+len(checks))
+	visitors = append(visitors, &ids)
+	for i, newCheck := range checks {
+		built[i] = newCheck(doc)
+		visitors = append(visitors, built[i])
+	}
+	decls := declarations{truncated: walk(doc, ir.DocumentPath, visitors...)}
+	decls.ids = ids
+
+	reports := make([][]Violation, len(built))
+	for i, c := range built {
+		reports[i] = c.report(decls)
+	}
+	return slices.Concat(reports...), decls.truncated
 }
 
 // checkRegistryKeys asserts every entry of each flat, ID-keyed registry

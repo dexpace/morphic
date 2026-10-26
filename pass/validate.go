@@ -38,21 +38,30 @@ func (Validator) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.
 // An engine run that compiles satisfies this by validating a document no other
 // run can reach; RunDocument leaves it to its caller.
 func Validate(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
+	return validate(ctx, doc, ir.WalkValues)
+}
+
+// walkFunc is how validate walks the document: ir.WalkValues, unless a test is
+// counting the walks.
+type walkFunc func(root any, path string, visitors ...ir.Visitor) bool
+
+// validate is Validate walking the document with walk.
+func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagnostic, error) {
 	if doc == nil {
 		return nil, nil
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	// Read once: the dangling walk resolves against these, and checkParams
-	// leaves to it exactly what it reports.
-	decls, declTruncated := ir.DeclaredIDs(doc)
+	// One walk reads what the reference, PropID and parameter checks need.
+	// checkParams leaves to the dangling check exactly what it reports.
+	read := walkDocument(doc, walk)
 	// One index for the run: a discriminator's routes and tag, and a part's
 	// encoding key, are walked while that is cheap and answered from the document
 	// indexed once after that (#850).
 	facts := irfacts.New(doc)
 	diags := make([]ir.Diagnostic, 0, 8)
-	for _, family := range families(doc, decls, declTruncated, facts) {
+	for _, family := range families(doc, read, facts) {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -65,29 +74,45 @@ func Validate(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
 	return diags, nil
 }
 
-// families returns validate's rule families over doc, in the order they
-// report. Validate asks its context between two, so a cancel waits out one
-// family at most.
-func families(doc *ir.Document, decls []ir.IDDeclaration, declTruncated bool, facts *irfacts.Index,
-) []func() []ir.Diagnostic {
+// families returns validate's rule families over doc and what its walk read,
+// in the order they report. Validate asks its context between two, so a cancel
+// waits out one family at most.
+func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
 	return []func() []ir.Diagnostic{
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
-		func() []ir.Diagnostic { return checkDanglingRefs(doc, decls, declTruncated) },
+		func() []ir.Diagnostic { return checkDanglingRefs(read.refs, read.decls, read.truncated) },
 		func() []ir.Diagnostic { return checkGroupWalkTruncated(doc) },
 		func() []ir.Diagnostic { return checkServerIndices(doc) },
 		func() []ir.Diagnostic { return checkResponseIndices(doc) },
 		func() []ir.Diagnostic { return checkEncodingKeys(doc, facts) },
 		func() []ir.Diagnostic { return checkPayloadRequired(doc) },
-		func() []ir.Diagnostic { return checkPropIDRefs(doc) },
+		func() []ir.Diagnostic { return checkPropIDRefs(read.props, read.decls) },
 		func() []ir.Diagnostic { return checkDiscriminators(doc, facts) },
 		func() []ir.Diagnostic { return checkDuplicateWireNames(doc) },
 		func() []ir.Diagnostic { return checkAmbiguousAliases(doc) },
 		func() []ir.Diagnostic { return checkDuplicateMemberIDs(doc) },
-		func() []ir.Diagnostic { return checkParams(doc, decls) },
+		func() []ir.Diagnostic { return checkParams(doc, read.decls) },
 		func() []ir.Diagnostic { return checkIdempotency(doc) },
 		func() []ir.Diagnostic { return checkMessageBindings(doc) },
 		func() []ir.Diagnostic { return checkOneWay(doc) },
 		func() []ir.Diagnostic { return checkDefaultResponses(doc) },
 		func() []ir.Diagnostic { return checkArgsOutsideGraphQL(doc) },
 	}
+}
+
+// walked is what one walk of a document reads for the checks that need it: the
+// identities it declares, the references that may dangle, its PropIDs, and
+// whether the walk was cut short.
+type walked struct {
+	decls     ir.IDDeclarations
+	refs      *refSites
+	props     *propIDSites
+	truncated bool
+}
+
+// walkDocument reads doc in one walk, taken with walk.
+func walkDocument(doc *ir.Document, walk walkFunc) walked {
+	w := walked{refs: newRefSites(doc), props: &propIDSites{}}
+	w.truncated = walk(doc, ir.DocumentPath, &w.decls, w.refs, w.props)
+	return w
 }
