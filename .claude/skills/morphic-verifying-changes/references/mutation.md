@@ -1,12 +1,12 @@
 # Planting defects
 
-`scripts/mutate.sh` handles the mechanics: one literal replacement, a compile check, the test run,
+`scripts/mutate.py` handles the mechanics: one literal replacement, a compile check, the test run,
 a restore whatever happens, and a verdict. These rules are the ways a verdict still lies.
 
 ## Route every temporary edit through a restoring script
 `mutation-restore-always`
 
-- **Rule.** Plant every temporary edit, measurement switches included, through `scripts/mutate.sh`
+- **Rule.** Plant every temporary edit, measurement switches included, through `scripts/mutate.py`
   or another script that restores on exit. After a batch, `git diff` each touched file and search
   the tree for each planted string.
 - **Why.** A hand-rolled backup restored from the wrong copy and left a switch planted (#591); two
@@ -21,7 +21,7 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
   an unused variable). A run that reports a kill with no `--- FAIL` line is unverified.
 - **Why.** Unused variables and imports turned mutants into build failures that read as "not
   caught" (#321, #322) and as "killed" with an empty failure list (#1100).
-- **Probe.** `mutate.sh` refuses a mutant whose package and tests do not build.
+- **Probe.** `mutate.py` refuses a mutant whose package and tests do not build.
 
 ## Require that tests ran, and run a control that must survive
 `mutation-controls`

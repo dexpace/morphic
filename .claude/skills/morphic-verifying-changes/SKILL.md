@@ -14,10 +14,10 @@ by executing" is the rule; this skill is how.
 
 | Claim | Probe |
 |---|---|
-| test T catches defect D | plant D with `scripts/mutate.sh`; T reddens and the mutant compiled |
+| test T catches defect D | plant D with `scripts/mutate.py`; T reddens and the mutant compiled |
 | this guard or branch matters | neutralise it (`cond \|\| true`, an early return); a test reddens. Coverage cannot see an untaken guard |
 | order-independent | swap the declaration order; diff the documents, and the diagnostics as a sorted multiset |
-| no regression against main | `scripts/sweep.sh`, plus each new probe run on `main`, where it must fail |
+| no regression against main | `scripts/sweep.py`, plus each new probe run on `main`, where it must fail |
 | the fixture reaches the check | confirm where it lands: `harness.Check` stops at the first error diagnostic |
 | a bound of N holds | lower it by one at each site; a test at N and at N+1 notices |
 | lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic |
@@ -33,19 +33,21 @@ by executing" is the rule; this skill is how.
   another test all look like verdicts.
 - Scope a passing result to the site it was planted at; scope a defect to every site of its
   mechanism.
-- Iterate with `go test $(bash .claude/skills/morphic-verifying-changes/scripts/affected-packages.sh)`,
+- Iterate with `go test $(python3 .claude/skills/morphic-verifying-changes/scripts/affected_packages.py)`,
   run `go test ./...` before concluding, and `make gate` before calling it done. Coverage counts
   each package's own tests, so `go test` passing says nothing about the coverage gate.
 
 ## Scripts
 
-- `scripts/mutate.sh FILE OLD NEW -- TEST-COMMAND` plants one literal replacement, checks that it
+Run each with `python3`.
+
+- `scripts/mutate.py FILE OLD NEW -- TEST-COMMAND` plants one literal replacement, checks that it
   compiles, runs the command, restores the file whatever happens, and prints KILLED, SURVIVED or
   UNVERIFIED.
-- `scripts/sweep.sh [-b BASE] [CORPUS...]` builds `cmd/morphic` at BASE and at the working tree,
+- `scripts/sweep.py [-b BASE] [CORPUS...]` builds `cmd/morphic` at BASE and at the working tree,
   compiles every spec in the corpus (default `testdata/`) with both, and reports each difference in
   exit code, IR or diagnostics.
-- `scripts/affected-packages.sh [BASE]` lists the packages a change can affect, reverse
+- `scripts/affected_packages.py [BASE]` lists the packages a change can affect, reverse
   dependencies included.
 
 ## References

@@ -1,6 +1,6 @@
 # Differentials and controls
 
-A comparison is evidence only when it could have come out the other way. `scripts/sweep.sh`
+A comparison is evidence only when it could have come out the other way. `scripts/sweep.py`
 compiles a corpus with two builds; these rules decide whether its answer means anything.
 
 ## A probe that passes on main did not reach the defect

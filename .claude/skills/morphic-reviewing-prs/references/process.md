@@ -39,7 +39,7 @@ The CLAUDE.md commit and PR rules, which no check enforces.
 
 - **Rule.** Every commit subject and the PR title must be Conventional Commits, imperative, at most 72 characters (the title at most 72 including the appended ' (#NNN)'); a breaking commit carries ! and explains the break in its own body; PR bodies carry no tool attribution or session artifacts.
 - **Why.** Over-length subjects and prose titles land on main via squash and cannot be fixed without rewriting a pushed branch; a break marked only in the PR title is invisible in branch history.
-- **Probe.** git log --format=%s main..HEAD | awk 'length($0)>72'; printf '%s (#999)' "<title>" | wc -c; grep the title against ^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: ; run `scripts/artifact-scan.sh` over the range and the PR body.
+- **Probe.** git log --format=%s main..HEAD | awk 'length($0)>72'; printf '%s (#999)' "<title>" | wc -c; grep the title against ^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: ; run `scripts/artifact_scan.py` over the range and the PR body.
 - **Seen in #834**: “One commit subject on the branch, `hoist a content scalar through hoistFormatScalar`, is 77 characters, over the 72-character cap.”
 - **Seen in #157** (f6fc15c3): “This PR opened with the same defect.”
 

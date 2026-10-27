@@ -52,16 +52,18 @@ beside it does not derive.
   the skill, never what the skill does: an agent follows a summary instead of reading the body.
 - A reference file stays under 4,000 words. A full file takes a new rule only by merging or
   removing one.
-- Everything works from a fresh clone. Paths are relative to the repository root, nothing names
-  one machine, and scripts run under bash 3.2 and on Linux: no `sed -i`, no `timeout`.
+- Everything works from a fresh clone. Paths are relative to the repository root and nothing
+  names one machine.
+- Scripts are Python 3.9 with the standard library only, each with a `test_<name>.py` beside it.
+  Run a skill's tests with `python3 -m unittest discover -s .claude/skills/<skill>/scripts`.
 
 ## Upkeep
 
-- Run `bash .claude/skills/morphic-curating-skills/scripts/skills-lint.sh` after every edit. It
-  checks the limits, that every path, test, `§` section and keyed-doc entry a skill names exists,
-  and that every script parses. The gate does not read `.claude/skills`, so this is the only check.
-- When the lint reports a name that no longer exists, update or delete the rule. Lines quoting
-  history (`- **Seen in`) are exempt, because they describe the tree at the commit they name.
+- Run `python3 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit. It
+  checks the limits, that everything a skill names exists, and the scripts' form. The skills are
+  kept apart from the codebase, so the gate never runs this or the scripts' tests.
+- When the lint reports a name that no longer exists, update or delete the rule; lines quoting
+  history (`- **Seen in`) are exempt.
 - A lesson a skill already holds that failed again means the skill failed: sharpen its wording or
   its trigger rather than adding a second copy.
 - Skill changes ship like code: a branch, a PR, a title such as `chore(skills): <subject>`.

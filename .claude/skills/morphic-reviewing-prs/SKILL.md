@@ -10,7 +10,7 @@ with the command that showed it. Post nothing to the PR unless asked; report to 
 
 ## Setup
 
-Run `bash .claude/skills/morphic-reviewing-prs/scripts/review-setup.sh <PR>`. It checks the head
+Run `python3 .claude/skills/morphic-reviewing-prs/scripts/review_setup.py <PR>`. It checks the head
 out in a worktree of its own and prints the title measured as it will land, commit subjects,
 closing keywords, files by area, whether the branch merges cleanly into `origin/main`, CI, the
 squash-message setting and an artifact scan, and names the domain skill to load. Probe only in
@@ -33,7 +33,7 @@ Each finds what the others cannot. Run all of them against the final state.
 5. **Claims.** Every sentence in the body, commits, comments and docs that states behaviour is a
    claim to execute. Counts are derived (`references/derive-never-maintain.md`).
 6. **Process.** Title, body, closing keywords, squash message and scope (`references/process.md`),
-   and `scripts/artifact-scan.sh` over the range and the PR body.
+   and `scripts/artifact_scan.py` over the range and the PR body.
 7. **Merged state.** Merge `origin/main` into a scratch copy and rerun what the merge can break.
 
 A review after new commits reviews the branch as it will merge, not the latest fix.

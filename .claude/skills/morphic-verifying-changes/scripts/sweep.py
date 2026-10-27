@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Compile every spec in a corpus with cmd/morphic built at a base revision and at the working
+tree, and report each spec whose exit code, IR or diagnostics differ.
+
+Usage: python3 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS...] [-- COMPILE-FLAGS...]
+
+BASE is the revision to compare against (default origin/main). A compile running past SECONDS
+(default 60) is killed and recorded as 137. Outputs are kept under OUTDIR (default a new
+temporary directory) for diffing. CORPUS directories are searched for OpenAPI and Swagger
+documents (default testdata). Exit 0 when nothing differs, 1 when something does, 2 when the
+sweep cannot run.
+"""
+from __future__ import annotations
+
+import argparse
+import concurrent.futures
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from collections import Counter
+from pathlib import Path
+
+SPEC = re.compile(rb'^\s*"?(openapi|swagger)"?\s*:', re.M)
+KILLED = 137
+
+
+def find_specs(dirs: list[Path]) -> list[Path]:
+    out = []
+    for d in dirs:
+        for p in sorted(d.rglob("*")):
+            if p.suffix in (".yaml", ".yml", ".json") and p.is_file() and SPEC.search(p.read_bytes()):
+                out.append(p.resolve())
+    return out
+
+
+def compile_one(binary: Path, spec: Path, prefix: Path, flags: list[str], limit: int) -> int:
+    """Compile spec with binary, writing IR to prefix.ir and diagnostics to prefix.diag."""
+    with open(f"{prefix}.ir", "wb") as ir, open(f"{prefix}.diag", "wb") as diag:
+        try:
+            return subprocess.run([str(binary), "compile", *flags, "--", str(spec)],
+                                  stdout=ir, stderr=diag, timeout=limit).returncode
+        except subprocess.TimeoutExpired:
+            return KILLED
+
+
+def compare(base: Path, head: Path, specs: list[Path], out: Path, flags: list[str],
+            limit: int, jobs: int) -> list[tuple[int, int, int, Path, str]]:
+    """Run both binaries over every spec; return (n, base exit, head exit, spec, what differs)."""
+    def one(item):
+        n, spec = item
+        run = out / "runs" / str(n)
+        run.mkdir(parents=True, exist_ok=True)
+        b = compile_one(base, spec, run / "base", flags, limit)
+        h = compile_one(head, spec, run / "head", flags, limit)
+        what = [] if b == h else [f"exit({b}->{h})"]
+        for kind in ("ir", "diag"):
+            if (run / f"base.{kind}").read_bytes() != (run / f"head.{kind}").read_bytes():
+                what.append("ir" if kind == "ir" else "diagnostics")
+        return n, b, h, spec, " ".join(what)
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
+        return list(pool.map(one, enumerate(specs, 1)))
+
+
+def report(results, root: Path, out: Path) -> int:
+    def rel(p: Path) -> str:
+        return p.relative_to(root).as_posix() if p.is_relative_to(root) else str(p)
+
+    print(f"sweep: {len(results)} specs; outputs under {out}/runs/<n>/")
+    for side, col in (("base", 1), ("head", 2)):
+        dist = Counter(r[col] for r in results)
+        size = sum((out / "runs" / str(r[0]) / f"{side}.ir").stat().st_size for r in results)
+        codes = " ".join(f"{code}x{count}" for code, count in sorted(dist.items()))
+        print(f"  {side} exit codes: {codes}; IR bytes: {size}")
+    differ = [r for r in results if r[4]]
+    if not differ:
+        print("sweep: no spec differs")
+        return 0
+    print(f"sweep: {len(differ)} of {len(results)} specs differ (n, then what):")
+    for n, _, _, spec, what in differ:
+        print(f"  {n}  {rel(spec)}: {what}")
+    print(f"compare one with: diff {out}/runs/<n>/base.diag {out}/runs/<n>/head.diag")
+    return 1
+
+
+def git(root: Path, *args: str) -> str:
+    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True).stdout.strip()
+
+
+def build(src: Path, dest: Path) -> None:
+    subprocess.run(["go", "build", "-o", str(dest), "./cmd/morphic"], cwd=src, check=True)
+
+
+def parse(argv: list[str]) -> argparse.Namespace:
+    flags = []
+    if "--" in argv:
+        i = argv.index("--")
+        argv, flags = argv[:i], argv[i + 1:]
+    p = argparse.ArgumentParser(description="Compare two builds of cmd/morphic over a corpus.")
+    p.add_argument("-b", dest="base", default="origin/main")
+    p.add_argument("-t", dest="limit", type=int, default=60)
+    p.add_argument("-j", dest="jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    p.add_argument("-o", dest="out")
+    p.add_argument("corpus", nargs="*")
+    args = p.parse_args(argv)
+    args.flags = flags
+    return args
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse(sys.argv[1:] if argv is None else argv)
+    try:
+        root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel"))
+        sha = git(root, "rev-parse", "--verify", f"{args.base}^{{commit}}")
+    except subprocess.CalledProcessError as e:
+        print(f"sweep: {e.stderr.strip() or e}", file=sys.stderr)
+        return 2
+    out = Path(args.out or tempfile.mkdtemp()).resolve()
+    out.mkdir(parents=True, exist_ok=True)
+    corpus = [Path(c).resolve() for c in args.corpus] or [root / "testdata"]
+    specs = find_specs(corpus)
+    if not specs:
+        print(f"sweep: no OpenAPI or Swagger documents under {' '.join(map(str, corpus))}", file=sys.stderr)
+        return 2
+    print(f"sweep: building head from the working tree and base at {sha[:12]}")
+    src = out / "base-src"
+    try:
+        build(root, out / "head")
+        git(root, "worktree", "add", "--detach", "--quiet", str(src), sha)
+        build(src, out / "base")
+    except subprocess.CalledProcessError as e:
+        print(f"sweep: {e}", file=sys.stderr)
+        return 2
+    finally:
+        subprocess.run(["git", "-C", str(root), "worktree", "remove", "--force", str(src)], capture_output=True)
+    results = compare(out / "base", out / "head", specs, out, args.flags, args.limit, args.jobs)
+    return report(results, root, out)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
