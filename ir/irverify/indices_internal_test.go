@@ -213,6 +213,16 @@ var integerFields = map[string]string{
 	"frame.low":       "Tarjan's low-link of a model a flattening met, not a position in any IR slice",
 	"frame.since":     "how many models a flattening had finished, a length of its own list, not a position",
 
+	// An ir.Editor's own state, which is no part of a document either.
+	"treeNode.at": "where a node sits among its siblings in the document an edit returns, which the edit " +
+		"moves as it drops the nodes it removed; it indexes no slice a document is handed with",
+	"serviceTree.work": "how many nodes an edit has stepped through, and elements it has copied or moved, in the service tree, a count",
+	"idCounts.fields":  "for each struct type, which of its fields an edit's ID check enters, read off the type",
+	"idCounts.entered": "how many values an edit's ID check has entered, a count",
+	"idCounts.sorted":  "how many lists an edit's ID check has sorted, a count",
+	"idCount.node":     "how many times the node an update starts from declares an ID, a count",
+	"idCount.change":   "how many times the node an update ends with declares an ID, a count",
+
 	// The ir package's reading of its own types, which is not IR data either.
 	"idField.index":       "the field through which a struct type declares its identity, read off the type",
 	"keyedRegistry.index": "the Document field that keys a registry map, read off Document's type",

@@ -255,6 +255,11 @@ func TestEngine_RunLeavesAPassChangingItsInputToVerify(t *testing.T) {
 			doc.Services[0].Name.Source = "mutated"
 			return doc, nil
 		}},
+		{"through the document an edit returns", func(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+			out, diags := ir.NewEditor(doc).Finish()
+			out.Services[0].Groups[0].Operations[0].Docs.Summary = "changed through Finish's document"
+			return out, diags
+		}},
 		{"into a document that will not encode", func(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 			doc.Name = "not \xff UTF-8"
 			return doc, nil

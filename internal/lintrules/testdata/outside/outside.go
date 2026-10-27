@@ -8,8 +8,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Outside builds a registry and reads a fragment, which draws nothing here.
-func Outside() (ir.TypeRegistry, error) {
+// Outside builds registries and a slice of the service tree and reads a
+// fragment, which draws nothing here.
+func Outside() (ir.TypeRegistry, []ir.Operation, map[ir.AuthID]ir.AuthScheme, error) {
 	_, err := url.QueryUnescape("a+b")
-	return ir.TypeRegistry{}, err
+	return ir.TypeRegistry{}, []ir.Operation{}, map[ir.AuthID]ir.AuthScheme{}, err
 }

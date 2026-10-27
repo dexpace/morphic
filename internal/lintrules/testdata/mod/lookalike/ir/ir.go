@@ -13,3 +13,6 @@ func CanonicalWords(name string) string { return name }
 
 // Naming has the IR's Naming name and its name channels.
 type Naming struct{ Canonical, Hint string }
+
+// Operation has the IR's Operation name and none of its fields.
+type Operation struct{}

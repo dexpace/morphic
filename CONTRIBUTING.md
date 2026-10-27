@@ -192,13 +192,18 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 
 A pass is an IR-to-IR step the engine runs after a compile
 ([`architecture.md`](docs/architecture.md) §2.2). An analysis reports on the document it is handed;
-a transform returns a new one. A transform changes types through an `ir.Editor` (`ir.NewEditor`):
-`UpdateType` hands it a deep copy of a node to change, `ReplaceType` puts a node built afresh in
-place of the one at its ID, `RemoveType` removes one, and `Finish` returns the new document, sharing
-everything the edit left alone, beside an `ir/edit-refused` error for each call the editor refused,
-such as a write at an ID the document does not hold. Building a type registry, or writing one of its
-entries, any other way fails the `registrywrites` rule (`internal/lintrules`, run by `make vet`). No
-rule sees a node of the input changed in place, which `UpdateType`'s copy is there to make needless.
+a transform returns a new one. A transform changes the document through an `ir.Editor`
+(`ir.NewEditor`), which reads, changes and removes a type, service, group, operation, channel,
+message or auth scheme by its ID: `UpdateType`, `UpdateOperation` and their kin hand the change a
+deep copy of the node to alter, `ReplaceType` puts a type built afresh in place of the one at its
+ID, `RemoveOperation` and its kin remove one, and `UpdateDocument` changes the document's own
+fields. `Finish` returns the new document, sharing everything the edit left alone, beside an
+`ir/edit-refused` error for each call the editor refused, such as a write at an ID the document does
+not hold or a change minting an ID. Return that document as it is: writing into it can write the
+input it still shares. Building or writing a registry or a slice of the service tree any other way
+fails the `registrywrites` or the `servicetreewrites` rule (`internal/lintrules`, run by `make
+vet`). No rule sees a node of the input changed in place, which the editor's copy is there to make
+needless; a verified run catches one.
 
 1. **Implement `pass.Pass`** in a file of its own under `pass/`, shaped as `Validator` and
    `ValidateName` are in `pass/validate.go`: an exported type, and a constant holding its stable
@@ -215,7 +220,8 @@ rule sees a node of the input changed in place, which `UpdateType`'s copy is the
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
    *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
-   `make vet` for a registry built, or an entry of one written, other than through an `ir.Editor`.
+   `make vet` for a registry or a slice of the service tree built, or written into, other than
+   through an `ir.Editor`.
    A run fails with an error wrapping `pass.ErrContract` for a pass that panics, returns no document
    or another IR version, moves a source or puts findings on the document, and under
    `morphic compile --verify` for one that changes its input or returns a document that breaks

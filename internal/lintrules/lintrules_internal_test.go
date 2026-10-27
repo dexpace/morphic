@@ -51,7 +51,9 @@ func TestAnalyzers_ReadTheModulesLayout(t *testing.T) {
 	for _, a := range analyzers {
 		names = append(names, a.Name)
 	}
-	assert.Equal(t, []string{"registrywrites", "fragmentreadings", "namechannels", "idderivations"}, names)
+	assert.Equal(t, []string{
+		"registrywrites", "servicetreewrites", "fragmentreadings", "namechannels", "idderivations",
+	}, names)
 
 	got := strings.Join(drawnFindings(t, analyzers, "./"+plantDir+"/compilers/graphql"), "\n")
 	assert.Contains(t, got, "registrywrites: ")

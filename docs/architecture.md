@@ -239,24 +239,36 @@ after each, so a pass returning once it is done fails the run with the context's
 a compile does (§2.1): a pass cut short may return what its contract forbids. Verification (§2.1)
 reads no context, and the engine asks after it too, so a run cancelled anywhere returns no document.
 
-A transform replaces and removes types through an `ir.Editor` (`ir.NewEditor`), which is to a pass
-what `compile.Types` is to a compiler: its way into the type registry. The edit copies the registry
-at its first write and never writes the document it edits, hands `UpdateType` a deep copy of the
-node to change, keeps each node it takes at the key that node's own ID names, and adds no ID, so
-every ID stays in a namespace the document already declares (invariant 3). A write that would break
-either, or that only a bug makes, is refused, and `Finish` returns each refusal as an
-`ir/edit-refused` error beside the document, so it fails the run at the default threshold instead of
-passing unseen. Whether a removal leaves a reference dangling is not the edit's to judge: `validate`
-reports one. Adding a type is not an edit's either: the first pass to mint one, `link`, brings that,
-with a namespace of its own (invariant 3's corollary). The `registrywrites` rule
-(`internal/lintrules`) refuses building a registry, or writing one of its entries, anywhere but `ir`
-and `compilers/compile`; no rule sees a node changed in place, which the deep copy makes needless.
-The editor covers the type registry alone. A transform that changes another part of the document, an
-operation, a message, a channel or an auth scheme, sets that field of `Finish`'s document to a copy
-it built, copying each container on the path to what it changes and writing into nothing the input
-holds. The editor gains a method for another registry, on the same terms, with the first pass that
-needs one: `filter` and `version-slice` remove operations, and `dedup` rewrites the type references
-operations hold.
+A transform changes a document through an `ir.Editor` (`ir.NewEditor`), which is to a pass what
+`compile.Types` is to a compiler: its way into the document. It reaches every part: a type, service,
+operation group, operation, channel, message and auth scheme is read, changed and removed by its ID,
+and the document's own fields, its servers, tag definitions and versions among them, are changed
+through `UpdateDocument`. A part nested in one of those, a property, a parameter, an enum member, is
+changed through its owner, so `version-slice` drops a property and a parameter by one rule, as an
+update of the type or operation holding it.
+
+The edit never writes the document it edits. It copies a container at its first write into it, and
+of the service tree only the slices on the path to what it writes, so a pass pays for what it
+changes and the rest stays shared. An update hands its change a deep copy of the node's own fields;
+the nodes the edit keys apart, a group's groups and operations, a service's groups, the document's
+services and registries, are left out of the copy and changed by their own IDs. The edit keeps each
+node at the key its own ID names and adds no ID, a nested one included, so every ID stays in a
+namespace the document already declares (invariant 3). A write that would break either, or that only
+a bug makes, is refused, and `Finish` returns each refusal as an `ir/edit-refused` error beside the
+document, so it fails the run at the default threshold instead of passing unseen. A removal removes
+what its ID names, with what that holds, and nothing else: a group or a service its last member
+leaves stays, for the pass to remove when its own rule says so. Whether a removal leaves a reference
+dangling is not the edit's to judge: `validate` reports one. Adding a node is not an edit's either:
+the first pass to mint one, `link`, brings that, with a namespace of its own (invariant 3's
+corollary).
+
+Two rules in `internal/lintrules` hold the containers to the editor: `registrywrites` refuses
+building a registry, or writing one of its entries, anywhere but `ir` and the compilers (the type
+registry `compilers/compile` alone builds), and `servicetreewrites` refuses building or writing a
+slice of services, groups or operations anywhere but `ir` and the compilers. No rule sees a node
+changed in place through what it holds by reference, which the deep copy makes needless; a pass that
+writes its input that way, as a write into a part of `Finish`'s document the edit left shared does,
+fails a verified run (§2.1).
 
 A pass that takes settings, as `filter`, `version-slice` and `overlay` will, holds them on its own
 value, so `Run` keeps one signature for every pass. A caller supplies them through a typed field on
