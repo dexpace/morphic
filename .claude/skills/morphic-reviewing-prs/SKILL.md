@@ -6,7 +6,7 @@ description: Use when asked to review a pull request, branch or commit range in 
 # Reviewing morphic pull requests
 
 The bar is `CLAUDE.md`'s: a PR is ready when there is nothing left to find. A finding counts only
-with the command that showed it. Post nothing to the PR unless asked; report to whoever asked.
+with the command that showed it. Post nothing to the PR unless asked.
 
 ## Setup
 
@@ -14,11 +14,11 @@ Run `python3 .claude/skills/morphic-reviewing-prs/scripts/review_setup.py <PR>`.
 the head merged into `origin/main` in a worktree of its own, so every pass sees the tree as it will
 land, and names the domain skill to load. Probe only in that worktree, with
 `morphic-verifying-changes`. A head that conflicts with `main` is checked out alone, and the
-conflict is an `issue:`.
+conflict is an `issue:`. For a branch or range with no PR, build that worktree by hand.
 
 ## Passes
 
-Each finds what the others cannot. Run all of them against the final state.
+Each finds what the others cannot; run all of them.
 
 1. **Gate.** `make gate` in the worktree, unless the head already contains `origin/main` and CI
    passed on it, which ran this tree. Never re-check by eye what the gate enforces.
@@ -38,15 +38,15 @@ Each finds what the others cannot. Run all of them against the final state.
 6. **Process.** Title, commit messages, body, closing keywords and scope, by
    `references/process.md`.
 7. **New commits.** When the branch or `origin/main` moves, rerun the setup and every pass the new
-   commits can affect, never only the latest fix.
+   commits can affect.
 
 ## Findings
 
 Rank each `issue:`, `nit:` (a defect too small to break anything), `suggestion:` (no defect) or
 `question:`. The rank orders the work, not what may ship: every `issue:` and `nit:` is fixed or
-justified in writing before merge. Each names the rule it breaks (a `CLAUDE.md` rule or a skill
-rule's key), the file and line, what was run and what came back, and the smallest fix that removes
-the class rather than the instance.
+justified in writing before merge. Each names the rule it breaks (in `CLAUDE.md` or a skill), the
+file and line, what was run and what came back, and the smallest fix that removes the class rather
+than the instance.
 
 - A defect the change introduces, exposes or makes reachable in more cases is in scope even when
   its root is older.
@@ -54,7 +54,7 @@ the class rather than the instance.
   that reaches it on base and on head; if head is worse, it is an `issue:`.
 - An oddity that is deliberate (a documented policy, an open issue) is no defect; the finding is
   then a comment that fails to say so.
-- Also list what was probed and came back clean, and each equivalent mutant with the reason.
+- Also list what was probed clean, and each equivalent mutant with its reason.
 
 ## References
 

@@ -29,6 +29,7 @@ import artifact_scan  # noqa: E402  (a sibling script)
 TITLE_CAP = 72
 INDENT = " " * 11
 CONVENTIONAL = re.compile(r"^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\([^)]+\))?!?: \S")
+BREAKING = re.compile(r"^[a-z]+(\([^)]+\))?!:")
 CLOSING = re.compile(r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?) +#[0-9]+", re.I)
 # The review's merge commit needs an identity, and a fresh clone may configure none.
 IDENTITY = {f"GIT_{who}_{what}": value for who in ("AUTHOR", "COMMITTER")
@@ -51,12 +52,18 @@ def title_report(title: str, number: str) -> list[str]:
             f"{INDENT}conventional form: {form}"]
 
 
-def body_report(body: str) -> list[str]:
+def body_report(body: str, title: str) -> list[str]:
+    """Report the sections CLAUDE.md asks of a PR body, Breaking among them when the title marks a
+    break with !, and every closing keyword."""
     lines = []
-    for section in ("Summary", "Test plan"):
-        if re.search(rf"^#+ +{section}", body, re.M):
+    breaking = BREAKING.match(title) is not None
+    for section in ("Summary", "Test plan", "Breaking"):
+        has = re.search(rf"^#+ +{section}", body, re.M) is not None
+        if has and (breaking or section != "Breaking"):
             lines.append(f"body       has {section}")
-        else:
+        elif has:
+            lines.append("body       has a Breaking section, but the title marks no break with !")
+        elif breaking or section != "Breaking":
             lines.append(f"body       MISSING a {section} section")
     for keyword in sorted({m.group(0) for m in CLOSING.finditer(body)}):
         lines.append(f"closes     {keyword}")
@@ -138,7 +145,7 @@ def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[
            f"worktree   {directory} @ {target[:12]}: {what}",
            f"{INDENT}`{diff}` there shows the change as "
            + ("it will land" if lands else "the branch made it"), ""]
-    out += title_report(pr["title"], number) + body_report(pr["body"])
+    out += title_report(pr["title"], number) + body_report(pr["body"], pr["title"])
     out += [f"linked     #{i['number']}" for i in pr["closingIssuesReferences"]]
 
     subjects = git(root, "log", "--format=%s", f"{mb}..{head}").stdout.splitlines()
