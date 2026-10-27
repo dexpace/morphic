@@ -41,6 +41,26 @@ class HitPackagesTest(unittest.TestCase):
         self.assertFalse(ap.EVERYTHING.match("ir/testdata/a.json"))
 
 
+class CitationTest(unittest.TestCase):
+    def test_only_an_added_citation_counts(self):
+        cases = [
+            ("+// See docs/compilers/openapi.md#references.\n", True),
+            ("+See [it](docs/parser-library.md#merge-keys).\n", True),
+            ("-// See docs/compilers/openapi.md#references.\n", False),
+            ("+++ b/docs/x.md\n+plain text\n", False),
+            ("+a link to README.md, with no key\n", False),
+        ]
+        for diff, want in cases:
+            with self.subTest(diff=diff):
+                self.assertEqual(ap.adds_a_citation(diff), want)
+
+    def test_each_reading_test_file_names_its_package(self):
+        grep = ("compilers/openapi/e2e/a_test.go\ncompilers/openapi/e2e/b_test.go\n"
+                "internal/archtest/c_test.go\n")
+        self.assertEqual(ap.citation_readers(grep, M),
+                         {f"{M}/compilers/openapi/e2e", f"{M}/internal/archtest"})
+
+
 class DependentsTest(unittest.TestCase):
     def test_code_and_test_variants_that_import_a_hit_are_listed(self):
         listing = "\n".join([

@@ -4,9 +4,14 @@
 Usage: go test $(python3 affected_packages.py [BASE])    BASE defaults to origin/main.
 
 Lists each package holding a changed file, each package whose code or tests import one of them,
-and internal/archtest whenever a Go or Markdown file changed, since it reads both. Prints ./...
-when the change reaches files any package may read: go.mod, root testdata, docs, the Makefile,
-lint config, CI. The full gate still runs before a change is called done.
+internal/archtest whenever a Go or Markdown file changed, since it reads both, and, when the change
+adds a citation of a keyed document's entry (docs/parser-library.md#<key>), each package whose
+tests read citations across the tree, found by their calls into internal/keydoc. Prints ./... when
+the change reaches files any package may read: go.mod, root testdata, docs, the Makefile, lint
+config, CI. Prints nothing, and says why on stderr, when no Go package reads the change, as for one
+under .claude alone; run from the repository root, `go test` given no package then fails with "no
+Go files", which says nothing about the change. The full gate still runs before a change is called
+done.
 """
 from __future__ import annotations
 
@@ -17,6 +22,10 @@ import traceback
 from pathlib import Path
 
 EVERYTHING = re.compile(r"^(go\.(mod|sum)|testdata/|docs/|Makefile|\.golangci\.yml|\.github/)")
+# internal/keydoc reads a citation on any Markdown line and in any Go or YAML comment.
+CITING = (".go", ".md", ".yaml", ".yml")
+CITATION = re.compile(r"\.md#[A-Za-z0-9_-]")
+READS_CITATIONS = ("keydoc.Citations(", "keydoc.Walk(")
 
 
 def run(root: Path, *args: str) -> str:
@@ -47,6 +56,17 @@ def hit_packages(changed: list[str], dirs: set[str], module: str) -> tuple[set[s
     return hits, unmapped
 
 
+def adds_a_citation(diff: str) -> bool:
+    """Report whether a unified diff adds a line citing a keyed document's entry."""
+    return any(line.startswith("+") and not line.startswith("+++") and CITATION.search(line)
+               for line in diff.splitlines())
+
+
+def citation_readers(grep: str, module: str) -> set[str]:
+    """Return the package of each test file `git grep -l` found reading citations."""
+    return {f"{module}/{Path(f).parent.as_posix()}" for f in grep.split()}
+
+
 def dependents(listing: str, hits: set[str]) -> list[str]:
     """Read `go list -test -f '{{.ImportPath}} {{join .Deps " "}}'` and return each package that
     is a hit or whose code or a test variant of it depends on one."""
@@ -57,6 +77,16 @@ def dependents(listing: str, hits: set[str]) -> list[str]:
         if fields and any(f in hits for f in fields):
             out.add(re.sub(r"(\.test|_test)$", "", fields[0]))
     return sorted(out)
+
+
+def added(root: Path, mb: str, files: list[str], untracked: set[str]) -> str:
+    """Return a diff of files since mb, each untracked file's lines counted as added."""
+    tracked = [f for f in files if f not in untracked]
+    text = run(root, "git", "diff", "-U0", mb, "--", *tracked) if tracked else ""
+    for f in sorted(untracked & set(files)):
+        lines = (root / f).read_text(errors="replace").splitlines()
+        text += "".join(f"+{line}\n" for line in lines)
+    return text
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,6 +125,10 @@ def main(argv: list[str] | None = None) -> int:
     if not hits:
         print("affected_packages: no Go package reads the changed files", file=sys.stderr)
         return 0
+    citing = [f for f in changed if f.endswith(CITING) and not f.startswith(".")]
+    if citing and adds_a_citation(added(root, mb, citing, set(untracked))):
+        grep = ["git", "grep", "-l", "-F", *(a for r in READS_CITATIONS for a in ("-e", r))]
+        hits |= citation_readers(run(root, *grep, "--", "*_test.go"), module)
     imports = '{{.ImportPath}} {{join .Deps " "}}'
     listing = run(root, "go", "list", "-test", "-f", imports, "./...")
     print("\n".join(dependents(listing, hits)))
