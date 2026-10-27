@@ -300,23 +300,26 @@ func TestExternal_DoCachesASuccessfulResponsesBody(t *testing.T) {
 }
 
 // TestExternal_DoPassesAReadFailureThrough pins that a request the reader
-// cannot complete — nothing is listening — fails with the reader's own error,
-// no response beside it; Do adds nothing of its own to it.
+// cannot complete fails with the reader's own error, no response beside it; Do
+// adds nothing of its own to it. The reader fails as told: two dials of a
+// closed port need not fail alike, and the port may be another test's server
+// by the second.
 func TestExternal_DoPassesAReadFailureThrough(t *testing.T) {
 	t.Parallel()
-	srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	srv.Close()
-	req, err := http.NewRequest(http.MethodGet, srv.URL+"/doc.yaml", nil)
+	const key = "http://host/doc.yaml"
+	told := errors.New("dial tcp 127.0.0.1:9: connect: connection refused")
+	req, err := http.NewRequest(http.MethodGet, key, nil)
 	require.NoError(t, err)
-	_, told := reader.Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: srv.URL + "/doc.yaml"})
-	require.Error(t, told, "sanity: nothing is listening")
+	failing := &fakeReader{err: told}
+	ext, _ := externalOver(t.Context(), Options{}, failing)
 
-	resp, err := newExternal(t.Context(), &soa.OpenAPI{}, Options{Reader: reader.Disk{}}, newExternalReads(sourceDocument{}, budget.Unbounded())).Do(req)
+	resp, err := ext.Do(req)
 
 	require.Error(t, err)
 	assert.Nil(t, resp)
+	assert.ErrorIs(t, err, told)
 	assert.Equal(t, told.Error(), err.Error(), "the reader's own error, as it spoke it")
-	assert.NotContains(t, err.Error(), "external document", "not wrapped as a refusal")
+	assert.Equal(t, []compilers.DocumentRequest{{Location: key}}, failing.seen(), "asked once, for the request's URL")
 }
 
 // TestExternal_DoFailsOnARefusedBody pins that a document a 200 response
