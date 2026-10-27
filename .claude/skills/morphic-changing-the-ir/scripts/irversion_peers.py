@@ -6,8 +6,10 @@ Usage: python3 irversion_peers.py
 
 Reads ir.IRVersion from main, from the working tree, and from the head of each open PR, fetched
 from origin unless REMOTE names another remote. A PR whose head the working tree already holds is
-taken for this branch's own and left out. Exit 0 when nothing collides, 1 when the working tree
-claims a version another PR claims or one main has passed, 2 when it cannot run.
+taken for this branch's own and left out, and so is one whose head declares the version its merge
+base with main does. A PR that bumped from a base main has since passed is listed too, since it
+claims a version past main's once it merges main. Exit 0 when nothing collides, 1 when the working
+tree claims a version another PR claims or one main has passed, 2 when it cannot run.
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ import subprocess
 import sys
 import traceback
 from pathlib import Path
+from typing import Optional, Tuple
 
 DECLARED = re.compile(r'^const IRVersion = "([^"]+)"', re.M)
 
@@ -45,13 +48,20 @@ def ahead(version: str, main: str) -> bool:
     return v is None or m is None or v > m
 
 
-def judge(main: str, tree: str, peers: list[tuple[int, str, str]]) -> tuple[list[str], bool]:
-    """Report main's version, the working tree's, and each peer claiming one past main's, since a
-    branch behind main claims nothing; return the lines and whether the working tree's claim
+Peer = Tuple[int, str, str, Optional[str]]  # number, title, version, its merge base's version
+
+
+def judge(main: str, tree: str, peers: list[Peer]) -> tuple[list[str], bool]:
+    """Report main's version, the working tree's, and each peer that moves the version: one
+    claiming a version past main's, or one that bumped from a base main has passed, which claims
+    one past main's once it merges main. Return the lines and whether the working tree's claim
     collides with a peer or trails main."""
     lines = [f"main       {main}", f"this tree  {tree}" + ("" if tree != main else " (unchanged)")]
-    movers = [(n, title, v) for n, title, v in peers if ahead(v, main)]
+    movers = [(n, title, v) for n, title, v, _ in peers if ahead(v, main)]
     lines += [f"#{n:<9} {v}  {title}" for n, title, v in movers]
+    lines += [f"#{n:<9} {v}  {title}  (bumped from {b} on a base main has passed: it claims a "
+              f"version past {main} once it merges main)"
+              for n, title, v, b in peers if not ahead(v, main) and b is not None and v != b]
     bad = False
     if tree != main:
         if order(tree) is None or not ahead(tree, main):
@@ -65,8 +75,8 @@ def judge(main: str, tree: str, peers: list[tuple[int, str, str]]) -> tuple[list
     return lines, bad
 
 
-def peers_of(root: Path, remote: str, path: str) -> list[tuple[int, str, str]]:
-    """Return (number, title, version) for each open PR whose head the working tree lacks."""
+def peers_of(root: Path, remote: str, path: str, base: str) -> list[Peer]:
+    """Return a Peer for each open PR whose head the working tree lacks and declares a version."""
     listing = subprocess.run(["gh", "pr", "list", "--state", "open", "--limit", "200", "--json",
                               "number,title,headRefOid"], check=True, capture_output=True,
                              text=True, cwd=root).stdout
@@ -79,8 +89,12 @@ def peers_of(root: Path, remote: str, path: str) -> list[tuple[int, str, str]]:
             continue  # this branch's own PR
         shown = git(root, "show", f"{sha}:{path}", check=False)
         version = declared(shown.stdout) if shown.returncode == 0 else None
-        if version is not None:  # a head that declares no version claims none
-            out.append((pr["number"], pr["title"], version))
+        if version is None:  # a head that declares no version claims none
+            continue
+        mb = git(root, "merge-base", sha, base, check=False).stdout.strip()
+        at_base = git(root, "show", f"{mb}:{path}", check=False) if mb else None
+        before = declared(at_base.stdout) if at_base and at_base.returncode == 0 else None
+        out.append((pr["number"], pr["title"], version, before))
     return out
 
 
@@ -98,7 +112,7 @@ def main() -> int:
         tree_v = declared((root / path).read_text())
         if main_v is None or tree_v is None:
             raise RuntimeError(f"{path} declares no IRVersion on {base} or in the working tree")
-        lines, bad = judge(main_v, tree_v, peers_of(root, remote, path))
+        lines, bad = judge(main_v, tree_v, peers_of(root, remote, path, base))
     except subprocess.CalledProcessError as e:
         print(f"irversion_peers: {' '.join(e.cmd)}: {e.stderr.strip()}", file=sys.stderr)
         return 2
