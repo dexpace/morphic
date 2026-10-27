@@ -224,19 +224,6 @@ it.
   `go test -list` names no subtest; check the package clause of every touched test file; map
   unexported calls to defining files.
 
-## Time only the code under test, and measure what the defect moves
-`perf-guards-measure-the-defect`
-
-- **Rule.** A cost test or benchmark must time only the function under test with inputs built
-  outside the clock, pin the code path when input size is near a path-selecting threshold, and
-  measure the quantity the defect changes (walk steps, not allocations); confirm it reddens on the
-  reverted code.
-- **Why.** An allocation-ratio guard could not see a read-only quadratic walk, a timing test
-  measured the parser instead of the walk, and a benchmark crossed the sniff size cap and timed the
-  byte scanner (#488).
-- **Probe.** Revert the fix and confirm the guard fails; add a counter or probe inside the timed
-  region to confirm the target function, on the intended path, is what runs.
-
 ## Keep an oracle's equality options from hiding its defect
 `no-equivalence-that-erases-the-distinction`
 

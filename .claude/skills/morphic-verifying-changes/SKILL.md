@@ -20,7 +20,7 @@ skill is how.
 | the fixture reaches the check | confirm where it lands: `harness.Check` stops at the first error diagnostic |
 | a bound of N holds | lower it by one at each site; a test at N and at N+1 notices |
 | lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic |
-| a count, size or cost | derive it with a command and name the revision |
+| a count, size or cost | derive it with a command and name the revision; a cost by `morphic-measuring-performance` |
 
 ## Habits
 

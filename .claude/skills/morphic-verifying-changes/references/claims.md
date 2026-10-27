@@ -141,17 +141,6 @@ to read — and to execute outside the case its author measured.
 - **Probe.** Write one case per direction; for neutrality, run old and new over the corpus and diff
   the IR.
 
-## Measure before quantifying a cost or an effect
-`measure-before-quantifying`
-
-- **Rule.** Claim a speedup, memory bound or noise immunity only after a before-and-after
-  measurement on the claimed workload. A count bound described as a memory bound is measured in
-  retained bytes. Figures go in the PR body with their revision, not in source comments.
-- **Why.** A per-walk view was kept for a benefit that never reproduced, and a shared count bound
-  let retained memory grow (#379, #362).
-- **Probe.** `go test -bench` and a heap profile after `runtime.GC` on the workload, before and
-  after.
-
 ## A cancellation claim needs a gap probe
 `cancellation-gaps`
 

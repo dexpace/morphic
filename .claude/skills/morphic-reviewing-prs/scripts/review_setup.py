@@ -39,7 +39,11 @@ DOMAINS = [
     (re.compile(r"^(compilers/openapi/|docs/compilers/openapi\.md|docs/parser-library\.md"
                 r"|testdata/(conformance/)?openapi/)"),
      "morphic-openapi-compiler"),
+    (re.compile(r"^(ir/|pass/|docs/ir-design\.md|docs/emitter-design\.md)"),
+     "morphic-changing-the-ir"),
 ]
+# A title of this type makes a cost claim, which the performance skill measures.
+PERF_TITLE = re.compile(r"^perf(\([^)]+\))?!?:")
 
 
 def title_report(title: str, number: str) -> list[str]:
@@ -79,8 +83,11 @@ def areas(files: list[str]) -> list[tuple[int, str]]:
     return sorted(((n, a) for a, n in Counter(map(area, files)).items()), key=lambda x: x[1])
 
 
-def domain_hints(files: list[str]) -> list[str]:
-    return sorted({skill for pattern, skill in DOMAINS if any(pattern.match(f) for f in files)})
+def domain_hints(files: list[str], title: str = "") -> list[str]:
+    hints = {skill for pattern, skill in DOMAINS if any(pattern.match(f) for f in files)}
+    if PERF_TITLE.match(title):
+        hints.add("morphic-measuring-performance")
+    return sorted(hints)
 
 
 def run(*args: str, check: bool = True, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -157,7 +164,7 @@ def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[
     files = git(root, "diff", "--name-only", mb, head).stdout.split()
     out += ["", "files by area:"] + [f"{INDENT}{n:4}  {a}" for n, a in areas(files)]
     out.append(INDENT + git(root, "diff", "--shortstat", mb, head).stdout.strip())
-    out += [f"load       {skill}" for skill in domain_hints(files)]
+    out += [f"load       {skill}" for skill in domain_hints(files, pr["title"])]
 
     out += [""] + merge_lines
     squash = run("gh", "api", "repos/{owner}/{repo}", "--jq", ".squash_merge_commit_message",

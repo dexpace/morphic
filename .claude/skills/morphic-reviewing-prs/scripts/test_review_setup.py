@@ -66,7 +66,11 @@ class FilesTest(unittest.TestCase):
         openapi = ["morphic-openapi-compiler"]
         self.assertEqual(rs.domain_hints(["docs/parser-library.md"]), openapi)
         self.assertEqual(rs.domain_hints(["testdata/conformance/openapi/a.yaml"]), openapi)
-        self.assertEqual(rs.domain_hints(["ir/a.go", "docs/ir-design.md"]), [])
+        ir = ["morphic-changing-the-ir"]
+        self.assertEqual(rs.domain_hints(["ir/a.go", "docs/ir-design.md"]), ir)
+        self.assertEqual(rs.domain_hints(["pass/validate.go"], "perf(pass)!: x"),
+                         ["morphic-changing-the-ir", "morphic-measuring-performance"])
+        self.assertEqual(rs.domain_hints(["README.md"], "fix: perf of x"), [])
 
 
 class LandingTest(unittest.TestCase):

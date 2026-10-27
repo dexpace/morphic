@@ -125,8 +125,8 @@ Probes that found what earlier review rounds missed. Each one runs through
 
 - **Rule.** When a change adds work to a path every input takes, compare instructions retired on
   base and head for a large input of the old shape and for the golden spec
-  (`.claude/skills/morphic-verifying-changes/scripts/golden_spec.py` prints its path):
-  `/usr/bin/time -l` on macOS, `perf stat -e instructions:u` on Linux.
+  (`.claude/skills/morphic-verifying-changes/scripts/golden_spec.py` prints its path), with
+  `.claude/skills/morphic-measuring-performance/scripts/compare_cost.py`.
 - **Why.** Allocation counts miss CPU work, and load skews wall-clock time (#1133).
 
 ## Fuzz a rewritten reader against the one it replaces
