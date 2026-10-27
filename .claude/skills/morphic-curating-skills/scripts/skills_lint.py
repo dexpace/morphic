@@ -25,7 +25,8 @@ HISTORY_PREFIX = "- **Seen in"
 
 # Split so this file does not match itself.
 MACHINE = re.compile(
-    "/U" "sers/|/h" "ome/[a-z]|/p" "rivate/|~" "/|" r"\[" r"\[[a-z0-9-]+\]\]|\$HOME/\.cl" "aude|scratch" "pad"
+    "/U" "sers/|/h" "ome/[a-z]|/p" "rivate/|~" "/|"
+    r"\[" r"\[[a-z0-9-]+\]\]|\$HOME/\.cl" "aude|scratch" "pad"
 )
 SPAN = re.compile(r"`([^` ]+)`")
 ANY_SPAN = re.compile(r"`[^`]*`")
@@ -39,10 +40,14 @@ NAME = re.compile(r"^[a-z0-9-]+$")
 PATH_LIKE = re.compile(r"/|\.(go|md|py|yaml|json|txt)$")
 TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
 LINE_SUFFIX = re.compile(r":[0-9]+$")
+# A placeholder or template inside a command, such as <spec> or {owner}, names no path.
+TEMPLATE = re.compile(r"[<>{}]")
 
 
 def git(root: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True).stdout
+    done = subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True,
+                          text=True)
+    return done.stdout
 
 
 def load_tree(root: Path) -> tuple[set[str], set[str]]:
@@ -119,7 +124,8 @@ class Linter:
         if not desc.startswith("Use when "):
             self.report(skill, 1, 'description must start "Use when"')
         if len(desc) > MAX_DESCRIPTION_CHARS:
-            self.report(skill, 1, f"description is {len(desc)} characters, over {MAX_DESCRIPTION_CHARS}")
+            self.report(skill, 1, f"description is {len(desc)} characters, "
+                                  f"over {MAX_DESCRIPTION_CHARS}")
         words = len("\n".join(lines[end + 1:]).split())
         if words > MAX_BODY_WORDS:
             self.report(skill, 0, f"body is {words} words, over {MAX_BODY_WORDS}")
@@ -132,6 +138,11 @@ class Linter:
                 continue
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
+            for command in (s for s in ANY_SPAN.findall(line) if " " in s):
+                for word in command.strip("`").split():
+                    word = word.strip("'\"$();,")
+                    if "/" in word and not TEMPLATE.search(word) and not self.exists(d, word):
+                        self.report(f, i, f"{word} does not exist")
             for p in PROSE_PATH.findall(LINK_TARGET.sub("]", ANY_SPAN.sub("", line))):
                 p = p.rstrip(".,;:)")
                 if not self.exists(d, p):
@@ -151,7 +162,8 @@ class Linter:
 
     def check_span(self, d: Path, f: Path, line: int, tok: str) -> None:
         if tok.startswith("morphic-") and "/" not in tok:
-            if not (self.root / ".claude" / "skills" / tok).is_dir() and not (self.root / "cmd" / tok).is_dir():
+            homes = (self.root / ".claude" / "skills" / tok, self.root / "cmd" / tok)
+            if not any(h.is_dir() for h in homes):
                 self.report(f, line, f"no skill or command named {tok}")
         elif PATH_LIKE.search(tok) and not self.exists(d, tok):
             self.report(f, line, f"{tok} does not exist")
@@ -160,7 +172,8 @@ class Linter:
         """Report whether a path a skill names exists: relative to the skill for its own
         references/ and scripts/, to the repository otherwise. A path whose first segment is
         no tracked top-level entry is not a repository path, and passes."""
-        p = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0].rstrip("/")
+        p = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
+        p = p[:-len("/...")] if p.endswith("/...") else p.rstrip("/")
         if not p:
             return True
         first = p.split("/", 1)[0]
@@ -191,7 +204,8 @@ class Linter:
         try:
             tree = ast.parse(s.read_text(), str(s), feature_version=PYTHON_TARGET)
         except SyntaxError as e:
-            self.report(s, e.lineno or 0, f"is not Python {PYTHON_TARGET[0]}.{PYTHON_TARGET[1]}: {e.msg}")
+            target = ".".join(map(str, PYTHON_TARGET))
+            self.report(s, e.lineno or 0, f"is not Python {target}: {e.msg}")
             return
         stdlib = getattr(sys, "stdlib_module_names", None)
         if stdlib is None:  # Python 3.9 has no list of its own modules.
@@ -212,7 +226,8 @@ def main() -> int:
     try:
         root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
         top_level, tests = load_tree(root)
-        listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard", ".claude/skills")
+        listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard",
+                     ".claude/skills")
         files = [root / f for f in listed.splitlines() if (root / f).is_file()]
     except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
         print(f"skills_lint: {e}", file=sys.stderr)

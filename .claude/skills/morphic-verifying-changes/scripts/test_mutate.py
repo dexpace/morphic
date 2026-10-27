@@ -1,4 +1,7 @@
-"""Tests for mutate. Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts"""
+"""Tests for mutate.
+
+Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
+"""
 import os
 import signal
 import subprocess
@@ -34,7 +37,8 @@ class VerdictTest(unittest.TestCase):
                 self.assertEqual(mutate.verdict(status, output)[0], want)
 
     def test_a_kill_lists_every_failing_test_and_flags_a_panic(self):
-        code, text = mutate.verdict(2, "panic: boom\n--- FAIL: TestA (0.00s)\n    --- FAIL: TestA/b (0.00s)\n")
+        output = "panic: boom\n--- FAIL: TestA (0.00s)\n    --- FAIL: TestA/b (0.00s)\n"
+        code, text = mutate.verdict(2, output)
         self.assertEqual(code, mutate.KILLED)
         self.assertIn("    --- FAIL: TestA/b (0.00s)", text)
         self.assertIn("note: a panic ended the run", text)

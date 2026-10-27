@@ -2,13 +2,14 @@
 """Compile every spec in a corpus with cmd/morphic built at a base revision and at the working
 tree, and report each spec whose exit code, IR or diagnostics differ.
 
-Usage: python3 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS...] [-- COMPILE-FLAGS...]
+Usage: python3 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS...]
+                        [-- COMPILE-FLAGS...]
 
 BASE is the revision to compare against (default origin/main). A compile running past SECONDS
-(default 60) is killed and recorded as 137. Outputs are kept under OUTDIR (default a new
-temporary directory) for diffing. CORPUS directories are searched for OpenAPI and Swagger
-documents (default testdata). Exit 0 when nothing differs, 1 when something does, 2 when the
-sweep cannot run.
+(default 60) is killed and recorded as 137. JOBS compiles run at once (default half the CPUs).
+Outputs are kept under OUTDIR (default a new temporary directory) for diffing. CORPUS
+directories are searched for OpenAPI and Swagger documents (default testdata). Exit 0 when
+nothing differs, 1 when something does, 2 when the sweep cannot run.
 """
 from __future__ import annotations
 
@@ -30,7 +31,9 @@ def find_specs(dirs: list[Path]) -> list[Path]:
     out = []
     for d in dirs:
         for p in sorted(d.rglob("*")):
-            if p.suffix in (".yaml", ".yml", ".json") and p.is_file() and SPEC.search(p.read_bytes()):
+            if p.suffix not in (".yaml", ".yml", ".json") or not p.is_file():
+                continue
+            if SPEC.search(p.read_bytes()):
                 out.append(p.resolve())
     return out
 
@@ -86,7 +89,9 @@ def report(results, root: Path, out: Path) -> int:
 
 
 def git(root: Path, *args: str) -> str:
-    return subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True, text=True).stdout.strip()
+    done = subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True,
+                          text=True)
+    return done.stdout.strip()
 
 
 def build(src: Path, dest: Path) -> None:
@@ -122,7 +127,8 @@ def main(argv: list[str] | None = None) -> int:
     corpus = [Path(c).resolve() for c in args.corpus] or [root / "testdata"]
     specs = find_specs(corpus)
     if not specs:
-        print(f"sweep: no OpenAPI or Swagger documents under {' '.join(map(str, corpus))}", file=sys.stderr)
+        where = " ".join(map(str, corpus))
+        print(f"sweep: no OpenAPI or Swagger documents under {where}", file=sys.stderr)
         return 2
     print(f"sweep: building head from the working tree and base at {sha[:12]}")
     src = out / "base-src"
@@ -134,7 +140,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sweep: {e}", file=sys.stderr)
         return 2
     finally:
-        subprocess.run(["git", "-C", str(root), "worktree", "remove", "--force", str(src)], capture_output=True)
+        remove = ["git", "-C", str(root), "worktree", "remove", "--force", str(src)]
+        subprocess.run(remove, capture_output=True)
     results = compare(out / "base", out / "head", specs, out, args.flags, args.limit, args.jobs)
     return report(results, root, out)
 

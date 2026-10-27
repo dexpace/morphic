@@ -1,4 +1,7 @@
-"""Tests for sweep. Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts"""
+"""Tests for sweep.
+
+Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
+"""
 import io
 import sys
 import tempfile
@@ -26,7 +29,8 @@ class SweepTest(unittest.TestCase):
         self.root = Path(self.dir.name)
         self.corpus = self.root / "corpus"
         self.corpus.mkdir()
-        for name, extra in [("same", ""), ("changed", "changed"), ("diag", "diag"), ("error", "error")]:
+        kinds = [("same", ""), ("changed", "changed"), ("diag", "diag"), ("error", "error")]
+        for name, extra in kinds:
             (self.corpus / f"{name}.yaml").write_text(f"openapi: 3.1.0\n# {extra}\n")
         (self.corpus / "golden.json").write_text('{"irVersion": "0.1.0"}\n')
         (self.corpus / "notes.txt").write_text("openapi: 3.1.0\n")
@@ -56,7 +60,8 @@ class SweepTest(unittest.TestCase):
         code, results, text = self.sweep(sweep.find_specs([self.corpus]))
         self.assertEqual(code, 1)
         what = {r[3].name: r[4] for r in results}
-        self.assertEqual(what, {"changed.yaml": "ir", "diag.yaml": "diagnostics", "error.yaml": "", "same.yaml": ""})
+        want = {"changed.yaml": "ir", "diag.yaml": "diagnostics", "error.yaml": "", "same.yaml": ""}
+        self.assertEqual(what, want)
         self.assertIn("base exit codes: 0x3 1x1", text)
         self.assertIn("2 of 4 specs differ", text)
 
@@ -68,14 +73,18 @@ class SweepTest(unittest.TestCase):
         self.assertIn("no spec differs", text)
 
     def test_a_compile_past_the_limit_is_killed_and_recorded(self):
+        # Only the hanging side is timed: a healthy one under a one-second limit would make the
+        # test depend on how fast an interpreter starts on a loaded machine.
         slow = self.corpus / "slow.yaml"
         slow.write_text("openapi: 3.1.0\n# slow\n")
-        _, results, _ = self.sweep([slow], limit=1)
-        self.assertEqual(results[0][1:3], (0, sweep.KILLED))
+        prefix = self.root / "slow"
+        self.assertEqual(sweep.compile_one(self.bins["head"], slow, prefix, [], 1), sweep.KILLED)
+        self.assertTrue(Path(f"{prefix}.ir").exists())
 
     def test_flags_after_a_double_dash_reach_the_compile(self):
         args = sweep.parse(["-b", "x", "testdata", "--", "--opt", "a=b"])
-        self.assertEqual((args.base, args.corpus, args.flags), ("x", ["testdata"], ["--opt", "a=b"]))
+        got = (args.base, args.corpus, args.flags)
+        self.assertEqual(got, ("x", ["testdata"], ["--opt", "a=b"]))
 
 
 if __name__ == "__main__":

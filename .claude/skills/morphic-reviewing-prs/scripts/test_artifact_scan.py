@@ -1,4 +1,7 @@
-"""Tests for artifact_scan. Run: python3 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scripts"""
+"""Tests for artifact_scan.
+
+Run: python3 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scripts
+"""
 import unittest
 
 import artifact_scan as scan
@@ -39,8 +42,9 @@ class ScanTest(unittest.TestCase):
             "@@ -9 +20 @@", "-gone", "+third",
             "--- /dev/null", "+++ b/new.md", "@@ -0,0 +1 @@", "+fourth",
         ])
-        self.assertEqual(list(scan.added_lines(diff)),
-                         [("x.go:4", "first"), ("x.go:5", "second"), ("x.go:20", "third"), ("new.md:1", "fourth")])
+        want = [("x.go:4", "first"), ("x.go:5", "second"), ("x.go:20", "third"),
+                ("new.md:1", "fourth")]
+        self.assertEqual(list(scan.added_lines(diff)), want)
 
     def test_hits_are_labelled(self):
         got = scan.hits("commit", [("abc123", PLANTED[0]), ("def456", "fine")])

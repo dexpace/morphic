@@ -4,8 +4,9 @@
 Usage: python3 mutate.py FILE OLD NEW -- TEST-COMMAND...
 
 OLD must occur in FILE exactly once, read literally; NEW replaces it. TEST-COMMAND runs from the
-current directory, such as `go test ./ir/...`. A Go file's package and tests must build with the
-mutant in place, or there is no verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every
+current directory, such as `go test ./ir/...`, and the verdict is read from `go test` output: a
+kill needs a `--- FAIL` line, a survival an `ok` line. A Go file's package and tests must build
+with the mutant in place, or there is no verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every
 failing test line. Exit 0 KILLED, 1 SURVIVED, 2 UNVERIFIED or a usage error.
 """
 from __future__ import annotations
@@ -36,10 +37,12 @@ def verdict(status: int, output: str) -> tuple[int, str]:
         return UNVERIFIED, "UNVERIFIED: the command passed but no test package reported ok"
     if not fails:
         head = "\n".join(output.splitlines()[:15])
-        return UNVERIFIED, "UNVERIFIED: the command failed without a failing test; read its output\n" + head
+        reason = "UNVERIFIED: the command failed without a failing test; read its output\n"
+        return UNVERIFIED, reason + head
     text = "KILLED\n" + "\n".join(fails)
     if re.search(r"^panic:", output, re.M):
-        text += "\nnote: a panic ended the run; run the test written for this property alone to see it pin"
+        text += ("\nnote: a panic ended the run; run the test written for this property alone"
+                 " to see it pin")
     return KILLED, text
 
 
@@ -61,7 +64,8 @@ def mutate(path: Path, old: str, new: str, command: list[str]) -> tuple[int, str
     original = path.read_bytes()
     count = original.count(old.encode())
     if count != 1:
-        return UNVERIFIED, f"mutate: OLD occurs {count} times in {path}; widen it until it is unique"
+        reason = f"mutate: OLD occurs {count} times in {path}; widen it until it is unique"
+        return UNVERIFIED, reason
     mutant = original.replace(old.encode(), new.encode(), 1)
     if mutant == original:
         return UNVERIFIED, "mutate: the replacement changed nothing"
@@ -73,7 +77,8 @@ def mutate(path: Path, old: str, new: str, command: list[str]) -> tuple[int, str
             ok, out = builds(path)
             if not ok:
                 head = "\n".join(out.splitlines()[:15])
-                return UNVERIFIED, "UNVERIFIED: the mutant does not build or vet; adjust it until it compiles\n" + head
+                reason = "UNVERIFIED: the mutant does not build or vet; adjust it until it compiles"
+                return UNVERIFIED, reason + "\n" + head
         run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         return verdict(run.returncode, run.stdout)
     finally:

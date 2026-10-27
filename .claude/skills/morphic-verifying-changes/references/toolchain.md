@@ -61,5 +61,5 @@
 
 - **Rule.** Build a command to `-o /dev/null` or a temporary path, and check
   `git status --untracked-files=all` before committing.
-- **Why.** `go build ./cmd/foo` writes the binary into the working directory, one `git add -A` from
+- **Why.** `go build ./cmd/morphic` writes the binary into the working directory, one `git add -A` from
   a commit (#828).

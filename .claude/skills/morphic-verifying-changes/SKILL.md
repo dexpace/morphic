@@ -41,8 +41,8 @@ by executing" is the rule; this skill is how.
 
 Run each with `python3`.
 
-- `scripts/mutate.py FILE OLD NEW -- TEST-COMMAND` plants one literal replacement, checks that it
-  compiles, runs the command, restores the file whatever happens, and prints KILLED, SURVIVED or
+- `scripts/mutate.py FILE OLD NEW -- GO-TEST-COMMAND` plants one literal replacement, checks that
+  it compiles, runs the tests, restores the file whatever happens, and prints KILLED, SURVIVED or
   UNVERIFIED.
 - `scripts/sweep.py [-b BASE] [CORPUS...]` builds `cmd/morphic` at BASE and at the working tree,
   compiles every spec in the corpus (default `testdata/`) with both, and reports each difference in

@@ -74,7 +74,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         for rev in (args.base, args.head):
             run("git", "rev-parse", "--verify", "--quiet", f"{rev}^{{commit}}")
-        found = hits("added line", added_lines(run("git", "diff", "-U0", f"{args.base}...{args.head}")))
+        diff = run("git", "diff", "-U0", f"{args.base}...{args.head}")
+        found = hits("added line", added_lines(diff))
         found += hits("commit", commit_lines(args.base, args.head))
         if args.pr:
             found += hits(f"PR #{args.pr}", pr_lines(args.pr))

@@ -24,29 +24,34 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import artifact_scan  # noqa: E402  (a sibling script)
 
 TITLE_CAP = 72
+INDENT = " " * 11
 CONVENTIONAL = re.compile(r"^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\([^)]+\))?!?: \S")
 CLOSING = re.compile(r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?) +#[0-9]+", re.I)
 # The domain skill to load for the files a change touches.
 DOMAINS = [
-    (re.compile(r"^(compilers/openapi/|docs/compilers/openapi\.md|docs/parser-library\.md|testdata/(conformance/)?openapi/)"),
+    (re.compile(r"^(compilers/openapi/|docs/compilers/openapi\.md|docs/parser-library\.md"
+                r"|testdata/(conformance/)?openapi/)"),
      "morphic-openapi-compiler"),
 ]
 
 
 def title_report(title: str, number: str) -> list[str]:
     landed = len(f"{title} (#{number})")
-    lines = [f"title      {title}",
-             f'           {landed} characters with " (#{number})", cap {TITLE_CAP}' + ("  OVER" if landed > TITLE_CAP else "")]
+    over = "  OVER" if landed > TITLE_CAP else ""
     ok = CONVENTIONAL.match(title) and not title.endswith(".")
-    lines.append("           conventional form: " + ("ok" if ok else "NOT type(scope): subject without a trailing period"))
-    return lines
+    form = "ok" if ok else "NOT type(scope): subject without a trailing period"
+    return [f"title      {title}",
+            f'{INDENT}{landed} characters with " (#{number})", cap {TITLE_CAP}{over}',
+            f"{INDENT}conventional form: {form}"]
 
 
 def body_report(body: str) -> list[str]:
     lines = []
     for section in ("Summary", "Test plan"):
-        has = re.search(rf"^#+ +{section}", body, re.M)
-        lines.append(f"body       has {section}" if has else f"body       MISSING a {section} section")
+        if re.search(rf"^#+ +{section}", body, re.M):
+            lines.append(f"body       has {section}")
+        else:
+            lines.append(f"body       MISSING a {section} section")
     for keyword in sorted({m.group(0) for m in CLOSING.finditer(body)}):
         lines.append(f"closes     {keyword}")
     return lines
@@ -55,7 +60,9 @@ def body_report(body: str) -> list[str]:
 def areas(files: list[str]) -> list[tuple[int, str]]:
     def area(f: str) -> str:
         parts = f.split("/")
-        return "/".join(parts[:2]) if len(parts) > 2 else (parts[0] if len(parts) > 1 else "(root)")
+        if len(parts) > 2:
+            return "/".join(parts[:2])
+        return parts[0] if len(parts) > 1 else "(root)"
     return sorted(((n, a) for a, n in Counter(map(area, files)).items()), key=lambda x: x[1])
 
 
@@ -67,57 +74,69 @@ def run(*args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(args, check=check, capture_output=True, text=True)
 
 
+def git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
+    return run("git", "-C", str(root), *args, check=check)
+
+
 def checkout(root: Path, directory: Path, head: str) -> None:
     if directory.exists():
-        status = run("git", "-C", str(directory), "status", "--porcelain", check=False)
+        status = git(directory, "status", "--porcelain", check=False)
         if status.returncode != 0 or status.stdout.strip():
-            raise RuntimeError(f"{directory} has local changes; remove it (git worktree remove --force) "
-                               "or pass another DIR")
-        run("git", "-C", str(directory), "checkout", "-q", "--detach", head)
+            raise RuntimeError(f"{directory} has local changes; remove it "
+                               "(git worktree remove --force) or pass another DIR")
+        git(directory, "checkout", "-q", "--detach", head)
     else:
-        run("git", "-C", str(root), "worktree", "add", "-q", "--detach", str(directory), head)
+        git(root, "worktree", "add", "-q", "--detach", str(directory), head)
 
 
 def merge_report(root: Path, base: str, head: str) -> list[str]:
-    clean = run("git", "-C", str(root), "merge-tree", "--write-tree", base, head, check=False)
+    clean = git(root, "merge-tree", "--write-tree", base, head, check=False)
     if clean.returncode == 0:
         return [f"merge      clean into {base}"]
     if clean.returncode != 1:
         return ["merge      not checked: this git has no merge-tree --write-tree"]
-    named = run("git", "-C", str(root), "merge-tree", "--write-tree", "--name-only", base, head, check=False)
+    named = git(root, "merge-tree", "--write-tree", "--name-only", base, head, check=False)
     files = named.stdout.split("\n\n", 1)[0].splitlines()[1:]
-    return [f"merge      CONFLICTS with {base}:"] + [f"           {f}" for f in files]
+    return [f"merge      CONFLICTS with {base}:"] + [INDENT + f for f in files]
 
 
 def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[str], str, str]:
     """Set the worktree up and return the report's lines, the merge base and the head."""
-    run("git", "-C", str(root), "fetch", "-q", remote, "main")
-    run("git", "-C", str(root), "fetch", "-q", remote, f"pull/{number}/head")
-    head = run("git", "-C", str(root), "rev-parse", "FETCH_HEAD").stdout.strip()
+    git(root, "fetch", "-q", remote, "main")
+    git(root, "fetch", "-q", remote, f"pull/{number}/head")
+    head = git(root, "rev-parse", "FETCH_HEAD").stdout.strip()
     base = f"{remote}/main"
-    mb = run("git", "-C", str(root), "merge-base", base, head).stdout.strip()
+    mb = git(root, "merge-base", base, head).stdout.strip()
     checkout(root, directory, head)
 
-    pr = json.loads(run("gh", "pr", "view", number, "--json", "title,body,state,isDraft,author,closingIssuesReferences").stdout)
-    out = [f"PR #{number}  {pr['state']}{', draft' if pr['isDraft'] else ''}, by {pr['author']['login']}",
+    fields = "title,body,state,isDraft,author,closingIssuesReferences"
+    pr = json.loads(run("gh", "pr", "view", number, "--json", fields).stdout)
+    draft = ", draft" if pr["isDraft"] else ""
+    out = [f"PR #{number}  {pr['state']}{draft}, by {pr['author']['login']}",
            f"worktree   {directory} @ {head[:12]} (merge base {mb[:12]})", ""]
     out += title_report(pr["title"], number) + body_report(pr["body"])
     out += [f"linked     #{i['number']}" for i in pr["closingIssuesReferences"]]
 
-    subjects = run("git", "-C", str(root), "log", "--format=%s", f"{mb}..{head}").stdout.splitlines()
+    subjects = git(root, "log", "--format=%s", f"{mb}..{head}").stdout.splitlines()
     out += ["", f"commits    {len(subjects)} on the branch:"]
-    out += [f"           {len(s):3}  {s}" + ("  OVER 72" if len(s) > TITLE_CAP else "") for s in subjects]
+    for s in subjects:
+        over = "  OVER 72" if len(s) > TITLE_CAP else ""
+        out.append(f"{INDENT}{len(s):3}  {s}{over}")
 
-    files = run("git", "-C", str(root), "diff", "--name-only", mb, head).stdout.split()
-    out += ["", "files by area:"] + [f"           {n:4}  {a}" for n, a in areas(files)]
-    out.append("           " + run("git", "-C", str(root), "diff", "--shortstat", mb, head).stdout.strip())
+    files = git(root, "diff", "--name-only", mb, head).stdout.split()
+    out += ["", "files by area:"] + [f"{INDENT}{n:4}  {a}" for n, a in areas(files)]
+    out.append(INDENT + git(root, "diff", "--shortstat", mb, head).stdout.strip())
     out += [f"load       {skill}" for skill in domain_hints(files)]
 
     out += [""] + merge_report(root, base, head)
-    squash = run("gh", "api", "repos/{owner}/{repo}", "--jq", ".squash_merge_commit_message", check=False)
+    squash = run("gh", "api", "repos/{owner}/{repo}", "--jq", ".squash_merge_commit_message",
+                 check=False)
     out.append(f"squash     body default: {squash.stdout.strip() or 'unknown'}")
-    checks = run("gh", "pr", "checks", number, check=False).stdout.splitlines()
-    out += ["checks:"] + [f"           {c.split(chr(9))[1]:8} {c.split(chr(9))[0]}" for c in checks if c.count("\t") >= 1]
+    out.append("checks:")
+    for line in run("gh", "pr", "checks", number, check=False).stdout.splitlines():
+        cells = line.split("\t")
+        if len(cells) >= 2:
+            out.append(f"{INDENT}{cells[1]:8} {cells[0]}")
     return out + [""], mb, head
 
 
@@ -129,7 +148,8 @@ def main(argv: list[str] | None = None) -> int:
     number = args[0]
     try:
         root = Path(run("git", "rev-parse", "--show-toplevel").stdout.strip())
-        directory = Path(args[1] if len(args) > 1 else Path(tempfile.gettempdir()) / f"morphic-review-{number}").resolve()
+        default = Path(tempfile.gettempdir()) / f"morphic-review-{number}"
+        directory = Path(args[1] if len(args) > 1 else default).resolve()
         remote = os.environ.get("REMOTE", "origin")
         lines, mb, head = report(root, number, directory, remote)
     except subprocess.CalledProcessError as e:

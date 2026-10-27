@@ -1,4 +1,7 @@
-"""Tests for skills_lint. Run: python3 -m unittest discover -s .claude/skills/morphic-curating-skills/scripts"""
+"""Tests for skills_lint.
+
+Run: python3 -m unittest discover -s .claude/skills/morphic-curating-skills/scripts
+"""
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +15,8 @@ description: Use when testing.
 
 See `references/r.md`, `scripts/tool.py`, `ir/a.go`, ir/a.go, TestKnown, TestKnown_Case,
 ir-design §4.3, docs/parser-library.md#known, `morphic-harness` and [a link](references/r.md).
+Run `go test ./ir/... $(python3 scripts/tool.py)` or `go run ./cmd/morphic-harness <spec>`
+and `gh api repos/{owner}/{repo}`.
 """
 GOOD_REFERENCE = "# R\n\n- **Seen in #1** (abc): `ir/gone.go` TestGone ir-design §9.9\n"
 
@@ -42,7 +47,8 @@ class LintTest(unittest.TestCase):
 
     def lint(self):
         files = [p for p in (self.root / ".claude" / "skills").rglob("*") if p.is_file()]
-        lint = skills_lint.Linter(self.root, {"docs", "ir", "cmd", ".claude"}, {"TestKnown", "TestKnown_Case"}, files)
+        top_level, tests = {"docs", "ir", "cmd", ".claude"}, {"TestKnown", "TestKnown_Case"}
+        lint = skills_lint.Linter(self.root, top_level, tests, files)
         return lint.run(), lint.findings
 
     def test_a_clean_skill_has_no_finding(self):
@@ -50,9 +56,12 @@ class LintTest(unittest.TestCase):
 
     def test_each_planted_problem_is_reported(self):
         skill = ".claude/skills/Bad_Skill/"
-        write(self.root, skill + "SKILL.md", "---\nname: other\ndescription: For tests.\n---\n\n" + "word " * 501 + "\n"
-              "Bad `ir/nope.go`, prose ir/gone.go, TestMissing, ir-design §99.1, parser-library.md#nope,\n"
-              "`morphic-nope`, [x](references/none.md), /U" "sers/someone.\n")
+        front = "---\nname: other\ndescription: For tests.\n---\n\n"
+        body = ("Bad `ir/nope.go`, prose ir/gone.go, TestMissing, ir-design §99.1,"
+                " parser-library.md#nope,\n"
+                "`morphic-nope`, [x](references/none.md), /U" "sers/someone.\n"
+                "Run `python3 scripts/gone.py --flag` and `go test ./ir/nope/...`.\n")
+        write(self.root, skill + "SKILL.md", front + "word " * 501 + "\n" + body)
         write(self.root, skill + "references/orphan.md", "word " * 4001)
         write(self.root, skill + "scripts/tool.sh", "echo\n")
         write(self.root, skill + "scripts/new.py", "x = (y := 1)\nmatch x:\n    case 1: pass\n")
@@ -63,7 +72,7 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:1: name 'Bad_Skill' is not lowercase letters, digits and hyphens",
             f"{bad}SKILL.md:1: frontmatter name must be 'Bad_Skill'",
             f'{bad}SKILL.md:1: description must start "Use when"',
-            f"{bad}SKILL.md: body is 512 words, over 500",
+            f"{bad}SKILL.md: body is 520 words, over 500",
             f"{bad}references/orphan.md: 4001 words, over 4000",
             f"{bad}references/orphan.md: not named in {bad}SKILL.md",
             f"{bad}SKILL.md:7: ir/nope.go does not exist",
@@ -76,6 +85,8 @@ class LintTest(unittest.TestCase):
             f"{bad}scripts/new.py: has no test_new.py beside it",
             f"{bad}scripts/tool.sh: scripts are Python files",
             f"{bad}SKILL.md:8: names one machine or a memory link",
+            f"{bad}SKILL.md:9: scripts/gone.py does not exist",
+            f"{bad}SKILL.md:9: ./ir/nope/... does not exist",
         ]
         # The line a too-new construct is reported at depends on the interpreter's parser.
         version = [g for g in got if " is not Python 3.9: " in g]
@@ -87,13 +98,17 @@ class LintTest(unittest.TestCase):
         write(self.root, ".claude/skills/good-skill/references/r.md",
               GOOD_REFERENCE + "See [" "[some-note]] and grep '[[:space:]]'.\n")
         _, got = self.lint()
-        self.assertEqual(got, [".claude/skills/good-skill/references/r.md:4: names one machine or a memory link"])
+        want = ".claude/skills/good-skill/references/r.md:4: names one machine or a memory link"
+        self.assertEqual(got, [want])
 
-    @unittest.skipUnless(hasattr(skills_lint.sys, "stdlib_module_names"), "Python 3.9 lists no standard library")
+    @unittest.skipUnless(hasattr(skills_lint.sys, "stdlib_module_names"),
+                         "Python 3.9 lists no standard library")
     def test_an_import_outside_the_standard_library_is_reported(self):
         write(self.root, ".claude/skills/good-skill/scripts/tool.py", "import yaml\n")
         _, got = self.lint()
-        self.assertEqual(got, [".claude/skills/good-skill/scripts/tool.py:1: imports yaml, outside the standard library"])
+        want = (".claude/skills/good-skill/scripts/tool.py:1: "
+                "imports yaml, outside the standard library")
+        self.assertEqual(got, [want])
 
 
 if __name__ == "__main__":

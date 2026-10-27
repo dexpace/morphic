@@ -1,4 +1,7 @@
-"""Tests for affected_packages. Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts"""
+"""Tests for affected_packages.
+
+Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
+"""
 import unittest
 
 import affected_packages as ap
@@ -9,18 +12,25 @@ M = "example.com/m"
 class HitPackagesTest(unittest.TestCase):
     def test_a_file_maps_to_its_nearest_package(self):
         dirs = {"", "ir", "ir/irverify", "compilers/openapi"}
-        got = ap.hit_packages(["ir/irverify/testdata/x.json", "compilers/openapi/internal/doc.txt"], dirs, M)
-        self.assertEqual(got, {f"{M}/ir/irverify", f"{M}/compilers/openapi"})
+        changed = ["ir/irverify/testdata/x.json", "compilers/openapi/internal/doc.txt", "x.txt"]
+        got = ap.hit_packages(changed, dirs, M)
+        self.assertEqual(got, ({f"{M}/ir/irverify", f"{M}/compilers/openapi", M}, []))
 
     def test_go_and_markdown_changes_add_archtest(self):
         got = ap.hit_packages(["ir/a.go", "README.md"], {"ir"}, M)
-        self.assertEqual(got, {f"{M}/ir", f"{M}/internal/archtest"})
+        self.assertEqual(got, ({f"{M}/ir", f"{M}/internal/archtest"}, []))
+
+    def test_a_go_file_no_package_holds_is_returned(self):
+        got = ap.hit_packages(["stray/a.go", "notes/b.txt"], {"ir"}, M)
+        self.assertEqual(got, ({f"{M}/internal/archtest"}, ["stray/a.go"]))
 
     def test_skill_files_affect_no_package(self):
-        self.assertEqual(ap.hit_packages([".claude/skills/s/SKILL.md"], {""}, M), set())
+        self.assertEqual(ap.hit_packages([".claude/skills/s/SKILL.md"], {""}, M), (set(), []))
 
     def test_shared_inputs_mean_everything(self):
-        for f in ["go.mod", "testdata/golden/a.json", "docs/ir-design.md", "Makefile", ".github/workflows/gate.yml"]:
+        shared = ["go.mod", "testdata/golden/a.json", "docs/ir-design.md", "Makefile",
+                  ".github/workflows/gate.yml"]
+        for f in shared:
             with self.subTest(f=f):
                 self.assertTrue(ap.EVERYTHING.match(f))
         self.assertFalse(ap.EVERYTHING.match("ir/testdata/a.json"))
@@ -37,7 +47,8 @@ class DependentsTest(unittest.TestCase):
             f"{M}/hit fmt",
             f"{M}/d fmt",
         ])
-        self.assertEqual(ap.dependents(listing, {f"{M}/hit"}), [f"{M}/a", f"{M}/b", f"{M}/c", f"{M}/hit"])
+        want = [f"{M}/a", f"{M}/b", f"{M}/c", f"{M}/hit"]
+        self.assertEqual(ap.dependents(listing, {f"{M}/hit"}), want)
 
 
 if __name__ == "__main__":
