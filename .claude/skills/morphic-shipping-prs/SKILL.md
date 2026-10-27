@@ -17,8 +17,8 @@ rewritten once pushed.
   (`references/commits-and-prs.md#gate-by-exit-status`).
 - `git status --untracked-files=all` lists only what you meant to add
   (`references/commits-and-prs.md#commit-only-what-you-meant`).
-- A removed or changed exported identifier outside `internal/` makes the change breaking
-  (`references/commits-and-prs.md#exported-api-change-needs-bang`).
+- A removed or changed exported identifier outside `internal/` and `main` packages makes the change
+  breaking (`references/commits-and-prs.md#exported-api-change-needs-bang`).
 
 ## Before each push
 

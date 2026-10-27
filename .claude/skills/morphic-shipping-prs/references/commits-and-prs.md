@@ -102,8 +102,8 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Mark a change to exported API as breaking
 `exported-api-change-needs-bang`
 
-- **Rule.** A change that removes or changes an exported identifier outside an `internal/` package
-  breaks the callers outside the repository, even when no caller inside it uses the identifier:
+- **Rule.** A change that removes or changes an exported identifier outside an `internal/` or
+  `main` package breaks the callers outside the repository, even when no caller inside it uses it:
   the title carries `!`, the commit body explains the break, and the PR body has a Breaking
   section.
 - **Why.** `compile.NewTypes` lost its parameter in a plain `fix` (#551); `compilers/compile` is
