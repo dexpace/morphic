@@ -26,8 +26,11 @@ RULE_KEY = re.compile(r"^`([a-z0-9]+(?:-[a-z0-9]+)*)`$")
 BULLET = re.compile(r"^- \*\*([A-Za-z]+)\.\*\* \S")
 RULE_BULLETS = (["Rule", "Why"], ["Rule", "Why", "Probe"])
 CITATION = re.compile(r"#[0-9]+")
-# A code span of lowercase words joined by hyphens cites a rule by its key, or names a skill.
-KEY_CITE = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)+)`")
+# A rule is cited by the file that holds it: references/<file>.md#<key> within its skill, or with
+# the path from the repository root from another.
+RULE_CITE = re.compile(r"((?:\.claude/skills/[a-z0-9-]+/)?references/[A-Za-z0-9_.-]+\.md)#([a-z0-9-]+)")
+# A bare code span of lowercase words joined by hyphens, which may be a rule key written alone.
+BARE_KEY = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)+)`")
 
 # Split so this file does not match itself.
 MACHINE = re.compile(
@@ -89,8 +92,8 @@ class Linter:
         for d in skills:
             self.check_skill(d)
         for f, line, key in self.citations:
-            if key not in self.keys:
-                self.report(f, line, f"names no rule key {key}")
+            if key in self.keys:
+                self.report(f, line, f"cites rule {key} without the file that holds it")
         for f in self.files:
             for i, line in enumerate(f.read_text(errors="replace").split("\n"), 1):
                 if MACHINE.search(line):
@@ -183,14 +186,18 @@ class Linter:
             self.report(ref, line, f"rule {name} is {words} words, over {MAX_RULE_WORDS}")
 
     def check_names(self, d: Path, f: Path) -> None:
-        """Hold every path, link, skill, test, section and keyed entry a file names to the tree,
-        and record each rule key it cites, which run checks once every key is known."""
+        """Hold every path, link, skill, test, section, keyed entry and rule a file names to the
+        tree, and record each bare span that may be a rule key, which run judges once every key
+        is known."""
         for i, line in enumerate(f.read_text().split("\n"), 1):
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
             if not RULE_KEY.match(line):
-                self.citations += [(f, i, k) for k in KEY_CITE.findall(line)
-                                   if not k.startswith("morphic-")]
+                self.citations += [(f, i, k) for k in BARE_KEY.findall(line)]
+            for path, key in RULE_CITE.findall(line):
+                held = d / path if path.startswith("references/") else self.root / path
+                if not held.is_file() or f"\n`{key}`\n" not in "\n" + held.read_text():
+                    self.report(f, i, f"{path} holds no rule {key}")
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").split():
                     word = word.strip("'\"$();,")
@@ -214,11 +221,13 @@ class Linter:
                     self.report(f, i, f"docs/{doc}.md has no entry {key}")
 
     def check_span(self, d: Path, f: Path, line: int, tok: str) -> None:
+        if RULE_CITE.fullmatch(tok):
+            return  # check_names holds a rule citation to its file, and reports it once
         if tok.startswith("morphic-") and "/" not in tok:
             homes = (self.root / ".claude" / "skills" / tok, self.root / "cmd" / tok)
             if not any(h.is_dir() for h in homes):
                 self.report(f, line, f"no skill or command named {tok}")
-        elif PATH_LIKE.search(tok) and not self.exists(d, tok):
+        elif PATH_LIKE.search(tok) and not TEMPLATE.search(tok) and not self.exists(d, tok):
             self.report(f, line, f"{tok} does not exist")
 
     def exists(self, d: Path, p: str) -> bool:

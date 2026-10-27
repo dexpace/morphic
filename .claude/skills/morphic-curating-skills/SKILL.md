@@ -42,8 +42,8 @@ A skill links to a normative fact in `docs/`, such as a `docs/parser-library.md`
 ```
 
 A rule stays within 150 words, or becomes two. No narrative, dates or first person, and no count a
-command beside it does not derive, bar a Why's evidence, which its citation pins. Cite a rule by
-its key in a code span; the lint checks that each such key exists.
+command beside it does not derive, bar a Why's evidence, which its citation pins. Cite a rule as
+`references/<file>.md#<key>`, from another skill by its full path; the lint holds each to its file.
 
 ## Limits
 

@@ -30,7 +30,7 @@ How to check the `CLAUDE.md` commit, PR and tracker rules, which no gate step re
 `coverage-gate-on-final-tree`
 
 - **Rule.** Every new branch ships with the test that executes it, in its own package
-  (`coverage-per-package` in `.claude/skills/morphic-verifying-changes/references/toolchain.md`),
+  (`.claude/skills/morphic-verifying-changes/references/toolchain.md#coverage-per-package`),
   and `make coverage` runs on the exact tree pushed before a PR body says the gate holds.
 - **Why.** One uncovered statement fails CI, and a pushed tree below the gate forces a follow-up
   commit and makes the body's claim false (#22, #373).
