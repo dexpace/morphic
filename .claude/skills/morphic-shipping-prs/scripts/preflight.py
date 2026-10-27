@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Check a branch before it is pushed: each commit subject, the PR title measured as it will land,
-the body's sections and closing keywords, the exported Go functions, methods and types the branch
-removes or changes, untracked files, the merge with main, and the artifact scan.
+the body's sections and closing keywords, the exported Go functions, methods, types, constants and
+variables the branch removes or changes (bar struct fields and members of a grouped declaration),
+untracked files, the merge with main, the artifact scan, and that every name a skill uses exists.
 
 Usage: python3 preflight.py [--base BASE] [--pr N] [--title TITLE] [--body FILE]
 
@@ -21,16 +22,20 @@ import traceback
 from pathlib import Path
 
 # The title, body and artifact checks are the review's own, so a branch meets the bar it is held to.
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "morphic-reviewing-prs" / "scripts"))
+SKILLS = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(SKILLS / "morphic-reviewing-prs" / "scripts"))
+sys.path.insert(0, str(SKILLS / "morphic-curating-skills" / "scripts"))
 import artifact_scan  # noqa: E402  (a script of the review skill)
 import review_setup  # noqa: E402  (a script of the review skill)
+import skills_lint  # noqa: E402  (a script of the curating skill)
 from artifact_scan import run  # noqa: E402  (the same helper, not a copy)
 
 SUBJECT_CAP = 72
 # A line review_setup marks as needing a fix.
 MARKED = re.compile(r"OVER|NOT |MISSING|but the title")
-# A removed exported function, method of an exported type, or type.
-EXPORTED = re.compile(r"^-(func (\((\w+ )?\*?[A-Z][^)]*\) )?[A-Z]\w*|type [A-Z]\w*)")
+# A removed exported function, method of an exported type, type, constant or variable, each
+# declared on a line of its own.
+EXPORTED = re.compile(r"^-(func (\((\w+ )?\*?[A-Z][^)]*\) )?[A-Z]\w*|(type|const|var) [A-Z]\w*)")
 PUBLIC_GO = ["*.go", ":(exclude)*_test.go", ":(glob,exclude)**/internal/**",
              ":(glob,exclude)cmd/**", ":(glob,exclude)**/testdata/**"]
 
@@ -86,6 +91,12 @@ def exported_lines(changes: list[str], title: str | None) -> list[tuple[str, boo
     return [(head, title is not None and not breaking)] + listed
 
 
+def skills_lines(root: Path) -> list[tuple[str, bool]]:
+    """Report each name a skill uses that the branch leaves naming nothing, such as a test it
+    renamed: the change that moves a name retargets every skill that cites it."""
+    return [(f"skills     {f}", True) for f in skills_lint.findings(root)[1]]
+
+
 def merge_line(base: str) -> tuple[str, bool]:
     if subprocess.run(["git", "merge-base", "--is-ancestor", base, "HEAD"]).returncode == 0:
         return (f"merge      holds {base}", False)
@@ -130,6 +141,7 @@ def report(args: argparse.Namespace) -> list[tuple[str, bool]]:
     texts += [("body", line) for line in (body or "").split("\n")]
     found += artifact_scan.hits("PR text", texts)
     out += [(f"artifact   {h}", True) for h in found]
+    out += skills_lines(Path(run("git", "rev-parse", "--show-toplevel").strip()))
     return out
 
 
@@ -145,7 +157,7 @@ def main(argv: list[str] | None = None) -> int:
     except subprocess.CalledProcessError as e:
         print(f"preflight: {' '.join(e.cmd)}: {(e.stderr or '').strip() or e}", file=sys.stderr)
         return 2
-    except (OSError, ValueError) as e:
+    except (OSError, ValueError, RuntimeError) as e:
         print(f"preflight: {e}", file=sys.stderr)
         return 2
     for line, fix in lines:

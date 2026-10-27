@@ -37,6 +37,12 @@ class BodyTest(unittest.TestCase):
                 "closes     Closes #12", "closes     fixes #13"]
         self.assertEqual(rs.body_report(body, "fix: x"), want)
 
+    def test_every_spelling_github_closes_on_is_listed(self):
+        body = "CLOSES: #1, Fixed octo-org/octo-repo#2, resolve #3; prefix#4, fixing #5, fix:#6"
+        want = ["closes     CLOSES: #1", "closes     Fixed octo-org/octo-repo#2",
+                "closes     resolve #3"]
+        self.assertEqual(rs.body_report(body, "fix: x")[2:], want)
+
     def test_a_missing_section_is_named(self):
         got = rs.body_report("## Summary\n", "fix: x")
         self.assertIn("body       MISSING a Test plan section", got)
@@ -53,6 +59,20 @@ class BodyTest(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertIn(want, rs.body_report(body, title))
         self.assertEqual(len(rs.body_report(both, "fix: x")), 2, "no break, no Breaking line")
+
+
+class SkillsTest(unittest.TestCase):
+    def test_each_missing_name_is_listed_and_a_clean_tree_says_so(self):
+        cases = [
+            ((7, ["a.md:1: no test named TestGone"]),
+             ["skills     a.md:1: no test named TestGone"]),
+            ((7, []), ["skills     7 checked, every name they use exists"]),
+            ((0, []), ["skills     none in this tree"]),
+        ]
+        for found, want in cases:
+            with self.subTest(found=found):
+                with mock.patch.object(rs.skills_lint, "findings", return_value=found):
+                    self.assertEqual(rs.skills_report(Path(".")), want)
 
 
 class FilesTest(unittest.TestCase):

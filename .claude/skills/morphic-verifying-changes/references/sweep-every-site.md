@@ -20,13 +20,14 @@ it.
 `sweep-old-name-after-rename-or-delete`
 
 - **Rule.** When a change renames, moves, deletes or replaces a function, type, table or mechanism,
-  rewrite in the same change every doc comment, test name, package doc and `docs/` page that names
-  the old symbol or describes the old mechanism. Grep the old token as a plain substring, not a
-  whole word, and a renamed term with its article ("a emitter").
+  rewrite in the same change every doc comment, test name, package doc, `docs/` page and skill
+  that names the old symbol or describes the old mechanism. Grep the old token as a plain
+  substring, not a whole word, and a renamed term with its article ("a emitter").
 - **Why.** Comments pointed at deleted functions, removed receivers and replaced resolvers, sending
   readers to code that no longer exists (#195, #834).
-- **Probe.** For each name the diff removes, `git grep -n '<old>'` over `*.go`, `docs/`, `README.md`
-  and `CLAUDE.md` on the final tree; each hit outside the diff's own deletions is a finding.
+- **Probe.** For each name the diff removes, `git grep -n '<old>'` over `*.go`, `docs/`,
+  `README.md`, `CLAUDE.md` and `.claude/skills` on the final tree; each hit outside the diff's own
+  deletions is a finding.
 
 ## Rewrite every comment a behaviour change makes false
 `sweep-comments-a-behaviour-change-falsifies`

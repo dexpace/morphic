@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Check a PR out in a worktree of its own, as it will land, and print what a first review pass
 needs: the title measured as it will land, commit subjects, closing keywords, files by area, the
-merge state, CI, the squash-message setting, and an artifact scan.
+merge state, CI, the squash-message setting, every name a skill uses that the tree lacks, and an
+artifact scan.
 
 Usage: python3 review_setup.py PR-NUMBER [DIR]
 
@@ -24,13 +25,17 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "morphic-curating-skills" / "scripts"))
 import artifact_scan  # noqa: E402  (a sibling script)
+import skills_lint  # noqa: E402  (a script of the curating skill)
 
 TITLE_CAP = 72
 INDENT = " " * 11
 CONVENTIONAL = re.compile(r"^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\([^)]+\))?!?: \S")
 BREAKING = re.compile(r"^[a-z]+(\([^)]+\))?!:")
-CLOSING = re.compile(r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?) +#[0-9]+", re.I)
+# GitHub reads a keyword in any case, a colon after it or not, before #N or OWNER/REPO#N.
+CLOSING = re.compile(r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?):? +([\w.-]+/[\w.-]+)?#[0-9]+",
+                     re.I)
 # The review's merge commit needs an identity, and a fresh clone may configure none.
 IDENTITY = {f"GIT_{who}_{what}": value for who in ("AUTHOR", "COMMITTER")
             for what, value in (("NAME", "review_setup"), ("EMAIL", "review_setup@localhost"))}
@@ -88,6 +93,16 @@ def domain_hints(files: list[str], title: str = "") -> list[str]:
     if PERF_TITLE.match(title):
         hints.add("morphic-measuring-performance")
     return sorted(hints)
+
+
+def skills_report(directory: Path) -> list[str]:
+    """Report each name a skill uses that the tree under review lacks, such as a test the change
+    renamed, which the change itself must retarget."""
+    count, problems = skills_lint.findings(directory)
+    if problems:
+        return [f"skills     {p}" for p in problems]
+    return [f"skills     {count} checked, every name they use exists" if count
+            else "skills     none in this tree"]
 
 
 def run(*args: str, check: bool = True, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -165,6 +180,7 @@ def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[
     out += ["", "files by area:"] + [f"{INDENT}{n:4}  {a}" for n, a in areas(files)]
     out.append(INDENT + git(root, "diff", "--shortstat", mb, head).stdout.strip())
     out += [f"load       {skill}" for skill in domain_hints(files, pr["title"])]
+    out += skills_report(directory)
 
     out += [""] + merge_lines
     squash = run("gh", "api", "repos/{owner}/{repo}", "--jq", ".squash_merge_commit_message",

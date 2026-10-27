@@ -6,6 +6,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import preflight as pf
 
@@ -35,6 +36,10 @@ class ExportedTest(unittest.TestCase):
         "-func (w *walker) Visit(v Value) bool {",
         "-func helper() {}",
         "-type Gone struct {",
+        "-const Version = \"0.1.0\"",
+        "-var Default = New()",
+        "-const internalOnly = 1",
+        "-\tGrouped Kind = \"g\"",
         "--- a/ir/moved.go",
         "+++ /dev/null",
         "-func Moved() int {",
@@ -46,7 +51,9 @@ class ExportedTest(unittest.TestCase):
     def test_removed_and_rewritten_exports_are_listed_and_moves_are_not(self):
         want = ["ir/edit.go: func NewTypes(src int) *Types {",
                 "ir/edit.go: func (e *Editor) Remove(id TypeID) bool {",
-                "ir/edit.go: type Gone struct {"]
+                "ir/edit.go: type Gone struct {",
+                "ir/edit.go: const Version = \"0.1.0\"",
+                "ir/edit.go: var Default = New()"]
         self.assertEqual(pf.exported_changes(self.DIFF), want)
 
     def test_a_change_needs_a_bang_only_when_the_title_lacks_one(self):
@@ -72,6 +79,15 @@ class TitleBodyTest(unittest.TestCase):
         self.assertEqual(got[0], (note, False))
         self.assertIn(("body       MISSING a Test plan section", True), got)
         self.assertFalse(any("Breaking" in line for line, _ in got), "the title decides Breaking")
+
+
+class SkillsTest(unittest.TestCase):
+    def test_a_name_a_skill_uses_that_the_branch_removed_is_a_fix(self):
+        finding = ".claude/skills/s/SKILL.md:3: no test named TestGone"
+        with mock.patch.object(pf.skills_lint, "findings", return_value=(1, [finding])):
+            self.assertEqual(pf.skills_lines(Path(".")), [("skills     " + finding, True)])
+        with mock.patch.object(pf.skills_lint, "findings", return_value=(1, [])):
+            self.assertEqual(pf.skills_lines(Path(".")), [])
 
 
 class CrashTest(unittest.TestCase):

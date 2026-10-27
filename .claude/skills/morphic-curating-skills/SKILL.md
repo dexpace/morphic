@@ -56,7 +56,8 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 
 - Run `python3 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit: it
   checks the limits, the rule format and that every name a skill uses exists. The gate runs
-  neither it nor the scripts' tests.
+  neither it nor the scripts' tests; `preflight.py` and `review_setup.py` run it on every branch,
+  code changes included.
 - A lesson a skill already holds that failed again means the skill failed: sharpen its wording or
   its trigger rather than adding a second copy.
 - Skill changes ship like code: a branch, a PR, a title such as `chore(skills): <subject>`.

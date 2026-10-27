@@ -53,15 +53,16 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Close only the issues the PR finishes, one keyword each
 `closing-keywords`
 
-- **Rule.** On merge, GitHub closes each issue that `close`, `fix` or `resolve`, in any tense,
-  precedes as `#N` anywhere in the body, and a keyword reaches only the reference after it. Write
-  one `Closes #N` line per finished issue, narrate other work with other verbs ("landed"), and
-  give a stack landing through one PR every child's `Closes #N`: a keyword links only in a PR
-  based on `main`.
+- **Rule.** On merge, GitHub closes each issue that `close`, `fix` or `resolve`, in any tense and
+  case, a colon after it or not, precedes as `#N` or `OWNER/REPO#N` anywhere in the body, and a
+  keyword reaches only the reference after it. Write one `Closes #N` line per finished issue,
+  narrate other work with other verbs ("landed"), and give a stack landing through one PR every
+  child's `Closes #N`: a keyword links only in a PR based on `main`.
 - **Why.** "closed #907", written about another PR, made #948 claim #907; #1016 wrote a line per
   issue, since a list after one keyword closes its first alone; #464 left its stack's issues open.
 - **Probe.** After each body edit, compare `gh pr view <N> --json closingIssuesReferences` with
-  `grep -noiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+'` over the body.
+  what this finds in the body:
+  `grep -noiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? +([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'`.
 
 ## Check the tracker for a recorded decision before changing what it covers
 `follow-recorded-decisions`
@@ -108,7 +109,9 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** `compile.NewTypes` lost its parameter in a plain `fix` (#551); `compilers/compile` is
   the framework other compilers build on, and earlier removals there were marked breaking (#239,
   #496).
-- **Probe.** `scripts/preflight.py` lists each exported declaration the branch removes or changes.
+- **Probe.** `scripts/preflight.py` lists each exported function, method, type, constant and
+  variable the branch removes or changes; read the diff for a struct field or a member of a
+  grouped declaration, which it does not see.
 
 ## Build each commit of a split from whole file states, and test each
 `split-into-tested-commits`
