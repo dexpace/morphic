@@ -1,10 +1,12 @@
 package lowering
 
+import "github.com/dexpace/morphic/ir"
+
 // StreamingMediaTypeHeuristic is the name Provenance.Inferred carries on an
 // operation whose streaming was read out of a media type rather than declared.
 // It is a constant because the marker is what an auditor greps for, and a
 // spelling written at the producing site and again at a reading test can drift.
-const StreamingMediaTypeHeuristic = "streaming-media-type"
+const StreamingMediaTypeHeuristic ir.Inferred = "streaming-media-type"
 
 // StreamingMedia is the media-type streaming policy: which media types mean
 // "this body is a sequence of frames" in a document that declares nothing

@@ -180,10 +180,10 @@ func TestPromoteDeprecation_MarksOnceBesideWhateverWasAlreadyThere(t *testing.T)
 	prov := ir.Provenance{Inferred: "group-path-prefix"}
 
 	c.PromoteDeprecation(unmodeled, &dep, &prov)
-	assert.Equal(t, "group-path-prefix,extension-promotion", prov.Inferred)
+	assert.Equal(t, ir.Inferred("group-path-prefix,extension-promotion"), prov.Inferred)
 
 	c.PromoteDeprecation(unmodeled, &dep, &prov)
-	assert.Equal(t, "group-path-prefix,extension-promotion", prov.Inferred,
+	assert.Equal(t, ir.Inferred("group-path-prefix,extension-promotion"), prov.Inferred,
 		"a second reading of the same node adds no second marker")
 }
 
@@ -343,10 +343,10 @@ func TestPromoteEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere(t *testing.T
 	prov := ir.Provenance{Inferred: "an-earlier-heuristic"}
 
 	c.PromoteEnumOpenness(unmodeled, &enum, &prov)
-	assert.Equal(t, "an-earlier-heuristic,extension-promotion", prov.Inferred)
+	assert.Equal(t, ir.Inferred("an-earlier-heuristic,extension-promotion"), prov.Inferred)
 
 	c.PromoteEnumOpenness(unmodeled, &enum, &prov)
-	assert.Equal(t, "an-earlier-heuristic,extension-promotion", prov.Inferred,
+	assert.Equal(t, ir.Inferred("an-earlier-heuristic,extension-promotion"), prov.Inferred,
 		"a second reading of the same node adds no second marker")
 }
 

@@ -100,7 +100,7 @@ type opContext struct {
 	key           string
 	isWebhook     bool
 	withCallbacks bool
-	inferred      string
+	inferred      ir.Inferred
 	params        []sourcedParam
 	ptrs          opPointers
 }
