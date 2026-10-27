@@ -3,7 +3,6 @@ package irverify
 import (
 	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -25,12 +24,12 @@ type identity struct {
 	id    string
 }
 
-// declaredAt is where an identity was first declared, and the fingerprint of the
-// node that declared it, so a later declaration of the same identity can be
-// compared against it rather than only counted.
-type declaredAt struct {
-	path        string
-	fingerprint string
+// fingerprint is what separates one property from another (see
+// checkDuplicateIDs): its source name, wire name and TypeRef target. It holds
+// the property's own strings, so taking one copies no bytes, and two compare
+// equal exactly when each part does.
+type fingerprint struct {
+	source, wire, target string
 }
 
 // checkDuplicateIDs asserts no two nodes declare the same identity (invariant
@@ -44,59 +43,67 @@ type declaredAt struct {
 // the defect (#280). The fingerprint is source name, wire name and TypeRef
 // target; a wider one flags every reused component.
 func checkDuplicateIDs(*ir.Document) walkCheck {
-	// Keyed by path, which is how the declarations locate the same node.
-	fingerprints := map[string]string{}
+	// The fingerprint of the first property met on each PropID, and the paths
+	// of the properties met later whose fingerprint differs from it. The walk
+	// meets properties in the order the declarations list them, so the first
+	// met is the PropID's first declaration, and only a property that differs,
+	// which is a defect, has its path rendered.
+	first := map[string]fingerprint{}
+	differs := map[string]bool{}
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
-			if v.Kind() == reflect.Struct && v.Type() == propertyType {
-				fingerprints[at.String()] = fingerprintOf(v)
+			if v.Kind() != reflect.Struct || v.Type() != propertyType {
+				return true
+			}
+			id, got := v.FieldByName("ID").String(), fingerprintOf(v)
+			switch met, seen := first[id]; {
+			case !seen:
+				first[id] = got
+			case met != got:
+				differs[at.String()] = true
 			}
 			return true
 		},
 		report: func(decls declarations) []Violation {
-			return duplicateIDs(decls.ids, fingerprints)
+			return duplicateIDs(decls.ids, differs)
 		},
 	}
 }
 
 // duplicateIDs reports each declaration in decls of an identity declared before
-// it, unless both are one property, by the fingerprints of the properties
-// declaring them.
-func duplicateIDs(decls []ir.IDDeclaration, fingerprints map[string]string) []Violation {
-	first := make(map[identity]declaredAt, len(decls))
+// it, unless it is a property that is the first one's copy: of the properties
+// declared again, differs holds the paths of those that are not.
+func duplicateIDs(decls []ir.IDDeclaration, differs map[string]bool) []Violation {
+	first := make(map[identity]string, len(decls))
 	var vs []Violation
 	for _, d := range decls {
 		key := identity{class: d.Class, id: d.ID}
 		at, taken := first[key]
 		if !taken {
-			first[key] = declaredAt{path: d.Path, fingerprint: fingerprints[d.Path]}
+			first[key] = d.Path
 			continue
 		}
-		if d.Class == propIDType && at.fingerprint == fingerprints[d.Path] {
+		if d.Class == propIDType && !differs[d.Path] {
 			continue // one property materialized at several paths, not two properties
 		}
 		vs = append(vs, Violation{
 			Code:    "ir/duplicate-" + ir.RefNoun(d.Class) + "-id",
-			Message: "id " + strconv.Quote(d.ID) + " is declared here and at " + strconv.Quote(at.path),
+			Message: "id " + strconv.Quote(d.ID) + " is declared here and at " + strconv.Quote(at),
 			Path:    d.Path,
 		})
 	}
 	return vs
 }
 
-// fingerprintOf renders what separates one property from another (see
+// fingerprintOf reads what separates one property from another (see
 // checkDuplicateIDs). It reads fields off the walked value rather than
-// converting it back to an ir.Property, because a value the walk reached through
-// an unexported field cannot be converted (see ir.WalkValues); checkNaming's
-// namingChannels reads its channels the same way.
-//
-// The parts are joined on NUL, which no source name, wire name or ID contains,
-// so no two properties can agree on the rendering while disagreeing on the
-// parts.
-func fingerprintOf(prop reflect.Value) string {
-	return strings.Join([]string{
-		prop.FieldByName("Name").FieldByName("Source").String(),
-		prop.FieldByName("WireName").String(),
-		prop.FieldByName("Type").FieldByName("Target").String(),
-	}, "\x00")
+// converting it back to an ir.Property, because a value the walk reached
+// through an unexported field cannot be converted (see ir.WalkValues);
+// checkNaming's namingChannels reads its channels the same way.
+func fingerprintOf(prop reflect.Value) fingerprint {
+	return fingerprint{
+		source: prop.FieldByName("Name").FieldByName("Source").String(),
+		wire:   prop.FieldByName("WireName").String(),
+		target: prop.FieldByName("Type").FieldByName("Target").String(),
+	}
 }
