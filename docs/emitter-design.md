@@ -571,8 +571,8 @@ negotiation` default (`json > form > multipart > binary`) is a shared, overridab
 type TypePlan struct {
     Flattened  []ir.PropID          // ir.FlattenedProperties over Base+Implements+Mixins+own: the
                                     // declaration each member takes, in layout order — COMPUTED
-    Required   []ir.PropID          // the flattened properties an instance must carry: a member
-                                    // any of whose declarations is Required, or a Requires names
+    Required   []ir.PropID          // the flattened properties an instance must carry: each one
+                                    // a declaration marks Required or a Requires names
     Undeclared []string             // the names Requires lists that no flattened property declares,
                                     // in order: members only the catch-all governs
     Unflattened []ir.TypeID         // the composition entries naming no model, which Flattened
@@ -650,6 +650,8 @@ type ModelShape struct {
 }
 ```
 
+`Props` are drawn from `TypePlan.Flattened` (§3.2), so a composed model's shapes hold what it
+inherits and mixes in, each member visible as the declaration it takes says (ir-design §4.3).
 `readOnly → Only:[read, delete, query]`; `writeOnly → Only:[create, update]` (ir-design §5.2);
 `Visibility.None` → excluded from every projection (distinct from the zero value); PATCH flips
 properties optional unless `HTTPBinding.PatchImplicitOptionality` points at `false` (nil is the
@@ -874,7 +876,7 @@ snapshot pins the whole lowering deterministically.
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
 | `LowerModels` | `TypePlan.Flattened`, `Required`, `Undeclared`, `Unflattened`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | struct over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1), an `Unflattened` conjunct lowered or degraded with a code | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
-| `LowerOptionality` | `Property.Required` ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer (§4.16) | §5.1; INV8 |
+| `LowerOptionality` | `TypePlan.Required` (a member's wire presence, §3.2) ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer (§4.16) | §5.1; INV8 |
 | `LowerConstraints` | `Constraints` on properties/scalars/lists/maps | field-level `validate` tags + a refine-built `Validate()` method structure | §5.3 |
 | `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}`, `TypePlan.Union` | sealed interface + marker method + concrete variants | §4.4; INV2 |
 | `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | tag-dispatched `UnmarshalJSONFrom` + typed factories | §4.3–§4.4 |
@@ -1017,21 +1019,24 @@ shapes.
 
 ### 4.7 Optionality × Nullability × Presence (INV8)
 
-`LowerOptionality` renders the four states — `Property.Required` (wire presence) ⊥ `TypeRef.Nullable`
-(admits null) — plus protobuf `Property.Presence` (implicit/explicit/required) as a *third* axis that
-is not nullability (protobuf has no null). The reference Go lowering is ogen's generic-box scheme
-(`gen/ir/generics.go`), which independently arrives at exactly these four states: required-nonnull →
-bare `T`; optional → `Opt[T]` (a `{value T; set bool}` box, so presence is distinct from the zero
-value); nullable → `Nil[T]`; both → `OptNil[T]`. A mature real-world generator needing all four
-first-class boxes is the strongest external confirmation of INV8, and — decisively — ogen makes this
-decision in its *emitter* (`boxType`), keeping `Required` and `Nullable` orthogonal in the schema
-model right up to that point. That is Morphic's split precisely: orthogonal bits in the IR, boxed in
-refine. Two Go-specific optimizations to inherit: reference types (slice/map/pointer) can encode one
-of the four states in their own `nil` (ogen's `NilSemantic: invalid | optional | null`), saving a
-wrapper; `explicit` protobuf presence → pointer/hazzer, `implicit` → `omitzero,omitempty`, so a
-zero is not serialized. `ClientOptional` relaxes the client-side type even when `Required=true`;
-`DefaultAdded` may be suppressed for back-compat. Where Go's zero value would force a *deliberate*
-collapse of two states, a `Diagnostic` is emitted — never a silent conflation (§13 test T-3).
+`LowerOptionality` renders the four states — `Property.Required` (wire presence) ⊥
+`TypeRef.Nullable` (admits null) — plus protobuf `Property.Presence` (implicit/explicit/required) as
+a *third* axis that is not nullability (protobuf has no null). A model's member is present where
+`TypePlan.Required` lists it (§3.2), which counts every declaration of it and every `Requires`, not
+only the `Property.Required` of the declaration the flattening takes. The reference Go lowering is
+ogen's generic-box scheme (`gen/ir/generics.go`), which independently arrives at exactly these four
+states: required-nonnull → bare `T`; optional → `Opt[T]` (a `{value T; set bool}` box, so presence
+is distinct from the zero value); nullable → `Nil[T]`; both → `OptNil[T]`. A mature real-world
+generator needing all four first-class boxes is the strongest external confirmation of INV8, and —
+decisively — ogen makes this decision in its *emitter* (`boxType`), keeping `Required` and
+`Nullable` orthogonal in the schema model right up to that point. That is Morphic's split precisely:
+orthogonal bits in the IR, boxed in refine. Two Go-specific optimizations to inherit: reference
+types (slice/map/pointer) can encode one of the four states in their own `nil` (ogen's
+`NilSemantic: invalid | optional | null`), saving a wrapper; `explicit` protobuf presence →
+pointer/hazzer, `implicit` → `omitzero,omitempty`, so a zero is not serialized. `ClientOptional`
+relaxes the client-side type even when `Required=true`; `DefaultAdded` may be suppressed for
+back-compat. Where Go's zero value would force a *deliberate* collapse of two states, a `Diagnostic`
+is emitted — never a silent conflation (§13 test T-3).
 
 A nullable reference whose `TypeRef.Inferred` names a heuristic renders as nullable like any
 other: the compiler's policy already chose to read null in, and the marker is there so that choice

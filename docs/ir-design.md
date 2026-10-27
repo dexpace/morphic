@@ -836,11 +836,11 @@ type Discriminator struct {
 `Base`, `Implements`, and `Mixins` for the full shape; the flattening is computed, never stored.
 `ir.FlattenedProperties` computes it, by the rules under *The flattening* below; `ir.ExposedProps`
 computes the flat set of property IDs it reads, and `ir.Supertypes` and `ir.IsSubtype` the subtype
-relation, which excludes mixins; `irfacts.Index` answers the last two for many questions at once
-(§4.9). This preserves what oagen and Kiota lose: the difference between "inherits from", "conforms
-to", "mixes in", and "declares". `Base` is single (subtype identity); `Implements` is N-ary
-conformance to `Abstract` models — the distinction matters because GraphQL allows multiple
-interfaces while every class-based target language allows at most one base class.
+relation, which excludes mixins; `irfacts.Index` answers the exposed set and the subtype relation
+for many questions at once (§4.9). This preserves what oagen and Kiota lose: the difference between
+"inherits from", "conforms to", "mixes in", and "declares". `Base` is single (subtype identity);
+`Implements` is N-ary conformance to `Abstract` models — the distinction matters because GraphQL
+allows multiple interfaces while every class-based target language allows at most one base class.
 
 **Required members beyond the own properties.** Whether an own property must be present is its
 `Required` (§5.1). A member the model requires that none of its own properties declares is in
