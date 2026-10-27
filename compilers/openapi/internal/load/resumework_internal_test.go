@@ -151,8 +151,8 @@ func responseTree(n int) string {
 }
 
 // TestResumeWork_Charge pins what a resumption is charged: a step, and for each
-// hop it reads in the tree, a step and the library's read of it, once for each
-// time it is read, then the keys indexed to count them. The hops are followed
+// hop it reads in the tree, a step and the library's read of it, then the keys
+// indexed to count them. The hops are followed
 // while they stay in the document, each once, and a charge past the limit says
 // so.
 func TestResumeWork_Charge(t *testing.T) {
@@ -174,44 +174,42 @@ func TestResumeWork_Charge(t *testing.T) {
 	}
 	const indexed = 1 + 1 + 7 // the root's pairs, components', schemas'
 	for _, c := range []struct {
-		ref   string
-		reads int
-		hops  []string
+		ref  string
+		hops []string
 	}{
-		{"#/components/schemas/Two", 2, []string{"Two", "Alias", "Base"}},
-		{"#/components/schemas/Two", 1, []string{"Two", "Alias", "Base"}},
-		{"#/components/schemas/Loop", 2, []string{"Loop"}},
-		{"#/components/schemas/Back", 2, []string{"Back", "Out"}},
-		{"#/components/schemas/Missing", 2, []string{"Missing"}},
-		{"#/components/schemas/Plus+Key", 2, []string{"Plus+Key", "Base"}},
+		{"#/components/schemas/Two", []string{"Two", "Alias", "Base"}},
+		{"#/components/schemas/Loop", []string{"Loop"}},
+		{"#/components/schemas/Back", []string{"Back", "Out"}},
+		{"#/components/schemas/Missing", []string{"Missing"}},
+		{"#/components/schemas/Plus+Key", []string{"Plus+Key", "Base"}},
 	} {
 		w := newResumeWork()
-		require.True(t, w.charge(tree, references.Reference(c.ref), c.reads))
+		require.True(t, w.charge(tree, references.Reference(c.ref)))
 		want := 1 + indexed
 		for _, hop := range c.hops {
-			want += 1 + c.reads*cost(hop)
+			want += 1 + cost(hop)
 		}
-		assert.Equal(t, want, w.steps.Spent(), "%s read %d times", c.ref, c.reads)
+		assert.Equal(t, want, w.steps.Spent(), c.ref)
 	}
 
 	w := newResumeWork()
 	assert.Equal(t, budget.AtMost(maxResumeWork), w.steps.Limit(), "settle resumes within maxResumeWork")
-	assert.True(t, w.charge(tree, "third.yaml#/components/schemas/Base", 2))
+	assert.True(t, w.charge(tree, "third.yaml#/components/schemas/Base"))
 	assert.Equal(t, 1, w.steps.Spent(), "a hop into another document is not charged")
 
 	full := newResumeWork()
-	full.charge(tree, "#/components/schemas/Two", 2)
+	full.charge(tree, "#/components/schemas/Two")
 	for limit := range full.steps.Spent() {
 		w := newResumeWork()
 		w.steps = budget.New(budget.AtMost(limit))
-		assert.False(t, w.charge(tree, "#/components/schemas/Two", 2), "limit %d", limit)
+		assert.False(t, w.charge(tree, "#/components/schemas/Two"), "limit %d", limit)
 		assert.Greater(t, w.steps.Spent(), limit)
 		assert.False(t, w.steps.Spend(0), "a budget crossed stays crossed")
 	}
 
 	w = newResumeWork()
 	w.steps = budget.New(budget.AtMost(1))
-	assert.False(t, w.charge(tree, "#/components/schemas/Two", 2))
+	assert.False(t, w.charge(tree, "#/components/schemas/Two"))
 	assert.Empty(t, w.reads.keys, "a read past what is left of the budget stops before it indexes anything")
 }
 

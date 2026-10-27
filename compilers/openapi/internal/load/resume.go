@@ -43,7 +43,7 @@ func (e external) resumable(c chain, err error) (bool, error) {
 	if tree == nil {
 		return false, nil
 	}
-	if !e.work.charge(tree, c.stopped, 1) {
+	if !e.work.charge(tree, c.stopped) {
 		return false, e.work.refusal()
 	}
 	return true, nil
@@ -62,7 +62,7 @@ func refOf(view *nodeview.View, node *yaml.Node) string {
 // maxResumeWork bounds the steps settle takes in a resolution pass: one for
 // each resolution it resumes, one for each hop the resumed resolution reads in
 // a document's tree, the steps the library's read of that hop takes there (see
-// treeReads), each time it is read, and the keys indexed to count them. The
+// treeReads), and the keys indexed to count them. The
 // library finds a key by comparing a mapping's keys in order, so n chains into
 // one mapping of n keys take n squared steps (GitHub #773).
 const maxResumeWork = 1 << 28
@@ -83,20 +83,19 @@ func newResumeWork() *resumeWork {
 
 // charge spends the steps of the hops a resumed resolution reads in tree from
 // ref, before it reads them, and reports whether they are within the budget.
-// reads is how many times each hop is read, each read priced within its share
-// of what is left. The hops are followed as the library follows them while
-// they stay in the document, each once; a hop naming another document is
-// resolved, and charged, as any reference to it is: not at all.
-func (w *resumeWork) charge(tree *yaml.Node, ref references.Reference, reads int) bool {
+// Each hop's read is priced no further than what is left. The hops are
+// followed as the library follows them while they stay in the document, each
+// once; a hop naming another document is resolved, and charged, as any
+// reference to it is: not at all.
+func (w *resumeWork) charge(tree *yaml.Node, ref references.Reference) bool {
 	if !w.steps.Spend(1) {
 		return false
 	}
 	read := map[references.Reference]bool{}
 	for ref.GetURI() == "" && !read[ref] {
 		read[ref] = true
-		share := budget.AtMost(w.steps.Remaining().Cap() / reads)
-		steps, target := w.reads.cost(tree, string(fragment.Pointer(string(ref))), share)
-		if !w.steps.Spend(1 + reads*steps + w.reads.drain()) {
+		steps, target := w.reads.cost(tree, string(fragment.Pointer(string(ref))), w.steps.Remaining())
+		if !w.steps.Spend(1 + steps + w.reads.drain()) {
 			return false
 		}
 		next := refOf(w.view, target)
