@@ -108,8 +108,33 @@ def unheld_base_warning(root: Path, sha: str, name: str) -> str | None:
             "origin/main)")
 
 
-def build(src: Path, dest: Path) -> None:
-    subprocess.run(["go", "build", "-o", str(dest), "./cmd/morphic"], cwd=src, check=True)
+def resolve_base(base: str) -> tuple[Path, str]:
+    """Return the repository root the current directory is in, and the commit base names."""
+    root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel"))
+    return root, git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
+
+
+def build_pair(root: Path, sha: str, package: str, out: Path, name: str) -> tuple[Path, Path]:
+    """Build package at commit sha and at the working tree, as out/base and out/head, the base in
+    a detached worktree removed afterwards; warn as name when HEAD does not hold sha."""
+    warning = unheld_base_warning(root, sha, name)
+    if warning:
+        print(warning, file=sys.stderr)
+    src = out / "base-src"
+    remove = ["git", "-C", str(root), "worktree", "remove", "--force", str(src)]
+    subprocess.run(remove, capture_output=True)  # a crashed run's worktree, if any
+    try:
+        build(root, package, out / "head")
+        git(root, "worktree", "add", "--detach", "--quiet", str(src), sha)
+        build(src, package, out / "base")
+    finally:
+        subprocess.run(remove, capture_output=True)
+    return out / "base", out / "head"
+
+
+def build(src: Path, package: str, dest: Path) -> None:
+    subprocess.run(["go", "build", "-o", str(dest), package], cwd=src, check=True,
+                   capture_output=True, text=True)
 
 
 def parse(argv: list[str]) -> argparse.Namespace:
@@ -131,8 +156,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = parse(sys.argv[1:] if argv is None else argv)
     try:
-        root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel"))
-        sha = git(root, "rev-parse", "--verify", f"{args.base}^{{commit}}")
+        root, sha = resolve_base(args.base)
     except subprocess.CalledProcessError as e:
         print(f"sweep: {e.stderr.strip() or e}", file=sys.stderr)
         return 2
@@ -144,23 +168,13 @@ def main(argv: list[str] | None = None) -> int:
         where = " ".join(map(str, corpus))
         print(f"sweep: no OpenAPI or Swagger documents under {where}", file=sys.stderr)
         return 2
-    warning = unheld_base_warning(root, sha, "sweep")
-    if warning:
-        print(warning, file=sys.stderr)
     print(f"sweep: building head from the working tree and base at {sha[:12]}")
-    src = out / "base-src"
-    remove = ["git", "-C", str(root), "worktree", "remove", "--force", str(src)]
-    subprocess.run(remove, capture_output=True)  # a crashed run's worktree, if any
     try:
-        build(root, out / "head")
-        git(root, "worktree", "add", "--detach", "--quiet", str(src), sha)
-        build(src, out / "base")
+        base, head = build_pair(root, sha, "./cmd/morphic", out, "sweep")
     except subprocess.CalledProcessError as e:
-        print(f"sweep: {e}", file=sys.stderr)
+        print(f"sweep: {(e.stderr or '').strip() or e}", file=sys.stderr)
         return 2
-    finally:
-        subprocess.run(remove, capture_output=True)
-    results = compare(out / "base", out / "head", specs, out, args.flags, args.limit, args.jobs)
+    results = compare(base, head, specs, out, args.flags, args.limit, args.jobs)
     return report(results, root, out)
 
 

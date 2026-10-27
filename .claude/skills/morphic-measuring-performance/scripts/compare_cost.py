@@ -29,10 +29,10 @@ import time
 import traceback
 from pathlib import Path
 
-# The warning about a base the branch does not hold is the corpus sweep's, so the two never differ.
+# Both builds come from the corpus sweep's builder, so the two compare the same pair of trees.
 VERIFYING = Path(__file__).resolve().parents[2] / "morphic-verifying-changes" / "scripts"
 sys.path.insert(0, str(VERIFYING))
-from sweep import unheld_base_warning  # noqa: E402  (a script of the verifying skill)
+from sweep import build_pair, resolve_base  # noqa: E402  (a script of the verifying skill)
 
 INSTRUCTIONS = {
     "Darwin": re.compile(r"^\s*(\d+)\s+instructions retired", re.M),
@@ -91,12 +91,10 @@ def table(base: list[dict], head: list[dict]) -> list[str]:
     for label, key, unit in rows:
         if any(r[key] is None for r in base + head):
             continue
-        cells = []
-        for side in (base, head):
-            m, lo, hi = spread([r[key] for r in side])
-            cells.append(f"{human(m, unit)} [{human(lo, unit)}..{human(hi, unit)}]")
-        ratio = spread([r[key] for r in head])[0] / max(spread([r[key] for r in base])[0], 1e-12)
-        out.append(f"{label:14}{cells[0]:34}{cells[1]:34}{ratio:.3f}")
+        (bm, blo, bhi), (hm, hlo, hhi) = (spread([r[key] for r in side]) for side in (base, head))
+        cells = [f"{human(m, unit)} [{human(lo, unit)}..{human(hi, unit)}]"
+                 for m, lo, hi in ((bm, blo, bhi), (hm, hlo, hhi))]
+        out.append(f"{label:14}{cells[0]:34}{cells[1]:34}{hm / max(bm, 1e-12):.3f}")
     for name, side in (("base", base), ("head", head)):
         codes = sorted({r["status"] for r in side})
         if len(codes) > 1:
@@ -104,11 +102,6 @@ def table(base: list[dict], head: list[dict]) -> list[str]:
     if {r["status"] for r in base} != {r["status"] for r in head}:
         out.append("base and head exit differently, so they did different work")
     return out
-
-
-def build(src: Path, package: str, dest: Path) -> None:
-    subprocess.run(["go", "build", "-o", str(dest), package], cwd=src, check=True,
-                   capture_output=True, text=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -131,32 +124,20 @@ def main(argv: list[str] | None = None) -> int:
 def compare(args: argparse.Namespace, rest: list[str], out: Path) -> int:
     """Build both sides under out, run each with rest in turn, and print what each cost."""
     system = platform.system()
-    src = out / "base-src"
     try:
-        root = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], check=True,
-                                   capture_output=True, text=True).stdout.strip())
-        sha = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify",
-                              f"{args.base}^{{commit}}"], check=True, capture_output=True,
-                             text=True).stdout.strip()
-        warning = unheld_base_warning(root, sha, "compare_cost")
-        if warning:
-            print(warning, file=sys.stderr)
-        build(root, args.package, out / "head")
-        subprocess.run(["git", "-C", str(root), "worktree", "add", "--detach", "--quiet",
-                        str(src), sha], check=True, capture_output=True, text=True)
-        build(src, args.package, out / "base")
+        root, sha = resolve_base(args.base)
+        binaries = dict(zip(("base", "head"), build_pair(root, sha, args.package, out,
+                                                         "compare_cost")))
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"compare_cost: {getattr(e, 'stderr', '') or e}", file=sys.stderr)
+        print(f"compare_cost: {(getattr(e, 'stderr', '') or '').strip() or e}", file=sys.stderr)
         return 2
-    finally:
-        subprocess.run(["git", "worktree", "remove", "--force", str(src)], capture_output=True)
     wrap = wrapper(system)
     for side in ("base", "head"):  # one uncounted run each, so neither pays for a cold cache
-        measure([str(out / side), *rest], wrap, system)
+        measure([str(binaries[side]), *rest], wrap, system)
     runs: dict[str, list[dict]] = {"base": [], "head": []}
     for _ in range(args.runs):
         for side in ("base", "head"):
-            runs[side].append(measure([str(out / side), *rest], wrap, system))
+            runs[side].append(measure([str(binaries[side]), *rest], wrap, system))
     print(f"compare_cost: base {sha[:12]}, head the working tree; {args.runs} runs each, "
           f"alternating: {args.package} {' '.join(rest)}")
     print("\n".join(table(runs["base"], runs["head"])))
