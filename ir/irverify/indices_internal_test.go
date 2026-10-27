@@ -203,6 +203,15 @@ var integerFields = map[string]string{
 	"entryFrame.end":  "where a map's entries end on the traversal's own stack, not a position in any IR slice",
 	"entryFrame.slot": "the first of a map's slots in the traversal's own copy storage, not a position in any IR slice",
 	"entryStore.used": "how many slots of the traversal's own copy storage are in use, not a position in any IR slice",
+	"flattener.met":   "the order a flattening met each model in, or a mark, not a position in any IR slice",
+	"flattener.index": "where a wire name sits among a flattening's own members, not a position in any IR slice",
+	"flattener.aliasOf": "where an alias scalar's chain end sits in a flattening's own aliasEnds, " +
+		"not a position in any IR slice",
+	"flattener.steps": "how much a flattening has read, not a position",
+	"frame.next":      "the next composition entry a flattening follows, counted across Base, Implements and Mixins",
+	"frame.num":       "the order a flattening met a model in, not a position in any IR slice",
+	"frame.low":       "the least order of a model a flattening can reach unread, not a position in any IR slice",
+	"frame.since":     "how many models a flattening had finished, a length of its own list, not a position",
 
 	// The ir package's reading of its own types, which is not IR data either.
 	"idField.index":       "the field through which a struct type declares its identity, read off the type",

@@ -70,6 +70,10 @@ var stringLists = map[string]listRule{
 	"TypeCommon.Tags":                 listVerbatim,
 
 	"Model.Requires": listMembers,
+	// ir.FlattenedProperties' result and its walk's own state, which no
+	// Document holds: names Requires lists, each once.
+	"Flattening.Undeclared": listMembers,
+	"flattener.requires":    listMembers,
 
 	"Availability.Added":   listVersions,
 	"Availability.Removed": listVersions,
