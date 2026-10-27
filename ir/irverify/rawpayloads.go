@@ -1,7 +1,10 @@
 package irverify
 
 import (
+	"bytes"
 	"encoding/json/jsontext"
+	"errors"
+	"io"
 	"reflect"
 	"strconv"
 
@@ -26,6 +29,7 @@ var (
 func checkRawPayloads(*ir.Document) walkCheck {
 	var vs []Violation
 	var reader entryReader
+	var payloads payloadReader
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Map {
@@ -33,9 +37,9 @@ func checkRawPayloads(*ir.Document) walkCheck {
 			}
 			switch v.Type() {
 			case unmodeledType:
-				vs = appendEntries(vs, &reader, v, at, unmodeledEntry)
+				vs = appendEntries(vs, &reader, &payloads, v, at, unmodeledEntry)
 			case rawConfigType:
-				vs = appendEntries(vs, &reader, v, at, rawConfigEntry)
+				vs = appendEntries(vs, &reader, &payloads, v, at, rawConfigEntry)
 			default:
 				return true // any other map may still hold one of these below it
 			}
@@ -46,15 +50,15 @@ func checkRawPayloads(*ir.Document) walkCheck {
 }
 
 // appendEntries appends check's verdict on every entry of the payload map m, at
-// at, to vs, reading the entries through r. Both callers key on a plain string,
-// so the key spells the entry's path.
-func appendEntries(vs []Violation, r *entryReader, m reflect.Value, at ir.WalkPath,
-	check func(key string, entry reflect.Value, at ir.WalkPath) []Violation,
+// at, to vs, reading the entries through r and their payloads through p. Both
+// callers key on a plain string, so the key spells the entry's path.
+func appendEntries(vs []Violation, r *entryReader, p *payloadReader, m reflect.Value, at ir.WalkPath,
+	check func(p *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation,
 ) []Violation {
 	held := r.heldFor(m)
 	for iter := m.MapRange(); iter.Next(); {
 		key, entry := held.read(iter)
-		vs = append(vs, check(key.String(), entry, at)...)
+		vs = append(vs, check(p, key.String(), entry, at)...)
 	}
 	return vs
 }
@@ -68,7 +72,7 @@ func appendEntries(vs []Violation, r *entryReader, m reflect.Value, at ir.WalkPa
 //
 // The three are checked independently so a doubly-broken entry names each of its
 // defects rather than stopping at the first.
-func unmodeledEntry(key string, entry reflect.Value, at ir.WalkPath) []Violation {
+func unmodeledEntry(p *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
 	var vs []Violation
 	if key == "" {
 		vs = append(vs, Violation{
@@ -76,7 +80,7 @@ func unmodeledEntry(key string, entry reflect.Value, at ir.WalkPath) []Violation
 			Message: "unmodeled map has an empty key",
 		})
 	}
-	vs = appendRawValue(vs, entry.FieldByName("Value"), "unmodeled entry")
+	vs = appendRawValue(vs, p, entry.FieldByName("Value"), "unmodeled entry")
 
 	switch reason := ir.UnmodeledReason(entry.FieldByName("Reason").String()); {
 	case reason == "":
@@ -96,8 +100,8 @@ func unmodeledEntry(key string, entry reflect.Value, at ir.WalkPath) []Violation
 // rawConfigEntry checks one entry of a RawConfig map. Unlike an Unmodeled entry
 // it carries no reason to check — the source declared it where the IR expects it
 // — so the payload is all there is to hold it to.
-func rawConfigEntry(key string, entry reflect.Value, at ir.WalkPath) []Violation {
-	return placeEntry(appendRawValue(nil, entry, "protocol config"), at, key, "[]")
+func rawConfigEntry(p *payloadReader, key string, entry reflect.Value, at ir.WalkPath) []Violation {
+	return placeEntry(appendRawValue(nil, p, entry, "protocol config"), at, key, "[]")
 }
 
 // placeEntry gives each of one entry's violations vs the entry's path: the map
@@ -118,7 +122,7 @@ func placeEntry(vs []Violation, at ir.WalkPath, key, empty string) []Violation {
 }
 
 // appendRawValue appends a violation to vs when the payload at value is not a
-// JSON value, naming its carrier in what.
+// JSON value, as p reads it, naming its carrier in what.
 //
 // Reading through reflect.Value.Bytes rather than Interface() keeps Verify a
 // report-only oracle: the caller has matched the map's exact type, so Bytes
@@ -127,9 +131,9 @@ func placeEntry(vs []Violation, at ir.WalkPath, key, empty string) []Violation {
 // Nil is reported with malformed and empty bytes: a nil jsontext.Value encodes
 // as null but decodes back as the four bytes "null", so the document stops
 // round-tripping to an equal one.
-func appendRawValue(vs []Violation, value reflect.Value, what string) []Violation {
+func appendRawValue(vs []Violation, p *payloadReader, value reflect.Value, what string) []Violation {
 	raw := value.Bytes()
-	if jsontext.Value(raw).IsValid() {
+	if p.valid(raw) {
 		return vs
 	}
 	msg := what + " value is not a JSON value, so the document cannot be marshaled"
@@ -137,4 +141,29 @@ func appendRawValue(vs []Violation, value reflect.Value, what string) []Violatio
 		msg = what + " value is nil, which encodes as null and decodes back as the bytes null rather than nil"
 	}
 	return append(vs, Violation{Code: "ir/invalid-raw-value", Message: msg})
+}
+
+// payloadReader reads raw payloads through one decoder and one reader it resets
+// for each, so a payload costs nothing once the decoder's buffer has grown to
+// the largest met. jsontext.Value.IsValid borrows a decoder from a pool for
+// each instead, and a race build drops a share of what a pool is handed, so
+// there a payload cost an allocation at random. The zero payloadReader is ready
+// to use.
+type payloadReader struct {
+	src bytes.Reader
+	dec jsontext.Decoder
+}
+
+// valid reports whether raw is one JSON value, by the rules
+// jsontext.Value.IsValid holds a value to by default: valid UTF-8, escapes that
+// decode, no name twice in one object, and nothing after the value but
+// whitespace.
+func (p *payloadReader) valid(raw []byte) bool {
+	p.src.Reset(raw)
+	p.dec.Reset(&p.src)
+	if p.dec.SkipValue() != nil {
+		return false
+	}
+	_, err := p.dec.ReadToken()
+	return errors.Is(err, io.EOF)
 }

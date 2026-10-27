@@ -28,10 +28,10 @@ type Violation struct {
 // sound document yields nil.
 //
 // A check builds a path, or any other string, only for a violation, so a value
-// with nothing wrong costs it nothing. The exceptions are what ir reads for it:
-// the path of each declaration and of each reference whose target the walk has
-// yet to reach, and the set ir.Inferred.IsCanonical makes for a list longer
-// than a map holds unallocated.
+// with nothing wrong costs it nothing beyond what its readers keep: ir's path
+// for each declaration and each reference met before its target, the set
+// ir.Inferred.IsCanonical makes of a long list, and the names a jsontext
+// decoder keeps of a large object to refuse a duplicate.
 func Verify(doc *ir.Document) []Violation {
 	return verify(doc, ir.WalkValues)
 }
