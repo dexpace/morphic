@@ -18,6 +18,16 @@ func CountingIDReader(reads *int) *IDReader {
 	}}
 }
 
+// JSONSpelling returns what jsonSpelling makes of s and whether spelledForJSON
+// reads s as that already, or false for ok when s is no decimal literal.
+func JSONSpelling(s string) (spelling string, spelled, ok bool) {
+	l, ok := scanDecimal(s)
+	if !ok {
+		return "", false, false
+	}
+	return jsonSpelling(l), l.spelledForJSON(s), true
+}
+
 // IDClasses is idClasses, for the external tests.
 var IDClasses = idClasses
 
