@@ -75,7 +75,8 @@ type Document struct {
     Messages    map[MessageID]Message  // message registry — messages are reused across channels and
                                        // referenced by identity from operations and replies (AsyncAPI 3)
     Auth        map[AuthID]AuthScheme  // auth scheme registry
-    Servers     []Server               // endpoint templates
+    Servers     map[ServerID]Server    // server registry: every server the source declares,
+                                       // wherever it declares it; scopes name them by ID (§10)
     TagDefs     []TagDef               // tag metadata registry: {Name, Docs, Parent, Kind}; tag
                                        // *membership* stays []string on the tagged nodes
                                        // (OpenAPI/AsyncAPI tag objects)
@@ -332,6 +333,19 @@ it sees. Changes made together in one bump are listed together under it.
     `allOf`, and kept a map's verbatim, so an object writing a catch-all and a `required` name is
     now a `Model` where it had been a `MapT`. A consumer pinned to 0.18.0 reads those members as
     optional.
+- **0.20.0** — servers became entities, and three serialization facts gained homes:
+  - `Server` gained `ID` and `Provenance`, and `Document.Servers` became a registry keyed by
+    `ServerID` that holds every server the source declares, wherever it declares it (§10).
+    `Service.Servers` and `Channel.Servers` name servers by ID where they had indexed a list, and
+    an empty one names no server where it had meant every server. `Operation` gained `Servers`, the
+    servers it is sent to in place of its service's. The OpenAPI compiler had kept a path item's
+    and an operation's `servers` verbatim under `Unmodeled`, left `Service.Servers` unset, and
+    lowered the `/` OpenAPI supplies for a document declaring none as if declared. A consumer
+    pinned to 0.19.0 cannot read the registry, and sends every operation to the document's servers.
+  - `HTTPParamBinding` gained `AllowEmptyValue`, `PartEncoding` gained `AllowReserved`, and
+    `Property` gained `Style` and `Explode`, which only a header carries (§5.1). The compiler had
+    kept each verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to 0.19.0 that
+    reads those entries no longer finds them.
 
 ---
 
@@ -343,6 +357,7 @@ it sees. Changes made together in one bump are listed together under it.
 type TypeID string      // e.g. "t/openapi/components/schemas/User" or "t/anon/paths/~1users/get/responses/200/content/application~1json"
 type OpID   string      // operation identity, same construction
 type ServiceID, GroupID, ChannelID, MessageID, AuthID, PropID, ParamID, EnumMemberID string
+type ServerID string
 ```
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source
@@ -352,13 +367,14 @@ and never rewritten by renames. The `dedup` pass may alias two structurally iden
 types; aliases are recorded so both IDs stay resolvable.
 
 The shape around the pointer is one grammar every compiler shares: a kind prefix (`t`, `op`, `p`,
-`s`, `g`, `auth`, `param`, `e`), then the namespace, then the path. Only the path is the format's,
-because a JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are different
-things and nothing outside the format can compute one. Whatever the format, `Provenance.Pointer`
-records the path as an RFC 6901 pointer, and the ID's path is that pointer without its leading `/`:
-a protobuf full name is one segment, so `acme.v1.UserId` is recorded as `/acme.v1.UserId`. A node a
-lowering *mints* rather than finds takes a namespace of its own, so no pointer a reference can spell
-ever reaches it — the general form of the rule §4.3 states for distributed unions.
+`s`, `g`, `auth`, `param`, `e`, `server`), then the namespace, then the path. Only the path is the
+format's, because a JSON Pointer, a GraphQL structural path and a protobuf fully-qualified name are
+different things and nothing outside the format can compute one. Whatever the format,
+`Provenance.Pointer` records the path as an RFC 6901 pointer, and the ID's path is that pointer
+without its leading `/`: a protobuf full name is one segment, so `acme.v1.UserId` is recorded as
+`/acme.v1.UserId`. A node a lowering *mints* rather than finds takes a namespace of its own, so no
+pointer a reference can spell ever reaches it — the general form of the rule §4.3 states for
+distributed unions.
 
 A source can span documents: an OpenAPI description split across files is one. A node another
 document declares lives in that document's namespaces, which are the source's own qualified by the
@@ -385,8 +401,9 @@ Having no source position, a primitive names no source either: its `Provenance.S
 node every source reaches by kind. `irverify` holds no producer to this so far (#590).
 
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0
-interface extension, and Cap'n Proto interface inheritance all reference services by identity)
-and messages (AsyncAPI reuses one named message across channels, operations, and replies).
+interface extension, and Cap'n Proto interface inheritance all reference services by identity),
+messages (AsyncAPI reuses one named message across channels, operations, and replies) and servers
+(a service, a channel and an operation each name the servers serving it; §10).
 
 An operation group is the plainest minted node. OpenAPI has no construct that is a group: a Tag
 Object is metadata about a name, and an operation may use a tag no Tag Object declares. The rule
@@ -1310,6 +1327,9 @@ type Property struct {
     Default    *Value
     Constraints *Constraints
     Encoding   *Encoding
+    Style      string              // a header's: how it writes the value into its field, in
+                                   // HTTPParamBinding.Style's vocabulary; "" = simple
+    Explode    *bool               // a header's explode; nil = the style's default
     Args       []Parameter         // parameterized fields: GraphQL field arguments on any property,
                                    // at any depth — not just operation entry points. Empty elsewhere.
     Flatten    bool                // property's fields hoisted into parent on the wire (Smithy/TCGC
@@ -1344,6 +1364,16 @@ type PresenceKind string
 GraphQL binding (the only format with per-field arguments); the validate pass rejects them
 elsewhere. This keeps ordinary models pure data shapes — a model without `Args` anywhere in its
 graph serializes conventionally in every emitter.
+
+**Scope rule for `Style` and `Explode`:** they say how a header writes its value into its field, so
+only a header carries them — an entry of `Response.Headers`, `ErrorCase.Headers` or
+`PartEncoding.Headers`. The validate pass rejects them on a model's or a resource's property
+(`ir/header-serialization-outside-header`). They are fields of the property rather than of a binding
+because a response header has no binding: it is a `Property` of the response, as a part's header is
+of the part. Each holds what the source declares, so an emitter can tell a declared `explode: false`
+from none. OpenAPI allows a header the simple style alone and lets `explode` join an object value
+two ways, as TypeSpec's `@header` option does; Swagger 2.0's response-header `collectionFormat` also
+writes a space- or pipe-delimited list, which is why `Style` is a field and not a constant.
 
 ### 5.2 Visibility — lifecycle sets, not booleans
 
@@ -1509,8 +1539,8 @@ type Service struct {
                                   // (Smithy @protocolDefinition traits like aws.protocols#restJson1)
     Renames    map[TypeID]Naming  // per-service shape presentation names (Smithy service `rename`);
                                   // the TypeID — and Naming on the type — are unchanged
-    Servers    []int              // indexes into Document.Servers scoped to this service; empty =
-                                  // every one, in order (§10)
+    Servers    []ServerID         // the servers serving the service, most preferred first; empty =
+                                  // no declared server does (§10)
     Unmodeled  Unmodeled
     Provenance Provenance
 }
@@ -1581,6 +1611,8 @@ type Operation struct {
                                   // safe = no side effects (Smithy @readonly, HTTP GET semantics)
                                   // TokenParam is set exactly for idempotency_token; validate
                                   // rejects either half alone (pass/idempotency-token-mismatch)
+    Servers    []ServerID         // the servers it is sent to, most preferred first, in place
+                                  // of its service's; empty = its service's (§10)
     Auth       []AuthRequirement  // override of service default; empty slice ≠ nil (empty = explicitly public)
     Tags       []string
     ParameterVisibility  []Lifecycle // visibility filter override for the request view
@@ -1671,6 +1703,8 @@ type PartEncoding struct {
     Filename     bool              // part carries a filename (file part)
     Style        string            // form-style serialization for non-file parts
     Explode      *bool
+    AllowReserved bool             // reserved characters pass unescaped in the part's value, as
+                                   // HTTPParamBinding.AllowReserved does in a parameter's
 }
 // TypeSpec tuple-form multipart lowers to a synthesized model whose properties are the parts.
 
@@ -1874,6 +1908,10 @@ type HTTPParamBinding struct {
     Style      string             // simple | form | label | matrix | deepObject | pipe/space-delimited
     Explode    *bool
     AllowReserved bool
+    AllowEmptyValue bool          // the client may send an empty value in place of omitting
+                                  // the param (OpenAPI/Swagger allowEmptyValue); no effect under
+                                  // a Style that cannot write one (space/pipe-delimited,
+                                  // deepObject)
     PathPattern string            // multi-segment path pattern constraint for this param
                                   // (gRPC transcoding {name=shelves/*/books/*}); "" = single segment.
                                   // The URI template uses reserved expansion; emitters that cannot
@@ -1887,6 +1925,13 @@ type HTTPParamBinding struct {
 
 type Callback struct { Expression string; Operations []OpID }
 ```
+
+A binding carries every serialization fact a parameter's location leaves open — style, explode,
+`allowReserved`, `allowEmptyValue`, a content-style media type — which is the per-parameter wire
+detail `prior-art.md` records the client IR keeping on the binding. `AllowEmptyValue` is the last of
+them to land: OpenAPI calls it NOT RECOMMENDED, but a document that writes it still states it,
+Swagger 2.0 writes it too, and a request validator or a mock server needs it to accept `name=`. It
+is a plain bool beside `AllowReserved`, since a declared `false` and an absent one mean the same.
 
 Every logical parameter — identified by its `ParamID`, not its name — is bound exactly once **per
 non-host location; a `host` binding is additive** — Smithy `@hostLabel` members expand into the host
@@ -1953,7 +1998,8 @@ type Channel struct {
     Tags      []string
     Params    []Parameter
     Messages  []MessageID        // the channel's message set — messages live in Document.Messages
-    Servers   []int              // indexes into Document.Servers; empty = every one, in order (§10)
+    Servers   []ServerID         // the servers the channel is available on, most preferred first;
+                                 // empty = no declared server is (§10)
     Bindings  map[string]RawConfig // protocol-specific ("kafka", "amqp", "ws", "mqtt") kept as namespaced raw config
     Unmodeled  Unmodeled
     Provenance Provenance
@@ -2129,7 +2175,11 @@ building that type out of an extension would mint a node (§4.3), which is a des
 ## 10. Servers
 
 ```go
+type ServerID string                    // server/<space>/<pointer of its Server Object>, or a
+                                        // minted one: server/default
+
 type Server struct {
+    ID          ServerID
     Name        Naming                  // servers are named entities (AsyncAPI name-keyed servers,
                                         // OpenAPI 3.2 Server.name)
     URLTemplate string                  // may contain {variables}
@@ -2143,14 +2193,45 @@ type Server struct {
                                         // servers of one service may require different schemes)
     Bindings    map[string]RawConfig    // server-level protocol bindings kept raw
     Unmodeled   Unmodeled
+    Provenance  Provenance              // where it is declared; no pointer for one the format
+                                        // supplies where the document declares none
 }
 ```
 
-`Service.Servers` and `Channel.Servers` scope the document's servers by index. An empty list scopes
-nothing out: every server in `Document.Servers` serves that service or channel, in the document's
-order, which is how OpenAPI's root `servers` apply to every path and how AsyncAPI reads a channel
-that names none. Order is meaningful, since a consumer that needs one server, an SDK client's
-default among them, takes the first it can use (emitter-design §8.10).
+**A registry, and scopes that name it.** `Document.Servers` holds every server the source declares,
+keyed by ID, wherever the source declares it: a document's own list, an OpenAPI path item's or
+operation's, an AsyncAPI document's name-keyed map. The scopes a server serves name it:
+`Service.Servers`, `Channel.Servers` and `Operation.Servers` are each a list of IDs, most preferred
+first, since a consumer that needs one server, an SDK client's default among them, takes the first
+it can use (emitter-design §8.10). An operation's non-empty list replaces its service's for that
+operation, as its `Auth` replaces its service's; an empty one leaves its service's. An empty service
+or channel list names no server. It does not mean every server, because the registry holds servers
+that serve one operation alone; a format that reads a scope naming none as served by all of them, as
+AsyncAPI reads a channel, lists them all. A server no scope names is still a declaration and stays:
+an OpenAPI path item's list that every one of its operations overrides is registered and named by
+none.
+
+**Identity.** A server is identified by where it is declared, the pointer of its Server Object in
+the document declaring it (`server/openapi/paths/~1a/servers/0`), so a path item two paths mount
+declares one server that both mounts name, and the ID's path is the pointer its provenance records,
+which `irverify` holds. A server the format supplies where the document declares none is minted
+(§3.1): OpenAPI's `/`, for a `servers` field absent or empty, is `server/default`, in a space no
+pointer reaches, and records the whole document as its position. Its missing pointer is what tells
+it from a declared `/`.
+
+**Why IDs and a map rather than indices.** Until 0.20.0 the scopes indexed an ordered
+`Document.Servers`, and an empty list meant every server, which held while the only servers were the
+document's own. Servers an operation declares break both halves: an index stops naming its server
+once a pass removes or reorders one (invariant 3 exists for this), and "every server" would send a
+service to servers only one of its operations uses. Servers are named entities, and every other
+reference between named entities is by ID.
+
+**What an operation's servers are not.** `HTTPBinding.HostPrefix` stays where it is: Smithy's
+`@endpoint` prefixes whichever server is chosen with a host label, so it qualifies a server rather
+than naming one. And `Operation.Servers` sits on the neutral core beside `Auth`, which an operation
+overrides the same way, rather than on a binding: it says where the operation is sent, whichever
+binding sends it. An operation bound to a channel leaves it empty, since its channel names its
+servers.
 
 ## 11. Versioning & availability
 
@@ -2599,7 +2680,8 @@ list moves to a specification of its own when the compiler lands.
 
 - servers w/ protocols/protocolVersion/security → Servers (named, w/ Auth)
 - channels → Channels (Address nil = unknown), messages → Document.Messages registry referenced by
-  ID
+  ID; a channel's `servers` → Channel.Servers, and one naming none lists every server, which
+  AsyncAPI reads it as available on (§10)
 - operations send/receive → Operation + MessageBinding, no-reply sends → OneWay
 - reply objects → Reply (static channel + dynamic PropPath address + message set)
 - correlation IDs → PropPath (In: header|payload)

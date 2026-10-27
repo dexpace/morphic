@@ -213,6 +213,7 @@ var identityClasses = map[string]string{
 	"TypeID":       "identity: Document.Types keys it; checkReferentialIntegrity resolves references, checkRegistryKeys holds each key to its node's own ID and checkDuplicateIDs holds no two nodes to one ID",
 	"ChannelID":    "identity: Document.Channels keys it; resolved and held as TypeID is",
 	"MessageID":    "identity: Document.Messages keys it; resolved and held as TypeID is",
+	"ServerID":     "identity: Document.Servers keys it; resolved and held as TypeID is",
 	"AuthID":       "identity: Document.Auth keys it; resolved and held as TypeID is",
 	"OpID":         "identity, no map: ir.IDReferences resolves references against the operations the document declares, checkDuplicateIDs holds them unique",
 	"ServiceID":    "identity, no map: resolved and held as OpID is, against the services the document declares",

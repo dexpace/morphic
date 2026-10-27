@@ -97,6 +97,14 @@ type Property struct {
 	Constraints *Constraints `json:"constraints,omitzero"`
 	// Encoding overrides the property's wire encoding.
 	Encoding *Encoding `json:"encoding,omitzero"`
+	// Style is how a header writes the value into its field, in
+	// HTTPParamBinding.Style's vocabulary; "" = the header default, simple. Only
+	// a header carries it: an entry of Response, ErrorCase or PartEncoding
+	// Headers (ir-design §5.1).
+	Style string `json:"style,omitempty"`
+	// Explode is a header's explode, as HTTPParamBinding.Explode is a
+	// parameter's; nil = the style's default. Only a header carries it.
+	Explode *bool `json:"explode,omitzero"`
 	// Args are field arguments for parameterized fields: GraphQL field arguments
 	// on any property at any depth; empty elsewhere.
 	Args []Parameter `json:"args,omitempty"`

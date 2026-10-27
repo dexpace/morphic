@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -70,16 +74,6 @@
                   },
                   "required": false,
                   "docs": {},
-                  "unmodeled": {
-                    "openapi:allowEmptyValue": {
-                      "reason": "no_ir_home",
-                      "value": true,
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1merged/get/parameters/0/allowEmptyValue"
-                      }
-                    }
-                  },
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1merged/get/parameters/0"
@@ -128,21 +122,12 @@
                       "visibility": {
                         "none": false
                       },
+                      "style": "simple",
                       "flatten": false,
                       "eventHeader": false,
                       "eventPayload": false,
                       "secret": false,
                       "docs": {},
-                      "unmodeled": {
-                        "openapi:style": {
-                          "reason": "no_ir_home",
-                          "value": "simple",
-                          "provenance": {
-                            "source": 0,
-                            "pointer": "/paths/~1merged/get/responses/200/headers/X-Rate/style"
-                          }
-                        }
-                      },
                       "provenance": {
                         "source": 0,
                         "pointer": "/paths/~1merged/get/responses/200/headers/X-Rate"
@@ -170,6 +155,9 @@
               ],
               "oneWay": false,
               "idempotency": {},
+              "servers": [
+                "server/openapi/paths/~1merged/get/servers/0"
+              ],
               "bindings": {
                 "http": [
                   {
@@ -183,7 +171,8 @@
                         "wireName": "q",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": true
                       }
                     ],
                     "checksumRequired": false,
@@ -192,18 +181,6 @@
                 ]
               },
               "unmodeled": {
-                "openapi:operationServers": {
-                  "reason": "no_ir_home",
-                  "value": [
-                    {
-                      "url": "https://operation.example"
-                    }
-                  ],
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/get/servers"
-                  }
-                },
                 "openapi:pathItem/mergedBogus": {
                   "reason": "out_of_scope",
                   "value": {
@@ -232,18 +209,6 @@
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1merged/summary"
-                  }
-                },
-                "openapi:servers": {
-                  "reason": "no_ir_home",
-                  "value": [
-                    {
-                      "url": "https://path.example"
-                    }
-                  ],
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/servers"
                   }
                 },
                 "openapi:x-big": {
@@ -293,17 +258,8 @@
                           "text/plain"
                         ],
                         "multi": false,
-                        "filename": false
-                      }
-                    },
-                    "unmodeled": {
-                      "openapi:encoding/f/allowReserved": {
-                        "reason": "no_ir_home",
-                        "value": true,
-                        "provenance": {
-                          "source": 0,
-                          "pointer": "/paths/~1merged/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"
-                        }
+                        "filename": false,
+                        "allowReserved": true
                       }
                     }
                   }
@@ -330,6 +286,9 @@
               ],
               "oneWay": false,
               "idempotency": {},
+              "servers": [
+                "server/openapi/paths/~1merged/servers/0"
+              ],
               "bindings": {
                 "http": [
                   {
@@ -374,18 +333,6 @@
                     "source": 0,
                     "pointer": "/paths/~1merged/summary"
                   }
-                },
-                "openapi:servers": {
-                  "reason": "no_ir_home",
-                  "value": [
-                    {
-                      "url": "https://path.example"
-                    }
-                  ],
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/servers"
-                  }
                 }
               },
               "provenance": {
@@ -395,6 +342,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -554,15 +504,43 @@
       }
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    },
+    "server/openapi/paths/~1merged/get/servers/0": {
+      "id": "server/openapi/paths/~1merged/get/servers/0",
+      "name": {
+        "hint": "https_operation_example"
+      },
+      "urlTemplate": "https://operation.example",
+      "description": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/get/servers/0"
+      }
+    },
+    "server/openapi/paths/~1merged/servers/0": {
+      "id": "server/openapi/paths/~1merged/servers/0",
+      "name": {
+        "hint": "https_path_example"
+      },
+      "urlTemplate": "https://path.example",
+      "description": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/servers/0"
+      }
     }
-  ],
+  },
   "diagnostics": [
     {
       "severity": "info",
@@ -575,47 +553,11 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "parameter allowEmptyValue has no ir.HTTPParamBinding home; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/get/parameters/0/allowEmptyValue"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "header style has no ir.Property home; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/get/responses/200/headers/X-Rate/style"
-      }
-    },
-    {
-      "severity": "info",
       "code": "openapi/validation-only-keyword",
       "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1merged/get/responses/200/content/application~1json/schema"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "operation servers kept under Unmodeled; an operation has no server-scope list to bind them to, and these override any path-item servers kept beside them",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/get"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/get"
       }
     },
     {
@@ -634,24 +576,6 @@
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1merged/mergedBogus"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/post"
       }
     },
     {

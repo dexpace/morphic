@@ -19,8 +19,8 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, op.Bindings.HTTP[0].IsWebhook, "webhook operation carries IsWebhook")
 	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
 	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
-	assertPathItemServersKept(t, op, "https://hooks.example.com")
-	assertOwnServersKeptBesideThem(t, op, "https://hooks-override.example.com")
+	assertOwnServersOverrideThePathItems(t, doc, op, "https://hooks-override.example.com",
+		"/webhooks/newPet/servers/0")
 	assertWebhookGroupIsAHint(t, doc)
 
 	// Two keys a URI template would misstate: braces that belong to the event's
@@ -45,34 +45,32 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	}
 }
 
-// assertOwnServersKeptBesideThem pins the overriding half of the servers pair in
-// the corpus, so the two-order oracle and the JSON round-trip see it. OpenAPI
-// says an operation's own servers override its path item's, so keeping only the
-// path item's recorded the superseded list and dropped the effective one.
-//
-// The two keys are asserted together because the hazard is that they collapse
-// into one: a single key holding both would leave the surviving list depending
-// on which lowering ran last, which only a two-order diff can see.
-func assertOwnServersKeptBesideThem(t *testing.T, op ir.Operation, url string) {
+// assertOwnServersOverrideThePathItems pins the overriding half of the servers
+// pair in the corpus, so the two-order oracle and the JSON round-trip see it.
+// OpenAPI says an operation's own servers override its path item's, so the
+// operation is sent to its own, `url`; the path item's, declared at
+// overriddenAt, are registered all the same and named by none of its
+// operations.
+func assertOwnServersOverrideThePathItems(t *testing.T, doc *ir.Document, op ir.Operation, url, overriddenAt string) {
 	t.Helper()
-	entry, ok := op.Unmodeled["openapi:operationServers"]
-	require.True(t, ok, "the operation's own servers are kept beside its path item's")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, `[{"url":"`+url+`"}]`, string(entry.Value))
-	assert.NotEqual(t, entry.Value, op.Unmodeled["openapi:servers"].Value,
-		"and the two keys hold different declarations, not one overwriting the other")
+	require.Len(t, op.Servers, 1, "the operation names its own server")
+	assert.Equal(t, url, doc.Servers[op.Servers[0]].URLTemplate)
+	overridden := ir.ServerID("server/openapi" + overriddenAt)
+	require.Contains(t, doc.Servers, overridden, "the overridden path item's server is still registered")
+	assert.NotContains(t, op.Servers, overridden)
+	assert.NotContains(t, op.Unmodeled, "openapi:servers", "neither level is kept verbatim")
+	assert.NotContains(t, op.Unmodeled, "openapi:operationServers")
 }
 
-// assertPathItemServersKept pins that a path item's servers survive whichever
-// parent the path item hangs from. The preserve-plus-diagnostic path used to be
-// reached only from the `paths` walk, so the same override written on a webhook
-// or a callback disappeared with nothing said (GitHub #39).
-func assertPathItemServersKept(t *testing.T, op ir.Operation, url string) {
+// assertPathItemServersNamed pins that a path item's servers reach its
+// operations whichever parent the path item hangs from. They used to be read
+// only on the `paths` walk, so the same override written on a webhook or a
+// callback disappeared with nothing said (GitHub #39).
+func assertPathItemServersNamed(t *testing.T, doc *ir.Document, op ir.Operation, url string) {
 	t.Helper()
-	entry, ok := op.Unmodeled["openapi:servers"]
-	require.True(t, ok, "the path item's servers are kept on the operation")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, `[{"url":"`+url+`"}]`, string(entry.Value))
+	require.Len(t, op.Servers, 1, "the operation names its path item's server")
+	assert.Equal(t, url, doc.Servers[op.Servers[0]].URLTemplate)
+	assert.NotContains(t, op.Unmodeled, "openapi:servers", "and keeps nothing of it verbatim")
 }
 
 // assertWebhookGroupIsAHint pins which of the two things the group's name is.
@@ -107,9 +105,8 @@ func assertCallbacks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.NotEmpty(t, op.Bindings.HTTP[0].Callbacks[0].Operations)
 	cb, ok := opByName(doc, "onEvent")
 	require.True(t, ok, "the callback operation is registered alongside its parent")
-	assertPathItemServersKept(t, cb, "https://callbacks.example.com")
-	assert.NotContains(t, op.Unmodeled, "openapi:servers",
-		"the callback's own servers stay on the callback, not on the parent")
+	assertPathItemServersNamed(t, doc, cb, "https://callbacks.example.com")
+	assert.Empty(t, op.Servers, "the callback's servers stay on the callback, not on the parent")
 }
 
 // assertPathItemAnchoredKey pins that an undeclared path-item key whose value
@@ -155,7 +152,6 @@ func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagno
 
 	for _, tc := range []struct{ key, value, at string }{
 		{"openapi:pathItemSummary", `"written beside the ref"`, "/paths/~1a/summary"},
-		{"openapi:servers", `[{"url":"https://beside.example"}]`, "/paths/~1a/servers"},
 		{"openapi:pathItem/x-beside", `"use"`, "/paths/~1a/x-beside"},
 		{"openapi:pathItem/bogusBeside", `{"responses":{"200":{"description":"BESIDE"}}}`,
 			"/paths/~1a/bogusBeside"},
@@ -164,6 +160,9 @@ func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		assert.JSONEq(t, tc.value, string(entry.Value), "%s keeps what the use site declared", tc.key)
 		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
 	}
+	assertPathItemServersNamed(t, doc, sibling, "https://beside.example")
+	assert.Equal(t, []ir.ServerID{"server/openapi/paths/~1a/servers/0"}, sibling.Servers,
+		"named where the use site declares them")
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/unknown-object-key", "/paths/~1a/bogusBeside"),
 		"the use site's undeclared key is announced at its own pointer, as any other is")

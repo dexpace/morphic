@@ -97,6 +97,7 @@ var loweringPackages = []string{
 	"compilers/openapi/internal/document",
 	"compilers/openapi/internal/operation",
 	"compilers/openapi/internal/schema",
+	"compilers/openapi/internal/servers",
 }
 
 // TestLoweringRecursion_IsOnlyTheKnownCycles pins which lowerings are

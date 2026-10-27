@@ -30,6 +30,10 @@ type MessageID string
 // AuthID identifies an AuthScheme in Document.Auth.
 type AuthID string
 
+// ServerID identifies a Server in Document.Servers. A service, a channel and an
+// operation each name the servers that serve it by one, in preference order.
+type ServerID string
+
 // PropID identifies a Property within the document.
 type PropID string
 
@@ -62,12 +66,14 @@ const (
 	IDKindGroup      = "g"
 	IDKindParam      = "param"
 	IDKindEnumMember = "e"
+	IDKindServer     = "server"
 )
 
 // IDKinds returns every kind prefix a synthetic ID may open with, in a fixed
 // order. Document.IDSpaces is keyed by them.
 func IDKinds() []string {
-	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup, IDKindParam, IDKindEnumMember}
+	return []string{IDKindType, IDKindOp, IDKindProp, IDKindAuth, IDKindService, IDKindGroup, IDKindParam,
+		IDKindEnumMember, IDKindServer}
 }
 
 // IDSeparator separates an ID's kind, space and path segments.

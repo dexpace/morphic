@@ -61,8 +61,8 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		{"contact", "openapi:info/contact/slack", `"CONTACT"`, "doc.Unmodeled"},
 		{"license", "openapi:info/license/spdx", `"LICENSE"`, "doc.Unmodeled"},
 		{"externalDocs", "openapi:externalDocs/title", `"EXTERNALDOCS"`, "doc.Unmodeled"},
-		{"server", "openapi:host", `"SERVER"`, "doc.Servers[0].Unmodeled"},
-		{"server variable", "openapi:example", `"SERVERVARIABLE"`, "doc.Servers[0].Variables[0].Unmodeled"},
+		{"server", "openapi:host", `"SERVER"`, "doc.Servers[server/openapi/servers/0].Unmodeled"},
+		{"server variable", "openapi:example", `"SERVERVARIABLE"`, "doc.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
 		{"tag", "openapi:tags/0/color", `"TAG"`, "doc.Unmodeled"},
 		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
 		{"tag externalDocs", "openapi:tags/0/externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.Unmodeled"},
@@ -382,11 +382,10 @@ func requireNoErrorDiagnostics(t *testing.T, diags []ir.Diagnostic) {
 // lowers or holds only keys the Path Item Object does not define. applyPathItem
 // runs once per operation, so it never reaches such an item.
 //
-// Its servers, extensions and undeclared keys go to the service, as the Paths
-// Object's own extensions do: a path item lowers to no node, so the nearest
-// node holding an Unmodeled map holds them. The key carries the item's own
-// pointer, since one service holds every such item and a bare prefix would let
-// two collide.
+// Its extensions and undeclared keys go to the service, as the Paths Object's
+// own extensions do: a path item lowers to no node, so the nearest node holding
+// an Unmodeled map holds them, keyed by the item's own pointer, since a bare
+// prefix would let two items collide. Its servers go into the registry.
 func TestUnknownKeys_PathItemWithNoOperationKeepsWhatItWrote(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "path-item-unmounted", `openapi: 3.1.0
@@ -416,11 +415,12 @@ webhooks:
 	for _, want := range []string{
 		"openapi:pathItem/paths/~1unmounted/x-on-unmounted",
 		"openapi:pathItem/paths/~1unmounted/undeclaredKey",
-		"openapi:pathItem/paths/~1unmounted/servers",
 		"openapi:pathItem/webhooks/hook/x-on-hook",
 	} {
 		assert.True(t, keys[want], "kept on the service: %s (have %v)", want, keys)
 	}
+	assert.Contains(t, doc.Servers, ir.ServerID("server/openapi/paths/~1unmounted/servers/0"),
+		"the item's servers are registered")
 
 	// And the loss is announced rather than merely repaired: a reader finding
 	// these on the service needs to know why they are not on an operation.

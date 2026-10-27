@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -109,6 +113,7 @@
                         "wireName": "whole",
                         "explode": false,
                         "allowReserved": false,
+                        "allowEmptyValue": false,
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
@@ -180,6 +185,7 @@
                         "location": "querystring",
                         "wireName": "whole",
                         "allowReserved": true,
+                        "allowEmptyValue": false,
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
@@ -195,6 +201,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -237,15 +246,19 @@
       "inputOnly": false
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
     }
-  ],
+  },
   "diagnostics": [
     {
       "severity": "warning",

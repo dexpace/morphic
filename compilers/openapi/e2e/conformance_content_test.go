@@ -113,13 +113,12 @@ func assertFormPartStyle(t *testing.T, doc *ir.Document) {
 		require.NotNil(t, pe.Explode)
 		assert.True(t, *pe.Explode)
 		assert.True(t, pe.Multi, "the structural flag is read off the part")
+		// Two documents differing only in allowReserved used to compile to one IR
+		// (GitHub #291); it lowers onto the part, as a parameter's does.
+		assert.True(t, pe.AllowReserved)
 	}
-	// allowReserved has no PartEncoding field, and PartEncoding has no Unmodeled
-	// map, so it is kept on the content keyed by the part it governs. Two
-	// documents differing only in it used to compile to one IR (GitHub #291).
-	entry := unmodeledEntry(t, op.Request.Contents[0].Unmodeled, "openapi:encoding/ids/allowReserved")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, "true", string(entry.Value))
+	assert.NotContains(t, op.Request.Contents[0].Unmodeled, "openapi:encoding/ids/allowReserved",
+		"and is kept verbatim nowhere")
 }
 
 // assertFileBody pins a binary body: the payload's type degrades to bytes and the

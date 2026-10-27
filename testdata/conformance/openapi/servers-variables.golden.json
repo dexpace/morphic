@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -42,13 +46,17 @@
         "canonical": "servers_variables"
       },
       "docs": {},
+      "servers": [
+        "server/openapi/servers/0"
+      ],
       "provenance": {
         "source": 0
       }
     }
   ],
-  "servers": [
-    {
+  "servers": {
+    "server/openapi/servers/0": {
+      "id": "server/openapi/servers/0",
       "name": {
         "source": "primary",
         "canonical": "primary"
@@ -69,9 +77,13 @@
             "description": "Deployment environment"
           }
         }
-      ]
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/0"
+      }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.2",

@@ -59,6 +59,7 @@ func TestKeyedClasses_DerivedFromDocumentShape(t *testing.T) {
 		reflect.TypeFor[ir.ChannelID](): "channels",
 		reflect.TypeFor[ir.MessageID](): "messages",
 		reflect.TypeFor[ir.AuthID]():    "auth",
+		reflect.TypeFor[ir.ServerID]():  "servers",
 	}
 	classes := ir.KeyedClasses()
 	refs := ir.NewIDReferences(&ir.Document{})
@@ -84,6 +85,7 @@ func TestNewIDReferences_LabelsTheRegistryOfEveryClass(t *testing.T) {
 		reflect.TypeFor[ir.ChannelID]():    "channels",
 		reflect.TypeFor[ir.MessageID]():    "messages",
 		reflect.TypeFor[ir.AuthID]():       "auth",
+		reflect.TypeFor[ir.ServerID]():     "servers",
 		reflect.TypeFor[ir.OpID]():         "op declarations",
 		reflect.TypeFor[ir.ServiceID]():    "service declarations",
 		reflect.TypeFor[ir.GroupID]():      "group declarations",

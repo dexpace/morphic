@@ -9,6 +9,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/ir"
 )
 
 // pathItemRefUnmountedSpec mounts no operation on either side of the reference:
@@ -27,16 +28,18 @@ paths:
 // TestPathItemRefSiblings_UnmountedKeepsSiblings pins the third carrier: an item
 // that mounts no operation on either side has no operation to hold the use
 // site's constructs, so they are kept on the nearest node that has an Unmodeled
-// map and announced, exactly as a path item with no operations already was.
+// map, its servers registered, and announced, exactly as a path item with no
+// operations already was.
 func TestPathItemRefSiblings_UnmountedKeepsSiblings(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefUnmountedSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	svc := doc.Services[0]
-	entry, ok := svc.Unmodeled["openapi:pathItem/paths/~1a/servers"]
-	require.True(t, ok, "the use site's servers are kept on the service")
-	assert.JSONEq(t, `[{"url":"https://use.example"}]`, string(entry.Value))
+	const use = ir.ServerID("server/openapi/paths/~1a/servers/0")
+	require.Contains(t, doc.Servers, use, "the use site's servers are registered")
+	assert.Equal(t, "https://use.example", doc.Servers[use].URLTemplate)
+	assert.NotContains(t, svc.Servers, use, "and serve nothing, the service included")
 	ext, ok := svc.Unmodeled["openapi:pathItem/paths/~1a/x-beside"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"use"`, string(ext.Value))

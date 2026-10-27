@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -195,29 +199,13 @@
                       "visibility": {
                         "none": false
                       },
+                      "style": "simple",
+                      "explode": true,
                       "flatten": false,
                       "eventHeader": false,
                       "eventPayload": false,
                       "secret": false,
                       "docs": {},
-                      "unmodeled": {
-                        "openapi:explode": {
-                          "reason": "no_ir_home",
-                          "value": true,
-                          "provenance": {
-                            "source": 0,
-                            "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/explode"
-                          }
-                        },
-                        "openapi:style": {
-                          "reason": "no_ir_home",
-                          "value": "simple",
-                          "provenance": {
-                            "source": 0,
-                            "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/style"
-                          }
-                        }
-                      },
                       "provenance": {
                         "source": 0,
                         "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List"
@@ -249,6 +237,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -310,40 +301,24 @@
       "prim": "string"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
-    }
-  ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "header style has no ir.Property home; kept verbatim under Unmodeled",
+      "description": {},
       "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/style"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "header explode has no ir.Property home; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1reports/get/responses/200/headers/X-Report-List/explode"
+        "source": 0
       }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "header-content-schema.yaml",
-      "hash": "3ef8d9fedce7f77b8f6e14d9d58250555df19ef1e95391a4969110a12c4d99c4"
+      "hash": "de3b0506748e8f61bfb11e04d0ef6eab031aeec7edc6f9c02aa737da5eaf1ec8"
     }
   ]
 }

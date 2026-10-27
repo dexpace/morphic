@@ -150,3 +150,46 @@ func TestForEachOperation_AWalkCutAtTheCapLeavesWhatItEntered(t *testing.T) {
 	assert.True(t, truncated)
 	assert.Equal(t, []ir.OpID{"top", "top"}, got, "the second service walks the chain as the first did")
 }
+
+func TestForEachGroup_NilDocument(t *testing.T) {
+	t.Parallel()
+	called := false
+	truncated := ir.ForEachGroup(nil, func(*ir.OperationGroup) { called = true })
+	assert.False(t, truncated)
+	assert.False(t, called)
+}
+
+// TestForEachGroup_VisitsEachGroupBeforeItsNestedOnes pins the order: a group,
+// then the groups nested in it, then its next sibling, across services.
+func TestForEachGroup_VisitsEachGroupBeforeItsNestedOnes(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Services: []ir.Service{
+		{Groups: []ir.OperationGroup{
+			{ID: "g/a", Groups: []ir.OperationGroup{{ID: "g/a/b"}}},
+			{ID: "g/c"},
+		}},
+		{Groups: []ir.OperationGroup{{ID: "g/d"}}},
+	}}
+	var got []ir.GroupID
+	truncated := ir.ForEachGroup(doc, func(g *ir.OperationGroup) { got = append(got, g.ID) })
+	assert.False(t, truncated)
+	assert.Equal(t, []ir.GroupID{"g/a", "g/a/b", "g/c", "g/d"}, got)
+}
+
+// TestForEachGroup_HandsTheGroupInTheDocument pins that fn reads the group the
+// document holds rather than a copy, so a caller's reads cost no copy.
+func TestForEachGroup_HandsTheGroupInTheDocument(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Services: []ir.Service{{Groups: []ir.OperationGroup{{ID: "g/a"}}}}}
+	var seen *ir.OperationGroup
+	ir.ForEachGroup(doc, func(g *ir.OperationGroup) { seen = g })
+	assert.Same(t, &doc.Services[0].Groups[0], seen)
+}
+
+func TestForEachGroup_OneBeyondTheCap(t *testing.T) {
+	t.Parallel()
+	var levels int
+	truncated := ir.ForEachGroup(groupChain(ir.MaxGroupDepth+1), func(*ir.OperationGroup) { levels++ })
+	require.True(t, truncated, "a group past the cap goes unvisited, and the walk says so")
+	assert.Equal(t, ir.MaxGroupDepth+1, levels, "every group up to the cap is visited")
+}

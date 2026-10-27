@@ -80,6 +80,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 			ResultPath:    &ir.PropPath{Segments: []ir.PropID{"p/result"}},
 		},
 		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: "param/x/idempotency-key"},
+		Servers:     []ir.ServerID{"server/openapi/paths/~1users/get/servers/0"},
 		Auth: []ir.AuthRequirement{
 			{Schemes: []ir.SchemeUse{{Scheme: "auth/apiKey"}}},
 		},
@@ -280,22 +281,24 @@ func TestContent_ItemEncodingSingular(t *testing.T) {
 		ItemEncoding: &ir.PartEncoding{Multi: true, Style: "a"},
 	}
 	got := assertDeterministicMarshal(t, content)
-	assert.Contains(t, got, `"itemEncoding":{"multi":true,"filename":false,"style":"a"}`)
+	assert.Contains(t, got, `"itemEncoding":{"multi":true,"filename":false,"style":"a","allowReserved":false}`)
 }
 
-// TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi
-// and Filename are plain bools that must always serialize as declared facts
-// ("does not repeat", "carries no filename") — and that a fully populated
+// TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi,
+// Filename and AllowReserved are plain bools that must always serialize as
+// declared facts ("does not repeat", "carries no filename", "escapes reserved
+// characters") — and that a fully populated
 // PartEncoding round-trips.
 func TestPartEncoding_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.PartEncoding{}, `{"multi":false,"filename":false}`, ir.PartEncoding{
-		ContentTypes: []string{"image/png", "image/jpeg"},
-		Headers:      []ir.Property{populatedProperty()},
-		Multi:        true,
-		Filename:     true,
-		Style:        "form",
-		Explode:      new(false),
+	assertJSONContract(t, ir.PartEncoding{}, `{"multi":false,"filename":false,"allowReserved":false}`, ir.PartEncoding{
+		ContentTypes:  []string{"image/png", "image/jpeg"},
+		Headers:       []ir.Property{populatedProperty()},
+		Multi:         true,
+		Filename:      true,
+		Style:         "form",
+		Explode:       new(false),
+		AllowReserved: true,
 	})
 }
 

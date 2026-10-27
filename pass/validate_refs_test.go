@@ -524,6 +524,23 @@ func authRefSites() []idRefSite {
 	}
 }
 
+// serverRefSites are the fields referencing an entry of Document.Servers: the
+// three scopes that name the servers serving them.
+func serverRefSites() []idRefSite {
+	return []idRefSite{
+		{"service servers", "ir/dangling-server-ref", ".Servers[0]",
+			func(d *ir.Document, id string) { service(d).Servers = []ir.ServerID{ir.ServerID(id)} },
+			"server/ghost/service"},
+		{"channel servers", "ir/dangling-server-ref", ".Servers[0]",
+			func(d *ir.Document, id string) {
+				putChannel(d, func(c *ir.Channel) { c.Servers = []ir.ServerID{ir.ServerID(id)} })
+			}, "server/ghost/channel"},
+		{"operation servers", "ir/dangling-server-ref", ".Operations[0].Servers[0]",
+			func(d *ir.Document, id string) { firstOp(d).Servers = []ir.ServerID{ir.ServerID(id)} },
+			"server/ghost/operation"},
+	}
+}
+
 // opRefSites are the fields referencing an operation the document declares.
 //
 // An operation is declared inside the Service→OperationGroup tree rather than in
@@ -593,6 +610,7 @@ func idRefSites() []idRefSite {
 	sites := append(channelRefSites(), messageRefSites()...)
 	sites = append(sites, authRefSites()...)
 	sites = append(sites, opRefSites()...)
+	sites = append(sites, serverRefSites()...)
 	return append(sites, serviceRefSites()...)
 }
 
@@ -622,6 +640,7 @@ func registryDoc() *ir.Document {
 	doc.Channels = map[ir.ChannelID]ir.Channel{"chan/a": {ID: "chan/a"}}
 	doc.Messages = map[ir.MessageID]ir.Message{"msg/a": {ID: "msg/a"}}
 	doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/a": {ID: "auth/a", Kind: ir.AuthKindAPIKey}}
+	doc.Servers = map[ir.ServerID]ir.Server{"server/a": {ID: "server/a", URLTemplate: "https://a.example"}}
 	return doc
 }
 
@@ -638,6 +657,8 @@ func resolving(dangling string) string {
 		return "msg/a"
 	case "auth":
 		return "auth/a"
+	case "serv":
+		return "server/a"
 	case "op/g":
 		return "op"
 	default:
@@ -726,6 +747,7 @@ func TestValidate_DanglingOpRefWithNoOperationDeclared(t *testing.T) {
 // any deterministic order satisfies, including the walk's own.
 var sortedIDRefPointers = []string{
 	"doc.Channels[chan/a].Messages[0]",
+	"doc.Channels[chan/a].Servers[0]",
 	"doc.Services[0].Auth[0].Schemes[0].Scheme",
 	"doc.Services[0].Extends[0]",
 	"doc.Services[0].Groups[0].Operations[0].Bindings.HTTP[0].Callbacks[0].Operations[0]",
@@ -737,9 +759,11 @@ var sortedIDRefPointers = []string{
 	"doc.Services[0].Groups[0].Operations[0].LongRunning.FinalOperation",
 	"doc.Services[0].Groups[0].Operations[0].LongRunning.PollingOperation",
 	"doc.Services[0].Groups[0].Operations[0].OverloadOf",
+	"doc.Services[0].Groups[0].Operations[0].Servers[0]",
 	"doc.Services[0].Groups[0].Resource.CollectionOps[0]",
 	"doc.Services[0].Groups[0].Resource.InstanceOps[0]",
 	"doc.Services[0].Groups[0].Resource.Lifecycle[read]",
+	"doc.Services[0].Servers[0]",
 }
 
 // TestValidate_TypedIDDiagnosticOrderIsDeterministic pins invariant 7 across
@@ -786,6 +810,9 @@ func TestValidate_RegistryOwnIDsResolveAndMismatchesDangle(t *testing.T) {
 		}},
 		{"auth", "ir/dangling-auth-ref", "auth/b", func(d *ir.Document) {
 			d.Auth["auth/a"] = ir.AuthScheme{ID: "auth/b", Kind: ir.AuthKindAPIKey}
+		}},
+		{"server", "ir/dangling-server-ref", "server/b", func(d *ir.Document) {
+			d.Servers["server/a"] = ir.Server{ID: "server/b", URLTemplate: "https://a.example"}
 		}},
 	}
 	for _, tc := range cases {

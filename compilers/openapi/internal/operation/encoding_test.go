@@ -14,38 +14,39 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestEncoding_AllowReservedAndExtensionsKeptOnTheContent pins both halves of
-// GitHub #291. Neither allowReserved nor an encoding's x-* reached an IR field,
-// an Unmodeled entry or a diagnostic, so two documents differing only in them
-// compiled to the same IR. PartEncoding carries no Unmodeled map, so both land
-// on the owning Content keyed by the part they govern.
-func TestEncoding_AllowReservedAndExtensionsKeptOnTheContent(t *testing.T) {
+// TestEncoding_AllowReservedAndExtensionsReachTheIR pins both halves of GitHub
+// #291. Neither allowReserved nor an encoding's x-* reached an IR field, an
+// Unmodeled entry or a diagnostic, so two documents differing only in them
+// compiled to the same IR. allowReserved lowers onto the part's PartEncoding,
+// as a parameter's does onto its binding; PartEncoding carries no Unmodeled
+// map, so the x-* lands on the owning Content keyed by the part it governs.
+func TestEncoding_AllowReservedAndExtensionsReachTheIR(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.1.0", encodingSpec))
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FirstOp(t, svc)
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 1)
-	kept := op.Request.Contents[0].Unmodeled
+	content := op.Request.Contents[0]
+	kept := content.Unmodeled
+
+	require.Len(t, content.Encoding, 1)
+	for _, pe := range content.Encoding {
+		assert.True(t, pe.AllowReserved, "allowReserved lowers onto the part")
+	}
+	assert.NotContains(t, kept, "openapi:encoding/q/allowReserved", "and is kept verbatim nowhere")
+	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "nothing is degraded: %+v", diags)
 
 	at := "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/encoding/q"
-	entry, ok := kept["openapi:encoding/q/allowReserved"]
-	require.True(t, ok, "allowReserved is kept; got %v", kept)
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, "true", string(entry.Value))
-	assert.Equal(t, jsontext.Pointer(at+"/allowReserved"), entry.Provenance.Pointer)
-	openapitest.AssertInfoDiagAt(t, diags, at+"/allowReserved")
-
 	ext, ok := kept["openapi:encoding/q/x-vendor"]
 	require.True(t, ok, "the encoding's own x-* is kept; got %v", kept)
 	assert.Equal(t, ir.ReasonVendorExtension, ext.Reason)
 	assert.Equal(t, jsontext.Pointer(at+"/x-vendor"), ext.Provenance.Pointer)
 }
 
-// TestEncoding_AbsentAllowReservedRecordsNothing is the control: preservation
-// keys off what the encoding declares, so an entry that omits allowReserved
-// records neither an entry nor a diagnostic — rather than recording the OpenAPI
-// default the accessor would hand back and calling it a source fact.
+// TestEncoding_AbsentAllowReservedRecordsNothing is the control: an entry that
+// omits allowReserved records neither an entry nor a diagnostic, and its part
+// reads the OpenAPI default, false.
 func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.1.0", `  /form:
@@ -65,6 +66,9 @@ func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 1)
 	assert.Empty(t, op.Request.Contents[0].Unmodeled, "nothing was declared, so nothing is kept")
+	for _, pe := range op.Request.Contents[0].Encoding {
+		assert.False(t, pe.AllowReserved)
+	}
 	assert.Empty(t, diags)
 }
 
@@ -72,7 +76,8 @@ func TestEncoding_AbsentAllowReservedRecordsNothing(t *testing.T) {
 // inside partEncodings. An entry declaring nothing ir.PartEncoding has a field
 // for lowers to an empty one, which is dropped from Content.Encoding — so the
 // entry has to be read before that check rather than after it, or what it did
-// declare goes with it.
+// declare goes with it. An entry declaring allowReserved alone is the other
+// half: that is a field, so its part is kept.
 //
 // Its own case because every other encoding fixture declares a style or a
 // contentType, which leaves the PartEncoding non-empty and routes around the
@@ -86,9 +91,10 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
         required: true
         content:
           application/x-www-form-urlencoded:
-            schema: {type: object, properties: {q: {type: string}}}
+            schema: {type: object, properties: {q: {type: string}, r: {type: string}}}
             encoding:
-              q: {allowReserved: true, x-vendor: vvv}
+              q: {x-vendor: vvv}
+              r: {allowReserved: true}
       responses: {"200": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -96,14 +102,13 @@ func TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding(t *testing.T) {
 	require.NotNil(t, op.Request)
 	require.Len(t, op.Request.Contents, 1)
 	content := op.Request.Contents[0]
-	require.Empty(t, content.Encoding,
-		"a string part declaring neither style nor contentType lowers to an empty PartEncoding")
-
-	entry, ok := content.Unmodeled["openapi:encoding/q/allowReserved"]
-	require.True(t, ok, "allowReserved outlives the entry it was declared in; got %v", content.Unmodeled)
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, "true", string(entry.Value))
-	assert.Contains(t, content.Unmodeled, "openapi:encoding/q/x-vendor", "and so does its own x-*")
+	require.Len(t, content.Encoding, 1,
+		"the part declaring only x-* lowers to an empty PartEncoding and is left out; got %v", content.Encoding)
+	for id, pe := range content.Encoding {
+		assert.Contains(t, string(id), "/properties/r", "the part kept is the one declaring allowReserved")
+		assert.True(t, pe.AllowReserved, "and it keeps what it declared")
+	}
+	assert.Contains(t, content.Unmodeled, "openapi:encoding/q/x-vendor", "the empty part's own x-* outlives it")
 }
 
 // TestEncoding_PartNameWithSlashKeepsItsOwnKey pins that a part's name is one
@@ -168,10 +173,11 @@ func TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey(t *testing.T) {
 	require.NotEmpty(t, op.Responses)
 	require.NotNil(t, op.Responses[0].Payload)
 	require.Len(t, op.Responses[0].Payload.Contents, 1)
-	kept := op.Responses[0].Payload.Contents[0].Unmodeled
+	content := op.Responses[0].Payload.Contents[0]
 
-	assert.Contains(t, kept, "openapi:itemEncoding/allowReserved")
-	assert.Contains(t, kept, "openapi:itemEncoding/x-vendor")
+	require.NotNil(t, content.ItemEncoding)
+	assert.True(t, content.ItemEncoding.AllowReserved, "the item encoding's allowReserved lowers onto it")
+	assert.Contains(t, content.Unmodeled, "openapi:itemEncoding/x-vendor")
 }
 
 // TestEncoding_NestedEncodingsAreKeptAtEveryVersion pins GitHub #615's nested

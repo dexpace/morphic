@@ -203,6 +203,9 @@ func checkRegistryKeys(doc *ir.Document) []Violation {
 	for id, scheme := range doc.Auth {
 		vs = registryKey(vs, "auth", "auth", string(id), string(scheme.ID))
 	}
+	for id, server := range doc.Servers {
+		vs = registryKey(vs, "server", "servers", string(id), string(server.ID))
+	}
 	return vs
 }
 

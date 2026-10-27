@@ -144,8 +144,8 @@ func TestValidate_EncodingKeyThroughServiceCommonErrors(t *testing.T) {
 	require.Len(t, found, 1, "exactly the planted key must address nothing")
 	assert.Equal(t, "s/commonErrors/0/contents/0/encoding/p/m/ghost",
 		found[0].Provenance.Node,
-		"the pointer names the service by ID, as checkServerIndices does, so one node "+
-			"does not have two spellings from one package")
+		"the pointer names the service by ID, as checkResponseIndices names an operation, "+
+			"so one node does not have two spellings from one package")
 }
 
 // TestValidate_EncodingKeyThroughComposition covers the three ways a body model
@@ -400,7 +400,8 @@ func TestValidate_EncodingKeyDiagnosticsAreDeterministic(t *testing.T) {
 	}
 }
 
-// payloadType is the node whose carriers payloadFields enumerates.
+// payloadType is the node whose carriers TestEncodingCarriers_NameEveryPayloadFieldInTheIR
+// enumerates.
 var payloadType = reflect.TypeFor[ir.Payload]()
 
 // maxFieldTypeDepth bounds the walk through one field's type constructors (the
@@ -429,7 +430,7 @@ func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 	}
 	slices.Sort(listed)
 
-	found := payloadFields(t)
+	found := fieldsCarrying(t, payloadType)
 	require.NotEmpty(t, found, "the shape holds no ir.Payload field at all, so the read reached "+
 		"nothing and proves nothing about the ones encodingCarriers names")
 	assert.Empty(t, cmp.Diff(found, listed),
@@ -437,13 +438,13 @@ func TestEncodingCarriers_NameEveryPayloadFieldInTheIR(t *testing.T) {
 			"(-declared +listed); a new one also has to be walked by forEachPayload")
 }
 
-// payloadFields returns "Owner.Field", sorted, for every struct field the IR
-// declares whose type is or contains an ir.Payload. It reads the fields off the
-// JSON shape ir.Document reaches, which lists a sealed sum's variants from the
-// ir sources, so a carrier is covered the day it is declared.
-func payloadFields(t *testing.T) []string {
+// fieldsCarrying returns "Owner.Field", sorted, for every struct field the IR
+// declares whose type is or contains node, an ir struct. It reads the fields
+// off the JSON shape ir.Document reaches, which lists a sealed sum's variants
+// from the ir sources, so a carrier is covered the day it is declared.
+func fieldsCarrying(t *testing.T, node reflect.Type) []string {
 	t.Helper()
-	p, err := decls.Load(payloadType.PkgPath())
+	p, err := decls.Load(node.PkgPath())
 	require.NoError(t, err)
 	shape, err := jsonshape.Read(p, "Document")
 	require.NoError(t, err)
@@ -451,7 +452,7 @@ func payloadFields(t *testing.T) []string {
 	var found []string
 	for _, typ := range shape.Types {
 		for _, m := range typ.Members {
-			if carriesPayload(t, m.Field.Type(), 0) {
+			if carries(t, m.Field.Type(), node, 0) {
 				found = append(found, typ.Named.Obj().Name()+"."+m.Field.Name())
 			}
 		}
@@ -460,31 +461,31 @@ func payloadFields(t *testing.T) []string {
 	return found
 }
 
-// carriesPayload reports whether a field's type is an ir.Payload, or a pointer,
-// slice, array or map of one.
+// carries reports whether a field's type is node, or a pointer, slice, array or
+// map of one.
 //
 // It does not descend into structs. A field whose type merely reaches a Payload
 // further down is the spine leading to a carrier — Document.Services and
 // Document.Messages between them reach every one of today's — and naming the
 // spine would name most of the IR.
-func carriesPayload(t *testing.T, typ types.Type, depth int) bool {
+func carries(t *testing.T, typ types.Type, node reflect.Type, depth int) bool {
 	t.Helper()
 	require.Less(t, depth, maxFieldTypeDepth, "resolving a field type exceeded %d steps", maxFieldTypeDepth)
 	if named, isNamed := types.Unalias(typ).(*types.Named); isNamed {
 		obj := named.Obj()
-		if obj.Pkg() != nil && obj.Pkg().Path() == payloadType.PkgPath() && obj.Name() == payloadType.Name() {
+		if obj.Pkg() != nil && obj.Pkg().Path() == node.PkgPath() && obj.Name() == node.Name() {
 			return true
 		}
 	}
 	switch u := typ.Underlying().(type) {
 	case *types.Pointer:
-		return carriesPayload(t, u.Elem(), depth+1)
+		return carries(t, u.Elem(), node, depth+1)
 	case *types.Slice:
-		return carriesPayload(t, u.Elem(), depth+1)
+		return carries(t, u.Elem(), node, depth+1)
 	case *types.Array:
-		return carriesPayload(t, u.Elem(), depth+1)
+		return carries(t, u.Elem(), node, depth+1)
 	case *types.Map:
-		return carriesPayload(t, u.Key(), depth+1) || carriesPayload(t, u.Elem(), depth+1)
+		return carries(t, u.Key(), node, depth+1) || carries(t, u.Elem(), node, depth+1)
 	default:
 		return false // a struct is a carrier's owner, not a carrier
 	}

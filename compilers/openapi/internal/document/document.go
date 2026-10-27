@@ -20,13 +20,12 @@ type Meta struct {
 	Docs           ir.Docs
 	Contact        *ir.Contact
 	License        *ir.License
-	Servers        []ir.Server
 	Unmodeled      ir.Unmodeled
 }
 
 // Lower lowers the document-level metadata that is not part of the type or
-// service graph: info, servers, and what the document writes that lowers to no
-// node of its own, kept verbatim (ir-design §10, §12).
+// service graph: info, and what the document writes that lowers to no node of
+// its own, kept verbatim (ir-design §12).
 //
 // It must run after every other lowering: which components it keeps depends on
 // what they reached (lowering.Ctx.Reached).
@@ -39,10 +38,6 @@ func Lower(c lowering.Ctx) (Meta, []ir.Diagnostic) {
 	retained, retainDiags := retainUnreferencedComponents(c)
 	m.Unmodeled = annotation.MergeUnmodeled(m.Unmodeled, retained)
 	diags = append(diags, retainDiags...)
-
-	servers, serverDiags := lowerServers(c)
-	m.Servers = servers
-	diags = append(diags, serverDiags...)
 
 	diags = append(diags, keepComponentMediaTypes(c, &m.Unmodeled)...)
 	diags = append(diags, keepJSONSchemaDialect(c, &m.Unmodeled)...)

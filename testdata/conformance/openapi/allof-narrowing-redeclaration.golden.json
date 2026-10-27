@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -42,6 +46,9 @@
         "canonical": "all_of_narrowing_redeclaration"
       },
       "docs": {},
+      "servers": [
+        "server/default"
+      ],
       "provenance": {
         "source": 0
       }
@@ -1718,15 +1725,19 @@
       "prim": "uuid"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
     }
-  ],
+  },
   "diagnostics": [
     {
       "severity": "info",

@@ -37,6 +37,12 @@ func checkIDs(doc *ir.Document) []Violation {
 			vs = append(vs, v)
 		}
 	}
+	for id, server := range doc.Servers {
+		if v, bad := idDefect(ir.IDKindServer, string(id), server.Provenance); bad {
+			v.Path = "servers[" + string(id) + "]"
+			vs = append(vs, v)
+		}
+	}
 	return append(vs, checkMemberIDs(doc)...)
 }
 
@@ -52,6 +58,7 @@ var kindPrefixes = map[reflect.Type]string{
 	reflect.TypeFor[ir.PropID]():       ir.IDKindProp,
 	reflect.TypeFor[ir.ParamID]():      ir.IDKindParam,
 	reflect.TypeFor[ir.EnumMemberID](): ir.IDKindEnumMember,
+	reflect.TypeFor[ir.ServerID]():     ir.IDKindServer,
 }
 
 // pointerDerived is the classes whose ID path is the pointer the declaring

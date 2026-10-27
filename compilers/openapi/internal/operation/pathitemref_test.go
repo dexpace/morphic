@@ -115,7 +115,7 @@ func TestPathItemRefSiblings_WebhookRoute(t *testing.T) {
 	assert.Equal(t, ir.OpID("op/openapi/webhooks/hooked/get"), referent.ID)
 
 	for _, op := range []ir.Operation{sibling, referent} {
-		assertPathItemSiblingConstructs(t, op, "/webhooks/hooked")
+		assertPathItemSiblingConstructs(t, doc, op, "/webhooks/hooked")
 	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, "/webhooks/hooked/bogusUse"),
 		"and the census names the use site's undeclared key where it was written")
@@ -169,7 +169,7 @@ func TestPathItemRefSiblings_CallbackRoute(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer("/components/pathItems/Cb/get"), referent.Provenance.Pointer)
 
 	for _, op := range []ir.Operation{sibling, referent} {
-		assertPathItemSiblingConstructs(t, op, usePtr)
+		assertPathItemSiblingConstructs(t, doc, op, usePtr)
 	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, usePtr+"/bogusUse"),
 		"and the census names the use site's undeclared key where it was written")
@@ -213,7 +213,7 @@ func TestPathItemRefSiblings_ItemConstructsReachEveryOperation(t *testing.T) {
 		openapitest.FindOp(t, doc, "usePut"), // the use site's own
 	}
 	for _, op := range mounted {
-		assertPathItemSiblingConstructs(t, op, "/paths/~1a")
+		assertPathItemSiblingConstructs(t, doc, op, "/paths/~1a")
 	}
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, "/paths/~1a/bogusUse"),
 		"and the census names it where it was written")
@@ -228,7 +228,7 @@ func TestPathItemRefSiblings_ItemConstructsReachEveryOperation(t *testing.T) {
 // cannot assert different constructs: what one route forgets is what all three
 // fail to notice, which is exactly how the servers half came to be missing on
 // two of the three routes (GitHub #39).
-func assertPathItemSiblingConstructs(t *testing.T, op ir.Operation, usePtr string) {
+func assertPathItemSiblingConstructs(t *testing.T, doc *ir.Document, op ir.Operation, usePtr string) {
 	t.Helper()
 	where := op.Name.Source
 
@@ -237,10 +237,10 @@ func assertPathItemSiblingConstructs(t *testing.T, op ir.Operation, usePtr strin
 	assert.JSONEq(t, `"written beside the ref"`, string(summary.Value))
 	assert.Equal(t, jsontext.Pointer(usePtr+"/summary"), summary.Provenance.Pointer)
 
-	servers, ok := op.Unmodeled["openapi:servers"]
-	require.True(t, ok, "%s keeps the use site's servers", where)
-	assert.JSONEq(t, `[{"url":"https://use.example"}]`, string(servers.Value))
-	assert.Equal(t, jsontext.Pointer(usePtr+"/servers"), servers.Provenance.Pointer)
+	assert.Equal(t, []string{"https://use.example"}, serversNamed(t, doc, op.Servers),
+		"%s is sent to the use site's servers", where)
+	assert.Equal(t, []ir.ServerID{ir.ServerID("server/openapi" + usePtr + "/servers/0")}, op.Servers,
+		"%s names them where the use site declares them", where)
 
 	ext, ok := op.Unmodeled["openapi:pathItem/x-beside"]
 	require.True(t, ok, "%s keeps the use site's x-*", where)

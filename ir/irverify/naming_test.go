@@ -331,13 +331,13 @@ func TestVerify_OptionalNameOwnersAreClean(t *testing.T) {
 func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 	t.Parallel()
 	server := validDoc()
-	server.Servers = []ir.Server{{URLTemplate: "https://x.example"}}
+	server.Servers = map[ir.ServerID]ir.Server{"server/x/a": {ID: "server/x/a", URLTemplate: "https://x.example"}}
 
 	for name, tc := range map[string]struct {
 		doc  *ir.Document
 		path string
 	}{
-		"server": {server, "doc.Servers[0].Name"},
+		"server": {server, "doc.Servers[server/x/a].Name"},
 		"response": {respondingDoc(ir.Response{Conditions: ok200()}),
 			"doc.Services[0].Groups[0].Operations[0].Responses[0].Name"},
 		// The error twin. ErrorCase.Name is Response.Name (GitHub #422), and the

@@ -102,24 +102,25 @@ func TestRequestCompression_JSONContract(t *testing.T) {
 }
 
 // TestHTTPParamBinding_JSONContract pins HTTPParamBinding's omitempty
-// contract — AllowReserved is a plain bool that must always serialize as a
-// declared fact, while every other field stays optional — and that a fully
+// contract — AllowReserved and AllowEmptyValue are plain bools that must always
+// serialize as declared facts, while every other field stays optional — and that a fully
 // populated HTTPParamBinding — including the multi-segment gRPC-transcoding
 // param path and body path — round-trips.
 func TestHTTPParamBinding_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.HTTPParamBinding{}, `{"allowReserved":false}`, ir.HTTPParamBinding{
-		Param:         "book",
-		ParamPath:     []ir.PropID{"p/book", "p/name"},
-		Location:      ir.HTTPLocationQuery,
-		WireName:      "book.name",
-		Style:         "deepObject",
-		Explode:       new(true),
-		AllowReserved: true,
-		PathPattern:   "shelves/*/books/*",
-		Prefix:        "x-",
-		ContentType:   "application/json",
-		BodyPath:      []ir.PropID{"p/body", "p/nested"},
+	assertJSONContract(t, ir.HTTPParamBinding{}, `{"allowReserved":false,"allowEmptyValue":false}`, ir.HTTPParamBinding{
+		Param:           "book",
+		ParamPath:       []ir.PropID{"p/book", "p/name"},
+		Location:        ir.HTTPLocationQuery,
+		WireName:        "book.name",
+		Style:           "deepObject",
+		Explode:         new(true),
+		AllowReserved:   true,
+		AllowEmptyValue: true,
+		PathPattern:     "shelves/*/books/*",
+		Prefix:          "x-",
+		ContentType:     "application/json",
+		BodyPath:        []ir.PropID{"p/body", "p/nested"},
 	})
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -273,4 +274,36 @@ func refComponent(t *testing.T, l *lowerer) *oas3.JSONSchema[oas3.Referenceable]
 	js, ok := l.ctx.Doc.Components.Schemas.Get("Ref")
 	require.True(t, ok, "the fixture declares component Ref")
 	return js
+}
+
+// TestPartEncodingEmpty_ReadsEveryField holds partEncodingEmpty to every field
+// ir.PartEncoding declares: each, set alone, makes the encoding one to keep. A
+// field the check skipped would leave a part declaring only that field out of
+// the map, and what it declared with it; reflecting over the type makes a field
+// the IR adds later fail here rather than drop in silence.
+func TestPartEncodingEmpty_ReadsEveryField(t *testing.T) {
+	t.Parallel()
+	require.True(t, partEncodingEmpty(ir.PartEncoding{}), "the zero value carries nothing")
+	typ := reflect.TypeFor[ir.PartEncoding]()
+	for i := range typ.NumField() {
+		f := typ.Field(i)
+		t.Run(f.Name, func(t *testing.T) {
+			t.Parallel()
+			var pe ir.PartEncoding
+			v := reflect.ValueOf(&pe).Elem().Field(i)
+			switch v.Kind() {
+			case reflect.Bool:
+				v.SetBool(true)
+			case reflect.String:
+				v.SetString("x")
+			case reflect.Slice:
+				v.Set(reflect.MakeSlice(v.Type(), 1, 1))
+			case reflect.Pointer:
+				v.Set(reflect.New(v.Type().Elem())) // a declared false is information too
+			default:
+				require.Failf(t, "unhandled field kind", "%s is a %s; teach this test to set it", f.Name, v.Kind())
+			}
+			assert.False(t, partEncodingEmpty(pe), "a part declaring only %s keeps its encoding", f.Name)
+		})
+	}
 }

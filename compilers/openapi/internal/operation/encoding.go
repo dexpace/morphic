@@ -35,33 +35,23 @@ func encodingConfig(c lowering.Ctx, ts *compile.Types, enc *soa.Encoding, encPtr
 		pe.Style = string(*enc.Style)
 	}
 	pe.Explode = enc.Explode
+	pe.AllowReserved = enc.GetAllowReserved()
 	unmodeled, encDiags := encodingUnmodeled(c, enc, encPtr, scope)
 	return pe, unmodeled, append(diags, encDiags...)
 }
 
 // encodingUnmodeled keeps what an Encoding Object declares that nothing in the
-// IR holds: `allowReserved`, which ir.PartEncoding has no field for, the
-// object's own x-*, and the keys the specification defines for no encoding at
-// all. Otherwise documents differing only in those compile to one IR (GitHub
-// #291).
+// IR holds: its nested encodings, the object's own x-*, and the keys the
+// specification defines for no encoding at all. Otherwise documents differing
+// only in those compile to one IR (GitHub #291).
 //
 // Entries ride on the owning ir.Content, since PartEncoding carries no
 // Unmodeled map, keyed under scope: "encoding/<part>" or "itemEncoding". One
 // content can hold several such entries in the same map, so the part tells them
 // apart.
-//
-// allowReserved carries ReasonNoIRHome and announces itself only when something
-// was written, as preserveHeaderSerialization does.
 func encodingUnmodeled(c lowering.Ctx, enc *soa.Encoding, encPtr jsontext.Pointer, scope string) (ir.Unmodeled, []ir.Diagnostic) {
 	var out ir.Unmodeled
-	at := encPtr + ids.Ptr("allowReserved")
-	kept, diags := annotation.PreserveNodeInto(&out, "openapi:"+scope+"/allowReserved",
-		nodeview.Child(enc.GetRootNode(), "allowReserved"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
-	if kept {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-			"encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled"))
-	}
-	diags = append(diags, nestedEncodings(c, &out, enc, encPtr, scope)...)
+	diags := nestedEncodings(c, &out, enc, encPtr, scope)
 	ext, extDiags := annotation.ExtensionsUnder(enc.GetExtensions(), c.ProvenanceAt, encPtr, scope)
 	out = annotation.MergeUnmodeled(out, ext)
 	diags = append(diags, extDiags...)

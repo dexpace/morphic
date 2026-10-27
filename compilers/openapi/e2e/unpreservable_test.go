@@ -53,10 +53,10 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 			at: "/components/schemas/M/allOf/0",
 		},
 		{
-			name: "path-item servers",
-			spec: openapitest.PathsSpec("  /x:\n    servers: [{url: 'https://a', x-t: " + unpreservableValue + "}]\n" +
-				"    get:\n      responses: {\"200\": {description: ok}}\n"),
-			at: "/paths/~1x/servers",
+			name: "response links",
+			spec: openapitest.PathsSpec("  /x:\n    get:\n      responses:\n        \"200\":\n" +
+				"          description: ok\n          links: {l: {operationId: g, x-t: " + unpreservableValue + "}}\n"),
+			at: "/paths/~1x/get/responses/200/links",
 		},
 		{
 			name: "residue keyword on a declaration",
@@ -221,11 +221,12 @@ paths:
   /p:
     post:
       operationId: p
-      parameters:
-        - {name: q, in: query, allowEmptyValue: true, schema: {type: string}}
       requestBody:
         content: {application/json: {schema: {type: string}}}
-      responses: {"204": {description: ok}}
+      responses:
+        "204":
+          description: ok
+          links: {self: {operationId: p}}
 `
 	doc, diags := parseFull(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -242,14 +243,14 @@ paths:
 			seen[entry.Reason] = true
 		}
 	}
-	// The no_ir_home witness is the query parameter's allowEmptyValue, which
-	// ir.HTTPParamBinding holds no field for
-	// (docs/compilers/openapi.md#allow-empty-value). It replaced the requestBody
-	// one when Payload.Required landed, so this reason now rides on a lowering
-	// that still has no typed home rather than on one that just grew one.
-	params := openapitest.FirstOp(t, svc).Params
-	require.Len(t, params, 1, "the operation must own the allowEmptyValue parameter")
-	for _, entry := range params[0].Unmodeled {
+	// The no_ir_home witness is the response's links, which ir.Response holds
+	// no field for (docs/compilers/openapi.md#links). It replaced a parameter's
+	// allowEmptyValue when the HTTP binding gained that field, so this reason
+	// rides on a lowering that still has no typed home rather than on one that
+	// just grew one.
+	responses := openapitest.FirstOp(t, svc).Responses
+	require.Len(t, responses, 1, "the operation must own the response writing links")
+	for _, entry := range responses[0].Unmodeled {
 		seen[entry.Reason] = true
 	}
 

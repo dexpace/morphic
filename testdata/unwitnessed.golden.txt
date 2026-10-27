@@ -191,7 +191,6 @@ member 0 0 Service.namespace
 member 0 0 Service.protocols
 member 0 0 Service.provenance
 member 0 0 Service.renames
-member 0 0 Service.servers
 member 0 0 Service.version
 member 0 0 StreamDetail.initial
 member 0 0 StreamDetail.requiresLength

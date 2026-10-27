@@ -297,6 +297,16 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
+	// The servers a document declares, wherever it declares them, and the
+	// registry they are lowered into. It is its own package for the reason auth
+	// is: the service walk lowers the document's own list and the operation walk
+	// a path item's and an operation's, into one registry the compiler's run
+	// assigns.
+	"compilers/openapi/internal/servers": {module + "/ir", module + "/compilers/compile",
+		module + "/compilers/openapi/internal/annotation",
+		module + "/compilers/openapi/internal/ids",
+		module + "/compilers/openapi/internal/lowering",
+		"github.com/speakeasy-api/openapi/openapi"},
 	// The schema walk, and everything that recurses with it: composition,
 	// reference following, and the preservation that hangs off both. It is one
 	// package because they are one cycle (micro-compiler-design §5), and it
@@ -333,12 +343,13 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/schema",
+		module + "/compilers/openapi/internal/servers",
 		"github.com/speakeasy-api/openapi" + subtreeSuffix, "go.yaml.in/yaml/v3"},
-	// What a document says about itself: its info, its servers, and what the
-	// objects around them write that lowers to no node of its own. It runs after
-	// both walks and reaches neither: the compiler hands it the context and
-	// assigns what it returns onto the Document.
-	"compilers/openapi/internal/document": {module + "/ir", module + "/compilers/compile",
+	// What a document says about itself: its info, and what the objects around
+	// it write that lowers to no node of its own. It runs after both walks and
+	// reaches neither: the compiler hands it the context and assigns what it
+	// returns onto the Document.
+	"compilers/openapi/internal/document": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",

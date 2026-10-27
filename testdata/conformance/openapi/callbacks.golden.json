@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -128,6 +132,9 @@
               ],
               "oneWay": false,
               "idempotency": {},
+              "servers": [
+                "server/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/servers/0"
+              ],
               "bindings": {
                 "http": [
                   {
@@ -139,20 +146,6 @@
                   }
                 ]
               },
-              "unmodeled": {
-                "openapi:servers": {
-                  "reason": "no_ir_home",
-                  "value": [
-                    {
-                      "url": "https://callbacks.example.com"
-                    }
-                  ],
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/servers"
-                  }
-                }
-              },
               "provenance": {
                 "source": 0,
                 "pointer": "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post"
@@ -161,31 +154,39 @@
           ]
         }
       ],
+      "servers": [
+        "server/default"
+      ],
       "provenance": {
         "source": 0
       }
     }
   ],
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
-    }
-  ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "path-item servers kept under Unmodeled; an operation has no server-scope list to bind them to",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    },
+    "server/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/servers/0": {
+      "id": "server/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/servers/0",
+      "name": {
+        "hint": "https_callbacks_example_com"
+      },
+      "urlTemplate": "https://callbacks.example.com",
+      "description": {},
       "provenance": {
         "source": 0,
-        "pointer": "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post"
+        "pointer": "/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/servers/0"
       }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.1",

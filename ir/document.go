@@ -8,7 +8,7 @@ package ir
 // bumps it, once, where the change lands on main. ir-design §2.1 holds that
 // policy and the history of what each bump changed, and
 // TestIRVersion_PinsTheEncodedShape holds it to the shape.
-const IRVersion = "0.19.0"
+const IRVersion = "0.20.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per ir-design §2.1. A differing
@@ -70,8 +70,12 @@ type Document struct {
 	Messages map[MessageID]Message `json:"messages,omitempty"`
 	// Auth is the auth scheme registry.
 	Auth map[AuthID]AuthScheme `json:"auth,omitempty"`
-	// Servers holds the endpoint templates.
-	Servers []Server `json:"servers,omitempty"`
+	// Servers is the server registry: every server the source declares, wherever
+	// it declares it, keyed by ID. The services, channels and operations a server
+	// serves name it by ID, in their own order (ir-design §10), so one declared
+	// for a scope every member of which overrides it is held here and named by
+	// none.
+	Servers map[ServerID]Server `json:"servers,omitempty"`
 	// TagDefs is the tag metadata registry; tag membership stays []string on the
 	// tagged nodes.
 	TagDefs []TagDef `json:"tagDefs,omitempty"`

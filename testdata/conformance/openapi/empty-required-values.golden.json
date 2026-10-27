@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -118,7 +122,8 @@
                         "location": "query",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -142,6 +147,10 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/openapi/servers/0",
+        "server/openapi/servers/1"
       ],
       "provenance": {
         "source": 0
@@ -218,14 +227,20 @@
       }
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/openapi/servers/0": {
+      "id": "server/openapi/servers/0",
       "name": {
         "hint": "server"
       },
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/0"
+      }
     },
-    {
+    "server/openapi/servers/1": {
+      "id": "server/openapi/servers/1",
       "name": {
         "hint": "https_region_example_com_base"
       },
@@ -241,9 +256,13 @@
           "name": "base",
           "docs": {}
         }
-      ]
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/1"
+      }
     }
-  ],
+  },
   "tagDefs": [
     {
       "docs": {

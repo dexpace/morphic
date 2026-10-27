@@ -1,8 +1,13 @@
 package ir
 
 // Server is a named endpoint template (ir-design §10). Servers are named
-// entities (AsyncAPI name-keyed servers, OpenAPI 3.2 Server.name).
+// entities (AsyncAPI name-keyed servers, OpenAPI 3.2 Server.name), registered in
+// Document.Servers wherever the source declares them, and the services,
+// channels and operations they serve name them by ID.
 type Server struct {
+	// ID is the server's stable synthetic identity, derived from where the source
+	// declares it.
+	ID ServerID `json:"id,omitempty"`
 	// Name is the server's naming.
 	Name Naming `json:"name"`
 	// URLTemplate is the endpoint URL, may contain {variables}.
@@ -28,6 +33,10 @@ type Server struct {
 	Bindings map[string]RawConfig `json:"bindings,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Provenance records where the server is declared. A server the source
+	// format supplies because the document declares none, as OpenAPI supplies
+	// one at "/", records no pointer: no position in the source writes it.
+	Provenance Provenance `json:"provenance"`
 }
 
 // ServerVariable is one variable of a Server's URL template (ir-design §10).

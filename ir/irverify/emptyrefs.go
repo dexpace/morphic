@@ -21,6 +21,7 @@ var idTypes = map[reflect.Type]bool{
 	reflect.TypeFor[ir.PropID]():       true,
 	reflect.TypeFor[ir.ParamID]():      true,
 	reflect.TypeFor[ir.EnumMemberID](): true,
+	reflect.TypeFor[ir.ServerID]():     true,
 }
 
 // idRule is what an empty value means at one ID-typed position.
@@ -63,6 +64,8 @@ var idPositions = map[string]idRule{
 	"Document.Channels": idElsewhere,
 	"Document.Messages": idElsewhere,
 	"Document.Auth":     idElsewhere,
+	"Document.Servers":  idElsewhere,
+	"Server.ID":         idElsewhere,
 	"TypeRef.Target":    idElsewhere,
 
 	"Idempotency.TokenParam": idOptional,
@@ -71,6 +74,7 @@ var idPositions = map[string]idRule{
 
 	"Callback.Operations":          idRequired,
 	"Channel.Messages":             idRequired,
+	"Channel.Servers":              idRequired,
 	"Content.Encoding":             idRequired,
 	"CtorValue.Scalar":             idRequired,
 	"Discriminator.Mapping":        idRequired,
@@ -83,6 +87,7 @@ var idPositions = map[string]idRule{
 	"MessageBinding.Messages":      idRequired,
 	"OTPBinding.Process":           idRequired,
 	"Operation.OverloadOf":         idRequired,
+	"Operation.Servers":            idRequired,
 	"ParamPath.Param":              idRequired,
 	"ParamPath.Segments":           idRequired,
 	"PropPath.Segments":            idRequired,
@@ -94,6 +99,7 @@ var idPositions = map[string]idRule{
 	"SchemeUse.Scheme":             idRequired,
 	"Service.Extends":              idRequired,
 	"Service.Renames":              idRequired,
+	"Service.Servers":              idRequired,
 	"ValueRef.Type":                idRequired,
 }
 

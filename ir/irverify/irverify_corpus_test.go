@@ -72,7 +72,7 @@ func TestVerify_Corpus(t *testing.T) {
 }
 
 // uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture
-// reaches: path-item servers and an error response's own x-* extension. The
+// reaches: an error response's own x-* extension. The operation's x-*, the
 // parameter's xml hints and the `items` an object schema cannot hold are
 // reached by the corpus too; they are here so the spec covers every field
 // unmodeledKeys reads (the operation, its parameters, its errors and the type
@@ -89,6 +89,7 @@ paths:
       - url: https://widgets.example.com
     get:
       operationId: listWidgets
+      x-op: kept
       parameters:
         - name: tag
           in: query
@@ -153,7 +154,7 @@ func TestVerify_UnmodeledSitesOutsideTheCorpus(t *testing.T) {
 	doc := compile(t, "unmodeled-sites.yaml", []byte(uncorpusedUnmodeled))
 	require.NotNil(t, doc)
 	require.Equal(t, []string{
-		"openapi:items", "openapi:servers", "openapi:x-mark", "openapi:xml",
+		"openapi:items", "openapi:x-mark", "openapi:x-op", "openapi:xml",
 	}, unmodeledKeys(doc), "the spec must reach every preserve call this test exists for")
 
 	assert.Empty(t, irverify.Verify(doc))

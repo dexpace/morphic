@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 )
 
 // TestLowerService_CanceledContextLowersNoPathOrWebhook holds both walk loops to
@@ -39,7 +40,7 @@ webhooks:
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc, _, diags := operation.LowerService(ctx, c, compile.NewTypes())
+	svc, _, diags := operation.LowerService(ctx, c, compile.NewTypes(), servers.NewRegistry())
 
 	assert.Empty(t, diags)
 	assert.Empty(t, svc.Groups, "neither the path loop nor the webhook loop lowered an operation")

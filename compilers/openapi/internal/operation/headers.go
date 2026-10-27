@@ -12,7 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -70,7 +69,10 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 // schema.FillPropertyDetail like a model property's: a header schema declares
 // docs, constraints, xml, examples and validation-only keywords the same way,
 // and ir.Property has a field for each, so the header path had no reason to drop
-// them (GitHub #116).
+// them (GitHub #116). Its style and explode are what Property.Style and Explode
+// hold, as declared: undeclared, each stays unset rather than being written as
+// the default. Written beside content, where they have no effect, they lower
+// unreported, as a parameter's do (GitHub #887).
 func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(dc, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
 		"header", "ir.Property")
@@ -96,34 +98,12 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name stri
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
-	diags = append(diags, schema.FillPropertyDetail(dc, ts, &p, elected.js, elected.pointer)...)
-	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
-	return p, append(diags, preserveHeaderSerialization(dc, &p, h, hdecl)...)
-}
-
-// preserveHeaderSerialization keeps the two serialization controls a header
-// object declares. OpenAPI §4.8.21 lets a header write `style` and `explode`,
-// and explode governs how an array or object value is written on the wire, but
-// ir.Property has a field for neither. ir.PartEncoding does, but that is a
-// multipart part's config, and ir.Encoding names a value-encoding scheme, not a
-// style. They are kept verbatim with ReasonNoIRHome, since the IR can close the
-// gap by adding the fields, as with a parameter's xml hints.
-//
-// A header that declares neither records nothing.
-func preserveHeaderSerialization(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl jsontext.Pointer) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for _, keyword := range []string{"style", "explode"} {
-		at := hdecl + ids.Ptr(keyword)
-		kept, keptDiags := annotation.PreserveNodeInto(&p.Unmodeled, "openapi:"+keyword,
-			nodeview.Child(h.GetRootNode(), keyword), ir.ReasonNoIRHome, c.ProvenanceAt(at))
-		diags = append(diags, keptDiags...)
-		if !kept {
-			continue
-		}
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-			"header %s has no ir.Property home; kept verbatim under Unmodeled", keyword))
+	if h.Style != nil {
+		p.Style = string(*h.Style)
 	}
-	return diags
+	p.Explode = h.Explode
+	diags = append(diags, schema.FillPropertyDetail(dc, ts, &p, elected.js, elected.pointer)...)
+	return p, append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
 }
 
 // applyHeaderAnnotations overlays the annotations the header object writes on

@@ -34,6 +34,13 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi",
+      "openapi@common.yaml",
+      "openapi@paths.yaml",
+      "openapi@schemas~1pet.yaml"
+    ],
     "t": [
       "anon",
       "anon@common.yaml",
@@ -199,7 +206,8 @@
                         "wireName": "limit",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -484,7 +492,8 @@
                         "wireName": "X-Trace",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
@@ -492,7 +501,8 @@
                         "wireName": "petId",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -507,6 +517,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -898,15 +911,19 @@
       "prim": "uuid"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.1",

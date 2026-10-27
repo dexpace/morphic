@@ -463,6 +463,8 @@ func populatedProperty() ir.Property {
 		Default:          &ir.Value{Kind: ir.ValueString, Str: "default"},
 		Constraints:      populatedConstraints(),
 		Encoding:         populatedEncoding(),
+		Style:            "simple",
+		Explode:          new(true),
 		Args: []ir.Parameter{
 			{Name: ir.Naming{Source: "limit"}, Type: populatedTypeRef(), Required: true},
 			{Name: ir.Naming{Source: "offset"}, Type: populatedTypeRef(), Required: false},

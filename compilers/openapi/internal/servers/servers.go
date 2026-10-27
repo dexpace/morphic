@@ -1,4 +1,4 @@
-package document
+package servers
 
 import (
 	"encoding/json/jsontext"
@@ -14,29 +14,76 @@ import (
 )
 
 // unnamedServerHint names a server whose URL template holds no word to derive a
-// hint from — "/" in practice, the server GetServers injects for a document
+// hint from — "/" in practice, the server OpenAPI supplies for a document
 // declaring none. The word says what the entity is; the shared mint for a name
 // the source left out would report an omission that never happened, since below
 // 3.2 a document has no way to name a server at all.
 const unnamedServerHint = "server"
 
-// lowerServers lowers the document's servers in source order, each with its URL
-// template, description, and templated variables (ir-design §10). It returns nil
-// rather than an empty slice when every entry was skipped, so a document
-// declaring no usable server leaves the field unset.
-func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
-	// GetServers never returns an empty slice — it injects a default "/" server
-	// when none are declared — so the loop always runs at least once.
-	servers := c.Doc.GetServers()
-	out := make([]ir.Server, 0, len(servers))
+// defaultServerURL is the URL of the server OpenAPI supplies when the
+// document's servers field is absent or empty.
+const defaultServerURL = "/"
+
+// Registry is every server lowered so far, keyed by ID, for one compile. A
+// declaration is lowered once: a path item two paths mount registers its
+// servers at the first mount and names the same IDs at the second, reporting
+// nothing twice. The zero value is not usable; NewRegistry builds one.
+type Registry struct {
+	byID map[ir.ServerID]ir.Server
+}
+
+// NewRegistry returns an empty Registry.
+func NewRegistry() *Registry {
+	return &Registry{byID: map[ir.ServerID]ir.Server{}}
+}
+
+// Root registers the document's own servers and returns their IDs in source
+// order: the servers its service is sent to. A document whose servers field is
+// absent or empty is served at "/", which OpenAPI supplies in its place and
+// which is minted at ids.DefaultServer with no pointer, since nothing in the
+// source writes it (GitHub #672).
+func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
+	if len(c.Doc.Servers) > 0 {
+		return r.Declared(c, c.Doc.Servers, "")
+	}
+	id := ids.DefaultServer()
+	if _, held := r.byID[id]; !held {
+		r.byID[id] = ir.Server{
+			ID:          id,
+			Name:        serverName(&soa.Server{URL: defaultServerURL}),
+			URLTemplate: defaultServerURL,
+			Provenance:  c.ProvenanceAt(""),
+		}
+	}
+	return []ir.ServerID{id}, nil
+}
+
+// Declared registers the servers list the object at owner declares and returns
+// their IDs in source order, or nil when it lowers none. c is the context of the
+// document that declares the list, so each server's ID and provenance name its
+// own position there, whichever mount reached it.
+//
+// A nil entry, which no valid document writes, lowers nothing and keeps the
+// index it occupies, so the next entry's ID is still its own position.
+func (r *Registry) Declared(c lowering.Ctx, list []*soa.Server, owner jsontext.Pointer) ([]ir.ServerID, []ir.Diagnostic) {
+	if len(list) == 0 {
+		return nil, nil
+	}
+	out := make([]ir.ServerID, 0, len(list))
 	var diags []ir.Diagnostic
-	for i, s := range servers {
+	for i, s := range list {
 		if s == nil {
 			continue
 		}
-		one, serverDiags := lowerServer(c, s, ids.Ptr("servers", strconv.Itoa(i)))
+		at := owner + ids.Ptr("servers", strconv.Itoa(i))
+		id := c.IDs().Server(at)
+		out = append(out, id)
+		if _, held := r.byID[id]; held {
+			continue
+		}
+		one, serverDiags := lowerServer(c, s, id, at)
+		r.byID[id] = one
 		diags = append(diags, serverDiags...)
-		out = append(out, one)
 	}
 	if len(out) == 0 {
 		return nil, diags
@@ -44,18 +91,29 @@ func lowerServers(c lowering.Ctx) ([]ir.Server, []ir.Diagnostic) {
 	return out, diags
 }
 
-// lowerServer lowers one server, named by serverName, keeping its x-* on the
-// ir.Server itself; sptr is the server's own pointer in the servers list.
-func lowerServer(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
+// Servers returns the registry, or nil when nothing was registered, so a
+// Document declaring no server leaves the field unset.
+func (r *Registry) Servers() map[ir.ServerID]ir.Server {
+	if len(r.byID) == 0 {
+		return nil
+	}
+	return r.byID
+}
+
+// lowerServer lowers one server declared at sptr as id, keeping its x-* and
+// undeclared keys on the ir.Server itself.
+func lowerServer(c lowering.Ctx, s *soa.Server, id ir.ServerID, sptr jsontext.Pointer) (ir.Server, []ir.Diagnostic) {
 	vars, diags := serverVariables(c, s, sptr)
 	ext, extDiags := annotation.ExtensionsFrom(s.GetExtensions(), c.ProvenanceAt, sptr)
 	diags = append(diags, extDiags...)
 	out := ir.Server{
+		ID:          id,
 		Name:        serverName(s),
 		URLTemplate: s.GetURL(),
 		Description: ir.Docs{Description: s.GetDescription()},
 		Variables:   vars,
 		Unmodeled:   ext,
+		Provenance:  c.ProvenanceAt(sptr),
 	}
 	return out, append(diags, annotation.UnknownKeysIn(&out.Unmodeled, s, c.ProvenanceAt, sptr)...)
 }
