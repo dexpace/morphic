@@ -19,7 +19,7 @@ import (
 // parent.mount roots callback operation identity, so two parents sharing one
 // $ref'd callback keep distinct callback operations; parent.decl is the base a
 // $ref'd callback or path item resolves against (issue #107).
-func lowerCallbacks(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims, src *soa.Operation, parent opPointers, inferred string) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbacks(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims, src *soa.Operation, parent opPointers, inferred ir.Inferred) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
 		return nil, nil, nil, nil
@@ -68,7 +68,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims
 // An expression whose item mounts no operation keeps what the item wrote on the
 // returned map, which goes where the Callback Object's own extensions go, the
 // parent's HTTP binding.
-func lowerCallbackOps(ts *compile.Types, claims *operationIDClaims, layers []layer, mount jsontext.Pointer, expr, inferred string) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(ts *compile.Types, claims *operationIDClaims, layers []layer, mount jsontext.Pointer, expr string, inferred ir.Inferred) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var orphan ir.Unmodeled
 	mounted, diags := mountPathItem(ts, claims, layers, mount, opContext{key: expr, inferred: inferred}, &orphan)
 	opIDs := make([]ir.OpID, 0, len(mounted))

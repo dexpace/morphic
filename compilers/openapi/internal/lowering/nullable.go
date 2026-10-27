@@ -1,10 +1,12 @@
 package lowering
 
+import "github.com/dexpace/morphic/ir"
+
 // NullableWideningHeuristic is the name ir.TypeRef.Inferred carries on a
 // reference whose null the nullable-widening policy read in where the document's
 // version does not. It is a constant for the reason StreamingMediaTypeHeuristic
 // is: an auditor greps for it.
-const NullableWideningHeuristic = "nullable-widening"
+const NullableWideningHeuristic ir.Inferred = "nullable-widening"
 
 // NullableWidening is the nullable-widening policy: whether a null a schema
 // spells widens what it is written on rather than conjoining with it, so that

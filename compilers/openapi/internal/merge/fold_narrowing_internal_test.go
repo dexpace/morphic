@@ -190,7 +190,7 @@ func TestFold_ANarrowingIsNoDrop(t *testing.T) {
 // type, whose null bit and marker say nothing, so the winner's stand alone.
 func TestFold_ANarrowingCarriesTheNullMarkers(t *testing.T) {
 	t.Parallel()
-	nullRef := func(k ir.PrimKind, nullable bool, inferred string) ir.TypeRef {
+	nullRef := func(k ir.PrimKind, nullable bool, inferred ir.Inferred) ir.TypeRef {
 		r := primRef(k)
 		r.Nullable, r.Inferred = nullable, inferred
 		return r

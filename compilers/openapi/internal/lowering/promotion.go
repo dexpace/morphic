@@ -13,7 +13,7 @@ import (
 // whose typed field was read out of a vendor extension. It is a constant
 // because the marker is what an auditor greps for, and a spelling written at
 // the producing site and again at a reading test can drift.
-const ExtensionPromotionHeuristic = "extension-promotion"
+const ExtensionPromotionHeuristic ir.Inferred = "extension-promotion"
 
 // extensionKeyPrefix is the namespace an x-* key is kept under in Unmodeled.
 // Promotion reads the preserved entry rather than the source node, so it has to

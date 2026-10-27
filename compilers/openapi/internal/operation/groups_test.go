@@ -192,7 +192,7 @@ func TestGrouping_ByPathPrefixInferred(t *testing.T) {
 	require.Len(t, byName["orders"].Operations, 2, "the callback operation is placed beside its parent")
 	for _, g := range svc.Groups {
 		for _, op := range g.Operations {
-			assert.Equal(t, "group-path-prefix", op.Provenance.Inferred, "op %s must be marked inferred", op.ID)
+			assert.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred, "op %s must be marked inferred", op.ID)
 		}
 	}
 }
