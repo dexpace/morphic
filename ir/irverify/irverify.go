@@ -26,6 +26,11 @@ type Violation struct {
 // Verify runs every structural invariant check over doc and returns the
 // violations, sorted by (Code, Path) for deterministic output. A structurally
 // sound document yields nil.
+//
+// A check builds a path, or any other string, only for a violation, so a value
+// with nothing wrong costs it nothing. What ir reads with a path is the
+// exception: each declaration, and each reference whose target the walk has
+// yet to reach.
 func Verify(doc *ir.Document) []Violation {
 	return verify(doc, ir.WalkValues)
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
@@ -69,6 +70,27 @@ func TestVerify_Corpus(t *testing.T) {
 			assert.Empty(t, irverify.Verify(doc), "%s", f)
 		})
 	}
+}
+
+// TestWalkChecks_ACleanValueCostsNothing holds the walking checks, together, to
+// costing nothing for a value none has anything to report on, in a document the
+// OpenAPI compiler produces: each builds a path, or any other string, only once
+// it has a violation to place. extensions-x.yaml writes an extension on every
+// object OpenAPI admits one on, so its document reaches nearly every node a
+// compile produces. checkReferentialIntegrity is left out: a reference to what
+// the walk has yet to declare is kept with its path, ir.IDReferences' design,
+// which ir pins. It is not run in parallel: AllocsPerRun measures the process.
+func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
+	data, err := os.ReadFile("../../testdata/conformance/openapi/extensions-x.yaml")
+	require.NoError(t, err)
+	doc := compile(t, "extensions-x.yaml", data)
+	require.NotNil(t, doc)
+	require.Empty(t, irverify.Verify(doc), "the document is clean, or what is measured is a report")
+
+	checks := irverify.WalkChecks(doc)
+	require.Contains(t, checks, "checkReferentialIntegrity")
+	delete(checks, "checkReferentialIntegrity")
+	assert.Empty(t, irtest.AllocatingVisits(doc, slices.Collect(maps.Values(checks))...))
 }
 
 // uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture

@@ -4,6 +4,8 @@ import (
 	"maps"
 	"reflect"
 	"testing"
+
+	"github.com/dexpace/morphic/ir"
 )
 
 // EntryReader is entryReader, for this package's external tests.
@@ -47,4 +49,14 @@ func HeldLists() map[string]bool {
 		}
 	}
 	return held
+}
+
+// WalkChecks builds every walking check for doc, keyed by its function's name,
+// as Verify's walk is shown them, for this package's external tests.
+func WalkChecks(doc *ir.Document) map[string]ir.Visitor {
+	checks := map[string]ir.Visitor{}
+	for _, newCheck := range walkChecks() {
+		checks[checkName(newCheck)] = newCheck(doc)
+	}
+	return checks
 }
