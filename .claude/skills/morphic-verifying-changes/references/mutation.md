@@ -111,7 +111,7 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
 ## Retyping a field can make testify assertions vacuous
 `testify-typed-field`
 
-- **Rule.** After retyping a field, and after every rebase of that change, scan testify calls whose
+- **Rule.** After retyping a field, and after every merge of main into it, scan testify calls whose
   two sides have different types, with a `go/packages` scan validated on a planted case.
 - **Why.** testify compares dynamic types, so `NotEqual(t, "/a", p.Pointer)` always passes once
   the field is a `jsontext.Pointer` (#549). grep cannot tell.

@@ -2,9 +2,14 @@
 
 Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
 """
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 
 import affected_packages as ap
+
+HERE = Path(__file__).resolve().parent
 
 M = "example.com/m"
 
@@ -49,6 +54,15 @@ class DependentsTest(unittest.TestCase):
         ])
         want = [f"{M}/a", f"{M}/b", f"{M}/c", f"{M}/hit"]
         self.assertEqual(ap.dependents(listing, {f"{M}/hit"}), want)
+
+
+class CrashTest(unittest.TestCase):
+    def test_a_missing_tool_exits_2_never_a_verdict(self):
+        env = {"PATH": "", "PYTHONDONTWRITEBYTECODE": "1"}
+        script = str(HERE / "affected_packages.py")
+        run = subprocess.run([sys.executable, script], capture_output=True, text=True, env=env)
+        self.assertEqual(run.returncode, 2, run.stderr)
+        self.assertEqual(run.stdout, "")
 
 
 if __name__ == "__main__":

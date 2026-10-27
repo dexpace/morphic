@@ -14,6 +14,7 @@ import json
 import re
 import subprocess
 import sys
+import traceback
 from typing import Iterable, Iterator
 
 # Split so this file does not match its own patterns.
@@ -92,4 +93,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception:  # a crash is no verdict: exit 2, never a code that means one
+        traceback.print_exc()
+        sys.exit(2)

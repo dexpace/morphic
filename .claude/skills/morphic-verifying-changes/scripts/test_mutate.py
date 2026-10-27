@@ -74,6 +74,14 @@ class MutateTest(unittest.TestCase):
         self.assertEqual(mutate.main([str(self.file), "good", "bad", "echo"]), mutate.UNVERIFIED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
 
+    def test_a_command_that_cannot_start_is_no_verdict(self):
+        command = [sys.executable, str(HERE / "mutate.py"), str(self.file), "good", "bad", "--",
+                   "/no/such/command"]
+        run = subprocess.run(command, capture_output=True, text=True,
+                             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(run.returncode, mutate.UNVERIFIED, run.stderr)
+        self.assertEqual(self.file.read_text(), "keep good keep\n")
+
     def test_a_terminated_run_restores_the_file(self):
         script = HERE / "mutate.py"
         proc = subprocess.Popen([sys.executable, str(script), str(self.file), "good", "bad", "--",

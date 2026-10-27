@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import traceback
 from collections import Counter
 from pathlib import Path
 
@@ -107,10 +108,10 @@ def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[
     head = git(root, "rev-parse", "FETCH_HEAD").stdout.strip()
     base = f"{remote}/main"
     mb = git(root, "merge-base", base, head).stdout.strip()
-    checkout(root, directory, head)
-
     fields = "title,body,state,isDraft,author,closingIssuesReferences"
     pr = json.loads(run("gh", "pr", "view", number, "--json", fields).stdout)
+    checkout(root, directory, head)  # last, so a failure above leaves no worktree behind
+
     draft = ", draft" if pr["isDraft"] else ""
     out = [f"PR #{number}  {pr['state']}{draft}, by {pr['author']['login']}",
            f"worktree   {directory} @ {head[:12]} (merge base {mb[:12]})", ""]
@@ -165,4 +166,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except Exception:  # a crash is no verdict: exit 2, never a code that means one
+        traceback.print_exc()
+        sys.exit(2)

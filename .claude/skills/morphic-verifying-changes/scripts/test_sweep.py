@@ -3,6 +3,7 @@
 Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
 """
 import io
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -10,6 +11,8 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 import sweep
+
+HERE = Path(__file__).resolve().parent
 
 # A stand-in for cmd/morphic: prints IR naming its side, and differs or hangs where told to.
 FAKE = """#!{python}
@@ -85,6 +88,15 @@ class SweepTest(unittest.TestCase):
         args = sweep.parse(["-b", "x", "testdata", "--", "--opt", "a=b"])
         got = (args.base, args.corpus, args.flags)
         self.assertEqual(got, ("x", ["testdata"], ["--opt", "a=b"]))
+
+
+class CrashTest(unittest.TestCase):
+    def test_a_missing_tool_exits_2_never_a_verdict(self):
+        env = {"PATH": "", "PYTHONDONTWRITEBYTECODE": "1"}
+        run = subprocess.run([sys.executable, str(HERE / "sweep.py")], capture_output=True,
+                             text=True, env=env)
+        self.assertEqual(run.returncode, 2, run.stderr)
+        self.assertEqual(run.stdout, "")
 
 
 if __name__ == "__main__":
