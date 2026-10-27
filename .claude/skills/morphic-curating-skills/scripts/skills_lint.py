@@ -251,7 +251,8 @@ class Linter:
         scripts = d / "scripts"
         if not scripts.is_dir():
             return
-        siblings = {p.stem for p in scripts.glob("*.py")}
+        # A script may import any skill's script, as preflight.py imports the review's.
+        siblings = {p.stem for p in (self.root / ".claude" / "skills").glob("*/scripts/*.py")}
         for s in sorted(scripts.iterdir()):
             if s.name == "__pycache__":
                 continue

@@ -36,7 +36,7 @@ Each finds what the others cannot; run all of them.
    claim to execute. Counts are derived
    (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`).
 6. **Process.** Title, commit messages, body, closing keywords and scope, by
-   `references/process.md`.
+   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`.
 7. **New commits.** When the branch or `origin/main` moves, rerun the setup and every pass the new
    commits can affect.
 
@@ -59,5 +59,4 @@ than the instance.
 ## References
 
 - `references/review-probes.md`: probes that found what earlier rounds missed.
-- `references/process.md`: commits, PR text, scope and the tracker.
 

@@ -12,6 +12,18 @@ Probes that found what earlier review rounds missed. Each one runs through
 - **Why.** Three rounds that took their agenda from the PR body found only body defects. A fourth
   that read the new file found two code defects in it (#340).
 
+## Review the tree as it will merge
+`recheck-against-final-tree`
+
+- **Rule.** After review fixes land or `main` is merged in, review the branch as it will merge:
+  rerun the probes the body and comments cite and every sweep the branch relies on over the merged
+  tree, re-diff each change `main` made to files the branch touches, and look for helpers `main`
+  renamed, features on both sides that interact, and normative text `main` moved.
+- **Why.** Merges dropped `main`'s wider change in a conflict, left comments asserting behaviour
+  `main` had changed, and left PR bodies stating facts a later commit falsified (#837, #382).
+- **Probe.** `git diff <merge-base>..origin/main -- <files the branch touches>` and confirm each
+  hunk survives; rerun each command the body quotes and diff its output.
+
 ## Never accept "as on main" inside the change's mechanism
 `better-than-main`
 

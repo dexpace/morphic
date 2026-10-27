@@ -137,7 +137,12 @@ class LintTest(unittest.TestCase):
     @unittest.skipUnless(hasattr(skills_lint.sys, "stdlib_module_names"),
                          "Python 3.9 lists no standard library")
     def test_an_import_outside_the_standard_library_is_reported(self):
-        write(self.root, ".claude/skills/good-skill/scripts/tool.py", "import yaml\n")
+        write(self.root, ".claude/skills/other-skill/SKILL.md",
+              "---\nname: other-skill\ndescription: Use when testing.\n---\n")
+        write(self.root, ".claude/skills/other-skill/scripts/shared.py", "x = 1\n")
+        write(self.root, ".claude/skills/other-skill/scripts/test_shared.py", "import shared\n")
+        write(self.root, ".claude/skills/good-skill/scripts/tool.py",
+              "import yaml\nimport shared\n")
         _, got = self.lint()
         want = (".claude/skills/good-skill/scripts/tool.py:1: "
                 "imports yaml, outside the standard library")

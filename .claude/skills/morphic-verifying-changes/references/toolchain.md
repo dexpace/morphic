@@ -38,14 +38,6 @@
 - **Why.** Two dials of a freed port failed differently under the full suite's load, and another
   test could bind it in between (#1140).
 
-## A build in the worktree can dirty it
-`build-dirties-tree`
-
-- **Rule.** Build a command to `-o /dev/null` or a temporary path, and check
-  `git status --untracked-files=all` before committing.
-- **Why.** `go build ./cmd/morphic` writes the binary into the working directory, one `git add -A`
-  from a commit (#828).
-
 ## Temporary instrumentation needs -v
 `instrument-with-v`
 
