@@ -879,17 +879,22 @@ the composition entries that name no model. Its rules:
   at any distance, unless that model composes it too; and of two declarations whose models do not
   compose each other, the later conjunct's wins: a `Mixin`'s over the `Base`'s, a later `Mixin`'s
   over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
-  slot with its own type. The member takes every facet but presence — type, visibility, default,
-  docs — from the declaration it takes, and lists the ones it overrides, which is where a consumer
-  conjoining more finds them.
-- *Presence.* A member is required where any of its declarations is `Required`, or any model the
-  walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct requires, so
-  requiredness only accumulates. A name a `Requires` lists that no member declares is undeclared, a
-  member only the catch-all governs.
+  slot with its own type. The member takes every facet but whether it is required — type,
+  `Presence`, visibility, default, docs — from the declaration it takes, and lists the ones it
+  overrides, which is where a consumer conjoining more finds them.
+- *Requiredness.* A member is required where any of its declarations is `Required`, or any model
+  the walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct
+  requires, so requiredness only accumulates. A name a `Requires` lists that no member declares is
+  undeclared, a member only the catch-all governs.
 - *Conjuncts that are no model.* A composition entry naming no model once read through alias
   scalars — a scalar, an enum, a union, a map, a list, or a type the registry does not hold —
   contributes no property, so the flattening lists the entry's target as written, once, for its
   consumer to lower (`Base` and `Mixins` name whatever the source composed with, below).
+- *What it leaves.* A catch-all, `AdditionalProps` and `Additional`, is not flattened: a consumer
+  reads the model's own (emitter-design §3.2), so a conjunct closing its property set is the
+  consumer's to weigh. A property marked `Flatten` is one member like any other, the hoisting of its
+  fields being its wire's (§5.1). Layout order is no wire order: a `Positional` model's elements
+  follow their `WireID`.
 - *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
   (§7.2) or a discriminator's `Property`, names the declaration the flattening of that model takes,
   the content's type for an encoding key, so a consumer finds it on the member itself. The OpenAPI
@@ -910,8 +915,11 @@ at `efafa0d0`), 1,197 of the 3,866 composed models redeclare a wire name. Of the
 between declarations of different types whose models do not compose each other, 1,788 are an error
 response composing a success envelope and, after it, a failure schema
 (`success: false`, `result: null`), which an earlier-conjunct rule would type as the success. 775
-members are required only through a declaration they override, which a rule reading presence off
-the declaration taken alone would make optional.
+members are required only through a declaration they override, which a rule reading requiredness
+off the declaration taken alone would make optional. Visibility is the declaration taken's because
+both directions occur: of the 41 members whose declarations disagree on it, 28 take one that makes
+them read-only, and 13 one that lifts the read-only an overridden declaration states, as a batch
+patch body redeclares the `id` it must send, which a conjunction of the two would forbid writing.
 
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](./compilers/openapi.md#allof-classification).

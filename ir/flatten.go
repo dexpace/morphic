@@ -1,7 +1,8 @@
 package ir
 
 // Flattening is the shape of a model across its composition, as
-// [FlattenedProperties] computes it (ir-design §4.3). It points into the
+// [FlattenedProperties] computes it (ir-design §4.3): its properties and which
+// are required, while each model's catch-all stays its own. It points into the
 // registry it was computed from and copies no property, so it describes that
 // registry as it stood; a caller that changes the registry flattens again.
 type Flattening struct {
