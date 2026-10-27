@@ -269,12 +269,12 @@ func TestRepairGrafts_TakesShapesAParseNeverProduces(t *testing.T) {
 	assert.True(t, substituteGrafts(t.Context(), withNil, reachable, new(budget.New(budget.AtMost(maxNodes)))), "and skipped again on the way back")
 }
 
-// TestApplyWalks_StopPastTheirBoundNotAtIt pins the edge of each walk around
-// an application: a tree it reads exactly fills the bound and is read whole,
-// and a bound one short of it cuts the walk. The snapshot and the reachable
-// set read every node, attribution every position, keys aside, and the graft
-// repair every child.
-func TestApplyWalks_StopPastTheirBoundNotAtIt(t *testing.T) {
+// TestApplyWithin_WalksStopPastTheirBoundNotAtIt pins the edge of each walk
+// applyWithin's walks bound around an application: a tree it reads exactly
+// fills the bound and is read whole, and a bound one short of it cuts the
+// walk. The snapshot and the reachable set read every node, attribution every
+// position, keys aside, and the graft repair every child.
+func TestApplyWithin_WalksStopPastTheirBoundNotAtIt(t *testing.T) {
 	t.Parallel()
 	tree := func() *yaml.Node {
 		return ynode.Map(ynode.Scalar("a"), ynode.Map(ynode.Scalar("b"), ynode.Scalar("c")), ynode.Scalar("d"), ynode.Scalar("e"))

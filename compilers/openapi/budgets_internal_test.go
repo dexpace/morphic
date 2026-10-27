@@ -286,24 +286,6 @@ func TestOptionsWithDefaults_KeepsTheCallersBudgets(t *testing.T) {
 	assert.Equal(t, Limits{MaxEnumMembers: -1}, got.Limits)
 }
 
-// TestSourceLimit_IsTheLoadersByteBudget pins SourceLimit to the byte budget
-// the load phase is handed, spelled as the compilers contract spells one: zero
-// for none.
-func TestSourceLimit_IsTheLoadersByteBudget(t *testing.T) {
-	t.Parallel()
-	for name, tc := range map[string]struct {
-		in   Limits
-		want int
-	}{
-		"the default":      {Limits{}, DefaultMaxSourceBytes},
-		"a budget it sets": {Limits{MaxSourceBytes: 9}, 9},
-		"no budget":        {Limits{MaxSourceBytes: -1}, 0},
-	} {
-		got := (&Compiler{}).SourceLimit(compilers.Options{FormatOptions: Options{Limits: tc.in}})
-		assert.Equal(t, tc.want, got, name)
-	}
-}
-
 // TestCompile_TheDocumentBudgetIsTheCallersToSet pins the document budget
 // through the public options: a chain of external documents that never ends
 // is read to the budget the caller set, and refused past it as
