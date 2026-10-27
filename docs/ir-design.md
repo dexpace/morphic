@@ -881,7 +881,9 @@ the composition entries that name no model. Its rules:
   over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
   slot with its own type. The member takes every facet but whether it is required — type,
   `Presence`, visibility, default, docs — from the declaration it takes, and lists the ones it
-  overrides, which is where a consumer conjoining more finds them.
+  overrides, which is where a consumer conjoining more finds them. Nothing is reported: redeclaring
+  is how a subtype narrows, and whether two declarations agree is a question about their types,
+  which the flattening does not ask.
 - *Requiredness.* A member is required where any of its declarations is `Required`, or any model
   the walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct
   requires, so requiredness only accumulates. A name a `Requires` lists that no member declares is
@@ -909,17 +911,18 @@ the composition entries that name no model. Its rules:
   a function of `ir`.
 
 Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
-declarations is wrong on the wire, and the later conjunct is where a spec writes the
-specialization. On the golden spec (`cloudflare/api-schemas` `openapi.json` at `e2b8c60`, compiled
-at `efafa0d0`), 1,197 of the 3,866 composed models redeclare a wire name. Of the 1,811 overrides
-between declarations of different types whose models do not compose each other, 1,788 are an error
-response composing a success envelope and, after it, a failure schema
-(`success: false`, `result: null`), which an earlier-conjunct rule would type as the success. 775
-members are required only through a declaration they override, which a rule reading requiredness
-off the declaration taken alone would make optional. Visibility is the declaration taken's because
-both directions occur: of the 41 members whose declarations disagree on it, 28 take one that makes
-them read-only, and 13 one that lifts the read-only an overridden declaration states, as a batch
-patch body redeclares the `id` it must send, which a conjunction of the two would forbid writing.
+declarations is wrong on the wire, and the later conjunct is where a spec writes the specialization.
+On the golden spec (`cloudflare/api-schemas` `openapi.json` at `e2b8c60`, compiled at `efafa0d0`),
+1,197 of the 3,866 composed models redeclare a wire name. Of the 1,811 overrides between
+declarations whose models do not compose each other and whose types are different nodes, 1,788 are
+made by a failure schema. They fall on 1,572 members, every one in a 4XX, 5XX or default response
+that composes a success shape and, after it, the failure schema (`success: false`, `result: null`),
+which an earlier-conjunct rule would type as the success. 774 members are required only through a
+declaration they override, no `Requires` naming them, which a rule reading requiredness off the
+declaration taken alone would make optional. Visibility is the declaration taken's because both
+directions occur: of the 41 members whose declarations disagree on it, 28 take one that makes them
+read-only, and 13 one that lifts the read-only an overridden declaration states, as a batch patch
+body redeclares the `id` it must send, which a conjunction of the two would forbid writing.
 
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](./compilers/openapi.md#allof-classification).
