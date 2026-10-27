@@ -319,8 +319,8 @@ func TestFlattenedProperties_CyclicCompositionIsReadToItsFixpoint(t *testing.T) 
 // meets c before x, and c's entry back to the root is one it is already on, so
 // c finishes first; read in finishing order, x would override c, though c
 // composes x through the root and x composes nothing. The cycle may be longer
-// than one entry, so a and b, which reach the root only through each other,
-// wait for it too.
+// than one entry: in s's, a reaches the root only through b, and waits for it
+// as b does.
 func TestFlattenedProperties_ACycleIsReadAfterWhatItComposes(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(

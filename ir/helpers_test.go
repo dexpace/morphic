@@ -511,10 +511,10 @@ func flatLines(f ir.Flattening) []string {
 	return out
 }
 
-// flatRandom is withinRandom with a wire name on every property, three of its
-// property IDs to a name, Required on two of them, and a Requires on each
-// model declaring one property: one name some model may declare, one none
-// does.
+// flatRandom is withinRandom with a wire name on every property, its eight
+// property IDs sharing three names, Required on two of the IDs, and a
+// Requires on each model declaring one property: one name some model may
+// declare, one none does.
 func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
 	doc, types, _ := withinRandom(rand.New(rand.NewPCG(seed, seed+11)))
 	for _, td := range doc.Types {
