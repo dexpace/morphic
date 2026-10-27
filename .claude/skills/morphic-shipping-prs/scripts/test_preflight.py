@@ -66,8 +66,12 @@ class TitleBodyTest(unittest.TestCase):
         over = pf.title_body_lines("fix(ir): " + "x" * 60, 1143, None)
         self.assertTrue(any(fix for line, fix in over if "OVER" in line), over)
 
-    def test_no_title_is_a_note_not_a_fix(self):
-        self.assertEqual(pf.title_body_lines(None, 0, "## Summary\n")[0][1], False)
+    def test_no_title_is_a_note_and_the_body_is_still_judged(self):
+        got = pf.title_body_lines(None, 0, "## Summary\n## Breaking\n")
+        note = "title      none given: pass --pr or --title to measure it"
+        self.assertEqual(got[0], (note, False))
+        self.assertIn(("body       MISSING a Test plan section", True), got)
+        self.assertFalse(any("Breaking" in line for line, _ in got), "the title decides Breaking")
 
 
 class CrashTest(unittest.TestCase):

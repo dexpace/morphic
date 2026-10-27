@@ -31,9 +31,10 @@ chain the push on it with `&&`.
 
 ## Merging main in
 
-Merge `origin/main` into the branch, never rebase it. Read `references/merging-main.md` before
-resolving a conflict; after the merge, build, vet, run the suite, and re-plant each mutation the PR
-body cites. A branch that bumps `IRVersion` takes its version by `morphic-changing-the-ir`.
+Merge `origin/main` into a pushed branch; never rebase it. Read `references/merging-main.md`
+before resolving a conflict, and rerun what the merge can break
+(`references/merging-main.md#merge-main-first`). A branch that bumps `IRVersion` takes its version
+by `morphic-changing-the-ir`.
 
 ## PR text
 

@@ -17,9 +17,9 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Run the coverage gate on the final tree before claiming it
 `coverage-gate-on-final-tree`
 
-- **Rule.** Every new branch ships with the test that executes it, in its own package
-  (`.claude/skills/morphic-verifying-changes/references/toolchain.md#coverage-per-package`),
-  and `make coverage` runs on the exact tree pushed before a PR body says the gate holds.
+- **Rule.** Every new code path ships with the test that executes it, in its own package
+  (`.claude/skills/morphic-verifying-changes/references/toolchain.md#coverage-per-package`). A PR
+  body says the gate holds only for a tree `make coverage` or CI ran: the exact tree pushed.
 - **Why.** One uncovered statement fails CI, and a pushed tree below the gate forces a follow-up
   commit and makes the body's claim false (#22, #373).
 - **Probe.** Match each coverage claim in the PR body to that run.
@@ -128,8 +128,8 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** Build an edited body from the live one, `gh pr view <N> --json body --jq .body`, never
   from a local draft, after fetching the branch to see whether someone else is at work on it.
-  Apply it with `gh api -X PATCH repos/<owner>/<repo>/pulls/<N> --input <file>` and fetch it back to
-  confirm. Anchor a scripted edit on the wrapped text: the prose here is hard-wrapped.
+  Apply it with `gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@<file>` and fetch it back
+  to confirm; `--input` would send the file as the whole request. Anchor a scripted edit on the wrapped text: the prose here is hard-wrapped.
 - **Why.** A body rebuilt from a stale draft erased another author's rewrite (#1143), and
   `gh pr edit` applied a body and never exited (#724).
 - **Probe.** `gh pr view <N> --json body --jq .body > live.md`, then diff it against the draft.

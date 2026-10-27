@@ -6,10 +6,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 ## Merge main before each review round and rerun what it can break
 `merge-main-first`
 
-- **Rule.** Merge `origin/main` into the branch before a review round, and before a push that
-  follows a change on `main`. Then build, vet, run the whole suite and `internal/archtest` on the
-  merge, and re-plant each mutation the PR body cites: a clean merge can fail to compile, fail a
-  test, or leave a test green for a mechanism the merge removed.
+- **Rule.** Merge `origin/main` into the branch before a review round and before calling it
+  ready. Then build, vet and run the whole suite on the merge, `internal/archtest`'s caps among it,
+  and re-plant each mutation the PR body cites: a clean merge can fail to compile, fail a test, or
+  leave a test green for a mechanism the merge removed.
 - **Why.** After a base PR's final round stopped handing over cached bytes, a stacked PR's dedup
   test stayed green with the dedup deleted (#565, #562); a conflict-free merge failed the doc
   comment cap `main` had adopted meanwhile (#562).
@@ -30,13 +30,20 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 `norm-main-adopted`
 
 - **Rule.** When a merge reddens a test another PR added, read that PR's normative text before
-  touching the expectation: `main` may have adopted a rule the branch now breaks. After a merge,
-  also search the helpers landed PRs added for the concept the branch adds, and reuse one rather
-  than keep a second spelling of it.
+  touching the expectation: `main` may have adopted a rule the branch now breaks.
 - **Why.** A rule reported one defect under two codes after `main` made one code the rule for every
-  string, and adding the second code to the test was the wrong fix (#549, #539); a branch kept its
-  own predicate beside one #549 had landed for the same concept (#551).
-- **Probe.** `git log origin/main -S'<test or helper>'` names the PR; read its normative text.
+  string, and adding the second code to the test was the wrong fix (#549, #539).
+- **Probe.** `git log origin/main -S'<test name>'` names the PR; read its normative text.
+
+## Reuse what main landed for the concept the branch adds
+`main-landed-the-concept`
+
+- **Rule.** After a merge, search the helpers and predicates the landed PRs added for the concept
+  the branch adds, and reuse one rather than keep a second spelling of it.
+- **Why.** A branch kept its own predicate beside one #549 had landed for the same concept, which
+  also covered a case the branch's missed (#551).
+- **Probe.** `git diff <merge-base> origin/main -- '*.go' | grep '^+func'`, then grep the result for
+  the concept's vocabulary.
 
 ## Read what main wrote into a conflict before dropping it
 `read-the-side-you-discard`

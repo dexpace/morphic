@@ -67,13 +67,16 @@ def exported_changes(diff: str) -> list[str]:
 
 
 def title_body_lines(title: str | None, number: int, body: str | None) -> list[tuple[str, bool]]:
-    """Judge the title as it will land and the body against it, as the review does."""
-    if title is None:
-        return [("title      none given: pass --pr or --title to measure it", False)]
-    out = review_setup.title_report(title, str(number))
+    """Judge the title as it will land and the body against it, as the review does. With no
+    title, the body's sections are judged without the Breaking one, which follows the title."""
+    out = review_setup.title_report(title, str(number)) if title is not None else []
     if body is not None:
-        out += review_setup.body_report(body, title)
-    return [(line, MARKED.search(line) is not None) for line in out]
+        lines = review_setup.body_report(body, title or "")
+        out += lines if title is not None else [l for l in lines if "Breaking" not in l]
+    judged = [(line, MARKED.search(line) is not None) for line in out]
+    if title is None:
+        judged.insert(0, ("title      none given: pass --pr or --title to measure it", False))
+    return judged
 
 
 def exported_lines(changes: list[str], title: str | None) -> list[tuple[str, bool]]:
