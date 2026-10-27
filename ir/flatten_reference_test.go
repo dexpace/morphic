@@ -81,6 +81,7 @@ type referenceWalk struct {
 // visit reads the model id and, first, every model it composes. Depth is
 // bounded by the registry, which has no cycle here.
 func (r *referenceWalk) visit(id ir.TypeID, depth int) {
+	r.t.Helper()
 	require.Less(r.t, depth, 64, "an acyclic registry of at most twenty types nests no deeper")
 	r.seen[id] = true
 	for _, target := range entries(r.types[id].(*ir.Model)) {

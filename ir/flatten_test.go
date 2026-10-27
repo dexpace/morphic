@@ -41,24 +41,6 @@ func mixing(targets ...ir.TypeID) func(*ir.Model) {
 	return func(m *ir.Model) { m.Mixins = irtest.RefsTo(targets...) }
 }
 
-// flatLines renders each member of f on one line: the declaration it takes as
-// ID@owner, each it overrides after a <, and "required" when an instance must
-// carry it.
-func flatLines(f ir.Flattening) []string {
-	out := make([]string, 0, len(f.Properties))
-	for _, fp := range f.Properties {
-		line := fmt.Sprintf("%s@%s", fp.Property.ID, fp.Owner)
-		for _, d := range fp.Overridden {
-			line += fmt.Sprintf(" < %s@%s", d.Property.ID, d.Owner)
-		}
-		if fp.Required {
-			line += " required"
-		}
-		out = append(out, line)
-	}
-	return out
-}
-
 func TestFlattenedProperties_LayoutOrder(t *testing.T) {
 	t.Parallel()
 	doc := irtest.DocOf(
@@ -381,7 +363,12 @@ func TestFlattenedProperties_PointsIntoTheRegistry(t *testing.T) {
 	assert.Same(t, &b.Properties[1], f.Properties[1].Property)
 }
 
-func TestFlattenedProperties_ReadsEachModelAndAliasOnce(t *testing.T) {
+// TestFlattenedProperties_WorkGrowsLinearly holds the steps one walk takes
+// (FlattenSteps) to linear growth around three sizes on two shapes: an alias
+// chain every entry names, which a walk reading the chain per entry makes
+// quadratic, and a lattice, which a walk entering a model again per path
+// makes exponential.
+func TestFlattenedProperties_WorkGrowsLinearly(t *testing.T) {
 	t.Parallel()
 	shapes := map[string]func(n int) (ir.TypeRegistry, ir.TypeID){
 		// n entries each naming the head of one alias chain n long.
