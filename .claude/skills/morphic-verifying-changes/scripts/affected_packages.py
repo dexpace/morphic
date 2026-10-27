@@ -91,10 +91,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"affected_packages: no package holds {held}; listing everything", file=sys.stderr)
         print("./...")
         return 0
-    if hits:
-        imports = '{{.ImportPath}} {{join .Deps " "}}'
-        listing = run(root, "go", "list", "-test", "-f", imports, "./...")
-        print("\n".join(dependents(listing, hits)))
+    if not hits:
+        print("affected_packages: no Go package reads the changed files", file=sys.stderr)
+        return 0
+    imports = '{{.ImportPath}} {{join .Deps " "}}'
+    listing = run(root, "go", "list", "-test", "-f", imports, "./...")
+    print("\n".join(dependents(listing, hits)))
     return 0
 
 

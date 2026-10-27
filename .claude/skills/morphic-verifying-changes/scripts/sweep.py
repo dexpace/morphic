@@ -132,6 +132,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(f"sweep: building head from the working tree and base at {sha[:12]}")
     src = out / "base-src"
+    remove = ["git", "-C", str(root), "worktree", "remove", "--force", str(src)]
+    subprocess.run(remove, capture_output=True)  # a crashed run's worktree, if any
     try:
         build(root, out / "head")
         git(root, "worktree", "add", "--detach", "--quiet", str(src), sha)
@@ -140,7 +142,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"sweep: {e}", file=sys.stderr)
         return 2
     finally:
-        remove = ["git", "-C", str(root), "worktree", "remove", "--force", str(src)]
         subprocess.run(remove, capture_output=True)
     results = compare(out / "base", out / "head", specs, out, args.flags, args.limit, args.jobs)
     return report(results, root, out)

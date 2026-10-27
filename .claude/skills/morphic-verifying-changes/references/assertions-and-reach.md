@@ -100,7 +100,7 @@ Assert the property the name claims, with inputs that reach the code and an expe
 
 - **Rule.** A test of a fast path, cache, rebuild branch, reuse check or stop point must show which path produced the result, by asserting the path was taken (index populated, counter, hook, distinct sentinel) or by planting a value only one path would return. Comparing results alone passes when the path is bypassed.
 - **Why.** An index-versus-scan test compared the scan with itself when the index was disabled, a reuse test passed under content equality, and a cancellation row passed whichever boundary fired.
-- **Probe.** Disable the fast path or weaken the identity check (sameBytes to content equality, skip the rebuild) and confirm the test reddens; if not, add the path-taken assertion or plant the divergence.
+- **Probe.** Disable the fast path or weaken the identity check (byte identity to content equality, skip the rebuild) and confirm the test reddens; if not, add the path-taken assertion or plant the divergence.
 - **Seen in #379** (b92870d6): “TestChildByToken_IndexAgreesWithTheScanItReplaces never asserts the index was built, so a change that silently disables it leaves the test green”
 - **Seen in #379**: “test asserted only the answer, which both readings give, so it now plants a divergence between index and pairs”
 
