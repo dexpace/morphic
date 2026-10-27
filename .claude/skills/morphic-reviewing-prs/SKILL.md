@@ -14,7 +14,8 @@ Run `python3 .claude/skills/morphic-reviewing-prs/scripts/review_setup.py <PR>`.
 the head merged into `origin/main` in a worktree of its own, so every pass sees the tree as it will
 land, and names the domain skill to load. Probe only in that worktree, with
 `morphic-verifying-changes`. A head that conflicts with `main` is checked out alone, and the
-conflict is an `issue:`. For a branch or range with no PR, build that worktree by hand.
+conflict is an `issue:`. For a branch or range with no PR, build that worktree by hand and run
+`scripts/artifact_scan.py BASE HEAD`, the scan the setup runs.
 
 ## Passes
 

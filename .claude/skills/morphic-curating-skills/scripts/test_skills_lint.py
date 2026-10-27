@@ -3,6 +3,8 @@
 Run: python3 -m unittest discover -s .claude/skills/morphic-curating-skills/scripts
 """
 import importlib
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -21,6 +23,7 @@ ir-design §4.3, docs/parser-library.md#known, `morphic-harness` and [a link](re
 Run `go test ./ir/... $(python3 scripts/tool.py)` or `go run ./cmd/morphic-harness <spec>`
 and `gh api repos/{owner}/{repo}`, by `references/r.md#do-the-thing` and
 `.claude/skills/good-skill/references/r.md#do-the-thing`; see `references/<file>.md#<key>`.
+Name `tool.py`, `a.go` and `SKILL.md` alone, and a suffix such as `_test.go`.
 """
 RULE = ("## Do the thing\n`do-the-thing`\n\n- **Rule.** Do it, as `ir/a.go` and TestKnown do.\n"
         "- **Why.** It broke\n  once (#1).\n- **Probe.** ir-design §4.3.\n")
@@ -54,7 +57,8 @@ class LintTest(unittest.TestCase):
     def lint(self):
         files = [p for p in (self.root / ".claude" / "skills").rglob("*") if p.is_file()]
         top_level, tests = {"docs", "ir", "cmd", ".claude"}, {"TestKnown", "TestKnown_Case"}
-        lint = skills_lint.Linter(self.root, top_level, tests, files)
+        names = {p.name for p in self.root.rglob("*") if p.is_file()}
+        lint = skills_lint.Linter(self.root, top_level, tests, names, files)
         return lint.run(), lint.findings
 
     def test_a_clean_skill_has_no_finding(self):
@@ -68,7 +72,7 @@ class LintTest(unittest.TestCase):
                 "`morphic-nope`, [x](references/none.md), /U" "sers/someone.\n"
                 "Run `python3 scripts/gone.py --flag` and `go test ./ir/nope/...`, by `no-rule`.\n"
                 "Cite `do-the-thing`, `references/r.md#gone` and "
-                "`.claude/skills/good-skill/references/r.md#gone`.\n")
+                "`.claude/skills/good-skill/references/r.md#gone`, and `gone.py` alone.\n")
         write(self.root, skill + "SKILL.md", front + "word " * 501 + "\n" + body)
         write(self.root, skill + "references/orphan.md", "word " * 4001)
         write(self.root, skill + "scripts/tool.sh", "echo\n")
@@ -80,7 +84,7 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:1: name 'Bad_Skill' is not lowercase letters, digits and hyphens",
             f"{bad}SKILL.md:1: frontmatter name must be 'Bad_Skill'",
             f'{bad}SKILL.md:1: description must start "Use when"',
-            f"{bad}SKILL.md: body is 527 words, over 500",
+            f"{bad}SKILL.md: body is 530 words, over 500",
             f"{bad}references/orphan.md: 4001 words, over 4000",
             f"{bad}references/orphan.md: not named in {bad}SKILL.md",
             f"{bad}SKILL.md:7: ir/nope.go does not exist",
@@ -91,6 +95,7 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:8: no skill or command named morphic-nope",
             f"{bad}SKILL.md:8: link target references/none.md does not exist",
             f"{bad}scripts/new.py: has no test_new.py beside it",
+            f"{bad}scripts/new.py: not named in {bad}SKILL.md",
             f"{bad}scripts/tool.sh: scripts are Python files",
             f"{bad}SKILL.md:8: names one machine or a memory link",
             f"{bad}SKILL.md:9: scripts/gone.py does not exist",
@@ -98,6 +103,7 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:10: cites rule do-the-thing without the file that holds it",
             f"{bad}SKILL.md:10: references/r.md holds no rule gone",
             f"{bad}SKILL.md:10: .claude/skills/good-skill/references/r.md holds no rule gone",
+            f"{bad}SKILL.md:10: no file named gone.py",
         ]
         # The line a too-new construct is reported at depends on the interpreter's parser.
         version = [g for g in got if " is not Python 3.9: " in g]
@@ -139,7 +145,8 @@ class LintTest(unittest.TestCase):
 
     def test_an_import_outside_the_standard_library_is_reported(self):
         write(self.root, ".claude/skills/other-skill/SKILL.md",
-              "---\nname: other-skill\ndescription: Use when testing.\n---\n")
+              "---\nname: other-skill\ndescription: Use when testing.\n---\n\n"
+              "Run `scripts/shared.py`.\n")
         write(self.root, ".claude/skills/other-skill/scripts/shared.py", "x = 1\n")
         write(self.root, ".claude/skills/other-skill/scripts/test_shared.py", "import shared\n")
         write(self.root, ".claude/skills/good-skill/scripts/tool.py",
@@ -170,6 +177,27 @@ class LintTest(unittest.TestCase):
             self.assertTrue(skills_lint.standard_module("shipped_here", None))
             self.assertFalse(skills_lint.standard_module("installed_here", None))
             self.assertFalse(skills_lint.standard_module("beside_it", None))
+
+
+class LoadTreeTest(unittest.TestCase):
+    def test_tests_top_level_entries_and_every_file_name_are_read(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+            git = ["git", "-C", d]
+            subprocess.run(git + ["init", "-q"], check=True, env=env)
+            write(root, "ir/a_test.go", "package ir\n\nfunc TestA_B(t *testing.T) {}\n")
+            write(root, ".gitignore", "out/\n")
+            subprocess.run(git + ["add", "-A"], check=True, env=env)
+            subprocess.run(git + ["commit", "-qm", "x"], check=True, env=env)
+            write(root, "scripts/new.py", "")
+            write(root, "out/built.txt", "")
+            top_level, tests, names = skills_lint.load_tree(root)
+        self.assertEqual(top_level, {".claude", ".gitignore", "ir"})
+        self.assertEqual(tests, {"TestA", "TestA_B"})
+        self.assertEqual(names, {".gitignore", "a_test.go", "new.py"},
+                         "untracked files count, ignored ones do not")
 
 
 if __name__ == "__main__":

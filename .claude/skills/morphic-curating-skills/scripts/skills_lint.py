@@ -54,6 +54,8 @@ TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
 LINE_SUFFIX = re.compile(r":[0-9]+$")
 # A placeholder or template inside a command, such as <spec> or {owner}, names no path.
 TEMPLATE = re.compile(r"[<>{}]")
+# A file named without its directory, such as `preflight.py`; a suffix such as `_test.go` is none.
+BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 
 
 def git(root: Path, *args: str) -> str:
@@ -62,9 +64,10 @@ def git(root: Path, *args: str) -> str:
     return done.stdout
 
 
-def load_tree(root: Path) -> tuple[set[str], set[str]]:
-    """Return the first segment of every tracked path, and every declared Go test name with
-    each family prefix of it, as TestA_B declares TestA."""
+def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
+    """Return the first segment of every tracked path, every declared Go test name with each
+    family prefix of it, as TestA_B declares TestA, and the name of every file the tree holds,
+    untracked ones included."""
     top_level, tests = {".claude"}, set()
     for f in git(root, "ls-files").splitlines():
         top_level.add(f.split("/", 1)[0])
@@ -74,7 +77,8 @@ def load_tree(root: Path) -> tuple[set[str], set[str]]:
                 tests.update("_".join(parts[:i]) for i in range(1, len(parts) + 1))
     if not tests:
         raise RuntimeError("found no declared test, so a test name cannot be checked")
-    return top_level, tests
+    listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard")
+    return top_level, tests, {f.rsplit("/", 1)[-1] for f in listed.splitlines()}
 
 
 def standard_module(name: str, listed: frozenset[str] | None) -> bool:
@@ -102,8 +106,10 @@ def standard_module(name: str, listed: frozenset[str] | None) -> bool:
 
 
 class Linter:
-    def __init__(self, root: Path, top_level: set[str], tests: set[str], files: list[Path]):
+    def __init__(self, root: Path, top_level: set[str], tests: set[str], names: set[str],
+                 files: list[Path]):
         self.root, self.top_level, self.tests, self.files = root, top_level, tests, files
+        self.names = names
         self.findings: list[str] = []
         self.keys: dict[str, str] = {}
         self.citations: list[tuple[Path, int, str]] = []
@@ -144,7 +150,7 @@ class Linter:
             self.check_rules(ref)
         for f in [skill, *refs]:
             self.check_names(d, f)
-        self.check_scripts(d)
+        self.check_scripts(d, text)
 
     def check_frontmatter(self, name: str, skill: Path, text: str) -> None:
         if not NAME.match(name):
@@ -254,6 +260,9 @@ class Linter:
             homes = (self.root / ".claude" / "skills" / tok, self.root / "cmd" / tok)
             if not any(h.is_dir() for h in homes):
                 self.report(f, line, f"no skill or command named {tok}")
+        elif BARE_FILE.fullmatch(tok):
+            if tok not in self.names:
+                self.report(f, line, f"no file named {tok}")
         elif PATH_LIKE.search(tok) and not TEMPLATE.search(tok) and not self.exists(d, tok):
             self.report(f, line, f"{tok} does not exist")
 
@@ -274,7 +283,9 @@ class Linter:
         path = self.root / "docs" / f"{doc}.md"
         return path.is_file() and re.search(pattern, path.read_text(), re.M) is not None
 
-    def check_scripts(self, d: Path) -> None:
+    def check_scripts(self, d: Path, text: str) -> None:
+        """Hold each script to Python, a test beside it, and a mention in SKILL.md, where a
+        reader finds it."""
         scripts = d / "scripts"
         if not scripts.is_dir():
             return
@@ -288,6 +299,9 @@ class Linter:
                 continue
             if not s.name.startswith("test_") and not (scripts / f"test_{s.name}").is_file():
                 self.report(s, 0, f"has no test_{s.name} beside it")
+            if not s.name.startswith("test_") and f"scripts/{s.name}" not in text:
+                skill = (d / "SKILL.md").relative_to(self.root).as_posix()
+                self.report(s, 0, f"not named in {skill}")
             self.check_python(s, siblings)
 
     def check_python(self, s: Path, siblings: set[str]) -> None:
@@ -316,10 +330,10 @@ def findings(root: Path) -> tuple[int, list[str]]:
     return how many skills there are and every finding. A tree with no skills has neither."""
     if not (root / ".claude" / "skills").is_dir():
         return 0, []
-    top_level, tests = load_tree(root)
+    top_level, tests, names = load_tree(root)
     listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard", ".claude/skills")
     files = [root / f for f in listed.splitlines() if (root / f).is_file()]
-    lint = Linter(root, top_level, tests, files)
+    lint = Linter(root, top_level, tests, names, files)
     return lint.run(), lint.findings
 
 
