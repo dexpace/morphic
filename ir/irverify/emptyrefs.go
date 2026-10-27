@@ -98,8 +98,8 @@ var idPositions = map[string]idRule{
 
 	// ir.FlattenedProperties' result and its walk's own state, which no
 	// Document holds, so no walk of one meets them. Beside the registry it
-	// reads, each names a type the flattening read, never an empty one: an
-	// unset composition entry is skipped, not recorded.
+	// reads, each holds an ID the flattening read, a model's or an entry's
+	// target, never an empty one: an unset entry is skipped, not recorded.
 	"Flattening.Unflattened": idRequired,
 	"PropertyDecl.Owner":     idRequired,
 	"flattener.types":        idElsewhere,

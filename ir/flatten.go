@@ -24,8 +24,8 @@ type Flattening struct {
 // other declarations of its wire name, and whether an instance must carry it.
 type FlatProperty struct {
 	// PropertyDecl is the declaration the member takes: the last of its wire
-	// name the walk reads, so a model's declaration overrides every declaration
-	// of a model it composes.
+	// name the walk reads, so a model's declaration overrides that of every
+	// model it composes that does not compose it in turn.
 	PropertyDecl
 	// Overridden are the member's other declarations, once each, in the order
 	// the walk first reads them.
@@ -103,8 +103,9 @@ type member struct {
 }
 
 // frame is a model the walk has met: the next of its composition entries to
-// follow, the number met gives it, the least number of a model it reaches
-// that is not read yet, and how many models were finished when it was met.
+// follow, the number met gives it, its low-link as Tarjan's algorithm keeps
+// it, equal to num only for the first model of a component the walk met, and
+// how many models were finished when it was met.
 type frame struct {
 	id    TypeID
 	m     *Model
@@ -227,9 +228,9 @@ func (f *flattener) parent(target TypeID, from *frame) (TypeID, *Model, bool) {
 }
 
 // resolve returns the type id stands for: id itself unless it names an alias
-// scalar, else the type at the end of its chain, or on a cyclic chain the
-// first scalar met twice, which is no model either way. Each scalar is read
-// once per walk.
+// scalar, else the type at the end of its chain, or on a cyclic chain one of
+// the cycle's scalars, which is no model either way. Each scalar is read once
+// per walk.
 func (f *flattener) resolve(id TypeID) TypeID {
 	var path []TypeID
 	cur := id
@@ -289,7 +290,7 @@ func (f *flattener) emit(id TypeID, m *Model) {
 	}
 }
 
-// result assembles the walk's members, the names required of none of them,
+// result assembles the walk's members, the Requires names no member declares,
 // and the entries naming no model.
 func (f *flattener) result() Flattening {
 	out := Flattening{Unflattened: f.unflattened}

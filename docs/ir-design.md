@@ -866,8 +866,10 @@ the composition entries that name no model. Its rules:
   shape.
 - *Members.* Declarations are one member when their wire names are equal: `WireName`, else
   `Name.Source` (`Property.EffectiveWireName`, §5.1). The empty name is a name, the JSON member
-  keyed by the empty string. A property several models declare under one `PropID`, as the variants
-  of a distributed union do (below), is one declaration however often it is read.
+  keyed by the empty string. A per-format name (`WireNameByFormat`) and an alias a property answers
+  to (`Name.Aliases`) neither join members nor split one. A property several models declare under
+  one `PropID`, as the variants of a distributed union do (below), is one declaration however often
+  it is read.
 - *Layout order.* The walk goes depth first from the root, following each model's `Base`, then its
   `Implements`, then its `Mixins`, each in order, and reads a model's own properties, in source
   order, once it has read every model the model composes that does not compose it in turn. Models
