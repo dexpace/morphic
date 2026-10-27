@@ -33,6 +33,10 @@ class MeasureTest(unittest.TestCase):
         self.assertGreater(got["wall"], 0)
         self.assertIsNone(got["instructions"], "no wrapper, no instruction count")
 
+    def test_peak_memory_is_in_bytes_on_every_system(self):
+        self.assertEqual(cc.peak_bytes(5, "Darwin"), 5)
+        self.assertEqual(cc.peak_bytes(5, "Linux"), 5 * 1024)
+
 
 class TableTest(unittest.TestCase):
     def run_of(self, instructions, status=0):

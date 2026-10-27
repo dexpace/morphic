@@ -55,6 +55,11 @@ def instructions(stderr: str, system: str) -> int | None:
     return int(m.group(1)) if m else None
 
 
+def peak_bytes(maxrss: int, system: str) -> int:
+    """Return a peak resident size from ru_maxrss in bytes: macOS reports bytes, Linux KiB."""
+    return maxrss if system == "Darwin" else maxrss * 1024
+
+
 def measure(command: list[str], wrap: list[str], system: str) -> dict:
     """Run command once and return its exit status and what it cost."""
     with open(os.devnull, "wb") as null, tempfile.TemporaryFile() as err:
@@ -65,9 +70,9 @@ def measure(command: list[str], wrap: list[str], system: str) -> dict:
         proc.returncode = os.waitstatus_to_exitcode(status)
         err.seek(0)
         text = err.read().decode(errors="replace")
-    rss = usage.ru_maxrss * (1 if system == "Darwin" else 1024)  # bytes on macOS, KiB elsewhere
     return {"status": proc.returncode, "instructions": instructions(text, system),
-            "cpu": usage.ru_utime + usage.ru_stime, "rss": rss, "wall": wall}
+            "cpu": usage.ru_utime + usage.ru_stime, "rss": peak_bytes(usage.ru_maxrss, system),
+            "wall": wall}
 
 
 def spread(values: list[float]) -> tuple[float, float, float]:
