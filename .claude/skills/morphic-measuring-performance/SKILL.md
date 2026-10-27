@@ -15,7 +15,7 @@ busy machine measures the machine.
 |---|---|
 | faster or cheaper | `scripts/compare_cost.py`: instructions retired, base and head alternating, the median and range of each |
 | no cost on the common path | the same over the golden spec (`.claude/skills/morphic-verifying-changes/scripts/golden_spec.py`) and over a large input of the old shape |
-| linear in the input | count steps through a budget at n, 2n and 4n and assert the marginal growth (`references/cost-tests.md#count-work-not-wall-clock`) |
+| linear in the input | count steps through a budget (`references/cost-tests.md#count-work-not-wall-clock`) at n, 2n and 4n and assert the marginal growth (`references/cost-tests.md#marginal-growth-on-one-path`) |
 | allocation-free | `testing.AllocsPerRun` under `-race -covermode=atomic`, the fewest of single runs (`references/cost-tests.md#count-in-the-gates-build`) |
 | an optimization holds | a counting seam the test reads, since an optimization changes no output (`references/cost-tests.md#counting-seam-for-optimizations`) |
 | bounded on any input | generated shapes, deep and wide, on both builds (`references/finding-cost.md#deep-generated-shapes`) |
@@ -24,8 +24,8 @@ busy machine measures the machine.
 
 - Run nothing of your own beside a measurement, and quote each side's spread with its median.
 - A test pins cost by counting work; wall time belongs in a PR body, taken back to back.
-- Before calling a difference a regression, check the base build holds what you think it holds:
-  `main` may have gained a speedup minutes ago.
+- Measure against a base the branch holds: `main` may have gained a speedup minutes ago
+  (`references/finding-cost.md#check-the-base-build`).
 - Planting the defect a cost test names applies here as anywhere: a quadratic loop, an uncharged
   step, an eager render.
 

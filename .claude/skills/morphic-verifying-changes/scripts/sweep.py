@@ -5,7 +5,8 @@ tree, and report each spec whose exit code, IR or diagnostics differ.
 Usage: python3 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS...]
                         [-- COMPILE-FLAGS...]
 
-BASE is the revision to compare against (default origin/main). A compile running past SECONDS
+BASE is the revision to compare against (default origin/main); when HEAD does not hold it, a
+warning says the differences also count what BASE gained since. A compile running past SECONDS
 (default 60) is killed and recorded as 137. JOBS compiles run at once (default half the CPUs).
 Outputs are kept under OUTDIR (default a new temporary directory) for diffing. CORPUS
 directories are searched for OpenAPI and Swagger documents (default testdata). Exit 0 when
@@ -95,6 +96,18 @@ def git(root: Path, *args: str) -> str:
     return done.stdout.strip()
 
 
+def unheld_base_warning(root: Path, sha: str, name: str) -> str | None:
+    """Return a warning when HEAD does not hold the base, so the comparison also counts the
+    commits the base gained since the branch left it."""
+    held = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", sha, "HEAD"],
+                          capture_output=True).returncode == 0
+    if held:
+        return None
+    return (f"{name}: HEAD does not hold {sha[:12]}, so every difference includes what the base "
+            "gained since the branch left it; merge it in, or pass -b $(git merge-base HEAD "
+            "origin/main)")
+
+
 def build(src: Path, dest: Path) -> None:
     subprocess.run(["go", "build", "-o", str(dest), "./cmd/morphic"], cwd=src, check=True)
 
@@ -131,6 +144,9 @@ def main(argv: list[str] | None = None) -> int:
         where = " ".join(map(str, corpus))
         print(f"sweep: no OpenAPI or Swagger documents under {where}", file=sys.stderr)
         return 2
+    warning = unheld_base_warning(root, sha, "sweep")
+    if warning:
+        print(warning, file=sys.stderr)
     print(f"sweep: building head from the working tree and base at {sha[:12]}")
     src = out / "base-src"
     remove = ["git", "-C", str(root), "worktree", "remove", "--force", str(src)]

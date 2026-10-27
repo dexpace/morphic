@@ -82,8 +82,8 @@ gives. A clock does none of that reliably; a counter does.
 
 - **Rule.** `testing.AllocsPerRun` cannot see a render the compiler turns into a no-copy map lookup,
   nor one of the zero `ir.WalkPath`, which renders "" without allocating. Measure a visitor through
-  `irtest.AllocatingVisits`, which visits inside a real walk with the walk's own path, and assert
-  the exact set of allocating paths; check `go build -gcflags=-m` before trusting a count to see a
+  `irtest.AllocatingVisits`, which visits inside a real walk with the walk's own path, one visitor
+  per call so another's pruning cannot hide it, and assert the exact set of allocating paths; check `go build -gcflags=-m` before trusting a count to see a
   render at all.
 - **Why.** An eager-render mutant survived a test indexing a map with the rendered path (#1125),
   and four survived visit tests run on the zero path (#1133).

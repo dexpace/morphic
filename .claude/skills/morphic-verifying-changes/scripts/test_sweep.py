@@ -3,6 +3,7 @@
 Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
 """
 import io
+import os
 import subprocess
 import sys
 import tempfile
@@ -97,6 +98,30 @@ class CrashTest(unittest.TestCase):
                              text=True, env=env)
         self.assertEqual(run.returncode, 2, run.stderr)
         self.assertEqual(run.stdout, "")
+
+
+class UnheldBaseTest(unittest.TestCase):
+    def test_a_base_the_branch_lacks_draws_a_warning(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@localhost",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@localhost"}
+
+            def commit(name):
+                (root / name).write_text(name)
+                subprocess.run(["git", "-C", d, "add", name], check=True, env=env)
+                subprocess.run(["git", "-C", d, "commit", "-qm", name], check=True, env=env)
+                return subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], check=True,
+                                      capture_output=True, text=True).stdout.strip()
+
+            subprocess.run(["git", "init", "-q", d], check=True)
+            first = commit("a")
+            later = commit("b")
+            subprocess.run(["git", "-C", d, "checkout", "-q", "--detach", first], check=True)
+            self.assertIsNone(sweep.unheld_base_warning(root, first, "sweep"))
+            warning = sweep.unheld_base_warning(root, later, "sweep")
+            self.assertIsNotNone(warning)
+            self.assertIn("does not hold", warning)
 
 
 if __name__ == "__main__":

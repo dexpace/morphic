@@ -28,7 +28,8 @@ RULE_BULLETS = (["Rule", "Why"], ["Rule", "Why", "Probe"])
 CITATION = re.compile(r"#[0-9]+")
 # A rule is cited by the file that holds it: references/<file>.md#<key> within its skill, or with
 # the path from the repository root from another.
-RULE_CITE = re.compile(r"((?:\.claude/skills/[a-z0-9-]+/)?references/[A-Za-z0-9_.-]+\.md)#([a-z0-9-]+)")
+RULE_CITE = re.compile(
+    r"((?:\.claude/skills/[a-z0-9-]+/)?references/[A-Za-z0-9_.-]+\.md)#([a-z0-9-]+)")
 # A bare code span of lowercase words joined by hyphens, which may be a rule key written alone.
 BARE_KEY = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)+)`")
 

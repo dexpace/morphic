@@ -27,6 +27,18 @@ how to measure so the number means what the claim says.
   runs alternating with the author's own test runs showed a gap quiet runs did not (#1140).
 - **Probe.** `scripts/compare_cost.py` over the golden spec.
 
+## Measure against a base the branch holds
+`check-the-base-build`
+
+- **Rule.** A build of `origin/main` holds whatever was fetched last, which can include a change
+  merged minutes ago that the branch lacks. Measure against the branch's merge base, or merge
+  `main` in first; `compare_cost.py` and `sweep.py` warn when HEAD does not hold the base. Before
+  calling a difference a regression, read both builds' revisions.
+- **Why.** A branch read 33% more CPU than a `main` build that had just gained another PR's
+  speedup, which the branch lacked (#1131, #1125).
+- **Probe.** `git merge-base --is-ancestor <base> HEAD`; on a false answer, rerun with
+  `-b $(git merge-base HEAD origin/main)`.
+
 ## Check a cost argument for every caller of the function it is about
 `cost-claims-per-caller`
 

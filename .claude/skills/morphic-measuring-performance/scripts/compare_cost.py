@@ -11,7 +11,8 @@ compile "$(python3 .claude/skills/morphic-verifying-changes/scripts/golden_spec.
 Instructions retired come from /usr/bin/time -l on macOS and perf stat on Linux; without either,
 the instructions row is left out. Prints each measure's median and range per side, and head's
 median over base's. A side whose runs exit differently from each other, or from the other side,
-is reported. It judges nothing: exit 0 when measured, 2 when it cannot run.
+is reported, and so is a BASE the working tree's HEAD does not hold, since the difference then
+counts what BASE gained too. It judges nothing: exit 0 when measured, 2 when it cannot run.
 """
 from __future__ import annotations
 
@@ -27,6 +28,11 @@ import tempfile
 import time
 import traceback
 from pathlib import Path
+
+# The warning about a base the branch does not hold is the corpus sweep's, so the two never differ.
+VERIFYING = Path(__file__).resolve().parents[2] / "morphic-verifying-changes" / "scripts"
+sys.path.insert(0, str(VERIFYING))
+from sweep import unheld_base_warning  # noqa: E402  (a script of the verifying skill)
 
 INSTRUCTIONS = {
     "Darwin": re.compile(r"^\s*(\d+)\s+instructions retired", re.M),
@@ -115,8 +121,16 @@ def main(argv: list[str] | None = None) -> int:
     args = p.parse_args(argv[:argv.index("--")] if "--" in argv else argv)
     if args.runs < 1:
         p.error("-n must be at least 1")
-    system = platform.system()
     out = Path(tempfile.mkdtemp(prefix="compare-cost-"))
+    try:
+        return compare(args, rest, out)
+    finally:
+        shutil.rmtree(out, ignore_errors=True)  # two builds of the command, not worth keeping
+
+
+def compare(args: argparse.Namespace, rest: list[str], out: Path) -> int:
+    """Build both sides under out, run each with rest in turn, and print what each cost."""
+    system = platform.system()
     src = out / "base-src"
     try:
         root = Path(subprocess.run(["git", "rev-parse", "--show-toplevel"], check=True,
@@ -124,6 +138,9 @@ def main(argv: list[str] | None = None) -> int:
         sha = subprocess.run(["git", "-C", str(root), "rev-parse", "--verify",
                               f"{args.base}^{{commit}}"], check=True, capture_output=True,
                              text=True).stdout.strip()
+        warning = unheld_base_warning(root, sha, "compare_cost")
+        if warning:
+            print(warning, file=sys.stderr)
         build(root, args.package, out / "head")
         subprocess.run(["git", "-C", str(root), "worktree", "add", "--detach", "--quiet",
                         str(src), sha], check=True, capture_output=True, text=True)

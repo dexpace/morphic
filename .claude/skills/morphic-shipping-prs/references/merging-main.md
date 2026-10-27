@@ -81,13 +81,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 `recorded-base`
 
 - **Rule.** `origin/main` is whatever any worktree of the repository fetched last. Fold commits
-  onto the merge base recorded before anything moved, and before calling a difference with a
-  `main` build a regression, compare that build's `git log -1` with the branch's merge base.
-  Compare with `main` in a detached worktree, never by stashing: the stash is shared by every
-  worktree.
-- **Why.** A fold onto a just-fetched `origin/main` reverted #870 in silence (#878); a "regression"
-  was a speedup `main` had gained minutes before (#1131); a pop applied another worktree's stash
-  (#966, #475).
+  onto the merge base recorded before anything moved, and compare with `main` in a detached
+  worktree, never by stashing: the stash is shared by every worktree.
+- **Why.** A fold onto a just-fetched `origin/main` reverted #870 in silence (#878); a pop applied
+  another worktree's stash (#966, #475).
 - **Probe.** `git diff origin/main --stat` lists only files the branch changed.
 
 ## Trial-merge the open PRs after removing a name they may use
