@@ -31,7 +31,7 @@ canary. A behaviour found that the page lacks is added there.
   alias can make one node several schemas. A guard that must agree with the resolver makes the call
   the resolver makes.
 - **Why.** Each miss of a reach check was a re-derived reading (#563). `View` and the resolver
-  disagree on a key written twice (#763).
+  disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`).
 - **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`, `.`
   and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
 
@@ -133,9 +133,9 @@ canary. A behaviour found that the page lacks is added there.
 
 - **Rule.** Beyond step 4 of `CONTRIBUTING.md`'s lowering-rule recipe, a spec under
   `testdata/conformance/openapi/` has no YAML aliases (use inline `<<`), so the order oracle can
-  permute it, and gives an unknown path-item key a mapping value with `responses`, since the library
-  reads it as an operation. A value the library refuses adds rows to the validation oracle's
-  disagreements: run
+  permute it, and gives an unknown path-item key a mapping value with `responses`, an operation as
+  `docs/parser-library.md#embedded-map-keys` reads it. A value the library refuses adds rows to the
+  validation oracle's disagreements: run
   `go test ./compilers/openapi/internal/canary -run TestValidationOracle_AgreesWithTheLibrary -update`,
   then classify each row with a reason.
 - **Why.** One case failed `TestOrderInvariant_ReachesTheCorpus`, the validation oracle and
@@ -166,8 +166,8 @@ canary. A behaviour found that the page lacks is added there.
 `external-reader-probes`
 
 - **Rule.** For a change to how external documents are read, count fetches per refused document with
-  an `httptest` server that counts hits, since the resolver asks again until it builds a model and
-  so a refusal must be remembered; try `math.MaxInt` wherever a public limit gets `+1`; and make a
+  an `httptest` server that counts hits, since a refusal not remembered is fetched again for every
+  reference to its document; try `math.MaxInt` wherever a public limit gets `+1`; and make a
   skip on re-read compare the bytes read, not the key they were read under.
 - **Why.** References to a refused document each fetched it again, `io.LimitReader(r, limit+1)`
   overflowed at `MaxInt`, and a key-based skip let changed bytes through unjudged (#556).
@@ -175,11 +175,12 @@ canary. A behaviour found that the page lacks is added there.
 ## Match a library read's rules exactly when mirroring it
 `mirror-library-read-rules-exactly`
 
-- **Rule.** A pre-scan, index or stepped reader standing in for a library read reproduces its rules:
-  the last duplicate key wins, aliases and merge keys are followed, and no cap the library lacks is
-  added, so the mirror is bounded by the read's counted work, never by a constant; retried index
-  tokens are left to the whole read. Build a differential case for each token kind the library
-  treats specially.
+- **Rule.** A pre-scan, index or stepped reader mirroring a library read follows aliases, and takes
+  a key written twice and a merge key's pairs as `docs/parser-library.md#duplicate-key` and
+  `docs/parser-library.md#merge-keys` give them for the read it mirrors, the model's or raw YAML's.
+  It adds no cap the library lacks: the read's counted work bounds it, never a constant, and
+  retried index tokens are left to the whole read. Build a differential case per token kind the
+  library treats specially.
 - **Why.** A first-key-wins pre-scan let a redeclared self-reference reach the resolver's stack
   overflow, an anchor index missed alias-reached declarations, and an invented cap left references
   unresolved that `main` resolved (#95, #356, #774).

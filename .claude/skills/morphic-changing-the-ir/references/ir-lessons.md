@@ -72,8 +72,8 @@ verifier and codecs must reach.
   reflection test that sets every field alone, so the next field added fails there.
 - **Why.** A part-encoding emptiness check named each field, so an encoding declaring only the new
   `allowReserved` would have been dropped, with every golden and conformance test green (#1144).
-- **Probe.** `git grep -nE '\.Sibling (==|!=)|== ir\.Struct\{'`, with a sibling field's and the
-  struct's names.
+- **Probe.** `git grep -nE '\.<Sibling> (==|!=)|== ir\.<Struct>\{'`, with `<Sibling>` a sibling
+  field's name and `<Struct>` the struct's.
 
 ## Check a design rule against everything in its document it governs
 `design-rule-over-its-document`

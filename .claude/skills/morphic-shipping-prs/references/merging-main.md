@@ -70,9 +70,10 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 ## Confirm a merge commit has both parents
 `merge-commit-has-two-parents`
 
-- **Rule.** A merge that meets no conflict commits by itself, so a later `git commit` makes a
-  single-parent commit wearing a merge message, and switching branches mid-merge drops the merge
-  state. Check the parents before pushing; while the commit is still local, redo the merge.
+- **Rule.** Merge with `git merge --no-commit --no-ff`, create any branch before merging, and check
+  the parents before pushing. Without `--no-commit` a merge that meets no conflict commits by
+  itself, so fixups committed after it under a merge message make a single-parent commit; creating
+  or switching a branch mid-merge drops the merge state. While the commit is local, redo the merge.
 - **Why.** A branch created during a resolved but uncommitted merge recorded the merge with one
   parent (#724).
 - **Probe.** `git rev-list --parents -n1 HEAD` lists the branch's head and `main`'s.

@@ -132,7 +132,9 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Rule.** Build an edited body from the live one, `gh pr view <N> --json body --jq .body`, never
   from a local draft, after fetching the branch to see whether someone else is at work on it.
   Apply it with `gh api -X PATCH repos/<owner>/<repo>/pulls/<N> -F body=@<file>` and fetch it back
-  to confirm; `--input` would send the file as the whole request. Anchor a scripted edit on the wrapped text: the prose here is hard-wrapped.
+  to confirm; `--input` would send the file as the whole request. A scripted edit anchors on the
+  text as written, line breaks included, and stops when its anchor is absent: a sentence wrapped
+  across lines matches no one-line anchor, and the edit changes nothing.
 - **Why.** A body rebuilt from a stale draft erased another author's rewrite (#1143), and
   `gh pr edit` applied a body and never exited (#724).
 - **Probe.** `gh pr view <N> --json body --jq .body > live.md`, then diff it against the draft.
