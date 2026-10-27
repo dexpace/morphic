@@ -50,9 +50,9 @@ covers.
   package boundaries fall where they do, not as a proposal or a backlog.
 
 `.claude/skills/` holds the procedures for recurring work (verifying a change, reviewing a PR,
-working in a compiler) and the lessons past PRs taught, each with the scripts it uses. A skill links
-to these documents rather than restating them; `morphic-curating-skills` says where a new lesson
-goes.
+working in the OpenAPI compiler), the lessons past PRs taught, and the scripts both use. A skill
+links to these documents rather than restating them; `morphic-curating-skills` says where a new
+lesson goes.
 
 ## Invariants that must not be violated
 
