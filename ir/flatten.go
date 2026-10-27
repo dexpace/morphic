@@ -47,12 +47,12 @@ type PropertyDecl struct {
 // FlattenedProperties returns the shape of the model root names across its
 // composition (ir-design §4.3). Root and each composition entry are read
 // through alias scalars. The walk goes depth first, following a model's Base,
-// Implements and Mixins in turn, and reads each model's own properties after
+// then Implements, then Mixins, and reads each model's own properties after
 // those of every model it composes that does not compose it too: layout
 // order. It reads the declarations [ExposedProps] reaches, one member per wire
 // name, a later declaration overriding an earlier one in its place. A root
 // naming no model has an empty shape; a cyclic composition is read to its
-// fixpoint.
+// fixpoint. It writes nothing to types.
 func FlattenedProperties(types TypeRegistry, root TypeID) Flattening {
 	f := flattener{types: types}
 	return f.flatten(root)

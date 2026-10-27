@@ -1976,8 +1976,9 @@ declares itself (`Client`). Names that collide once cased are `Ctx.Syms`'s on ev
 **Inheritance.** Go has only embedding. Kotlin's single class inheritance cannot hold several
 `Mixins`, and extending a base would make it an open class the SDK must keep compatible for every
 subclass. So on all three targets a model's `Base` and `Mixins` are flattened into it
-(`TypePlan.Flattened`). Subtyping survives as interfaces: `Implements` becomes an interface, and a
-discriminated or abstract base a sealed interface its subtypes implement.
+(`TypePlan.Flattened`), which holds the members its `Implements` declare as well, since a type
+conforming to an interface carries them. Subtyping survives as interfaces: `Implements` becomes an
+interface, and a discriminated or abstract base a sealed interface its subtypes implement.
 
 **Scale.** The JVM caps a method at 255 parameter slots and 64 KiB of bytecode, and a class at
 65,535 constant-pool entries. A refiner checks each declaration against its target's limits and
