@@ -8,13 +8,15 @@ OLD must occur in FILE exactly once, read literally; NEW replaces it. TEST-COMMA
 current directory, such as `go test ./ir/...`, and the verdict is read from `go test` output: a
 kill needs a `--- FAIL` line, a survival an `ok` line. A Go file's package and tests must build
 with the mutant in place, or there is no verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every
-failing test line. Exit 0 KILLED, 1 SURVIVED, 2 UNVERIFIED or a usage error.
+failing test line, then the file that keeps the run's whole output, as instrumentation needs. Exit
+0 KILLED, 1 SURVIVED, 2 UNVERIFIED or a usage error.
 
 MUTANTS is a JSON-lines file, one {"file", "old", "new"} object per line with an optional "name";
 blank lines and lines starting with # are skipped, and a relative file is read from the current
 directory. Every mutant is checked before any runs, and TEST-COMMAND must pass on the clean tree,
-or no mutant can be judged. Prints a line per mutant and a tally. Exit 0 when every mutant was
-killed, 1 when one survived, 2 when one has no verdict.
+or no mutant can be judged. Prints a line per mutant and a tally, and keeps each run's output in a
+directory, the baseline's as baseline.txt and the mutants' numbered in batch order. Exit 0 when
+every mutant was killed, 1 when one survived, 2 when one has no verdict.
 """
 from __future__ import annotations
 
@@ -23,6 +25,7 @@ import re
 import signal
 import subprocess
 import sys
+import tempfile
 import traceback
 from pathlib import Path
 
@@ -71,7 +74,9 @@ def interrupted(signum, frame):
     raise SystemExit(UNVERIFIED)
 
 
-def mutate(path: Path, old: str, new: str, command: list[str]) -> tuple[int, str]:
+def mutate(path: Path, old: str, new: str, command: list[str], keep: Path) -> tuple[int, str]:
+    """Plant the mutant, judge the run, and restore the file; keep receives the output of the
+    build that failed or of the test command."""
     original = path.read_bytes()
     count = original.count(old.encode())
     if count != 1:
@@ -87,10 +92,12 @@ def mutate(path: Path, old: str, new: str, command: list[str]) -> tuple[int, str
         if path.suffix == ".go":
             ok, out = builds(path)
             if not ok:
+                keep.write_text(out)
                 head = "\n".join(out.splitlines()[:15])
                 reason = "UNVERIFIED: the mutant does not build or vet; adjust it until it compiles"
                 return UNVERIFIED, reason + "\n" + head
         run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        keep.write_text(run.stdout)
         return verdict(run.returncode, run.stdout)
     finally:
         path.write_bytes(original)
@@ -149,19 +156,21 @@ def batch(path: Path, command: list[str]) -> int:
     if problems:
         print("\n".join(problems), file=sys.stderr)
         return UNVERIFIED
+    outputs = Path(tempfile.mkdtemp(prefix="mutate-"))
     run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    (outputs / "baseline.txt").write_text(run.stdout)
     code, text = verdict(run.returncode, run.stdout)
     if code != SURVIVED:
         print("mutate: the command does not pass on the clean tree, so no mutant can be judged\n"
               + text, file=sys.stderr)
         return UNVERIFIED
     tally = [0, 0, 0]
-    for m in mutants:
-        code, text = mutate(m["file"], m["old"], m["new"], command)
+    for n, m in enumerate(mutants, 1):
+        code, text = mutate(m["file"], m["old"], m["new"], command, outputs / f"{n}.txt")
         tally[code] += 1
         print(summary(code, text, m["name"]), flush=True)
     print(f"mutate: {tally[KILLED]} killed, {tally[SURVIVED]} survived, "
-          f"{tally[UNVERIFIED]} unverified")
+          f"{tally[UNVERIFIED]} unverified; each run's output is in {outputs}")
     return UNVERIFIED if tally[UNVERIFIED] else SURVIVED if tally[SURVIVED] else KILLED
 
 
@@ -183,11 +192,14 @@ def main(argv: list[str] | None = None) -> int:
     if not path.is_file():
         print(f"mutate: {args[0]} is not a file", file=sys.stderr)
         return UNVERIFIED
+    keep = Path(tempfile.mkdtemp(prefix="mutate-")) / "output.txt"
     try:
-        code, text = mutate(path, args[1], args[2], args[4:])
+        code, text = mutate(path, args[1], args[2], args[4:], keep)
     except KeyboardInterrupt:
         code, text = UNVERIFIED, "mutate: interrupted; the file is restored"
     print(text, file=sys.stderr if text.startswith("mutate:") else sys.stdout)
+    if keep.is_file():
+        print(f"output: {keep}")
     return code
 
 

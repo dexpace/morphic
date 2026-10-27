@@ -39,8 +39,8 @@ Run each from the repository root as
 options.
 
 - `scripts/mutate.py FILE OLD NEW -- GO-TEST-COMMAND` plants one literal replacement, checks it
-  compiles, runs the tests and always restores the file. `--batch MUTANTS` plants a
-  JSON-lines set in turn, after the command passes on the clean tree.
+  compiles, runs the tests, keeps their output and always restores the file. `--batch MUTANTS`
+  plants a JSON-lines set in turn, after the command passes on the clean tree.
 - `scripts/sweep.py [-b BASE] [CORPUS...]` compiles a corpus (default `testdata/`) at BASE
   and at the working tree, and reports each difference.
 - `scripts/affected_packages.py [BASE]` lists the packages a change can affect.

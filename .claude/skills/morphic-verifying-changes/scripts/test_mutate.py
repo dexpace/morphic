@@ -54,12 +54,22 @@ class VerdictTest(unittest.TestCase):
         self.assertIn("note: a panic ended the run", text)
 
 
+def keep_outputs_in(test: unittest.TestCase, directory: str) -> None:
+    """Make the directories mutate keeps outputs in land under directory for the test's life."""
+    previous = tempfile.tempdir
+    tempfile.tempdir = directory
+    test.addCleanup(setattr, tempfile, "tempdir", previous)
+
+
 class MutateTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
+        keep_outputs_in(self, self.dir.name)
         self.file = Path(self.dir.name) / "subject.txt"
         self.file.write_text("keep good keep\n")
         self.command = [sys.executable, "-c", FAKE_TEST, str(self.file)]
+        # A run of the script as a process keeps its outputs here too.
+        self.env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1", "TMPDIR": self.dir.name}
 
     def tearDown(self):
         self.dir.cleanup()
@@ -70,6 +80,15 @@ class MutateTest(unittest.TestCase):
     def test_a_caught_mutant_is_killed_and_restored(self):
         self.assertEqual(self.run_mutate("good", "bad"), mutate.KILLED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
+
+    def test_the_whole_output_is_kept_and_named(self):
+        probe = [sys.executable, "-c", "print('probe hit 42'); print('ok  \tfake/pkg\t0.1s')"]
+        code, printed = quietly(mutate.main, [str(self.file), "good", "bad", "--", *probe])
+        self.assertEqual(code, mutate.SURVIVED, printed)
+        kept = [l.split(": ", 1)[1] for l in printed.splitlines() if l.startswith("output: ")]
+        self.assertEqual(len(kept), 1, printed)
+        self.assertIn("probe hit 42", Path(kept[0]).read_text())
+        self.assertTrue(Path(kept[0]).is_relative_to(self.dir.name))
 
     def test_a_harmless_mutant_survives_and_is_restored(self):
         self.assertEqual(self.run_mutate("keep\n", "keep \n"), mutate.SURVIVED)
@@ -89,7 +108,7 @@ class MutateTest(unittest.TestCase):
         command = [sys.executable, str(HERE / "mutate.py"), str(self.file), "good", "bad", "--",
                    "/no/such/command"]
         run = subprocess.run(command, capture_output=True, text=True,
-                             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+                             env=self.env)
         self.assertEqual(run.returncode, mutate.UNVERIFIED, run.stderr)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
 
@@ -97,7 +116,7 @@ class MutateTest(unittest.TestCase):
         script = HERE / "mutate.py"
         proc = subprocess.Popen([sys.executable, str(script), str(self.file), "good", "bad", "--",
                                  sys.executable, "-c", "import time; time.sleep(30)"],
-                                env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+                                env=self.env)
         for _ in range(100):
             if "bad" in self.file.read_text():
                 break
@@ -111,6 +130,7 @@ class MutateTest(unittest.TestCase):
 class BatchTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
+        keep_outputs_in(self, self.dir.name)
         self.file = Path(self.dir.name) / "subject.txt"
         self.file.write_text("keep good keep\nmore\n")
         self.marker = Path(self.dir.name) / "ran"
@@ -139,6 +159,11 @@ class BatchTest(unittest.TestCase):
         self.assertIn("(line 4)", out)
         self.assertIn("mutate: 2 killed, 0 survived, 0 unverified", out)
         self.assertEqual(self.file.read_text(), "keep good keep\nmore\n")
+        outputs = Path(out.rsplit("each run's output is in ", 1)[1].strip())
+        names = sorted(p.name for p in outputs.iterdir())
+        self.assertEqual(names, ["1.txt", "2.txt", "baseline.txt"])
+        self.assertIn("--- FAIL: TestThing", (outputs / "1.txt").read_text())
+        self.assertNotIn("FAIL", (outputs / "baseline.txt").read_text())
 
     def test_one_survivor_makes_the_batch_survive(self):
         code, out = self.run_batch(self.mutant("good", "bad"), self.mutant("more", "less", "x"))
