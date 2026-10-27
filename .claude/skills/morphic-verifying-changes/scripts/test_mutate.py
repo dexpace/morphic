@@ -2,6 +2,9 @@
 
 Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
 """
+import contextlib
+import io
+import json
 import os
 import signal
 import subprocess
@@ -20,6 +23,13 @@ FAKE_TEST = (
     "if 'bad' in text: print('--- FAIL: TestThing (0.00s)'); print('FAIL'); sys.exit(1)\n"
     "print('ok  \tfake/pkg\t0.1s')"
 )
+
+
+def quietly(fn, *args):
+    """Call fn, returning its result and everything it printed, so no run reaches the console."""
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+        return fn(*args), out.getvalue()
 
 
 class VerdictTest(unittest.TestCase):
@@ -55,7 +65,7 @@ class MutateTest(unittest.TestCase):
         self.dir.cleanup()
 
     def run_mutate(self, old, new, command=None):
-        return mutate.main([str(self.file), old, new, "--", *(command or self.command)])
+        return quietly(mutate.main, [str(self.file), old, new, "--", *(command or self.command)])[0]
 
     def test_a_caught_mutant_is_killed_and_restored(self):
         self.assertEqual(self.run_mutate("good", "bad"), mutate.KILLED)
@@ -71,7 +81,8 @@ class MutateTest(unittest.TestCase):
         self.assertEqual(self.file.read_text(), "keep good keep\n")
 
     def test_a_usage_error_changes_nothing(self):
-        self.assertEqual(mutate.main([str(self.file), "good", "bad", "echo"]), mutate.UNVERIFIED)
+        code, _ = quietly(mutate.main, [str(self.file), "good", "bad", "echo"])
+        self.assertEqual(code, mutate.UNVERIFIED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
 
     def test_a_command_that_cannot_start_is_no_verdict(self):
@@ -95,6 +106,68 @@ class MutateTest(unittest.TestCase):
         proc.send_signal(signal.SIGTERM)
         self.assertEqual(proc.wait(timeout=10), mutate.UNVERIFIED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
+
+
+class BatchTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.file = Path(self.dir.name) / "subject.txt"
+        self.file.write_text("keep good keep\nmore\n")
+        self.marker = Path(self.dir.name) / "ran"
+        # The fake test also records that it ran, so a refused batch can be shown to run nothing.
+        self.command = [sys.executable, "-c",
+                        f"open({str(self.marker)!r}, 'a').write('x')\n" + FAKE_TEST,
+                        str(self.file)]
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def run_batch(self, *lines):
+        batch = Path(self.dir.name) / "mutants.jsonl"
+        batch.write_text("\n".join(l if isinstance(l, str) else json.dumps(l) for l in lines))
+        return quietly(mutate.main, ["--batch", str(batch), "--", *self.command])
+
+    def mutant(self, old, new, name=None):
+        m = {"file": str(self.file), "old": old, "new": new}
+        return {**m, "name": name} if name else m
+
+    def test_every_mutant_killed_is_a_kill(self):
+        code, out = self.run_batch("# comment", "", self.mutant("good", "bad", "plant"),
+                                   self.mutant("more", "bad more"))
+        self.assertEqual(code, mutate.KILLED, out)
+        self.assertIn("KILLED     plant: TestThing", out)
+        self.assertIn("(line 4)", out)
+        self.assertIn("mutate: 2 killed, 0 survived, 0 unverified", out)
+        self.assertEqual(self.file.read_text(), "keep good keep\nmore\n")
+
+    def test_one_survivor_makes_the_batch_survive(self):
+        code, out = self.run_batch(self.mutant("good", "bad"), self.mutant("more", "less", "x"))
+        self.assertEqual(code, mutate.SURVIVED, out)
+        self.assertIn("SURVIVED   x: no test noticed", out)
+        self.assertEqual(self.file.read_text(), "keep good keep\nmore\n")
+
+    def test_a_batch_with_any_problem_runs_nothing(self):
+        for bad in ("{not json", {"file": str(self.file), "old": "keep"},
+                    self.mutant("keep", "x"), self.mutant("good", "good"),
+                    {"file": "/no/such/file", "old": "a", "new": "b"}):
+            with self.subTest(bad=bad):
+                code, out = self.run_batch(self.mutant("good", "bad"), bad)
+                self.assertEqual(code, mutate.UNVERIFIED, out)
+                self.assertIn("mutants.jsonl:2:", out)
+                self.assertFalse(self.marker.exists(), "the command ran for a refused batch")
+
+    def test_an_empty_batch_is_refused(self):
+        code, out = self.run_batch("# nothing")
+        self.assertEqual(code, mutate.UNVERIFIED)
+        self.assertIn("holds no mutant", out)
+
+    def test_a_failing_baseline_judges_no_mutant(self):
+        self.file.write_text("keep good keep\nmore\nbad\n")
+        code, out = self.run_batch(self.mutant("good", "worse"))
+        self.assertEqual(code, mutate.UNVERIFIED, out)
+        self.assertIn("does not pass on the clean tree", out)
+        self.assertEqual(self.marker.read_text(), "x", "only the baseline ran")
+        self.assertEqual(self.file.read_text(), "keep good keep\nmore\nbad\n")
 
 
 if __name__ == "__main__":

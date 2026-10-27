@@ -2,15 +2,23 @@
 """Plant one defect, run the tests, and restore the file whatever happens.
 
 Usage: python3 mutate.py FILE OLD NEW -- TEST-COMMAND...
+       python3 mutate.py --batch MUTANTS -- TEST-COMMAND...
 
 OLD must occur in FILE exactly once, read literally; NEW replaces it. TEST-COMMAND runs from the
 current directory, such as `go test ./ir/...`, and the verdict is read from `go test` output: a
 kill needs a `--- FAIL` line, a survival an `ok` line. A Go file's package and tests must build
 with the mutant in place, or there is no verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every
 failing test line. Exit 0 KILLED, 1 SURVIVED, 2 UNVERIFIED or a usage error.
+
+MUTANTS is a JSON-lines file, one {"file", "old", "new"} object per line with an optional "name";
+blank lines and lines starting with # are skipped, and a relative file is read from the current
+directory. Every mutant is checked before any runs, and TEST-COMMAND must pass on the clean tree,
+or no mutant can be judged. Prints a line per mutant and a tally. Exit 0 when every mutant was
+killed, 1 when one survived, 2 when one has no verdict.
 """
 from __future__ import annotations
 
+import json
 import re
 import signal
 import subprocess
@@ -22,6 +30,8 @@ FAIL_LINE = re.compile(r"^\s*--- FAIL", re.M)
 OK_LINE = re.compile(r"^ok\s", re.M)
 NO_BUILD = re.compile(r"\[build failed\]|\[setup failed\]|^# ", re.M)
 KILLED, SURVIVED, UNVERIFIED = 0, 1, 2
+LABELS = ("KILLED", "SURVIVED", "UNVERIFIED")
+FAILED_TEST = re.compile(r"^--- FAIL: (\S+)", re.M)
 
 
 def verdict(status: int, output: str) -> tuple[int, str]:
@@ -88,8 +98,84 @@ def mutate(path: Path, old: str, new: str, command: list[str]) -> tuple[int, str
             print(f"mutate: RESTORE FAILED, {path} still holds the mutant", file=sys.stderr)
 
 
+def load_batch(path: Path) -> tuple[list[dict], list[str]]:
+    """Read a batch of mutants; return them and every problem found, so that a batch with any
+    problem runs nothing."""
+    mutants, problems = [], []
+    for n, line in enumerate(path.read_text().splitlines(), 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        where = f"{path}:{n}"
+        try:
+            m = json.loads(line)
+        except json.JSONDecodeError as e:
+            problems.append(f"{where}: not JSON: {e.msg}")
+            continue
+        if not isinstance(m, dict) or not all(isinstance(m.get(k), str)
+                                              for k in ("file", "old", "new")):
+            problems.append(f"{where}: needs the string fields file, old and new")
+            continue
+        target = Path(m["file"]).resolve()
+        if not target.is_file():
+            problems.append(f"{where}: {m['file']} is not a file")
+            continue
+        count = target.read_bytes().count(m["old"].encode())
+        if count != 1 or m["old"] == m["new"]:
+            problems.append(f"{where}: OLD occurs {count} times in {m['file']}" if count != 1
+                            else f"{where}: the replacement changes nothing")
+            continue
+        mutants.append({"file": target, "old": m["old"], "new": m["new"],
+                        "name": m.get("name") or f"{m['file']} (line {n})"})
+    if not mutants and not problems:
+        problems.append(f"{path}: holds no mutant")
+    return mutants, problems
+
+
+def summary(code: int, text: str, name: str) -> str:
+    """One line for a mutant's verdict: the tests that killed it, or why there is no verdict."""
+    if code == KILLED:
+        tests = list(dict.fromkeys(FAILED_TEST.findall(text)))
+        detail = ", ".join(tests) if tests else "a subtest failed"
+    elif code == SURVIVED:
+        detail = "no test noticed"
+    else:
+        detail = text.split("\n", 1)[0].split(": ", 1)[-1]
+    return f"{LABELS[code]:<10} {name}: {detail}"
+
+
+def batch(path: Path, command: list[str]) -> int:
+    """Run every mutant in a batch after a clean baseline; return the worst verdict."""
+    mutants, problems = load_batch(path)
+    if problems:
+        print("\n".join(problems), file=sys.stderr)
+        return UNVERIFIED
+    run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    code, text = verdict(run.returncode, run.stdout)
+    if code != SURVIVED:
+        print("mutate: the command does not pass on the clean tree, so no mutant can be judged\n"
+              + text, file=sys.stderr)
+        return UNVERIFIED
+    tally = [0, 0, 0]
+    for m in mutants:
+        code, text = mutate(m["file"], m["old"], m["new"], command)
+        tally[code] += 1
+        print(summary(code, text, m["name"]), flush=True)
+    print(f"mutate: {tally[KILLED]} killed, {tally[SURVIVED]} survived, "
+          f"{tally[UNVERIFIED]} unverified")
+    return UNVERIFIED if tally[UNVERIFIED] else SURVIVED if tally[SURVIVED] else KILLED
+
+
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
+    if args[:1] == ["--batch"]:
+        if len(args) < 4 or args[2] != "--" or not Path(args[1]).is_file():
+            print(__doc__.split("\n\n")[1], file=sys.stderr)
+            return UNVERIFIED
+        try:
+            return batch(Path(args[1]), args[3:])
+        except KeyboardInterrupt:
+            print("mutate: interrupted; every file is restored", file=sys.stderr)
+            return UNVERIFIED
     if len(args) < 5 or args[3] != "--":
         print(__doc__.split("\n\n")[1], file=sys.stderr)
         return UNVERIFIED
