@@ -27,3 +27,6 @@ func DeclaredIDField(t reflect.Type) (int, reflect.Type) {
 	f := declaredIDField(t)
 	return f.index, f.class
 }
+
+// FewInferred is fewInferred, for the external tests.
+const FewInferred = fewInferred

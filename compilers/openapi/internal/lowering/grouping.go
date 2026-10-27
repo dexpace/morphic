@@ -1,5 +1,12 @@
 package lowering
 
+import "github.com/dexpace/morphic/ir"
+
+// GroupPathPrefixHeuristic is the name Provenance.Inferred carries on an
+// operation GroupByPathPrefix filed. It is a constant for the reason
+// StreamingMediaTypeHeuristic is: an auditor greps for it.
+const GroupPathPrefixHeuristic ir.Inferred = "group-path-prefix"
+
 // GroupingStrategy selects how operations are grouped into OperationGroups. It
 // is the injectable-policy seam (architecture principle 6): grouping is inferred
 // policy, not source semantics, and can be switched or disabled.

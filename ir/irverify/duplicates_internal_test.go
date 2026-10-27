@@ -222,6 +222,7 @@ var identityClasses = map[string]string{
 	"PropID":       "identity, model-scoped: pass.Validate resolves references (checkPropIDRefs, checkEncodingKeys); checkDuplicateIDs holds no two *different* properties to one ID, the copies a component makes of one property being exempt by fingerprint",
 
 	"BigVal":          "arbitrary-precision decimal, not an identity",
+	"Inferred":        "the heuristics that produced a fact, not an identity",
 	"PrimKind":        "primitive leaf kind; ir.PrimTypeID derives an ID from it, but the kind is not one",
 	"TypeKind":        "sum-type tag on TypeDef, not an identity",
 	"ValueKind":       "sum-type tag on Value, not an identity",
