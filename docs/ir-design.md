@@ -335,9 +335,9 @@ it sees. Changes made together in one bump are listed together under it.
 - **0.20.0** — an inferred-marker list has a type of its own (§12): `Provenance.Inferred` and
   `TypeRef.Inferred` are `Inferred`, the list `JoinInferred` writes, where each was a `string`. The
   JSON is unchanged, but a member's Go type is part of the shape, and `irverify` now holds every
-  stored list to that form (`ir/inferred-not-canonical`), so one naming a heuristic twice or an
-  empty name is reported where it passed. A consumer pinned to 0.19.0 reads the same bytes; the
-  version check refuses it a 0.20.0 document all the same.
+  stored list to that form (`ir/inferred-not-canonical`), so a list that names a heuristic twice,
+  or holds an empty name, is reported where it passed. A consumer pinned to 0.19.0 reads the same
+  bytes; the version check refuses it a 0.20.0 document all the same.
 
 ---
 

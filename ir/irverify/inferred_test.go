@@ -64,9 +64,9 @@ func markerCarriers() []markerCarrier {
 }
 
 // TestVerify_AnInferredMarkerNotInTheJoinedFormIsAViolation is GitHub #1114's
-// reproduction at every carrier: each list ir.JoinInferred would rewrite is one
-// violation at the list, naming what the join writes, and the list it would
-// keep is clean.
+// reproduction on both carrier types, under Types, Services and Diagnostics:
+// each list ir.JoinInferred would rewrite is one violation at the list, naming
+// what the join writes, and each list it would keep is clean.
 func TestVerify_AnInferredMarkerNotInTheJoinedFormIsAViolation(t *testing.T) {
 	t.Parallel()
 	for _, carrier := range markerCarriers() {
