@@ -57,6 +57,14 @@ compiles a corpus with two builds; these rules decide whether its answer means a
   build.
 - **Why.** It found crashes `main` had and a draft refusal of a clean document (#946).
 
+## A crash oracle reads the crash, not the exit status
+`crash-oracle-text`
+
+- **Rule.** Classify a subprocess crash by its output (`fatal error: stack overflow`), never by exit
+  status 2 alone, which every panic also gives.
+- **Why.** A panic also exits with status 2, so an oracle reading the status alone records any panic
+  as the overflow it looks for; the reach oracle classifies its child's output instead (#942).
+
 ## Compare diagnostics as a sorted multiset
 `two-order-diagnostics`
 
@@ -70,8 +78,8 @@ compiles a corpus with two builds; these rules decide whether its answer means a
 `order-oracle-errors`
 
 - **Rule.** `harness.Check` stops at the first error diagnostic. To measure order dependence over
-  specs with errors, call the harness's order invariant from a scratch test in `internal/harness` on
-  both builds, and delete it after.
+  specs with errors, call `orderInvariant` from a scratch test in `internal/harness` on both
+  builds, and delete it after.
 - **Why.** Order-dependent specs hid behind their errors (#917).
 
 ## Never compare cmp.Diff text across runs

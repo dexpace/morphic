@@ -152,6 +152,15 @@ to read — and to execute outside the case its author measured.
 - **Probe.** `go test -bench` and a heap profile after `runtime.GC` on the workload, before and
   after.
 
+## A cancellation claim needs a gap probe
+`cancellation-gaps`
+
+- **Rule.** For "every walk asks the context", wrap the context so `Err` records the longest gaps
+  between asks over one whole compile of a large spec. Pin each new ask with a test that counts asks
+  through `ctxtest.Countdown` and cuts partway.
+- **Why.** An allocation-bounded test passed while a lazy index walked a million nodes without
+  asking (#1131).
+
 ## Check 'same', 'distinct' and 'shared' claims on both sides with differing inputs
 `claims-that-two-things-agree`
 
@@ -160,8 +169,8 @@ to read — and to execute outside the case its author measured.
   same effect, check each side separately, on non-fresh destinations and on inputs that differ only
   in what the derivation drops, and cite the code path for each.
 - **Why.** Parity checked on one side or on a fresh value hid divergences: a populated destination
-  decoded differently, URL templates differing only in punctuation collided, and only one of two
-  directive spellings actually suppressed nothing (#264, #261).
+  decoded differently, URL templates differing only in punctuation collided, and one of two
+  directive spellings said to act alike suppressed nothing (#264, #261).
 - **Probe.** Write a two-row probe per claimed equivalence: run both paths on a pre-populated value,
   both input spellings, and a pair of inputs differing only in characters the canonicalisation
   drops; cmp.Diff the results.

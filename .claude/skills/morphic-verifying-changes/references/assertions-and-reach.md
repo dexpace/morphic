@@ -56,11 +56,13 @@ it.
 - **Rule.** A guard over declarations, a self-check, a glob, a fixture path or an oracle that can
   decline fails on input it cannot classify or find: no silent skip of unparsed spellings or
   aliases, no log-only self-check, no glob matching nothing, no `t.Skip` on a missing fixture in a
-  gate run, no oracle returning ok without comparing.
+  gate run, no oracle returning ok without comparing, no case expecting failure that does not
+  first assert its fixture exists.
 - **Why.** Const-block guards skipped conversions and aliases, a benchmark read a missing path and
-  exited 0, and the order oracle returned ok without comparing on anchor-bearing specs (#111, #344).
-- **Probe.** Feed each guard one input it cannot classify, assert every glob matches a file, and
-  fail when no comparison ran.
+  exited 0, the order oracle returned ok without comparing on anchor-bearing specs, and a
+  misspelt fixture satisfied a "fails" case (#111, #344, #381).
+- **Probe.** Feed each guard an input it cannot classify, assert every glob matches a file, fail
+  when no comparison ran, and rename a fixture.
 
 ## Assert diagnostics by code, severity and subject, and the whole list
 `assert-diagnostics-by-identity-and-completely`
@@ -128,6 +130,16 @@ it.
   and not panic; run the golden test with -update while an assertion fails and confirm the golden
   file is unchanged.
 
+## A closure in a parallel subtest must not use the parent's t
+`parent-t-in-subtest`
+
+- **Rule.** Build files and directories once in the parent; a closure that needs a `t` takes the
+  subtest's.
+- **Why.** A `require` on the outer `t` inside a parallel subtest turned a failure into
+  `panic(nil)`, and the loop created temp files for every check (#1131).
+- **Probe.** Make one subtest's `require` fail: the run must name that subtest's failure, not
+  report `panic(nil)` or `runtime.Goexit`.
+
 ## When two paths give one answer, assert which one ran
 `prove-which-path-answered`
 
@@ -191,6 +203,14 @@ it.
   was dropped, and a missing version tiebreak passed about one run in five (#119, #565).
 - **Probe.** Plant a comparator returning 0 and a dropped tiebreak, run the test with -count=50, and
   confirm every run fails; plant a uniformly wrong result and confirm the two-order test fails.
+
+## Name fixtures so the right answer sorts last
+`sort-order-fixture`
+
+- **Rule.** When a change sorts for determinism, give each rule a fixture in which the semantically
+  right site sorts last (declared at `/z`, reused at `/a`).
+- **Why.** Pointer order picked the right site by coincidence in every fixture while the rule was
+  not implemented (#548). The two-order oracle cannot see this.
 
 ## When moving tests, keep every case and the right package
 `test-moves-preserve-cases-and-scope`

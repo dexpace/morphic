@@ -4,8 +4,8 @@
 `coverage-per-package`
 
 - **Rule.** `make coverage` profiles each package against its own tests (no `-coverpkg`). Give new
-  code a test in its own package, and check a package with
-  `go test ./pkg -covermode=atomic -coverprofile=f` and `go run ./cmd/morphic-covergate f`.
+  code a test in its own package, and check a package as the `Makefile` does:
+  `go test ./pkg -race -covermode=atomic -coverprofile=f`, then `go run ./cmd/morphic-covergate f`.
 - **Why.** End-to-end tests exercised every branch of a schema helper and the gate still found 13
   uncovered statements (#1065).
 
@@ -38,15 +38,6 @@
 - **Why.** Two dials of a freed port failed differently under the full suite's load, and another
   test could bind it in between (#1140).
 
-## A cancellation claim needs a gap probe
-`cancellation-gaps`
-
-- **Rule.** For "every walk asks the context", wrap the context so `Err` records the longest gaps
-  between asks over one whole compile of a large spec. Pin each new ask with a test that counts asks
-  through `ctxtest.Countdown` and cuts partway.
-- **Why.** An allocation-bounded test passed while a lazy index walked a million nodes without
-  asking (#1131).
-
 ## A build in the worktree can dirty it
 `build-dirties-tree`
 
@@ -54,3 +45,12 @@
   `git status --untracked-files=all` before committing.
 - **Why.** `go build ./cmd/morphic` writes the binary into the working directory, one `git add -A`
   from a commit (#828).
+
+## Temporary instrumentation needs -v
+`instrument-with-v`
+
+- **Rule.** Run a temporary `println` probe with `go test -v`: without it, passing packages print
+  nothing, and only the failing package's hits appear. Attribute a hit to its test from the
+  `runtime.Callers` frame in a `_test.go` file.
+- **Why.** A `println` run without `-v` listed only the failing package's offenders and missed the
+  `pass` fixtures (#544).

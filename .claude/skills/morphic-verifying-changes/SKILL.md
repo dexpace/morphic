@@ -1,21 +1,20 @@
 ---
 name: morphic-verifying-changes
-description: Use when writing or changing a test, a verifier, or a lint or archtest rule in this repository, fixing a defect, claiming that a test, check or fix catches or prevents something, comparing behaviour with main, or stating a count, a cost, or an every/never/only claim about the code.
+description: Use when writing or changing a test, a verifier, or a lint or archtest rule in this repository, fixing a defect, claiming that a test, check or fix catches or prevents something, comparing behaviour with main, stating a count, a cost, or an every/never/only claim about the code, or before calling a change done.
 ---
 
 # Verifying changes in morphic
 
-A result is evidence only when something outside it could have disagreed. Reading the code
-or the test, regenerating a golden or compiling one declaration order cannot disagree with
-you. A planted defect, a probe, a `main` control or the opposite order can. `CLAUDE.md`'s "Verify
-by executing" is the rule; this skill is how.
+A result is evidence only when something outside it could have disagreed: a planted defect, a
+probe, a `main` control, the opposite order. `CLAUDE.md`'s "Verify by executing" is the rule; this
+skill is how.
 
 ## Claim → probe
 
 | Claim | Probe |
 |---|---|
 | test T catches defect D | plant D with `scripts/mutate.py`; T reddens and the mutant compiled |
-| this guard or branch matters | neutralise it (`cond \|\| true`, an early return); a test reddens. Coverage cannot see an untaken guard |
+| this guard or branch matters | force each side (`cond \|\| true`, `cond && false`); a test reddens for each. Coverage cannot see a side that holds no statement |
 | order-independent | swap the declaration order; diff the documents, and the diagnostics as a sorted multiset |
 | no regression against main | `scripts/sweep.py`; each new probe fails on `main`, and a build with the fix broken differs |
 | the fixture reaches the check | confirm where it lands: `harness.Check` stops at the first error diagnostic |
@@ -35,7 +34,9 @@ by executing" is the rule; this skill is how.
 
 ## Scripts
 
-Run each with `python3`; its docstring gives the options.
+Run each from the repository root as
+`python3 .claude/skills/morphic-verifying-changes/scripts/<name>.py`; its docstring gives the
+options.
 
 - `scripts/mutate.py FILE OLD NEW -- GO-TEST-COMMAND` plants one literal replacement, checks it
   compiles, runs the tests and always restores the file. `--batch MUTANTS` plants a
@@ -56,4 +57,5 @@ Run each with `python3`; its docstring gives the options.
 - `references/checkers.md`: verifiers, lint and archtest rules that reach what they claim.
 - `references/mutation.md`: planting defects without fooling yourself.
 - `references/differentials.md`: controls, corpus sweeps and generated inputs.
-- `references/toolchain.md`: Go caching, coverage and scheduling behaviour that misleads probes.
+- `references/toolchain.md`: Go caching, coverage, test output and build behaviour that misleads
+  probes.

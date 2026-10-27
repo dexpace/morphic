@@ -18,10 +18,10 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
 `mutation-must-compile`
 
 - **Rule.** Build the mutant before reading results, and adjust it until it compiles (`_ = x` for an
-  unused variable). A run that reports a kill with no `--- FAIL` line is unverified.
+  unused variable). A run that reports a kill with no `--- FAIL` line is unverified; `mutate.py`
+  reports both as UNVERIFIED rather than as a verdict.
 - **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
   (#321, #322) and as "killed" with an empty failure list (#1100).
-- **Probe.** `mutate.py` refuses a mutant whose package and tests do not build.
 
 ## Require a clean baseline and a control that must survive
 `mutation-controls`
@@ -67,55 +67,6 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
 - **Why.** Two of six copied `ok` checks survived every test; the shared guard had been tested
   through one site (#1088, #1140).
 
-## Test a cut at every alignment
-`cut-every-alignment`
-
-- **Rule.** For code that cuts on a boundary, put the bound at each byte of a multi-byte rune (pad
-  0–3 bytes before a 4-byte rune), and add a run of continuation bytes for the start-of-text guard.
-- **Why.** Four green tests put the bound one byte into a rune, so `for` → `if` and a dropped
-  `n > 0` both survived (#1130).
-
-## A case that names a fixture checks the fixture exists
-`fixture-exists`
-
-- **Rule.** A table case naming its own fixture asserts the fixture exists before running anything.
-- **Why.** A misspelt fixture made the tool fail on a missing path, which satisfied the case's
-  "fails" assertion (#381).
-- **Probe.** Rename one fixture; the case must fail with a reason about the fixture.
-
-## Name fixtures so the right answer sorts last
-`sort-order-fixture`
-
-- **Rule.** When a change sorts for determinism, give each rule a fixture in which the semantically
-  right site sorts last (declared at `/z`, reused at `/a`).
-- **Why.** Pointer order picked the right site by coincidence in every fixture while the rule was
-  not implemented (#548). The two-order oracle cannot see this.
-
-## Retyping a field can make testify assertions vacuous
-`testify-typed-field`
-
-- **Rule.** After retyping a field, and after every merge of main into it, scan testify calls whose
-  two sides have different types, with a `go/packages` scan validated on a planted case.
-- **Why.** testify compares dynamic types, so `NotEqual(t, "/a", p.Pointer)` always passes once the
-  field is a `jsontext.Pointer` (#549). grep cannot tell.
-
-## A crash oracle reads the crash, not the exit status
-`crash-oracle-text`
-
-- **Rule.** Classify a subprocess crash by its output (`fatal error: stack overflow`), never by exit
-  status 2 alone, which every panic also gives.
-- **Why.** A panic also exits with status 2, so an oracle reading the status alone records any panic
-  as the overflow it looks for; the reach oracle classifies its child's output instead (#942).
-
-## A closure in a parallel subtest must not use the parent's t
-`parent-t-in-subtest`
-
-- **Rule.** Build files and directories once in the parent; a closure that needs a `t` takes the
-  subtest's.
-- **Why.** A `require` on the outer `t` inside a parallel subtest turned a failure into
-  `panic(nil)`, and the loop created temp files for every check (#1131).
-- **Probe.** Read the enclosing closure of each `t.TempDir()` in the test diff.
-
 ## Mutate the library through -modfile to prove a canary
 `library-mutants-modfile`
 
@@ -135,12 +86,3 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
   exactly that case.
 - **Why.** An entry can be guarded only by accident: an unrelated fixture that happened to fail.
   Tidying the fixture removes the guard without any test noticing (#544).
-
-## Temporary instrumentation needs -v
-`instrument-with-v`
-
-- **Rule.** Run a temporary `println` probe with `go test -v`: without it, passing packages print
-  nothing, and only the failing package's hits appear. Attribute a hit to its test from the
-  `runtime.Callers` frame in a `_test.go` file.
-- **Why.** A `println` run without `-v` listed only the failing package's offenders and missed the
-  `pass` fixtures (#544).

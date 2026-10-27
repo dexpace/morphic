@@ -30,6 +30,14 @@ is not behaviour held.
 - **Probe.** Swap in the naive version (substring match, `strconv.Atoi`, return one input) and add
   edge rows until it reddens.
 
+## Test a cut at every alignment
+`cut-every-alignment`
+
+- **Rule.** For code that cuts on a boundary, put the bound at each byte of a multi-byte rune (pad
+  0–3 bytes before a 4-byte rune), and add a run of continuation bytes for the start-of-text guard.
+- **Why.** Four green tests put the bound one byte into a rune, so `for` → `if` and a dropped
+  `n > 0` both survived (#1130).
+
 ## Give every member of a family its own reddening case
 `one-reddening-case-per-member`
 
@@ -97,11 +105,14 @@ is not behaviour held.
 - **Rule.** An assertion is vacuous when its form cannot fail: a selector matching every map, a
   predicate wrong on zero matches, `Equal` or `NotEqual` between different types, a bound a derived
   set can never exceed, a completeness grid counting deduplicated sets where the fixture builds
-  occurrences. Test a checker on its degenerate inputs before trusting it.
-- **Why.** A bare `.Unmodeled` selector admitted any carrier, and `Equal` between a string and a
-  `jsontext.Pointer` always failed while `NotEqual` always passed (#549, #345).
+  occurrences. Test a checker on its degenerate inputs before trusting it. After retyping a field,
+  and after each merge of `main` into that branch, find testify calls whose sides differ in type
+  with a `go/packages` scan: grep cannot see types.
+- **Why.** testify compares dynamic types: once a field became a `jsontext.Pointer`, `Equal` with a
+  string always failed and `NotEqual` always passed. A bare `.Unmodeled` selector admitted any
+  carrier (#549, #345).
 - **Probe.** Feed each helper its zero-match, all-match and wrong-type inputs; remove one grid cell
-  and confirm completeness reports it.
+  and see completeness report it.
 
 ## Pin each bound at the limit and one past it, at every site
 `boundary-cases-at-the-boundary`
