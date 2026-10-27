@@ -2366,18 +2366,20 @@ an `itemSchema` declares, and `MediaTypes` replaces the default list instead of 
 An Encoding Object of a `multipart/*` or `application/x-www-form-urlencoded` Content lowers to a
 `PartEncoding` in `Content.Encoding`, keyed by the `PropID` of the body property its key names,
 wherever the body declares that property: on the schema, in an `allOf` branch with the first
-declaration of a name winning, or on a `Base` or `Mixin` it composes. The `allOf` is read as
+declaration of a name winning, or on a model it composes. Where several models declare the part, the
+key is the declaration the body's flattening takes (ir-design §4.3): a model's over one it composes,
+else the later conjunct's, so `allOf: [{$ref: A}, {$ref: B}]` keys `B`'s. The `allOf` is read as
 [`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref` entry
 is followed up to a bound of its own, and entered again only by a shorter path. A bound that cuts a
 target no path enters is reported as a warning `openapi/degraded-construct` at the body schema,
-since a part reached only past it has no entry. `contentType` lowers to
-`ContentTypes`, split on `,` and trimmed with empty items dropped, and one naming no media type is
-an `openapi/validation` error ([`validation`](#validation)); `headers` to `Headers`, lowered as a
-response's are; and `style` and `explode` to `Style` and `Explode` as declared, nothing defaulted.
-`Multi` and `Filename` come from the part and never from the `encoding` map, read once every type
-has lowered. Where the body model has the property and its type is a list, a tuple, a primitive, or
-a scalar whose bases end in one of those or in no base, they are read off that type, the one the
-`allOf` merge settled on: `Multi` where it ends in a list or tuple, `Filename` where it ends in
+since a part reached only past it has no entry. `contentType` lowers to `ContentTypes`, split on `,`
+and trimmed with empty items dropped, and one naming no media type is an `openapi/validation` error
+([`validation`](#validation)); `headers` to `Headers`, lowered as a response's are; and `style` and
+`explode` to `Style` and `Explode` as declared, nothing defaulted. `Multi` and `Filename` come from
+the part and never from the `encoding` map, read once every type has lowered. Where the body model
+has the property and its type is a list, a tuple, a primitive, or a scalar whose bases end in one of
+those or in no base, they are read off that type, the one the `allOf` merge settled on, of the
+declaration the key names: `Multi` where it ends in a list or tuple, `Filename` where it ends in
 `bytes` (`format` `binary` or `byte`). For a property of any other kind, such as a union, enum,
 literal, model or map, and for a body with no model, they are read from every declaration of the
 part's name: `Multi` where any is an array, `Filename` where any is a `string` with `format`
@@ -2397,6 +2399,7 @@ any case.
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
+  `operation.TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes`,
   `operation.TestPartEncoding_FlagsComeFromTheMergedType`,
   `operation.TestPartEncoding_FlagsOfAnUndecidedTypeComeFromTheSchema`,
   `operation.TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema`,

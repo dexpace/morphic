@@ -54,10 +54,6 @@ var loweringRecursions = [][]string{
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
 	{"listKey", "objectKey", "valueKey"},
-	// Property lookup through a composition. Finding a property by wire name
-	// descends into a model's base and mixins, each of which is a model whose
-	// properties are looked up the same way.
-	{"propByWire", "propInComposition"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.

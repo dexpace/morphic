@@ -168,7 +168,8 @@ type Content struct {
 	// and stays in Unmodeled.
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitzero"`
 	// Encoding holds multipart/form per-property (part) wire config, keyed by the
-	// part property's PropID; no key is empty.
+	// part property's PropID: of a part several declarations name, the one the
+	// flattening of Type takes (ir-design §4.3). No key is empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads).

@@ -63,7 +63,9 @@ func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model
 // checkPropIDRefs already holds every PropID to naming a property the document
 // declares somewhere. This is the tighter claim available where the root is
 // written down: a tag on a property of some unrelated model routes nothing, and
-// an emitter building a decoder reads the tag off *this* model's instance.
+// an emitter building a decoder reads the tag off *this* model's instance. A
+// tag naming a declaration the model's flattening overrides passes, though
+// ir-design §4.3 has it name the one taken, as appendUnknownPartDiags says.
 func checkDiscriminatorProperty(facts *irfacts.Index, m *ir.Model) []ir.Diagnostic {
 	prop := m.Discriminator.Property
 	if prop == "" || facts.Exposes(m.ID, prop) {

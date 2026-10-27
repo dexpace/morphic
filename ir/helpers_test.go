@@ -8,6 +8,7 @@ package ir_test
 import (
 	"encoding/json/v2"
 	"fmt"
+	"math/rand/v2"
 	"slices"
 	"strconv"
 	"strings"
@@ -492,4 +493,138 @@ func declaredIDs(doc *ir.Document) ([]ir.IDDeclaration, bool) {
 	var found ir.IDDeclarations
 	truncated := ir.WalkValues(doc, ir.DocumentPath, &found)
 	return found.List(), truncated
+}
+
+// flatLines renders each member of f on one line: the declaration it takes as
+// ID@owner, each it overrides after a <, and "required" when an instance must
+// carry it.
+func flatLines(f ir.Flattening) []string {
+	out := make([]string, 0, len(f.Properties))
+	for _, fp := range f.Properties {
+		line := fmt.Sprintf("%s@%s", fp.Property.ID, fp.Owner)
+		for _, d := range fp.Overridden {
+			line += fmt.Sprintf(" < %s@%s", d.Property.ID, d.Owner)
+		}
+		if fp.Required {
+			line += " required"
+		}
+		out = append(out, line)
+	}
+	return out
+}
+
+// flatRandom is withinRandom with a wire name on every property, its eight
+// property IDs sharing three names, Required on two of the IDs, and a
+// Requires on each model declaring one property: one name some model may
+// declare, one none does.
+func flatRandom(seed uint64) (*ir.Document, []ir.TypeID) {
+	doc, types, _ := withinRandom(rand.New(rand.NewPCG(seed, seed+11)))
+	for _, td := range doc.Types {
+		m, ok := td.(*ir.Model)
+		if !ok || m == nil {
+			continue
+		}
+		for i := range m.Properties {
+			digit := int(m.Properties[i].ID[len(m.Properties[i].ID)-1] - '0')
+			m.Properties[i].WireName = fmt.Sprintf("w%d", digit%3)
+			m.Properties[i].Required = digit == 1 || digit == 4
+		}
+		if len(m.Properties) == 1 {
+			m.Requires = []string{"w2", "zz"}
+		}
+	}
+	return doc, types
+}
+
+// composition returns the live models root composes, read through alias
+// scalars, root's own included, and the targets of their entries that name no
+// model: a breadth-first reading, so it orders nothing.
+func composition(types ir.TypeRegistry, root ir.TypeID) (map[ir.TypeID]*ir.Model, map[ir.TypeID]bool) {
+	models := map[ir.TypeID]*ir.Model{}
+	unflattened := map[ir.TypeID]bool{}
+	queue := []ir.TypeID{standsFor(types, root)}
+	if m, ok := types[queue[0]].(*ir.Model); !ok || m == nil {
+		return models, unflattened
+	}
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		if _, seen := models[id]; seen {
+			continue
+		}
+		m := types[id].(*ir.Model)
+		models[id] = m
+		for _, target := range entries(m) {
+			end := standsFor(types, target)
+			if pm, ok := types[end].(*ir.Model); ok && pm != nil {
+				queue = append(queue, end)
+				continue
+			}
+			unflattened[target] = true
+		}
+	}
+	return models, unflattened
+}
+
+// composedBelow returns the models the model id composes at any distance, id
+// itself only when a cycle leads back.
+func composedBelow(types ir.TypeRegistry, id ir.TypeID) map[ir.TypeID]bool {
+	below := map[ir.TypeID]bool{}
+	m, _ := types[id].(*ir.Model)
+	queue := entriesOf(types, m)
+	for len(queue) > 0 {
+		next := queue[0]
+		queue = queue[1:]
+		if below[next] {
+			continue
+		}
+		below[next] = true
+		pm, _ := types[next].(*ir.Model)
+		queue = append(queue, entriesOf(types, pm)...)
+	}
+	return below
+}
+
+// entriesOf returns the live models m's entries compose in, read through alias
+// scalars.
+func entriesOf(types ir.TypeRegistry, m *ir.Model) []ir.TypeID {
+	if m == nil {
+		return nil
+	}
+	var out []ir.TypeID
+	for _, target := range entries(m) {
+		end := standsFor(types, target)
+		if pm, ok := types[end].(*ir.Model); ok && pm != nil {
+			out = append(out, end)
+		}
+	}
+	return out
+}
+
+// entries returns the targets of m's set Base, Implements and Mixins.
+func entries(m *ir.Model) []ir.TypeID {
+	var out []ir.TypeID
+	if m.Base != nil && m.Base.Target != "" {
+		out = append(out, m.Base.Target)
+	}
+	for _, r := range append(slices.Clone(m.Implements), m.Mixins...) {
+		if r.Target != "" {
+			out = append(out, r.Target)
+		}
+	}
+	return out
+}
+
+// standsFor follows id's alias scalars to the first type that is none, or to
+// the first met twice.
+func standsFor(types ir.TypeRegistry, id ir.TypeID) ir.TypeID {
+	seen := map[ir.TypeID]bool{}
+	for {
+		base, alias := ir.AliasBase(types, id)
+		if !alias || seen[id] {
+			return id
+		}
+		seen[id] = true
+		id = base
+	}
 }

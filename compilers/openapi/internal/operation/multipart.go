@@ -91,8 +91,9 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	if model, ok := bodyModel(node, k.body); ok {
 		doc, schemaPtr = lowering.IDsAt(k.c, model.Source), model.Pointer
 	}
+	members := partMembers(reg, k.body)
 	for _, p := range k.parts {
-		prop, _ := propByWire(node, k.body, p.name, 0)
+		prop := members[p.name]
 		pe := partFlags(node, prop, p.encoding)
 		if partEncodingEmpty(pe) {
 			continue
@@ -263,10 +264,10 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 // schemaPtr in d when prop is nil.
 //
 // The IR is asked first because §4.3 stores only a model's own properties: a
-// composed body holds its parts on the Base it inherits them from, so a key
-// derived from the composed node's pointer would name a property that exists
-// nowhere. Deriving is the answer for a body with no model in the IR, such as a
-// schema declaring properties beside an enum or scalar type.
+// composed body holds its parts on the models it composes, so a key derived
+// from the composed node's pointer would name a property that exists nowhere.
+// Deriving is the answer for a body with no model in the IR, such as a schema
+// declaring properties beside an enum or scalar type.
 func partPropID(prop *ir.Property, d ids.Document, wire string, schemaPtr jsontext.Pointer) ir.PropID {
 	if prop != nil {
 		return prop.ID
@@ -274,50 +275,17 @@ func partPropID(prop *ir.Property, d ids.Document, wire string, schemaPtr jsonte
 	return d.Prop(schemaPtr + ids.Ptr("properties", wire))
 }
 
-// propByWire searches the type body denotes for a property with the given wire
-// name: what it declares itself, then what it inherits through Base and mixes in
-// through Mixins, following the alias scalars a $ref-with-siblings position
-// hoists on the way. depth bounds the walk, which a Base chain returning to
-// where it started would otherwise never end (GitHub #642).
-func propByWire(node func(ir.TypeID) (ir.TypeDef, bool), body ir.TypeID, wire string, depth int) (*ir.Property, bool) {
-	if depth > maxBodyAliasHops {
-		return nil, false
+// partMembers returns, by wire name, the declaration the flattening of the type
+// body denotes takes for each of its members (ir-design §4.3), which is the one
+// an encoding key names: what a reader of the body's flattened shape looks up.
+// A body standing for no model has none.
+func partMembers(reg ir.TypeRegistry, body ir.TypeID) map[string]*ir.Property {
+	flat := ir.FlattenedProperties(reg, body)
+	members := make(map[string]*ir.Property, len(flat.Properties))
+	for _, fp := range flat.Properties {
+		members[fp.Property.EffectiveWireName()] = fp.Property
 	}
-	td, found := node(body)
-	if !found {
-		return nil, false
-	}
-	switch t := td.(type) {
-	case *ir.Model:
-		for i := range t.Properties {
-			if t.Properties[i].WireName == wire {
-				return &t.Properties[i], true
-			}
-		}
-		return propInComposition(node, t, wire, depth)
-	case *ir.Scalar:
-		if t.Base == nil {
-			return nil, false
-		}
-		return propByWire(node, t.Base.Target, wire, depth+1)
-	default:
-		return nil, false
-	}
-}
-
-// propInComposition searches a model's Base and Mixins, in that order.
-func propInComposition(node func(ir.TypeID) (ir.TypeDef, bool), m *ir.Model, wire string, depth int) (*ir.Property, bool) {
-	if m.Base != nil {
-		if p, ok := propByWire(node, m.Base.Target, wire, depth+1); ok {
-			return p, true
-		}
-	}
-	for _, mixin := range m.Mixins {
-		if p, ok := propByWire(node, mixin.Target, wire, depth+1); ok {
-			return p, true
-		}
-	}
-	return nil, false
+	return members
 }
 
 // partFlags returns pe with the structural flags of the part prop holds, read
@@ -403,11 +371,10 @@ func schemaIsArray(s *oas3.Schema) bool {
 	return slices.Contains(s.GetType(), oas3.SchemaTypeArray)
 }
 
-// maxBodyAliasHops bounds every walk this file takes over the IR (styleguide
-// bounded-everything rule): the alias chains bodyModel and partTypeFlags
-// follow, and the alias, Base and Mixin depth propByWire descends. A loop of
-// $refs lowers to no alias chain, but an allOf cycle lowers to a Base chain
-// with no end (GitHub #642), which only this bound stops.
+// maxBodyAliasHops bounds the alias chains bodyModel and partTypeFlags follow
+// over the IR (styleguide bounded-everything rule), which the IR permits to be
+// cyclic. The composition partMembers reads is ir.FlattenedProperties's to
+// bound: it meets each model and alias once.
 const maxBodyAliasHops = 64
 
 // bodyModel returns where the model behind body was interned, its document

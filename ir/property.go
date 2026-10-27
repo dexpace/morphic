@@ -137,3 +137,13 @@ type Property struct {
 	// Provenance records where the property came from.
 	Provenance Provenance `json:"provenance"`
 }
+
+// EffectiveWireName returns the name p travels under on the wire: its
+// WireName, or its source name where it sets none (ir-design §5.1). It is what
+// tells one member of a model from another, across composition too (§4.3).
+func (p *Property) EffectiveWireName() string {
+	if p.WireName != "" {
+		return p.WireName
+	}
+	return p.Name.Source
+}

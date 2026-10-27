@@ -101,6 +101,19 @@ var idPositions = map[string]idRule{
 	"Service.Renames":              idRequired,
 	"Service.Servers":              idRequired,
 	"ValueRef.Type":                idRequired,
+
+	// ir.FlattenedProperties' result and its walk's own state, which no
+	// Document holds, so no walk of one meets them. Beside the registry it
+	// reads, each holds an ID the flattening read, a model's or an entry's
+	// target, never an empty one: an unset entry is skipped, not recorded.
+	"Flattening.Unflattened": idRequired,
+	"PropertyDecl.Owner":     idRequired,
+	"flattener.types":        idElsewhere,
+	"flattener.met":          idRequired,
+	"flattener.unflattened":  idRequired,
+	"flattener.aliasOf":      idRequired,
+	"flattener.aliasEnds":    idRequired,
+	"frame.id":               idRequired,
 }
 
 // idShape is how a field holds its IDs.
