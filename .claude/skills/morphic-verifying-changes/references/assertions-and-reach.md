@@ -220,8 +220,9 @@ it.
   package foo_test.
 - **Why.** Consolidations silently dropped a table row and moved public-API tests into the internal
   package (#246, #92).
-- **Probe.** Diff `go test -list . -v` subtest names before and after; check the package clause of
-  every touched test file; map unexported calls to defining files.
+- **Probe.** Diff the `--- PASS` lines of `go test -run '<Test>' -v` before and after, since
+  `go test -list` names no subtest; check the package clause of every touched test file; map
+  unexported calls to defining files.
 
 ## Time only the code under test, and measure what the defect moves
 `perf-guards-measure-the-defect`

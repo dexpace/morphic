@@ -22,8 +22,9 @@ description: Use when changing, reviewing or debugging code under compilers/open
 
 ## Before calling a change done
 
-- Compile the input and read the IR and every diagnostic: `go run ./cmd/morphic compile <spec>`
-  (the IR goes to stdout, diagnostics to stderr).
+- Compile the input and read the IR and every diagnostic:
+  `go run ./cmd/morphic compile --verify <spec>` (the IR goes to stdout, diagnostics to stderr, and
+  `--verify` checks each stage's IR against its invariants).
 - A new conformance case follows step 4 of `CONTRIBUTING.md`'s lowering-rule recipe and
   `references/openapi-lessons.md#conformance-case`, and passes
   `go test ./internal/harness ./compilers/openapi/...`.

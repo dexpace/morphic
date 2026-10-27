@@ -71,8 +71,9 @@ is not behaviour held.
   where old and new behaviour disagree, and confirm the revert reddens it.
 - **Why.** Defects in encoded fragments, constraints beside verbatim unions and outside `$ref`s to
   inline positions survived because no committed spec held the shape (#363, #119).
-- **Probe.** Stash the production hunk and run `go test ./...` and the harness over `testdata/`;
-  once a fixture reddens, restore the fix and check the golden diff is exactly its effect.
+- **Probe.** Revert the fix with `scripts/mutate.py` (OLD the fixed code, NEW what it replaced)
+  against `go test ./...`, which sweeps `testdata/` through the harness; once a fixture reddens,
+  check the golden diff is exactly the fix's effect.
 
 ## Give competing sources distinct values
 `distinct-values-for-competing-sources`

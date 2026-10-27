@@ -69,8 +69,9 @@ compiles a corpus with two builds; these rules decide whether its answer means a
 `two-order-diagnostics`
 
 - **Rule.** In a two-order test, compare types order-invariantly and diagnostics as a sorted
-  multiset of severity, code, pointer and message, as `internal/harness` does. Compare each
-  operation's type targets too.
+  multiset keyed as `diagnosticSet` in `internal/harness/order.go` keys them: severity, code,
+  pointer, node, source and whether a position is set, but not the message, which may list
+  keywords in source order. Compare each operation's type targets too.
 - **Why.** Diagnostics append in walk order, which the permutation changes (#808). A types-only diff
   missed a reference that took a type already interned at its pointer (#591).
 

@@ -124,8 +124,9 @@ Probes that found what earlier review rounds missed. Each one runs through
   old functions from `origin/main` beside the new ones in a scratch module and fuzz that each pair
   agrees. Turn intended divergences into narrow, named exclusions. Afterwards diff the shipped
   function bodies against the copies the harness ran.
-- **Why.** On #510 this ran tens of millions of inputs per reader in a minute and made every
-  intended divergence explicit.
+- **Why.** A rewritten reader parts from the old one on inputs no table holds, since a table
+  written beside the rewrite shares its blind spots; on #510 the fuzzed pairs covered tens of
+  millions of inputs per reader in a minute and made every intended divergence explicit.
 
 ## Run a query command as a differential
 `query-differential`

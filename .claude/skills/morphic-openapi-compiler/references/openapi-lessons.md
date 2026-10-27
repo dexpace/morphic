@@ -108,10 +108,12 @@ canary. A behaviour found that the page lacks is added there.
 ## A file reference's identity is lexical
 `file-ref-lexical`
 
-- **Rule.** A file `$ref` names its document as written, with dot segments removed (RFC 3986 §5.2).
-  The compiler never asks the file system which file it is.
-- **Why.** Decided in #781 for #772 and #780; file-system identity made a compile depend on disk
-  state.
+- **Rule.** Identify the document a file `$ref` names by its spelling with dot segments removed
+  (RFC 3986 §5.2), as `docs/compilers/openapi.md#references` judges each `$ref` by its own
+  spelling. Never ask the file system which file it is.
+- **Why.** Keying on the raw spelling read one file as several documents and held the source once
+  per spelling (#780, #772); #781 removed dot segments rather than ask the file system, whose answer
+  makes a compile depend on disk state.
 
 ## Take a new bound's outcome from the rule entry for its kind
 `bound-outcome-from-the-rules`
