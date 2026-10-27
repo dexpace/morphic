@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // listOf returns a document whose one example is a list of n string values, so
@@ -72,6 +73,112 @@ func TestWalkPath_ZeroValueIsEmpty(t *testing.T) {
 	var p ir.WalkPath
 	assert.Empty(t, p.String())
 	assert.Equal(t, []byte("kept"), p.AppendTo([]byte("kept")))
+}
+
+// Roots that embed a primitive: Outer through two embedded structs, Shadowed
+// beside a Name of its own, which hides the promoted one from Go but not from a
+// walk.
+type (
+	Outer    struct{ Middle }
+	Middle   struct{ ir.Primitive }
+	Shadowed struct {
+		ir.Primitive
+		Name ir.Naming
+	}
+)
+
+// fieldAt is what WalkPath.Field reports at one path.
+type fieldAt struct {
+	owner reflect.Type
+	name  string
+	ok    bool
+}
+
+// fieldsOf walks root and returns what WalkPath.Field reports at each path the
+// walk reaches, the reports at one path in walk order.
+func fieldsOf(root any) map[string][]fieldAt {
+	got := map[string][]fieldAt{}
+	ir.WalkValues(root, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+		owner, name, ok := at.Field()
+		got[at.String()] = append(got[at.String()], fieldAt{owner, name, ok})
+		return true
+	}))
+	return got
+}
+
+// TestWalkPath_FieldIsTheFieldThePathEndsIn holds Field to the last segment
+// String spells: the field and the struct it is spelled on, a promoted field on
+// the struct embedding it however deep, and none for a path ending in an
+// element, a map entry, the root or an embedded struct, which spells nothing of
+// its own.
+func TestWalkPath_FieldIsTheFieldThePathEndsIn(t *testing.T) {
+	t.Parallel()
+	document, model := reflect.TypeFor[ir.Document](), reflect.TypeFor[ir.Model]()
+	primitive, naming := reflect.TypeFor[ir.Primitive](), reflect.TypeFor[ir.Naming]()
+	doc := fieldsOf(&ir.Document{Types: ir.TypeRegistry{
+		"t/p": &ir.Primitive{ID: "t/p"},
+		"t/m": &ir.Model{ID: "t/m", Deprecation: &ir.Deprecation{}, Properties: []ir.Property{{ID: "p/m/a"}}},
+	}})
+	none := fieldAt{}
+	for _, tc := range []struct {
+		path string
+		want []fieldAt
+	}{
+		{"doc", []fieldAt{none, none}},
+		{"doc.Types", []fieldAt{{document, "Types", true}}},
+		{"doc.Types[t/p].key", []fieldAt{none}},
+		{"doc.Types[t/p]", []fieldAt{none, none, none, none}}, // interface, pointer, Primitive, TypeCommon
+		{"doc.Types[t/p].Name", []fieldAt{{primitive, "Name", true}}},
+		{"doc.Types[t/p].Name.Source", []fieldAt{{naming, "Source", true}}},
+		{"doc.Types[t/p].Prim", []fieldAt{{primitive, "Prim", true}}},
+		{"doc.Types[t/m].Deprecation", []fieldAt{{model, "Deprecation", true}, {model, "Deprecation", true}}},
+		{"doc.Types[t/m].Properties", []fieldAt{{model, "Properties", true}}},
+		{"doc.Types[t/m].Properties[0]", []fieldAt{none}},
+		{"doc.Types[t/m].Properties[0].Name", []fieldAt{{reflect.TypeFor[ir.Property](), "Name", true}}},
+	} {
+		assert.Equal(t, tc.want, doc[tc.path], tc.path)
+	}
+
+	outer := reflect.TypeFor[Outer]()
+	assert.Equal(t, []fieldAt{none, none, none, none}, fieldsOf(Outer{})["doc"],
+		"Outer and the three structs it embeds, each spelled as the root")
+	assert.Equal(t, []fieldAt{{outer, "Name", true}}, fieldsOf(Outer{})["doc.Name"],
+		"a field promoted through two embedded structs is spelled on the outermost")
+
+	shadowed := reflect.TypeFor[Shadowed]()
+	assert.Equal(t, []fieldAt{{shadowed, "Name", true}, {shadowed, "Name", true}}, fieldsOf(Shadowed{})["doc.Name"],
+		"the promoted Name and the one beside it are both spelled on Shadowed")
+}
+
+// TestWalkPath_FieldOfTheZeroPathIsNone pins the zero WalkPath, which no walk
+// is behind: it ends in no field.
+func TestWalkPath_FieldOfTheZeroPathIsNone(t *testing.T) {
+	t.Parallel()
+	owner, name, ok := ir.WalkPath{}.Field()
+	assert.Nil(t, owner)
+	assert.Empty(t, name)
+	assert.False(t, ok)
+}
+
+// TestWalkPath_FieldAllocatesNothing holds Field to reading the walk's own
+// steps, so a visitor may ask it of every value. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestWalkPath_FieldAllocatesNothing(t *testing.T) {
+	doc := &ir.Document{Types: ir.TypeRegistry{
+		"t/p": &ir.Primitive{ID: "t/p"},
+		"t/m": &ir.Model{ID: "t/m", Properties: []ir.Property{{ID: "p/m/a"}}},
+	}}
+	var fields int
+	asking := ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+		if _, _, ok := at.Field(); ok {
+			fields++
+		}
+		return true
+	})
+	ir.WalkValues(doc, "doc", asking)
+	require.Positive(t, fields, "some path must end in a field, or nothing is measured")
+
+	assert.Empty(t, irtest.AllocatingVisits(doc, asking))
 }
 
 // TestWalkPath_LongPathsRenderWhole holds a path longer than String's stack

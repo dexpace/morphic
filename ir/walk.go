@@ -160,6 +160,31 @@ func (p WalkPath) AppendTo(b []byte) []byte {
 	return b
 }
 
+// Field reports the struct field the path ends in, as String spells it: the
+// struct type the field is spelled on and the field's name, or false when the
+// path ends in an element, a map entry or the root. A field Go promotes through
+// an embedded struct is spelled on the embedding struct, so a Primitive's Name
+// is reported as Primitive's, and an embedded struct, which the path does not
+// spell, reports what reached the struct embedding it.
+func (p WalkPath) Field() (owner reflect.Type, name string, ok bool) {
+	if p.walk == nil {
+		return nil, "", false
+	}
+	steps := p.walk.steps[:p.depth]
+	last := len(steps) - 1
+	for last >= 0 && steps[last].embedded() {
+		last--
+	}
+	if last < 0 || steps[last].kind != stepField {
+		return nil, "", false
+	}
+	owner = steps[last].owner
+	for i := last - 1; i >= 0 && steps[i].embedded(); i-- {
+		owner = steps[i].owner
+	}
+	return owner, steps[last].owner.Field(steps[last].index).Name, true
+}
+
 // stepKind is how a value is reached from its parent.
 type stepKind uint8
 
@@ -197,6 +222,12 @@ func (s pathStep) appendTo(b []byte) []byte {
 		b = append(append(append(b, '['), s.label...), ']')
 	}
 	return b
+}
+
+// embedded reports whether s is a step into an embedded struct, which a path
+// does not spell.
+func (s pathStep) embedded() bool {
+	return s.kind == stepField && s.owner.Field(s.index).Anonymous
 }
 
 // refKey identifies a reference the way the JSON encoder does, so that what a

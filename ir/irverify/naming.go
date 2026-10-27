@@ -12,16 +12,15 @@ import (
 
 var namingType = reflect.TypeFor[ir.Naming]()
 
-// nameField is how a node spells the ir.Naming that names it, and so the last
-// segment of the path the walk reaches that one by. A node in nameOptional
-// renamed out of this spelling stops matching, which reports a violation on a
-// document that has none rather than going silent —
+// nameField is the field through which a node holds the ir.Naming that names
+// it. A node in nameOptional renamed out of this spelling stops matching, which
+// reports a violation on a document that has none rather than going silent —
 // TestVerify_OptionalNameOwnersAreClean is what reddens.
 //
 // Only the exemptions are addressed this way. The rule itself holds every
 // ir.Naming the walk reaches, including the ones no Name field owns, such as the
 // values of Service.Renames.
-const nameField = ".Name"
+const nameField = "Name"
 
 // nameOptional are the nodes that carry no name of their own, so an empty
 // Naming on one is expected rather than the missing-name defect below.
@@ -51,22 +50,15 @@ var nameOptional = map[reflect.Type]bool{
 // Naming.Aliases has rules of its own: see appendAliasViolations.
 func checkNaming(*ir.Document) walkCheck {
 	var vs []Violation
-	optional := map[string]bool{}
+	// Every alias list is held through this one map, emptied for each, so a
+	// list costs no map of its own however long it is.
+	seen := map[string]int{}
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
-			if v.Kind() != reflect.Struct {
+			if v.Kind() != reflect.Struct || v.Type() != namingType {
 				return true
 			}
-			if nameOptional[v.Type()] {
-				// The walk visits a struct before its fields, so this is recorded
-				// before the Naming it exempts is reached.
-				optional[at.String()+nameField] = true
-				return true
-			}
-			if v.Type() != namingType {
-				return true
-			}
-			vs = appendNamingChecks(vs, v, at, optional)
+			vs = appendNamingChecks(vs, v, at, seen)
 			return false // a Naming holds no Naming nested in it
 		},
 		report: reporting(&vs),
@@ -74,33 +66,27 @@ func checkNaming(*ir.Document) walkCheck {
 }
 
 // appendNamingChecks reports what is wrong with the one Naming naming, at at.
-// optional holds the paths of the Namings whose nodes carry no name of their
-// own.
-func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, optional map[string]bool) []Violation {
+// seen is the map appendAliasViolations holds the aliases through.
+func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, seen map[string]int) []Violation {
 	source, canon, hint, aliases := namingChannels(naming)
-	vs = appendAbsentViolation(vs, source, canon, hint, at, optional)
+	vs = appendAbsentViolation(vs, source, canon, hint, at)
 	vs = appendNamingViolations(vs, source, canon, hint, at)
-	return appendAliasViolations(vs, source, aliases, at)
+	return appendAliasViolations(vs, source, aliases, at, seen)
 }
 
 // namingChannels reads every name channel off one Naming. It reads fields
 // rather than converting back to an ir.Naming because a value the walk reached
 // through an unexported field cannot be (see ir.WalkValues), which is also why
-// aliases are copied element by element.
+// aliases come back as the list itself, for each entry to be read in turn.
 //
 // Nothing guards the field lookups: renaming a field compiles clean and reddens
 // the naming tests. A guard would be a statement no test can cover, since
 // checkNaming calls this only for an ir.Naming.
-func namingChannels(naming reflect.Value) (source, canon, hint string, aliases []string) {
-	list := naming.FieldByName("Aliases")
-	aliases = make([]string, list.Len())
-	for i := range list.Len() {
-		aliases[i] = list.Index(i).String()
-	}
+func namingChannels(naming reflect.Value) (source, canon, hint string, aliases reflect.Value) {
 	return naming.FieldByName("Source").String(),
 		naming.FieldByName("Canonical").String(),
 		naming.FieldByName("Hint").String(),
-		aliases
+		naming.FieldByName("Aliases")
 }
 
 // appendAliasViolations holds one alias list to the rules ir.Naming.Aliases
@@ -114,9 +100,12 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases [
 //
 // Collisions with other entities' names are no rule of the list (ir-design
 // §3.2).
-func appendAliasViolations(vs []Violation, source string, aliases []string, at ir.WalkPath) []Violation {
-	seen := make(map[string]int, len(aliases))
-	for i, alias := range aliases {
+func appendAliasViolations(vs []Violation, source string, aliases reflect.Value, at ir.WalkPath,
+	seen map[string]int,
+) []Violation {
+	clear(seen) // what another entity's list held collides with nothing here
+	for i := range aliases.Len() {
+		alias := aliases.Index(i).String()
 		switch first, repeated := seen[alias]; {
 		case isBlankName(alias):
 			// First, so a repeated blank is reported blank: the repair is to
@@ -162,12 +151,10 @@ func aliasPath(at ir.WalkPath, i int) string {
 // hold whichever is there. This asks only that one of them is, because nothing
 // downstream can render an identifier from three empty strings.
 //
-// optional is read last, since reading it renders the path, so only a Naming
-// that names nothing pays for one.
-func appendAbsentViolation(vs []Violation, source, canon, hint string, at ir.WalkPath,
-	optional map[string]bool,
-) []Violation {
-	if source != "" || canon != "" || hint != "" || optional[at.String()] {
+// The exemption is asked last, as it reads the path's steps, which only a
+// Naming that names nothing needs.
+func appendAbsentViolation(vs []Violation, source, canon, hint string, at ir.WalkPath) []Violation {
+	if source != "" || canon != "" || hint != "" || nameExempt(at, nameOptional) {
 		return vs
 	}
 	return append(vs, Violation{
@@ -175,6 +162,15 @@ func appendAbsentViolation(vs []Violation, source, canon, hint string, at ir.Wal
 		Message: "named entity carries no name at all; set a source name, canonical words or a hint",
 		Path:    at.String(),
 	})
+}
+
+// nameExempt reports whether the Naming at at names a node optional lists:
+// whether the walk reached it as that node's own name, the field its path ends
+// in, which for a Primitive's is the Name its embedded ir.TypeCommon promotes.
+// Any other Naming such a node holds is held to the rule.
+func nameExempt(at ir.WalkPath, optional map[reflect.Type]bool) bool {
+	owner, field, ok := at.Field()
+	return ok && field == nameField && optional[owner]
 }
 
 // appendNamingViolations reports the ways one Naming can break neutrality: the
