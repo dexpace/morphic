@@ -49,6 +49,24 @@ paths:
       responses:
         "200":
           description: ok
+  # A part two composed models declare is one part on the wire, keyed by the
+  # declaration the body's flattening takes (ir-design §4.3): the later
+  # conjunct's, FileList's list of files here, whose type the flags read.
+  /upload-redeclared:
+    post:
+      operationId: uploadRedeclared
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - {$ref: '#/components/schemas/UploadForm'}
+                - {$ref: '#/components/schemas/FileList'}
+            encoding:
+              file: {contentType: image/png}
+      responses:
+        "200":
+          description: ok
   /submit:
     post:
       operationId: submitForm
@@ -74,6 +92,12 @@ components:
     Digest:
       type: string
       pattern: '^[0-9a-f]{64}$'
+    FileList:
+      type: object
+      properties:
+        file:
+          type: array
+          items: {type: string, format: binary}
     UploadForm:
       type: object
       properties:

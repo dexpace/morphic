@@ -120,3 +120,29 @@ func TestVerify_RequiresHoldsNoOwnPropertyAndNoRepeat(t *testing.T) {
 		})
 	}
 }
+
+// TestVerify_RequiresReadsTheEffectiveWireName holds the own-property rule to
+// the name a property travels under: its WireName, or its source name where it
+// sets none (ir-design §5.1). A source name a WireName replaces is no member's.
+func TestVerify_RequiresReadsTheEffectiveWireName(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		wire     string
+		requires []string
+		own      bool
+	}{
+		{"no WireName: the source name is the property's", "", []string{"a"}, true},
+		{"a WireName is the property's", "wire", []string{"wire"}, true},
+		{"a source name a WireName replaces is no member's", "wire", []string{"a"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := requiresDoc(tc.requires)
+			doc.Types["t/x/M"].(*ir.Model).Properties[0].WireName = tc.wire
+
+			got := requiresViolations(verifyDeclared(doc), "ir/requires-own-property")
+			assert.Equal(t, tc.own, len(got) == 1, "violations: %+v", got)
+		})
+	}
+}

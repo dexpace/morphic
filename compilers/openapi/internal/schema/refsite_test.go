@@ -584,8 +584,8 @@ func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 // the properties that body's model holds, in either declaration order.
 //
 // /b's multipart body composes Base through allOf, so the property "file" that
-// /a's encoding key names lives on Base. The key is found by walking the
-// composition (propByWire), which needs /b's node, and /a's reference leaves
+// /a's encoding key names lives on Base. The key is found by flattening the
+// composition (partMembers), which needs /b's node, and /a's reference leaves
 // building it to /b, so the keys are settled once every node exists (partKeys);
 // read earlier, the key would fall back to a property ID that exists nowhere.
 func TestCrossPathReference_ComposedMultipartKeepsItsEncodingKeys(t *testing.T) {

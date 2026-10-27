@@ -569,11 +569,14 @@ negotiation` default (`json > form > multipart > binary`) is a shared, overridab
 
 ```go
 type TypePlan struct {
-    Flattened  []ir.PropID          // FlattenedProperties() over Base+Implements+Mixins+own — COMPUTED
-    Required   []ir.PropID          // the flattened properties an instance must carry: each one's
-                                    // own Required, and each Requires names along the way
+    Flattened  []ir.PropID          // ir.FlattenedProperties over Base+Implements+Mixins+own: the
+                                    // declaration each member takes, in layout order — COMPUTED
+    Required   []ir.PropID          // the flattened properties an instance must carry: each one
+                                    // a declaration marks Required or a Requires names
     Undeclared []string             // the names Requires lists that no flattened property declares,
                                     // in order: members only the catch-all governs
+    Unflattened []ir.TypeID         // the composition entries naming no model, which Flattened
+                                    // cannot hold: each lowered beside the properties, or degraded
     Union      UnionShape           // a union's wire shape, one of four (§4.4); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
@@ -617,14 +620,18 @@ distinct beside it, so a class-based target can map `Base→extends` / `Implemen
 `Mixins→inline` where the three first targets flatten (§8.8). The plan does not decide which — that
 is per-language (§4).
 
-`Required` and `Undeclared` read what a model requires over the same walk (ir-design §4.3): a
-flattened property is required where it says so itself, or where this model or one it composes
-lists its wire name in `Requires`, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id`
-required on the composed model. A name `Requires` lists that no flattened property declares is
+`Flattened`, `Required`, `Undeclared` and `Unflattened` are one `ir.FlattenedProperties` walk, by
+the rules ir-design §4.3 states: its order, which declaration of a redeclared member is taken, and
+when a member is required. A flattened property is required where any of its declarations says so,
+an overridden one included, or where this model or one it composes lists its wire name in
+`Requires`, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required on the
+composed model. A name `Requires` lists that no flattened property declares is
 `Undeclared`: a member only the catch-all governs, whose value the catch-all types —
 `AdditionalProps.Value`, or the top type where the model has no catch-all or scopes values by
 `Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
-to it.
+to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
+`Tags` is a list, is in `Unflattened` as the entry names it: the struct over `Flattened` does not
+hold what it admits, so each refiner lowers it or degrades with a code of its own.
 
 ### 3.3 ModelShape — visibility projection
 
@@ -643,6 +650,8 @@ type ModelShape struct {
 }
 ```
 
+`Props` are drawn from `TypePlan.Flattened` (§3.2), so a composed model's shapes hold what it
+inherits and mixes in, each member visible as the declaration it takes says (ir-design §4.3).
 `readOnly → Only:[read, delete, query]`; `writeOnly → Only:[create, update]` (ir-design §5.2);
 `Visibility.None` → excluded from every projection (distinct from the zero value); PATCH flips
 properties optional unless `HTTPBinding.PatchImplicitOptionality` points at `false` (nil is the
@@ -768,11 +777,12 @@ The procedure decided every existing field:
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `PrimaryContent`, the unwrap behind
    `ReturnType`, and `PagePlan`, an inferred one included.
 2. **Derivations several artifacts expose** stay: `Return`, `Errors`, `Auth`, `Bindings`, `Stream`
-   and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Union`, `Discrim`, `Scalar`, `Shapes`,
-   `Alias` and `Reach`. `Required` and `Undeclared` read `Requires` along the flattening walk
-   (§3.2), `Alias` classifies a decorator over several of its fields and resolves its chain (§4.15),
-   and `Reach` walks every operation (§4.17); SDKs and docs that disagreed on any of them would mark
-   a member optional, name a field's type or place a type differently.
+   and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
+   `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared` and `Unflattened` are read
+   along the flattening walk (§3.2), `Alias` classifies a decorator over several of its fields and
+   resolves its chain (§4.15), and `Reach` walks every operation (§4.17); SDKs and docs that
+   disagreed on any of them would mark a member optional, name a field's type or place a type
+   differently.
 3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and idempotency
    (§3.1), a model's `Base`, `Implements` and `Mixins`, an enum's openness, value type, flags and
    fallback member, a union's variant list, and the operation-group tree (§3.4). `Union` replaces a
@@ -864,9 +874,9 @@ snapshot pins the whole lowering deterministically.
 | `ResolveScalarChains` | `plan.ScalarChain` (the `Base` chain walked once, constraints merged), `Ctx.Types` | a defined type over a root with no methods, an alias over any other (§4.9), the root typed by the type table (§2.6), + merged constraints; nil-base → newtype (opaque-scalar strategy) | §4.2 |
 | `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | `[]T` / `map[K]V` / positional struct, its positions past `MinItems` optional and a `Rest` as a trailing slice; a nil `MapT.Key` is `string`, and a non-string key → custom-key map or diagnostic | §4.6 |
 | `LowerLiterals` | `Literal{Value}` | typed constant / single-value newtype (incl. `symbol`) | §4.6 |
-| `LowerModels` | `TypePlan.Flattened`, `Required`, `Undeclared`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | struct over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1) | §4.3 |
+| `LowerModels` | `TypePlan.Flattened`, `Required`, `Undeclared`, `Unflattened`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | struct over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, catch-all map as the embedded fallback, unknown members rejected on `closed` (§8.1), an `Unflattened` conjunct lowered or degraded with a code | §4.3 |
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
-| `LowerOptionality` | `Property.Required` ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer (§4.16) | §5.1; INV8 |
+| `LowerOptionality` | `TypePlan.Required` (a member's wire presence, §3.2) ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer (§4.16) | §5.1; INV8 |
 | `LowerConstraints` | `Constraints` on properties/scalars/lists/maps | field-level `validate` tags + a refine-built `Validate()` method structure | §5.3 |
 | `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}`, `TypePlan.Union` | sealed interface + marker method + concrete variants | §4.4; INV2 |
 | `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | tag-dispatched `UnmarshalJSONFrom` + typed factories | §4.3–§4.4 |
@@ -910,7 +920,8 @@ type Module struct { Packages []*Package }
 type StructType struct {
     Common
     Fields  []*Field
-    Embeds  []Expr           // the catch-all map (§8.1); Base and Mixins are flattened into Fields
+    Embeds  []Expr           // the catch-all map (§8.1); what Base, Implements and Mixins
+                             // declare is flattened into Fields (TypePlan.Flattened)
 }
 type Field struct {
     Common
@@ -1009,21 +1020,24 @@ shapes.
 
 ### 4.7 Optionality × Nullability × Presence (INV8)
 
-`LowerOptionality` renders the four states — `Property.Required` (wire presence) ⊥ `TypeRef.Nullable`
-(admits null) — plus protobuf `Property.Presence` (implicit/explicit/required) as a *third* axis that
-is not nullability (protobuf has no null). The reference Go lowering is ogen's generic-box scheme
-(`gen/ir/generics.go`), which independently arrives at exactly these four states: required-nonnull →
-bare `T`; optional → `Opt[T]` (a `{value T; set bool}` box, so presence is distinct from the zero
-value); nullable → `Nil[T]`; both → `OptNil[T]`. A mature real-world generator needing all four
-first-class boxes is the strongest external confirmation of INV8, and — decisively — ogen makes this
-decision in its *emitter* (`boxType`), keeping `Required` and `Nullable` orthogonal in the schema
-model right up to that point. That is Morphic's split precisely: orthogonal bits in the IR, boxed in
-refine. Two Go-specific optimizations to inherit: reference types (slice/map/pointer) can encode one
-of the four states in their own `nil` (ogen's `NilSemantic: invalid | optional | null`), saving a
-wrapper; `explicit` protobuf presence → pointer/hazzer, `implicit` → `omitzero,omitempty`, so a
-zero is not serialized. `ClientOptional` relaxes the client-side type even when `Required=true`;
-`DefaultAdded` may be suppressed for back-compat. Where Go's zero value would force a *deliberate*
-collapse of two states, a `Diagnostic` is emitted — never a silent conflation (§13 test T-3).
+`LowerOptionality` renders the four states — `Property.Required` (wire presence) ⊥
+`TypeRef.Nullable` (admits null) — plus protobuf `Property.Presence` (implicit/explicit/required) as
+a *third* axis that is not nullability (protobuf has no null). A model's member is present where
+`TypePlan.Required` lists it (§3.2), which counts every declaration of it and every `Requires`, not
+only the `Property.Required` of the declaration the flattening takes. The reference Go lowering is
+ogen's generic-box scheme (`gen/ir/generics.go`), which independently arrives at exactly these four
+states: required-nonnull → bare `T`; optional → `Opt[T]` (a `{value T; set bool}` box, so presence
+is distinct from the zero value); nullable → `Nil[T]`; both → `OptNil[T]`. A mature real-world
+generator needing all four first-class boxes is the strongest external confirmation of INV8, and —
+decisively — ogen makes this decision in its *emitter* (`boxType`), keeping `Required` and
+`Nullable` orthogonal in the schema model right up to that point. That is Morphic's split precisely:
+orthogonal bits in the IR, boxed in refine. Two Go-specific optimizations to inherit: reference
+types (slice/map/pointer) can encode one of the four states in their own `nil` (ogen's
+`NilSemantic: invalid | optional | null`), saving a wrapper; `explicit` protobuf presence →
+pointer/hazzer, `implicit` → `omitzero,omitempty`, so a zero is not serialized. `ClientOptional`
+relaxes the client-side type even when `Required=true`; `DefaultAdded` may be suppressed for
+back-compat. Where Go's zero value would force a *deliberate* collapse of two states, a `Diagnostic`
+is emitted — never a silent conflation (§13 test T-3).
 
 A nullable reference whose `TypeRef.Inferred` names a heuristic renders as nullable like any
 other: the compiler's policy already chose to read null in, and the marker is there so that choice
@@ -1968,8 +1982,9 @@ declares itself (`Client`). Names that collide once cased are `Ctx.Syms`'s on ev
 **Inheritance.** Go has only embedding. Kotlin's single class inheritance cannot hold several
 `Mixins`, and extending a base would make it an open class the SDK must keep compatible for every
 subclass. So on all three targets a model's `Base` and `Mixins` are flattened into it
-(`TypePlan.Flattened`). Subtyping survives as interfaces: `Implements` becomes an interface, and a
-discriminated or abstract base a sealed interface its subtypes implement.
+(`TypePlan.Flattened`), which holds the members its `Implements` declare as well, since a type
+conforming to an interface carries them. Subtyping survives as interfaces: `Implements` becomes an
+interface, and a discriminated or abstract base a sealed interface its subtypes implement.
 
 **Scale.** The JVM caps a method at 255 parameter slots and 64 KiB of bytecode, and a class at
 65,535 constant-pool entries. A refiner checks each declaration against its target's limits and

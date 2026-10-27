@@ -126,7 +126,10 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, facts *irfacts.Index, payload *
 
 // appendUnknownPartDiags appends to dst a diagnostic per encoding key of one
 // content that names no property the content's type exposes, in ascending key
-// order so map iteration cannot reach the output.
+// order so map iteration cannot reach the output. A key naming a declaration
+// the type's flattening overrides passes, though ir-design §4.3 has it name the
+// one taken: flattening every type asked about grows quadratically down a deep
+// hierarchy.
 func appendUnknownPartDiags(dst []ir.Diagnostic, facts *irfacts.Index, c ir.Content, where string) []ir.Diagnostic {
 	for _, key := range slices.Sorted(maps.Keys(c.Encoding)) {
 		if facts.Exposes(c.Type.Target, key) {
