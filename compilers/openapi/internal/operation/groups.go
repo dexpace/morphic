@@ -155,9 +155,9 @@ func (x tagIndex) levels(tag string) []groupLevel {
 // groupingInferred is the inferred marker groupFor's strategy stamps on a path
 // operation: lowering.GroupByPathPrefix is a heuristic, so it stamps one, and
 // grouping by declared tags is a declared fact, so it stamps none.
-func groupingInferred(c lowering.Ctx) string {
+func groupingInferred(c lowering.Ctx) ir.Inferred {
 	if c.Grouping == lowering.GroupByPathPrefix {
-		return "group-path-prefix"
+		return lowering.GroupPathPrefixHeuristic
 	}
 	return ""
 }

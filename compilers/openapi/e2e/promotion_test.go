@@ -72,7 +72,7 @@ func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	for name, carrier := range promotionCarriers(t, doc) {
 		require.NotNil(t, carrier.deprecation, "%s is deprecated", name)
 		assert.Equal(t, want[name], carrier.deprecation.Message, "%s message", name)
-		assert.Equal(t, "extension-promotion", carrier.provenance.Inferred,
+		assert.Equal(t, ir.Inferred("extension-promotion"), carrier.provenance.Inferred,
 			"%s records that the field was read by a heuristic", name)
 		entry, kept := carrier.unmodeled["openapi:x-deprecated-reason"]
 		require.True(t, kept, "%s keeps the extension it was promoted from", name)
@@ -111,7 +111,7 @@ func assertEnumOpenness(t *testing.T, doc *ir.Document) {
 	tests := []struct {
 		schema   string
 		closed   bool
-		inferred string
+		inferred ir.Inferred
 	}{
 		{"Size", false, "extension-promotion"},
 		{"Tier", false, "extension-promotion"},
@@ -208,7 +208,7 @@ func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 	require.NotNil(t, op.Deprecation)
 	assert.Equal(t, "9.0.0", op.Deprecation.RemovalVersion, "the caller's key is read")
 	assert.Empty(t, op.Deprecation.Message, "a default the caller replaced is not read")
-	assert.Equal(t, "extension-promotion", op.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
 }
 
 // TestPromotion_DefaultTargetsAreTheOnesApplied holds the exported mapping to

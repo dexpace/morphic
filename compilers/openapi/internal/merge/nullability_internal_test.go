@@ -15,7 +15,7 @@ import (
 // no null, where a marker would qualify nothing.
 func TestIntersectNull_TheMarkerFollowsTheBit(t *testing.T) {
 	t.Parallel()
-	ref := func(nullable bool, inferred string) ir.TypeRef {
+	ref := func(nullable bool, inferred ir.Inferred) ir.TypeRef {
 		return ir.TypeRef{Target: "t/str", Nullable: nullable, Inferred: inferred}
 	}
 	cases := []struct {

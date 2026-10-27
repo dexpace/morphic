@@ -272,7 +272,7 @@ func TestFold_AValueSpelledTwoWaysIsOneValue(t *testing.T) {
 // provenance, and the field keeps the first declaration's provenance.
 func TestFold_ThePromotionMarkerFollowsTheDeprecationKept(t *testing.T) {
 	t.Parallel()
-	const marker = "extension-promotion"
+	const marker ir.Inferred = "extension-promotion"
 	plain := stringAt("/allOf/0/properties/p", `{}`)
 	promoted := stringAt("/allOf/1/properties/p", `{}`)
 	promoted.prop.Deprecation = &ir.Deprecation{Message: "use q"}

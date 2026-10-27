@@ -340,6 +340,12 @@ it sees. Changes made together in one bump are listed together under it.
   It keys the later conjunct's now, the one the flattening takes, so `allOf: [{$ref: A}, {$ref: B}]`
   keys `B`'s. A consumer pinned to 0.19.0 that finds a part's entry by that old lookup finds none
   for such a part.
+- **0.21.0** — an inferred-marker list has a type of its own (§12): `Provenance.Inferred` and
+  `TypeRef.Inferred` are `Inferred`, the list `JoinInferred` writes, where each was a `string`. The
+  JSON is unchanged, but a member's Go type is part of the shape, and `irverify` now holds every
+  stored list to that form (`ir/inferred-not-canonical`), so a list that names a heuristic twice,
+  or holds an empty name, is reported where it passed. A consumer pinned to 0.20.0 reads the same
+  bytes; the version check refuses it a 0.21.0 document all the same.
 
 ---
 
@@ -599,7 +605,7 @@ An alias can also collide with *another* entity's name, and that is not a rule o
 type TypeRef struct {
     Target   TypeID
     Nullable bool     // this *usage* admits null on the wire
-    Inferred string   // "" = the source declares the null; else the heuristics that read it in (§12)
+    Inferred Inferred // "" = the source declares the null; else the heuristics that read it in (§12)
 }
 ```
 
@@ -2429,8 +2435,12 @@ this from `Unmodeled` and no two derive it differently:
 3. **The node records that it was inferred**, in its own `Provenance.Inferred`, naming the
    heuristic. `Inferred` holds one string and a node can be reached by more than one heuristic, so
    the names are listed rather than overwritten, and a name already listed is not repeated. The
-   list joins the names with commas in the order the heuristics first applied, none empty
-   (`ir.JoinInferred`); `TypeRef.Inferred` (§3.3) lists them the same way.
+   list joins the names with commas in the order the heuristics first applied, none empty; names
+   compare exactly, and the IR declares no set of them. `TypeRef.Inferred` (§3.3) lists them the
+   same way. The list has a type of its own, `ir.Inferred`: `ir.JoinInferred` writes the form and
+   `Inferred.IsCanonical` reads it. A conversion or a decoded document skips the join, and two
+   spellings of one list would compare unequal, so `irverify` reports a stored list in any other
+   form (`ir/inferred-not-canonical`), wherever it sits.
 4. **A node with no `Provenance` is not promoted into.** A node carrying a `Deprecation` and no
    provenance could not satisfy rule 3, and a heuristic that cannot be audited is worse than an
    empty field. Giving such a node a provenance is a change to this document, and the promotion
@@ -2526,7 +2536,7 @@ type Provenance struct {
     Pointer  jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
     Position Position         // 1-based line and column into that source, for a finding on a raw node
     Node     string           // IR-space location: a stable ID or a path through the document's own fields
-    Inferred string           // "" = declared; else the heuristics that produced this node, comma-separated (§12)
+    Inferred Inferred         // "" = declared; else the heuristics that produced this node, comma-separated (§12)
 }
 
 type Position struct {

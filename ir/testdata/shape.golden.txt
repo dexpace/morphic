@@ -309,6 +309,8 @@ type IdempotencyKind string
 	const "idempotent"
 	const "safe"
 
+type Inferred string
+
 type License struct
 	"identifier" string omitempty
 	"name" string omitempty
@@ -614,7 +616,7 @@ type ProtocolDecl struct
 	"options" RawConfig omitempty
 
 type Provenance struct
-	"inferred" string omitempty
+	"inferred" Inferred omitempty
 	"node" string omitempty
 	"pointer" encoding/json/jsontext.Pointer omitempty
 	"position" Position omitzero
@@ -805,7 +807,7 @@ type TypeKind string
 	const "union"
 
 type TypeRef struct
-	"inferred" string omitempty
+	"inferred" Inferred omitempty
 	"nullable" bool
 	"target" TypeID
 
