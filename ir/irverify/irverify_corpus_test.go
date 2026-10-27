@@ -1,10 +1,13 @@
 package irverify_test // external test package — importing across layers is legal in tests
 
 import (
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -91,6 +94,78 @@ func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 	require.Contains(t, checks, "checkReferentialIntegrity")
 	delete(checks, "checkReferentialIntegrity")
 	assert.Empty(t, irtest.AllocatingVisits(doc, slices.Collect(maps.Values(checks))...))
+}
+
+// TestWalkChecks_AFirstMeetingCostsNothing holds the walking checks to costing
+// nothing for a value when the walk first meets it, which
+// irtest.AllocatingVisits never measures, so a check keeping a path for each
+// PropID it meets passes the test above. A document compiled from twice the
+// components must cost the checks less than one allocation more per component
+// added, the walk's own growth taken out; a map a check keeps grows in steps,
+// far fewer. checkReferentialIntegrity is left out, as above. It is not run in
+// parallel: AllocsPerRun measures the process.
+func TestWalkChecks_AFirstMeetingCostsNothing(t *testing.T) {
+	const components = 100
+	few, many := scaledDocument(t, components), scaledDocument(t, 2*components)
+
+	added := checkingAllocs(many) - checkingAllocs(few)
+	assert.Less(t, added, float64(components), "%v allocations more for %d components more", added, components)
+}
+
+// scaledDocument compiles a spec of n components, each an operation and the
+// schema it returns, which reach every walking check, and requires the
+// document to be clean.
+func scaledDocument(t *testing.T, n int) *ir.Document {
+	t.Helper()
+	var spec strings.Builder
+	spec.WriteString("openapi: 3.1.0\ninfo: {title: scaled, version: '1'}\npaths:\n")
+	for i := range n {
+		fmt.Fprintf(&spec, `  /pets%[1]d/{id}:
+    get:
+      operationId: getPet%[1]d
+      tags: [pets%[1]d]
+      x-kept: {a: [1, b]}
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: q, in: query, schema: {type: integer, minimum: 1, maximum: 2.5e3}}
+      responses:
+        '200': {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Pet%[1]d'}}}}
+        '404': {$ref: '#/components/responses/Missing'}
+`, i)
+	}
+	spec.WriteString("components:\n  responses:\n    Missing:\n      description: missing\n" +
+		"      headers: {X-Rate: {schema: {type: integer}}}\n  schemas:\n")
+	for i := range n {
+		fmt.Fprintf(&spec, `    Pet%d:
+      type: object
+      x-kept: {a: [1, b]}
+      required: [name]
+      properties:
+        name: {type: string, maxLength: 10, example: rex}
+        age: {type: number, minimum: 0, maximum: 1.5e3, multipleOf: 0.5}
+        kind: {type: string, enum: [cat, dog]}
+        tags: {type: array, items: {type: string}}
+`, i)
+	}
+	doc := compile(t, "scaled.yaml", []byte(spec.String()))
+	require.NotNil(t, doc)
+	require.Empty(t, irverify.Verify(doc), "the document is clean, or what is measured is a report")
+	return doc
+}
+
+// checkingAllocs returns what one walk of doc with every walking check but
+// checkReferentialIntegrity allocates, the checks built afresh, less what the
+// walk allocates visiting nothing.
+func checkingAllocs(doc *ir.Document) float64 {
+	checking := testing.AllocsPerRun(5, func() {
+		checks := irverify.WalkChecks(doc)
+		delete(checks, "checkReferentialIntegrity")
+		ir.WalkValues(doc, ir.DocumentPath, slices.Collect(maps.Values(checks))...)
+	})
+	walking := testing.AllocsPerRun(5, func() {
+		ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true }))
+	})
+	return checking - walking
 }
 
 // uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture

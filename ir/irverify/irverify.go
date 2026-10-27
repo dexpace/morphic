@@ -28,8 +28,9 @@ type Violation struct {
 // sound document yields nil.
 //
 // A check builds a path, or any other string, only for a violation, so a value
-// with nothing wrong costs it nothing beyond what its readers keep: ir's path
-// for each declaration and each reference met before its target, the set
+// with nothing wrong costs it no allocation but a step a map it keeps may grow
+// by, beyond what its readers keep: ir's path for each declaration and each
+// reference met before its target, the set
 // ir.Inferred.IsCanonical makes of a long list, and the names a jsontext
 // decoder keeps of a large object to refuse a duplicate.
 func Verify(doc *ir.Document) []Violation {
