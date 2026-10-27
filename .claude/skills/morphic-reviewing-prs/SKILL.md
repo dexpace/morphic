@@ -10,18 +10,18 @@ with the command that showed it. Post nothing to the PR unless asked; report to 
 
 ## Setup
 
-Run `python3 .claude/skills/morphic-reviewing-prs/scripts/review_setup.py <PR>`. It checks the head
-out in a worktree of its own and prints the title measured as it will land, commit subjects,
-closing keywords, files by area, whether the branch merges cleanly into `origin/main`, CI, the
-squash-message setting and an artifact scan, and names the domain skill to load. Probe only in
-that worktree, with `morphic-verifying-changes`.
+Run `python3 .claude/skills/morphic-reviewing-prs/scripts/review_setup.py <PR>`. It checks out
+the head merged into `origin/main` in a worktree of its own, so every pass sees the tree as it will
+land, and names the domain skill to load. Probe only in that worktree, with
+`morphic-verifying-changes`. A head that conflicts with `main` is checked out alone, and the
+conflict is an `issue:`.
 
 ## Passes
 
 Each finds what the others cannot. Run all of them against the final state.
 
-1. **Gate.** `make gate` in the worktree. Report its result; do not re-check by eye what it
-   enforces.
+1. **Gate.** `make gate` in the worktree, unless the head already contains `origin/main` and CI
+   passed on it, which ran this tree. Never re-check by eye what the gate enforces.
 2. **Code, before the claims.** Read the diff without the PR body. For each changed mechanism,
    diff old against new semantics at every bound, sweep every site of it
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md`), re-plant every
@@ -29,29 +29,31 @@ Each finds what the others cannot. Run all of them against the final state.
    (`references/review-probes.md`).
 3. **Written rules.** Check each invariant in `CLAUDE.md` the diff could touch, and the Go style
    rules there that no linter enforces.
-4. **Behaviour against main.** For each output the change alters, compile a minimal spec on `main`
-   and on the head. "As on main" never excuses a defect inside the change's mechanism.
+4. **Behaviour against main.** For each output the change alters, compile a minimal spec on
+   `origin/main` and in the worktree. "As on main" never excuses a defect inside the change's
+   mechanism.
 5. **Claims.** Every sentence in the body, commits, comments and docs that states behaviour is a
    claim to execute. Counts are derived
    (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`).
-6. **Process.** Title, body, closing keywords, squash message and scope (`references/process.md`),
-   and `scripts/artifact_scan.py` over the range and the PR body.
-7. **Merged state.** Merge `origin/main` into a scratch copy and rerun what the merge can break.
-
-A review after new commits reviews the branch as it will merge, not the latest fix.
+6. **Process.** Title, commit messages, body, closing keywords and scope, by
+   `references/process.md`.
+7. **New commits.** When the branch or `origin/main` moves, rerun the setup and every pass the new
+   commits can affect, never only the latest fix.
 
 ## Findings
 
-Rank them `issue:` (must fix before merge), `question:`, `suggestion:`, `nit:`. Each names the
-rule it breaks, the file and line, what was run and what came back, and the smallest fix that
-removes the class rather than the instance.
+Rank each `issue:`, `nit:` (a defect too small to break anything), `suggestion:` (no defect) or
+`question:`. The rank orders the work, not what may ship: every `issue:` and `nit:` is fixed or
+justified in writing before merge. Each names the rule it breaks (a `CLAUDE.md` rule or a skill
+rule's key), the file and line, what was run and what came back, and the smallest fix that removes
+the class rather than the instance.
 
 - A defect the change introduces, exposes or makes reachable in more cases is in scope even when
   its root is older.
 - A regression is never a limitation. For each limitation the change states, compile a valid input
   that reaches it on base and on head; if head is worse, it is an `issue:`.
-- Before calling an oddity a defect, check whether it is deliberate (a documented policy, an open
-  issue). If it is, the finding is the comment that fails to say so.
+- An oddity that is deliberate (a documented policy, an open issue) is no defect; the finding is
+  then a comment that fails to say so.
 - Also list what was probed and came back clean, and each equivalent mutant with the reason.
 
 ## References

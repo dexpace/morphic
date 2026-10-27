@@ -1,6 +1,6 @@
 # Process, tracker and PR hygiene
 
-The CLAUDE.md commit and PR rules, which no check enforces.
+How to check the `CLAUDE.md` commit, PR and tracker rules, which no gate step reads.
 
 ## State a deliberate limitation at the code that has it
 `limitation-stated-in-code`
@@ -39,15 +39,16 @@ The CLAUDE.md commit and PR rules, which no check enforces.
 ## Check commit subjects, PR titles and bodies against the message rules before first push
 `commit-and-pr-message-form`
 
-- **Rule.** Every commit subject and the PR title must be Conventional Commits, imperative, at most
-  72 characters (the title at most 72 including the appended ' (#NNN)'); a breaking commit carries !
-  and explains the break in its own body; PR bodies carry no tool attribution or session artifacts.
+- **Rule.** Every commit subject and the PR title are Conventional Commits, imperative, at most 72
+  characters, the title counted with the ` (#N)` the squash appends for this PR's own number. A
+  breaking commit carries `!` and explains the break in its own body. Every commit body could stand
+  on `main`, since the default squash pastes them all. No text carries tool attribution or session
+  artifacts.
 - **Why.** Over-length subjects and prose titles land on main via squash and cannot be fixed without
   rewriting a pushed branch; a break marked only in the PR title is invisible in branch history
   (#834, #157).
-- **Probe.** git log --format=%s main..HEAD | awk 'length($0)>72'; printf '%s (#999)' "<title>" | wc
-  -c; grep the title against ^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: ; run
-  `scripts/artifact_scan.py` over the range and the PR body.
+- **Probe.** `review_setup.py` measures the title and each subject and runs the artifact scan;
+  rerun it after new commits.
 
 ## Keep the diff to in-scope files and keep scratch notes out of the tree
 `diff-contains-only-in-scope-files`
@@ -57,9 +58,21 @@ The CLAUDE.md commit and PR rules, which no check enforces.
   be removed only after confirming local tools no longer generate those paths.
 - **Why.** Design-only PRs carried go.mod changes, plans and temporary rewrite notes were committed
   toward main, and a removed .claude/ ignore entry had to be restored (#5, #119).
-- **Probe.** git diff --stat main...HEAD and match each path to the PR title; git ls-files docs/ |
-  grep -iE 'plan|notes|rewrite|superpowers'; for a removed .gitignore line, git status --ignored
-  before and after.
+- **Probe.** `git diff --stat origin/main...HEAD` and match each path to the PR title;
+  `git ls-files docs | grep -iE 'plan|notes|rewrite|superpowers'`; for a removed `.gitignore` line,
+  `git status --ignored` before and after.
+
+## Close only the issues the PR finishes, one keyword each
+`closing-keywords`
+
+- **Rule.** On merge, GitHub closes each issue that `close`, `fix` or `resolve`, in any tense,
+  precedes as `#N` anywhere in the body, and a keyword reaches only the reference right after it.
+  Write one `Closes #N` line per issue the PR finishes, and narrate other work with other verbs
+  ("landed", "did the work of").
+- **Why.** A sentence about another PR, "closed #907", made #948 claim to close #907 beside its own
+  issue; #1016 wrote one line per issue, since a list after one keyword closes only its first.
+- **Probe.** After each body edit, compare `gh pr view <N> --json closingIssuesReferences` with
+  `grep -noiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?) #[0-9]+'` over the body.
 
 ## Check the tracker for a recorded decision before changing what it covers
 `follow-recorded-decisions`

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""Check a PR's head out in a worktree of its own and print what a first review pass needs: the
-title measured as it will land, commit subjects, closing keywords, files by area, whether it
-merges cleanly into main, CI, the squash-message setting, and an artifact scan.
+"""Check a PR out in a worktree of its own, as it will land, and print what a first review pass
+needs: the title measured as it will land, commit subjects, closing keywords, files by area, the
+merge state, CI, the squash-message setting, and an artifact scan.
 
 Usage: python3 review_setup.py PR-NUMBER [DIR]
 
-DIR defaults to <temp dir>/morphic-review-<PR>. An existing clean worktree there is moved to the
-new head; one with local changes is left alone. Set REMOTE when the repository the PR belongs to
-is not origin, as in a clone of a fork. Exit 0 when set up, 2 when it cannot be.
+The worktree holds the head merged into main when the two merge cleanly, the head itself when it
+already contains main, and the head alone, reported, when it conflicts. DIR defaults to
+<temp dir>/morphic-review-<PR>. An existing clean worktree there is moved to the new commit; one
+with local changes is left alone. Set REMOTE when the repository the PR belongs to is not origin,
+as in a clone of a fork. Exit 0 when set up, 2 when it cannot be.
 """
 from __future__ import annotations
 
@@ -28,6 +30,9 @@ TITLE_CAP = 72
 INDENT = " " * 11
 CONVENTIONAL = re.compile(r"^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\([^)]+\))?!?: \S")
 CLOSING = re.compile(r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?) +#[0-9]+", re.I)
+# The review's merge commit needs an identity, and a fresh clone may configure none.
+IDENTITY = {f"GIT_{who}_{what}": value for who in ("AUTHOR", "COMMITTER")
+            for what, value in (("NAME", "review_setup"), ("EMAIL", "review_setup@localhost"))}
 # The domain skill to load for the files a change touches.
 DOMAINS = [
     (re.compile(r"^(compilers/openapi/|docs/compilers/openapi\.md|docs/parser-library\.md"
@@ -71,12 +76,14 @@ def domain_hints(files: list[str]) -> list[str]:
     return sorted({skill for pattern, skill in DOMAINS if any(pattern.match(f) for f in files)})
 
 
-def run(*args: str, check: bool = True) -> subprocess.CompletedProcess:
-    return subprocess.run(args, check=check, capture_output=True, text=True)
+def run(*args: str, check: bool = True, env: dict | None = None) -> subprocess.CompletedProcess:
+    full = {**os.environ, **env} if env else None
+    return subprocess.run(args, check=check, capture_output=True, text=True, env=full)
 
 
-def git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
-    return run("git", "-C", str(root), *args, check=check)
+def git(root: Path, *args: str, check: bool = True,
+        env: dict | None = None) -> subprocess.CompletedProcess:
+    return run("git", "-C", str(root), *args, check=check, env=env)
 
 
 def checkout(root: Path, directory: Path, head: str) -> None:
@@ -90,31 +97,47 @@ def checkout(root: Path, directory: Path, head: str) -> None:
         git(root, "worktree", "add", "-q", "--detach", str(directory), head)
 
 
-def merge_report(root: Path, base: str, head: str) -> list[str]:
+def landing(root: Path, name: str, base: str, head: str) -> tuple[list[str], str, bool]:
+    """Return the merge state's report lines, the commit to review, and whether that commit is
+    the tree as it will land: head when it contains base, a merge of the two when they merge
+    cleanly, head alone otherwise. Base and head are commits; name is how base is printed."""
+    if git(root, "merge-base", "--is-ancestor", base, head, check=False).returncode == 0:
+        return [f"merge      head contains {name}: CI's run on the head ran this tree"], head, True
     clean = git(root, "merge-tree", "--write-tree", base, head, check=False)
     if clean.returncode == 0:
-        return [f"merge      clean into {base}"]
+        merged = git(root, "commit-tree", clean.stdout.split()[0], "-p", head, "-p", base,
+                     "-m", f"Merge {name} into the head for review", env=IDENTITY).stdout.strip()
+        return [f"merge      clean into {name}; the worktree holds the merge"], merged, True
     if clean.returncode != 1:
-        return ["merge      not checked: this git has no merge-tree --write-tree"]
+        return ["merge      not checked (this git has no merge-tree --write-tree); "
+                "the worktree holds the head alone"], head, False
     named = git(root, "merge-tree", "--write-tree", "--name-only", base, head, check=False)
     files = named.stdout.split("\n\n", 1)[0].splitlines()[1:]
-    return [f"merge      CONFLICTS with {base}:"] + [INDENT + f for f in files]
+    lines = [f"merge      CONFLICTS with {name}; the worktree holds the head alone:"]
+    return lines + [INDENT + f for f in files], head, False
 
 
 def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[str], str, str]:
-    """Set the worktree up and return the report's lines, the merge base and the head."""
+    """Set the worktree up and return the report's lines, the revision the scan starts from and
+    the head."""
     git(root, "fetch", "-q", remote, "main")
     git(root, "fetch", "-q", remote, f"pull/{number}/head")
     head = git(root, "rev-parse", "FETCH_HEAD").stdout.strip()
-    base = f"{remote}/main"
+    name = f"{remote}/main"
+    base = git(root, "rev-parse", "--verify", f"{name}^{{commit}}").stdout.strip()
     mb = git(root, "merge-base", base, head).stdout.strip()
     fields = "title,body,state,isDraft,author,closingIssuesReferences"
     pr = json.loads(run("gh", "pr", "view", number, "--json", fields).stdout)
-    checkout(root, directory, head)  # last, so a failure above leaves no worktree behind
+    merge_lines, target, lands = landing(root, name, base, head)
+    checkout(root, directory, target)  # last, so a failure above leaves no worktree behind
 
     draft = ", draft" if pr["isDraft"] else ""
+    what = "the head" if target == head else f"the head {head[:12]} merged into {name}"
+    diff = f"git diff {base[:12]}" if lands else f"git diff {mb[:12]}"
     out = [f"PR #{number}  {pr['state']}{draft}, by {pr['author']['login']}",
-           f"worktree   {directory} @ {head[:12]} (merge base {mb[:12]})", ""]
+           f"worktree   {directory} @ {target[:12]}: {what}",
+           f"{INDENT}`{diff}` there shows the change as "
+           + ("it will land" if lands else "the branch made it"), ""]
     out += title_report(pr["title"], number) + body_report(pr["body"])
     out += [f"linked     #{i['number']}" for i in pr["closingIssuesReferences"]]
 
@@ -129,7 +152,7 @@ def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[
     out.append(INDENT + git(root, "diff", "--shortstat", mb, head).stdout.strip())
     out += [f"load       {skill}" for skill in domain_hints(files)]
 
-    out += [""] + merge_report(root, base, head)
+    out += [""] + merge_lines
     squash = run("gh", "api", "repos/{owner}/{repo}", "--jq", ".squash_merge_commit_message",
                  check=False)
     out.append(f"squash     body default: {squash.stdout.strip() or 'unknown'}")
@@ -161,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print("\n".join(lines))
     artifact_scan.main([mb, head, "--pr", number])
-    print(f"\nnext: cd {directory} && make gate")
+    print(f"\nnext: cd {directory}, then the review's passes")
     return 0
 
 

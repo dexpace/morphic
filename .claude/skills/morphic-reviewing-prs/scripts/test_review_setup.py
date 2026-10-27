@@ -2,7 +2,11 @@
 
 Run: python3 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scripts
 """
+import os
+import tempfile
 import unittest
+from pathlib import Path
+from unittest import mock
 
 import review_setup as rs
 
@@ -49,6 +53,68 @@ class FilesTest(unittest.TestCase):
         self.assertEqual(rs.domain_hints(["docs/parser-library.md"]), openapi)
         self.assertEqual(rs.domain_hints(["testdata/conformance/openapi/a.yaml"]), openapi)
         self.assertEqual(rs.domain_hints(["ir/a.go", "docs/ir-design.md"]), [])
+
+
+class LandingTest(unittest.TestCase):
+    """landing hands the review the tree as it will land, on a repository built here."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.dir.name)
+        self.git("init", "-q", "-b", "main")
+        self.base = self.commit("a.txt", "a\n")
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def git(self, *args: str) -> str:
+        return rs.git(self.root, *args, env=rs.IDENTITY).stdout.strip()
+
+    def commit(self, name: str, text: str) -> str:
+        (self.root / name).write_text(text)
+        self.git("add", name)
+        self.git("commit", "-q", "-m", name)
+        return self.git("rev-parse", "HEAD")
+
+    def branch_from(self, start: str, name: str, text: str) -> str:
+        self.git("checkout", "-q", "--detach", start)
+        return self.commit(name, text)
+
+    def test_a_clean_merge_is_reviewed_as_the_merge(self):
+        head = self.branch_from(self.base, "h.txt", "h\n")
+        main = self.branch_from(self.base, "m.txt", "m\n")
+        lines, target, lands = rs.landing(self.root, "origin/main", main, head)
+        self.assertTrue(lands)
+        self.assertNotIn(target, (head, main))
+        self.assertEqual(self.git("rev-list", "--parents", "-n1", target).split()[1:], [head, main])
+        self.assertEqual(self.git("ls-tree", "--name-only", target).split(),
+                         ["a.txt", "h.txt", "m.txt"])
+        self.assertIn("clean into origin/main", lines[0])
+
+    def test_a_head_holding_main_is_reviewed_as_it_is(self):
+        head = self.branch_from(self.base, "h.txt", "h\n")
+        lines, target, lands = rs.landing(self.root, "origin/main", self.base, head)
+        self.assertEqual((target, lands), (head, True))
+        self.assertIn("CI's run on the head ran this tree", lines[0])
+
+    def test_a_conflict_leaves_the_head_alone_and_names_the_file(self):
+        head = self.branch_from(self.base, "a.txt", "head\n")
+        main = self.branch_from(self.base, "a.txt", "main\n")
+        lines, target, lands = rs.landing(self.root, "origin/main", main, head)
+        self.assertEqual((target, lands), (head, False))
+        self.assertIn("CONFLICTS", lines[0])
+        self.assertEqual(lines[1:], [rs.INDENT + "a.txt"])
+
+    def test_a_merge_needs_no_configured_identity(self):
+        head = self.branch_from(self.base, "h.txt", "h\n")
+        main = self.branch_from(self.base, "m.txt", "m\n")
+        self.git("config", "user.useConfigOnly", "true")
+        # patch.dict restores the whole environment, the identity variables removed here too.
+        with mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}):
+            for k in rs.IDENTITY:
+                os.environ.pop(k, None)
+            _, target, _ = rs.landing(self.root, "origin/main", main, head)
+        self.assertEqual(self.git("log", "-1", "--format=%an", target), "review_setup")
 
 
 if __name__ == "__main__":
