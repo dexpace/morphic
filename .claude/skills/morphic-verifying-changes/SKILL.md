@@ -54,7 +54,7 @@ options.
 - `references/sweep-every-site.md`: every site and every sentence a change touches.
 - `references/tests-that-bite.md`: tests that fail when the code is wrong.
 - `references/assertions-and-reach.md`: what an assertion and a fixture actually reach.
-- `references/checkers.md`: verifiers, lint and archtest rules that reach what they claim.
+- `references/checkers.md`: scanners, lint and archtest rules that reach what they claim.
 - `references/mutation.md`: planting defects without fooling yourself.
 - `references/differentials.md`: controls, corpus sweeps and generated inputs.
 - `references/toolchain.md`: Go caching, coverage, test output and build behaviour that misleads

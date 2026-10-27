@@ -33,7 +33,7 @@ chain the push on it with `&&`.
 
 Merge `origin/main` into the branch, never rebase it. Read `references/merging-main.md` before
 resolving a conflict; after the merge, build, vet, run the suite, and re-plant each mutation the PR
-body cites.
+body cites. A branch that bumps `IRVersion` takes its version by `morphic-changing-the-ir`.
 
 ## PR text
 

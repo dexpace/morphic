@@ -1,20 +1,8 @@
 # Checks that reach what they claim
 
-Verifiers, lint and archtest rules, codecs and loaders. A check is evidence only for the forms it
-can see, so each rule here is about widening what a check sees or proving how far it reaches.
-
-## Give every field a check that rejects its zero and malformed values
-`verifier-rejects-every-degenerate-value`
-
-- **Rule.** For each field a consumer reads or routes on, the verifier rejects its empty, null,
-  absent, wrong-kind and malformed values, read from the unfiltered source and mirroring every
-  refusal the encoder makes. A derived identifier or canonical name is rejected wherever its grammar
-  cannot produce it, with one rejecting case per property: casing, character set, segmentation,
-  agreement with its coordinate.
-- **Why.** Empty keys and reasons, an absent `irVersion` and ill-formed UTF-8 all verified clean, so
-  a verified document could still fail to encode or misroute (#329, #361).
-- **Probe.** Write the zero, empty, null and wrong-kind variant of each field and assert each is a
-  violation; encode every document that verifies clean.
+Source scanners, lint and archtest rules, and loaders. A check is evidence only for the forms it can
+see, so each rule here is about widening what a check sees or proving how far it reaches. The IR's
+own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md`.
 
 ## Key static source checks on every syntactic form, ideally the resolved type
 `source-scanners-match-every-form`
@@ -26,17 +14,6 @@ can see, so each rule here is about widening what a check sees or proving how fa
   audit reported clean while missing both planted writes (#332, #837).
 - **Probe.** Plant one instance of each form the check must catch in a scratch package and confirm
   each reddens; prefer keying on go/types over selector text.
-
-## Check every reference position and every ID class, not a subset
-`verifier-reaches-every-reference-and-id-class`
-
-- **Rule.** A validator or verifier over references or IDs must cover every position a reference can
-  occupy (map keys, PropIDs, plain int indices) and every ID class and node class the document
-  holds, derived from the type graph rather than from the data a fixture happens to contain.
-- **Why.** Dangling rename targets, channel, message and PropID references, and malformed operation
-  IDs verified clean because the walk saw only TypeIDs or only registry-reached nodes (#149, #119).
-- **Probe.** Plant a dangling or malformed value in each reference-bearing field and each ID class
-  in turn and assert a violation fires for each; a field whose plant stays green is uncovered.
 
 ## Identify code with the type checker, never by name strings
 `resolve-symbols-semantically`
@@ -61,27 +38,6 @@ can see, so each rule here is about widening what a check sees or proving how fa
 - **Probe.** Plant a forbidden import from a package sharing the allowed prefix, a same-named
   directory at another depth, and a testdata fixture importing a sibling; run go test
   ./internal/archtest and confirm each reddens.
-
-## Witness each character class a text predicate decides
-`character-predicate-witness-per-class`
-
-- **Rule.** A predicate over text (cased, blank, invisible) must be tested against the producer's
-  exact transformation and with one witness per Unicode class it claims (Cc, Cf, default-ignorable,
-  Zs, caseless letters), not a hand-picked sample.
-- **Why.** unicode.IsUpper flagged neutral caseless runes as cased, and TrimSpace let zero-width and
-  filler-only aliases pass as non-blank (#361).
-- **Probe.** Generate one witness per class and per producer output and assert the predicate's
-  verdict on each.
-
-## Make every custom JSON decoder reach a fixed point on null, whitespace and empty forms
-`json-decoder-fixed-point`
-
-- **Rule.** A custom decoder must detect JSON literals by decoded value, not raw bytes, and must not
-  allocate on null; decode-encode-decode of null, padded null and the empty form must be stable.
-- **Why.** TypeRegistry allocated an empty map on null, and again on " null ", so Document.Types
-  became non-nil and the round trip never settled (#264).
-- **Probe.** For each UnmarshalJSONFrom touched, decode "null", " null ", "{}", re-encode, decode
-  again, and cmp.Diff the two decoded values.
 
 ## Fail when a loader or parser reads less than it was asked to
 `loaders-fail-when-they-read-less`
