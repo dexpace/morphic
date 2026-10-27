@@ -152,9 +152,9 @@ func responseTree(n int) string {
 
 // TestResumeWork_Charge pins what a resumption is charged: a step, and for each
 // hop it reads in the tree, a step and the library's read of it, then the keys
-// indexed to count them. The hops are followed
-// while they stay in the document, each once, and a charge past the limit says
-// so.
+// indexed to count them. The hops are followed while they stay in the document,
+// each once; a charge past the limit says so, and a read is priced no further
+// than what is left.
 func TestResumeWork_Charge(t *testing.T) {
 	t.Parallel()
 	tree, err := parseTree(t.Context(), []byte(`components:

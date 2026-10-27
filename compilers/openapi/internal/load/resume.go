@@ -62,9 +62,9 @@ func refOf(view *nodeview.View, node *yaml.Node) string {
 // maxResumeWork bounds the steps settle takes in a resolution pass: one for
 // each resolution it resumes, one for each hop the resumed resolution reads in
 // a document's tree, the steps the library's read of that hop takes there (see
-// treeReads), and the keys indexed to count them. The
-// library finds a key by comparing a mapping's keys in order, so n chains into
-// one mapping of n keys take n squared steps (GitHub #773).
+// treeReads), and the keys indexed to count them. The library finds a key by
+// comparing a mapping's keys in order, so n chains into one mapping of n keys
+// take n squared steps (GitHub #773).
 const maxResumeWork = 1 << 28
 
 // resumeWork is the steps settle has spent resuming resolutions, against
