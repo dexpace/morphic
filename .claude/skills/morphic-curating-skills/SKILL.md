@@ -22,13 +22,9 @@ Take the first that fits.
    `.claude/skills`.
 
 A skill links to a normative fact in `docs/`, such as a `docs/parser-library.md` or
-`docs/compilers/openapi.md` entry, and never restates it. The skills by subject:
-
-- `morphic-verifying-changes`: proving a claim, by tests, mutants, differentials, counts, sweeps
-  and checks.
-- `morphic-reviewing-prs`: reviewing a pull request.
-- `morphic-openapi-compiler`: the OpenAPI compiler, its corpus and its keyed docs.
-- this one: keeping the skills.
+`docs/compilers/openapi.md` entry, and never restates it. Each skill's description says when it
+loads; read them with `grep -h '^description:' .claude/skills/*/SKILL.md` rather than keep a list
+of them here, which would drift.
 
 ## Rule format
 

@@ -49,10 +49,9 @@ covers.
   produced today's `compilers/openapi`. Both record work that has landed; read them for why the
   package boundaries fall where they do, not as a proposal or a backlog.
 
-`.claude/skills/` holds the procedures for recurring work (verifying a change, reviewing a PR,
-working in the OpenAPI compiler), the lessons past PRs taught, and the scripts both use. A skill
-links to these documents rather than restating them; `morphic-curating-skills` says where a new
-lesson goes.
+`.claude/skills/` holds the procedures for recurring work, such as verifying a change or reviewing
+a PR, the lessons past PRs taught, and the scripts both use. A skill links to these documents
+rather than restating them; `morphic-curating-skills` says where a new lesson goes.
 
 ## Invariants that must not be violated
 
