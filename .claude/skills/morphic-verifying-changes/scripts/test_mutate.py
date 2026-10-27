@@ -49,6 +49,7 @@ class VerdictTest(unittest.TestCase):
             (1, "exit status 3\n", mutate.UNVERIFIED),
             (0, "...\nRan 3 tests in 0.1s\n\nOK\n", mutate.SURVIVED),
             (0, "\nRan 0 tests in 0.000s\n\nOK\n", mutate.UNVERIFIED),
+            (0, "\nRan 0 tests in 0.0s\n\nOK\n\nRan 2 tests in 0.1s\n\nOK\n", mutate.SURVIVED),
             (5, "\nRan 0 tests in 0.000s\n\nNO TESTS RAN\n", mutate.UNVERIFIED),
             (1, "FAIL: test_x (m.T)\nRan 3 tests in 0.1s\n\nFAILED (failures=1)\n", mutate.KILLED),
             (1, "ERROR: test_m (unittest.loader._FailedTest)\nRan 1 test in 0.0s\n\n"

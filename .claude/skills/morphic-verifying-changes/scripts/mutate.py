@@ -48,11 +48,11 @@ NOT_LOADED = "unittest.loader._FailedTest"
 
 
 def verdict(status: int, output: str) -> tuple[int, str]:
-    """Judge a test run's exit status and output: a kill needs a failing test, a survival a
-    passing package, and a build failure is never either."""
-    ran = UNITTEST_RAN.search(output)
-    if ran:
-        return unittest_verdict(status, output, int(ran.group(1)))
+    """Judge a go test or unittest run's exit status and output: a kill needs a failing test, a
+    survival a passing run that ran a test, and a build failure is never either."""
+    suites = UNITTEST_RAN.findall(output)
+    if suites:  # one "Ran N tests" line per suite the command ran
+        return unittest_verdict(status, output, sum(map(int, suites)))
     fails = [line for line in output.splitlines() if FAIL_LINE.match(line)]
     if NO_BUILD.search(output):
         lines = [line for line in output.splitlines() if NO_BUILD.search(line)][:10]
