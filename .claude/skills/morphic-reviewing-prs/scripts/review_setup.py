@@ -214,7 +214,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print("\n".join(lines))
     artifact_scan.main([mb, head, "--pr", number])
-    print(f"\nnext: cd {directory}, then the review's passes")
+    print(f"\nnext: cd {directory}, then the review's passes; once the PR is closed,\n"
+          f"      git worktree remove --force {directory}")
     return 0
 
 
