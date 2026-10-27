@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
@@ -116,7 +117,7 @@ func TestExternal_AdmitRefusesANestingPastTheBound(t *testing.T) {
 	root, err := parseTree(t.Context(), []byte("a: "+itemsDeep(scan.MaxNesting)+"\n"))
 	require.NoError(t, err)
 
-	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{})).admit(t.Context(), "k", root)
+	err = newExternal(t.Context(), &soa.OpenAPI{}, Options{}, newExternalReads(sourceDocument{}, budget.Unbounded())).admit(t.Context(), "k", root)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
@@ -158,7 +159,7 @@ func TestRefusals_ReportsEachRefusalAlongsideTheOthers(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
 
-	diags := refusals(t.Context(), scan.InTree(0, scan.Pointers(t.Context(), &root)), &root, Options{MaxAliasSurplus: 1})
+	diags := refusals(t.Context(), scan.InTree(0, scan.Pointers(t.Context(), &root)), &root, Options{MaxAliasSurplus: budget.AtMost(1)})
 
 	codes := make([]string, 0, len(diags))
 	for _, d := range diags {

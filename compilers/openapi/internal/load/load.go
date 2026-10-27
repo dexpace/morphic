@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
@@ -42,22 +43,21 @@ type Options struct {
 	// OverlaySrcIndex is the index the overlay document takes in Document.Sources.
 	// It is read only when Overlay is set.
 	OverlaySrcIndex int
-	// MaxSourceBytes bounds the source document's size in bytes. Zero is
-	// unbounded: the compiler's public Limits resolves its defaults and translates
-	// its own spelling of "unbounded" before projecting onto this, so a budget
-	// still zero here is one no caller set.
-	MaxSourceBytes int
+	// MaxSourceBytes bounds the source document's size in bytes. The compiler's
+	// public Limits resolves its defaults and its spelling of "unbounded" before
+	// projecting onto this (budget.FromOption), so the zero Limit, unbounded,
+	// is a budget no caller set, as in each budget below.
+	MaxSourceBytes budget.Limit
 	// MaxSourceNodes bounds the YAML nodes the source parses to, counted after any
-	// overlay is applied. Zero is unbounded, as in MaxSourceBytes.
-	MaxSourceNodes int
+	// overlay is applied.
+	MaxSourceNodes budget.Limit
 	// MaxAliasSurplus bounds the nodes YAML aliases may add to the source, and to
-	// the overlay, beyond their own. Zero is unbounded, as in MaxSourceBytes; the
-	// ratio refusal scan makes beside it holds either way.
-	MaxAliasSurplus int
+	// the overlay, beyond their own. The ratio refusal scan makes beside it holds
+	// either way.
+	MaxAliasSurplus budget.Limit
 	// MaxExternalDocuments bounds the documents external references read in one
-	// compile, each counted once however often it is asked for. Zero is
-	// unbounded, as in MaxSourceBytes.
-	MaxExternalDocuments int
+	// compile, each counted once however often it is asked for.
+	MaxExternalDocuments budget.Limit
 	// buildIndex builds the pre-parse index over a decoded tree, or nil for the
 	// compiler's own node bound. It is unexported because it is this package's
 	// test seam: it drives the truncated-index refusal without materializing a
@@ -286,7 +286,7 @@ func refusals(ctx context.Context, locate scan.Locator, root *yaml.Node, opts Op
 	if d, deep := scan.Nesting(ctx, locate, idx); deep {
 		diags = append(diags, d)
 	}
-	diags = append(diags, scan.Aliases(ctx, locate, idx, int64(opts.MaxAliasSurplus))...)
+	diags = append(diags, scan.Aliases(ctx, locate, idx, opts.MaxAliasSurplus)...)
 	if tagged := idx.TaggedMappings(); len(tagged) > 0 {
 		diags = append(diags, taggedMappingRefusal(locate, scan.Least(ctx, root, tagged)))
 	}

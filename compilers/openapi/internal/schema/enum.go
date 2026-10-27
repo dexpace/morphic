@@ -42,10 +42,10 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 			diags = append(diags, emptyDiags...)
 			return def
 		}
-		if n := len(s.GetEnum()); c.Limits.EnumMembersExceeded(n) {
+		if n := len(s.GetEnum()); !c.Limits.MaxEnumMembers.Admits(n) {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.BudgetExceeded, pointer,
 				"enum declares %d members, past the %d-member budget; lowered as any",
-				n, c.Limits.MaxEnumMembers))
+				n, c.Limits.MaxEnumMembers.Cap()))
 			return &ir.Any{TypeCommon: common}
 		}
 		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)

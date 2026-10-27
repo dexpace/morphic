@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"math"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"path/filepath"
 	"runtime"
@@ -467,17 +466,17 @@ func TestDisk_ReadDocumentWithANilClientUsesTheDefaultClient(t *testing.T) {
 
 // TestDisk_ReadDocumentPassesATransportErrorThrough pins that a request the
 // client cannot complete fails the read with the client's own error, wrapped,
-// whether nothing is listening or the transport fails with an error of its own.
+// whether nothing can listen or the transport fails with an error of its own.
+// Nothing listens on port 0; a closed test server's port may be another
+// test's by the time it is dialled.
 func TestDisk_ReadDocumentPassesATransportErrorThrough(t *testing.T) {
 	t.Parallel()
-	closed := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	closed.Close()
 	boom := errors.New("boom")
 
-	t.Run("nothing is listening", func(t *testing.T) {
+	t.Run("nothing can listen", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := reader.Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: closed.URL + "/doc.yaml"})
+		got, err := reader.Disk{}.ReadDocument(t.Context(), compilers.DocumentRequest{Location: "http://127.0.0.1:0/doc.yaml"})
 
 		var urlErr *url.Error
 		require.ErrorAs(t, err, &urlErr, "the client's error, not a flattened copy of it")

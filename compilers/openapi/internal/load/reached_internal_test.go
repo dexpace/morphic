@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
@@ -51,8 +52,9 @@ func loadExternal(t *testing.T, dir, root string, opts Options) (*Document, []ir
 
 // TestSpanned covers spanned's properties: it counts every node under root,
 // an alias counts as the copy of what it names and nothing more, a tree of
-// exactly limit nodes fits, a limit stops the count one node past it, never at
-// the whole tree, and math.MaxInt, past which no node lies, counts it all.
+// exactly limit nodes is counted whole, a limit stops the count one node past
+// it, never at the whole tree, and math.MaxInt, past which no node lies,
+// counts it all.
 func TestSpanned(t *testing.T) {
 	t.Parallel()
 	wide := &yaml.Node{Kind: yaml.MappingNode}
@@ -63,20 +65,17 @@ func TestSpanned(t *testing.T) {
 	aliased := &yaml.Node{Kind: yaml.MappingNode, Content: []*yaml.Node{{Kind: yaml.AliasNode, Alias: target}}}
 
 	for name, c := range map[string]struct {
-		root  *yaml.Node
-		limit int
-		count int
-		fits  bool
+		root   *yaml.Node
+		within budget.Limit
+		count  int
 	}{
-		"every node under root":                   {wide, -1, 1001, true},
-		"an alias counts as its target's copy":    {aliased, -1, 2, true},
-		"a tree of exactly limit nodes fits":      {wide, 1001, 1001, true},
-		"a limit stops the count one past it":     {wide, 6, 7, false},
-		"the largest limit counts the whole tree": {wide, math.MaxInt, 1001, true},
+		"every node under root":                   {wide, budget.Unbounded(), 1001},
+		"an alias counts as its target's copy":    {aliased, budget.Unbounded(), 2},
+		"a tree of exactly limit nodes is whole":  {wide, budget.AtMost(1001), 1001},
+		"a limit stops the count one past it":     {wide, budget.AtMost(6), 7},
+		"the largest limit counts the whole tree": {wide, budget.AtMost(math.MaxInt), 1001},
 	} {
-		count, fits := spanned(t.Context(), c.root, c.limit)
-		assert.Equal(t, c.count, count, name)
-		assert.Equal(t, c.fits, fits, name)
+		assert.Equal(t, c.count, spanned(t.Context(), c.root, c.within), name)
 	}
 }
 
@@ -94,7 +93,9 @@ func TestReached_ChargeHoldsADocumentToWhatItHasLeft(t *testing.T) {
 		return root
 	}
 	charged := func() *reached {
-		return &reached{limit: 10, spent: map[string]int{"doc": 4}, over: map[string]bool{}}
+		spans := budget.New(budget.AtMost(10))
+		spans.Spend(4)
+		return &reached{limit: budget.AtMost(10), spans: map[string]*budget.Budget{"doc": &spans}}
 	}
 
 	v := charged()
@@ -102,12 +103,13 @@ func TestReached_ChargeHoldsADocumentToWhatItHasLeft(t *testing.T) {
 	assert.True(t, over)
 	require.Len(t, d, 1)
 	assert.Equal(t, diag.BudgetExceeded, d[0].Code)
+	assert.Contains(t, d[0].Message, "more than the 10 nodes", "the budget, not what is left of it")
 
 	v = charged()
 	d, over = v.charge(t.Context(), ir.Provenance{}, "doc", object(6))
 	assert.False(t, over)
 	assert.Empty(t, d)
-	assert.Equal(t, 10, v.spent["doc"])
+	assert.Equal(t, 10, v.spans["doc"].Spent())
 
 	d, over = v.charge(t.Context(), ir.Provenance{}, "doc", object(1))
 	assert.True(t, over)
@@ -376,9 +378,9 @@ func TestReached_CheckAllStopsOnceTheContextIsDone(t *testing.T) {
 
 	stopped := newReached(doc, Options{}, sourceTree{}, judgment{})
 	assert.Empty(t, stopped.checkAll(cancelled, at, targets))
-	assert.Empty(t, stopped.spent, "no target was charged")
+	assert.Empty(t, stopped.spans, "no target was charged")
 
 	live := newReached(doc, Options{}, sourceTree{}, judgment{})
 	assert.NotEmpty(t, live.checkAll(t.Context(), at, targets), "a parameter with no `in` is found wanting")
-	assert.NotEmpty(t, live.spent)
+	assert.NotEmpty(t, live.spans)
 }

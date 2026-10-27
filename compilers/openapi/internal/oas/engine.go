@@ -8,6 +8,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
@@ -20,10 +21,6 @@ import (
 // the bound stops the check of no document the compiler admits.
 const MaxDepth = 1024
 
-// DefaultBudget is how many objects, entries and items a check reads when
-// Options.Budget is not set.
-const DefaultBudget = 1 << 22
-
 // Locator returns the provenance of the source position at a pointer.
 type Locator func(pointer jsontext.Pointer) ir.Provenance
 
@@ -35,8 +32,9 @@ type Options struct {
 	// Start is the kind of the object the root node is. Unset, the root is
 	// the OpenAPI Object.
 	Start Kind
-	// Budget bounds the work; unset, DefaultBudget.
-	Budget int
+	// Budget bounds the work: how many objects, entries and items a check
+	// reads. Unset, it is unbounded, as the zero budget.Limit is.
+	Budget budget.Limit
 	// Seen, when set, is told each mapping read as an object of a kind and
 	// not as a Reference Object standing in its place. The node is the
 	// mapping itself, its aliases followed.
@@ -66,12 +64,9 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 	if !ok {
 		return nil
 	}
-	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), budget: opts.Budget}
+	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
 	w.locate, w.declared, w.seen = opts.Locate, declared, opts.Seen
 	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
-	if w.budget <= 0 {
-		w.budget = DefaultBudget
-	}
 	if w.locate == nil {
 		w.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 	}
@@ -94,7 +89,7 @@ type walker struct {
 	minor   Minor
 	view    *nodeview.View
 	root    *yaml.Node
-	budget  int
+	work    budget.Budget
 	stopped bool
 	seen    func(Kind, *yaml.Node)
 	reporter
@@ -129,8 +124,7 @@ func (w *walker) spend(depth int, ptr jsontext.Pointer) bool {
 		w.stopped = true
 		return false
 	}
-	w.budget--
-	if depth <= MaxDepth && w.budget >= 0 {
+	if depth <= MaxDepth && w.work.Spend(1) {
 		return true
 	}
 	w.stopped = true

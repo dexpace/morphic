@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -37,7 +38,7 @@ const (
 )
 
 // maxNullConjuncts bounds the walk below (styleguide bounded-recursion rule).
-// One budget unit is spent per schema the walk reads, each conjunct and $ref
+// One step is spent per schema the walk reads, each conjunct and $ref
 // site among them, so it caps the walk's depth as well as its breadth: an
 // `allOf` naming its own schema, or a diamond of conjunctions, terminates on it
 // rather than on the shape of the source. A walk deeper or wider than this
@@ -143,11 +144,12 @@ func (s nullSite) child(tokens ...string) nullSite {
 }
 
 // nulls reads what schemas say about null: across each $ref along its chain,
-// an alias's own keywords included, within one budget for the whole read.
+// an alias's own keywords included, within one budget for the whole read,
+// conjuncts.
 type nulls struct {
-	refs   *typed.Bindings
-	is30   bool
-	budget int
+	refs      *typed.Bindings
+	is30      bool
+	conjuncts budget.Budget
 	// declared is the version the document declares, which a report names.
 	declared string
 	// found is each null the lenient reading reads in where the declared one
@@ -166,7 +168,8 @@ type nullFinding struct {
 // dialect c's document declares. It returns a value so the read lives on its
 // caller's stack, as one per position read is.
 func newNulls(c lowering.Ctx) nulls {
-	return nulls{refs: c.Bindings(), is30: c.Is30(), budget: maxNullConjuncts, declared: c.Doc.GetOpenAPI()}
+	return nulls{refs: c.Bindings(), is30: c.Is30(), conjuncts: budget.New(budget.AtMost(maxNullConjuncts)),
+		declared: c.Doc.GetOpenAPI()}
 }
 
 // findings returns what n found as diagnostics, or none while c's policy is
@@ -187,10 +190,9 @@ func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
 // its keyword families says (keywords), then widening it where it writes
 // `nullable: true`.
 func (n *nulls) schema(s *oas3.Schema, site nullSite) nullReading {
-	if s == nil || n.budget <= 0 {
+	if s == nil || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
-	n.budget--
 	return n.widen(s, n.keywords(s, site), site)
 }
 
@@ -199,10 +201,9 @@ func (n *nulls) schema(s *oas3.Schema, site nullSite) nullReading {
 // interned at its own ID discards the reference its definition produced.
 func (n *nulls) ref(js *oas3.JSONSchema[oas3.Referenceable], site nullSite) nullReading {
 	s := js.GetSchema()
-	if s == nil || n.budget <= 0 {
+	if s == nil || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
-	n.budget--
 	return n.usage(s, n.lands(js), site)
 }
 

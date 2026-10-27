@@ -2,12 +2,12 @@ package load
 
 import (
 	"encoding/json/jsontext"
-	"math"
 	"strconv"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/navigation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
@@ -56,7 +56,7 @@ func newTreeReads() *treeReads {
 // takes, one for each node it visits and each pair its loops over a mapping
 // pass, and the node it returns, or nil where it fails. It stops counting once
 // past limit.
-func (t *treeReads) cost(root *yaml.Node, pointer string, limit int) (int, *yaml.Node) {
+func (t *treeReads) cost(root *yaml.Node, pointer string, limit budget.Limit) (int, *yaml.Node) {
 	return t.tally(root, pointer, limit, false)
 }
 
@@ -65,19 +65,18 @@ func (t *treeReads) cost(root *yaml.Node, pointer string, limit int) (int, *yaml
 // `<<` key tried, so a wide mapping costs a read no more than a narrow one.
 // Nothing bounds it: holds answers in full.
 func (t *treeReads) read(root *yaml.Node, pointer string) (int, *yaml.Node) {
-	return t.tally(root, pointer, math.MaxInt, true)
+	return t.tally(root, pointer, budget.Unbounded(), true)
 }
 
-// tally is cost, or read where own. The limit is held below math.MaxInt, so a
-// read priced past it still counts in an int (see push).
-func (t *treeReads) tally(root *yaml.Node, pointer string, limit int, own bool) (int, *yaml.Node) {
+// tally is cost, or read where own.
+func (t *treeReads) tally(root *yaml.Node, pointer string, limit budget.Limit, own bool) (int, *yaml.Node) {
 	parts, ok := partsOf(pointer)
 	if !ok {
 		return 0, nil
 	}
-	s := tally{reads: t, limit: min(limit, math.MaxInt-1), own: own}
+	s := tally{reads: t, steps: budget.New(limit), own: own}
 	target := s.walk(root, parts)
-	return s.steps, target
+	return s.steps.Spent(), target
 }
 
 // holds reports whether the library's read of token in raw finds a node, read
@@ -139,16 +138,16 @@ func partsOf(pointer string) ([]part, bool) {
 	return parts, true
 }
 
-// tally is one counted read: the steps taken, and the limit past which it
+// tally is one counted read: the steps taken, against the limit past which it
 // stops. own counts the reader's own work rather than the library's. trying
 // holds the reads through `<<` keys the read is inside, innermost last, and
 // open the mapping and part of each, which none re-enters.
 type tally struct {
-	reads        *treeReads
-	steps, limit int
-	own          bool
-	trying       []merging
-	open         map[mergeKey]bool
+	reads  *treeReads
+	steps  budget.Budget
+	own    bool
+	trying []merging
+	open   map[mergeKey]bool
 }
 
 // merging is a read of parts[at] on through the `<<` keys of mapping n, which
@@ -232,8 +231,8 @@ func (s *tally) follow(n *yaml.Node, parts []part, at int) (*yaml.Node, bool) {
 // nil where the library fails: no node, an alias of none, or an empty document.
 // It counts the visit, and fails past the limit.
 func (s *tally) content(n *yaml.Node) *yaml.Node {
-	s.steps++
-	for n != nil && s.steps <= s.limit {
+	s.steps.Spend(1)
+	for n != nil && !s.steps.Exhausted() {
 		switch n.Kind {
 		case yaml.AliasNode:
 			n = nodeview.Deref(n)
@@ -279,11 +278,11 @@ func (s *tally) lookup(n *yaml.Node, parts []part, at int) (*yaml.Node, bool) {
 	k := s.reads.index(n)
 	pos, ok := k.first[parts[at].value]
 	if !ok {
-		s.steps += s.compared(k.pairs)
+		s.steps.Spend(s.compared(k.pairs))
 		s.push(n, k, at)
 		return nil, false
 	}
-	s.steps += s.compared(pos + 1)
+	s.steps.Spend(s.compared(pos + 1))
 	return n.Content[2*pos+1], true
 }
 
@@ -301,15 +300,15 @@ func (s *tally) inMerged(m *yaml.Node, parts []part, at int) (*yaml.Node, bool) 
 // indexed as k. With none, it fails there, having looped over n's pairs for
 // them. A read already open on n for the same part would recur without end,
 // as the library's does; no parsed tree holds such a cycle (see refusals),
-// and it is priced past the limit, which stops it.
+// and it exhausts the read's budget, which stops it.
 func (s *tally) push(n *yaml.Node, k *mappingKeys, at int) {
 	if len(k.merges) == 0 {
-		s.steps += s.mergesLooped(k.pairs, 0)
+		s.steps.Spend(s.mergesLooped(k.pairs, 0))
 		return
 	}
 	key := mergeKey{n: n, at: at}
 	if s.open[key] {
-		s.steps = s.limit + 1
+		s.steps.Exhaust()
 		return
 	}
 	if s.open == nil {
@@ -324,7 +323,7 @@ func (s *tally) push(n *yaml.Node, k *mappingKeys, at int) {
 // keys are all tried fails, having looped over them, and the one it is inside
 // goes on to its next; past the limit, every one fails.
 func (s *tally) nextMerge() (*yaml.Node, int, bool) {
-	for len(s.trying) > 0 && s.steps <= s.limit {
+	for len(s.trying) > 0 && !s.steps.Exhausted() {
 		r := &s.trying[len(s.trying)-1]
 		for r.next < len(r.k.merges) {
 			pos := r.k.merges[r.next]
@@ -333,7 +332,7 @@ func (s *tally) nextMerge() (*yaml.Node, int, bool) {
 				return m, r.at, true
 			}
 		}
-		s.steps += s.mergesLooped(r.k.pairs, len(r.k.merges))
+		s.steps.Spend(s.mergesLooped(r.k.pairs, len(r.k.merges)))
 		delete(s.open, mergeKey{n: r.n, at: r.at})
 		s.trying = s.trying[:len(s.trying)-1]
 	}
@@ -344,6 +343,6 @@ func (s *tally) nextMerge() (*yaml.Node, int, bool) {
 // loop over its pairs that reached the key whose mapping held the rest.
 func (s *tally) unwind() {
 	for _, r := range s.trying {
-		s.steps += s.mergesLooped(r.k.merges[r.next-1]+1, r.next)
+		s.steps.Spend(s.mergesLooped(r.k.merges[r.next-1]+1, r.next))
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
@@ -45,12 +46,30 @@ func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 		Type: oas3.NewTypeFromArray([]oas3.SchemaType{oas3.SchemaTypeString, oas3.SchemaTypeNull}),
 	}
 
-	require.Equal(t, alike(nullAdmitted), (&nulls{budget: 1}).schema(nullable, nullSite{}),
+	require.Equal(t, alike(nullAdmitted), (&nulls{conjuncts: budget.New(budget.AtMost(1))}).schema(nullable, nullSite{}),
 		"the fixture admits null while there is budget to read it")
 
-	assert.Equal(t, alike(nullSilent), (&nulls{budget: 0}).schema(nullable, nullSite{}),
+	assert.Equal(t, alike(nullSilent), (&nulls{conjuncts: budget.New(budget.AtMost(0))}).schema(nullable, nullSite{}),
 		"an exhausted budget stops the walk without claiming anything")
 	assert.Positive(t, maxNullConjuncts, "the cap is a real bound, not zero")
+}
+
+// TestSchemaAdmitsNull_ReadsMaxNullConjunctsSchemas pins the budget as the
+// lowering spends it: a null maxNullConjuncts schemas down an allOf chain is
+// read, and one a schema deeper is not, the walk falling silent there.
+func TestSchemaAdmitsNull_ReadsMaxNullConjunctsSchemas(t *testing.T) {
+	t.Parallel()
+	chain := func(levels int) *oas3.Schema {
+		src := strings.Repeat("{allOf: [", levels) + "{type: [string, 'null']}" + strings.Repeat("]}", levels)
+		js := &oas3.JSONSchema[oas3.Referenceable]{}
+		valErrs, err := marshaller.Unmarshal(t.Context(), strings.NewReader(src), js)
+		require.NoError(t, err)
+		require.Empty(t, valErrs)
+		return js.GetSchema()
+	}
+	c := NewRawLowerer(&soa.OpenAPI{}).Ctx
+	assert.True(t, schemaAdmitsNull(c, chain(maxNullConjuncts-1)), "the null the last schema the budget reads admits")
+	assert.False(t, schemaAdmitsNull(c, chain(maxNullConjuncts)), "one schema deeper, the walk is silent")
 }
 
 // TestNulls_ABranchWithNoSchemaSaysNothing pins the guard on an
@@ -60,7 +79,7 @@ func TestNulls_TheConjunctWalkIsBounded(t *testing.T) {
 // missing entry strip a sibling's null.
 func TestNulls_ABranchWithNoSchemaSaysNothing(t *testing.T) {
 	t.Parallel()
-	n := &nulls{budget: maxNullConjuncts}
+	n := &nulls{conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
 	assert.Equal(t, alike(nullSilent), n.conjunct(nil, nullSite{}))
 	assert.Equal(t, alike(nullSilent), n.conjunct(openapitest.EmptyEitherSchema(), nullSite{}),
 		"a branch whose either-value holds neither schema nor bool says nothing either")

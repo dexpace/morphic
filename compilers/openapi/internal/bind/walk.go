@@ -38,7 +38,7 @@ type frame struct {
 type finder struct {
 	docs          *docs
 	ids           *identifiers
-	work          *budget
+	work          *work
 	ends          map[Position]Position
 	sites         map[Position]bool
 	mappingSites  map[mappingKey]bool
@@ -51,8 +51,8 @@ type finder struct {
 }
 
 // newFinder returns a finder over docs that has found nothing.
-func newFinder(d *docs, work *budget) *finder {
-	return &finder{docs: d, ids: newIdentifiers(resources{d}.document(Source)), work: work, ends: map[Position]Position{},
+func newFinder(d *docs, w *work) *finder {
+	return &finder{docs: d, ids: newIdentifiers(resources{d}.document(Source)), work: w, ends: map[Position]Position{},
 		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
 		covered: map[root]bool{}, roots: map[Position]state{}}
 }

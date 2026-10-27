@@ -8,6 +8,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
@@ -106,16 +107,16 @@ func stepsIn(ctx context.Context, root *yaml.Node, limit int) (map[*yaml.Node]st
 	}
 	out[top] = step{}
 	stack := []*yaml.Node{top}
-	entered, cut := 1, false
+	entered, cut := budget.New(budget.AtMost(limit)), false
+	entered.Spend(1)
 	reach := func(n *yaml.Node, s step) {
 		if _, indexed := out[n]; indexed {
 			return
 		}
-		if entered >= limit {
+		if !entered.Spend(1) {
 			cut = true
 			return
 		}
-		entered++
 		out[n] = s
 		stack = append(stack, n)
 	}
@@ -209,10 +210,9 @@ func scanRecovered(locate Locator, scan func() []ir.Diagnostic) []ir.Diagnostic 
 // diag.CycleScanFailed warning.
 //
 // The index must cover the whole tree that will reach the parser: an alias to
-// an ancestor is visible only from the root. surplus is the alias budget, zero
-// for none; yaml.v3's own alias guard never fires on a yaml.Node decode
-// (GitHub #479).
-func Aliases(ctx context.Context, locate Locator, idx sourceindex.Index, surplus int64) []ir.Diagnostic {
+// an ancestor is visible only from the root. surplus is the alias budget;
+// yaml.v3's own alias guard never fires on a yaml.Node decode (GitHub #479).
+func Aliases(ctx context.Context, locate Locator, idx sourceindex.Index, surplus budget.Limit) []ir.Diagnostic {
 	return scanRecovered(locate, func() []ir.Diagnostic {
 		if d, ok := anchorCycle(ctx, locate, idx); ok {
 			return []ir.Diagnostic{d}

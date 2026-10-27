@@ -25,7 +25,7 @@ func isDefs(pointer jsontext.Pointer) bool {
 // documents and within its budget.
 type definitions struct {
 	docs *docs
-	work *budget
+	work *work
 }
 
 // definition is where a "#/$defs/..." pointer written at site, reached along

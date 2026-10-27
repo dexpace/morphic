@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
@@ -99,7 +100,7 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	require.NoError(t, err)
 	self := newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil)
 	opts := Options{Reader: reader.Disk{}}
-	ext := newExternal(t.Context(), doc, opts, newExternalReads(self))
+	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	return doc, newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
 }
 

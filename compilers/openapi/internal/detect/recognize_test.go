@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/detect"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
@@ -26,18 +27,18 @@ import (
 func TestRecognize_HoldsTheParseToItsByteBudget(t *testing.T) {
 	t.Parallel()
 	const src = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"
-	refusal, over := load.OverByteBudget(ir.Provenance{Source: 0}, []byte(src), len(src)-1)
+	refusal, over := load.OverByteBudget(ir.Provenance{Source: 0}, []byte(src), budget.AtMost(len(src)-1))
 	require.True(t, over, "the refusal the case expects")
 
-	rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), len(src)-1)
+	rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), budget.AtMost(len(src)-1))
 	assert.False(t, ok)
 	assert.Equal(t, compilers.Recognition{}, rec, "a source declined unread carries no parse")
 	assert.Equal(t, []ir.Diagnostic{refusal}, diags, "the refusal Load gives the same source")
 
-	for _, budget := range []int{len(src), 0} {
-		rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), budget)
-		require.True(t, ok, "budget %d: %v", budget, diags)
-		assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, rec.Format, "budget %d", budget)
+	for name, limit := range map[string]budget.Limit{"at the budget": budget.AtMost(len(src)), "unbounded": budget.Unbounded()} {
+		rec, diags, ok := detect.Recognize(t.Context(), 0, []byte(src), limit)
+		require.True(t, ok, "%s: %v", name, diags)
+		assert.Equal(t, compilers.SourceFormat{Name: "openapi", Version: "3.1"}, rec.Format, name)
 	}
 }
 
@@ -55,10 +56,10 @@ func TestRecognize_DeclinesSilentlyOnceTheContextIsDone(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			_, live, claimed := detect.Recognize(t.Context(), 0, []byte(src), 0)
+			_, live, claimed := detect.Recognize(t.Context(), 0, []byte(src), budget.Unbounded())
 			require.True(t, claimed || len(live) > 0, "live, the source is claimed or reported")
 
-			rec, diags, ok := detect.Recognize(ctx, 0, []byte(src), 0)
+			rec, diags, ok := detect.Recognize(ctx, 0, []byte(src), budget.Unbounded())
 
 			assert.False(t, ok)
 			assert.Empty(t, diags)
@@ -76,13 +77,13 @@ func TestRecognize_ADeclineNamesTheSourceItWasHanded(t *testing.T) {
 	const srcIndex = 3
 	cases := map[string]struct {
 		src      []byte
-		maxBytes int
+		maxBytes budget.Limit
 		code     string
 	}{
-		"past the byte budget": {[]byte("openapi: 3.1.0\n"), 1, diag.BudgetExceeded},
+		"past the byte budget": {[]byte("openapi: 3.1.0\n"), budget.AtMost(1), diag.BudgetExceeded},
 		"merged past the depth the read expands": {
-			openapitest.RootMergeChain(nodeview.MergeDepthLimit+1, "openapi: 3.1.0", ""), 0, diag.BudgetExceeded},
-		"declaring a version and unreadable": {[]byte("openapi: 3.1.0\ninfo: [unterminated\n"), 0, diag.UndecodableSource},
+			openapitest.RootMergeChain(nodeview.MergeDepthLimit+1, "openapi: 3.1.0", ""), budget.Unbounded(), diag.BudgetExceeded},
+		"declaring a version and unreadable": {[]byte("openapi: 3.1.0\ninfo: [unterminated\n"), budget.Unbounded(), diag.UndecodableSource},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

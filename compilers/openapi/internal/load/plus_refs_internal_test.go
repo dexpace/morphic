@@ -16,6 +16,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -714,7 +715,7 @@ func TestExternal_PrepareRewritesTheTreeItStoresAndRestoreTreesPutsItBack(t *tes
 	const body = "a: &x '#/p+q'\nb: {$ref: *x}\nc: {$ref: 'o.yaml#/r+s'}\n"
 	esc := newEscapes(nil)
 	doc := &soa.OpenAPI{}
-	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}))
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{escapes: esc}, budget.Unbounded()))
 
 	_, err := ext.prepare(t.Context(), "k", []byte(body))
 

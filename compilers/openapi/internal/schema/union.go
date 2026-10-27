@@ -300,8 +300,8 @@ func variantHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Refe
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
 	branches := allOfBranches(s, vptr).branches
-	base := selectAllOfBase(c.Bindings(), branches)
-	if base < 0 {
+	base, ok := selectAllOfBase(c.Bindings(), branches)
+	if !ok {
 		return own
 	}
 	if td, ok := ts.Node(t.Target); !ok || !decorates(td) {

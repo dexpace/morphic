@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
@@ -21,8 +22,8 @@ const describingOverlay = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\n" +
 	"actions:\n  - target: $.info\n    update: {description: from the overlay}\n"
 
 // namedOverlay is the loader's options for an overlay the caller named and did
-// not read, read through r under a byte budget of limit.
-func namedOverlay(r compilers.DocumentReader, limit int) Options {
+// not read, read through r under the byte budget limit.
+func namedOverlay(r compilers.DocumentReader, limit budget.Limit) Options {
 	return Options{Overlay: &overlay.Options{Path: "patch.yaml"}, OverlaySrcIndex: 1, Reader: r,
 		MaxSourceBytes: limit}
 }
@@ -34,7 +35,7 @@ func namedOverlay(r compilers.DocumentReader, limit int) Options {
 func TestLoad_ReadsANamedOverlayThroughTheReader(t *testing.T) {
 	t.Parallel()
 	r := &fakeReader{data: []byte(describingOverlay)}
-	opts := namedOverlay(r, 4096)
+	opts := namedOverlay(r, budget.AtMost(4096))
 	opts.Within = "/confined/to/here"
 	ctx := context.WithValue(t.Context(), ctxKey{}, "the compile's")
 
@@ -84,7 +85,7 @@ func TestLoad_ANamedOverlayPastTheBudgetIsRefused(t *testing.T) {
 			t.Parallel()
 			require.Greater(t, len(describingOverlay), limit)
 
-			doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), namedOverlay(tc.reader, limit))
+			doc, diags, err := Load(t.Context(), 0, openapitest.SourceOf(minimal31), namedOverlay(tc.reader, budget.AtMost(limit)))
 
 			require.NoError(t, err, "a document past its budget is a diagnostic, not a Go error")
 			assert.Nil(t, doc)
@@ -128,7 +129,7 @@ func TestLoad_ANamedOverlayThatCannotBeReadIsAGoError(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			opts := namedOverlay(nil, 0)
+			opts := namedOverlay(nil, budget.Unbounded())
 			if tc.reader != nil {
 				opts.Reader = tc.reader
 			}
