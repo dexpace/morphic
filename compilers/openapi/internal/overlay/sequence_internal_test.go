@@ -320,8 +320,7 @@ func TestSequence_ChargesAnActionToTheBudgetsEdge(t *testing.T) {
 // TestSequence_RefusesNoActionThatBuildsNothing pins that an action adding no
 // node is applied however large the tree it runs on: here a remove, on a tree
 // already past the budget, which it brings back within. Refused, it was
-// reported as growing the document. An action that builds after it is
-// charged against the tree it left, which is counted afresh.
+// reported as growing the document.
 func TestSequence_RefusesNoActionThatBuildsNothing(t *testing.T) {
 	t.Parallel()
 	const head = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n"
@@ -336,9 +335,36 @@ func TestSequence_RefusesNoActionThatBuildsNothing(t *testing.T) {
 	require.True(t, ok, "a remove builds nothing, so no budget refuses it: %+v", diags)
 	assert.Empty(t, diags)
 	assert.Less(t, countNodes(t.Context(), root, budget.AtMost(maxNodes)), before-1, "and it was applied")
+}
 
-	_, diags, ok = budgetedOverlay(t, ov+"  - target: $.info\n    update: {x-a: 1}\n", budget.AtMost(before-1))
-	assert.True(t, ok, "an action after it is charged against the tree it left: %+v", diags)
+// TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft pins that an action
+// that builds, after a remove on a tree past the budget, is charged against
+// the tree the remove left, counted afresh: a budget of that tree and the
+// action's charge admits it, and one node fewer refuses it. The charge is the
+// payload's weight, three nodes here.
+func TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft(t *testing.T) {
+	t.Parallel()
+	const head = "overlay: 1.0.0\ninfo: {title: o, version: \"1\"}\nactions:\n"
+	const remove = "  - target: $.paths\n    remove: true\n"
+	ov := head + remove + "  - target: $.info\n    update: {x-a: 1}\n"
+	const charge = 3
+
+	var fresh yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(sequenceSpec), &fresh))
+	before := countNodes(t.Context(), &fresh, budget.AtMost(maxNodes))
+	removed, _, ok := budgetedOverlay(t, head+remove, budget.Unbounded())
+	require.True(t, ok)
+	left := countNodes(t.Context(), removed, budget.AtMost(maxNodes))
+	require.Less(t, left+charge, before, "sanity: the source alone is past both budgets below")
+
+	_, diags, ok := budgetedOverlay(t, ov, budget.AtMost(left+charge))
+	assert.True(t, ok, "the tree the remove left, and the charge, fit: %+v", diags)
+
+	_, diags, ok = budgetedOverlay(t, ov, budget.AtMost(left+charge-1))
+	require.False(t, ok)
+	last := diags[len(diags)-1]
+	assert.Equal(t, diag.BudgetExceeded, last.Code)
+	assert.Contains(t, last.Message, fmt.Sprintf("action 2 of 2 would grow the document to at least %d nodes", left+charge))
 }
 
 // TestSequence_AppliesNoActionOnceItsContextRefused cancels a sequence at

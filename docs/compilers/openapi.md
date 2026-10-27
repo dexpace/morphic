@@ -157,6 +157,7 @@ overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `overlay.TestApplyWithin_DegradesToTheSourceAtTheNodeBudget`,
   `e2e.TestCompile_OverlayIsRecordedAsASource`, `load.TestLoad_AnOverlayBuildsWithinTheNodeBudget`,
   `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
+  `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
   `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`
 - Status: partly built: an Overlay 1.0.0 document's RFC 9535 filter selector fails to apply (#651).
   Open: whether lax application should report an action that matches nothing (#652), how an update
