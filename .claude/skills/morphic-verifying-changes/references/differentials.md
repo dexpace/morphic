@@ -8,8 +8,8 @@ compiles a corpus with two builds; these rules decide whether its answer means a
 
 - **Rule.** Run every probe on `main` too and keep only those that fail there. A "main does the
   same" sentence is a claim about `main`: probe it.
-- **Why.** A batch of order probes passed on both builds because hint composition resets at
-  property keys (#561). A commit's claim about `main` held for the cyclic case only (#763).
+- **Why.** A batch of order probes passed on both builds because hint composition resets at property
+  keys (#561). A commit's claim about `main` held for the cyclic case only (#763).
 
 ## A differential also needs a planted-defect control
 `planted-control`
@@ -18,15 +18,6 @@ compiles a corpus with two builds; these rules decide whether its answer means a
   must differ.
 - **Why.** All 40 generated documents agreed with `main` and with a broken fix, because none held
   the shape that differs (#772).
-
-## Print what ran before trusting "identical" or "none found"
-`print-what-ran`
-
-- **Rule.** Beside any "identical", "0 differ" or "none found", report the exit codes on each
-  side, the bytes of output, the number of files parsed, and a positive control's hit.
-- **Why.** An invalid flag made every run exit 2 with no output, so 238 specs were "identical"
-  (#566). A missing YAML parser, relative paths and a missing `timeout` each produced a false zero
-  (#591, #592, #933, #1032).
 
 ## A differential is as wide as its input generator
 `generator-width`
@@ -44,26 +35,26 @@ compiles a corpus with two builds; these rules decide whether its answer means a
 - **Rule.** Where two computations of positions must agree, assert the agreement for every object
   over the corpora, and keep the probe as a test.
 - **Why.** A corpus differential was identical on 2,460 runs while a join probe found a reference
-  end the binder could not place (#1016;
-  `TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus` is the kept probe).
+  end the binder could not place (#1016; `TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`
+  is the kept probe).
 
 ## Use a transform differential for spelling and equivalence claims
 `transform-differential`
 
-- **Rule.** For a fix about how a character in keys or references is read, rename every key with
-  two suffixes (`+Q` and `_Q`), compile both, map one onto the other and compare. For "X is the
-  whole change", apply the expected rule to `main`'s output and require equality with the branch.
-- **Why.** The rename oracle found error text leaking a respelled form after a byte-identical
-  corpus check had reached nothing (#933). A transform differential showed docs moving rather than
-  lost (#728).
+- **Rule.** For a fix about how a character in keys or references is read, rename every key with two
+  suffixes (`+Q` and `_Q`), compile both, map one onto the other and compare. For "X is the whole
+  change", apply the expected rule to `main`'s output and require equality with the branch.
+- **Why.** The rename oracle found error text leaking a respelled form after a byte-identical corpus
+  check had reached nothing (#933). A transform differential showed docs moving rather than lost
+  (#728).
 
 ## Classify crashes against a build with the refusal off
 `three-build`
 
-- **Rule.** For a change to what is refused, run each generated document through `main`, the
-  branch, and the branch with the refusal planted off. Require: a branch crash implies a `main`
-  crash; a clean `main` compile implies a clean branch compile; a branch-only refusal fails in the
-  no-refusal build.
+- **Rule.** For a change to what is refused, run each generated document through `main`, the branch,
+  and the branch with the refusal planted off. Require: a branch crash implies a `main` crash; a
+  clean `main` compile implies a clean branch compile; a branch-only refusal fails in the no-refusal
+  build.
 - **Why.** It found crashes `main` had and a draft refusal of a clean document (#946).
 
 ## Compare diagnostics as a sorted multiset
@@ -72,15 +63,15 @@ compiles a corpus with two builds; these rules decide whether its answer means a
 - **Rule.** In a two-order test, compare types order-invariantly and diagnostics as a sorted
   multiset of severity, code, pointer and message, as `internal/harness` does. Compare each
   operation's type targets too.
-- **Why.** Diagnostics append in walk order, which the permutation changes (#808). A types-only
-  diff missed a reference that took a type already interned at its pointer (#591).
+- **Why.** Diagnostics append in walk order, which the permutation changes (#808). A types-only diff
+  missed a reference that took a type already interned at its pointer (#591).
 
 ## The order oracle never reaches specs with errors
 `order-oracle-errors`
 
 - **Rule.** `harness.Check` stops at the first error diagnostic. To measure order dependence over
-  specs with errors, call the harness's order invariant from a scratch test in `internal/harness`
-  on both builds, and delete it after.
+  specs with errors, call the harness's order invariant from a scratch test in `internal/harness` on
+  both builds, and delete it after.
 - **Why.** Order-dependent specs hid behind their errors (#917).
 
 ## Never compare cmp.Diff text across runs
@@ -112,14 +103,17 @@ compiles a corpus with two builds; these rules decide whether its answer means a
 `corpus-is-a-guard`
 
 - **Rule.** Sweep every corpus you have, but show that a fix works with inputs that spell the case.
-- **Why.** About two thousand real specs were identical on `main` and a fixing branch, because a
-  few dozen wrote the construct at all (#781).
+- **Why.** About two thousand real specs were identical on `main` and a fixing branch, because a few
+  dozen wrote the construct at all (#781).
 
-## Validate a source-reading checker against history
-`history-sweep`
+## Prove the instrument reached its target before reading its result
+`validate-the-instrument-first`
 
-- **Rule.** A new check that reads the source (a shape description, a declaration scan) is run,
-  built from the branch, at each past commit that changed what it reads: its working directory in
-  a detached worktree at that commit. It must change exactly where history did.
-- **Why.** The IR shape describer changed at every version bump and at no refactor, and found one
-  unbumped shape change (#985).
+- **Rule.** An empty, passing or "identical" result counts only if the check reached the input. Run
+  each verifier, command and differential once against a known positive. Beside any "identical", "0
+  differ" or "none found", report the exit codes on each side, the bytes of output, the files parsed
+  and the positive control's hit. A transform oracle re-parses its rewritten input before blaming
+  the code.
+- **Why.** A verifier was wired into CI and never met the output it checked; an invalid flag made
+  every run exit 2, so a sweep read "identical"; a missing YAML parser, relative paths and a missing
+  `timeout` each produced a false zero (#135, #200, #566, #591, #592, #933, #1032).

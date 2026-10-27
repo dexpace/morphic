@@ -24,14 +24,16 @@ Each finds what the others cannot. Run all of them against the final state.
    enforces.
 2. **Code, before the claims.** Read the diff without the PR body. For each changed mechanism,
    diff old against new semantics at every bound, sweep every site of it
-   (`references/sweep-every-site.md`), re-plant every mutation the PR lists, and ask which input
-   class the corpus cannot contain (`references/review-probes.md`).
+   (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md`), re-plant every
+   mutation the PR lists, and ask which input class the corpus cannot contain
+   (`references/review-probes.md`).
 3. **Written rules.** Check each invariant in `CLAUDE.md` the diff could touch, and the Go style
    rules there that no linter enforces.
 4. **Behaviour against main.** For each output the change alters, compile a minimal spec on `main`
    and on the head. "As on main" never excuses a defect inside the change's mechanism.
 5. **Claims.** Every sentence in the body, commits, comments and docs that states behaviour is a
-   claim to execute. Counts are derived (`references/derive-never-maintain.md`).
+   claim to execute. Counts are derived
+   (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`).
 6. **Process.** Title, body, closing keywords, squash message and scope (`references/process.md`),
    and `scripts/artifact_scan.py` over the range and the PR body.
 7. **Merged state.** Merge `origin/main` into a scratch copy and rerun what the merge can break.
@@ -55,6 +57,5 @@ removes the class rather than the instance.
 ## References
 
 - `references/review-probes.md`: probes that found what earlier rounds missed.
-- `references/sweep-every-site.md`: every site, spelling and route a change touches.
-- `references/derive-never-maintain.md`: counts, lists and copies that drift.
 - `references/process.md`: commits, PR text, scope and the tracker.
+

@@ -18,7 +18,9 @@ ir-design §4.3, docs/parser-library.md#known, `morphic-harness` and [a link](re
 Run `go test ./ir/... $(python3 scripts/tool.py)` or `go run ./cmd/morphic-harness <spec>`
 and `gh api repos/{owner}/{repo}`.
 """
-GOOD_REFERENCE = "# R\n\n- **Seen in #1** (abc): `ir/gone.go` TestGone ir-design §9.9\n"
+RULE = ("## Do the thing\n`do-the-thing`\n\n- **Rule.** Do it, as `ir/a.go` and TestKnown do.\n"
+        "- **Why.** It broke\n  once (#1).\n- **Probe.** ir-design §4.3.\n")
+GOOD_REFERENCE = "# R\n\nWhat these rules are about.\n\n" + RULE
 
 
 def write(root: Path, rel: str, text: str) -> Path:
@@ -96,10 +98,34 @@ class LintTest(unittest.TestCase):
 
     def test_a_memory_link_is_caught_and_a_bracket_class_is_not(self):
         write(self.root, ".claude/skills/good-skill/references/r.md",
-              GOOD_REFERENCE + "See [" "[some-note]] and grep '[[:space:]]'.\n")
+              "# R\n\nSee [" "[some-note]] and grep '[[:space:]]'.\n\n" + RULE)
         _, got = self.lint()
-        want = ".claude/skills/good-skill/references/r.md:4: names one machine or a memory link"
+        want = ".claude/skills/good-skill/references/r.md:3: names one machine or a memory link"
         self.assertEqual(got, [want])
+
+    def test_each_rule_problem_is_reported(self):
+        ref = ".claude/skills/good-skill/references/r.md"
+        bad = ("# R\n\n"
+               "## No key\n\n- **Rule.** x.\n- **Why.** y (#1).\n\n"
+               + RULE +
+               "## Twice\n`do-the-thing`\n\n- **Rule.** x.\n- **Why.** y (#1).\n\n"
+               "## Extra bullet\n`extra`\n\n- **Rule.** x.\n- **Also.** z.\n- **Why.** y (#1).\n\n"
+               "## Seen\n`seen`\n\n- **Rule.** x.\n- **Why.** y (#1).\n- **Seen in #2** (a): q\n\n"
+               "## No why\n`no-why`\n\n- **Rule.** x.\n- **Probe.** p.\n\n"
+               "## Uncited\n`uncited`\n\n- **Rule.** x.\n- **Why.** It broke.\n\n"
+               "## Long\n`long`\n\n- **Rule.** " + "word " * 150 + "\n- **Why.** y (#1).\n")
+        write(self.root, ref, bad)
+        _, got = self.lint()
+        want = [
+            f"{ref}:3: a rule's heading must be followed by its `key`",
+            f"{ref}:16: key do-the-thing is also used at {ref}:9",
+            f"{ref}:21: rule extra has Rule, Also, Why bullets, not Rule, Why and an optional Probe",
+            f"{ref}:33: rule seen has a line that is no bullet of it",
+            f"{ref}:35: rule no-why has Rule, Probe bullets, not Rule, Why and an optional Probe",
+            f"{ref}:41: rule uncited cites no PR or issue in its Why",
+            f"{ref}:47: rule long is 159 words, over 150",
+        ]
+        self.assertEqual(sorted(got), sorted(want), "\n".join(got))
 
     @unittest.skipUnless(hasattr(skills_lint.sys, "stdlib_module_names"),
                          "Python 3.9 lists no standard library")

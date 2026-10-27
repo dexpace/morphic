@@ -3,8 +3,8 @@
 ## Coverage counts each package's own tests
 `coverage-per-package`
 
-- **Rule.** `make coverage` profiles each package against its own tests (no `-coverpkg`). Give
-  new code a test in its own package, and check a package with
+- **Rule.** `make coverage` profiles each package against its own tests (no `-coverpkg`). Give new
+  code a test in its own package, and check a package with
   `go test ./pkg -covermode=atomic -coverprofile=f` and `go run ./cmd/morphic-covergate f`.
 - **Why.** End-to-end tests exercised every branch of a schema helper and the gate still found 13
   uncovered statements (#1065).
@@ -13,8 +13,8 @@
 `child-coverage`
 
 - **Rule.** After changing how a re-exec'd test child starts or exits, run `make coverage`.
-- **Why.** Moving an oracle from a `TestMain` hook to a `-test.run` child dropped a statement's
-  only coverage (#942).
+- **Why.** Moving an oracle from a `TestMain` hook to a `-test.run` child dropped a statement's only
+  coverage (#942).
 
 ## A failed result is not cached, so the rerun names the package
 `cached-rerun`
@@ -30,20 +30,11 @@
   between and cite the second. For a cold cache, point `GOCACHE` at a fresh `mktemp -d`.
 - **Why.** A trace cited as a reproduction worked only because the command had run before (#381).
 
-## Scheduling flakes hide under -race and -v
-`scheduling-flakes`
-
-- **Rule.** For a test that depends on goroutine scheduling, run `go test -count=1000 -run X`
-  through the path CI uses, with and without `-race`, before calling it stable. Diagnose without
-  adding output.
-- **Why.** A leak test failed 2 in 1000 runs plain and 0 in 200 under `-race`; one added print hid
-  it (#535).
-
 ## Never test against a closed server's port
 `closed-port`
 
-- **Rule.** To pin how code passes a read failure through, fail a fake reader with a fixed error.
-  To exercise a dial failure, dial `http://127.0.0.1:0/`.
+- **Rule.** To pin how code passes a read failure through, fail a fake reader with a fixed error. To
+  exercise a dial failure, dial `http://127.0.0.1:0/`.
 - **Why.** Two dials of a freed port failed differently under the full suite's load, and another
   test could bind it in between (#1140).
 
@@ -51,8 +42,8 @@
 `cancellation-gaps`
 
 - **Rule.** For "every walk asks the context", wrap the context so `Err` records the longest gaps
-  between asks over one whole compile of a large spec. Pin each new ask with a test that counts
-  asks through `ctxtest.Countdown` and cuts partway.
+  between asks over one whole compile of a large spec. Pin each new ask with a test that counts asks
+  through `ctxtest.Countdown` and cuts partway.
 - **Why.** An allocation-bounded test passed while a lazy index walked a million nodes without
   asking (#1131).
 
@@ -61,5 +52,5 @@
 
 - **Rule.** Build a command to `-o /dev/null` or a temporary path, and check
   `git status --untracked-files=all` before committing.
-- **Why.** `go build ./cmd/morphic` writes the binary into the working directory, one `git add -A` from
-  a commit (#828).
+- **Why.** `go build ./cmd/morphic` writes the binary into the working directory, one `git add -A`
+  from a commit (#828).

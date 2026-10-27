@@ -13,7 +13,6 @@ person will be when it applies.
 Take the first that fits.
 
 1. **A check.** If a test, a lint rule or an archtest rule can catch it, write or file that check.
-   Prose is the weakest home.
 2. **A script.** If it is a sequence of commands that went wrong when typed by hand, put it in a
    skill's `scripts/`.
 3. **A rule in a skill.** Add it to a reference file of the narrowest skill whose trigger covers
@@ -27,7 +26,7 @@ links to that entry and never restates it.
 
 | The lesson is about | Skill |
 |---|---|
-| proving a claim, tests, mutation, differentials | `morphic-verifying-changes` |
+| proving a claim: tests, mutants, differentials, counts, sweeps, checks | `morphic-verifying-changes` |
 | reviewing a pull request | `morphic-reviewing-prs` |
 | the OpenAPI compiler, its corpus or its keyed docs | `morphic-openapi-compiler` |
 | keeping the skills | this one |
@@ -39,12 +38,12 @@ links to that entry and never restates it.
 `<stable-key>`
 
 - **Rule.** What to do, stated so it can be checked.
-- **Why.** The failure it prevents, with the PR or issue that showed it.
-- **Probe.** The command or planted defect that shows whether it holds.
+- **Why.** The failure it prevents, citing the PR or issue that showed it (#N).
+- **Probe.** The command or planted defect that shows whether it holds, when the rule is not one.
 ```
 
 Keep a rule under 150 words. No narrative, no dates, no first person, and no count that a command
-beside it does not derive.
+beside it does not derive. A rule past the cap is two rules, or one another file already holds.
 
 ## Limits
 
@@ -60,10 +59,8 @@ beside it does not derive.
 ## Upkeep
 
 - Run `python3 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit. It
-  checks the limits, that everything a skill names exists, and the scripts' form. The skills are
-  kept apart from the codebase, so the gate never runs this or the scripts' tests.
-- When the lint reports a name that no longer exists, update or delete the rule; lines quoting
-  history (`- **Seen in`) are exempt.
+  checks the limits and the rule format above, and that every name a skill uses exists. The gate
+  never runs it or the scripts' tests, so run both yourself.
 - A lesson a skill already holds that failed again means the skill failed: sharpen its wording or
   its trigger rather than adding a second copy.
 - Skill changes ship like code: a branch, a PR, a title such as `chore(skills): <subject>`.

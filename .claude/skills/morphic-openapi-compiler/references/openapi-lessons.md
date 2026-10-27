@@ -7,8 +7,8 @@ canary. A behaviour found that the page lacks is added there.
 `every-reader`
 
 - **Rule.** Before changing which `allOf` branches compose, how deep a walk goes, or how a keyword
-  is read, find every package that reads the same keyword through its own walk (`GetAllOf()`
-  outside `compilers/openapi/internal/schema`) and make each agree in predicate and in bound.
+  is read, find every package that reads the same keyword through its own walk (`GetAllOf()` outside
+  `compilers/openapi/internal/schema`) and make each agree in predicate and in bound.
 - **Why.** The multipart part reader in `compilers/openapi/internal/operation` walks `allOf` with
   its own bound and drifted from the schema lowering, dropping an `encoding` silently (#998).
 - **Probe.** A multipart body with an `encoding` entry for a part inside the changed shape, on
@@ -26,21 +26,14 @@ canary. A behaviour found that the page lacks is added there.
 ## Call the library's reading; never re-derive it
 `reuse-library-readings`
 
-- **Rule.** Call the library's functions for every reading it already implements (reference
-  parsing, anchors, URI resolution) and `nodeview.View` for tree reads. Key a per-node map by a set
-  when an alias can make one node several schemas. A guard that must agree with the resolver makes
-  the call the resolver makes.
+- **Rule.** Call the library's functions for every reading it already implements (reference parsing,
+  anchors, URI resolution) and `nodeview.View` for tree reads. Key a per-node map by a set when an
+  alias can make one node several schemas. A guard that must agree with the resolver makes the call
+  the resolver makes.
 - **Why.** Each miss of a reach check was a re-derived reading (#563). `View` and the resolver
   disagree on a key written twice (#763).
-- **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`,
-  `.` and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
-
-## A mirror of a library read carries no fixed depth cap
-`mirror-no-cap`
-
-- **Rule.** When a mirror walks what the library recurses through, bound it by the read's counted
-  work, never by a constant.
-- **Why.** A cap on merged mappings left references unresolved that `main` resolved (#774).
+- **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`, `.`
+  and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
 
 ## Moving work out of the library moves its duties
 `library-duties`
@@ -54,24 +47,16 @@ canary. A behaviour found that the page lacks is added there.
 ## Library calls run before the escape restore
 `escape-window`
 
-- **Rule.** Load respells `+` in reference fragments for the library and restores the trees after.
-  A new library call over models or trees runs inside that window; pin it with a `+`-spelled
+- **Rule.** Load respells `+` in reference fragments for the library and restores the trees after. A
+  new library call over models or trees runs inside that window; pin it with a `+`-spelled
   reference.
 - **Why.** Moving validation after the restore regressed messages (#1016).
-
-## One report per malformed construct, from the grammar
-`grammar-driven-report`
-
-- **Rule.** Before adding a lowering diagnostic for a malformed construct, probe whether load
-  already reports every instance. A report emitted by each reader misses positions no reader
-  reaches.
-- **Why.** Per-reader reports of a `null` schema missed positions load already reported (#1066).
 
 ## A new site under an existing code changes its contract
 `diag-code-sites`
 
-- **Rule.** When a change emits an existing diagnostic code from a new site, grep every site of
-  the code and re-read the code's doc in `compilers/openapi/internal/diag`.
+- **Rule.** When a change emits an existing diagnostic code from a new site, grep every site of the
+  code and re-read the code's doc in `compilers/openapi/internal/diag`.
 - **Why.** A code's doc missed two budgets that reported it (#774).
 
 ## The specification's text decides validity, not its schemas
@@ -79,14 +64,14 @@ canary. A behaviour found that the page lacks is added there.
 
 - **Rule.** Before deciding a value is valid for a version, read that version's text: fixed fields,
   MUSTs, ABNF grammars, and the RFC grammars it cites. Diff the requirements across versions.
-- **Why.** The published schemas admit an empty server URL and an empty path parameter name that
-  the text refuses (#884).
+- **Why.** The published schemas admit an empty server URL and an empty path parameter name that the
+  text refuses (#884).
 
 ## A two-run difference shows where versions disagree, not why
 `two-run-diff`
 
-- **Rule.** When findings are dropped by validating at two versions, diff the two meta-schemas
-  first and scope the drop by finding class. Pin it with a counterfactual test.
+- **Rule.** When findings are dropped by validating at two versions, diff the two meta-schemas first
+  and scope the drop by finding class. Pin it with a counterfactual test.
 - **Why.** One 3.2 keyword dropped every other schema's missing-`propertyName` finding (#870).
 
 ## "The validator already reports it" holds only for what it walks
@@ -107,8 +92,8 @@ canary. A behaviour found that the page lacks is added there.
 ## A heuristic shared with another reader becomes a fact
 `heuristic-is-not-knowledge`
 
-- **Rule.** When one predicate serves two readers, ask of each return value whether it is
-  knowledge or a guess, and generate inputs at every position the guess covers.
+- **Rule.** When one predicate serves two readers, ask of each return value whether it is knowledge
+  or a guess, and generate inputs at every position the guess covers.
 - **Why.** A skip-by-name guess, read as "raw YAML" by a second reader, let documents overflow the
   stack (#946).
 
@@ -123,8 +108,8 @@ canary. A behaviour found that the page lacks is added there.
 ## A file reference's identity is lexical
 `file-ref-lexical`
 
-- **Rule.** A file `$ref` names its document as written, with dot segments removed (RFC 3986
-  §5.2). The compiler never asks the file system which file it is.
+- **Rule.** A file `$ref` names its document as written, with dot segments removed (RFC 3986 §5.2).
+  The compiler never asks the file system which file it is.
 - **Why.** Decided in #781 for #772 and #780; file-system identity made a compile depend on disk
   state.
 
@@ -140,8 +125,8 @@ canary. A behaviour found that the page lacks is added there.
 `conformance-case`
 
 - **Rule.** A spec under `testdata/conformance/openapi/` has no YAML aliases (use inline `<<`), so
-  the order oracle can permute it; gives an unknown path-item key a mapping value; and is named by
-  a rule's `Cases:` line. A value the library refuses adds rows to the validation oracle's
+  the order oracle can permute it; gives an unknown path-item key a mapping value; and is named by a
+  rule's `Cases:` line. A value the library refuses adds rows to the validation oracle's
   disagreements: run `TestValidationOracle_AgreesWithTheLibrary` with `-update`, then classify each
   row with a reason.
 - **Why.** One case failed all three checks on its first run (#1106); a numeric case added rows
@@ -154,6 +139,9 @@ canary. A behaviour found that the page lacks is added there.
 - **Rule.** To learn what the resolver does with a shape, build the harness test binary and run
   `TestResolverOracle_ProbeHelper` with `MORPHIC_RESOLVER_PROBE` set to the spec. Bound it with a
   watchdog that kills; a Go binary ignores `SIGALRM`.
+- **Why.** The scan's comments said a re-entrant prefix deadlocks the resolver, and the probe showed
+  within minutes that it does not; a runaway compile then outlived a `perl` alarm, since Go ignores
+  `SIGALRM` (#541, #574, #591).
 
 ## Trees that reach the lowering are acyclic
 `acyclic-trees`
@@ -161,14 +149,80 @@ canary. A behaviour found that the page lacks is added there.
 - **Rule.** Every YAML tree that reaches the lowering through load has passed the scan's
   anchor-cycle refusal, so a reader that follows aliases and `<<` may rely on termination. A
   mirror's own cycle check is defence only, and its test builds the cycle by hand.
+- **Why.** Load refuses an anchor cycle before anything recursive runs, so a mirror's own cycle
+  check is unreachable through load and goes untested unless its test builds the cycle by hand
+  (#563).
 
 ## Probe the external-document reader by counting fetches
 `external-reader-probes`
 
-- **Rule.** For a change to how external documents are read:
-  - count fetches per refused document with an `httptest` server that counts hits, because the
-    resolver asks again until it builds a model, so a refusal must be remembered;
-  - try `math.MaxInt` wherever a public limit gets `+1`;
-  - a skip on re-read compares the bytes read, not the key they were read under.
-- **Why.** 50 references fetched a refused document 50 times; `io.LimitReader(r, limit+1)`
-  overflowed at `MaxInt`; a key-based skip let changed bytes through unjudged (#556).
+- **Rule.** For a change to how external documents are read, count fetches per refused document with
+  an `httptest` server that counts hits, since the resolver asks again until it builds a model and
+  so a refusal must be remembered; try `math.MaxInt` wherever a public limit gets `+1`; and make a
+  skip on re-read compare the bytes read, not the key they were read under.
+- **Why.** References to a refused document each fetched it again, `io.LimitReader(r, limit+1)`
+  overflowed at `MaxInt`, and a key-based skip let changed bytes through unjudged (#556).
+
+## Match a library read's rules exactly when mirroring it
+`mirror-library-read-rules-exactly`
+
+- **Rule.** A pre-scan, index or stepped reader standing in for a library read reproduces its rules:
+  the last duplicate key wins, aliases and merge keys are followed, and no cap the library lacks is
+  added, so the mirror is bounded by the read's counted work, never by a constant; retried index
+  tokens are left to the whole read. Build a differential case for each token kind the library
+  treats specially.
+- **Why.** A first-key-wins pre-scan let a redeclared self-reference reach the resolver's stack
+  overflow, an anchor index missed alias-reached declarations, and an invented cap left references
+  unresolved that `main` resolved (#95, #356, #774).
+- **Probe.** Diff the mirror's answer against the library's whole read for each special case: a
+  duplicate key, an alias, a merge key, a chain past your cap.
+
+## Validate a fixed-shape token at every character, and dispatch on the dialect
+`exact-token-grammar`
+
+- **Rule.** When validating a fixed-shape token, check its length and every character position. When
+  splitting on an escapable delimiter, honour the escape character's own escaping. When a keyword's
+  form depends on the dialect, dispatch on the dialect and report the other dialect's form rather
+  than accepting it.
+- **Why.** A wildcard status check read two of three characters and admitted `1XY`, an escaped
+  backslash before a pipe merged two cells, and a boolean `exclusiveMinimum` under 2020-12 was
+  accepted as a degenerate bound (#263, #23).
+- **Probe.** Write rejected spellings for each length and character position, a cell holding `\|`,
+  and each bound keyword in the other dialect's form.
+
+## Re-validate text after percent or escape decoding before it becomes an identifier
+`revalidate-after-decoding`
+
+- **Rule.** Decoded untrusted text must pass the same validity check as the raw input, plus the
+  target format's grammar (UTF-8 for a JSON Pointer), before use as a key or identifier.
+- **Why.** A percent-encoded %FF in a $ref fragment reached an IR identifier the encoder cannot
+  write (#541, #515).
+- **Probe.** Compile a spec with `#/components/schemas/%FF` and similar decoded-invalid bytes; read
+  the full diagnostic list and confirm the document still round-trips through JSON.
+
+## Probe every raw-YAML reader with alias, anchor, merge-key, tag and quoted spellings
+`yaml-alias-anchor-merge-spellings`
+
+- **Rule.** Any code that reads raw YAML nodes or mirrors the parser's rules must resolve aliases,
+  anchors, merge keys and tags the way the parser does, and must not treat quoted or aliased
+  non-special spellings as special. Prefer the raw node or the library call over a hand-written copy
+  of the rule.
+- **Why.** Readers matched keys by raw node text or skipped anchor-valued pairs, so aliased,
+  anchored or merged entries were dropped with exit 0, while quoted '<<' keys raised a false cycle
+  (#500, #356).
+- **Probe.** Feed each touched reader a fixture set: key as alias, value as alias, anchored entry,
+  '<<' merge, quoted '<<', !!merge tag; diff IR and diagnostics against the plain spelling.
+
+## Make every input route reach the new guard, path or oracle
+`every-input-route-reaches-the-guard`
+
+- **Rule.** When a guard, transformation, validation or new branch is applied on one route into a
+  consumer, list every other route into it (external $ref documents, overlays, callbacks, direct
+  versus behind a $ref, harness oracles that take no options) and confirm each reaches it, or state
+  the uncovered route where the next reader will see it.
+- **Why.** The anchor release and alias refusals protected only the root document, so overlays and
+  externally referenced documents still crashed or lost entries with exit 0, and the harness oracles
+  never saw the overlay path (#556, #492).
+- **Probe.** Run the same negative fixture through each route (wrap it in an external $ref, apply it
+  as an overlay, reach it through a callback) and diff the diagnostics and IR against the direct
+  compile.

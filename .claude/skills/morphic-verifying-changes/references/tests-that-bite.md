@@ -1,110 +1,116 @@
 # Tests that bite
 
-Each rule below is a class of defect that past PRs fixed after their first push. "Seen in"
-quotes the PR history at the commit named.
+A test proves nothing until the defect it names has been planted and it went red. Coverage reached
+is not behaviour held.
 
-A test proves nothing until the defect it names has been planted and it went red. Coverage reached is not behaviour held.
-
-## Show every guard and branch is load-bearing by deleting it; coverage is not assertion
+## Show every guard and branch is load-bearing by breaking it
 `every-guard-has-a-reddening-test`
 
-- **Rule.** For each guard, skip, decoder check, refusal path or edge branch added or moved, delete or loosen it and confirm a test in its own package reddens; statement coverage only proves reachability, and a case that changes no mutation's outcome adds no coverage. If no fixture can reach a guard, record the gap beside it rather than presenting it as tested.
-- **Also.** For each action, branch, nested member, non-first family member, skip path, sub-shape and downstream output a change touches, there must be a test that reddens when that one is broken; a guard pinned in one check does not pin its siblings.
-- **Also.** Line coverage is not holding: each exit of the function a PR rests on, each rejection branch, and each named guarantee needs a test that reddens, by name, when that step is mutated, and that test must live in the package that owns the contract. Treat every surviving mutant as a missing test and rerun the mutation set after adding it.
-- **Why.** The ir package reported full coverage while omitempty on Required or Nullable passed, decoder guards loosened to len(data)==4 passed, and moved cycle guards and refactored branches lost every test that held them.
-- **Probe.** For each new or moved guard, replace its condition with false (or a looser form), run go test for its package, and require red; for refactors, plant a mutation per edge branch before moving the code.
-- **Seen in #92** (b62b25fc): “It reported 100% statement coverage, but almost all of it came”
-- **Seen in #264** (009429dc): “Weakening the guard to len(data) == 4 - so it swallows true, 1234 or any”
+- **Rule.** For each guard, skip, decoder check, refusal path or edge branch a change adds, moves or
+  keeps, break it (`cond || true` for a guard with no else, a looser condition, an early return) and
+  require a test in the owning package to redden. Coverage proves reachability, not holding, and
+  cannot see an untaken guard. A guard pinned in one check does not pin its siblings. If no fixture
+  can reach a guard, say so beside it.
+- **Why.** The ir package read 100% while `omitempty` on `Required` passed and a decoder guard
+  loosened to `len(data) == 4` passed; no test took a `CutLast` guard's false side; a pure filter
+  survived "always true" (#92, #264, #524, #566).
+- **Probe.** Before a refactor moves code, plant a mutation per edge branch, and again after.
 
-## Include inputs the transformation actually changes and that a plausible wrong implementation mishandles
+## Include the inputs a plausible wrong implementation mishandles
 `inputs-at-the-edges-the-code-transforms`
 
-- **Rule.** A table, property or fuzz test must contain inputs at the representation's edges and in the classes a wrong implementation would get wrong: characters that need escaping, numbers float64 or int cannot hold, non-UTF-8 bytes, wrong-case or substring matches, partial overlaps, refused grammars, forbidden spellings, zero values, and the exact seed that broke the property. Where two readers must agree, diff them over a generated space, not only hand-written rows.
-- **Also.** A regression or rule test must contain the inputs that separate right from wrong: the exact shape from the issue, both edges of each range and the values just outside, the same name in both syntactic positions, inputs that sort differently under the wrong collation, and fixture text that parses as intended.
-- **Why.** Removing escaping, bounding IsIndex by Atoi, widening an acceptor or intersecting to one side all left suites green because no row exercised the edge where the implementations diverge.
-- **Probe.** For each transformation under test, delete it (or swap in the naive version: substring match, strconv.Atoi, return-one-input) and run the table; if it stays green, add the edge input and repeat until the naive version reddens.
-- **Seen in #801** (752d28b8): “Removing it left the spelled-out table green, because no”
-- **Seen in #834** (f4f69b57): “an IsIndex bounded by strconv.Atoi passed the earlier table.”
+- **Rule.** A table, property or fuzz test holds inputs at the representation's edges and in the
+  classes a naive version gets wrong: characters needing escape, numbers `float64` or `int` cannot
+  hold, non-UTF-8 bytes, wrong-case or substring matches, partial overlaps, both edges of each range
+  and the values just past them, one name in both syntactic positions, inputs a wrong collation
+  sorts differently, the exact shape from the issue, and the seed that broke the property. Where two
+  readers must agree, diff them over a generated space.
+- **Why.** Removing escaping, bounding `IsIndex` by `Atoi`, widening an acceptor or intersecting to
+  one side all left suites green, because no row sat where the implementations diverge (#801, #834).
+- **Probe.** Swap in the naive version (substring match, `strconv.Atoi`, return one input) and add
+  edge rows until it reddens.
 
-## Give every route, kind, row, call site, condition, clause and exemption its own reddening case
+## Give every member of a family its own reddening case
 `one-reddening-case-per-member`
 
-- **Rule.** When code handles a family (routes sharing a loop, kinds through a dispatch arm, rows of a classification table, call sites of a helper, conditions of a predicate, narrowing clauses of a copied predicate, shapes of a construct, branches of a verifier, exemptions of a check), each member needs a case that fails when that member alone is mutated; incidental coverage from a shared fixture or the real tree is not enough.
-- **Why.** Webhook callbacks, six object kinds through a generic arm, ID classification rows, and recursion shapes leaving through a free function all passed when removed, because only one member of each family was tested.
-- **Probe.** List the family's members by grep, mutate each one alone (skip the route, drop the clause, widen the exemption, pass no argument at that call site) and run the package's own tests; every mutant must redden.
-- **Seen in #567** (c246dec2): “The tests reached a parameter, path item, response and schema. A”
-- **Seen in #834** (19986964): “No test covered a webhook's own callbacks or a callback operation's”
+- **Rule.** When code handles a family (routes sharing a loop, kinds through one dispatch arm, rows
+  of a table, call sites of a helper, conditions of a predicate, exemptions of a check), each member
+  needs a case that fails when that member alone is mutated. Coverage from a shared fixture or the
+  real tree is not enough.
+- **Why.** Webhook callbacks, object kinds through a generic arm and ID classification rows all
+  passed when removed, because one member of each family was tested (#567, #834).
+- **Probe.** List the members by grep, mutate each alone (skip the route, drop the clause, pass no
+  argument at that site) and run the package's own tests.
 
-## Build a negative fixture where the guarded condition is the only thing that changes the result
+## Build a negative fixture that only the guard decides
 `negative-fixture-isolates-the-guard`
 
-- **Rule.** A guard or regression case needs an input the guarded code would mishandle without the guard: a typed nil rather than an untyped one, a callee that does not tolerate the input, a document truly over budget, structure for the mutation to land on, every input class the check claims, nodes of the kind the name says, rows of the shape a sizing or selection rule must exclude, and an outcome that differs between buggy and fixed code. A case both readings answer the same way guards nothing.
-- **Why.** Nil-guard tests planted untyped nils that failed a type assertion first, a budget test's fixture fit the remaining budget, and a fallback assertion passed either way, so deleting each guard left the suite green.
-- **Probe.** Delete or neutralise the guard and run the test; if it stays green, inspect why the input never needed the guard (tolerant callee, earlier failure, fits budget) and redesign the fixture until removing the guard reddens it.
-- **Seen in #360** (8f28f931): “TestVerify_NilTypeBesideAUnionDoesNotPanic planted an untyped nil, which”
-- **Seen in #567** (939233e6): “The budget test said a document already over its budget is refused”
+- **Rule.** A guard's case needs an input the code would mishandle without it: a typed nil, not an
+  untyped one; a callee that does not tolerate the input; a document truly over budget; an outcome
+  that differs between the buggy and the fixed code. A case both readings answer alike guards
+  nothing.
+- **Why.** A nil-guard test planted an untyped nil that failed a type assertion first, and a budget
+  test's fixture fit the remaining budget, so deleting either guard left the suite green (#360,
+  #567).
+- **Probe.** Delete the guard; if the case stays green, find why the input never needed it (tolerant
+  callee, earlier failure, fits the budget) and redesign it.
 
-## Revert the fix and require a committed fixture to redden; if none does, add the triggering shape
+## Revert the fix; a committed fixture must redden
 `fix-must-move-a-golden`
 
-- **Rule.** A fix whose golden regeneration changes nothing, or whose revert leaves every oracle green, is evidence the corpus lacks the input shape the fix changes. Before pushing, add a committed fixture containing that exact shape (and, for a conflict rule, one where old and new behaviour disagree) and confirm reverting the fix reddens it.
-- **Why.** Defects in encoded fragments, constraints beside verbatim unions, outside $refs to inline positions, timestamp rewrites and new lowering branches all survived because no committed spec held the triggering shape, so the goldens stayed green across the bug.
-- **Probe.** git stash the fix's production hunk, run go test ./... and the harness over testdata/; if nothing reddens, write the minimal spec with the triggering shape, -update, restore the fix and confirm the golden diff is exactly the fix's effect.
-- **Seen in #363**: “No golden moved when the fix landed, which is the corpus sharing the code's blind spot”
-- **Seen in #119** (a4365f05): “and patternProperties value in it is bare, which is why regenerating the”
+- **Rule.** A fix whose regeneration changes no golden, or whose revert leaves every oracle green,
+  shows the corpus lacks the shape it changes. Add a committed fixture with that exact shape, one
+  where old and new behaviour disagree, and confirm the revert reddens it.
+- **Why.** Defects in encoded fragments, constraints beside verbatim unions and outside `$ref`s to
+  inline positions survived because no committed spec held the shape (#363, #119).
+- **Probe.** Stash the production hunk and run `go test ./...` and the harness over `testdata/`;
+  once a fixture reddens, restore the fix and check the golden diff is exactly its effect.
 
-## Give competing sources, symmetric fields and interacting rules distinct values so each reading differs
+## Give competing sources distinct values
 `distinct-values-for-competing-sources`
 
-- **Rule.** When the result depends on which of two sources, sides, arms, keywords or rules wins, the fixture must make them disagree: set the attribute on both sides with distinct values, set one of a symmetric pair alone, set one keyword without its companion, satisfy both rules' preconditions, and force two orders to contend for the same node. With equal or co-set values every reading passes.
-- **Why.** Swapped exclusive bounds, wrong reply channels, losing precedence and order-dependent hints all passed because fixtures set both fields together, used the same channel on both sides, or used a bare branch that never contended for the pointer.
-- **Probe.** Plant the swap (min for max, reply for operation channel, overlay order reversed, read moved below the check) and run the test; if green, change the fixture so the sources carry distinct values or only one is set, and rerun until the swap reddens.
-- **Seen in #274** (629c2f07): “Every 3.0 case declared exclusiveMinimum and exclusiveMaximum together, so”
-- **Seen in #311** (b8182d58): “The reply tests answered on the channel the operation binds, so both spellings”
+- **Rule.** When the result depends on which of two sources, sides, arms or rules wins, make them
+  disagree: set the attribute on both sides with distinct values, set one of a symmetric pair alone,
+  set a keyword without its companion, and make two orders contend for one node. With equal or
+  co-set values every reading passes.
+- **Why.** Swapped exclusive bounds and a wrong reply channel passed, because fixtures set both
+  bounds together and answered on the channel the operation binds (#274, #311).
+- **Probe.** Plant the swap (min for max, reply for operation channel, overlay order reversed) and
+  require red.
 
-## Validate an expected value independently before pinning it, so the test does not enshrine a defect
+## Check an expected value outside the code before pinning it
 `expected-value-is-not-the-bug`
 
-- **Rule.** Before accepting an expected output, check it against something outside the code: run a 'clean' fixture under the bounds the code enforces, parse emitted output with the next stage, confirm a 'nothing to keep' input really has nothing, update every test that pinned an edge case's old meaning, and classify a new differential oracle's failures against the reference's raw output.
-- **Also.** An expected count or grammar must come from a source that cannot shrink or drift with the code: the specification, the library's own behaviour, the raw text or delimiter structure. An expectation derived from the same table, or restated by hand from the same rule, agrees with the implementation even when both are wrong.
-- **Why.** Tests pinned a memory-exhausting fan-out as clean, YAML with an alias above its anchor as correct, and the loss of a summary and description as silence, so each test guarded the bug.
-- **Probe.** Run each expected 'clean' fixture under the time and memory caps; feed expected output to the next parser; grep the input for content the expected output omits; print the reference's raw result for each failing differential row.
-- **Seen in #99** (1d4ac861): “pinned a 40-level × 2-way fan-out as **clean**.”
-- **Seen in #243**: “`TestReverseMappings_AliasIsNotFollowed` asserted the anchor-above-alias”
+- **Rule.** Take an expected output, count or grammar from a source that cannot drift with the code:
+  the specification, the library's behaviour, the raw input, the next stage's parser. Run a "clean"
+  fixture under the bounds the code enforces, confirm a "nothing to keep" input has nothing, and
+  classify a new oracle's failures against the reference's raw output. An expectation restated from
+  the same table agrees with the implementation when both are wrong.
+- **Why.** Tests pinned a memory-exhausting fan-out as clean, YAML with an alias above its anchor as
+  correct, and the loss of a summary as silence, so each guarded the bug (#99, #243).
+- **Probe.** Run each expected-clean fixture under time and memory caps, feed expected output to the
+  next parser, and grep the input for what the expected output omits.
 
-## Check that the assertion itself can fail: selector specificity, zero-match, type agreement, reachable bounds
+## Check that the assertion itself can fail
 `assertion-must-be-able-to-fail`
 
-- **Rule.** An assertion is vacuous when its form cannot fail: a path selector that matches every map, a predicate wrong on its zero-match case, Equal/NotEqual between mismatched types, a bound a derived set can never exceed, or a grid whose axes cannot name the missing cell. Test the checker on its degenerate cases before trusting it. A completeness check must count the same units the fixture is built from (occurrences, not deduplicated sets).
-- **Why.** A bare .Unmodeled selector admitted any carrier, Equal between a string and a jsontext.Pointer always failed and NotEqual always passed, and an enters-once test bounded the walk by the node count it could never exceed.
-- **Probe.** Feed each assertion helper its zero-match, all-match and wrong-type inputs and confirm it reports failure; grep assertions on retyped fields for mismatched argument types; remove one cell from the grid and confirm completeness reports it.
-- **Seen in #549** (d40c4433): “which would always fail as `Equal` and always pass as `NotEqual`”
-- **Seen in #345** (d0e36f47): “which ends every path the value walk produces”
+- **Rule.** An assertion is vacuous when its form cannot fail: a selector matching every map, a
+  predicate wrong on zero matches, `Equal` or `NotEqual` between different types, a bound a derived
+  set can never exceed, a completeness grid counting deduplicated sets where the fixture builds
+  occurrences. Test a checker on its degenerate inputs before trusting it.
+- **Why.** A bare `.Unmodeled` selector admitted any carrier, and `Equal` between a string and a
+  `jsontext.Pointer` always failed while `NotEqual` always passed (#549, #345).
+- **Probe.** Feed each helper its zero-match, all-match and wrong-type inputs; remove one grid cell
+  and confirm completeness reports it.
 
-## Run every mutation a docstring or PR body cites, and read each subtest's result
-`bite-claims-are-executed`
-
-- **Rule.** Before a test docstring or PR body says a test catches a mutation, plant exactly that mutation, confirm it applies once and only at its site, and read per-subtest results with -v; passing and closing a coverage gap are not evidence a test bites, and neither is a test that was green on both branches before the change.
-- **Why.** A PR body claimed a mutation reddened every package and none went red, a claimed three-subtest bite reddened two, and a mutation self-test first counted broken-file mutants as caught.
-- **Probe.** Apply each cited mutation with a one-site patch, diff it against the original to confirm one hunk, run go test -v -count=1 on the cited test, and paste the per-subtest outcome into the claim.
-- **Seen in #382** (4c06ee4e): “`go test ./compilers/openapi/... -count=1`: **every package green**”
-- **Seen in #379** (96eeddb7): “it reddens two. This subtest passes under that mutation.”
-
-## Prove a check, command or mutation actually ran against its target before reading its result
-`validate-the-instrument-first`
-
-- **Rule.** An empty, passing or 'survived' result is evidence only if the instrument demonstrably reached the input: run each verifier, diagnosis command and mutation once against a known positive, confirm the mutated file differs and compiles, and confirm a differential oracle's transform preserved meaning before blaming the code under test.
-- **Why.** A verifier that never met its output, a command reading a stale working tree, a mutation pattern that matched nothing, or a non-compiling mutant all look exactly like a clean result.
-- **Probe.** Plant one violation at the exact path the check reads and watch it fail; diff the mutated file against the original and run `go build` on it; for differential oracles, re-parse the rewritten input and compare encoded values.
-- **Seen in #135**: “A verifier was complete, well-tested, wired into CI, and never met the output it existed to check.”
-- **Seen in #200**: “A fourth mutation reported "survived" against a pattern that did not exist”
-
-## Test caps and thresholds exactly at, below and above the boundary, and assert the counted amount
+## Pin each bound at the limit and one past it, at every site
 `boundary-cases-at-the-boundary`
 
-- **Rule.** Any cap, depth bound, budget or threshold needs cases exactly at the boundary, one below and one above, with the whole output compared; where a bound is charged, assert the charged amount itself, not only which side of the limit it landed on.
-- **Why.** An alias placed one level beyond a depth bound and a 30-gap listing let off-by-one mutants of the comparison pass, and a refusal charge counted wrongly still landed on the same side of the limit.
-- **Probe.** Mutate each comparison by one (<= to <, > to >=) and each charge amount, run the tests, and add the at-boundary case until every mutant reddens.
-- **Seen in #340** (5176b0a5): “TestBuild_TracksAncestorsOnlyToItsDepthBound places its alias one level past”
-- **Seen in #828** (2359a62b): “The only test of the cap listed 30 gaps, which left the count line's”
-
+- **Rule.** A cap, depth bound, budget or threshold needs cases at the limit, one below and one
+  above, comparing the whole output and asserting the charged amount where a bound charges. Assert
+  that the production constructor wires the constant. Plant "lowered by one" at each site
+  separately, on the arithmetic rather than through a type that clamps it. Name in the PR any
+  constant past test scale.
+- **Why.** Off-by-one mutants passed tests placed a level past the bound; ten bound sites survived
+  on `main` because their tests used budgets far from the edge; `AtMost(-1)` clamps to zero, so
+  planting through it changed nothing (#340, #828, #1140).

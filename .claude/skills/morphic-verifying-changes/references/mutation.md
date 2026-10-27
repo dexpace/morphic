@@ -10,33 +10,33 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
   or another script that restores on exit. After a batch, `git diff` each touched file and search
   the tree for each planted string.
 - **Why.** A hand-rolled backup restored from the wrong copy and left a switch planted (#591); two
-  files sharing a basename shared one backup, so a restore put one package's file in another
-  (#566); a full disk stopped a restore mid-batch (#1141).
+  files sharing a basename shared one backup, so a restore put one package's file in another (#566);
+  a full disk stopped a restore mid-batch (#1141).
 - **Probe.** `git status --short` lists nothing you did not mean to change.
 
 ## A mutant that does not compile proves nothing
 `mutation-must-compile`
 
-- **Rule.** Build the mutant before reading results, and adjust it until it compiles (`_ = x` for
-  an unused variable). A run that reports a kill with no `--- FAIL` line is unverified.
-- **Why.** Unused variables and imports turned mutants into build failures that read as "not
-  caught" (#321, #322) and as "killed" with an empty failure list (#1100).
+- **Rule.** Build the mutant before reading results, and adjust it until it compiles (`_ = x` for an
+  unused variable). A run that reports a kill with no `--- FAIL` line is unverified.
+- **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
+  (#321, #322) and as "killed" with an empty failure list (#1100).
 - **Probe.** `mutate.py` refuses a mutant whose package and tests do not build.
 
-## Require that tests ran, and run a control that must survive
+## Require a clean baseline and a control that must survive
 `mutation-controls`
 
-- **Rule.** Trust a batch only when the run printed at least one `ok` line and a no-op control
-  (a changed comment) survived. Keep probe programs outside the module tree.
-- **Why.** A quoting slip made `go test` match no packages, so every mutant read as killed (#591).
-  A stray probe `main` package in the worktree kills every mutant through archtest.
-- **Probe.** Run the control first.
+- **Rule.** Plant a set of mutants with `scripts/mutate.py --batch`, which judges none unless the
+  command passes on the clean tree, and include a no-op control (a changed comment) that must
+  survive. Keep probe programs outside the module tree.
+- **Why.** A quoting slip made `go test` match no packages, so every mutant read as killed, and a
+  stray probe `main` package in the worktree kills every mutant through archtest (#591).
 
 ## A survivor of one package is not yet a gap
 `mutation-survivor-scope`
 
-- **Rule.** Before calling a survivor untested, run it over `go test ./...` and ask whether
-  anything can observe it. An unobservable mutant is equivalent: record it with the reason.
+- **Rule.** Before calling a survivor untested, run it over `go test ./...` and ask whether anything
+  can observe it. An unobservable mutant is equivalent: record it with the reason.
 - **Why.** Two of three "untested" survivors were killed in another package, and the third was
   equivalent (#825).
 
@@ -46,8 +46,8 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
 - **Rule.** When a mutant drops part of a key or identity, keep the data the reporting code reads
   and change only what is looked up. Then run the test written for that property alone.
 - **Why.** A nil field panicked the binary, so the test written for exactly that property never
-  reported (#737). A kill can also come from parallel subtests sharing a fixture slice rather
-  than from the guard (#805).
+  reported (#737). A kill can also come from parallel subtests sharing a fixture slice rather than
+  from the guard (#805).
 - **Probe.** Read which test failed and why, not only that the run failed.
 
 ## Mutate each arm, each overwrite and each early return
@@ -58,23 +58,6 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
   flagged sibling first and a clean one after it, at every level the loop runs.
 - **Why.** The arm where normalisation differed had no test (#731). Four OR-accumulator mutants
   survived 100% coverage because every fixture had one sibling (#814).
-
-## Force an untaken guard open; coverage cannot see it
-`coverage-untaken-guard`
-
-- **Rule.** For a guard with no else-statement that a change keeps or rewrites, plant
-  `cond || true` and require a red test.
-- **Why.** Coverage read 100% while no test took the false side of a `CutLast` guard (#524), and a
-  pure optimization filter survived "always true" (#566).
-
-## Lower each bound by one, at each site
-`bound-lowered-by-one`
-
-- **Rule.** Pin each bound at exactly the limit and one past it, and assert that the production
-  constructor wires the constant. Plant "lowered by one" at each site separately, on the
-  arithmetic, not through a type that clamps it. Name in the PR any constant past test scale.
-- **Why.** Ten bound sites survived on `main` because their tests used budgets far from the edge or
-  built their own (#1140). `AtMost(-1)` clamps to zero, so planting through it changed nothing.
 
 ## A guard moved to N callers needs N tests
 `split-guard-per-site`
@@ -97,7 +80,7 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
 
 - **Rule.** A table case naming its own fixture asserts the fixture exists before running anything.
 - **Why.** A misspelt fixture made the tool fail on a missing path, which satisfied the case's
-  "fails" assertion.
+  "fails" assertion (#381).
 - **Probe.** Rename one fixture; the case must fail with a reason about the fixture.
 
 ## Name fixtures so the right answer sorts last
@@ -113,14 +96,16 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
 
 - **Rule.** After retyping a field, and after every merge of main into it, scan testify calls whose
   two sides have different types, with a `go/packages` scan validated on a planted case.
-- **Why.** testify compares dynamic types, so `NotEqual(t, "/a", p.Pointer)` always passes once
-  the field is a `jsontext.Pointer` (#549). grep cannot tell.
+- **Why.** testify compares dynamic types, so `NotEqual(t, "/a", p.Pointer)` always passes once the
+  field is a `jsontext.Pointer` (#549). grep cannot tell.
 
 ## A crash oracle reads the crash, not the exit status
 `crash-oracle-text`
 
-- **Rule.** Classify a subprocess crash by its output (`fatal error: stack overflow`), never by
-  exit status 2 alone, which every panic also gives.
+- **Rule.** Classify a subprocess crash by its output (`fatal error: stack overflow`), never by exit
+  status 2 alone, which every panic also gives.
+- **Why.** A panic also exits with status 2, so an oracle reading the status alone records any panic
+  as the overflow it looks for; the reach oracle classifies its child's output instead (#942).
 
 ## A closure in a parallel subtest must not use the parent's t
 `parent-t-in-subtest`
@@ -149,7 +134,7 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
   reads, give each entry its own case that plants a misclassification, and prove each plant fails
   exactly that case.
 - **Why.** An entry can be guarded only by accident: an unrelated fixture that happened to fail.
-  Tidying the fixture removes the guard without any test noticing.
+  Tidying the fixture removes the guard without any test noticing (#544).
 
 ## Temporary instrumentation needs -v
 `instrument-with-v`
@@ -157,3 +142,5 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
 - **Rule.** Run a temporary `println` probe with `go test -v`: without it, passing packages print
   nothing, and only the failing package's hits appear. Attribute a hit to its test from the
   `runtime.Callers` frame in a `_test.go` file.
+- **Why.** A `println` run without `-v` listed only the failing package's offenders and missed the
+  `pass` fixtures (#544).

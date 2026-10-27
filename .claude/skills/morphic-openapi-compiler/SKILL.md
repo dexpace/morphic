@@ -38,11 +38,11 @@ description: Use when changing, reviewing or debugging code under compilers/open
 - A version's specification text decides validity, not its published JSON Schemas.
 - A new bound in the load scan warns and lets the compile continue, as the existing ones do.
 
-Each is a rule in `references/openapi-lessons.md`, with its evidence and probe.
+Each is a rule in the references below, with its evidence and probe.
 
 ## References
 
-- `references/openapi-lessons.md`: readers, the load phase, library mirrors, the corpus.
-- `references/lossless-and-diagnostics.md`: every keyword lands somewhere and every diagnostic is
-  right.
-- `references/spec-and-grammar.md`: zero values, spellings, tokens and escapes.
+- `references/openapi-lessons.md`: readers, the load phase, library mirrors, YAML spellings, input
+  routes, tokens and the corpus.
+- `references/lossless-and-diagnostics.md`: every keyword lands somewhere, at every position and
+  in every spelling, and every diagnostic is right.

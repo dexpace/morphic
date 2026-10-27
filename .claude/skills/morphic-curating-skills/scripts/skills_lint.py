@@ -4,9 +4,8 @@
 Usage: python3 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 
 Prints one "path:line: problem" per finding. Exit 0 when clean, 1 on a finding, 2 when it
-cannot run. A line quoting history ("- **Seen in") is exempt from the tree checks, since it
-describes the tree at the commit it names. Scripts are Python 3.9 with the standard library
-only, each with a test_<name>.py beside it.
+cannot run. Each rule in a reference is held to the format morphic-curating-skills gives. Scripts
+are Python 3.9 with the standard library only, each with a test_<name>.py beside it.
 """
 from __future__ import annotations
 
@@ -19,10 +18,14 @@ from pathlib import Path
 
 MAX_BODY_WORDS = 500
 MAX_REFERENCE_WORDS = 4000
+MAX_RULE_WORDS = 150
 MAX_DESCRIPTION_CHARS = 500
 MAX_FRONTMATTER_CHARS = 1024
 PYTHON_TARGET = (3, 9)
-HISTORY_PREFIX = "- **Seen in"
+RULE_KEY = re.compile(r"^`([a-z0-9]+(?:-[a-z0-9]+)*)`$")
+BULLET = re.compile(r"^- \*\*([A-Za-z]+)\.\*\* \S")
+RULE_BULLETS = (["Rule", "Why"], ["Rule", "Why", "Probe"])
+CITATION = re.compile(r"#[0-9]+")
 
 # Split so this file does not match itself.
 MACHINE = re.compile(
@@ -70,6 +73,7 @@ class Linter:
     def __init__(self, root: Path, top_level: set[str], tests: set[str], files: list[Path]):
         self.root, self.top_level, self.tests, self.files = root, top_level, tests, files
         self.findings: list[str] = []
+        self.keys: dict[str, str] = {}
 
     def report(self, path: Path, line: int, message: str) -> None:
         where = path.relative_to(self.root).as_posix()
@@ -101,6 +105,7 @@ class Linter:
                 self.report(ref, 0, f"{words} words, over {MAX_REFERENCE_WORDS}")
             if f"references/{ref.name}" not in text:
                 self.report(ref, 0, f"not named in {skill.relative_to(self.root).as_posix()}")
+            self.check_rules(ref)
         for f in [skill, *refs]:
             self.check_names(d, f)
         self.check_scripts(d)
@@ -131,12 +136,49 @@ class Linter:
         if words > MAX_BODY_WORDS:
             self.report(skill, 0, f"body is {words} words, over {MAX_BODY_WORDS}")
 
+    def check_rules(self, ref: Path) -> None:
+        """Hold each rule a reference holds, from its heading to the next, to the rule format."""
+        lines = ref.read_text().split("\n")
+        starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
+        for n, start in enumerate(starts):
+            end = starts[n + 1] if n + 1 < len(starts) else len(lines)
+            self.check_rule(ref, start + 1, lines[start:end])
+
+    def check_rule(self, ref: Path, line: int, block: list[str]) -> None:
+        """Check one rule: its key is unique across the skills, its bullets are Rule, Why and an
+        optional Probe, its Why cites a PR or issue, and it stays under the word cap."""
+        key = RULE_KEY.match(block[1]) if len(block) > 1 else None
+        if not key:
+            self.report(ref, line, "a rule's heading must be followed by its `key`")
+            return
+        name = key.group(1)
+        where = f"{ref.relative_to(self.root).as_posix()}:{line + 1}"
+        if name in self.keys:
+            self.report(ref, line + 1, f"key {name} is also used at {self.keys[name]}")
+        self.keys.setdefault(name, where)
+        bullets: list[list[str]] = []
+        for i, text in enumerate(block[2:], line + 2):
+            m = BULLET.match(text)
+            if m:
+                bullets.append([m.group(1), text])
+            elif text.startswith("  ") and bullets:
+                bullets[-1][1] += " " + text.strip()
+            elif text.strip():
+                self.report(ref, i, f"rule {name} has a line that is no bullet of it")
+        names = [b[0] for b in bullets]
+        if names not in RULE_BULLETS:
+            self.report(ref, line, f"rule {name} has {', '.join(names) or 'no'} bullets, "
+                                   "not Rule, Why and an optional Probe")
+        why = next((b[1] for b in bullets if b[0] == "Why"), "")
+        if why and not CITATION.search(why):
+            self.report(ref, line, f"rule {name} cites no PR or issue in its Why")
+        words = len(" ".join(block).split())
+        if words > MAX_RULE_WORDS:
+            self.report(ref, line, f"rule {name} is {words} words, over {MAX_RULE_WORDS}")
+
     def check_names(self, d: Path, f: Path) -> None:
-        """Hold every path, link, skill, test, section and keyed entry a file names to the tree,
-        leaving out lines that quote history."""
+        """Hold every path, link, skill, test, section and keyed entry a file names to the tree."""
         for i, line in enumerate(f.read_text().split("\n"), 1):
-            if line.startswith(HISTORY_PREFIX):
-                continue
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
