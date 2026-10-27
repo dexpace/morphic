@@ -14,3 +14,6 @@ var RootFrom = rootFrom
 
 // UpdateFlag is update, for the external tests.
 var UpdateFlag = update
+
+// VisitMeasurements is visitMeasurements, for the external tests.
+const VisitMeasurements = visitMeasurements
