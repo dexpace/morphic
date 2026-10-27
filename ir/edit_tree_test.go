@@ -500,10 +500,14 @@ func TestEditor_ReachesTheTreeForEachOperationReaches(t *testing.T) {
 	onCap, past := ir.OpID(fmt.Sprint("o/", ir.MaxGroupDepth)), ir.OpID(fmt.Sprint("o/", ir.MaxGroupDepth+1))
 	e.UpdateOperation(onCap, func(op *ir.Operation) { changed(&op.Docs) })
 	e.RemoveOperation(past)
-	_, diags := e.Finish()
+	out, diags := e.Finish()
 
 	assert.Equal(t, walked, held)
 	assert.Len(t, held, ir.MaxGroupDepth+1)
+	summaries := map[ir.OpID]string{}
+	ir.ForEachOperation(out, func(op ir.Operation) { summaries[op.ID] = op.Docs.Summary })
+	assert.Equal(t, "changed", summaries[onCap], "the update on the cap did not land")
+	ir.ForEachOperation(doc, func(op ir.Operation) { assert.Empty(t, op.Docs.Summary, "the edited document changed") })
 	assert.Equal(t, []string{fmt.Sprintf(`internal: edit: remove rejected: no operation %q to remove; an edit adds `+
 		`no operation, and reaches none in groups nested deeper than %d levels`, past, ir.MaxGroupDepth)},
 		refusals(t, diags))
@@ -667,30 +671,64 @@ func TestEditor_TreeWorkCountsEveryStep(t *testing.T) {
 // TestEditor_TreeEditsAgreeWithAPlainRewrite runs random edits over random
 // trees and holds every result to the same edits applied, without an edit,
 // to a copy of the tree: what each write leaves, what every read returns
-// after it, and the edited document left as it was.
+// after each batch of edits, and the edited document left as it was. A batch
+// leaves removals unsettled for the updates after it, whose changes read a
+// node first, which can settle the tree under them; and every kind of edit
+// must be made often enough to count.
 func TestEditor_TreeEditsAgreeWithAPlainRewrite(t *testing.T) {
 	t.Parallel()
+	made := map[treeEdit]int{}
 	for seed := range uint64(300) {
 		r := rand.New(rand.NewPCG(seed, 1098))
 		doc := randomTree(r)
-		before := render(doc)
+		before, all := render(doc), treeIDs(doc)
 		model := &ir.Document{Services: cloneServices(doc.Services)}
 		e := ir.NewEditor(doc)
-		for step := range 24 {
-			ids := treeIDs(model)
-			if len(ids) == 0 {
-				break
+		for step := range 12 {
+			var edits []treeEdit
+			for batch := range 1 + r.IntN(3) {
+				ids := treeIDs(model)
+				if len(ids) == 0 {
+					break
+				}
+				edit := treeEdit{pick: ids[r.IntN(len(ids))], remove: r.IntN(3) == 0}
+				read, mark := all[r.IntN(len(all))], fmt.Sprint(step, ".", batch)
+				applyEdit(e, edit, mark, func() { readNode(e, read) })
+				applyRewrite(model, edit.pick, edit.remove, mark)
+				made[treeEdit{pick: treeID{class: edit.pick.class}, remove: edit.remove}]++
+				edits = append(edits, edit)
 			}
-			pick := ids[r.IntN(len(ids))]
-			remove := r.IntN(3) == 0
-			applyEdit(e, pick, remove, fmt.Sprint(step))
-			applyRewrite(model, pick, remove, fmt.Sprint(step))
-			requireReadsAgree(t, e, model, fmt.Sprintf("seed %d step %d (%s, remove %v)", seed, step, pick.id, remove))
+			requireReadsAgree(t, e, model, all, fmt.Sprintf("seed %d step %d (%v)", seed, step, edits))
 		}
 		out, diags := e.Finish()
 		require.Empty(t, diags, "seed %d", seed)
 		require.Equal(t, render(model), render(out), "seed %d", seed)
 		require.Equal(t, before, render(doc), "seed %d: the edited document changed", seed)
+	}
+	for _, class := range []string{"service", "group", "operation"} {
+		for _, remove := range []bool{false, true} {
+			assert.GreaterOrEqual(t, made[treeEdit{pick: treeID{class: class}, remove: remove}], 50,
+				"too few %s edits removing %v to tell anything", class, remove)
+		}
+	}
+}
+
+// treeEdit is one random edit: the node it picks, and whether it removes the
+// node or updates it.
+type treeEdit struct {
+	pick   treeID
+	remove bool
+}
+
+// readNode reads the node at id through e, as a change may.
+func readNode(e *ir.Editor, id treeID) {
+	switch id.class {
+	case "service":
+		_, _ = e.Service(ir.ServiceID(id.id))
+	case "group":
+		_, _ = e.Group(ir.GroupID(id.id))
+	default:
+		_, _ = e.Operation(ir.OpID(id.id))
 	}
 }
 
@@ -771,21 +809,23 @@ func treeIDs(doc *ir.Document) []treeID {
 	return ids
 }
 
-// applyEdit removes the node at pick through e, or appends mark to its summary.
-func applyEdit(e *ir.Editor, pick treeID, remove bool, mark string) {
+// applyEdit removes the node edit picks through e, or appends mark to its
+// summary from a change that first calls read.
+func applyEdit(e *ir.Editor, edit treeEdit, mark string, read func()) {
+	id := edit.pick.id
 	switch {
-	case pick.class == "service" && remove:
-		e.RemoveService(ir.ServiceID(pick.id))
-	case pick.class == "service":
-		e.UpdateService(ir.ServiceID(pick.id), func(s *ir.Service) { s.Docs.Summary += mark })
-	case pick.class == "group" && remove:
-		e.RemoveGroup(ir.GroupID(pick.id))
-	case pick.class == "group":
-		e.UpdateGroup(ir.GroupID(pick.id), func(g *ir.OperationGroup) { g.Docs.Summary += mark })
-	case remove:
-		e.RemoveOperation(ir.OpID(pick.id))
+	case edit.pick.class == "service" && edit.remove:
+		e.RemoveService(ir.ServiceID(id))
+	case edit.pick.class == "service":
+		e.UpdateService(ir.ServiceID(id), func(s *ir.Service) { read(); s.Docs.Summary += mark })
+	case edit.pick.class == "group" && edit.remove:
+		e.RemoveGroup(ir.GroupID(id))
+	case edit.pick.class == "group":
+		e.UpdateGroup(ir.GroupID(id), func(g *ir.OperationGroup) { read(); g.Docs.Summary += mark })
+	case edit.remove:
+		e.RemoveOperation(ir.OpID(id))
 	default:
-		e.UpdateOperation(ir.OpID(pick.id), func(op *ir.Operation) { op.Docs.Summary += mark })
+		e.UpdateOperation(ir.OpID(id), func(op *ir.Operation) { read(); op.Docs.Summary += mark })
 	}
 }
 
@@ -832,8 +872,9 @@ func rewriteGroups(groups *[]ir.OperationGroup, pick treeID, remove bool, mark s
 }
 
 // requireReadsAgree holds every read of e to the node model holds at its ID,
-// spelled by render, and to holding none where model holds none.
-func requireReadsAgree(t *testing.T, e *ir.Editor, model *ir.Document, at string) {
+// spelled by render, and every node of all model no longer holds to being
+// held by e no more.
+func requireReadsAgree(t *testing.T, e *ir.Editor, model *ir.Document, all []treeID, at string) {
 	t.Helper()
 	held := map[treeID]bool{}
 	for _, id := range treeIDs(model) {
@@ -863,17 +904,19 @@ func requireReadsAgree(t *testing.T, e *ir.Editor, model *ir.Document, at string
 	for _, s := range model.Services {
 		check(s.Groups)
 	}
-	for i := range 64 {
-		for _, class := range []string{"service", "group", "operation"} {
-			id := treeID{class, fmt.Sprint(class[:1], "/", i)}
-			if held[id] {
-				continue
-			}
-			_, sOK := e.Service(ir.ServiceID(id.id))
-			_, gOK := e.Group(ir.GroupID(id.id))
-			_, oOK := e.Operation(ir.OpID(id.id))
-			require.False(t, class == "service" && sOK || class == "group" && gOK || class == "operation" && oOK,
-				"%s: %s %s is held though the model holds none", at, class, id.id)
+	for _, id := range all {
+		if held[id] {
+			continue
 		}
+		var found bool
+		switch id.class {
+		case "service":
+			_, found = e.Service(ir.ServiceID(id.id))
+		case "group":
+			_, found = e.Group(ir.GroupID(id.id))
+		default:
+			_, found = e.Operation(ir.OpID(id.id))
+		}
+		require.False(t, found, "%s: %s %s is held though the model holds none", at, id.class, id.id)
 	}
 }
