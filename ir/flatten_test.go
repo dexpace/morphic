@@ -458,7 +458,7 @@ func TestFlattenedProperties_WorkGrowsLinearly(t *testing.T) {
 // the envelope's result is required by the failure's Requires, and a name no
 // member declares is left to the catch-all.
 func ExampleFlattenedProperties() {
-	types := ir.TypeRegistry{
+	reg := ir.TypeRegistry{
 		"t/envelope": &ir.Model{ID: "t/envelope", Properties: []ir.Property{
 			{ID: "p/envelope/success", WireName: "success", Type: ir.TypeRef{Target: "t/true"}, Required: true},
 			{ID: "p/envelope/result", WireName: "result", Type: ir.TypeRef{Target: "t/page"}},
@@ -470,7 +470,7 @@ func ExampleFlattenedProperties() {
 		"t/response": &ir.Model{ID: "t/response", Mixins: []ir.TypeRef{{Target: "t/envelope"}, {Target: "t/failure"}}},
 	}
 
-	f := ir.FlattenedProperties(types, "t/response")
+	f := ir.FlattenedProperties(reg, "t/response")
 	for _, fp := range f.Properties {
 		fmt.Printf("%s: %s from %s, required %t, overriding %d\n",
 			fp.Property.EffectiveWireName(), fp.Property.Type.Target, fp.Owner, fp.Required, len(fp.Overridden))
