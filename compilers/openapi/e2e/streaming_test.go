@@ -125,7 +125,7 @@ func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	content := firstContent(t, op)
 	assert.Empty(t, cmp.Diff(content.Type, *op.ResponseStream.Events))
 	assert.Equal(t, "text/event-stream", content.MediaType, "the media type itself is still kept as declared")
-	assert.Equal(t, "streaming-media-type", op.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("streaming-media-type"), op.Provenance.Inferred)
 }
 
 // assertStreamingMedia31 is the corpus row for the three shapes 3.0 cannot show
@@ -147,7 +147,7 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.Empty(t, cmp.Diff(both.Request.Contents[0].Type, *both.RequestStream.Events))
 	require.NotNil(t, both.ResponseStream)
 	assert.NotNil(t, both.ResponseStream.Events, "a charset parameter does not defeat the match")
-	assert.Equal(t, "streaming-media-type", both.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("streaming-media-type"), both.Provenance.Inferred)
 
 	either, ok := opByName(doc, "streamEither")
 	require.True(t, ok)

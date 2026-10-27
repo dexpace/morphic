@@ -156,7 +156,7 @@ func TestPathItem_KeptFindingsAreNotInferred(t *testing.T) {
 	require.Len(t, svc.Groups, 1)
 	require.Len(t, svc.Groups[0].Operations, 1)
 	op := svc.Groups[0].Operations[0]
-	require.Equal(t, "group-path-prefix", op.Provenance.Inferred,
+	require.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred,
 		"the operation is marked, so the findings had a marker to take")
 
 	for _, prefix := range []string{"path-item servers kept", "path-item documentation kept"} {

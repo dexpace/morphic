@@ -37,3 +37,12 @@ func DeclaredIDField(t reflect.Type) (int, reflect.Type) {
 	f := declaredIDField(t)
 	return f.index, f.class
 }
+
+// FlattenSteps returns how many steps one FlattenedProperties walk of root
+// takes: each composition entry and model end it reads, each alias scalar it
+// reads through, and each property and Requires name it reads.
+func FlattenSteps(types TypeRegistry, root TypeID) int {
+	f := flattener{types: types}
+	f.flatten(root)
+	return f.steps
+}

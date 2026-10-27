@@ -8,8 +8,8 @@
 //
 // It also owns shared traversals and helpers: [WalkValues], the bounded,
 // cycle-guarded, deterministic reflection walk; [IDReferences]; the typed
-// [ForEachOperation] and [TypeEdges]; [AliasBase], [Supertypes], [IsSubtype]
-// and [ExposedProps] for composition; and [AsMap].
+// [ForEachOperation] and [TypeEdges]; [AliasBase], [Supertypes], [IsSubtype],
+// [ExposedProps] and [FlattenedProperties] over composition; [AsMap].
 //
 // It imports only the standard library and does no I/O; its plain-data types
 // are safe for concurrent reads.

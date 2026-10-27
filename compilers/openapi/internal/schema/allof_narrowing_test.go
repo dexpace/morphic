@@ -548,7 +548,7 @@ func TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree(t *testing.T) {
 			"the other declaration is kept verbatim")
 		require.NotNil(t, p.Deprecation)
 		assert.Equal(t, "use q", p.Deprecation.Message)
-		assert.Equal(t, "extension-promotion", p.Provenance.Inferred, "the promoted deprecation stays marked")
+		assert.Equal(t, ir.Inferred("extension-promotion"), p.Provenance.Inferred, "the promoted deprecation stays marked")
 		require.NotNil(t, p.Default)
 		require.Len(t, diags, 1, "only the extension given differently is reported: %+v", diags)
 		assert.Contains(t, diags[0].Message, "openapi:x-foo differently")

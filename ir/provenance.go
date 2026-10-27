@@ -46,10 +46,10 @@ type Provenance struct {
 	// path through the document's own fields, for what an IR pass reports about
 	// the document it was handed. Spelling is the producer's; nothing parses it.
 	Node string `json:"node,omitempty"`
-	// Inferred is "" for declared facts; otherwise it lists the heuristics that
-	// produced this node, comma-separated in the order they applied
-	// ([JoinInferred]), e.g. "group-path-prefix,extension-promotion".
-	Inferred string `json:"inferred,omitempty"`
+	// Inferred is empty for a declared fact; otherwise it lists the heuristics
+	// that produced this node, in the order they applied ([Inferred]), e.g.
+	// "group-path-prefix,extension-promotion".
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // InTable reports whether p.Source addresses one of a source table's n entries,

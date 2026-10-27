@@ -73,7 +73,7 @@ func TestStreaming_ResponseMediaTypeImpliesServerStream(t *testing.T) {
 				require.NotNil(t, op.ResponseStream.Events, "the frame schema is the stream element type")
 				assert.Empty(t, cmp.Diff(content.Type, *op.ResponseStream.Events))
 				assert.Equal(t, mediaType, content.MediaType, "the media type is still kept as declared")
-				assert.Equal(t, "streaming-media-type", op.Provenance.Inferred,
+				assert.Equal(t, ir.Inferred("streaming-media-type"), op.Provenance.Inferred,
 					"classifying a media type is a heuristic and says so")
 			})
 		}
@@ -263,7 +263,7 @@ func TestStreaming_MarkerListsEveryHeuristicThatApplied(t *testing.T) {
 	byPrefix := openapi.Options{Grouping: openapi.GroupByPathPrefix}
 	doc, _ := streamingSpec(t, eventStreamSpec("3.1.0", "text/event-stream"), byPrefix)
 	op := openapitest.FindOp(t, doc, "getEvents")
-	assert.Equal(t, "group-path-prefix,streaming-media-type", op.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-media-type"), op.Provenance.Inferred)
 }
 
 // TestStreaming_MarkerListKeepsAPromotionBesideBoth extends the pin above to a
@@ -287,7 +287,7 @@ func TestStreaming_MarkerListKeepsAPromotionBesideBoth(t *testing.T) {
 	doc, _ := streamingSpec(t, src, openapi.Options{Grouping: openapi.GroupByPathPrefix})
 	op := openapitest.FindOp(t, doc, "getEvents")
 
-	assert.Equal(t, "group-path-prefix,streaming-media-type,extension-promotion", op.Provenance.Inferred)
+	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-media-type,extension-promotion"), op.Provenance.Inferred)
 	require.NotNil(t, op.Deprecation)
 	assert.Equal(t, "why", op.Deprecation.Message)
 }

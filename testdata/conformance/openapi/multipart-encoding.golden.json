@@ -260,6 +260,77 @@
               }
             },
             {
+              "id": "op/openapi/paths/~1upload-redeclared/post",
+              "name": {
+                "source": "uploadRedeclared",
+                "canonical": "upload_redeclared"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/components/schemas/FileList/properties/file": {
+                        "contentTypes": [
+                          "image/png"
+                        ],
+                        "multi": true,
+                        "filename": false
+                      },
+                      "p/openapi/components/schemas/UploadForm/properties/tags": {
+                        "multi": true,
+                        "filename": false
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/upload-redeclared",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1upload-redeclared/post"
+              }
+            },
+            {
               "id": "op/openapi/paths/~1submit/post",
               "name": {
                 "source": "submitForm",
@@ -344,6 +415,24 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/FileList/properties/file": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/FileList/properties/file",
+      "name": {
+        "hint": "file"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/FileList/properties/file"
+      },
+      "elem": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/UploadForm/properties/tags": {
       "kind": "list",
       "id": "t/anon/components/schemas/UploadForm/properties/tags",
@@ -476,6 +565,33 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "upload_redeclared_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1upload-redeclared/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/UploadForm",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/FileList",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1upload/post/requestBody/content/multipart~1form-data/schema",
@@ -589,6 +705,53 @@
         "pattern": "^[0-9a-f]{64}$",
         "uniqueItems": false
       }
+    },
+    "t/openapi/components/schemas/FileList": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/FileList",
+      "name": {
+        "source": "FileList",
+        "canonical": "file_list"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/FileList"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/FileList/properties/file",
+          "name": {
+            "source": "file",
+            "canonical": "file"
+          },
+          "wireName": "file",
+          "type": {
+            "target": "t/anon/components/schemas/FileList/properties/file",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/FileList/properties/file"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/UploadForm": {
       "kind": "model",
@@ -725,7 +888,7 @@
     {
       "format": "openapi@3.1",
       "path": "multipart-encoding.yaml",
-      "hash": "b15abb2581ba82770d20ef9459dd63c4871f3ab3e2f7a84f83dc146f26314e1e"
+      "hash": "b3dadf3bdee5abb8a298d91398b395a3fb6a6875b12e97c46d071e8d4d3e76b8"
     }
   ]
 }

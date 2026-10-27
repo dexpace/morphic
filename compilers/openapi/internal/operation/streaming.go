@@ -38,7 +38,7 @@ type streamDirection struct {
 // It runs over the lowered operation rather than the source, so it reads one
 // answer per direction no matter how many places a payload was assembled from,
 // and it is the only writer of the three streaming fields.
-func applyStreaming(c lowering.Ctx, op *ir.Operation, declPtr jsontext.Pointer) (string, []ir.Diagnostic) {
+func applyStreaming(c lowering.Ctx, op *ir.Operation, declPtr jsontext.Pointer) (ir.Inferred, []ir.Diagnostic) {
 	request := classifyStream(streamCandidates(c, op.Request))
 	response := classifyStream(responseCandidates(c, op.Responses))
 	if request.detail == nil && response.detail == nil {

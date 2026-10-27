@@ -22,7 +22,7 @@ func checkRequires(doc *ir.Document) []Violation {
 		}
 		clear(own)
 		for _, p := range m.Properties {
-			own[p.WireName] = true
+			own[p.EffectiveWireName()] = true
 		}
 		clear(first)
 		for i, name := range m.Requires {

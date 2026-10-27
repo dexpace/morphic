@@ -56,6 +56,19 @@ func messageCases() []messageCase {
 			return typesDoc(m)
 		}, "ir/bigval-not-numeric",
 			fmt.Sprintf("numeric value %q is not a decimal literal, so it does not read back as a JSON number", illFormed)},
+		{"inferred not canonical", func() *ir.Document {
+			m := namedModel("t/x/A")
+			m.Provenance.Inferred = illFormed + "," + illFormed
+			return typesDoc(m)
+		}, "ir/inferred-not-canonical", fmt.Sprintf(
+			"inferred marker %q is not the list %q ir.JoinInferred writes for it", illFormed+","+illFormed, illFormed)},
+		{"inferred on a reference admitting no null", func() *ir.Document {
+			m := namedModel("t/x/A")
+			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"),
+				Type: ir.TypeRef{Target: "t/x/A", Inferred: illFormed}}}
+			return typesDoc(m)
+		}, "ir/type-ref-inferred-not-nullable", fmt.Sprintf(
+			"type reference is marked inferred by %q but admits no null", illFormed)},
 		{"bigval out of range", func() *ir.Document {
 			m := namedModel("t/x/A")
 			m.Properties = []ir.Property{{ID: "p/x/A/p", Name: named("p"), Type: ir.TypeRef{Target: "t/x/A"},

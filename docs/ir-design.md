@@ -332,6 +332,20 @@ it sees. Changes made together in one bump are listed together under it.
     `allOf`, and kept a map's verbatim, so an object writing a catch-all and a `required` name is
     now a `Model` where it had been a `MapT`. A consumer pinned to 0.18.0 reads those members as
     optional.
+- **0.20.0** — a member a model's composition declares more than once is addressed by one
+  declaration (§4.3). The shape is unchanged, but a `PropID` that names a model's member, an
+  encoding key in `Content.Encoding` (§7.2) or a discriminator's `Property`, now names the
+  declaration that model's flattening takes. The OpenAPI compiler had keyed a part two composed
+  models declare by the first it found: the body's own, then its `Base`, then each `Mixin` in turn.
+  It keys the later conjunct's now, the one the flattening takes, so `allOf: [{$ref: A}, {$ref: B}]`
+  keys `B`'s. A consumer pinned to 0.19.0 that finds a part's entry by that old lookup finds none
+  for such a part.
+- **0.21.0** — an inferred-marker list has a type of its own (§12): `Provenance.Inferred` and
+  `TypeRef.Inferred` are `Inferred`, the list `JoinInferred` writes, where each was a `string`. The
+  JSON is unchanged, but a member's Go type is part of the shape, and `irverify` now holds every
+  stored list to that form (`ir/inferred-not-canonical`), so a list that names a heuristic twice,
+  or holds an empty name, is reported where it passed. A consumer pinned to 0.20.0 reads the same
+  bytes; the version check refuses it a 0.21.0 document all the same.
 
 ---
 
@@ -591,7 +605,7 @@ An alias can also collide with *another* entity's name, and that is not a rule o
 type TypeRef struct {
     Target   TypeID
     Nullable bool     // this *usage* admits null on the wire
-    Inferred string   // "" = the source declares the null; else the heuristics that read it in (§12)
+    Inferred Inferred // "" = the source declares the null; else the heuristics that read it in (§12)
 }
 ```
 
@@ -805,7 +819,8 @@ type PatternProps struct { Pattern string; Value TypeRef }
 
 type Discriminator struct {
     // Exactly one of Property / PropertyName / Index locates the tag:
-    Property PropID                // model hierarchies: the property that carries the tag
+    Property PropID                // model hierarchies: the property that carries the tag, the
+                                   // declaration this model's flattening takes for it
     PropertyName string            // unions: wire name of the tag property (it exists on no single
                                    // model, so there is no PropID to point at; TypeSpec @discriminated
                                    // discriminatorPropertyName, OpenAPI discriminator on oneOf)
@@ -825,14 +840,13 @@ type Discriminator struct {
 
 **Composition semantics.** `Properties` contains only the model's *own* properties. Consumers walk
 `Base`, `Implements`, and `Mixins` for the full shape; the flattening is computed, never stored.
-`ir.ExposedProps` computes the flat set of property IDs, and `ir.Supertypes` and `ir.IsSubtype` the
-subtype relation, which excludes mixins; `irfacts.Index` answers both for many questions at once
-(§4.9). The ordered, override-aware `FlattenedProperties()` that
-emitter-design §3.2 computes `TypePlan.Flattened` with is not provided so far (#812). This preserves
-what oagen and Kiota lose: the difference between "inherits from", "conforms to", "mixes in", and
-"declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
-models — the distinction matters because GraphQL allows multiple interfaces while every class-based
-target language allows at most one base class.
+`ir.FlattenedProperties` computes it, by the rules under *The flattening* below; `ir.ExposedProps`
+computes the flat set of property IDs it reads, and `ir.Supertypes` and `ir.IsSubtype` the subtype
+relation, which excludes mixins; `irfacts.Index` answers the exposed set and the subtype relation
+for many questions at once (§4.9). This preserves what oagen and Kiota lose: the difference between
+"inherits from", "conforms to", "mixes in", and "declares". `Base` is single (subtype identity);
+`Implements` is N-ary conformance to `Abstract` models — the distinction matters because GraphQL
+allows multiple interfaces while every class-based target language allows at most one base class.
 
 **Required members beyond the own properties.** Whether an own property must be present is its
 `Required` (§5.1). A member the model requires that none of its own properties declares is in
@@ -840,11 +854,83 @@ target language allows at most one base class.
 order the source's `required` lists name it: an inherited property the model makes required, as
 `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required on the composed model, or a
 member only the catch-all governs, which JSON Schema requires whether or not a schema declares it.
-A consumer resolves each name over the flattened shape, as it reads `Base`, and the IR asserts
-nothing about which of these a name is, since saying so needs the hierarchy walked. A name an own
-property declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so
-required-ness has one home per member. A model that requires a member is neither a map (§4.6) nor
-a decorator (§4.10), since a map requires no key and a decorator says nothing its `Base` does not.
+The flattening resolves each name over the flattened shape (below), and the IR asserts nothing
+about which of these a name is, since saying so needs the hierarchy walked. A name an own property
+declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so required-ness
+has one home per member. A model that requires a member is neither a map (§4.6) nor a decorator
+(§4.10), since a map requires no key and a decorator says nothing its `Base` does not.
+
+**The flattening.** `ir.FlattenedProperties(types, id)` returns a model's full shape: its members,
+one per wire name, each with the declaration it takes, the declarations that one overrides and
+whether an instance must carry it, beside the names a `Requires` lists that no member declares and
+the composition entries that name no model. Its rules:
+
+- *What it reads.* The declarations `ExposedProps` reaches and no others: the model's own, and those
+  of every model its `Base`, `Implements` and `Mixins` lead to at any distance. Every reference, the
+  root's included, is read through alias scalars, since a `$ref` carrying siblings composes the
+  alias it hoists rather than the schema it names (below). A root naming no model has an empty
+  shape.
+- *Members.* Declarations are one member when their wire names are equal: `WireName`, else
+  `Name.Source` (`Property.EffectiveWireName`, §5.1). The empty name is a name, the JSON member
+  keyed by the empty string. A per-format name (`WireNameByFormat`) and an alias a property answers
+  to (`Name.Aliases`) neither join members nor split one. A property several models declare under
+  one `PropID`, as the variants of a distributed union do (below), is one declaration however often
+  it is read.
+- *Layout order.* The walk goes depth first from the root, following each model's `Base`, then its
+  `Implements`, then its `Mixins`, each in order, and reads a model's own properties, in source
+  order, once it has read every model the model composes that does not compose it in turn. Models
+  that compose each other, a cycle the IR permits, are read together, in the order the walk
+  finished them. So what a model composes comes before what it declares, conjuncts in the order the
+  model lists them.
+- *Override.* A later declaration of a wire name overrides an earlier one, and the member stays
+  where its name was first read. So a model's declaration overrides that of every model it composes,
+  at any distance, unless that model composes it too; and of two declarations whose models do not
+  compose each other, the later conjunct's wins: a `Mixin`'s over the `Base`'s, a later `Mixin`'s
+  over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
+  slot with its own type. The member takes every facet but whether it is required — type,
+  `Presence`, visibility, default, docs — from the declaration it takes, and lists the ones it
+  overrides, which is where a consumer conjoining more finds them. Nothing is reported: redeclaring
+  is how a subtype narrows, and whether two declarations agree is a question about their types,
+  which the flattening does not ask.
+- *Requiredness.* A member is required where any of its declarations is `Required`, or any model
+  the walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct
+  requires, so requiredness only accumulates. A name a `Requires` lists that no member declares is
+  undeclared, a member only the catch-all governs.
+- *Conjuncts that are no model.* A composition entry naming no model once read through alias
+  scalars — a scalar, an enum, a union, a map, a list, or a type the registry does not hold —
+  contributes no property, so the flattening lists the entry's target as written, once, for its
+  consumer to lower (`Base` and `Mixins` name whatever the source composed with, below).
+- *What it leaves.* A catch-all, `AdditionalProps` and `Additional`, is not flattened: a consumer
+  reads the model's own (emitter-design §3.2), so a conjunct closing its property set is the
+  consumer's to weigh. A property marked `Flatten` is one member like any other, the hoisting of its
+  fields being its wire's (§5.1). Layout order is no wire order: a `Positional` model's elements
+  follow their `WireID`.
+- *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
+  (§7.2) or a discriminator's `Property`, names the declaration the flattening of that model takes,
+  the content's type for an encoding key, so a consumer finds it on the member itself. The OpenAPI
+  compiler keys a part through the flattening, and tags a discriminator by an own property, which
+  the flattening takes. `pass.Validate` holds each only to a property the model exposes, not yet to
+  the one it takes, since a flattening per model it asks about grows quadratically down a deep
+  hierarchy, which its cost tests refuse.
+- *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to
+  its fixpoint, each model of a cycle holding the members of all of them, and nothing is cut short:
+  the walk needs no step budget and no recursion. It costs the declarations it returns plus the
+  models, entries and aliases it passes, so an `irfacts` index could answer no faster, and it stays
+  a function of `ir`.
+
+Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
+declarations is wrong on the wire, and the later conjunct is where a spec writes the specialization.
+On the golden spec (`cloudflare/api-schemas` `openapi.json` at `e2b8c60`, compiled at `efafa0d0`),
+1,197 of the 3,866 composed models redeclare a wire name. Of the 1,811 overrides between
+declarations whose models do not compose each other and whose types are different nodes, 1,788 are
+made by a failure schema. They fall on 1,572 members, every one in a 4XX, 5XX or default response
+that composes a success shape and, after it, the failure schema (`success: false`, `result: null`),
+which an earlier-conjunct rule would type as the success. 774 members are required only through a
+declaration they override, no `Requires` naming them, which a rule reading requiredness off the
+declaration taken alone would make optional. Visibility is the declaration taken's because both
+directions occur: of the 41 members whose declarations disagree on it, 28 take one that makes them
+read-only, and 13 one that lifts the read-only an overridden declaration states, as a batch patch
+body redeclares the `id` it must send, which a conjunction of the two would forbid writing.
 
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](./compilers/openapi.md#allof-classification).
@@ -1658,7 +1744,9 @@ type Content struct {
                                   // here and stays in Unmodeled — see §12
     Encoding  map[PropID]PartEncoding // multipart/form: per-property (part) wire config, keyed by the
                                   // part property's PropID — a position inside the body model, so
-                                  // `pass` resolves a key against that model rather than a registry
+                                  // `pass` resolves a key against that model rather than a
+                                  // registry; of a part several declarations name, the one the
+                                  // model's flattening takes (§4.3)
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
     Examples  []Example
     Unmodeled  Unmodeled
@@ -2347,8 +2435,12 @@ this from `Unmodeled` and no two derive it differently:
 3. **The node records that it was inferred**, in its own `Provenance.Inferred`, naming the
    heuristic. `Inferred` holds one string and a node can be reached by more than one heuristic, so
    the names are listed rather than overwritten, and a name already listed is not repeated. The
-   list joins the names with commas in the order the heuristics first applied, none empty
-   (`ir.JoinInferred`); `TypeRef.Inferred` (§3.3) lists them the same way.
+   list joins the names with commas in the order the heuristics first applied, none empty; names
+   compare exactly, and the IR declares no set of them. `TypeRef.Inferred` (§3.3) lists them the
+   same way. The list has a type of its own, `ir.Inferred`: `ir.JoinInferred` writes the form and
+   `Inferred.IsCanonical` reads it. A conversion or a decoded document skips the join, and two
+   spellings of one list would compare unequal, so `irverify` reports a stored list in any other
+   form (`ir/inferred-not-canonical`), wherever it sits.
 4. **A node with no `Provenance` is not promoted into.** A node carrying a `Deprecation` and no
    provenance could not satisfy rule 3, and a heuristic that cannot be audited is worse than an
    empty field. Giving such a node a provenance is a change to this document, and the promotion
@@ -2444,7 +2536,7 @@ type Provenance struct {
     Pointer  jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
     Position Position         // 1-based line and column into that source, for a finding on a raw node
     Node     string           // IR-space location: a stable ID or a path through the document's own fields
-    Inferred string           // "" = declared; else the heuristics that produced this node, comma-separated (§12)
+    Inferred Inferred         // "" = declared; else the heuristics that produced this node, comma-separated (§12)
 }
 
 type Position struct {

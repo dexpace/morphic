@@ -25,5 +25,5 @@ type TypeRef struct {
 	// Otherwise it lists the heuristics that read null in, as
 	// Provenance.Inferred lists them, since a reference has no provenance of its
 	// own (ir-design §3.3). It is set only on a Nullable reference.
-	Inferred string `json:"inferred,omitempty"`
+	Inferred Inferred `json:"inferred,omitempty"`
 }

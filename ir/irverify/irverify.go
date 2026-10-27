@@ -128,6 +128,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkProvenance,
 		checkIndices,
 		checkBigVals,
+		checkInferred,
 		checkUTF8,
 		checkValues,
 		checkCycles,
