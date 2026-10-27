@@ -920,7 +920,8 @@ type Module struct { Packages []*Package }
 type StructType struct {
     Common
     Fields  []*Field
-    Embeds  []Expr           // the catch-all map (§8.1); Base and Mixins are flattened into Fields
+    Embeds  []Expr           // the catch-all map (§8.1); what Base, Implements and Mixins
+                             // declare is flattened into Fields (TypePlan.Flattened)
 }
 type Field struct {
     Common

@@ -2,6 +2,7 @@ package ir_test
 
 import (
 	"fmt"
+	"go/types"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -39,6 +40,42 @@ func based(target ir.TypeID) func(*ir.Model) {
 // mixing sets a model's Mixins to targets.
 func mixing(targets ...ir.TypeID) func(*ir.Model) {
 	return func(m *ir.Model) { m.Mixins = irtest.RefsTo(targets...) }
+}
+
+// TestFlattenedProperties_ReadsEveryCompositionField holds the composition
+// entries the flattening follows, Base, then Implements, then Mixins, to the
+// fields of ir.Model that hold a TypeRef, read off its declaration. A field
+// added beside them is an entry FlattenedProperties, ExposedProps, Supertypes
+// and the irfacts indexes must read too, or is none: the failure asks which.
+func TestFlattenedProperties_ReadsEveryCompositionField(t *testing.T) {
+	t.Parallel()
+	model, err := irDecls(t).Named("Model")
+	require.NoError(t, err)
+	st, ok := model.Underlying().(*types.Struct)
+	require.True(t, ok, "ir.Model is a struct")
+	var refs []string
+	for field := range st.Fields() {
+		if holdsTypeRef(field.Type()) {
+			refs = append(refs, field.Name())
+		}
+	}
+	assert.Equal(t, []string{"Base", "Implements", "Mixins"}, refs,
+		"a Model field holding a TypeRef is a composition entry every composition walk reads, or it is not one")
+}
+
+// holdsTypeRef reports whether typ is ir.TypeRef, a pointer to one or a slice
+// of them.
+func holdsTypeRef(typ types.Type) bool {
+	switch u := typ.(type) {
+	case *types.Pointer:
+		typ = u.Elem()
+	case *types.Slice:
+		typ = u.Elem()
+	default:
+		// A TypeRef held directly, or a type holding none.
+	}
+	named, ok := types.Unalias(typ).(*types.Named)
+	return ok && named.Obj().Name() == "TypeRef" && named.Obj().Pkg().Path() == "github.com/dexpace/morphic/ir"
 }
 
 func TestFlattenedProperties_LayoutOrder(t *testing.T) {
