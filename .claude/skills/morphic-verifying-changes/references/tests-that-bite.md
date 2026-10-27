@@ -127,4 +127,4 @@ is not behaviour held.
   constant past test scale.
 - **Why.** Off-by-one mutants passed tests placed a level past the bound; ten bound sites survived
   on `main` because their tests used budgets far from the edge; `AtMost(-1)` clamps to zero, so
-  planting through it changed nothing (#340, #828, #1140).
+  planting through it changed nothing (#340, #1140).
