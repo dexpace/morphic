@@ -63,6 +63,12 @@ func TestUnknownKeys_KeptAtEveryObject(t *testing.T) {
 		{"externalDocs", "openapi:externalDocs/title", `"EXTERNALDOCS"`, "doc.Unmodeled"},
 		{"server", "openapi:host", `"SERVER"`, "doc.Servers[server/openapi/servers/0].Unmodeled"},
 		{"server variable", "openapi:example", `"SERVERVARIABLE"`, "doc.Servers[server/openapi/servers/0].Variables[0].Unmodeled"},
+		// A path item's and an operation's servers are Server Objects lowered as
+		// the document's are, each into the registry at its own pointer.
+		{"path item server", "openapi:host", `"PATHITEMSERVER"`,
+			"doc.Servers[server/openapi/paths/~1widgets/servers/0].Unmodeled"},
+		{"operation server", "openapi:host", `"OPERATIONSERVER"`,
+			"doc.Servers[server/openapi/paths/~1widgets/get/servers/0].Unmodeled"},
 		{"tag", "openapi:tags/0/color", `"TAG"`, "doc.Unmodeled"},
 		{"components", "openapi:components/definitions", `"COMPONENTS"`, "doc.Unmodeled"},
 		{"tag externalDocs", "openapi:tags/0/externalDocs/title", `"TAGEXTERNALDOCS"`, "doc.Unmodeled"},
