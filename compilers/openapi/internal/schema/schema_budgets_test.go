@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -40,7 +41,7 @@ components:
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			l, _ := schema.LoweredFor(t, spec)
-			l.Ctx.Limits = lowering.Limits{MaxEnumMembers: tc.limit}
+			l.Ctx.Limits = lowering.Limits{MaxEnumMembers: budget.AtMost(tc.limit)}
 
 			diags := schema.LowerComponentSchemas(t.Context(), l.Ctx, l.Types)
 

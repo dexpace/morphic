@@ -39,7 +39,7 @@ func Nesting(ctx context.Context, locate Locator, idx sourceindex.Index) (ir.Dia
 
 // nestingWithin is Nesting under a bound of limit levels, so a test can cross
 // it without a document a thousand levels deep.
-func nestingWithin(ctx context.Context, locate Locator, idx sourceindex.Index, limit int64) (ir.Diagnostic, bool) {
+func nestingWithin(ctx context.Context, locate Locator, idx sourceindex.Index, limit int) (ir.Diagnostic, bool) {
 	if idx.Nesting() <= limit || len(idx.AnchorCycles()) > 0 {
 		return ir.Diagnostic{}, false
 	}
@@ -52,7 +52,7 @@ func nestingWithin(ctx context.Context, locate Locator, idx sourceindex.Index, l
 // of the tree down to it, its own included.
 type placed struct {
 	n     *yaml.Node
-	level int64
+	level int
 }
 
 // deepSites returns where the tree under root first nests past limit, one site
@@ -63,7 +63,7 @@ type placed struct {
 //
 // It descends only into what passes the bound, so a refused document costs
 // one measure of the tree, under ctx, and one walk of part of it.
-func deepSites(ctx context.Context, root *yaml.Node, limit int64) []*yaml.Node {
+func deepSites(ctx context.Context, root *yaml.Node, limit int) []*yaml.Node {
 	top := nodeview.DocumentRoot(root)
 	if sourceindex.Level(top) > limit {
 		return []*yaml.Node{top}

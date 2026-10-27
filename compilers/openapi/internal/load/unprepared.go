@@ -16,6 +16,7 @@ import (
 	"github.com/speakeasy-api/openapi/references"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
@@ -41,9 +42,9 @@ type externalReads struct {
 	trees map[string]*yaml.Node
 	mine  map[*yaml.Node]bool
 	// answers holds each document's read by the key it was read under, and
-	// documents counts the reads charged against the document budget.
+	// documents charges each read to the document budget.
 	answers   map[string]*reading
-	documents int
+	documents budget.Budget
 	// data holds the bytes each key's tree was prepared from, and byDigest the
 	// first tree prepared from bytes of each digest (see recordTree).
 	data     map[string][]byte
@@ -72,18 +73,20 @@ type treeAnswer struct {
 }
 
 // newExternalReads returns a record holding only self, under each key the
-// resolver looks it up by.
-func newExternalReads(self sourceDocument) *externalReads {
+// resolver looks it up by, whose reads are held to documents, the document
+// budget.
+func newExternalReads(self sourceDocument, documents budget.Limit) *externalReads {
 	r := &externalReads{
-		self:     self,
-		trees:    map[string]*yaml.Node{},
-		mine:     map[*yaml.Node]bool{},
-		answers:  map[string]*reading{},
-		data:     map[string][]byte{},
-		byDigest: map[digest]*yaml.Node{},
-		mended:   map[string]treeAnswer{},
-		stood:    map[any]resolvable{},
-		spelled:  newHeldSpellings(),
+		self:      self,
+		trees:     map[string]*yaml.Node{},
+		mine:      map[*yaml.Node]bool{},
+		answers:   map[string]*reading{},
+		documents: budget.New(documents),
+		data:      map[string][]byte{},
+		byDigest:  map[digest]*yaml.Node{},
+		mended:    map[string]treeAnswer{},
+		stood:     map[any]resolvable{},
+		spelled:   newHeldSpellings(),
 	}
 	for _, key := range self.keys() {
 		r.recordTree(key, self.root, self.data)
@@ -114,13 +117,13 @@ type reading struct {
 }
 
 // once returns the answer the document under key got when it was read. The
-// first ask of the compile reads it with read while limit allows one more
-// document (see exceeds), and refuses it unread past that: the resolver sets no
-// bound of its own (docs/parser-library.md#resolution-unbounded). Every later
-// ask, from either resolution, gets the same answer: the resolver asks again on
-// each reference until it has built something from a document, and a second
-// read could answer otherwise.
-func (r *externalReads) once(key string, limit int, read func() answer) answer {
+// first ask of the compile reads it with read while the document budget
+// allows one more document, and refuses it unread past that: the resolver sets
+// no bound of its own (docs/parser-library.md#resolution-unbounded). Every
+// later ask, from either resolution, gets the same answer: the resolver asks
+// again on each reference until it has built something from a document, and a
+// second read could answer otherwise.
+func (r *externalReads) once(key string, read func() answer) answer {
 	r.mu.Lock()
 	rd, ok := r.answers[key]
 	if !ok {
@@ -132,8 +135,8 @@ func (r *externalReads) once(key string, limit int, read func() answer) answer {
 		// Set first, so a read that panics, which the walk recovers, leaves a
 		// failure rather than an empty document.
 		rd.answer = answer{err: refused(key, "its read did not finish")}
-		if !r.charge(limit) {
-			rd.answer = answer{err: refused(key, fmt.Sprintf("it is past the %d-document budget", limit))}
+		if err := r.charge(key); err != nil {
+			rd.answer = answer{err: err}
 			return
 		}
 		rd.answer = read()
@@ -141,25 +144,28 @@ func (r *externalReads) once(key string, limit int, read func() answer) answer {
 	return rd.answer
 }
 
-// charge counts one more document read, and reports whether limit allows it.
-func (r *externalReads) charge(limit int) bool {
+// charge charges the read of the document under key to the document budget,
+// and returns the document's refusal where the budget has no room for it.
+func (r *externalReads) charge(key string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.documents++
-	return !exceeds(r.documents, limit)
+	if r.documents.Spend(1) {
+		return nil
+	}
+	return refused(key, fmt.Sprintf("it is past the %d-document budget", r.documents.Limit().Cap()))
 }
 
-// exhausted reports the document budget limit crossed, once, at the source:
-// which documents fell past it follows the walk's order.
-func (r *externalReads) exhausted(at func(jsontext.Pointer) ir.Provenance, limit int) []ir.Diagnostic {
+// exhausted reports the document budget crossed, once, at the source: which
+// documents fell past it follows the walk's order.
+func (r *externalReads) exhausted(at func(jsontext.Pointer) ir.Provenance) []ir.Diagnostic {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if !exceeds(r.documents, limit) {
+	if !r.documents.Exhausted() {
 		return nil
 	}
 	return []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.BudgetExceeded, at(""),
 		"external references name more documents than the %d-document budget; "+
-			"the $refs into the rest are reported unresolved", limit)}
+			"the $refs into the rest are reported unresolved", r.documents.Limit().Cap())}
 }
 
 // recordTree notes a document prepared under key from data. A digest names the
@@ -392,7 +398,7 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, opts Options,
 	rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, *external, *resolution, []usedDocument, error) {
-	read := newExternalReads(self)
+	read := newExternalReads(self, opts.MaxExternalDocuments)
 	reader := newExternal(ctx, doc, opts, read)
 	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
 	used := pass.used()

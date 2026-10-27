@@ -19,6 +19,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
 )
@@ -243,7 +244,7 @@ func TestHold_APanicStopsTheWalkWhereItStands(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
 	root := &yaml.Node{Kind: yaml.DocumentNode}
-	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root}))
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root}, budget.Unbounded()))
 	first := fakeResolvable{ref: "#/first"}
 	items := func(yield func(soa.WalkItem) bool) {
 		if !yield(fakeWalkItem("first", first)) {
@@ -270,7 +271,7 @@ func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
 	root := &yaml.Node{Kind: yaml.DocumentNode}
-	read := newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root})
+	read := newExternalReads(sourceDocument{path: "root.yaml", data: []byte("x"), root: root}, budget.Unbounded())
 	read.spelled.note("spelled.yaml", "/first")
 	read.spelled.note("spelled.yaml", "/second")
 	ext := newExternal(t.Context(), doc, Options{}, read)
@@ -296,7 +297,7 @@ func TestHold_APanicStillHoldsTheSpellingsRecorded(t *testing.T) {
 func TestHold_ASourceWithNoKeyIsNotHeld(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{}
-	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{root: &yaml.Node{}}))
+	ext := newExternal(t.Context(), doc, Options{}, newExternalReads(sourceDocument{root: &yaml.Node{}}, budget.Unbounded()))
 	ext.holdWalked(func(func(soa.WalkItem) bool) { t.Fatal("walked for a source held under no key") })
 	_, ok := doc.GetCachedExternalDocument("")
 	assert.False(t, ok)

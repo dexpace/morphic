@@ -168,16 +168,18 @@ func isOffset(s string) bool {
 	if len(s) != len("+05:30") || s[0] != '+' && s[0] != '-' || s[3] != ':' {
 		return false
 	}
-	hour, minute := twoDigits(s[1:3]), twoDigits(s[4:6])
-	return hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59
+	hour, hourRead := twoDigits(s[1:3])
+	minute, minuteRead := twoDigits(s[4:6])
+	return hourRead && minuteRead && hour <= 23 && minute <= 59
 }
 
-// twoDigits reads s, two bytes, as a number, or -1 when either is not a digit.
-func twoDigits(s string) int {
+// twoDigits reads s, two bytes, as a number, and false when either is not a
+// digit.
+func twoDigits(s string) (int, bool) {
 	if !isDigit(s[0]) || !isDigit(s[1]) {
-		return -1
+		return 0, false
 	}
-	return int(s[0]-'0')*10 + int(s[1]-'0')
+	return int(s[0]-'0')*10 + int(s[1]-'0'), true
 }
 
 // uuidLength is the length of the 8-4-4-4-12 form isUUID reads: 32

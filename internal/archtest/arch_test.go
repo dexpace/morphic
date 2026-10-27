@@ -58,6 +58,11 @@ var rules = map[string][]string{
 	// that, rather than letting it inherit the compiler's much wider allowlist
 	// by being an unkeyed subdirectory.
 	"compilers/openapi/internal/diag": {module + "/barrier", module + "/ir"},
+	// The one counting of a compile's work and size against its limits. It
+	// reaches the standard library alone, so any package that holds a count to
+	// a limit, the lowest of them included, can count through it rather than
+	// keep a counter of its own.
+	"compilers/openapi/internal/budget": {},
 	// Pointer construction and the OpenAPI derivation of an ID from a pointer. It
 	// reaches the framework for the grammar wrapped around a path and nothing
 	// else: what is OpenAPI's here is the path, and a package that could reach
@@ -80,10 +85,11 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/ynode": {"go.yaml.in/yaml/v3"},
 	// The OpenAPI Specification's rules as data, and the engine that checks a
 	// source tree against them at the minor it declares. It reads the tree
-	// through nodeview, reports through diag and reaches nothing that loads or
-	// lowers: the table is the compiler's own authority on the specification,
-	// so it depends on no parser library.
-	"compilers/openapi/internal/oas": {module + "/ir", module + "/compilers/openapi/internal/diag",
+	// through nodeview, reports through diag, counts its work through budget and
+	// reaches nothing that loads or lowers: the table is the compiler's own
+	// authority on the specification, so it depends on no parser library.
+	"compilers/openapi/internal/oas": {module + "/ir", module + "/compilers/openapi/internal/budget",
+		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The one reading of a $ref fragment, and the spelling the resolver is handed
 	// for it (GitHub #911). It reaches the library's reference type for the
@@ -93,9 +99,11 @@ var rules = map[string][]string{
 	// The one reading of the raw source: mappings read the way the parser reads
 	// them, through aliases and `<<` merge keys, and the one bounded walk of a
 	// tree. It reaches the library's yml package for the merge-key predicate the
-	// unmarshaller itself uses, and is below every package that reads raw YAML,
-	// which reads through it rather than by a reading of its own.
-	"compilers/openapi/internal/nodeview": {"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
+	// unmarshaller itself uses, and budget for what its memo may hold, and is
+	// below every package that reads raw YAML, which reads through it rather
+	// than by a reading of its own.
+	"compilers/openapi/internal/nodeview": {module + "/compilers/openapi/internal/budget",
+		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// How the library's walk reads a pointer through the parsed model, a token at
 	// a time, and where it leaves the model for raw YAML. It reaches the library's
 	// navigation and the root node a model was built from, and nothing of the
@@ -105,10 +113,12 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/marshaller", "go.yaml.in/yaml/v3"},
 	// Every schema $ref of the source resolved into a table over the decoded
 	// trees, never through the library's resolver (GitHub #558). It reads a tree
-	// through nodeview and a fragment through fragment, and nothing of the
-	// library's model or of the compiler: what the library resolved of a
-	// reference object reaches it as data, through its Config.
-	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/fragment",
+	// through nodeview and a fragment through fragment, counts its work through
+	// budget, and reaches nothing of the library's model or of the compiler:
+	// what the library resolved of a reference object reaches it as data,
+	// through its Config.
+	"compilers/openapi/internal/bind": {module + "/compilers/openapi/internal/budget",
+		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The typed side of a bind table: each schema of the parsed model known by
 	// the position it was read at, located through the library's walk, and one
@@ -131,19 +141,24 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The $dynamicAnchor declarations of a source tree, which a $dynamicRef
 	// expands against. It reads the tree through nodeview, as the parser reads
-	// it, spells pointers through ids, and reaches nothing that lowers.
-	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/ids",
+	// it, spells pointers through ids, counts the nodes it reads through budget,
+	// and reaches nothing that lowers.
+	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/budget",
+		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
-	// document root and nothing else: an index of what the source says is not
-	// allowed to depend on what any consumer of it wants to say about that.
-	"compilers/openapi/internal/sourceindex": {
+	// document root and budget for the steps its measure takes, and nothing
+	// else: an index of what the source says is not allowed to depend on what
+	// any consumer of it wants to say about that.
+	"compilers/openapi/internal/sourceindex": {module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// The pre-lowering refusals. They read the source through nodeview and the
-	// index built over it, report through diag, and reach no part of the
-	// lowering — nothing here has a document to lower yet.
+	// index built over it, weigh it against its budgets through budget, report
+	// through diag, and reach no part of the lowering — nothing here has a
+	// document to lower yet.
 	"compilers/openapi/internal/scan": {module + "/ir",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/sourceindex", "go.yaml.in/yaml/v3"},
@@ -154,8 +169,10 @@ var rules = map[string][]string{
 	// opinion about lowering — so it sits below the schema lowering that asks it
 	// questions and above nothing that asks it any. It reaches the library's yml
 	// package for the tags its decoder accepts as a string, so a field read off
-	// a raw node decodes as the parser decodes the fields it models.
+	// a raw node decodes as the parser decodes the fields it models, and budget
+	// for the nodes a kept construct may render.
 	"compilers/openapi/internal/annotation": {module + "/ir",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
@@ -165,10 +182,12 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Source-document patching: an OpenAPI Overlay applied to the decoded node
 	// tree, and the attribution of what it changed. It reads bytes and nodes and
-	// reports through diag, reaching ids for the pointer that names a position and
-	// nodeview for the document root — and nothing that lowers, because it runs
-	// before there is anything to lower.
+	// reports through diag, reaching ids for the pointer that names a position,
+	// nodeview for the document root and budget for the node budget it builds
+	// within — and nothing that lowers, because it runs before there is anything
+	// to lower.
 	"compilers/openapi/internal/overlay": {module + "/ir",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
@@ -177,14 +196,15 @@ var rules = map[string][]string{
 	// produced through sourceindex, runs the pre-lowering refusals over that index
 	// through scan, applies the caller's overlay through overlay, and holds the
 	// tree, and what its references reach, to the specification's rules through
-	// oas. It reaches resolve to read which mapping values name a position in the
-	// source as the lowering will, and the library's pointer walk, directly and
-	// through navigation, to tell a hop that walked a document's bytes and to
-	// walk a document as it does. It reaches nothing that lowers — at this point
-	// there is no document to lower.
+	// oas, each within its budget through budget. It reaches resolve to read
+	// which mapping values name a position in the source as the lowering will,
+	// and the library's pointer walk, directly and through navigation, to tell a
+	// hop that walked a document's bytes and to walk a document as it does. It
+	// reaches nothing that lowers — at this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/navigation",
@@ -201,10 +221,12 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Recognition of a source from its bytes, before the compile. It reaches load
-	// for the parse the compile goes on to lower and nodeview to read the root
-	// mapping as the parser does, and nothing that lowers: it runs before
-	// anything has decided the bytes are this compiler's.
+	// for the parse the compile goes on to lower, budget for the byte budget that
+	// parse is held to, and nodeview to read the root mapping as the parser does,
+	// and nothing that lowers: it runs before anything has decided the bytes are
+	// this compiler's.
 	"compilers/openapi/internal/detect": {module + "/ir", module + "/compilers",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
@@ -248,12 +270,13 @@ var rules = map[string][]string{
 	// one. It reaches load for the version grammar — the dialect question is asked
 	// of the document, and the grammar that answers it is the loader's — and for
 	// the schema bindings the load phase built, which its scope reads. It reaches
-	// naming for what each position is called and anchors for the
-	// $dynamicAnchor index it builds on first ask.
+	// naming for what each position is called, anchors for the $dynamicAnchor
+	// index it builds on first ask, and budget for the limits it holds.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/anchors",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
@@ -283,6 +306,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
+		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/lowering",

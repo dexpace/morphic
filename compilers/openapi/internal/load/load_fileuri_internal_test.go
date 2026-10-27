@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 )
 
@@ -57,8 +58,8 @@ func TestLoad_AFileURIDocumentResolvesItsOwnRelativeRefs(t *testing.T) {
 
 	root := responseRoot(fileURI("file", filepath.Join(dir, "a.yaml")) + "#/x")
 
-	_, diags := loadExternal(t, dir, root, Options{MaxExternalDocuments: 3})
-	_, short := loadExternal(t, dir, root, Options{MaxExternalDocuments: 2})
+	_, diags := loadExternal(t, dir, root, Options{MaxExternalDocuments: budget.AtMost(3)})
+	_, short := loadExternal(t, dir, root, Options{MaxExternalDocuments: budget.AtMost(2)})
 
 	assert.Empty(t, diags, "three documents, read within a budget of three")
 	_, unresolved := budgetFindings(short)
@@ -89,13 +90,13 @@ func TestLoad_AFileURIAndAPathAreTwoDocuments(t *testing.T) {
 	root := responseRoot("./a.yaml#/x") +
 		"    B: {$ref: '" + fileURI("file", filepath.Join(dir, "a.yaml")) + "#/x'}\n"
 
-	_, within := loadExternal(t, dir, root, Options{MaxExternalDocuments: 2})
-	_, past := loadExternal(t, dir, root, Options{MaxExternalDocuments: 1})
+	_, within := loadExternal(t, dir, root, Options{MaxExternalDocuments: budget.AtMost(2)})
+	_, past := loadExternal(t, dir, root, Options{MaxExternalDocuments: budget.AtMost(1)})
 
 	assert.Empty(t, within, "both read, one document each")
-	budget, unresolved := budgetFindings(past)
-	assert.Len(t, budget, 1)
+	over, unresolved := budgetFindings(past)
+	assert.Len(t, over, 1)
 	require.Len(t, unresolved, 1, "%+v", past)
 	assert.Contains(t, unresolved[0], "past the 1-document budget")
-	assert.Equal(t, diag.BudgetExceeded, budget[0].Code)
+	assert.Equal(t, diag.BudgetExceeded, over[0].Code)
 }

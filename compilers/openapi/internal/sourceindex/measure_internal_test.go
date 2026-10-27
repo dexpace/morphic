@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
@@ -32,13 +33,13 @@ func TestMeasure_MeasuresEachNodeOnce(t *testing.T) {
 	idx := Build(t.Context(), root, MaxIndexedNodes)
 	m := NewMeasure(MaxIndexedNodes)
 
-	assert.Equal(t, int64(anchors+1), m.Of(t.Context(), idx.Root()))
-	assert.LessOrEqual(t, m.steps, 4*idx.Nodes(), "a step per frame, a frame per edge")
-	assert.Equal(t, 2*int64(len(m.memo))+anchors-1, m.steps,
+	assert.Equal(t, anchors+1, m.Of(t.Context(), idx.Root()))
+	assert.LessOrEqual(t, m.steps.Spent(), 4*idx.Nodes(), "a step per frame, a frame per edge")
+	assert.Equal(t, 2*len(m.memo)+anchors-1, m.steps.Spent(),
 		"two steps a node, and one each to pop the lists the root pushed before an alias measured them")
-	steps := m.steps
-	assert.Equal(t, int64(anchors+1), m.Of(t.Context(), idx.Root()))
-	assert.Equal(t, steps+1, m.steps, "a node measured once is not measured again")
+	steps := m.steps.Spent()
+	assert.Equal(t, anchors+1, m.Of(t.Context(), idx.Root()))
+	assert.Equal(t, steps+1, m.steps.Spent(), "a node measured once is not measured again")
 }
 
 // TestMeasure_EndsAnAliasCycleNoAncestorHolds pins the defence the in-flight
@@ -54,7 +55,7 @@ func TestMeasure_EndsAnAliasCycleNoAncestorHolds(t *testing.T) {
 	idx := Build(t.Context(), root, MaxIndexedNodes)
 	assert.Empty(t, idx.AnchorCycles(), "neither alias names its own ancestor")
 	assert.False(t, idx.Truncated())
-	assert.Equal(t, int64(4), idx.Nesting(), "root, a, b through a's alias, and a again, whose alias back is cut")
+	assert.Equal(t, 4, idx.Nesting(), "root, a, b through a's alias, and a again, whose alias back is cut")
 }
 
 // TestMeasure_StopsAtItsLimit drives the measure's own bound, which only a
@@ -87,9 +88,9 @@ func TestMeasure_StopsAtItsLimit(t *testing.T) {
 func TestMeasure_NilAndTargetlessAliasNestNothing(t *testing.T) {
 	t.Parallel()
 	m := NewMeasure(MaxIndexedNodes)
-	assert.Equal(t, int64(0), m.Of(t.Context(), nil))
-	assert.Equal(t, int64(0), m.Of(t.Context(), &yaml.Node{Kind: yaml.AliasNode}))
-	assert.Equal(t, int64(1), m.Of(t.Context(), ynode.Seq(nil)), "a nil child adds nothing to its sequence")
+	assert.Equal(t, 0, m.Of(t.Context(), nil))
+	assert.Equal(t, 0, m.Of(t.Context(), &yaml.Node{Kind: yaml.AliasNode}))
+	assert.Equal(t, 1, m.Of(t.Context(), ynode.Seq(nil)), "a nil child adds nothing to its sequence")
 }
 
 // TestNewMeasure_SaturatesALimitPastOverflow pins the node bound so large that
@@ -99,9 +100,11 @@ func TestNewMeasure_SaturatesALimitPastOverflow(t *testing.T) {
 	t.Parallel()
 	root := openapitest.YAMLDocument(t, "a: &x [1]\nb: *x\n")
 
-	assert.False(t, Build(t.Context(), root, 1<<61).Truncated())
-	assert.Equal(t, int64(math.MaxInt64), NewMeasure(math.MaxInt64).limit)
-	assert.Equal(t, int64(0), NewMeasure(-1).limit, "a negative bound admits nothing")
+	assert.False(t, Build(t.Context(), root, math.MaxInt/2).Truncated())
+	assert.Equal(t, budget.AtMost(math.MaxInt), NewMeasure(math.MaxInt).steps.Limit())
+	assert.Equal(t, budget.AtMost(math.MaxInt), NewMeasure(math.MaxInt/4).steps.Limit(), "the least bound four times overflows")
+	assert.Equal(t, budget.AtMost(4*(math.MaxInt/4-1)), NewMeasure(math.MaxInt/4-1).steps.Limit(), "and the largest it does not")
+	assert.Equal(t, budget.AtMost(0), NewMeasure(-1).steps.Limit(), "a negative bound admits nothing")
 }
 
 // TestMeasure_StopsOnceTheContextIsDone pins the measure's asks: before its
@@ -118,16 +121,16 @@ func TestMeasure_StopsOnceTheContextIsDone(t *testing.T) {
 
 	live := &ctxtest.Countdown{Context: t.Context(), Left: math.MaxInt}
 	m := NewMeasure(MaxIndexedNodes)
-	assert.Equal(t, int64(depth), m.Of(live, deep))
+	assert.Equal(t, depth, m.Of(live, deep))
 	assert.False(t, m.Truncated())
 	assert.GreaterOrEqual(t, live.Calls, 2*depth/nodeview.AskEvery, "an ask every AskEvery of two steps a node")
 
 	cut := &ctxtest.Countdown{Context: t.Context(), Left: 1}
 	m = NewMeasure(MaxIndexedNodes)
-	assert.Less(t, m.Of(cut, deep), int64(depth))
+	assert.Less(t, m.Of(cut, deep), depth)
 	assert.True(t, m.Truncated())
-	asked, steps := cut.Calls, m.steps
+	asked, steps := cut.Calls, m.steps.Spent()
 	m.Of(cut, deep)
 	assert.Equal(t, asked+1, cut.Calls, "a later call asks once")
-	assert.Equal(t, steps, m.steps, "and takes no step")
+	assert.Equal(t, steps, m.steps.Spent(), "and takes no step")
 }

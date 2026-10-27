@@ -9,6 +9,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
@@ -28,7 +29,7 @@ func RawFromNode(node *yaml.Node) (ir.RawValue, error) {
 	if node == nil {
 		return nil, nil
 	}
-	conv := rawConv{view: nodeview.New()}
+	conv := newRawConv()
 	data, err := conv.node(node, 0)
 	if err != nil {
 		return nil, fmt.Errorf("render yaml node as json: %w", err)
@@ -60,8 +61,13 @@ const (
 // mapping sorts them through json.Marshal, which writes each jsontext.Value as
 // the JSON it holds rather than reinterpreting it.
 type rawConv struct {
-	nodes int
+	nodes budget.Budget
 	view  *nodeview.View
+}
+
+// newRawConv returns a conversion with the whole of maxRawNodes to spend.
+func newRawConv() rawConv {
+	return rawConv{nodes: budget.New(budget.AtMost(maxRawNodes)), view: nodeview.New()}
 }
 
 // node renders any YAML node as canonical JSON.
@@ -72,9 +78,8 @@ func (c *rawConv) node(n *yaml.Node, depth int) (jsontext.Value, error) {
 	if depth > maxRawDepth {
 		return nil, fmt.Errorf("nesting exceeds %d", maxRawDepth)
 	}
-	c.nodes++
-	if c.nodes > maxRawNodes {
-		return nil, fmt.Errorf("expands past %d nodes", maxRawNodes)
+	if !c.nodes.Spend(1) {
+		return nil, fmt.Errorf("expands past %d nodes", c.nodes.Limit().Cap())
 	}
 
 	switch n.Kind {

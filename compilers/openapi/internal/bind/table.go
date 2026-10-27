@@ -11,15 +11,16 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// DefaultLimit bounds the work one table costs when Config.Limit is zero:
-// each node read, token walked, hop followed and document opened is a step.
-// The source and every document it names are each held to the compiler's
-// node budget before they get here, so this is far above what any admitted
-// document costs, and only a document built to multiply that work meets it.
-const DefaultLimit = 1 << 26
+// MaxSteps bounds the work the load phase lets one table cost: each node
+// read, token walked, hop followed and document opened is a step. The source
+// and every document it names are each held to the compiler's node budget
+// before they get here, so this is far above what any admitted document costs,
+// and only a document built to multiply that work meets it.
+const MaxSteps = 1 << 26
 
 // Config is what a table needs from the compile reading it.
 type Config struct {
@@ -50,8 +51,9 @@ type Config struct {
 	// parser while the binding reads (GitHub #911). Nil reads every node as it
 	// stands.
 	Written func(n *yaml.Node) (string, bool)
-	// Limit bounds the work; zero is DefaultLimit.
-	Limit int
+	// Limit bounds the work, in steps (see MaxSteps). Unset, it is unbounded,
+	// as the zero budget.Limit is.
+	Limit budget.Limit
 }
 
 // ErrEmptyDocument is the failure of Config.Open, or of the tree it returns,
@@ -91,39 +93,36 @@ type ReferenceEnd struct {
 	Node    *yaml.Node
 }
 
-// budget is the work a table may spend, what it has, and the context the
-// binding runs under. Every loop of a binding asks the budget before it does
-// more, so the context is asked there with it, and a cancel stops the binding
+// work is the steps a table has spent, against its limit, and the context the
+// binding runs under. Every loop of a binding asks it before it does more, so
+// the context is asked there with the budget, and a cancel stops the binding
 // at its next step, as running out does.
-type budget struct {
-	ctx          context.Context
-	spent, limit int
+type work struct {
+	ctx   context.Context
+	steps budget.Budget
 }
 
 // spend charges n steps and reports whether the binding may go on.
-func (w *budget) spend(n int) bool {
-	w.spent += n
+func (w *work) spend(n int) bool {
+	w.steps.Spend(n)
 	return !w.over()
 }
 
 // over reports whether the binding must stop: its budget has run out, or its
 // context is done.
-func (w *budget) over() bool { return w.exhausted() || w.cancelled() }
+func (w *work) over() bool { return w.steps.Exhausted() || w.cancelled() }
 
 // cancelled reports whether the binding's context is done. A loop over what is
 // left to read asks it, and leaves: past an exhausted budget each item is
-// still recorded, cut, but a cancelled binding is read by no one.
-func (w *budget) cancelled() bool { return w.ctx.Err() != nil }
-
-// exhausted reports whether the budget has run out, which a table reports. A
-// binding its context stopped is not read, so it reports nothing.
-func (w *budget) exhausted() bool { return w.spent > w.limit }
+// still recorded, cut, but a cancelled binding is read by no one. A binding
+// its context stopped reports nothing, the budget included.
+func (w *work) cancelled() bool { return w.ctx.Err() != nil }
 
 // binder is the state of one table's building.
 type binder struct {
 	cfg       Config
 	docs      *docs
-	work      *budget
+	work      *work
 	defs      definitions
 	resources resources
 	find      *finder
@@ -137,17 +136,14 @@ type binder struct {
 // position a reference reaches through it, into a table, within the budget. It
 // stops once ctx is done, leaving a table its caller must not read.
 func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
-	if cfg.Limit <= 0 {
-		cfg.Limit = DefaultLimit
-	}
-	work := &budget{ctx: ctx, limit: cfg.Limit}
-	d := newDocs(src, cfg, work)
-	b := &binder{cfg: cfg, docs: d, work: work, defs: definitions{docs: d, work: work}, resources: resources{d},
-		find: newFinder(d, work), hops: map[Position]Hop{}, chains: map[Position]Chain{}}
+	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
+	d := newDocs(src, cfg, w)
+	b := &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
+		find: newFinder(d, w), hops: map[Position]Hop{}, chains: map[Position]Chain{}}
 	b.find.walk(rootOf(Source, sDocument), false)
 	b.ids = b.find.ids
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
-	for more := true; more && !work.over(); more = b.find.walkPending() {
+	for more := true; more && !w.over(); more = b.find.walkPending() {
 		b.settle(t)
 	}
 	b.placeLoops()
@@ -198,7 +194,7 @@ func (b *binder) table(t *Table) *Table {
 			t.entries[p] = Entry{Site: p, Hop: b.hops[p], Chain: c}
 		}
 	}
-	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.spent, b.work.limit, b.work.exhausted()
+	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
 	t.ends, t.roots = b.find.ends, b.find.roots
 	for _, d := range b.docs.list {
 		t.docs = append(t.docs, Document{Name: d.name, Root: d.root})
@@ -275,7 +271,7 @@ type Table struct {
 	docs      []Document
 	ends      map[Position]Position
 	steps     int
-	limit     int
+	limit     budget.Limit
 	exhausted bool
 	truncated bool
 }
@@ -341,7 +337,7 @@ func (t *Table) Through(site Position) (Position, bool) {
 func (t *Table) Steps() int { return t.steps }
 
 // Limit reports the work the table was allowed (Config.Limit).
-func (t *Table) Limit() int { return t.limit }
+func (t *Table) Limit() budget.Limit { return t.limit }
 
 // Exhausted reports whether the budget ran out, so that a site may be missing
 // or answered OverBudget.

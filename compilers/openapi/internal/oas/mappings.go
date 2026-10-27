@@ -33,17 +33,13 @@ func CheckFormat(ctx context.Context, root *yaml.Node, declared string, opts Opt
 	if f.locate == nil {
 		f.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 	}
-	budget := opts.Budget
-	if budget <= 0 {
-		budget = DefaultBudget
-	}
 	// Placing a finding costs a pointer per node, and most documents break
 	// neither rule, so a first walk only looks, and stops at the first break.
-	look := nodeview.Walk{Nodes: budget, Visit: lookForBreak}.Run(ctx, nodeview.DocumentRoot(root))
+	look := nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: lookForBreak}.Run(ctx, nodeview.DocumentRoot(root))
 	if !look.Stopped && !look.Cut {
 		return nil
 	}
-	out := nodeview.Walk{Nodes: budget, Visit: f.visit}.Run(ctx, nodeview.DocumentRoot(root))
+	out := nodeview.Walk{Nodes: opts.Budget.Cap(), Visit: f.visit}.Run(ctx, nodeview.DocumentRoot(root))
 	if ctx.Err() != nil {
 		return nil
 	}

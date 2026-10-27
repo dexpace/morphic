@@ -18,6 +18,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/engine/reader"
@@ -401,7 +402,7 @@ func TestLoad_ASiblingsExternalReferenceIsReadAsAnyOther(t *testing.T) {
 		{"recursive anchor", param + "      name: q\n      in: query\n      schema: &s {type: object, properties: {self: *s}}\n",
 			Options{}, site, diag.UnresolvedRef, ir.SeverityError, "recursive YAML anchor"},
 		{"byte budget", param + "      name: q\n      in: query\n      description: " + strings.Repeat("x", len(siblingExternalMain)) + "\n",
-			Options{MaxSourceBytes: len(siblingExternalMain)}, site, diag.UnresolvedRef, ir.SeverityError, "byte budget"},
+			Options{MaxSourceBytes: budget.AtMost(len(siblingExternalMain))}, site, diag.UnresolvedRef, ir.SeverityError, "byte budget"},
 		{"duplicate key", param + "      name: q\n      in: query\n      schema: {type: string}\n      description: one\n      description: two\n",
 			Options{}, ir.Provenance{Source: 1, Pointer: "/components/parameters/Ext/description"},
 			diag.Validation + "/validation-duplicate-key", ir.SeverityWarning, "more than once"},

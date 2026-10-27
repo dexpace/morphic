@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
@@ -123,7 +124,7 @@ func TestTreeReads_CountsWhatTheLibraryReadTakes(t *testing.T) {
 				pointer := g.pointer(tree)
 				lib, libErr := jsonpointer.GetTarget(tree, jsonpointer.JSONPointer(pointer),
 					jsonpointer.WithStructTags("key"))
-				steps, target := reads.cost(tree, pointer, math.MaxInt)
+				steps, target := reads.cost(tree, pointer, budget.Unbounded())
 				parts, valid := partsOf(pointer)
 				if !valid {
 					assert.ErrorIs(t, libErr, jsonpointer.ErrValidation, "%q", pointer)
@@ -163,7 +164,7 @@ func FuzzTreeReads_ReadEndsWhereGetTargetEnds(f *testing.F) {
 			pointer := g.pointer(tree)
 			lib, libErr := jsonpointer.GetTarget(tree, jsonpointer.JSONPointer(pointer), jsonpointer.WithStructTags("key"))
 			_, read := reads.read(tree, pointer)
-			_, priced := reads.cost(tree, pointer, math.MaxInt)
+			_, priced := reads.cost(tree, pointer, budget.Unbounded())
 			if libErr != nil {
 				require.Nil(t, read, "seed %d %q: %v", seed, pointer, libErr)
 				require.Nil(t, priced, "seed %d %q: %v", seed, pointer, libErr)
@@ -339,7 +340,7 @@ s: [x, y]
 		{"/", 1, tree.Content[0], "the root alone"},
 		{"", 0, nil, "a pointer the library refuses before reading"},
 	} {
-		steps, target := newTreeReads().cost(tree, c.pointer, math.MaxInt)
+		steps, target := newTreeReads().cost(tree, c.pointer, budget.Unbounded())
 		assert.Equal(t, c.steps, steps, "%q: %s", c.pointer, c.why)
 		if c.target != nil {
 			assert.Same(t, c.target, target, "%q", c.pointer)
@@ -362,11 +363,11 @@ func TestTreeReads_StopsPastTheLimit(t *testing.T) {
 	for range n {
 		root.Content = append(root.Content, ynode.Merge(), ynode.Alias(wide))
 	}
-	unbounded, _ := newTreeReads().cost(root, "/missing", math.MaxInt)
+	unbounded, _ := newTreeReads().cost(root, "/missing", budget.Unbounded())
 	require.Greater(t, unbounded, n*n)
 
 	const limit = 3 * n
-	steps, target := newTreeReads().cost(root, "/missing", limit)
+	steps, target := newTreeReads().cost(root, "/missing", budget.AtMost(limit))
 	assert.Nil(t, target)
 	assert.Greater(t, steps, limit, "a count past the limit says so")
 	assert.LessOrEqual(t, steps, limit+2*n, "and stops within a mapping of it")
@@ -392,7 +393,7 @@ func TestTreeReads_ReadsAMergeChainAsDeepAsTheLibrary(t *testing.T) {
 			require.Same(t, lib, end, "%q", pointer)
 		}
 
-		steps, target := newTreeReads().cost(chain, pointer, math.MaxInt)
+		steps, target := newTreeReads().cost(chain, pointer, budget.Unbounded())
 		assert.Same(t, end, target, "%q", pointer)
 		assert.Equal(t, want.steps, steps, "%q", pointer)
 		assert.Less(t, steps, 3*levels, "%q", pointer)
@@ -414,13 +415,13 @@ func TestTreeReads_PricesAMergeCyclePastTheLimit(t *testing.T) {
 	parts, valid := partsOf("/missing")
 	require.True(t, valid)
 	for _, own := range []bool{false, true} {
-		s := tally{reads: newTreeReads(), limit: 1 << 20, own: own}
+		s := tally{reads: newTreeReads(), steps: budget.New(budget.AtMost(1 << 20)), own: own}
 		assert.Nil(t, s.walk(m, parts), "own %t", own)
-		assert.Greater(t, s.steps, s.limit, "own %t", own)
+		assert.Greater(t, s.steps.Spent(), 1<<20, "own %t", own)
 		require.Len(t, s.trying, 1, "own %t: refused where the cycle closes, or the unlimited read below runs on", own)
 	}
 
-	steps, target := newTreeReads().cost(m, "/missing", math.MaxInt)
+	steps, target := newTreeReads().cost(m, "/missing", budget.Unbounded())
 	assert.Nil(t, target)
 	assert.Equal(t, math.MaxInt, steps)
 }
@@ -445,7 +446,7 @@ func TestTreeReads_ReadsAMergeCycleTheLibraryEnds(t *testing.T) {
 			require.Same(t, lib, end, "%q", pointer)
 		}
 
-		steps, target := newTreeReads().cost(a, pointer, math.MaxInt)
+		steps, target := newTreeReads().cost(a, pointer, budget.Unbounded())
 		assert.Same(t, end, target, "%q", pointer)
 		assert.Equal(t, want.steps, steps, "%q", pointer)
 		_, read := newTreeReads().read(a, pointer)
@@ -503,11 +504,11 @@ func TestTreeReads_IndexesAMappingOnce(t *testing.T) {
 	require.NoError(t, err)
 	reads := newTreeReads()
 	for _, pointer := range []string{"/x/a", "/x/c", "/x/missing", "/y"} {
-		reads.cost(tree, pointer, math.MaxInt)
+		reads.cost(tree, pointer, budget.Unbounded())
 	}
 	assert.Equal(t, 2+3, reads.drain(), "the root's two pairs and x's three, each once")
 	assert.Len(t, reads.keys, 2)
-	reads.cost(tree, "/x/b", math.MaxInt)
+	reads.cost(tree, "/x/b", budget.Unbounded())
 	assert.Zero(t, reads.drain(), "drained once, and nothing indexed since")
 }
 
@@ -555,7 +556,7 @@ func TestTreeReads_ReadCostsItsDepthNotItsWidth(t *testing.T) {
 	assert.Equal(t, first, last, "the last key costs what the first does")
 	missing, _ := reads.read(wide, "/missing")
 	assert.Equal(t, first, missing, "and so does a key the mapping lacks")
-	library, _ := reads.cost(wide, fmt.Sprint("/k", n-1), math.MaxInt)
+	library, _ := reads.cost(wide, fmt.Sprint("/k", n-1), budget.Unbounded())
 	assert.Greater(t, library, n, "where the library compares every key")
 
 	merged := ynode.Map(ynode.Merge(), ynode.Map(), ynode.Merge(), ynode.Scalar("x"), ynode.Merge(), wide)

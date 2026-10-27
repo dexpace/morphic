@@ -11,7 +11,6 @@ package sourceindex
 
 import (
 	"context"
-	"math"
 	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
@@ -45,8 +44,8 @@ const maxTrackedDepth = 10000
 // tell the two apart.
 type Index struct {
 	root           *yaml.Node
-	nodes          int64
-	nesting        int64
+	nodes          int
+	nesting        int
 	anchorCycles   []*yaml.Node
 	taggedMappings []*yaml.Node
 	truncated      bool
@@ -61,7 +60,7 @@ type Index struct {
 // smaller in a test that drives the truncated path. A non-positive bound indexes
 // nothing and reports Truncated, which is the safe direction: it never claims a
 // count it did not reach. So does a walk ctx stopped.
-func Build(ctx context.Context, root *yaml.Node, maxNodes int64) Index {
+func Build(ctx context.Context, root *yaml.Node, maxNodes int) Index {
 	content := nodeview.DocumentRoot(root)
 	if content == nil {
 		return Index{}
@@ -83,14 +82,14 @@ func (x Index) Root() *yaml.Node { return x.root }
 // alias counts as one and its target is not counted again through it, which is
 // what makes this the document's own size rather than its expansion. It is
 // meaningful only when Truncated is false.
-func (x Index) Nodes() int64 { return x.nodes }
+func (x Index) Nodes() int { return x.nodes }
 
 // Nesting is how many mappings and sequences the deepest path down the tree
 // passes through once every alias is expanded, which is the tree the parser
 // builds (see Measure). A scalar or empty document nests 0. It is meaningful
 // only when Truncated is false and AnchorCycles is empty: an alias back into
 // its own ancestor expands without end, and counts here as far as one turn.
-func (x Index) Nesting() int64 { return x.nesting }
+func (x Index) Nesting() int { return x.nesting }
 
 // AnchorCycles lists, in document order, every alias whose target is one of
 // its own ancestors — a recursive YAML anchor that expands without bound.
@@ -128,7 +127,7 @@ func (x Index) Truncated() bool { return x.truncated }
 type walker struct {
 	x         *Index
 	ancestors map[*yaml.Node]bool
-	tallest   []int64
+	tallest   []int
 	measure   *Measure
 }
 
@@ -141,11 +140,11 @@ type walker struct {
 // from the root. An alias nests as its target, which the measure takes once.
 // The walk is bounded by maxNodes (nodeview.Walk), and it never stops at a
 // finding, or one answer would hide another.
-func (x *Index) walk(ctx context.Context, maxNodes int64) {
+func (x *Index) walk(ctx context.Context, maxNodes int) {
 	w := walker{x: x, ancestors: map[*yaml.Node]bool{}, measure: NewMeasure(maxNodes)}
 	visit := func(n *yaml.Node, depth int) nodeview.Step { return w.visit(ctx, n, depth) }
-	out := nodeview.Walk{Nodes: int(min(maxNodes, math.MaxInt)), Visit: visit, Leave: w.leave}.Run(ctx, x.root)
-	x.nodes = int64(out.Visited)
+	out := nodeview.Walk{Nodes: maxNodes, Visit: visit, Leave: w.leave}.Run(ctx, x.root)
+	x.nodes = out.Visited
 	x.truncated = out.Cut || w.measure.Truncated()
 }
 
@@ -182,7 +181,7 @@ func (w *walker) leave(n *yaml.Node, depth int) {
 
 // finish hands a finished node's nesting to the node holding it, or to the
 // index when it is the root.
-func (w *walker) finish(nesting int64) {
+func (w *walker) finish(nesting int) {
 	if len(w.tallest) == 0 {
 		w.x.nesting = nesting
 		return

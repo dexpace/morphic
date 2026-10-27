@@ -9,19 +9,20 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
 )
 
-// formatFindings runs CheckFormat over doc, declaring version, each finding
-// placed at the pointer it was read at.
-func formatFindings(t *testing.T, version, doc string, budget int) []finding {
+// formatFindings runs CheckFormat over doc, declaring version, within limit,
+// each finding placed at the pointer it was read at.
+func formatFindings(t *testing.T, version, doc string, limit budget.Limit) []finding {
 	t.Helper()
 	var n yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &n))
 	diags := oas.CheckFormat(t.Context(), &n, version, oas.Options{
-		Budget: budget,
+		Budget: limit,
 		Locate: func(p jsontext.Pointer) ir.Provenance { return ir.Provenance{Pointer: p} },
 	})
 	out := make([]finding, 0, len(diags))
@@ -63,7 +64,7 @@ func TestCheckFormat_AKeyIsAString(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			got := formatFindings(t, "3.1.0", tc.doc, 0)
+			got := formatFindings(t, "3.1.0", tc.doc, budget.Unbounded())
 			if diff := cmp.Diff(tc.want, got); diff != "" {
 				t.Errorf("findings (-want +got):\n%s", diff)
 			}
@@ -89,13 +90,18 @@ func TestCheckFormat_SaysWhatItRead(t *testing.T) {
 
 // TestCheckFormat_IsBoundedAndKeyedToTheMinor pins the two edges: a version
 // the table does not cover is held to nothing, and a tree past the budget is
-// read as far as it and reported, an unset budget being the default one.
+// read as far as it and reported, one within it read whole, an unset budget
+// being none.
 func TestCheckFormat_IsBoundedAndKeyedToTheMinor(t *testing.T) {
 	t.Parallel()
-	const doc = "x-e:\n  ? [k]\n  : 1\n"
-	assert.Empty(t, formatFindings(t, "2.0", doc, 0))
-	assert.Equal(t, []finding{at(diag.BudgetExceeded, "")}, formatFindings(t, "3.1.0", doc, 2))
-	assert.Equal(t, []finding{at(mismatch, "/x-e/")}, formatFindings(t, "3.1.0", doc, 0))
+	const doc = "x-e:\n  ? [k]\n  : 1\n" // six nodes
+	assert.Empty(t, formatFindings(t, "2.0", doc, budget.Unbounded()))
+	assert.Equal(t, []finding{at(diag.BudgetExceeded, "")}, formatFindings(t, "3.1.0", doc, budget.AtMost(2)),
+		"cut before the mapping holding the key, the third node")
+	assert.Equal(t, []finding{at(mismatch, "/x-e/"), at(diag.BudgetExceeded, "")},
+		formatFindings(t, "3.1.0", doc, budget.AtMost(5)), "cut past it, one node short of the tree")
+	assert.Equal(t, []finding{at(mismatch, "/x-e/")}, formatFindings(t, "3.1.0", doc, budget.AtMost(6)))
+	assert.Equal(t, []finding{at(mismatch, "/x-e/")}, formatFindings(t, "3.1.0", doc, budget.Unbounded()))
 }
 
 // TestCheckFormat_NamesEachKind pins kindName over what a merge can name: a

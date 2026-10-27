@@ -3,6 +3,7 @@ package load
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -63,7 +65,7 @@ components:
 	root := decodeRoot(t, src)
 	tree := newSourceTree(t.Context(), 4, overlay.Origin{}, root)
 
-	got := judgeSource(t.Context(), root, tree, 0)
+	got := judgeSource(t.Context(), root, tree, budget.Unbounded())
 
 	type placed struct {
 		Code, Pointer string
@@ -98,7 +100,7 @@ components:
 	top := nodeAt(t, root, "components", "parameters")
 	p := nodeAt(t, top, "P")
 
-	got := judgeSource(t.Context(), root, newSourceTree(t.Context(), 0, overlay.Origin{}, root), 0)
+	got := judgeSource(t.Context(), root, newSourceTree(t.Context(), 0, overlay.Origin{}, root), budget.Unbounded())
 
 	assert.Empty(t, got.diags)
 	assert.True(t, got.seen[objectKey{node: p, kind: oas.Parameter}], "the parameter, once however it is reached")
@@ -195,8 +197,9 @@ func TestLoad_WhatAnAliasMountsIsReportedOnce(t *testing.T) {
 // TestJudgeSource_ReadsEveryObjectTheCompilerAdmits pins the check's bounds to
 // what a load admits: its depth to the nesting the pre-parse scan admits, so a
 // schema 600 items deep is judged at its bottom, and its work to nodesAdmitted,
-// the node and alias budgets together, or the walker's default where either is
-// unbounded. A budget the check does cross is reported as an error.
+// the node and alias budgets together, unbounded where either is, as no budget
+// caps the check that Limits does not name. A budget the check does cross is
+// reported as an error.
 func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, scan.MaxNesting, oas.MaxDepth)
@@ -217,13 +220,18 @@ func TestJudgeSource_ReadsEveryObjectTheCompilerAdmits(t *testing.T) {
 	}
 	assert.Equal(t, []jsontext.Pointer{bottom}, at)
 
-	assert.Equal(t, 7, nodesAdmitted(Options{MaxSourceNodes: 3, MaxAliasSurplus: 4}))
-	assert.Zero(t, nodesAdmitted(Options{MaxSourceNodes: 3}))
-	assert.Zero(t, nodesAdmitted(Options{MaxAliasSurplus: 4}))
+	assert.Equal(t, budget.AtMost(7), nodesAdmitted(Options{MaxSourceNodes: budget.AtMost(3), MaxAliasSurplus: budget.AtMost(4)}))
+	assert.Equal(t, budget.Unbounded(), nodesAdmitted(Options{MaxSourceNodes: budget.AtMost(3)}),
+		"an unbounded alias budget leaves the check unbounded")
+	assert.Equal(t, budget.Unbounded(), nodesAdmitted(Options{MaxAliasSurplus: budget.AtMost(4)}),
+		"and so does an unbounded node budget")
+	assert.Equal(t, budget.AtMost(math.MaxInt),
+		nodesAdmitted(Options{MaxSourceNodes: budget.AtMost(math.MaxInt), MaxAliasSurplus: budget.AtMost(1)}),
+		"two budgets whose sum is past math.MaxInt admit everything rather than wrapping to none")
 
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\npaths: {/a: {}, /b: {}}\n"), &root))
-	got := judgeSource(t.Context(), &root, newSourceTree(t.Context(), 0, overlay.Origin{}, &root), 2)
+	got := judgeSource(t.Context(), &root, newSourceTree(t.Context(), 0, overlay.Origin{}, &root), budget.AtMost(2))
 	require.Len(t, got.diags, 1, "%+v", got.diags)
 	assert.Equal(t, diag.BudgetExceeded, got.diags[0].Code)
 	assert.Equal(t, ir.SeverityError, got.diags[0].Severity)

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/internal/ctxtest"
 )
@@ -40,7 +41,7 @@ x-lib:
 `
 
 // budgetConfig is the configuration budgetSpec is bound under, at limit.
-func budgetConfig(limit int) bind.Config {
+func budgetConfig(limit budget.Limit) bind.Config {
 	cfg := withDocuments(map[string]string{"other.yaml": "S: {$ref: '#/T'}\nT: {type: string}\n"})
 	cfg.Through = func(name string, p jsontext.Pointer) (bind.ReferenceEnd, bool) {
 		return bind.ReferenceEnd{Name: "spec.yaml", Pointer: "/components/pathItems/P"}, name == "spec.yaml" && p == "/paths/~1a"
@@ -56,11 +57,11 @@ func budgetConfig(limit int) bind.Config {
 // lands at the same place each time, since the sites are read in order.
 func TestBind_StopsAtItsBudget(t *testing.T) {
 	t.Parallel()
-	full := bound(t, budgetSpec, budgetConfig(0))
+	full := bound(t, budgetSpec, budgetConfig(budget.Unbounded()))
 	require.False(t, full.Exhausted())
 	require.Len(t, full.Loops(), 1)
-	assert.Equal(t, bind.DefaultLimit, full.Limit(), "a zero limit is the default")
-	assert.False(t, bound(t, budgetSpec, budgetConfig(full.Steps())).Exhausted(), "the cost itself suffices")
+	assert.Equal(t, budget.Unbounded(), full.Limit(), "an unset limit is unbounded")
+	assert.False(t, bound(t, budgetSpec, budgetConfig(budget.AtMost(full.Steps()))).Exhausted(), "the cost itself suffices")
 	want := map[bind.Position]bind.Entry{}
 	for _, e := range full.Entries() {
 		want[e.Site] = e
@@ -70,10 +71,10 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 
 	stopped, missing, stoppedMappings := 0, 0, 0
 	for limit := 1; limit < full.Steps(); limit++ {
-		cut := bound(t, budgetSpec, budgetConfig(limit))
+		cut := bound(t, budgetSpec, budgetConfig(budget.AtMost(limit)))
 		require.True(t, cut.Exhausted(), "limit %d", limit)
-		assert.Equal(t, limit, cut.Limit())
-		assert.Equal(t, cut.Entries(), bound(t, budgetSpec, budgetConfig(limit)).Entries(), "limit %d", limit)
+		assert.Equal(t, budget.AtMost(limit), cut.Limit())
+		assert.Equal(t, cut.Entries(), bound(t, budgetSpec, budgetConfig(budget.AtMost(limit))).Entries(), "limit %d", limit)
 		missing += len(want) - len(cut.Entries())
 		for _, e := range cut.Entries() {
 			if e.Hop.Status == bind.OverBudget || e.Chain.Status == bind.OverBudget {
@@ -182,11 +183,11 @@ func TestBind_CountsWorkLinearInTheDocument(t *testing.T) {
 // merge's is read, whatever documents it read after the source.
 func TestTable_SaysWhyARefWentUnread(t *testing.T) {
 	t.Parallel()
-	full := bound(t, budgetSpec, budgetConfig(0))
+	full := bound(t, budgetSpec, budgetConfig(budget.Unbounded()))
 	assert.False(t, full.Truncated())
 	assert.Empty(t, full.Unread())
 	assert.Empty(t, (*bind.Table)(nil).Unread(), "a nil table read nothing, so it says nothing")
-	assert.Equal(t, "it was not read within the budget", bound(t, budgetSpec, budgetConfig(1)).Unread())
+	assert.Equal(t, "it was not read within the budget", bound(t, budgetSpec, budgetConfig(budget.AtMost(1))).Unread())
 
 	deep := bound(t, deepMerge(), self)
 	require.False(t, deep.Exhausted())
@@ -382,7 +383,7 @@ func TestSpellings(t *testing.T) {
 // budget exhausted, since what stopped it is no budget crossed.
 func TestBind_StopsOnceTheContextIsDone(t *testing.T) {
 	t.Parallel()
-	full := bound(t, budgetSpec, budgetConfig(0))
+	full := bound(t, budgetSpec, budgetConfig(budget.Unbounded()))
 	require.Greater(t, full.Steps(), 10)
 
 	for _, left := range []int{0, 1, 5, full.Steps() / 2} {
@@ -390,7 +391,7 @@ func TestBind_StopsOnceTheContextIsDone(t *testing.T) {
 			t.Parallel()
 			ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 
-			table := bind.Bind(ctx, openapitest.YAMLDocument(t, budgetSpec), budgetConfig(0))
+			table := bind.Bind(ctx, openapitest.YAMLDocument(t, budgetSpec), budgetConfig(budget.Unbounded()))
 
 			assert.Less(t, table.Steps(), full.Steps(), "the binding stopped short")
 			assert.False(t, table.Exhausted(), "a stop is no budget crossed")
@@ -431,12 +432,12 @@ func TestBind_AsksNoMoreOnceRefused(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			whole := &ctxtest.Countdown{Context: t.Context(), Left: 1 << 30}
-			bind.Bind(whole, openapitest.YAMLDocument(t, spec), budgetConfig(0))
+			bind.Bind(whole, openapitest.YAMLDocument(t, spec), budgetConfig(budget.Unbounded()))
 
 			for left := range whole.Calls {
 				ctx := &ctxtest.Countdown{Context: t.Context(), Left: left}
 
-				bind.Bind(ctx, openapitest.YAMLDocument(t, spec), budgetConfig(0))
+				bind.Bind(ctx, openapitest.YAMLDocument(t, spec), budgetConfig(budget.Unbounded()))
 
 				require.LessOrEqual(t, ctx.Calls, left+1+asksAfterRefusal, "ask %d: asked on after the refusal", left+1)
 			}

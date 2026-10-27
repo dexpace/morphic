@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
@@ -75,17 +76,17 @@ func responseRoot(ref string) string {
 // budgetFindings returns the budget-exceeded diagnostics among diags, and the
 // messages of the unresolved-ref ones.
 func budgetFindings(diags []ir.Diagnostic) ([]ir.Diagnostic, []string) {
-	var budget []ir.Diagnostic
+	var over []ir.Diagnostic
 	var unresolved []string
 	for _, d := range diags {
 		switch d.Code {
 		case diag.BudgetExceeded:
-			budget = append(budget, d)
+			over = append(over, d)
 		case diag.UnresolvedRef:
 			unresolved = append(unresolved, d.Message)
 		}
 	}
-	return budget, unresolved
+	return over, unresolved
 }
 
 // TestLoad_AnEndlessChainIsReadToTheDocumentBudget pins GitHub #904: a chain
@@ -96,14 +97,14 @@ func TestLoad_AnEndlessChainIsReadToTheDocumentBudget(t *testing.T) {
 	t.Parallel()
 	srv, requests := chainServer(t, endless, responseChain)
 
-	_, diags := loadExternal(t, t.TempDir(), responseRoot(srv.URL+"/0.yaml#/x"), Options{MaxExternalDocuments: 5})
+	_, diags := loadExternal(t, t.TempDir(), responseRoot(srv.URL+"/0.yaml#/x"), Options{MaxExternalDocuments: budget.AtMost(5)})
 
 	assert.Equal(t, int32(5), requests.Load(), "exactly the budget is read")
-	budget, unresolved := budgetFindings(diags)
-	require.Len(t, budget, 1, "%+v", diags)
-	assert.Equal(t, ir.SeverityError, budget[0].Severity)
-	assert.Equal(t, ir.Provenance{Source: 0}, budget[0].Provenance, "at the source, not a position in it")
-	assert.Contains(t, budget[0].Message, "more documents than the 5-document budget")
+	over, unresolved := budgetFindings(diags)
+	require.Len(t, over, 1, "%+v", diags)
+	assert.Equal(t, ir.SeverityError, over[0].Severity)
+	assert.Equal(t, ir.Provenance{Source: 0}, over[0].Provenance, "at the source, not a position in it")
+	assert.Contains(t, over[0].Message, "more documents than the 5-document budget")
 	require.Len(t, unresolved, 1, "%+v", diags)
 	assert.Contains(t, unresolved[0], "external document "+srv.URL+"/5.yaml refused: it is past the 5-document budget")
 }
@@ -117,7 +118,7 @@ func TestLoad_ASchemaChainIsReadToTheDocumentBudget(t *testing.T) {
 	t.Parallel()
 	srv, requests := chainServer(t, endless, schemaChain)
 
-	got, _ := loadExternal(t, t.TempDir(), schemaRoot(srv.URL+"/0.yaml#/x"), Options{MaxExternalDocuments: 5})
+	got, _ := loadExternal(t, t.TempDir(), schemaRoot(srv.URL+"/0.yaml#/x"), Options{MaxExternalDocuments: budget.AtMost(5)})
 
 	assert.Equal(t, int32(5), requests.Load(), "exactly the budget is read")
 	entry, ok := got.Bindings.Table().Entry(bind.Position{Pointer: "/components/schemas/A"})
@@ -134,24 +135,24 @@ func TestLoad_ASchemaChainIsReadToTheDocumentBudget(t *testing.T) {
 func TestLoad_AChainWithinTheDocumentBudgetIsUnchanged(t *testing.T) {
 	t.Parallel()
 	const documents = 6
-	load := func(limit int) (int32, []ir.Diagnostic) {
+	load := func(limit budget.Limit) (int32, []ir.Diagnostic) {
 		srv, requests := chainServer(t, documents-1, responseChain)
 		_, diags := loadExternal(t, t.TempDir(), responseRoot(srv.URL+"/0.yaml#/x"), Options{MaxExternalDocuments: limit})
 		return requests.Load(), diags
 	}
-	unboundedReads, unbounded := load(0)
+	unboundedReads, unbounded := load(budget.Unbounded())
 	require.Equal(t, int32(documents), unboundedReads, "sanity: the chain is six documents long")
 
-	atReads, at := load(documents)
-	pastReads, past := load(documents - 1)
+	atReads, at := load(budget.AtMost(documents))
+	pastReads, past := load(budget.AtMost(documents - 1))
 
 	assert.Equal(t, int32(documents), atReads)
 	if d := cmp.Diff(unbounded, at); d != "" {
 		t.Errorf("a budget the chain fits changed the load (-unbounded +budgeted):\n%s", d)
 	}
 	assert.Equal(t, int32(documents-1), pastReads)
-	budget, _ := budgetFindings(past)
-	assert.Len(t, budget, 1, "one document short of the chain, the budget binds")
+	over, _ := budgetFindings(past)
+	assert.Len(t, over, 1, "one document short of the chain, the budget binds")
 }
 
 // TestLoad_TheDocumentBudgetCountsFilesAndURLsAlike pins the count's reach: a
@@ -162,11 +163,11 @@ func TestLoad_TheDocumentBudgetCountsFilesAndURLsAlike(t *testing.T) {
 	srv, requests := chainServer(t, endless, responseChain)
 	dir := externalDir(t, map[string]string{"local.yaml": "x: {$ref: '" + srv.URL + "/0.yaml#/x'}\n"})
 
-	_, diags := loadExternal(t, dir, responseRoot("./local.yaml#/x"), Options{MaxExternalDocuments: 4})
+	_, diags := loadExternal(t, dir, responseRoot("./local.yaml#/x"), Options{MaxExternalDocuments: budget.AtMost(4)})
 
 	assert.Equal(t, int32(3), requests.Load(), "the file takes one of the four")
-	budget, unresolved := budgetFindings(diags)
-	assert.Len(t, budget, 1)
+	over, unresolved := budgetFindings(diags)
+	assert.Len(t, over, 1)
 	require.Len(t, unresolved, 1, "%+v", diags)
 	assert.Contains(t, unresolved[0], "external document "+srv.URL+"/3.yaml refused")
 }
@@ -182,10 +183,10 @@ func TestLoad_TheDocumentBudgetRefusesAFileChainToo(t *testing.T) {
 	}
 	dir := externalDir(t, files)
 
-	_, diags := loadExternal(t, dir, responseRoot("./f0.yaml#/x"), Options{MaxExternalDocuments: 3})
+	_, diags := loadExternal(t, dir, responseRoot("./f0.yaml#/x"), Options{MaxExternalDocuments: budget.AtMost(3)})
 
-	budget, unresolved := budgetFindings(diags)
-	assert.Len(t, budget, 1)
+	over, unresolved := budgetFindings(diags)
+	assert.Len(t, over, 1)
 	require.Len(t, unresolved, 1, "%+v", diags)
 	assert.Contains(t, unresolved[0], "external document "+filepath.Join(dir, "f3.yaml")+" refused: "+
 		"it is past the 3-document budget")
@@ -229,17 +230,17 @@ func TestResolveExternal_BothPassesShareOneDocumentBudget(t *testing.T) {
 		"components:\n  responses:\n    A: {$ref: './local.yaml#/components/responses/S'}\n"
 	path := filepath.Join(dir, "root.yaml")
 
-	fits, rebuilds := resolveCounting(t, spec, path, Options{MaxExternalDocuments: 2})
+	fits, rebuilds := resolveCounting(t, spec, path, Options{MaxExternalDocuments: budget.AtMost(2)})
 
 	require.Equal(t, 1, rebuilds, "sanity: the respelled anchored document sets the second pass off")
 	assert.Empty(t, fits, "both documents fit the budget in both passes")
 	assert.Equal(t, int32(1), requests.Load())
 
-	past, rebuilds := resolveCounting(t, spec, path, Options{MaxExternalDocuments: 1})
+	past, rebuilds := resolveCounting(t, spec, path, Options{MaxExternalDocuments: budget.AtMost(1)})
 
 	require.Equal(t, 1, rebuilds, "sanity: the anchored document, asked for first, is read")
-	budget, unresolved := budgetFindings(past)
-	assert.Len(t, budget, 1, "reported once, though both passes ran: %+v", past)
+	over, unresolved := budgetFindings(past)
+	assert.Len(t, over, 1, "reported once, though both passes ran: %+v", past)
 	require.Len(t, unresolved, 1, "%+v", past)
 	assert.Contains(t, unresolved[0], filepath.Join(dir, "local.yaml")+" refused: it is past the 1-document budget")
 }

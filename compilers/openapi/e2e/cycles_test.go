@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -481,7 +482,7 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 	for _, tc := range componentOnlyCycles {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, scan.Aliases(t.Context(), scan.InSource(0), scanIndex(t, tc.data), openapi.DefaultMaxAliasSurplus),
+			assert.Empty(t, scan.Aliases(t.Context(), scan.InSource(0), scanIndex(t, tc.data), budget.AtMost(openapi.DefaultMaxAliasSurplus)),
 				"a components-only cycle is the resolver's to report")
 
 			_, diags, err := openapi.New().Compile(t.Context(),
