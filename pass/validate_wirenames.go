@@ -17,7 +17,7 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 		}
 		seen := make(map[string]bool, len(m.Properties))
 		for _, p := range m.Properties {
-			name := effectiveWireName(p)
+			name := p.EffectiveWireName()
 			if name == "" {
 				continue
 			}
@@ -60,7 +60,7 @@ func checkAmbiguousAliases(doc *ir.Document) []ir.Diagnostic {
 func ambiguousAliases(id ir.TypeID, props []ir.Property) []ir.Diagnostic {
 	claimant := make(map[string]int, len(props))
 	for i, p := range props {
-		if name := effectiveWireName(p); name != "" {
+		if name := p.EffectiveWireName(); name != "" {
 			if _, taken := claimant[name]; !taken {
 				claimant[name] = i
 			}
@@ -84,13 +84,4 @@ func ambiguousAliases(id ir.TypeID, props []ir.Property) []ir.Diagnostic {
 		}
 	}
 	return diags
-}
-
-// effectiveWireName is the on-wire name of a property: its explicit WireName, or
-// its source name when no override is set.
-func effectiveWireName(p ir.Property) string {
-	if p.WireName != "" {
-		return p.WireName
-	}
-	return p.Name.Source
 }

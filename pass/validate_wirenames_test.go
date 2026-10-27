@@ -22,8 +22,9 @@ func TestValidate_DuplicateWireName(t *testing.T) {
 	assert.Contains(t, irtest.DiagCodes(diags), "pass/duplicate-wire-name")
 }
 
-// TestValidate_EmptyEffectiveWireNameIsSkipped covers effectiveWireName's
-// source-name fallback and the empty-name continue in checkDuplicateWireNames.
+// TestValidate_EmptyEffectiveWireNameIsSkipped covers the source-name fallback
+// of ir.Property.EffectiveWireName and the empty-name continue in
+// checkDuplicateWireNames.
 func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
@@ -33,7 +34,7 @@ func TestValidate_EmptyEffectiveWireNameIsSkipped(t *testing.T) {
 			// No WireName, no Source name -> effective name "" -> skipped.
 			{ID: "p/a", Type: ir.TypeRef{Target: "t/prim/string"}},
 			{ID: "p/b", Type: ir.TypeRef{Target: "t/prim/string"}},
-			// No WireName but a Source name -> effectiveWireName returns Source.
+			// No WireName but a Source name -> the effective name is Source.
 			{ID: "p/c", Name: ir.Naming{Source: "named"}, Type: ir.TypeRef{Target: "t/prim/string"}},
 		},
 	}
