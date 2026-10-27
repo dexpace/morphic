@@ -320,6 +320,60 @@ components:
 	assert.Equal(t, []string{"text/plain"}, pe.ContentTypes)
 }
 
+// TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes holds a part two
+// composed models declare to the declaration the body's flattening takes
+// (ir-design §4.3): the later conjunct's, whichever the allOf lists last, with
+// the flags read off that declaration's type. The declarations differ, a file
+// and a list of files, so a key or a flag read off the other one shows.
+func TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name          string
+		first, second string
+		multi         bool
+	}{
+		{"the list last", "One", "Many", true},
+		{"the list first", "Many", "One", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(fmt.Sprintf(`  /upload:
+    post:
+      operationId: upload
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              allOf:
+                - {$ref: "#/components/schemas/%s"}
+                - {$ref: "#/components/schemas/%s"}
+            encoding:
+              file: {contentType: image/png}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    One:
+      type: object
+      properties: {file: {type: string, format: binary}}
+    Many:
+      type: object
+      properties: {file: {type: array, items: {type: string, format: binary}}}
+`, tc.first, tc.second))
+			_, svc, diags := compileService(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			enc := openapitest.FirstOp(t, svc).Request.Contents[0].Encoding
+
+			want := ir.PropID("p/openapi" + ids.Ptr("components", "schemas", tc.second, "properties", "file"))
+			require.Len(t, enc, 1, "one part is one entry: %v", enc)
+			pe, ok := enc[want]
+			require.True(t, ok, "the part is keyed on the later conjunct's declaration; got %v", enc)
+			assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
+			assert.Equal(t, tc.multi, pe.Multi, "the flags are read off the declaration the key names")
+			assert.Equal(t, !tc.multi, pe.Filename)
+		})
+	}
+}
+
 // TestBodyParts_RedeclaredNameIsOnePart pins that a part named by two allOf
 // branches yields one entry rather than depending on which branch was walked
 // last. The encoding entry describes one part on the wire either way.

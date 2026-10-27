@@ -19,7 +19,7 @@ func checkRequires(doc *ir.Document) []Violation {
 		}
 		own := make(map[string]bool, len(m.Properties))
 		for _, p := range m.Properties {
-			own[p.WireName] = true
+			own[p.EffectiveWireName()] = true
 		}
 		first := make(map[string]int, len(m.Requires))
 		for i, name := range m.Requires {

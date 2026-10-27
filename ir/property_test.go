@@ -132,3 +132,18 @@ func TestProperty_RequiredNullableFourStates(t *testing.T) {
 		})
 	}
 }
+
+func TestProperty_EffectiveWireNameDefaultsToTheSourceName(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		p    ir.Property
+		want string
+	}{
+		{"a wire name is the name on the wire", ir.Property{Name: ir.Naming{Source: "userId"}, WireName: "user_id"}, "user_id"},
+		{"no wire name falls back to the source name", ir.Property{Name: ir.Naming{Source: "userId"}}, "userId"},
+		{"neither is the empty name", ir.Property{Name: ir.Naming{Hint: "user_id"}}, ""},
+	} {
+		assert.Equal(t, tc.want, tc.p.EffectiveWireName(), tc.name)
+	}
+}

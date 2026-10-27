@@ -49,7 +49,9 @@ var generations = []generation{
 		meaning: "Sources lists every document a reference reads, and what each declares is lowered there"},
 	{version: "0.18.0", format: 1, shape: "159c405ed1d0729015ae8b206060f6a9ca90a184b9d58030c53f56a0ce763b26"},
 	{version: "0.19.0", format: 1, shape: "1052ad10f358985084b882007c6632092b99e6af0811a9234abfe608b1a19798"},
-	{version: "0.20.0", format: 1, shape: "93e13e68b0e2c6a8623109d342c08353a4209cbc57d8f3828705646f51d50bf0"},
+	{version: "0.20.0", format: 1, shape: "1052ad10f358985084b882007c6632092b99e6af0811a9234abfe608b1a19798",
+		meaning: "an encoding key or a discriminator's Property names the declaration the model's flattening takes"},
+	{version: "0.21.0", format: 1, shape: "93e13e68b0e2c6a8623109d342c08353a4209cbc57d8f3828705646f51d50bf0"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
