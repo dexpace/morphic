@@ -20,6 +20,7 @@ import (
 // requirement wherever a declaration or a Requires states one; the names and
 // entries left over; and no member taken by a declaration of a model that the
 // overridden declaration's model composes, unless each composes the other.
+// Flattening every root leaves the registry as a fresh build of it.
 func TestFlattenedProperties_AgreesWithAnOrderFreeReading(t *testing.T) {
 	t.Parallel()
 	for seed := range uint64(300) {
@@ -34,6 +35,8 @@ func TestFlattenedProperties_AgreesWithAnOrderFreeReading(t *testing.T) {
 			assert.ElementsMatch(t, slices.Collect(maps.Keys(unflattened)), f.Unflattened, "%s: unflattened", what)
 			requireOverrides(t, doc.Types, f, what)
 		}
+		fresh, _ := flatRandom(seed)
+		require.Empty(t, cmp.Diff(fresh, doc), "seed %d: flattening writes nothing to the registry", seed)
 	}
 }
 

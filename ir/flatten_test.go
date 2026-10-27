@@ -154,6 +154,19 @@ func TestFlattenedProperties_Override(t *testing.T) {
 			want: []string{"m.id@m < b.id@b", "b.ident@b"},
 		},
 		{
+			name: "a per-format name or an alias neither joins members nor splits one",
+			doc: irtest.DocOf(
+				owning("m", based("b"),
+					ir.Property{ID: "m.x", WireName: "x", WireNameByFormat: map[string]string{"application/xml": "Ex"}},
+					wired("m.y", "y")),
+				owning("b", nil, ir.Property{
+					ID: "b.x", WireName: "x", Name: ir.Naming{Aliases: []string{"y"}},
+					WireNameByFormat: map[string]string{"application/xml": "X"},
+				}),
+			),
+			want: []string{"m.x@m < b.x@b", "m.y@m"},
+		},
+		{
 			name: "the empty wire name is a name like any other",
 			doc: irtest.DocOf(
 				owning("m", based("b"), wired("m.empty", "")),
@@ -413,4 +426,35 @@ func TestFlattenedProperties_ReadsEachModelAndAliasOnce(t *testing.T) {
 				"steps around 100, 200, 400 grow linearly: %v", steps)
 		})
 	}
+}
+
+// ExampleFlattenedProperties lays out an error response composing a success
+// envelope and, after it, a failure schema, as an emitter laying out a struct
+// reads it: the failure's success overrides the envelope's and stays required,
+// the envelope's result is required by the failure's Requires, and a name no
+// member declares is left to the catch-all.
+func ExampleFlattenedProperties() {
+	types := ir.TypeRegistry{
+		"t/envelope": &ir.Model{ID: "t/envelope", Properties: []ir.Property{
+			{ID: "p/envelope/success", WireName: "success", Type: ir.TypeRef{Target: "t/true"}, Required: true},
+			{ID: "p/envelope/result", WireName: "result", Type: ir.TypeRef{Target: "t/page"}},
+		}},
+		"t/failure": &ir.Model{ID: "t/failure", Requires: []string{"result", "code"}, Properties: []ir.Property{
+			{ID: "p/failure/success", WireName: "success", Type: ir.TypeRef{Target: "t/false"}},
+			{ID: "p/failure/errors", WireName: "errors", Type: ir.TypeRef{Target: "t/errors"}},
+		}},
+		"t/response": &ir.Model{ID: "t/response", Mixins: []ir.TypeRef{{Target: "t/envelope"}, {Target: "t/failure"}}},
+	}
+
+	f := ir.FlattenedProperties(types, "t/response")
+	for _, fp := range f.Properties {
+		fmt.Printf("%s: %s from %s, required %t, overriding %d\n",
+			fp.Property.EffectiveWireName(), fp.Property.Type.Target, fp.Owner, fp.Required, len(fp.Overridden))
+	}
+	fmt.Println("undeclared:", f.Undeclared)
+	// Output:
+	// success: t/false from t/failure, required true, overriding 1
+	// result: t/page from t/envelope, required true, overriding 0
+	// errors: t/errors from t/failure, required false, overriding 0
+	// undeclared: [code]
 }
