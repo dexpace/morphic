@@ -24,6 +24,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "morphic-reviewing-prs" / "scripts"))
 import artifact_scan  # noqa: E402  (a script of the review skill)
 import review_setup  # noqa: E402  (a script of the review skill)
+from artifact_scan import run  # noqa: E402  (the same helper, not a copy)
 
 SUBJECT_CAP = 72
 # A line review_setup marks as needing a fix.
@@ -32,10 +33,6 @@ MARKED = re.compile(r"OVER|NOT |MISSING|but the title")
 EXPORTED = re.compile(r"^-(func (\((\w+ )?\*?[A-Z][^)]*\) )?[A-Z]\w*|type [A-Z]\w*)")
 PUBLIC_GO = ["*.go", ":(exclude)*_test.go", ":(glob,exclude)**/internal/**",
              ":(glob,exclude)cmd/**", ":(glob,exclude)**/testdata/**"]
-
-
-def run(*args: str) -> str:
-    return subprocess.run(args, check=True, capture_output=True, text=True).stdout
 
 
 def subject_lines(subjects: list[str]) -> list[tuple[str, bool]]:

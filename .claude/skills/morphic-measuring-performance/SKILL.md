@@ -14,7 +14,7 @@ busy machine measures the machine.
 | Claim | Measure |
 |---|---|
 | faster or cheaper | `scripts/compare_cost.py`: instructions retired, base and head alternating, the median and range of each |
-| no cost on the common path | the same over the golden spec (`.claude/skills/morphic-verifying-changes/scripts/golden_spec.py`) and over a large input of the old shape |
+| no cost on the common path | the same over the golden spec and a large input of the old shape (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#price-common-path`) |
 | linear in the input | count steps through a budget (`references/cost-tests.md#count-work-not-wall-clock`) at n, 2n and 4n and assert the marginal growth (`references/cost-tests.md#marginal-growth-on-one-path`) |
 | allocation-free | `testing.AllocsPerRun` under `-race -covermode=atomic`, the fewest of single runs (`references/cost-tests.md#count-in-the-gates-build`) |
 | an optimization holds | a counting seam the test reads, since an optimization changes no output (`references/cost-tests.md#counting-seam-for-optimizations`) |
