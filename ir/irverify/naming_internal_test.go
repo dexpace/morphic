@@ -45,11 +45,16 @@ func TestCheckNaming_VisitingCostsNoAllocation(t *testing.T) {
 // TestNameExempt_IsTheOptionalNodesOwnNameAlone holds the exemption to the one
 // Naming a listed node is named by. No ir type tells the parts apart, since a
 // primitive holds no Naming but its name, so the node here is the test's own:
-// one carrying a second Naming, which is not its name, held inside an unlisted
-// node whose Name is not exempt either.
+// one carrying a second Naming, which is not its name, and a node of its own
+// inside it, held beside an unlisted node. No Name but the listed node's is
+// exempt.
 func TestNameExempt_IsTheOptionalNodesOwnNameAlone(t *testing.T) {
 	t.Parallel()
-	type twoNamings struct{ Name, Other ir.Naming }
+	type inner struct{ Name ir.Naming }
+	type twoNamings struct {
+		Name, Other ir.Naming
+		Inner       inner
+	}
 	type holder struct {
 		Listed   twoNamings
 		Unlisted struct{ Name ir.Naming }
@@ -63,9 +68,10 @@ func TestNameExempt_IsTheOptionalNodesOwnNameAlone(t *testing.T) {
 		return true
 	}))
 	assert.Equal(t, map[string]bool{
-		"doc.Listed.Name":   true,
-		"doc.Listed.Other":  false,
-		"doc.Unlisted.Name": false,
+		"doc.Listed.Name":       true,
+		"doc.Listed.Other":      false,
+		"doc.Listed.Inner.Name": false,
+		"doc.Unlisted.Name":     false,
 	}, got)
 }
 

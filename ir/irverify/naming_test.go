@@ -360,13 +360,13 @@ func TestVerify_NamelessServerAndResponseAreViolations(t *testing.T) {
 
 // TestVerify_OptionalOwnerExemptsOnlyItsOwnName is the overreach guard: the
 // exemption is keyed on the field the walk reaches a Naming through, so it
-// silences that node's own Naming and no other. A document-wide "an exempt node was seen" flag would pass every
-// test that measures one node at a time and silence the whole corpus.
+// silences that node's own Naming and no other. A document-wide "an exempt node
+// was seen" flag would pass every test that measures one node at a time and
+// silence the whole corpus.
 //
-// It reaches the sibling axis only. The descendant axis, a nameless node inside
-// an exempt one, has no pair to measure with while ir.Primitive is the only
-// exemption, since nothing under a primitive carries a Naming. Whoever adds the
-// next exemption owns that half again.
+// It reaches the sibling axis only. Nothing under a primitive carries a Naming,
+// so TestNameExempt_IsTheOptionalNodesOwnNameAlone measures the descendant
+// axis, a nameless node inside an exempt one, through a node of its own.
 func TestVerify_OptionalOwnerExemptsOnlyItsOwnName(t *testing.T) {
 	t.Parallel()
 	doc := primitiveDoc()
