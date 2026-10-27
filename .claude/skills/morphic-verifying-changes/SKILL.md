@@ -5,8 +5,8 @@ description: Use when writing or changing a test, a verifier, or a lint or archt
 
 # Verifying changes in morphic
 
-A result is evidence only when something outside it could have disagreed. Reading the code,
-reading the test, regenerating a golden or compiling one declaration order cannot disagree with
+A result is evidence only when something outside it could have disagreed. Reading the code
+or the test, regenerating a golden or compiling one declaration order cannot disagree with
 you. A planted defect, a probe, a `main` control or the opposite order can. `CLAUDE.md`'s "Verify
 by executing" is the rule; this skill is how.
 
@@ -31,18 +31,20 @@ by executing" is the rule; this skill is how.
   another test all look like verdicts.
 - Iterate with `go test $(python3 .claude/skills/morphic-verifying-changes/scripts/affected_packages.py)`,
   run `go test ./...` before concluding, and `make gate` before calling it done. Coverage counts
-  each package's own tests, so `go test` passing says nothing about the coverage gate.
+  each package's own tests: `go test` passing is not the coverage gate.
 
 ## Scripts
 
 Run each with `python3`; its docstring gives the options.
 
-- `scripts/mutate.py FILE OLD NEW -- GO-TEST-COMMAND` plants one literal replacement, checks that
-  it compiles, runs the tests and restores the file whatever happens. `--batch MUTANTS` plants a
+- `scripts/mutate.py FILE OLD NEW -- GO-TEST-COMMAND` plants one literal replacement, checks it
+  compiles, runs the tests and always restores the file. `--batch MUTANTS` plants a
   JSON-lines set in turn, after the command passes on the clean tree.
-- `scripts/sweep.py [-b BASE] [CORPUS...]` compiles a corpus (default `testdata/`) with
-  `cmd/morphic` built at BASE and at the working tree, and reports each difference.
+- `scripts/sweep.py [-b BASE] [CORPUS...]` compiles a corpus (default `testdata/`) at BASE
+  and at the working tree, and reports each difference.
 - `scripts/affected_packages.py [BASE]` lists the packages a change can affect.
+- `scripts/golden_spec.py [--count KEY...]` prints the cached golden spec's path, or objects
+  per key.
 
 ## References
 

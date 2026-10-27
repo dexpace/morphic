@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+"""Fetch the golden spec (CLAUDE.md, "Priority") once at a pinned revision, and print its path
+or count what it holds.
+
+Usage: python3 golden_spec.py [--rev REV] [--count KEY...]
+
+REV is a commit of cloudflare/api-schemas (default its current HEAD, resolved to a commit so the
+result names what was measured). The spec is cached outside the repository, under the system's
+temporary directory, one file per commit. Without --count, prints the cached file's path, for
+use as $(python3 golden_spec.py). With --count, prints how many JSON objects in the spec carry
+each KEY. The commit measured goes to stderr. Exit 0 on success, 2 when it cannot fetch or read.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+import tempfile
+import traceback
+from pathlib import Path
+from typing import Callable
+
+REPO = "cloudflare/api-schemas"
+FILE = "openapi.json"
+
+
+def gh(*args: str) -> bytes:
+    return subprocess.run(["gh", "api", *args], check=True, capture_output=True).stdout
+
+
+def resolve(rev: str) -> str:
+    return gh(f"repos/{REPO}/commits/{rev}", "--jq", ".sha").decode().strip()
+
+
+def fetch(sha: str) -> bytes:
+    return gh("-H", "Accept: application/vnd.github.raw", f"repos/{REPO}/contents/{FILE}?ref={sha}")
+
+
+def cached(sha: str, cache: Path, get: Callable[[str], bytes] = fetch) -> Path:
+    """Return the spec's path at commit sha under cache, fetching it only when absent. A fetch
+    lands in a temporary file first, so an interrupted one never leaves a partial spec."""
+    path = cache / sha / FILE
+    if path.is_file():
+        return path
+    path.parent.mkdir(parents=True, exist_ok=True)
+    partial = path.with_suffix(".partial")
+    partial.write_bytes(get(sha))
+    json.loads(partial.read_bytes())  # refuse to cache what is not a JSON document
+    partial.replace(path)
+    return path
+
+
+def count_keys(document: object, keys: list[str]) -> dict[str, int]:
+    """Count the JSON objects anywhere in document that carry each key, without recursion, so a
+    deep document cannot exhaust the stack."""
+    counts = dict.fromkeys(keys, 0)
+    stack = [document]
+    while stack:
+        node = stack.pop()
+        if isinstance(node, dict):
+            for k in keys:
+                if k in node:
+                    counts[k] += 1
+            stack.extend(node.values())
+        elif isinstance(node, list):
+            stack.extend(node)
+    return counts
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description="Fetch and measure the golden spec.")
+    p.add_argument("--rev", default="HEAD")
+    p.add_argument("--count", nargs="+", metavar="KEY")
+    args = p.parse_args(sys.argv[1:] if argv is None else argv)
+    try:
+        sha = resolve(args.rev)
+        path = cached(sha, Path(tempfile.gettempdir()) / "morphic-golden-spec")
+    except subprocess.CalledProcessError as e:
+        print(f"golden_spec: {(e.stderr or b'').decode().strip() or e}", file=sys.stderr)
+        return 2
+    print(f"golden spec {REPO}@{sha}: {path}", file=sys.stderr)
+    if not args.count:
+        print(path)
+        return 0
+    for key, n in count_keys(json.loads(path.read_bytes()), args.count).items():
+        print(f"{key}: {n}")
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except Exception:  # a crash is no verdict: exit 2, never a code that means one
+        traceback.print_exc()
+        sys.exit(2)

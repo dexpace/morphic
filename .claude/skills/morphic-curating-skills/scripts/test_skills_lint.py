@@ -119,7 +119,8 @@ class LintTest(unittest.TestCase):
         want = [
             f"{ref}:3: a rule's heading must be followed by its `key`",
             f"{ref}:16: key do-the-thing is also used at {ref}:9",
-            f"{ref}:21: rule extra has Rule, Also, Why bullets, not Rule, Why and an optional Probe",
+            f"{ref}:21: rule extra has Rule, Also, Why bullets, "
+            "not Rule, Why and an optional Probe",
             f"{ref}:33: rule seen has a line that is no bullet of it",
             f"{ref}:35: rule no-why has Rule, Probe bullets, not Rule, Why and an optional Probe",
             f"{ref}:41: rule uncited cites no PR or issue in its Why",

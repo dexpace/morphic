@@ -112,8 +112,9 @@ Probes that found what earlier review rounds missed. Each one runs through
 `price-common-path`
 
 - **Rule.** When a change adds work to a path every input takes, compare instructions retired on
-  base and head for a large input of the old shape and for the golden spec: `/usr/bin/time -l` on
-  macOS, `perf stat -e instructions:u` on Linux.
+  base and head for a large input of the old shape and for the golden spec
+  (`.claude/skills/morphic-verifying-changes/scripts/golden_spec.py` prints its path):
+  `/usr/bin/time -l` on macOS, `perf stat -e instructions:u` on Linux.
 - **Why.** Allocation counts miss CPU work, and load skews wall-clock time (#1133).
 
 ## Fuzz a rewritten reader against the one it replaces
