@@ -39,13 +39,15 @@ CLOSING = re.compile(r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?):? +([\w.-]+/[\w
 # The review's merge commit needs an identity, and a fresh clone may configure none.
 IDENTITY = {f"GIT_{who}_{what}": value for who in ("AUTHOR", "COMMITTER")
             for what, value in (("NAME", "review_setup"), ("EMAIL", "review_setup@localhost"))}
-# The domain skill to load for the files a change touches.
+# The domain skill to load for the files a change touches, as each skill's description names them.
 DOMAINS = [
     (re.compile(r"^(compilers/openapi/|docs/compilers/openapi\.md|docs/parser-library\.md"
-                r"|testdata/(conformance/)?openapi/)"),
+                r"|testdata/([^/]+/)?openapi/)"),
      "morphic-openapi-compiler"),
-    (re.compile(r"^(ir/|pass/|docs/ir-design\.md|docs/emitter-design\.md)"),
+    (re.compile(r"^(ir/|pass/|docs/ir-design\.md|docs/emitter-design\.md"
+                r"|testdata/unwitnessed\.golden\.txt$)"),
      "morphic-changing-the-ir"),
+    (re.compile(r"^\.claude/skills/"), "morphic-curating-skills"),
 ]
 # A title of this type makes a cost claim, which the performance skill measures.
 PERF_TITLE = re.compile(r"^perf(\([^)]+\))?!?:")

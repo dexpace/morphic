@@ -85,7 +85,15 @@ class FilesTest(unittest.TestCase):
     def test_the_domain_skill_follows_the_files(self):
         openapi = ["morphic-openapi-compiler"]
         self.assertEqual(rs.domain_hints(["docs/parser-library.md"]), openapi)
-        self.assertEqual(rs.domain_hints(["testdata/conformance/openapi/a.yaml"]), openapi)
+        for spec in ("testdata/conformance/openapi/a.yaml", "testdata/golden/openapi/b.json",
+                     "testdata/dangling/openapi/c.yaml", "testdata/openapi/d.yaml"):
+            with self.subTest(spec=spec):
+                self.assertEqual(rs.domain_hints([spec]), openapi)
+        self.assertEqual(rs.domain_hints(["testdata/e.yaml"]), [])
+        self.assertEqual(rs.domain_hints(["testdata/unwitnessed.golden.txt"]),
+                         ["morphic-changing-the-ir"])
+        self.assertEqual(rs.domain_hints([".claude/skills/x/SKILL.md"]),
+                         ["morphic-curating-skills"])
         ir = ["morphic-changing-the-ir"]
         self.assertEqual(rs.domain_hints(["ir/a.go", "docs/ir-design.md"]), ir)
         self.assertEqual(rs.domain_hints(["pass/validate.go"], "perf(pass)!: x"),
