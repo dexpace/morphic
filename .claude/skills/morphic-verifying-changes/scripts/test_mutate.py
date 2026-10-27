@@ -38,6 +38,10 @@ class VerdictTest(unittest.TestCase):
             (1, "--- FAIL: TestA (0.00s)\n    --- FAIL: TestA/sub (0.00s)\nFAIL\n", mutate.KILLED),
             (0, "ok  \tpkg\t0.1s\n", mutate.SURVIVED),
             (0, "?   \tpkg\t[no test files]\n", mutate.UNVERIFIED),
+            (0, "ok  \tpkg\t0.1s [no tests to run]\n", mutate.UNVERIFIED),
+            (0, "ok  \tpkg\t0.1s\tcoverage: 0.0% of statements [no tests to run]\n",
+             mutate.UNVERIFIED),
+            (0, "ok  \tpkg\t0.1s [no tests to run]\nok  \tpkg2\t0.1s\n", mutate.SURVIVED),
             (1, "# pkg\nx.go:1: undefined: y\nFAIL\tpkg [build failed]\n", mutate.UNVERIFIED),
             (1, "FAIL\t./nope [setup failed]\n", mutate.UNVERIFIED),
             (1, "exit status 3\n", mutate.UNVERIFIED),
@@ -190,9 +194,18 @@ class BatchTest(unittest.TestCase):
         self.file.write_text("keep good keep\nmore\nbad\n")
         code, out = self.run_batch(self.mutant("good", "worse"))
         self.assertEqual(code, mutate.UNVERIFIED, out)
-        self.assertIn("does not pass on the clean tree", out)
+        self.assertIn("must pass on the clean tree", out)
         self.assertEqual(self.marker.read_text(), "x", "only the baseline ran")
         self.assertEqual(self.file.read_text(), "keep good keep\nmore\nbad\n")
+
+    def test_a_baseline_that_runs_no_test_judges_no_mutant(self):
+        self.command = [sys.executable, "-c",
+                        f"open({str(self.marker)!r}, 'a').write('x')\n"
+                        "print('ok  \\tfake/pkg\\t0.1s [no tests to run]')"]
+        code, out = self.run_batch(self.mutant("good", "bad"))
+        self.assertEqual(code, mutate.UNVERIFIED, out)
+        self.assertIn("no test ran", out)
+        self.assertEqual(self.marker.read_text(), "x", "only the baseline ran")
 
 
 if __name__ == "__main__":

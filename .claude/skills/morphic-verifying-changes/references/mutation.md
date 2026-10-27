@@ -29,8 +29,8 @@ the ways a verdict still lies.
 `mutation-controls`
 
 - **Rule.** Plant a set of mutants with `scripts/mutate.py --batch`, which judges none unless the
-  command passes on the clean tree, and include a no-op control (a changed comment) that must
-  survive. Keep probe programs outside the module tree.
+  command passes on the clean tree and runs a test, and include a no-op control (a changed
+  comment) that must survive. Keep probe programs outside the module tree.
 - **Why.** A quoting slip made `go test` match no packages, so every mutant read as killed, and a
   stray probe `main` package in the worktree kills every mutant through archtest (#591).
 

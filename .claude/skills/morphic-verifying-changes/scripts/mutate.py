@@ -6,17 +6,18 @@ Usage: python3 mutate.py FILE OLD NEW -- TEST-COMMAND...
 
 OLD must occur in FILE exactly once, read literally; NEW replaces it. TEST-COMMAND runs from the
 current directory, such as `go test ./ir/...`, and the verdict is read from `go test` output: a
-kill needs a `--- FAIL` line, a survival an `ok` line. A Go file's package and tests must build
-with the mutant in place, or there is no verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every
+kill needs a `--- FAIL` line, a survival an `ok` line from a package that ran a test, so a -run
+pattern matching no test gives no verdict. A Go file's package and tests must build with the
+mutant in place, or there is no verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every
 failing test line, then the file that keeps the run's whole output, as instrumentation needs. Exit
 0 KILLED, 1 SURVIVED, 2 UNVERIFIED or a usage error.
 
 MUTANTS is a JSON-lines file, one {"file", "old", "new"} object per line with an optional "name";
 blank lines and lines starting with # are skipped, and a relative file is read from the current
 directory. Every mutant is checked before any runs, and TEST-COMMAND must pass on the clean tree,
-or no mutant can be judged. Prints a line per mutant and a tally, and keeps each run's output in a
-directory, the baseline's as baseline.txt and the mutants' numbered in batch order. Exit 0 when
-every mutant was killed, 1 when one survived, 2 when one has no verdict.
+running a test, or no mutant can be judged. Prints a line per mutant and a tally, and keeps each
+run's output in a directory, the baseline's as baseline.txt and the mutants' numbered in batch
+order. Exit 0 when every mutant was killed, 1 when one survived, 2 when one has no verdict.
 """
 from __future__ import annotations
 
@@ -31,6 +32,7 @@ from pathlib import Path
 
 FAIL_LINE = re.compile(r"^\s*--- FAIL", re.M)
 OK_LINE = re.compile(r"^ok\s", re.M)
+NO_TESTS = "[no tests to run]"
 NO_BUILD = re.compile(r"\[build failed\]|\[setup failed\]|^# ", re.M)
 KILLED, SURVIVED, UNVERIFIED = 0, 1, 2
 LABELS = ("KILLED", "SURVIVED", "UNVERIFIED")
@@ -45,9 +47,12 @@ def verdict(status: int, output: str) -> tuple[int, str]:
         lines = [line for line in output.splitlines() if NO_BUILD.search(line)][:10]
         return UNVERIFIED, "UNVERIFIED: a package did not build, so no verdict\n" + "\n".join(lines)
     if status == 0:
-        oks = len(OK_LINE.findall(output))
+        oks = [line for line in output.splitlines() if OK_LINE.match(line)]
+        ran = [line for line in oks if NO_TESTS not in line]
+        if ran:
+            return SURVIVED, f"SURVIVED: {len(ran)} package(s) passed with the mutant in place"
         if oks:
-            return SURVIVED, f"SURVIVED: {oks} package(s) passed with the mutant in place"
+            return UNVERIFIED, "UNVERIFIED: no test ran; check the -run pattern"
         return UNVERIFIED, "UNVERIFIED: the command passed but no test package reported ok"
     if not fails:
         head = "\n".join(output.splitlines()[:15])
@@ -161,8 +166,8 @@ def batch(path: Path, command: list[str]) -> int:
     (outputs / "baseline.txt").write_text(run.stdout)
     code, text = verdict(run.returncode, run.stdout)
     if code != SURVIVED:
-        print("mutate: the command does not pass on the clean tree, so no mutant can be judged\n"
-              + text, file=sys.stderr)
+        print("mutate: the command must pass on the clean tree, running a test, before any mutant"
+              " can be judged\n" + text, file=sys.stderr)
         return UNVERIFIED
     tally = [0, 0, 0]
     for n, m in enumerate(mutants, 1):
