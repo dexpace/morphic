@@ -2024,11 +2024,14 @@ operation's own, lower as the document's do ([`servers`](#servers)): each server
 it, however many mounts reach it. An operation names its own servers on `Operation.Servers` and its
 path item's where it declares none, since OpenAPI says the operation's override the path item's; one
 that neither declares names none, and its service's apply (ir-design §10). A path item's list is
-registered even where every one of its operations overrides it. A path item that mounts no operation
-registers its servers too, named by nothing, and keeps its `x-*` names on the service instead, or on
-the declaring operation's HTTP binding for a callback expression, under `openapi:pathItem/<item
-pointer>/<key>`, the item's pointer in the key since one carrier holds every such item; it is
-reported as one `openapi/degraded-construct` warning at the mount.
+registered even where every one of its operations overrides it. Two lists are not: one a nearer
+layer of a mount overrides, which [`path-item-ref-fields`](#path-item-ref-fields) reports rather
+than lowers, and one written by a component path item no reference reaches, kept whole with that
+component ([`unreferenced-components`](#unreferenced-components)). A path item that mounts no
+operation registers its servers too, named by nothing, and keeps its `x-*` names on the service
+instead, or on the declaring operation's HTTP binding for a callback expression, under
+`openapi:pathItem/<item pointer>/<key>`, the item's pointer in the key since one carrier holds every
+such item; it is reported as one `openapi/degraded-construct` warning at the mount.
 
 - Cases: `webhooks`, `callbacks`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`

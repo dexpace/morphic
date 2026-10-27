@@ -1,5 +1,5 @@
-// Package servers lowers the servers a document declares, wherever it declares
-// them, into one registry keyed by ID, and names the ones a scope uses
+// Package servers lowers the servers a document declares, whichever object
+// declares them, into one registry keyed by ID, and names the ones a scope uses
 // (docs/compilers/openapi.md#servers, docs/compilers/openapi.md#path-item-servers).
 //
 // It is its own package because the service walk and the operation walk both

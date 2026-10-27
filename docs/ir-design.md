@@ -75,8 +75,9 @@ type Document struct {
     Messages    map[MessageID]Message  // message registry — messages are reused across channels and
                                        // referenced by identity from operations and replies (AsyncAPI 3)
     Auth        map[AuthID]AuthScheme  // auth scheme registry
-    Servers     map[ServerID]Server    // server registry: every server the source declares,
-                                       // wherever it declares it; scopes name them by ID (§10)
+    Servers     map[ServerID]Server    // server registry: the servers the source declares,
+                                       // whichever object declares them; scopes name them by ID
+                                       // (§10)
     TagDefs     []TagDef               // tag metadata registry: {Name, Docs, Parent, Kind}; tag
                                        // *membership* stays []string on the tagged nodes
                                        // (OpenAPI/AsyncAPI tag objects)
@@ -349,7 +350,7 @@ it sees. Changes made together in one bump are listed together under it.
   bytes; the version check refuses it a 0.21.0 document all the same.
 - **0.22.0** — servers became entities, and three serialization facts gained homes:
   - `Server` gained `ID` and `Provenance`, and `Document.Servers` became a registry keyed by
-    `ServerID` that holds every server the source declares, wherever it declares it (§10).
+    `ServerID` that holds the servers the source declares, whichever object declares them (§10).
     `Service.Servers` and `Channel.Servers` name servers by ID where they had indexed a list, and
     an empty one names no server where it had meant every server. `Operation` gained `Servers`, the
     servers it is sent to in place of its service's. The OpenAPI compiler had kept a path item's
@@ -2286,18 +2287,19 @@ type Server struct {
 }
 ```
 
-**A registry, and scopes that name it.** `Document.Servers` holds every server the source declares,
-keyed by ID, wherever the source declares it: a document's own list, an OpenAPI path item's or
-operation's, an AsyncAPI document's name-keyed map. The scopes a server serves name it:
-`Service.Servers`, `Channel.Servers` and `Operation.Servers` are each a list of IDs, most preferred
-first, since a consumer that needs one server, an SDK client's default among them, takes the first
-it can use (emitter-design §8.10). An operation's non-empty list replaces its service's for that
-operation, as its `Auth` replaces its service's; an empty one leaves its service's. An empty service
-or channel list names no server. It does not mean every server, because the registry holds servers
-that serve one operation alone; a format that reads a scope naming none as served by all of them, as
-AsyncAPI reads a channel, lists them all. A server no scope names is still a declaration and stays:
-an OpenAPI path item's list that every one of its operations overrides is registered and named by
-none.
+**A registry, and scopes that name it.** `Document.Servers` holds the servers the source declares,
+keyed by ID, whichever object declares them: a document's own list, an OpenAPI path item's or
+operation's, an AsyncAPI document's name-keyed map. Where a compiler keeps an object whole rather
+than lowering it, as the OpenAPI compiler keeps a component no reference reaches, its servers stay
+inside it. The scopes a server serves name it: `Service.Servers`, `Channel.Servers` and
+`Operation.Servers` are each a list of IDs, most preferred first, since a consumer that needs one
+server, an SDK client's default among them, takes the first it can use (emitter-design §8.10). An
+operation's non-empty list replaces its service's for that operation, as its `Auth` replaces its
+service's; an empty one leaves its service's. An empty service or channel list names no server. It
+does not mean every server, because the registry holds servers that serve one operation alone; a
+format that reads a scope naming none as served by all of them, as AsyncAPI reads a channel, lists
+them all. A server no scope names is still a declaration and stays: an OpenAPI path item's list that
+every one of its operations overrides is registered and named by none.
 
 **Identity.** A server is identified by where it is declared, the pointer of its Server Object in
 the document declaring it (`server/openapi/paths/~1a/servers/0`), so a path item two paths mount

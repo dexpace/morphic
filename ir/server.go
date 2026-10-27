@@ -2,8 +2,8 @@ package ir
 
 // Server is a named endpoint template (ir-design §10). Servers are named
 // entities (AsyncAPI name-keyed servers, OpenAPI 3.2 Server.name), registered in
-// Document.Servers wherever the source declares them, and the services,
-// channels and operations they serve name them by ID.
+// Document.Servers whichever object declares them, and the services, channels
+// and operations they serve name them by ID.
 type Server struct {
 	// ID is the server's stable synthetic identity, derived from where the source
 	// declares it.

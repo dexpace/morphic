@@ -79,8 +79,8 @@ var pointerDerived = map[reflect.Type]bool{
 // grammar could not have produced or, where the class is pointer-derived, a path
 // that is not the pointer the node records.
 //
-// It is the grammar checkIDs holds a type's or a scheme's to, for the classes
-// that have no registry for checkIDs to read.
+// It is the grammar checkIDs holds a type's, a scheme's or a server's to, for the
+// classes that have no registry for checkIDs to read.
 func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflect.Type, id string, at ir.WalkPath) []Violation {
 	if id == "" {
 		noun := ir.RefNoun(class)
