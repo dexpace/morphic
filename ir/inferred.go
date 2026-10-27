@@ -6,19 +6,14 @@ import "strings"
 // name holds none.
 const inferredSeparator = ","
 
-// fewInferred is how many names the set reading a list is sized for. A map that
-// small and local lives on the stack, so a list of up to this many names is read
-// with no allocation, and a marker names the handful of heuristics one fact met.
-const fewInferred = 8
-
 // Inferred lists the heuristics that produced a fact (ir-design §12): each
 // heuristic's name once, comma-separated, in the order first written, none
 // empty. The empty list marks a declared fact. Names compare exactly, and the IR
 // declares no set of them.
 //
-// JoinInferred writes the form and IsCanonical reads it. A conversion from a
-// string skips both, and so does a decoded document, so irverify holds every
-// stored list to the form.
+// [JoinInferred] writes the form and [Inferred.IsCanonical] reads it. A
+// conversion from a string skips both, and so does a decoded document, so
+// irverify holds every stored list to the form.
 type Inferred string
 
 // JoinInferred joins inferred-marker lists into one in the form [Inferred]
@@ -31,7 +26,7 @@ type Inferred string
 // A name is kept through a set, so a long list costs its length, not its square.
 func JoinInferred(lists ...Inferred) Inferred {
 	names := make([]string, 0, len(lists))
-	listed := make(map[string]struct{}, fewInferred)
+	listed := make(map[string]struct{})
 	for _, list := range lists {
 		for name := range strings.SplitSeq(string(list), inferredSeparator) {
 			if _, repeat := listed[name]; repeat || name == "" {
@@ -48,12 +43,13 @@ func JoinInferred(lists ...Inferred) Inferred {
 // JoinInferred(l) == l: empty, or names that are each non-empty and listed once.
 //
 // irverify asks it of every list a document stores, decoded ones included, so it
-// reads l once through a set, and allocates nothing for up to fewInferred names.
+// reads l once through a set. The set is a local map, which keeps its first few
+// entries on the stack, so the lists a compiler writes cost no allocation.
 func (l Inferred) IsCanonical() bool {
 	if l == "" {
 		return true
 	}
-	listed := make(map[string]struct{}, fewInferred)
+	listed := make(map[string]struct{})
 	for name := range strings.SplitSeq(string(l), inferredSeparator) {
 		if _, repeat := listed[name]; repeat || name == "" {
 			return false

@@ -33,8 +33,8 @@ func TestJoinInferred_ListsEachNameOnceInFirstWrittenOrder(t *testing.T) {
 		{"a list with a leading and a trailing separator", []ir.Inferred{",a,"}, "a"},
 		{"a name repeated inside one list", []ir.Inferred{"a,b,a"}, "a,b"},
 		{"names compare exactly and nothing is trimmed", []ir.Inferred{" a", "a"}, " a,a"},
-		{"a repeat past the names a small set holds", []ir.Inferred{distinctNames(ir.FewInferred + 1), "n0"},
-			distinctNames(ir.FewInferred + 1)},
+		{"a repeat past the names a small set holds", []ir.Inferred{distinctNames(stackNames + 1), "n0"},
+			distinctNames(stackNames + 1)},
 		{"the heuristics the compiler writes", []ir.Inferred{
 			"group-path-prefix", "streaming-media-type", "extension-promotion",
 		}, "group-path-prefix,streaming-media-type,extension-promotion"},
@@ -45,6 +45,12 @@ func TestJoinInferred_ListsEachNameOnceInFirstWrittenOrder(t *testing.T) {
 		})
 	}
 }
+
+// stackNames is the most names a set holds before it allocates: a local map
+// keeps one group of eight entries on the stack and moves to the heap past it.
+// The tests read lists on both sides of it, since a set that grows has to keep
+// what it held.
+const stackNames = 8
 
 // distinctNames returns a list of n distinct names, n0 to n(n-1).
 func distinctNames(n int) ir.Inferred {
@@ -76,8 +82,8 @@ func TestInferred_IsCanonicalIsWhatJoinInferredKeeps(t *testing.T) {
 		{",", false},
 		{"a,a", false},
 		{"b,a,b", false},
-		{distinctNames(ir.FewInferred + 1), true},
-		{distinctNames(ir.FewInferred+1) + ",n0", false},
+		{distinctNames(stackNames + 1), true},
+		{distinctNames(stackNames+1) + ",n0", false},
 	} {
 		t.Run(string(tc.list), func(t *testing.T) {
 			t.Parallel()
@@ -131,7 +137,7 @@ func extended(level []string, alphabet string) []string {
 // names read before the set grew are still in it.
 func TestInferred_IsCanonicalFindsEveryRepeatAndEmptyName(t *testing.T) {
 	t.Parallel()
-	for _, n := range []int{2, ir.FewInferred, ir.FewInferred + 1, 4 * ir.FewInferred} {
+	for _, n := range []int{2, stackNames, stackNames + 1, 4 * stackNames} {
 		distinct := strings.Split(string(distinctNames(n)), ",")
 		assert.True(t, distinctNames(n).IsCanonical(), "%d distinct names", n)
 		for i := range n {
@@ -156,10 +162,10 @@ func withName(list []string, i int, name string) ir.Inferred {
 // irverify asks it of every list a document stores. It is not run in parallel:
 // AllocsPerRun measures the process.
 func TestInferred_IsCanonicalAllocatesNothingForAFewNames(t *testing.T) {
-	for n := 1; n <= ir.FewInferred; n++ {
+	for n := 1; n <= stackNames; n++ {
 		l := distinctNames(n)
 		assert.Zero(t, testing.AllocsPerRun(10, func() { _ = l.IsCanonical() }), "%d distinct names", n)
 	}
-	repeat := distinctNames(ir.FewInferred-1) + ",n0"
+	repeat := distinctNames(stackNames-1) + ",n0"
 	assert.Zero(t, testing.AllocsPerRun(10, func() { _ = repeat.IsCanonical() }), "%q", repeat)
 }
