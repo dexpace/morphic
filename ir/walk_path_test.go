@@ -75,9 +75,9 @@ func TestWalkPath_ZeroValueIsEmpty(t *testing.T) {
 	assert.Equal(t, []byte("kept"), p.AppendTo([]byte("kept")))
 }
 
-// Roots that embed a primitive: Outer through two embedded structs, Shadowed
-// beside a Name of its own, which hides the promoted one from Go but not from a
-// walk.
+// Roots that embed a primitive: Outer through Middle, so a primitive's Name is
+// promoted through three embedded structs, and Shadowed beside a Name of its
+// own, which hides the promoted one from Go but not from a walk.
 type (
 	Outer    struct{ Middle }
 	Middle   struct{ ir.Primitive }
@@ -143,7 +143,7 @@ func TestWalkPath_FieldIsTheFieldThePathEndsIn(t *testing.T) {
 	assert.Equal(t, []fieldAt{none, none, none, none}, fieldsOf(Outer{})["doc"],
 		"Outer and the three structs it embeds, each spelled as the root")
 	assert.Equal(t, []fieldAt{{outer, "Name", true}}, fieldsOf(Outer{})["doc.Name"],
-		"a field promoted through two embedded structs is spelled on the outermost")
+		"a field promoted through three embedded structs is spelled on the outermost")
 
 	shadowed := reflect.TypeFor[Shadowed]()
 	assert.Equal(t, []fieldAt{{shadowed, "Name", true}, {shadowed, "Name", true}}, fieldsOf(Shadowed{})["doc.Name"],

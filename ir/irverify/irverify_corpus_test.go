@@ -73,13 +73,13 @@ func TestVerify_Corpus(t *testing.T) {
 }
 
 // TestWalkChecks_ACleanValueCostsNothing holds the walking checks, together, to
-// costing nothing for a value none has anything to report on, in a document the
-// OpenAPI compiler produces: each builds a path, or any other string, only once
-// it has a violation to place. extensions-x.yaml writes an extension on every
-// object OpenAPI admits one on, so its document reaches nearly every node a
-// compile produces. checkReferentialIntegrity is left out: a reference to what
-// the walk has yet to declare is kept with its path, ir.IDReferences' design,
-// which ir pins. It is not run in parallel: AllocsPerRun measures the process.
+// costing nothing for a value none reports on, in a compiled document.
+// extensions-x.yaml writes an extension on every object OpenAPI admits one on,
+// so its document reaches nearly every node a compile produces, and holds none
+// of the costs Verify's doc excepts but the one left out here:
+// checkReferentialIntegrity keeps a reference to what the walk has yet to
+// declare with its path, ir.IDReferences' design, which ir pins. It is not run
+// in parallel: AllocsPerRun measures the process.
 func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 	data, err := os.ReadFile("../../testdata/conformance/openapi/extensions-x.yaml")
 	require.NoError(t, err)

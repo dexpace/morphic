@@ -8,10 +8,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// AllocatingVisits walks doc with visitors and returns, in walk order, the path
-// of each visit that must allocate, once for each visitor allocating there.
-// Each visit is handed the walk's own path, which the zero ir.WalkPath cannot
-// stand in for: it renders empty without allocating.
+// AllocatingVisits walks doc with visitors and returns the path of each visit
+// that must allocate, once for each visitor allocating there, in walk order,
+// one walk per 64 visitors as ir.WalkValues makes. A visit is handed the walk's
+// own path: the zero ir.WalkPath renders empty.
 //
 // Each visitor is shown the walk it would be shown alone, so one pruning even
 // at the root hides nothing from the others. A visit is made once before it is
