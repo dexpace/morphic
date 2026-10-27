@@ -38,9 +38,9 @@ Run each from the repository root as
 `python3 .claude/skills/morphic-verifying-changes/scripts/<name>.py`; its docstring gives the
 options.
 
-- `scripts/mutate.py FILE OLD NEW -- GO-TEST-COMMAND` plants one literal replacement, checks it
-  compiles, runs the tests, keeps their output and always restores the file. `--batch MUTANTS`
-  plants a JSON-lines set in turn, after the command passes on the clean tree.
+- `scripts/mutate.py FILE OLD NEW -- TEST-COMMAND` plants one literal replacement, checks it
+  compiles, runs `go test` or unittest, keeps the output, always restores the file.
+  `--batch MUTANTS` plants a JSON-lines set in turn, after the command passes on the clean tree.
 - `scripts/sweep.py [-b BASE] [CORPUS...]` compiles a corpus (default `testdata/`) at BASE
   and at the working tree, and reports each difference.
 - `scripts/affected_packages.py [BASE]` lists the packages a change can affect.

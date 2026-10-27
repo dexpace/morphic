@@ -3,6 +3,7 @@
 Run: python3 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
 """
 import contextlib
+import importlib.util
 import io
 import json
 import os
@@ -13,6 +14,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import mutate
 
@@ -45,6 +47,13 @@ class VerdictTest(unittest.TestCase):
             (1, "# pkg\nx.go:1: undefined: y\nFAIL\tpkg [build failed]\n", mutate.UNVERIFIED),
             (1, "FAIL\t./nope [setup failed]\n", mutate.UNVERIFIED),
             (1, "exit status 3\n", mutate.UNVERIFIED),
+            (0, "...\nRan 3 tests in 0.1s\n\nOK\n", mutate.SURVIVED),
+            (0, "\nRan 0 tests in 0.000s\n\nOK\n", mutate.UNVERIFIED),
+            (5, "\nRan 0 tests in 0.000s\n\nNO TESTS RAN\n", mutate.UNVERIFIED),
+            (1, "FAIL: test_x (m.T)\nRan 3 tests in 0.1s\n\nFAILED (failures=1)\n", mutate.KILLED),
+            (1, "ERROR: test_m (unittest.loader._FailedTest)\nRan 1 test in 0.0s\n\n"
+                "FAILED (errors=1)\n", mutate.UNVERIFIED),
+            (1, "Traceback\nRan 3 tests in 0.1s\n", mutate.UNVERIFIED),
         ]
         for status, output, want in cases:
             with self.subTest(output=output):
@@ -56,6 +65,16 @@ class VerdictTest(unittest.TestCase):
         self.assertEqual(code, mutate.KILLED)
         self.assertIn("    --- FAIL: TestA/b (0.00s)", text)
         self.assertIn("note: a panic ended the run", text)
+
+
+class UnittestTest(unittest.TestCase):
+    def test_a_kill_names_its_tests_and_flags_an_error(self):
+        output = ("ERROR: test_y (m.T)\nFAIL: test_x (m.T)\n----\nRan 2 tests in 0.1s\n\n"
+                  "FAILED (failures=1, errors=1)\n")
+        code, text = mutate.verdict(1, output)
+        self.assertEqual(code, mutate.KILLED)
+        self.assertIn("note: an error, not a failed assertion", text)
+        self.assertEqual(mutate.summary(code, text, "m"), "KILLED     m: test_y, test_x")
 
 
 def keep_outputs_in(test: unittest.TestCase, directory: str) -> None:
@@ -129,6 +148,25 @@ class MutateTest(unittest.TestCase):
         proc.send_signal(signal.SIGTERM)
         self.assertEqual(proc.wait(timeout=10), mutate.UNVERIFIED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
+
+    def test_a_python_mutant_must_parse(self):
+        target = Path(self.dir.name) / "planted.py"
+        target.write_text("X = 1\n")
+        code, out = quietly(mutate.main, [str(target), "X = 1", "X = (", "--", "false"])
+        self.assertEqual(code, mutate.UNVERIFIED, out)
+        self.assertIn("the mutant is not Python", out)
+        self.assertEqual(target.read_text(), "X = 1\n")
+
+    def test_a_python_mutant_leaves_no_bytecode_behind(self):
+        target = Path(self.dir.name) / "planted.py"
+        target.write_text("X = 1\n")
+        load = (f"import sys; sys.path.insert(0, {self.dir.name!r}); import planted; "
+                "print('ok  \\tpkg\\t0.1s')")
+        with mock.patch.dict(os.environ):
+            os.environ.pop("PYTHONDONTWRITEBYTECODE", None)
+            quietly(mutate.main, [str(target), "X = 1", "X = 2", "--", sys.executable, "-c", load])
+        self.assertFalse(Path(importlib.util.cache_from_source(str(target))).exists(),
+                         "bytecode of the mutant would outlive its restore")
 
 
 class BatchTest(unittest.TestCase):

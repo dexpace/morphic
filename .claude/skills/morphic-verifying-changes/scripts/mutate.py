@@ -5,12 +5,15 @@ Usage: python3 mutate.py FILE OLD NEW -- TEST-COMMAND...
        python3 mutate.py --batch MUTANTS -- TEST-COMMAND...
 
 OLD must occur in FILE exactly once, read literally; NEW replaces it. TEST-COMMAND runs from the
-current directory, such as `go test ./ir/...`, and the verdict is read from `go test` output: a
-kill needs a `--- FAIL` line, a survival an `ok` line from a package that ran a test, so a -run
-pattern matching no test gives no verdict. A Go file's package and tests must build with the
-mutant in place, or there is no verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every
-failing test line, then the file that keeps the run's whole output, as instrumentation needs. Exit
-0 KILLED, 1 SURVIVED, 2 UNVERIFIED or a usage error.
+current directory, such as `go test ./ir/...` or `python3 -m unittest discover -s DIR`, with
+Python's bytecode cache off, since a mutant restored within the second it was written keeps the
+size and mtime by which Python trusts bytecode cached from it. The verdict is read from `go test`
+or unittest output: a kill needs a failing test, a survival a passing run that ran a test, so a
+pattern matching no test gives no verdict. With the mutant in place a Go file's package and tests
+must build, a Python file must parse, and every unittest module must load, or there is no
+verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every failing test line, then the file that
+keeps the run's whole output, as instrumentation needs. Exit 0 KILLED, 1 SURVIVED, 2 UNVERIFIED or
+a usage error.
 
 MUTANTS is a JSON-lines file, one {"file", "old", "new"} object per line with an optional "name";
 blank lines and lines starting with # are skipped, and a relative file is read from the current
@@ -22,6 +25,7 @@ order. Exit 0 when every mutant was killed, 1 when one survived, 2 when one has 
 from __future__ import annotations
 
 import json
+import os
 import re
 import signal
 import subprocess
@@ -36,12 +40,19 @@ NO_TESTS = "[no tests to run]"
 NO_BUILD = re.compile(r"\[build failed\]|\[setup failed\]|^# ", re.M)
 KILLED, SURVIVED, UNVERIFIED = 0, 1, 2
 LABELS = ("KILLED", "SURVIVED", "UNVERIFIED")
-FAILED_TEST = re.compile(r"^--- FAIL: (\S+)", re.M)
+FAILED_TEST = re.compile(r"^(?:--- FAIL: |FAIL: |ERROR: )(\S+)", re.M)
+UNITTEST_RAN = re.compile(r"^Ran (\d+) tests? in ", re.M)
+UNITTEST_FAIL = re.compile(r"^(?:FAIL|ERROR): .+", re.M)
+UNITTEST_OK = re.compile(r"^OK\b", re.M)
+NOT_LOADED = "unittest.loader._FailedTest"
 
 
 def verdict(status: int, output: str) -> tuple[int, str]:
     """Judge a test run's exit status and output: a kill needs a failing test, a survival a
     passing package, and a build failure is never either."""
+    ran = UNITTEST_RAN.search(output)
+    if ran:
+        return unittest_verdict(status, output, int(ran.group(1)))
     fails = [line for line in output.splitlines() if FAIL_LINE.match(line)]
     if NO_BUILD.search(output):
         lines = [line for line in output.splitlines() if NO_BUILD.search(line)][:10]
@@ -63,6 +74,37 @@ def verdict(status: int, output: str) -> tuple[int, str]:
         text += ("\nnote: a panic ended the run; run the test written for this property alone"
                  " to see it pin")
     return KILLED, text
+
+
+def unittest_verdict(status: int, output: str, ran: int) -> tuple[int, str]:
+    """Judge a unittest run as verdict judges go test's: a module that does not load is no
+    verdict, a kill needs a failing or erroring test, and a survival a run that ran a test."""
+    fails = UNITTEST_FAIL.findall(output)
+    if NOT_LOADED in output:
+        return UNVERIFIED, ("UNVERIFIED: a test module did not load, so no verdict\n"
+                            + "\n".join(fails[:10]))
+    if ran == 0:
+        return UNVERIFIED, "UNVERIFIED: no test ran; check the start directory and pattern"
+    if status == 0:
+        if UNITTEST_OK.search(output):
+            return SURVIVED, f"SURVIVED: {ran} test(s) passed with the mutant in place"
+        return UNVERIFIED, "UNVERIFIED: the command passed but unittest reported no OK"
+    if not fails:
+        head = "\n".join(output.splitlines()[:15])
+        return UNVERIFIED, ("UNVERIFIED: the command failed without a failing test; read its "
+                            "output\n" + head)
+    text = "KILLED\n" + "\n".join(fails)
+    if any(f.startswith("ERROR:") for f in fails):
+        text += ("\nnote: an error, not a failed assertion, ended a test; run the test written"
+                 " for this property alone to see it pin")
+    return KILLED, text
+
+
+def run_tests(command: list[str]) -> subprocess.CompletedProcess:
+    """Run the test command with Python's bytecode cache off, so no mutant outlives its restore
+    as bytecode Python still trusts."""
+    return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                          env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
 def builds(path: Path) -> tuple[bool, str]:
@@ -90,6 +132,11 @@ def mutate(path: Path, old: str, new: str, command: list[str], keep: Path) -> tu
     mutant = original.replace(old.encode(), new.encode(), 1)
     if mutant == original:
         return UNVERIFIED, "mutate: the replacement changed nothing"
+    if path.suffix == ".py":
+        try:
+            compile(mutant, str(path), "exec")
+        except SyntaxError as e:
+            return UNVERIFIED, f"UNVERIFIED: the mutant is not Python ({e.msg}); adjust it"
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, interrupted)
     try:
@@ -101,7 +148,7 @@ def mutate(path: Path, old: str, new: str, command: list[str], keep: Path) -> tu
                 head = "\n".join(out.splitlines()[:15])
                 reason = "UNVERIFIED: the mutant does not build or vet; adjust it until it compiles"
                 return UNVERIFIED, reason + "\n" + head
-        run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        run = run_tests(command)
         keep.write_text(run.stdout)
         return verdict(run.returncode, run.stdout)
     finally:
@@ -162,7 +209,7 @@ def batch(path: Path, command: list[str]) -> int:
         print("\n".join(problems), file=sys.stderr)
         return UNVERIFIED
     outputs = Path(tempfile.mkdtemp(prefix="mutate-"))
-    run = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    run = run_tests(command)
     (outputs / "baseline.txt").write_text(run.stdout)
     code, text = verdict(run.returncode, run.stdout)
     if code != SURVIVED:
