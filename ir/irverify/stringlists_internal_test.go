@@ -3,10 +3,14 @@ package irverify
 import (
 	"go/types"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // TestStringLists_AreAllClassified fails when the ir package declares a
@@ -43,4 +47,26 @@ func TestHeldListsOf_HoldsAnUnlistedFieldAsAPath(t *testing.T) {
 	}
 	assert.Equal(t, []heldList{{index: 1, name: "Segments", rule: listPath}},
 		heldListsOf(reflect.TypeFor[unlisted]()))
+}
+
+// TestCheckStringLists_VisitingCostsNoAllocation holds the check's cost for a
+// list it has nothing to report on at nothing, however long: every list is
+// read into the one map the check keeps, emptied for each, where a map of its
+// own allocates once a list holds more than eight entries. A path and a set,
+// on two nodes, share entries, which only a map left unemptied would report.
+// It is not run in parallel: AllocsPerRun measures the process.
+func TestCheckStringLists_VisitingCostsNoAllocation(t *testing.T) {
+	entries := make([]string, 0, 12)
+	for i := range 12 {
+		entries = append(entries, "entry"+strconv.Itoa(i))
+	}
+	doc := &ir.Document{
+		Types: ir.TypeRegistry{"t/x/M": &ir.Model{ID: "t/x/M", Namespace: entries}},
+		Auth: map[ir.AuthID]ir.AuthScheme{"auth/x/S": {ID: "auth/x/S", Flows: []ir.OAuthFlow{
+			{TokenEndpointAuthMethods: entries},
+		}}},
+	}
+	check := checkStringLists(doc)
+	assert.Empty(t, irtest.AllocatingVisits(doc, check))
+	assert.Empty(t, check.report(declarations{}), "no entry is blank, and no set entry repeats within its list")
 }
