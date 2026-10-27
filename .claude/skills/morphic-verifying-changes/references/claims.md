@@ -124,8 +124,8 @@ to read — and to execute outside the case its author measured.
   flags and banned-construct lists the same document mandates, and any code location a doc cites as
   precedent must actually say what the doc claims.
 - **Why.** Exemplars that do not compile or use the forms the guide bans teach the wrong thing, and
-  a design doc prescribed a package-level mutable registry citing code that says the opposite (#1,
-  #760).
+  a design doc prescribed a package-level mutable registry citing code that says the opposite (#760,
+  #315).
 - **Probe.** Extract each sample into a scratch module and build/run it with the mandated flags and
   linter; open each cited file/line and compare.
 
