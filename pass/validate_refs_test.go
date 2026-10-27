@@ -525,7 +525,7 @@ func authRefSites() []idRefSite {
 }
 
 // serverRefSites are the fields referencing an entry of Document.Servers: the
-// three scopes that name the servers serving them.
+// scopes that name the servers serving them.
 func serverRefSites() []idRefSite {
 	return []idRefSite{
 		{"service servers", "ir/dangling-server-ref", ".Servers[0]",

@@ -281,12 +281,18 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 ) []ir.Diagnostic {
 	before := len(*into.unmodeled)
 	diags := applyPathItem(c, into, pi, declPtr, cedes)
-	if len(*into.unmodeled) == before && len(*into.named) == 0 {
+	var landed []string
+	if len(*into.named) > 0 {
+		landed = append(landed, "its servers are registered, named by no operation")
+	}
+	if len(*into.unmodeled) > before {
+		landed = append(landed, "what else it writes is kept beside it, having no operation to hold it")
+	}
+	if len(landed) == 0 {
 		return diags // nothing landed, so there is no preservation to explain
 	}
 	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, mountPtr,
-		"path item declares no operation this compiler lowers; its servers are registered serving "+
-			"none, and its extensions and undeclared keys are kept beside it, having no operation to hold them"))
+		"path item declares no operation this compiler lowers; %s", strings.Join(landed, ", and ")))
 }
 
 // undeclaredPathItemKeys returns the keys a path item writes that the Path Item

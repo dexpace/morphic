@@ -209,10 +209,10 @@ func TestServerName_CollidesOnPunctuationAlone(t *testing.T) {
 		"neutral words carry no punctuation, so these two collide")
 }
 
-// TestDeclared_NilEntryKeepsItsIndex pins that an entry no valid document writes
-// lowers nothing and moves no other: the entry after it keeps its own position
-// as its ID.
-func TestDeclared_NilEntryKeepsItsIndex(t *testing.T) {
+// TestRegistry_DeclaredNilEntryKeepsItsIndex pins that an entry no valid
+// document writes lowers nothing and moves no other: the entry after it keeps
+// its own position as its ID.
+func TestRegistry_DeclaredNilEntryKeepsItsIndex(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
 	got, diags := reg.Declared(lowering.Ctx{}, []*soa.Server{nil, {URL: "https://x.example.com"}}, "/paths/~1a")
@@ -223,11 +223,11 @@ func TestDeclared_NilEntryKeepsItsIndex(t *testing.T) {
 	assert.Equal(t, "https://x.example.com", reg.Servers()[got[0]].URLTemplate)
 }
 
-// TestDeclared_EveryEntryNilIsNil pins, for a list, the guard auth's
+// TestRegistry_DeclaredEveryEntryNilIsNil pins, for a list, the guard auth's
 // TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins for the schemes:
 // when no entry survives, the list names nothing and the registry stays unset
 // rather than becoming an empty map the source never declared.
-func TestDeclared_EveryEntryNilIsNil(t *testing.T) {
+func TestRegistry_DeclaredEveryEntryNilIsNil(t *testing.T) {
 	t.Parallel()
 	reg := servers.NewRegistry()
 	got, diags := reg.Declared(lowering.Ctx{}, []*soa.Server{nil, nil}, "")
@@ -251,10 +251,10 @@ func TestServerVariables_NilEntrySkipped(t *testing.T) {
 	assert.Equal(t, "keep", srv.Variables[0].Name)
 }
 
-// TestDeclared_OneDeclarationLowersOnce pins the registry's identity rule: one
-// list reached twice, as a path item two paths mount is, names the same IDs
-// both times, and what lowering it reports is reported once.
-func TestDeclared_OneDeclarationLowersOnce(t *testing.T) {
+// TestRegistry_DeclaredOneDeclarationLowersOnce pins the registry's identity
+// rule: one list reached twice, as a path item two paths mount is, names the
+// same IDs both times, and what lowering it reports is reported once.
+func TestRegistry_DeclaredOneDeclarationLowersOnce(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -280,10 +280,11 @@ components:
 		"the unknown key is reported once, by the lowering, not once per mount: %+v", diags)
 }
 
-// TestRoot_DocumentWithNoServersIsServedAtTheRoot pins OpenAPI's default for a
-// servers field that is absent or empty: one server at "/", minted in a space of
-// its own and recording no pointer, since no position writes it (GitHub #672).
-func TestRoot_DocumentWithNoServersIsServedAtTheRoot(t *testing.T) {
+// TestRegistry_RootServesADocumentWithNoServersAtTheRoot pins OpenAPI's default
+// for a servers field that is absent or empty: one server at "/", minted in a
+// space of its own and recording no pointer, since no position writes it
+// (GitHub #672).
+func TestRegistry_RootServesADocumentWithNoServersAtTheRoot(t *testing.T) {
 	t.Parallel()
 	for name, spec := range map[string]string{
 		"absent": "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n",
@@ -305,10 +306,10 @@ func TestRoot_DocumentWithNoServersIsServedAtTheRoot(t *testing.T) {
 	}
 }
 
-// TestRoot_DeclaredServersInSourceOrder pins the document's own list: each
-// server registered at its own pointer, the service naming them in source
-// order, and a declared server never joined by the default.
-func TestRoot_DeclaredServersInSourceOrder(t *testing.T) {
+// TestRegistry_RootNamesTheDeclaredServersInSourceOrder pins the document's own
+// list: each server registered at its own pointer, the service naming them in
+// source order, and a declared server never joined by the default.
+func TestRegistry_RootNamesTheDeclaredServersInSourceOrder(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, `openapi: 3.2.0
 info: {title: T, version: "1"}
@@ -336,11 +337,11 @@ paths: {}
 	assert.Len(t, doc.Servers, 2, "no default joins a declared list")
 }
 
-// TestDeclared_SecondReachLowersNothing pins the registry's own rule beneath
-// the run's de-duplication of diagnostics: a list reached a second time, as a
-// path item's is from a second mount, names the IDs the first reach registered
-// and reports nothing, without lowering the declaration again.
-func TestDeclared_SecondReachLowersNothing(t *testing.T) {
+// TestRegistry_DeclaredSecondReachLowersNothing pins the registry's own rule
+// beneath the run's de-duplication of diagnostics: a list reached a second
+// time, as a path item's is from a second mount, names the IDs the first reach
+// registered and reports nothing, without lowering the declaration again.
+func TestRegistry_DeclaredSecondReachLowersNothing(t *testing.T) {
 	t.Parallel()
 	loaded, _, err := load.Load(t.Context(), 0, openapitest.SourceOf(`openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -365,4 +366,28 @@ paths:
 	assert.Equal(t, first, again, "the second reach names the same server")
 	assert.Empty(t, diags, "and reports nothing, having lowered nothing")
 	assert.Len(t, reg.Servers(), 1)
+}
+
+// TestRegistry_RootServesNoDocumentAtTheRoot pins Root on a context holding no
+// document, which every getter the walk reads answers for as empty: the default
+// stands in, as for a document writing no servers.
+func TestRegistry_RootServesNoDocumentAtTheRoot(t *testing.T) {
+	t.Parallel()
+	reg := servers.NewRegistry()
+	got, diags := reg.Root(lowering.Ctx{})
+	assert.Empty(t, diags)
+	assert.Equal(t, []ir.ServerID{"server/default"}, got)
+}
+
+// TestRegistry_ServersHandsOverACopy pins that the map Servers returns is the
+// caller's: writing to it changes nothing a later call returns.
+func TestRegistry_ServersHandsOverACopy(t *testing.T) {
+	t.Parallel()
+	reg := servers.NewRegistry()
+	got, diags := reg.Root(lowering.Ctx{})
+	require.Empty(t, diags)
+	require.Equal(t, []ir.ServerID{"server/default"}, got)
+	first := reg.Servers()
+	delete(first, "server/default")
+	assert.Contains(t, reg.Servers(), ir.ServerID("server/default"))
 }

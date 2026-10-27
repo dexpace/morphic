@@ -566,6 +566,39 @@ func TestPathItem_UnmountedAnnouncementFollowsWhatWasKept(t *testing.T) {
 	}
 }
 
+// TestPathItem_UnmountedAnnouncementSaysWhatLanded pins the announcement's
+// claims to what an item that mounts no operation wrote: its servers are
+// mentioned only where it declares some, and what it keeps beside it only where
+// it keeps something, so no reader is told of a list the item never wrote.
+func TestPathItem_UnmountedAnnouncementSaysWhatLanded(t *testing.T) {
+	t.Parallel()
+	const servers = "its servers are registered, named by no operation"
+	const kept = "what else it writes is kept beside it, having no operation to hold it"
+	for _, tc := range []struct {
+		name, item string
+		want       []string
+	}{
+		{"servers alone", "{servers: [{url: 'https://a.example'}]}", []string{servers}},
+		{"an extension alone", "{x-a: 1}", []string{kept}},
+		{"both", "{servers: [{url: 'https://a.example'}], x-a: 1}", []string{servers, kept}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
+				"paths:\n  /unmounted: "+tc.item+"\n", lowering.GroupByTags)
+			var found []string
+			for _, d := range diags {
+				if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "declares no operation") {
+					found = append(found, d.Message)
+				}
+			}
+			require.Len(t, found, 1)
+			assert.Equal(t, "path item declares no operation this compiler lowers; "+strings.Join(tc.want, ", and "),
+				found[0])
+		})
+	}
+}
+
 // TestPathItem_CallbackWithNoOperationKeepsWhatItWrote is the third route's
 // half of the orphan branch: a callback expression is a Path Item Object like
 // any other, so an item that mounts no operation must still keep what it wrote,

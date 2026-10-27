@@ -2038,7 +2038,7 @@ such item; it is reported as one `openapi/degraded-construct` warning at the mou
 - Tests: `operation.TestOperations_PathItemServersNamedOnEveryRoute`,
   `operation.TestOperations_OwnServersOverrideThePathItems`,
   `operation.TestOperations_ServersEachLevelAlone`,
-  `servers.TestDeclared_OneDeclarationLowersOnce`,
+  `servers.TestRegistry_DeclaredOneDeclarationLowersOnce`,
   `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`
 - Status: open: an explicitly empty list declares nothing to name, as an absent one does, and
   whether it should override the list above it is undecided (#1081).
@@ -2636,8 +2636,8 @@ repeat's name, naming the first.
 - Cases: `servers-variables`
 - Codes: `openapi/duplicate-server-name`
 - Tests: `servers.TestDuplicateServerName_BothServersLower`,
-  `servers.TestRoot_DocumentWithNoServersIsServedAtTheRoot`,
-  `servers.TestRoot_DeclaredServersInSourceOrder`,
+  `servers.TestRegistry_RootServesADocumentWithNoServersAtTheRoot`,
+  `servers.TestRegistry_RootNamesTheDeclaredServersInSourceOrder`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
 - Status: partly built: a variable's `default` cannot tell an empty default from none (#883); and a

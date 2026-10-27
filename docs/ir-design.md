@@ -348,7 +348,7 @@ it sees. Changes made together in one bump are listed together under it.
   stored list to that form (`ir/inferred-not-canonical`), so a list that names a heuristic twice,
   or holds an empty name, is reported where it passed. A consumer pinned to 0.20.0 reads the same
   bytes; the version check refuses it a 0.21.0 document all the same.
-- **0.22.0** — servers became entities, and three serialization facts gained homes:
+- **0.22.0** — servers became entities, and serialization facts kept verbatim gained homes:
   - `Server` gained `ID` and `Provenance`, and `Document.Servers` became a registry keyed by
     `ServerID` that holds the servers the source declares, whichever object declares them (§10).
     `Service.Servers` and `Channel.Servers` name servers by ID where they had indexed a list, and
@@ -469,11 +469,11 @@ document declares (`ir/id-space-undeclared`).
 
 The first two cannot tell every lost separator. Shape alone does not: `t/anonaddr` reads as a
 namespace named `anonaddr`. Agreement does, but only where a node records its pointer. A type, a
-security scheme and a property are held to it. An operation is not, because its provenance records
-where its body is declared and its ID where it is mounted, and the two differ for an operation
-reached through a `$ref`'d path item or callback (#107); a parameter is not, for the same reason. A
-service records no pointer, and a group, formed by a rule from every operation sharing a key, has no
-single position to record.
+security scheme, a server and a property are held to it. An operation is not, because its provenance
+records where its body is declared and its ID where it is mounted, and the two differ for an
+operation reached through a `$ref`'d path item or callback (#107); a parameter is not, for the same
+reason. A service records no pointer, and a group, formed by a rule from every operation sharing a
+key, has no single position to record.
 
 The declaration is what sees them all. A producer states the namespaces it mints IDs in as
 `Document.IDSpaces`, keyed by kind prefix and built from the constants it derives IDs with, as it
@@ -2309,7 +2309,7 @@ which `irverify` holds. A server the format supplies where the document declares
 pointer reaches, and records the whole document as its position. Its missing pointer is what tells
 it from a declared `/`.
 
-**Why IDs and a map rather than indices.** Until 0.20.0 the scopes indexed an ordered
+**Why IDs and a map rather than indices.** Until 0.22.0 the scopes indexed an ordered
 `Document.Servers`, and an empty list meant every server, which held while the only servers were the
 document's own. Servers an operation declares break both halves: an index stops naming its server
 once a pass removes or reorders one (invariant 3 exists for this), and "every server" would send a
@@ -2456,7 +2456,7 @@ Scoped and unscoped keys stay apart on top of that, because every vendor-extensi
 carrier extends another, what it adds opens with one too. A segment the document names may begin
 with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:callbacks/x-hook/`, but
 only after such a keyword. The same gap separates both from the non-extension entries a shared
-carrier holds under those scopes, such as `openapi:encoding/<part>/allowReserved`.
+carrier holds under those scopes, such as `openapi:encoding/<part>/prefixEncoding`.
 
 | Reason | Meaning |
 |---|---|

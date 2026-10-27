@@ -6,9 +6,10 @@
 # All three routes that lower a path item are here, because the orphan branch is
 # per-route and the servers half of this same mechanism was live on one route and
 # missing on the other two once already (GitHub #39): a path, a webhook, and a
-# callback expression. Each keeps what it wrote on the nearest node holding an
-# Unmodeled map — the service for the first two, the parent operation's HTTP
-# binding for the callback, which is where the callback itself lives.
+# callback expression. Each keeps its extensions and undeclared keys on the
+# nearest node holding an Unmodeled map — the service for the first two, the
+# parent operation's HTTP binding for the callback, which is where the callback
+# itself lives — and registers its servers, which no operation names.
 #
 # Two unmounted paths rather than one, deliberately. Every entry is keyed by the
 # item's own mount pointer and every announcement is stamped with it, so a single

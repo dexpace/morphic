@@ -11,9 +11,9 @@ import (
 )
 
 // TestServer_JSONContract pins that Name, Description and Provenance carry no
-// omitempty (every server has all three), and Auth carries omitzero rather than omitempty
-// because an empty non-nil slice ("explicitly public") must stay
-// distinguishable from nil ("no server-scoped override") — the same
+// omitempty (every server has all three), and Auth carries omitzero rather
+// than omitempty because an empty non-nil slice ("explicitly public") must
+// stay distinguishable from nil ("no server-scoped override") — the same
 // reasoning as Operation.Auth and Service.Auth — so a nil Auth omits the key
 // entirely rather than writing null. It also pins that a fully populated
 // Server round-trips.

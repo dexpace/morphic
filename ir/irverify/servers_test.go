@@ -29,15 +29,6 @@ func serverDoc() *ir.Document {
 	return doc
 }
 
-// codes returns the code of each violation, in Verify's order.
-func codes(vs []irverify.Violation) []string {
-	out := make([]string, 0, len(vs))
-	for _, v := range vs {
-		out = append(out, v.Code)
-	}
-	return out
-}
-
 // TestVerify_ServersAreHeldToTheIDRules plants each defect a server's identity
 // can carry and requires the rule every other class of ID answers to, so a
 // server is checked as a type or a scheme is rather than by rules of its own.
@@ -75,7 +66,7 @@ func TestVerify_ServersAreHeldToTheIDRules(t *testing.T) {
 			t.Parallel()
 			doc := serverDoc()
 			tc.plant(doc)
-			assert.Contains(t, codes(verifyDeclared(doc)), tc.code)
+			assert.Contains(t, violationCodes(verifyDeclared(doc)), tc.code)
 		})
 	}
 }
@@ -91,5 +82,5 @@ func TestVerify_ServerSpaceMustBeDeclared(t *testing.T) {
 		ir.IDKindServer: {"default"},
 	}
 	found := irverify.Verify(doc)
-	assert.Equal(t, []string{"ir/id-space-undeclared"}, codes(found), "only the undeclared space: %+v", found)
+	assert.Equal(t, []string{"ir/id-space-undeclared"}, violationCodes(found), "only the undeclared space: %+v", found)
 }

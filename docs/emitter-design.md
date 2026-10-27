@@ -664,7 +664,7 @@ filters evaluated per class (`ir-design.md §5.2`).
 
 `Parameter`s carry no protocol location (`ir-design.md §7.2`). The plan derives, from `OpBindings`,
 a neutral per-protocol view a refiner turns into a request builder: which params are path/query/
-header/cookie/body, their style/explode/prefix and the rest of their serialization, RPC message
+header/cookie/body, their style/explode/prefix, escaping, empty value and media type, RPC message
 folding, message channel + reply, the GraphQL entry point, the OTP call/cast shape. One operation
 may carry several bindings (gRPC transcoding `additional_bindings`, HTTP+RPC); all are represented,
 primary first. This resolves `ir-design.md` open Q6 on the emitter side: status conditions and
