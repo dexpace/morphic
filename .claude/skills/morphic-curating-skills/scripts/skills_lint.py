@@ -10,9 +10,11 @@ are Python 3.9 with the standard library only, each with a test_<name>.py beside
 from __future__ import annotations
 
 import ast
+import importlib.util
 import re
 import subprocess
 import sys
+import sysconfig
 import traceback
 from pathlib import Path
 
@@ -73,6 +75,30 @@ def load_tree(root: Path) -> tuple[set[str], set[str]]:
     if not tests:
         raise RuntimeError("found no declared test, so a test name cannot be checked")
     return top_level, tests
+
+
+def standard_module(name: str, listed: frozenset[str] | None) -> bool:
+    """Report whether a top-level module ships with Python. Python 3.9 lists none of its
+    modules (listed is None), so there one counts when it is built in, or found under the
+    standard library's directory and outside site-packages."""
+    if listed is not None:
+        return name in listed
+    if name in sys.builtin_module_names:
+        return True
+    try:
+        spec = importlib.util.find_spec(name)
+    except (ImportError, ValueError):
+        return False
+    origin = spec.origin if spec else None
+    if origin in ("built-in", "frozen"):
+        return True
+    if not origin:
+        return False
+    where = Path(origin).resolve()
+    paths = sysconfig.get_paths()
+    homes = {Path(paths[k]).resolve() for k in ("stdlib", "platstdlib")}
+    installed = {"site-packages", "dist-packages"} & set(where.parts)
+    return not installed and any(home in where.parents for home in homes)
 
 
 class Linter:
@@ -271,9 +297,7 @@ class Linter:
             target = ".".join(map(str, PYTHON_TARGET))
             self.report(s, e.lineno or 0, f"is not Python {target}: {e.msg}")
             return
-        stdlib = getattr(sys, "stdlib_module_names", None)
-        if stdlib is None:  # Python 3.9 has no list of its own modules.
-            return
+        listed = getattr(sys, "stdlib_module_names", None)
         for node in ast.walk(tree):
             names = []
             if isinstance(node, ast.Import):
@@ -282,26 +306,34 @@ class Linter:
                 names = [node.module]
             for n in names:
                 top = n.split(".", 1)[0]
-                if top not in stdlib and top not in siblings and top != "__future__":
-                    self.report(s, node.lineno, f"imports {top}, outside the standard library")
+                if top in siblings or top == "__future__" or standard_module(top, listed):
+                    continue
+                self.report(s, node.lineno, f"imports {top}, outside the standard library")
+
+
+def findings(root: Path) -> tuple[int, list[str]]:
+    """Lint the skills of the repository at root, as other scripts do for a branch they check;
+    return how many skills there are and every finding. A tree with no skills has neither."""
+    if not (root / ".claude" / "skills").is_dir():
+        return 0, []
+    top_level, tests = load_tree(root)
+    listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard", ".claude/skills")
+    files = [root / f for f in listed.splitlines() if (root / f).is_file()]
+    lint = Linter(root, top_level, tests, files)
+    return lint.run(), lint.findings
 
 
 def main() -> int:
     try:
         root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
-        top_level, tests = load_tree(root)
-        listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard",
-                     ".claude/skills")
-        files = [root / f for f in listed.splitlines() if (root / f).is_file()]
+        n, found = findings(root)
     except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
         print(f"skills_lint: {e}", file=sys.stderr)
         return 2
-    lint = Linter(root, top_level, tests, files)
-    n = lint.run()
-    for finding in lint.findings:
+    for finding in found:
         print(finding)
-    if lint.findings:
-        print(f"skills_lint: {len(lint.findings)} finding(s)")
+    if found:
+        print(f"skills_lint: {len(found)} finding(s)")
         return 1
     print(f"skills_lint: clean ({n} skills)")
     return 0
