@@ -332,6 +332,14 @@ it sees. Changes made together in one bump are listed together under it.
     `allOf`, and kept a map's verbatim, so an object writing a catch-all and a `required` name is
     now a `Model` where it had been a `MapT`. A consumer pinned to 0.18.0 reads those members as
     optional.
+- **0.20.0** — a member a model's composition declares more than once is addressed by one
+  declaration (§4.3). The shape is unchanged, but a `PropID` that names a model's member, an
+  encoding key in `Content.Encoding` (§7.2) or a discriminator's `Property`, now names the
+  declaration that model's flattening takes. The OpenAPI compiler had keyed a part two composed
+  models declare by the first it found: the body's own, then its `Base`, then each `Mixin` in turn.
+  It keys the later conjunct's now, the one the flattening takes, so `allOf: [{$ref: A}, {$ref: B}]`
+  keys `B`'s. A consumer pinned to 0.19.0 that finds a part's entry by that old lookup finds none
+  for such a part.
 
 ---
 
@@ -805,7 +813,8 @@ type PatternProps struct { Pattern string; Value TypeRef }
 
 type Discriminator struct {
     // Exactly one of Property / PropertyName / Index locates the tag:
-    Property PropID                // model hierarchies: the property that carries the tag
+    Property PropID                // model hierarchies: the property that carries the tag, the
+                                   // declaration this model's flattening takes for it
     PropertyName string            // unions: wire name of the tag property (it exists on no single
                                    // model, so there is no PropID to point at; TypeSpec @discriminated
                                    // discriminatorPropertyName, OpenAPI discriminator on oneOf)
@@ -825,14 +834,13 @@ type Discriminator struct {
 
 **Composition semantics.** `Properties` contains only the model's *own* properties. Consumers walk
 `Base`, `Implements`, and `Mixins` for the full shape; the flattening is computed, never stored.
-`ir.ExposedProps` computes the flat set of property IDs, and `ir.Supertypes` and `ir.IsSubtype` the
-subtype relation, which excludes mixins; `irfacts.Index` answers both for many questions at once
-(§4.9). The ordered, override-aware `FlattenedProperties()` that
-emitter-design §3.2 computes `TypePlan.Flattened` with is not provided so far (#812). This preserves
-what oagen and Kiota lose: the difference between "inherits from", "conforms to", "mixes in", and
-"declares". `Base` is single (subtype identity); `Implements` is N-ary conformance to `Abstract`
-models — the distinction matters because GraphQL allows multiple interfaces while every class-based
-target language allows at most one base class.
+`ir.FlattenedProperties` computes it, by the rules under *The flattening* below; `ir.ExposedProps`
+computes the flat set of property IDs it reads, and `ir.Supertypes` and `ir.IsSubtype` the subtype
+relation, which excludes mixins; `irfacts.Index` answers the last two for many questions at once
+(§4.9). This preserves what oagen and Kiota lose: the difference between "inherits from", "conforms
+to", "mixes in", and "declares". `Base` is single (subtype identity); `Implements` is N-ary
+conformance to `Abstract` models — the distinction matters because GraphQL allows multiple
+interfaces while every class-based target language allows at most one base class.
 
 **Required members beyond the own properties.** Whether an own property must be present is its
 `Required` (§5.1). A member the model requires that none of its own properties declares is in
@@ -840,11 +848,70 @@ target language allows at most one base class.
 order the source's `required` lists name it: an inherited property the model makes required, as
 `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required on the composed model, or a
 member only the catch-all governs, which JSON Schema requires whether or not a schema declares it.
-A consumer resolves each name over the flattened shape, as it reads `Base`, and the IR asserts
-nothing about which of these a name is, since saying so needs the hierarchy walked. A name an own
-property declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so
-required-ness has one home per member. A model that requires a member is neither a map (§4.6) nor
-a decorator (§4.10), since a map requires no key and a decorator says nothing its `Base` does not.
+The flattening resolves each name over the flattened shape (below), and the IR asserts nothing
+about which of these a name is, since saying so needs the hierarchy walked. A name an own property
+declares is never listed (`irverify` refuses it as `ir/requires-own-property`), so required-ness
+has one home per member. A model that requires a member is neither a map (§4.6) nor a decorator
+(§4.10), since a map requires no key and a decorator says nothing its `Base` does not.
+
+**The flattening.** `ir.FlattenedProperties(types, id)` returns a model's full shape: its members,
+one per wire name, each with the declaration it takes, the declarations that one overrides and
+whether an instance must carry it, beside the names a `Requires` lists that no member declares and
+the composition entries that name no model. Its rules:
+
+- *What it reads.* The declarations `ExposedProps` reaches and no others: the model's own, and those
+  of every model its `Base`, `Implements` and `Mixins` lead to at any distance. Every reference, the
+  root's included, is read through alias scalars, since a `$ref` carrying siblings composes the
+  alias it hoists rather than the schema it names (below). A root naming no model has an empty
+  shape.
+- *Members.* Declarations are one member when their wire names are equal: `WireName`, else
+  `Name.Source` (`Property.EffectiveWireName`, §5.1). The empty name is a name, the JSON member
+  keyed by the empty string. A property several models declare under one `PropID`, as the variants
+  of a distributed union do (below), is one declaration however often it is read.
+- *Layout order.* The walk goes depth first from the root, following each model's `Base`, then its
+  `Implements`, then its `Mixins`, each in order, and reads a model's own properties, in source
+  order, once it has read every model the model composes that does not compose it in turn. Models
+  that compose each other, a cycle the IR permits, are read together, in the order the walk
+  finished them. So what a model composes comes before what it declares, conjuncts in the order the
+  model lists them.
+- *Override.* A later declaration of a wire name overrides an earlier one, and the member stays
+  where its name was first read. So a model's declaration overrides that of every model it composes,
+  at any distance, unless that model composes it too; and of two declarations whose models do not
+  compose each other, the later conjunct's wins: a `Mixin`'s over the `Base`'s, a later `Mixin`'s
+  over an earlier one's. A subtype narrowing its base's `petType` to `{const: dog}` keeps the base's
+  slot with its own type. The member takes every facet but presence — type, visibility, default,
+  docs — from the declaration it takes, and lists the ones it overrides, which is where a consumer
+  conjoining more finds them.
+- *Presence.* A member is required where any of its declarations is `Required`, or any model the
+  walk reads lists its wire name in `Requires`: JSON Schema requires what any conjunct requires, so
+  requiredness only accumulates. A name a `Requires` lists that no member declares is undeclared, a
+  member only the catch-all governs.
+- *Conjuncts that are no model.* A composition entry naming no model once read through alias
+  scalars — a scalar, an enum, a union, a map, a list, or a type the registry does not hold —
+  contributes no property, so the flattening lists the entry's target as written, once, for its
+  consumer to lower (`Base` and `Mixins` name whatever the source composed with, below).
+- *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
+  (§7.2) or a discriminator's `Property`, names the declaration the flattening of that model takes,
+  the content's type for an encoding key, so a consumer finds it on the member itself. The OpenAPI
+  compiler keys a part through the flattening, and tags a discriminator by an own property, which
+  the flattening takes. `pass.Validate` holds each only to a property the model exposes, not yet to
+  the one it takes, since a flattening per model it asks about grows quadratically down a deep
+  hierarchy, which its cost tests refuse.
+- *Cycles and cost.* Each model and alias scalar is read once, so a cyclic composition is read to
+  its fixpoint, each model of a cycle holding the members of all of them, and nothing is cut short:
+  the walk needs no step budget and no recursion. It costs the declarations it returns plus the
+  models, entries and aliases it passes, so an `irfacts` index could answer no faster, and it stays
+  a function of `ir`.
+
+Why the later conjunct wins: JSON Schema conjoins every `allOf` entry, so neither of two unrelated
+declarations is wrong on the wire, and the later conjunct is where a spec writes the
+specialization. On the golden spec (`cloudflare/api-schemas` `openapi.json` at `e2b8c60`, compiled
+at `efafa0d0`), 1,197 of the 3,866 composed models redeclare a wire name. Of the 1,811 overrides
+between declarations of different types whose models do not compose each other, 1,788 are an error
+response composing a success envelope and, after it, a failure schema
+(`success: false`, `result: null`), which an earlier-conjunct rule would type as the success. 775
+members are required only through a declaration they override, which a rule reading presence off
+the declaration taken alone would make optional.
 
 Which `allOf` entry becomes `Base` and which a `Mixin` is the OpenAPI compiler's rule
 [`allof-classification`](./compilers/openapi.md#allof-classification).
@@ -1658,7 +1725,9 @@ type Content struct {
                                   // here and stays in Unmodeled — see §12
     Encoding  map[PropID]PartEncoding // multipart/form: per-property (part) wire config, keyed by the
                                   // part property's PropID — a position inside the body model, so
-                                  // `pass` resolves a key against that model rather than a registry
+                                  // `pass` resolves a key against that model rather than a
+                                  // registry; of a part several declarations name, the one the
+                                  // model's flattening takes (§4.3)
     File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
     Examples  []Example
     Unmodeled  Unmodeled

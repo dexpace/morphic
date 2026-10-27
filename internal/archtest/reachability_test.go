@@ -52,7 +52,6 @@ var apiRoots = map[string]string{
 	"ir.Editor.Finish":                                  transformAPI,
 	"ir.Supertypes":                                     relationAPI,
 	"ir.ExposedProps":                                   relationAPI,
-	"ir.FlattenedProperties":                            relationAPI,
 	"ir/irfacts.Index.Subtypes":                         factAPI,
 	"ir/irfacts.Index.Usage":                            factAPI,
 	"ir/irfacts.Index.Recursive":                        factAPI,

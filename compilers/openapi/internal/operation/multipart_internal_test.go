@@ -150,43 +150,38 @@ func TestBodySchemaPointer_NilSchema(t *testing.T) {
 	assert.Equal(t, local, keyedAt(l.ctx, nil))
 }
 
-// TestPropByWire_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
-// the property walk: the same dead ends and a Base chain that closes on itself,
-// asked for a part name rather than a pointer. Neither may invent an ID — a part keyed by a PropID nothing declares
-// is a dangling reference the encoding map would carry silently.
-func TestPropByWire_DeadEnds(t *testing.T) {
+// TestPartMembers_DeadEnds mirrors TestBodyModelPointer_NoModelBehindBody for
+// the members a part is keyed by: the same dead ends and a Base chain that
+// closes on itself. None may invent a property — a part keyed by a PropID
+// nothing declares is a dangling reference the encoding map would carry
+// silently — and a cyclic composition still yields the members it declares.
+func TestPartMembers_DeadEnds(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
-	l.types.Register("t/cycle/a", &ir.Scalar{
-		ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"},
-	})
-	l.types.Register("t/cycle/b", &ir.Scalar{
-		ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"},
-	})
-	l.types.Register("t/model/cycle", &ir.Model{
-		ID: "t/model/cycle", Base: &ir.TypeRef{Target: "t/model/cycle"},
-	})
-	prim := l.types.PrimID(ir.PrimString)
-
-	cases := []struct {
+	file := ir.Property{ID: "p/model/cycle/file", WireName: "file"}
+	reg := ir.TypeRegistry{
+		"t/opaque":      &ir.Scalar{ID: "t/opaque"},
+		"t/cycle/a":     &ir.Scalar{ID: "t/cycle/a", Base: &ir.TypeRef{Target: "t/cycle/b"}},
+		"t/cycle/b":     &ir.Scalar{ID: "t/cycle/b", Base: &ir.TypeRef{Target: "t/cycle/a"}},
+		"t/string":      &ir.Primitive{ID: "t/string", Prim: ir.PrimString},
+		"t/model/cycle": &ir.Model{ID: "t/model/cycle", Base: &ir.TypeRef{Target: "t/model/cycle"}, Properties: []ir.Property{file}},
+	}
+	for _, tc := range []struct {
 		name string
 		body ir.TypeID
 	}{
 		{"an ID no registry entry declares", "t/absent"},
 		{"an opaque scalar standing for nothing", "t/opaque"},
-		{"a kind that declares no properties", prim},
+		{"a kind that declares no properties", "t/string"},
 		{"an alias chain that closes on itself", "t/cycle/a"},
-		{"a model whose base closes on itself", "t/model/cycle"},
-	}
-	for _, tc := range cases {
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			prop, ok := propByWire(l.types.Node, tc.body, "file", 0)
-			assert.False(t, ok, "no property with that wire name stands behind this body")
-			assert.Nil(t, prop, "and no property is invented for one")
+			assert.Empty(t, partMembers(reg, tc.body), "no property stands behind this body, and none is invented")
 		})
 	}
+	members := partMembers(reg, "t/model/cycle")
+	require.Contains(t, members, "file", "a model whose base closes on itself still has its own members")
+	assert.Equal(t, file.ID, members["file"].ID)
 }
 
 // TestBodyParts_RefHopBound covers the walk's $ref hop bound: past it the walk

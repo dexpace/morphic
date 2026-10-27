@@ -277,8 +277,9 @@ type PatternProps struct {
 // polymorphic model hierarchy or union (ir-design §4.3). Exactly one of
 // Property, PropertyName, or Index locates the tag.
 type Discriminator struct {
-	// Property is the property carrying the tag in model hierarchies; empty when
-	// PropertyName or Index locates the tag instead.
+	// Property is the property carrying the tag in model hierarchies, the
+	// declaration the flattening of the model holding it takes (ir-design §4.3);
+	// empty when PropertyName or Index locates the tag instead.
 	Property PropID `json:"property,omitempty"`
 	// PropertyName is the wire name of the tag property in unions, where the
 	// property exists on no single model (TypeSpec @discriminated
