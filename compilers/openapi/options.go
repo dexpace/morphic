@@ -194,7 +194,10 @@ type Limits struct {
 	// document an external reference names, each read no further.
 	MaxSourceBytes int `json:"maxSourceBytes,omitzero"`
 	// MaxSourceNodes bounds the YAML nodes one source document parses to,
-	// checked before the typed model is built from it. A document an external
+	// checked before the typed model is built from it. With an overlay it
+	// bounds the tree the overlay leaves: an action that would build past it
+	// is refused before it builds anything, and one that builds nothing, such
+	// as a remove, is applied however large the tree. A document an external
 	// reference names is checked against it the same way, before the resolver
 	// builds from that document, and what references reach in it is validated
 	// within this budget plus MaxAliasSurplus.
