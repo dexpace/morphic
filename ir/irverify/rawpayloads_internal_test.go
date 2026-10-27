@@ -19,7 +19,7 @@ import (
 // two per entry of every Unmodeled map a document holds, and reads every
 // payload through one decoder. A pooled decoder per payload costs one
 // allocation for each a race build's pool drops, so a map of many entries
-// almost always cost some. It is not run in parallel: AllocsPerRun measures
+// almost always costs some. It is not run in parallel: AllocsPerRun measures
 // the process.
 func TestCheckRawPayloads_VisitingCostsNoAllocation(t *testing.T) {
 	kept := func(keys ...string) ir.Unmodeled {

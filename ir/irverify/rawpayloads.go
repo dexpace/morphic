@@ -147,8 +147,8 @@ func appendRawValue(vs []Violation, p *payloadReader, value reflect.Value, what 
 // for each, so a payload costs nothing once the decoder's buffer has grown to
 // the largest met. jsontext.Value.IsValid borrows a decoder from a pool for
 // each instead, and a race build drops a share of what a pool is handed, so
-// there a payload cost an allocation at random. The zero payloadReader is ready
-// to use.
+// there each payload read that way costs an allocation at random. The zero
+// payloadReader is ready to use.
 type payloadReader struct {
 	src bytes.Reader
 	dec jsontext.Decoder

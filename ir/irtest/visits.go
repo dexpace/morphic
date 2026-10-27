@@ -57,8 +57,9 @@ func (m measuredVisitor) Cycle(at, entered ir.WalkPath, ref reflect.Type) {
 // visitMeasurements is how many times AllocatingVisits measures one visit. A
 // race build's sync.Pool drops one in four of the items it is handed, so a
 // visit handing k of them back allocates in a measurement with a chance of
-// about 1-(3/4)^k, and in every one of this many with a negligible chance for
-// the handful of pools a visit reaches.
+// about 1-(3/4)^k, and in every one of this many with a negligible chance
+// while k is a handful. A visit handing back dozens allocates in nearly every
+// one, so code measured here reads its values through nothing pooled per value.
 const visitMeasurements = 20
 
 // fewestAllocs returns the fewest allocations one call of visit makes in
