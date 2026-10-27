@@ -161,3 +161,14 @@ canary. A behaviour found that the page lacks is added there.
 - **Rule.** Every YAML tree that reaches the lowering through load has passed the scan's
   anchor-cycle refusal, so a reader that follows aliases and `<<` may rely on termination. A
   mirror's own cycle check is defence only, and its test builds the cycle by hand.
+
+## Probe the external-document reader by counting fetches
+`external-reader-probes`
+
+- **Rule.** For a change to how external documents are read:
+  - count fetches per refused document with an `httptest` server that counts hits, because the
+    resolver asks again until it builds a model, so a refusal must be remembered;
+  - try `math.MaxInt` wherever a public limit gets `+1`;
+  - a skip on re-read compares the bytes read, not the key they were read under.
+- **Why.** 50 references fetched a refused document 50 times; `io.LimitReader(r, limit+1)`
+  overflowed at `MaxInt`; a key-based skip let changed bytes through unjudged (#556).

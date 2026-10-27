@@ -30,7 +30,7 @@ The CLAUDE.md commit and PR rules, which no check enforces.
 
 - **Rule.** Every new branch ships with the test that executes it, in the same change, and the gate is run on the exact tree being pushed before a PR body says it holds. A new package needs its own test file, because coverage is attributed per package test binary.
 - **Why.** One uncovered statement fails CI; pushing below the gate forces a follow-up commit and makes any PR-body claim that the gate holds false.
-- **Probe.** Run `make coverage` (scripts/check-coverage.sh, statement count, not the rounded percentage) on the final commit; for a new package confirm it has a _test.go of its own; grep the PR body for coverage claims and match them to that run.
+- **Probe.** Run `make coverage` (judged by `cmd/morphic-covergate` from the profile's statement count, not the rounded percentage) on the final commit; for a new package confirm it has a _test.go of its own; grep the PR body for coverage claims and match them to that run.
 - **Seen in #22** (14c5c37c): “Restores compilers/openapi statement coverage to 100%.”
 - **Seen in #373**: “package is instrumented only by its own test binary, so one with statements and no test”
 

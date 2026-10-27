@@ -112,6 +112,13 @@ check_names() {
     path_exists "$dir" "$tok" || report "$(rel "$file"):$line: $tok does not exist"
   done < <(current_lines "$file" | grep -oE '^[0-9]+|`[^` ]+`' | awk '/^[0-9]+$/ { n = $0 ":"; next } { print n $0 }')
 
+  # Paths written outside backticks, such as scripts/x.sh in running prose.
+  while IFS=: read -r line tok; do
+    tok=$(printf '%s' "$tok" | sed -E 's/[.,;:)]+$//')
+    path_exists "$dir" "$tok" || report "$(rel "$file"):$line: $tok does not exist"
+  done < <(current_lines "$file" | sed 's/`[^`]*`//g' |
+    grep -oE '^[0-9]+|[A-Za-z0-9_.-]+(/[A-Za-z0-9_.*-]+)+' | awk '/^[0-9]+$/ { n = $0 ":"; next } { print n $0 }')
+
   while IFS=: read -r line path; do
     case "$path" in http* | mailto:*) continue ;; esac
     [ -e "$(dirname "$file")/$path" ] || report "$(rel "$file"):$line: link target $path does not exist"

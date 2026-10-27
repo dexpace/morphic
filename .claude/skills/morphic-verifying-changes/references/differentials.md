@@ -114,3 +114,12 @@ compiles a corpus with two builds; these rules decide whether its answer means a
 - **Rule.** Sweep every corpus you have, but show that a fix works with inputs that spell the case.
 - **Why.** About two thousand real specs were identical on `main` and a fixing branch, because a
   few dozen wrote the construct at all (#781).
+
+## Validate a source-reading checker against history
+`history-sweep`
+
+- **Rule.** A new check that reads the source (a shape description, a declaration scan) is run,
+  built from the branch, at each past commit that changed what it reads: its working directory in
+  a detached worktree at that commit. It must change exactly where history did.
+- **Why.** The IR shape describer changed at every version bump and at no refactor, and found one
+  unbumped shape change (#985).

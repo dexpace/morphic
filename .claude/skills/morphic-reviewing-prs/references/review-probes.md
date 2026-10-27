@@ -131,3 +131,45 @@ Probes that found what earlier review rounds missed. Each one runs through
 - **Rule.** Merge `origin/main` into a scratch copy and rerun the suite. Look for helpers `main`
   renamed, features on each side that interact, prose counts the merge made stale, and normative
   text `main` moved that the branch's prose must now follow.
+
+## Fuzz a rewritten reader against the one it replaces
+`refactor-differential-fuzz`
+
+- **Rule.** For a refactor that rewrites readers (parsers, splitters, containment tests), copy the
+  old functions from `origin/main` beside the new ones in a scratch module and fuzz that each pair
+  agrees. Turn intended divergences into narrow, named exclusions. Afterwards diff the shipped
+  function bodies against the copies the harness ran.
+- **Why.** On #510 this ran tens of millions of inputs per reader in a minute and made every
+  intended divergence explicit.
+
+## Run a query command as a differential
+`query-differential`
+
+- **Rule.** For a change to a query such as `--explain`, run it on both builds at every coordinate
+  each compilable spec interns, at each one's parent and at the root, and classify every
+  difference against the ones the change intends.
+- **Why.** A unit table covers only the cases its author thought of (#551).
+
+## Check the failure form of every record a change re-attributes
+`reattributed-failure-form`
+
+- **Rule.** When a change re-attributes records (whose source a provenance names), also check the
+  diagnostic reported in place of each record when it fails. Give a table's fallback a value
+  distinct from 0 and from every real index.
+- **Why.** A combined entry was credited to its keywords while the error reported in its place kept
+  the old attribution (#552); with a fallback of 0, two planted mutants survived.
+
+## Re-root a generated sweep at every root the mechanism reaches
+`reroot-generated-sweep`
+
+- **Rule.** A generator that places every target under one root (`/components/schemas`) proves
+  nothing about the others: rerun it under each root the mechanism reaches, such as a response
+  body or a parameter.
+- **Why.** 0 misnamed variants under components, 61 of 164 under a response body (#553). When two
+  functions must agree on a name and share no code, they drift outside the swept domain.
+
+## A test that two mechanisms each keep green proves neither
+`two-mechanisms-one-test`
+
+- **Rule.** When a test survives removing one mechanism and separately survives removing another,
+  plant the pair, and say in the test's doc which test holds each mechanism alone.

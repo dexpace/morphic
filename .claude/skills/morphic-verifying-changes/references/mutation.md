@@ -130,3 +130,30 @@ a restore whatever happens, and a verdict. These rules are the ways a verdict st
 - **Why.** A `require` on the outer `t` inside a parallel subtest turned a failure into
   `panic(nil)`, and the loop created temp files for every check (#1131).
 - **Probe.** Read the enclosing closure of each `t.TempDir()` in the test diff.
+
+## Mutate the library through -modfile to prove a canary
+`library-mutants-modfile`
+
+- **Rule.** To prove a test reddens when the library changes, copy the module, write an alternate
+  go.mod that replaces the library with the copy, and run `go test -modfile=<alt.mod>`; the
+  repository's go.mod is never touched. Run the same library mutant against `main`'s test too: a
+  test that already reddened there proves nothing new.
+- **Why.** On #942, `main`'s scan test already reddened under the decode mutants; only a
+  resolver-only mutant separated old from new. Tests that load sources through `go/packages` read
+  the module cache and ignore `-modfile`.
+
+## Mutate each table entry before tidying shared fixtures
+`table-entry-before-tidying`
+
+- **Rule.** Before cleaning up fixtures that a classification table (an ID class, a field kind)
+  reads, give each entry its own case that plants a misclassification, and prove each plant fails
+  exactly that case.
+- **Why.** An entry can be guarded only by accident: an unrelated fixture that happened to fail.
+  Tidying the fixture removes the guard without any test noticing.
+
+## Temporary instrumentation needs -v
+`instrument-with-v`
+
+- **Rule.** Run a temporary `println` probe with `go test -v`: without it, passing packages print
+  nothing, and only the failing package's hits appear. Attribute a hit to its test from the
+  `runtime.Callers` frame in a `_test.go` file.

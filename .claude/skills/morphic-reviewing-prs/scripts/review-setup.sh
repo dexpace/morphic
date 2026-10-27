@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Checks a PR's head out in a worktree of its own and prints what a first review pass needs:
 # the title measured as it will land, commit subjects, closing keywords, files by area, whether
-# it merges cleanly into origin/main, CI, the squash-message setting, and an artifact scan.
+# it merges cleanly into main, CI, the squash-message setting, and an artifact scan.
 #
 # Usage: bash review-setup.sh PR-NUMBER [DIR]
 #   DIR defaults to ${TMPDIR:-/tmp}/morphic-review-<PR>. An existing clean worktree there is
-#   moved to the new head; one with local changes is left alone.
+#   moved to the new head; one with local changes is left alone. Set REMOTE when the
+#   repository the PR belongs to is not origin, as in a clone of a fork.
 # Exit 0 when set up, 2 when it cannot be.
 set -euo pipefail
 export LC_ALL=C
@@ -19,10 +20,11 @@ here=$(cd "$(dirname "$0")" && pwd)
 tmp=${TMPDIR:-/tmp}
 dir=${2:-${tmp%/}/morphic-review-$n}
 
-git -C "$root" fetch -q origin main
-git -C "$root" fetch -q origin "pull/$n/head"
+remote=${REMOTE:-origin}
+git -C "$root" fetch -q "$remote" main
+git -C "$root" fetch -q "$remote" "pull/$n/head"
 head=$(git -C "$root" rev-parse FETCH_HEAD)
-mb=$(git -C "$root" merge-base origin/main "$head")
+mb=$(git -C "$root" merge-base "$remote/main" "$head")
 
 if [ -e "$dir" ]; then
   if [ -n "$(git -C "$dir" status --porcelain 2>/dev/null || echo dirty)" ]; then
@@ -73,11 +75,11 @@ if git -C "$root" diff --name-only "$mb" "$head" | grep -qE '^(compilers/openapi
 fi
 
 echo
-if git -C "$root" merge-tree --write-tree origin/main "$head" >/dev/null 2>&1; then
-  echo "merge      clean into origin/main"
+if git -C "$root" merge-tree --write-tree "$remote/main" "$head" >/dev/null 2>&1; then
+  echo "merge      clean into $remote/main"
 elif git -C "$root" merge-tree --write-tree HEAD HEAD >/dev/null 2>&1; then
-  echo "merge      CONFLICTS with origin/main:"
-  { git -C "$root" merge-tree --write-tree --name-only origin/main "$head" 2>/dev/null || true; } |
+  echo "merge      CONFLICTS with $remote/main:"
+  { git -C "$root" merge-tree --write-tree --name-only "$remote/main" "$head" 2>/dev/null || true; } |
     sed -n '2,$p' | sed '/^$/,$d; s/^/           /'
 else
   echo "merge      not checked: this git has no merge-tree --write-tree"

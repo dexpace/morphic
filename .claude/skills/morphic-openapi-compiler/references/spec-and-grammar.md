@@ -73,7 +73,7 @@ Read the specification, the library and the grammar as they are, at the version 
 `archtest-rules-reach-exactly`
 
 - **Rule.** An allowlist or skip rule must match full paths exactly unless a wildcard is written, and every in-module import -- including testdata fixtures under an audited tree -- is part of the graph the rules must cover.
-- **Why.** A segment-prefix match let compilers/graphql pass as compilers/openapi's sibling, a basename skip left nested irtest/irverify directories audited by nothing, and a testdata fixture's sibling import was missing from the allowlist.
+- **Why.** A segment-prefix match let a planted sibling of compilers/openapi pass under its allowlist entry, a basename skip left nested irtest/irverify directories audited by nothing, and a testdata fixture's sibling import was missing from the allowlist.
 - **Probe.** Plant a forbidden import from a package sharing the allowed prefix, a same-named directory at another depth, and a testdata fixture importing a sibling; run go test ./internal/archtest and confirm each reddens.
 - **Seen in #182** (2de404a1): “An allowlist entry matched as a segment prefix, and compilers/openapi is allowed”
 - **Seen in #182** (2de404a1): “The skip decision for a subdirectory carrying its own rule compared basenames”
