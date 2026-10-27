@@ -270,9 +270,9 @@ func TestRepairGrafts_TakesShapesAParseNeverProduces(t *testing.T) {
 }
 
 // TestApplyWithin_WalksStopPastTheirBoundNotAtIt pins the edge of each walk
-// applyWithin's walks bound around an application: a tree it reads exactly
-// fills the bound and is read whole, and a bound one short of it cuts the
-// walk. The snapshot and the reachable set read every node, attribution every
+// around an application that applyWithin's walks parameter bounds: a tree it
+// reads exactly fills the bound and is read whole, and a bound one short of it
+// cuts the walk. The snapshot and the reachable set read every node, attribution every
 // position, keys aside, and the graft repair every child.
 func TestApplyWithin_WalksStopPastTheirBoundNotAtIt(t *testing.T) {
 	t.Parallel()
