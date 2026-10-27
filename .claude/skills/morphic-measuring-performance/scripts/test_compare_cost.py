@@ -7,6 +7,7 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import compare_cost as cc
 
@@ -22,6 +23,22 @@ class InstructionsTest(unittest.TestCase):
         self.assertEqual(cc.instructions(linux, "Linux"), 987654)
         self.assertIsNone(cc.instructions(darwin, "Linux"))
         self.assertIsNone(cc.instructions("", "Windows"))
+
+
+class WrapperTest(unittest.TestCase):
+    def test_each_system_gets_the_counter_its_report_is_read_from(self):
+        with mock.patch.object(cc.shutil, "which", return_value="/usr/bin/perf"):
+            linux = cc.wrapper("Linux")
+        self.assertEqual(linux[:2], ["perf", "stat"])
+        self.assertIn("-x,", linux, "instructions() reads perf's comma-separated report")
+        self.assertIn("instructions:u", linux)
+        with mock.patch.object(cc.Path, "is_file", return_value=True):
+            self.assertEqual(cc.wrapper("Darwin"), ["/usr/bin/time", "-l"])
+        with mock.patch.object(cc.shutil, "which", return_value=None):
+            self.assertEqual(cc.wrapper("Linux"), [], "no perf, no instruction count")
+        with mock.patch.object(cc.Path, "is_file", return_value=False):
+            self.assertEqual(cc.wrapper("Darwin"), [])
+        self.assertEqual(cc.wrapper("Windows"), [])
 
 
 class MeasureTest(unittest.TestCase):
