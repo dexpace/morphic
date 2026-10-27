@@ -40,7 +40,9 @@ func TestGolden(t *testing.T) {
 // source's directory, and what it declares is lowered where it declares it,
 // in namespaces qualified by that path. paths.yaml's path item writes
 // references of its own, into itself, a third file and the source, and
-// common.yaml's response one into itself (GitHub #751).
+// common.yaml's response one into itself (GitHub #751). It and its operation
+// write servers too, registered in paths.yaml's namespace at their own
+// positions there, which the operations they serve name.
 func TestGolden_SplitSpec(t *testing.T) {
 	t.Parallel()
 	sources := make([]compilers.Source, 0, 4)
@@ -58,4 +60,28 @@ func TestGolden_SplitSpec(t *testing.T) {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
 	}
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/split/split.golden.json", doc)
+
+	const item = "server/openapi@paths.yaml/paths/~1pets~1{petId}"
+	byURL := map[string]ir.ServerID{}
+	for id, s := range doc.Servers {
+		byURL[s.URLTemplate] = id
+		assert.Equal(t, string(id), "server/"+serverSpace(t, id)+string(s.Provenance.Pointer),
+			"%s is named by the position its provenance records", id)
+	}
+	assert.Equal(t, ir.ServerID(item+"/servers/0"), byURL["https://pets.example.com"])
+	assert.Equal(t, ir.ServerID(item+"/get/servers/0"), byURL["https://show.pets.example.com"])
+	ops := allOperations(doc)
+	for _, op := range ops {
+		if op.Name.Source == "showPet" {
+			assert.Equal(t, []ir.ServerID{item + "/get/servers/0"}, op.Servers, "showPet is sent to its own")
+		}
+	}
+}
+
+// serverSpace returns the namespace segment of a server's ID.
+func serverSpace(t *testing.T, id ir.ServerID) string {
+	t.Helper()
+	space, ok := ir.IDSpace(ir.IDKindServer, string(id))
+	require.True(t, ok, "%s is a well-formed server ID", id)
+	return space
 }

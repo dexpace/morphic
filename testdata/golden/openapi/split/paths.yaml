@@ -4,8 +4,10 @@ paths:
   /pets/{petId}:
     parameters:
       - $ref: '#/components/parameters/PetId'
+    servers: [{url: 'https://pets.example.com'}]
     get:
       operationId: showPet
+      servers: [{url: 'https://show.pets.example.com'}]
       parameters:
         - $ref: './root.yaml#/components/parameters/Trace'
       responses:
