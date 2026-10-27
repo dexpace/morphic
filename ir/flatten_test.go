@@ -42,11 +42,12 @@ func mixing(targets ...ir.TypeID) func(*ir.Model) {
 	return func(m *ir.Model) { m.Mixins = irtest.RefsTo(targets...) }
 }
 
-// TestFlattenedProperties_ReadsEveryCompositionField holds the composition
-// entries the flattening follows, Base, then Implements, then Mixins, to the
-// fields of ir.Model that hold a TypeRef, read off its declaration. A field
-// added beside them is an entry FlattenedProperties, ExposedProps, Supertypes
-// and the irfacts indexes must read too, or is none: the failure asks which.
+// TestFlattenedProperties_ReadsEveryCompositionField holds the flattening to
+// following each field of ir.Model that holds a TypeRef, read off its
+// declaration: those fields are Base, Implements and Mixins, and a model
+// naming one parent through each reads all three. A field added beside them is
+// an entry FlattenedProperties, ExposedProps, Supertypes and the irfacts
+// indexes must read too, or is none: the failure asks which.
 func TestFlattenedProperties_ReadsEveryCompositionField(t *testing.T) {
 	t.Parallel()
 	model, err := irDecls(t).Named("Model")
@@ -59,8 +60,21 @@ func TestFlattenedProperties_ReadsEveryCompositionField(t *testing.T) {
 			refs = append(refs, field.Name())
 		}
 	}
-	assert.Equal(t, []string{"Base", "Implements", "Mixins"}, refs,
+	require.Equal(t, []string{"Base", "Implements", "Mixins"}, refs,
 		"a Model field holding a TypeRef is a composition entry every composition walk reads, or it is not one")
+
+	doc := irtest.DocOf(
+		owning("m", func(m *ir.Model) {
+			m.Base = &ir.TypeRef{Target: "b"}
+			m.Implements = irtest.RefsTo("i")
+			m.Mixins = irtest.RefsTo("x")
+		}),
+		owning("b", nil, wired("b.p", "b")),
+		owning("i", nil, wired("i.p", "i")),
+		owning("x", nil, wired("x.p", "x")),
+	)
+	assert.Equal(t, []string{"b.p@b", "i.p@i", "x.p@x"}, flatLines(ir.FlattenedProperties(doc.Types, "m")),
+		"the flattening follows each of the three")
 }
 
 // holdsTypeRef reports whether typ is ir.TypeRef, a pointer to one or a slice
