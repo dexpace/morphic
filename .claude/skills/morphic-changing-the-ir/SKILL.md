@@ -31,8 +31,8 @@ cannot be turned off.
   `python3 .claude/skills/morphic-changing-the-ir/scripts/irversion_peers.py`
   (`references/ir-lessons.md#version-collisions`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
-  `ir/irverify`; `references/ir-lessons.md` says which test reaches each, and that none notices a
-  stale entry left for a deleted field.
+  `ir/irverify`; `references/ir-lessons.md` says which test reaches each, and which one lets a stale
+  entry for a deleted field pass.
 - **Census.** A fact no committed spec sets is a line of `testdata/unwitnessed.golden.txt`, which
   `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.

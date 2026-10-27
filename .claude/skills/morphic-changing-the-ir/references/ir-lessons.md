@@ -23,12 +23,13 @@ verifier and codecs must reach.
   classification tests in `ir/irverify`: an integer field needs an `integerFields` entry, an
   ID-typed field an `idPositions` entry, a `[]string` a `stringLists` entry, and no map may key an
   ID to an ID. Shrink walker state before classifying it. Remove a deleted field's entry yourself:
-  a stale entry passes.
+  a stale `integerFields` entry passes, though the other two tables' tests refuse one.
 - **Why.** Walker state added for `ir.FlattenedProperties` failed all three tests, and an alias
   memo mapping an ID to an ID was refused (#1141); a pair of reference-key fields failed the
   integer test (#737).
 - **Probe.** `go test ./ir/irverify -run 'AreAllClassified|EveryShapeIsOneIdShapeOfReads'`; plant
-  an `integerFields` entry for a field that does not exist and watch it pass.
+  an `integerFields` entry for a field that does not exist and watch it pass, then the same in
+  `idPositions` and watch it fail.
 
 ## Find every list a new ID class must join
 `new-id-class`
