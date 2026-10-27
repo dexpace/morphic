@@ -26,6 +26,8 @@ RULE_KEY = re.compile(r"^`([a-z0-9]+(?:-[a-z0-9]+)*)`$")
 BULLET = re.compile(r"^- \*\*([A-Za-z]+)\.\*\* \S")
 RULE_BULLETS = (["Rule", "Why"], ["Rule", "Why", "Probe"])
 CITATION = re.compile(r"#[0-9]+")
+# A code span of lowercase words joined by hyphens cites a rule by its key, or names a skill.
+KEY_CITE = re.compile(r"`([a-z0-9]+(?:-[a-z0-9]+)+)`")
 
 # Split so this file does not match itself.
 MACHINE = re.compile(
@@ -74,6 +76,7 @@ class Linter:
         self.root, self.top_level, self.tests, self.files = root, top_level, tests, files
         self.findings: list[str] = []
         self.keys: dict[str, str] = {}
+        self.citations: list[tuple[Path, int, str]] = []
 
     def report(self, path: Path, line: int, message: str) -> None:
         where = path.relative_to(self.root).as_posix()
@@ -85,6 +88,9 @@ class Linter:
         skills = sorted(d for d in (self.root / ".claude" / "skills").iterdir() if d.is_dir())
         for d in skills:
             self.check_skill(d)
+        for f, line, key in self.citations:
+            if key not in self.keys:
+                self.report(f, line, f"names no rule key {key}")
         for f in self.files:
             for i, line in enumerate(f.read_text(errors="replace").split("\n"), 1):
                 if MACHINE.search(line):
@@ -177,10 +183,14 @@ class Linter:
             self.report(ref, line, f"rule {name} is {words} words, over {MAX_RULE_WORDS}")
 
     def check_names(self, d: Path, f: Path) -> None:
-        """Hold every path, link, skill, test, section and keyed entry a file names to the tree."""
+        """Hold every path, link, skill, test, section and keyed entry a file names to the tree,
+        and record each rule key it cites, which run checks once every key is known."""
         for i, line in enumerate(f.read_text().split("\n"), 1):
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
+            if not RULE_KEY.match(line):
+                self.citations += [(f, i, k) for k in KEY_CITE.findall(line)
+                                   if not k.startswith("morphic-")]
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").split():
                     word = word.strip("'\"$();,")

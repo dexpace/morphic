@@ -16,7 +16,7 @@ description: Use when testing.
 See `references/r.md`, `scripts/tool.py`, `ir/a.go`, ir/a.go, TestKnown, TestKnown_Case,
 ir-design §4.3, docs/parser-library.md#known, `morphic-harness` and [a link](references/r.md).
 Run `go test ./ir/... $(python3 scripts/tool.py)` or `go run ./cmd/morphic-harness <spec>`
-and `gh api repos/{owner}/{repo}`.
+and `gh api repos/{owner}/{repo}`, by `do-the-thing`.
 """
 RULE = ("## Do the thing\n`do-the-thing`\n\n- **Rule.** Do it, as `ir/a.go` and TestKnown do.\n"
         "- **Why.** It broke\n  once (#1).\n- **Probe.** ir-design §4.3.\n")
@@ -62,7 +62,7 @@ class LintTest(unittest.TestCase):
         body = ("Bad `ir/nope.go`, prose ir/gone.go, TestMissing, ir-design §99.1,"
                 " parser-library.md#nope,\n"
                 "`morphic-nope`, [x](references/none.md), /U" "sers/someone.\n"
-                "Run `python3 scripts/gone.py --flag` and `go test ./ir/nope/...`.\n")
+                "Run `python3 scripts/gone.py --flag` and `go test ./ir/nope/...`, by `no-rule`.\n")
         write(self.root, skill + "SKILL.md", front + "word " * 501 + "\n" + body)
         write(self.root, skill + "references/orphan.md", "word " * 4001)
         write(self.root, skill + "scripts/tool.sh", "echo\n")
@@ -74,7 +74,7 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:1: name 'Bad_Skill' is not lowercase letters, digits and hyphens",
             f"{bad}SKILL.md:1: frontmatter name must be 'Bad_Skill'",
             f'{bad}SKILL.md:1: description must start "Use when"',
-            f"{bad}SKILL.md: body is 520 words, over 500",
+            f"{bad}SKILL.md: body is 522 words, over 500",
             f"{bad}references/orphan.md: 4001 words, over 4000",
             f"{bad}references/orphan.md: not named in {bad}SKILL.md",
             f"{bad}SKILL.md:7: ir/nope.go does not exist",
@@ -89,6 +89,7 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:8: names one machine or a memory link",
             f"{bad}SKILL.md:9: scripts/gone.py does not exist",
             f"{bad}SKILL.md:9: ./ir/nope/... does not exist",
+            f"{bad}SKILL.md:9: names no rule key no-rule",
         ]
         # The line a too-new construct is reported at depends on the interpreter's parser.
         version = [g for g in got if " is not Python 3.9: " in g]
