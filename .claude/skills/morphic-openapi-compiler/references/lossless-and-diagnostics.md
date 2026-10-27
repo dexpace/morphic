@@ -1,7 +1,7 @@
 # Lossless lowering and honest diagnostics
 
-Invariant 2 in practice: every source construct lands somewhere, and every diagnostic is true,
-located, and decided from what actually happened.
+`CLAUDE.md`'s "lossless by default" invariant in practice: every source construct lands somewhere,
+and every diagnostic is true, located, and decided from what actually happened.
 
 ## Point every diagnostic at the node and document it is about
 `diagnostic-provenance-names-the-real-site`

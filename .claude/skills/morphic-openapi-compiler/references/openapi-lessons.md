@@ -113,24 +113,31 @@ canary. A behaviour found that the page lacks is added there.
 - **Why.** Decided in #781 for #772 and #780; file-system identity made a compile depend on disk
   state.
 
-## New bounds warn and continue
-`bounds-warn`
+## Take a new bound's outcome from the rule entry for its kind
+`bound-outcome-from-the-rules`
 
-- **Rule.** A new bound in the load scan follows the existing ones: a warning ending "protection is
-  incomplete for this source", and the compile proceeds. That is safe only when the work is linear
-  in the document and every step is charged.
-- **Why.** Making one an error refusal broke a test two packages away (#563).
+- **Rule.** A new bound in load or binding takes the outcome, refusal or warning, that
+  `docs/compilers/openapi.md#source-budgets` or `docs/compilers/openapi.md#references` gives a
+  bound of its kind, and joins that entry in the same change. A bound that stops a walk is
+  reported; a cut result never reads as a clean one.
+- **Why.** Outcomes moved with the code: the reference-chain bounds that warned and let the compile
+  go on are gone (#1016), nesting past the scan's bound is refused (#905), and changing one bound
+  against its siblings broke a test two packages away (#563).
+- **Probe.** Compile a document at the bound and one past it; read each diagnostic's code, severity
+  and pointer, and whether a Document came back.
 
 ## A conformance case must survive every reader of the corpus
 `conformance-case`
 
-- **Rule.** A spec under `testdata/conformance/openapi/` has no YAML aliases (use inline `<<`), so
-  the order oracle can permute it; gives an unknown path-item key a mapping value; and is named by a
-  rule's `Cases:` line. A value the library refuses adds rows to the validation oracle's
-  disagreements: run `TestValidationOracle_AgreesWithTheLibrary` with `-update`, then classify each
-  row with a reason.
-- **Why.** One case failed all three checks on its first run (#1106); a numeric case added rows
-  (#1113).
+- **Rule.** Beyond step 4 of `CONTRIBUTING.md`'s lowering-rule recipe, a spec under
+  `testdata/conformance/openapi/` has no YAML aliases (use inline `<<`), so the order oracle can
+  permute it, and gives an unknown path-item key a mapping value with `responses`, since the library
+  reads it as an operation. A value the library refuses adds rows to the validation oracle's
+  disagreements: run
+  `go test ./compilers/openapi/internal/canary -run TestValidationOracle_AgreesWithTheLibrary -update`,
+  then classify each row with a reason.
+- **Why.** One case failed `TestOrderInvariant_ReachesTheCorpus`, the validation oracle and
+  `TestLoweringSpec_CasesAreTheCorpus` on its first run (#1106); a numeric case added rows (#1113).
 - **Probe.** `go test ./internal/harness ./compilers/openapi/...`.
 
 ## Ask the resolver directly

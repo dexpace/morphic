@@ -24,21 +24,23 @@ description: Use when changing, reviewing or debugging code under compilers/open
 
 - Compile the input and read the IR and every diagnostic: `go run ./cmd/morphic compile <spec>`
   (the IR goes to stdout, diagnostics to stderr).
-- A new conformance spec has no YAML aliases, is named by a rule's `Cases:` line, and passes
-  `go test ./internal/harness ./compilers/openapi/...`.
+- A new conformance case follows step 4 of `CONTRIBUTING.md`'s lowering-rule recipe and the
+  `conformance-case` rule, and passes `go test ./internal/harness ./compilers/openapi/...`.
 - Run `go test ./...` once: tests in other packages read the corpus too.
 
 ## Traps that recur
 
-- One construct has several readers. Before changing how a keyword is read, find every reader of
-  it.
-- A reading the library already implements is called, not re-derived.
-- A malformed construct is reported once, by the grammar-driven load phase. A lowering reports
-  only what it models.
-- A version's specification text decides validity, not its published JSON Schemas.
-- A new bound in the load scan warns and lets the compile continue, as the existing ones do.
+Each is a rule in the references below, by its key, with its evidence and probe.
 
-Each is a rule in the references below, with its evidence and probe.
+- One construct has several readers: before changing how a keyword is read, find every reader of
+  it (`every-reader`).
+- A reading the library already implements is called, not re-derived (`reuse-library-readings`).
+- A malformed construct is reported once, by load's rule table
+  (`docs/compilers/openapi.md#validation`); a lowering adds no second report
+  (`one-defect-one-finding`).
+- A version's specification text decides validity, not its published JSON Schemas (`spec-text`).
+- A new bound's outcome, refusal or warning, comes from the rule entry for its kind
+  (`bound-outcome-from-the-rules`).
 
 ## References
 
