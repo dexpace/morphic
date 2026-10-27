@@ -2,6 +2,7 @@ package irverify
 
 import (
 	"reflect"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -34,7 +35,7 @@ func checkTypeRefs(*ir.Document) walkCheck {
 			if inferred := v.FieldByName("Inferred").String(); inferred != "" && !v.FieldByName("Nullable").Bool() {
 				vs = append(vs, Violation{
 					Code:    "ir/type-ref-inferred-not-nullable",
-					Message: "type reference is marked inferred by " + inferred + " but admits no null",
+					Message: "type reference is marked inferred by " + strconv.Quote(inferred) + " but admits no null",
 					Path:    at.String() + ".Inferred",
 				})
 			}
