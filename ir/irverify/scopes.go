@@ -15,9 +15,12 @@ import (
 // is the compiler's. It is reported at the later entry.
 func checkOAuthScopes(doc *ir.Document) []Violation {
 	var vs []Violation
+	// Emptied for each flow rather than made afresh, so a flow costs no map of
+	// its own however many scopes it offers.
+	seen := map[string]bool{}
 	for id, scheme := range doc.Auth {
 		for i, flow := range scheme.Flows {
-			seen := make(map[string]bool, len(flow.Scopes))
+			clear(seen)
 			for j, scope := range flow.Scopes {
 				if seen[scope.Name] {
 					vs = append(vs, Violation{

@@ -188,7 +188,7 @@ func checkRegistryKeys(doc *ir.Document) []Violation {
 			vs = append(vs, Violation{
 				Code:    "ir/nil-type",
 				Message: "types registry has a nil type definition",
-				Path:    "types[" + string(id) + "]",
+				Path:    typePath(id),
 			})
 			continue
 		}
@@ -204,6 +204,12 @@ func checkRegistryKeys(doc *ir.Document) []Violation {
 		vs = registryKey(vs, "auth", "auth", string(id), string(scheme.ID))
 	}
 	return vs
+}
+
+// typePath spells where a check that ranges over the type registry reports the
+// entry id. A check spells it only once it has a violation to place there.
+func typePath(id ir.TypeID) string {
+	return "types[" + string(id) + "]"
 }
 
 // registryKey checks one registry entry: key must be non-empty and equal the

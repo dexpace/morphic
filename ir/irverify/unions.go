@@ -24,19 +24,18 @@ func checkUnions(doc *ir.Document) []Violation {
 		if !isUnion {
 			continue
 		}
-		path := "types[" + string(id) + "]"
 		if len(u.Variants) == 0 {
 			vs = append(vs, Violation{
 				Code:    "ir/union-no-variants",
 				Message: "union declares no variants, so no value inhabits it",
-				Path:    path,
+				Path:    typePath(id),
 			})
 		}
 		if u.Discriminator != nil && !u.WireTagged {
 			vs = append(vs, Violation{
 				Code:    "ir/union-discriminator-untagged",
 				Message: "union carries a discriminator but is not WireTagged, a tag mode ir-design §4.4 does not define",
-				Path:    path,
+				Path:    typePath(id),
 			})
 		}
 	}

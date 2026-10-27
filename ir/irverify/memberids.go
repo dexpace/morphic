@@ -1,8 +1,6 @@
 package irverify
 
 import (
-	"maps"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -16,11 +14,12 @@ import (
 // only check tying a member's ID to its enum's.
 //
 // A malformed or empty member ID is skipped: checkDeclaredIDs reports those once.
-// Enums are visited in ID order, so the report does not follow map iteration.
+// Each violation's path names its enum and member, so Verify's sort orders the
+// report whatever order the registry is ranged in.
 func checkMemberIDs(doc *ir.Document) []Violation {
 	var vs []Violation
-	for _, id := range slices.Sorted(maps.Keys(doc.Types)) {
-		enum, isEnum := doc.Types[id].(*ir.Enum)
+	for id, td := range doc.Types {
+		enum, isEnum := td.(*ir.Enum)
 		if !isEnum || enum == nil {
 			continue
 		}
@@ -43,8 +42,7 @@ func memberScopeViolation(enumID ir.TypeID, member ir.EnumMemberID, i int) (Viol
 	if !spaceOK || !hasPath || !enumSpaceOK || !enumHasPath {
 		return Violation{}, false
 	}
-	rest, under := strings.CutPrefix(path, enumPath+ir.IDSeparator)
-	if space == enumSpace && under && rest != "" {
+	if space == enumSpace && beneath(path, enumPath) {
 		return Violation{}, false
 	}
 	return Violation{
@@ -54,4 +52,13 @@ func memberScopeViolation(enumID ir.TypeID, member ir.EnumMemberID, i int) (Viol
 			" of its enum " + strconv.Quote(string(enumID)),
 		Path: ir.DocumentPath + ".Types[" + string(enumID) + "].Members[" + strconv.Itoa(i) + "]",
 	}, true
+}
+
+// beneath reports whether the ID path path lies strictly below parent: parent,
+// then the ID separator, then at least one more byte. It compares the parts
+// where they lie rather than joining parent and the separator to compare.
+func beneath(path, parent string) bool {
+	rest, under := strings.CutPrefix(path, parent)
+	rest, separated := strings.CutPrefix(rest, ir.IDSeparator)
+	return under && separated && rest != ""
 }

@@ -110,21 +110,26 @@ func declarationViolations(declaration map[string][]string) []Violation {
 // appendSpaceViolations reports the unusable entries of one kind's list.
 func appendSpaceViolations(vs []Violation, kind string, spaces []string) []Violation {
 	for i, space := range spaces {
-		path := idSpacesPath + "[" + kind + "][" + strconv.Itoa(i) + "]"
 		if space == "" || strings.Contains(space, ir.IDSeparator) {
 			vs = append(vs, Violation{
 				Code:    "ir/id-space-invalid",
 				Message: "namespace " + strconv.Quote(space) + " is empty or carries the id separator, so no id can be in it",
-				Path:    path,
+				Path:    spacePath(kind, i),
 			})
 		}
 		if i > 0 && space <= spaces[i-1] {
 			vs = append(vs, Violation{
 				Code:    "ir/id-spaces-not-canonical",
 				Message: "namespace " + strconv.Quote(space) + " does not follow " + strconv.Quote(spaces[i-1]) + " in sorted order without repeats",
-				Path:    path,
+				Path:    spacePath(kind, i),
 			})
 		}
 	}
 	return vs
+}
+
+// spacePath spells where namespace i of the kind's list sits, for a violation
+// to be placed there.
+func spacePath(kind string, i int) string {
+	return idSpacesPath + "[" + kind + "][" + strconv.Itoa(i) + "]"
 }
