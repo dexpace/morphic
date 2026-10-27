@@ -64,10 +64,11 @@ func TestRegistryChecks_ListsEveryRegistryCheck(t *testing.T) {
 // anything to report: no path is spelled for an entry before there is a
 // violation to place there, and a model's or a flow's collection is read into
 // one map the check empties for each rather than one of its own. Twice the
-// entries must cost no more. It is not run in parallel: AllocsPerRun measures
+// entries must cost no more, past the index of 100 from which strconv builds
+// the string an index spells. It is not run in parallel: AllocsPerRun measures
 // the process.
 func TestRegistryChecks_ACleanEntryCostsNothing(t *testing.T) {
-	few, many := cleanRegistry(10), cleanRegistry(20)
+	few, many := cleanRegistry(100), cleanRegistry(200)
 	checks := map[string]func(*ir.Document) []Violation{
 		"declarationViolations": func(doc *ir.Document) []Violation { return declarationViolations(doc.IDSpaces) },
 	}
