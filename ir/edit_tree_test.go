@@ -194,7 +194,7 @@ func TestEditor_EmptiedTreeSlicesAreNil(t *testing.T) {
 // TestEditor_CopiesOnlyTheTreePathItWrites pins that a write to the tree
 // copies the slices on the path to what it changes and nothing else: what an
 // update or a removal does not reach stays shared with the edited document,
-// and a read or a refused write copies nothing.
+// and a refused write, or a read with no removal to settle, copies nothing.
 func TestEditor_CopiesOnlyTheTreePathItWrites(t *testing.T) {
 	t.Parallel()
 	doc := treeDoc()
@@ -280,6 +280,73 @@ func TestEditor_ReadsTheTreeAsTheEditHoldsIt(t *testing.T) {
 	assert.Equal(t, "true changed", group.Docs.Summary)
 	_, diags := e.Finish()
 	assert.Empty(t, diags)
+}
+
+// TestEditor_UpdatesItsNodeAfterAReadSettlesTheTree pins an update whose
+// change reads a group or service, which drops the nodes the edit removed and
+// so moves what follows them: the copy lands where its node now sits, and the
+// edited document is left as it was.
+func TestEditor_UpdatesItsNodeAfterAReadSettlesTheTree(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		write func(*ir.Editor)
+		want  string
+	}{
+		{"an operation after one removed before it", func(e *ir.Editor) {
+			e.RemoveOperation("o/a1")
+			e.UpdateOperation("o/a3", func(op *ir.Operation) {
+				_, _ = e.Group("g/a")
+				changed(&op.Docs)
+			})
+		}, "s/a[g/a(o/a2 o/a3=changed)[g/a/n(o/n)] g/b(o/b)] s/b[g/c(o/c)]"},
+		{"a group after one removed before it", func(e *ir.Editor) {
+			e.RemoveGroup("g/a")
+			e.UpdateGroup("g/b", func(g *ir.OperationGroup) {
+				_, _ = e.Service("s/a")
+				changed(&g.Docs)
+			})
+		}, "s/a[g/b=changed(o/b)] s/b[g/c(o/c)]"},
+		{"a service after one removed before it", func(e *ir.Editor) {
+			e.RemoveService("s/a")
+			e.UpdateService("s/b", func(s *ir.Service) {
+				_, _ = e.Service("s/b")
+				changed(&s.Docs)
+			})
+		}, "s/b=changed[g/c(o/c)]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := treeDoc()
+			e := ir.NewEditor(doc)
+			tt.write(e)
+			out, diags := e.Finish()
+
+			require.Empty(t, diags)
+			assert.Equal(t, tt.want, render(out))
+			assert.Equal(t, irtest.Encoded(t, treeDoc()), irtest.Encoded(t, doc), "the edited document changed")
+		})
+	}
+}
+
+// TestEditor_FinishInsideAChangeSettlesTheTree pins the document Finish returns
+// from inside a change, which a pass could return as its own result: it holds
+// no node the edit removed, as the one the edit ends with does not.
+func TestEditor_FinishInsideAChangeSettlesTheTree(t *testing.T) {
+	t.Parallel()
+	e := ir.NewEditor(treeDoc())
+	e.RemoveOperation("o/a1")
+	var inner string
+	e.UpdateOperation("o/a2", func(*ir.Operation) {
+		doc, _ := e.Finish()
+		inner = render(doc)
+	})
+	out, _ := e.Finish()
+
+	const want = "s/a[g/a(o/a2 o/a3)[g/a/n(o/n)] g/b(o/b)] s/b[g/c(o/c)]"
+	assert.Equal(t, want, inner)
+	assert.Equal(t, want, render(out))
 }
 
 // TestEditor_RefusesTreeWritesOnlyABugMakes pins each write to the tree

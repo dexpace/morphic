@@ -146,8 +146,8 @@ func (e *Editor) open(verb string, at subject) bool {
 }
 
 // Finish ends the edit and returns its document: a new Document sharing with
-// the edited one every container it wrote nothing into. Its caller
-// writes none of it: the edit has a call for every part.
+// the edited one every container it wrote nothing into. Its caller writes
+// none of it: the edit has a call for every part.
 //
 // It reports an EditRefused error for each refused call, in order, then for
 // each type the edit took that has since moved off its key, putting the edited

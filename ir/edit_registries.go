@@ -51,7 +51,7 @@ func (e *Editor) Channel(id ChannelID) (Channel, bool) {
 
 // UpdateChannel hands change a deep copy of the channel at id, to alter in any
 // part but its ID, and holds the copy in its place. It refuses what UpdateType
-// refuses.
+// refuses of an id, a node off its own key and a change.
 func (e *Editor) UpdateChannel(id ChannelID, change func(*Channel)) {
 	updateEntry(e, e.channels(), id, change)
 }
@@ -71,7 +71,7 @@ func (e *Editor) Message(id MessageID) (Message, bool) {
 
 // UpdateMessage hands change a deep copy of the message at id, to alter in any
 // part but its ID, and holds the copy in its place. It refuses what UpdateType
-// refuses.
+// refuses of an id, a node off its own key and a change.
 func (e *Editor) UpdateMessage(id MessageID, change func(*Message)) {
 	updateEntry(e, e.messages(), id, change)
 }
@@ -91,7 +91,7 @@ func (e *Editor) AuthScheme(id AuthID) (AuthScheme, bool) {
 
 // UpdateAuthScheme hands change a deep copy of the auth scheme at id, to alter
 // in any part but its ID, and holds the copy in its place. It refuses what
-// UpdateType refuses.
+// UpdateType refuses of an id, a node off its own key and a change.
 func (e *Editor) UpdateAuthScheme(id AuthID, change func(*AuthScheme)) {
 	updateEntry(e, e.authSchemes(), id, change)
 }
