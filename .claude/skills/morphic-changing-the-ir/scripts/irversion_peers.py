@@ -79,7 +79,8 @@ def peers_of(root: Path, remote: str, path: str) -> list[tuple[int, str, str]]:
             continue  # this branch's own PR
         shown = git(root, "show", f"{sha}:{path}", check=False)
         version = declared(shown.stdout) if shown.returncode == 0 else None
-        out.append((pr["number"], pr["title"], version or "(none)"))
+        if version is not None:  # a head that declares no version claims none
+            out.append((pr["number"], pr["title"], version))
     return out
 
 
