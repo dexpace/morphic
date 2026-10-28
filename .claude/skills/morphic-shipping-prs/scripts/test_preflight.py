@@ -2,6 +2,9 @@
 
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-shipping-prs/scripts
 """
+import argparse
+import contextlib
+import json
 import os
 import subprocess
 import sys
@@ -113,6 +116,47 @@ class SkillsTest(unittest.TestCase):
             self.assertEqual(pf.skills_lines(Path(".")), [("skills     " + finding, True)])
         with mock.patch.object(pf.skills_lint, "findings", return_value=(1, [])):
             self.assertEqual(pf.skills_lines(Path(".")), [])
+
+
+class PrHeadTest(unittest.TestCase):
+    def test_a_tree_without_the_prs_head_is_a_fix(self):
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        with tempfile.TemporaryDirectory() as d:
+            git = ["git", "-C", d]
+
+            def commit(message: str) -> str:
+                subprocess.run(git + ["commit", "-q", "--allow-empty", "-m", message], check=True,
+                               env=env)
+                return subprocess.run(git + ["rev-parse", "HEAD"], check=True, env=env,
+                                      capture_output=True, text=True).stdout.strip()
+
+            subprocess.run(git + ["init", "-q"], check=True, env=env)
+            base, head = commit("base"), commit("head")
+            subprocess.run(git + ["checkout", "-q", "-b", "other", base], check=True, env=env)
+            sibling = commit("sibling")
+            subprocess.run(git + ["checkout", "-q", "--detach", head], check=True, env=env)
+            cases = [(head, False), (base, False), (sibling, True), ("0" * 40, True)]
+            with contextlib.chdir(d):
+                for oid, fix in cases:
+                    with self.subTest(oid=oid):
+                        line, got = pf.pr_head_line(7, oid)
+                        self.assertEqual(got, fix, line)
+                        self.assertIn(f"#7's head {oid[:12]}", line)
+                # A run for a PR reads the head from the PR and reports it with the rest.
+                pr = {"title": "fix: x", "body": "## Summary\n## Test plan\n",
+                      "headRefOid": sibling}
+                real = pf.run
+
+                def answer(*command: str) -> str:
+                    return json.dumps(pr) if command[0] == "gh" else real(*command)
+
+                args = argparse.Namespace(base=base, pr=7, title=None, body=None)
+                with mock.patch.object(pf, "run", side_effect=answer):
+                    lines = pf.report(args)
+        want = (f"pr         does not hold #7's head {sibling[:12]}: check out the PR's tree, "
+                "fetching it first", True)
+        self.assertIn(want, lines)
 
 
 class RootTest(unittest.TestCase):

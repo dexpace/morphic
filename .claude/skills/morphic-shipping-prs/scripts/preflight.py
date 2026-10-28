@@ -4,15 +4,17 @@
 # ///
 """Check a branch before it is pushed, or a PR's tree in review: each commit subject, the PR title
 measured as it will land, the body's sections and closing keywords, files the working tree holds
-apart from HEAD, the merge with main, the artifact scan, and that every name a skill uses exists.
+apart from HEAD, that HEAD holds the PR's head, the merge with main, the artifact scan, and that
+every name a skill uses exists.
 
 Usage: python3.14 preflight.py [--base BASE] [--pr N] [--title TITLE] [--body FILE]
 
 Run it anywhere in the repository: it reads the whole tree from the root. BASE defaults to
-origin/main. With --pr, the title and body are the PR's own unless --title or --body gives a draft;
-without it, the title is measured with the number the next issue or PR takes. Prints a line per
-check, FIX before each that needs fixing. Exit 0 when nothing does, 1 when something does, 2 when
-it cannot run.
+origin/main. With --pr, the title and body are the PR's own unless --title or --body gives a draft,
+and HEAD must hold the PR's head, since every other check reads the tree checked out here; without
+it, the title is measured with the number the next issue or PR takes. Prints a line per check, FIX
+before each that needs fixing. Exit 0 when nothing does, 1 when something does, 2 when it cannot
+run.
 """
 
 import argparse
@@ -114,6 +116,17 @@ def skills_lines(root: Path) -> list[Line]:
     return [(f"skills     {f}", True) for f in skills_lint.findings(root)[1]]
 
 
+def pr_head_line(number: int, head: str) -> Line:
+    """Report whether HEAD holds the PR's head commit: every other line judges the tree checked
+    out here, so a tree without the PR's head says nothing about the PR."""
+    held = subprocess.run(["git", "merge-base", "--is-ancestor", head, "HEAD"],
+                          capture_output=True).returncode == 0
+    if held:
+        return (f"pr         holds #{number}'s head {head[:12]}", False)
+    return (f"pr         does not hold #{number}'s head {head[:12]}: check out the PR's tree, "
+            "fetching it first", True)
+
+
 def merge_line(base: str) -> Line:
     if subprocess.run(["git", "merge-base", "--is-ancestor", base, "HEAD"]).returncode == 0:
         return (f"merge      holds {base}", False)
@@ -134,10 +147,10 @@ def next_number() -> int:
 
 def report(args: argparse.Namespace) -> list[Line]:
     run("git", "rev-parse", "--verify", "--quiet", f"{args.base}^{{commit}}")
-    title, body, number = args.title, None, args.pr
+    title, body, number, head = args.title, None, args.pr, None
     if args.pr:
-        pr = json.loads(run("gh", "pr", "view", str(args.pr), "--json", "title,body"))
-        title, body = title or pr["title"], pr["body"]
+        pr = json.loads(run("gh", "pr", "view", str(args.pr), "--json", "title,body,headRefOid"))
+        title, body, head = title or pr["title"], pr["body"], pr["headRefOid"]
     if args.body:
         body = Path(args.body).read_text()
     if number is None and title is not None:
@@ -147,6 +160,8 @@ def report(args: argparse.Namespace) -> list[Line]:
     out = subject_lines(subjects)
     out += title_body_lines(title, number or 0, body)
     out += worktree_lines()
+    if head is not None:
+        out.append(pr_head_line(args.pr, head))
     out.append(merge_line(args.base))
     diff = run("git", "diff", "-U0", f"{args.base}...HEAD")
     found = artifact_scan.hits("added line", artifact_scan.added_lines(diff))
