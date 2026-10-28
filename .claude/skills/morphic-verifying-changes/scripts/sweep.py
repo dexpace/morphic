@@ -39,7 +39,9 @@ KILLED = 137
 def is_spec(data: bytes) -> bool:
     """Report whether a document is OpenAPI or Swagger: one written as JSON, which YAML files
     may hold too, by its top-level keys, since a minified one starts no line with its version
-    key, and any other, JSON that does not parse among it, by a version key starting a line."""
+    key, and any other, JSON that does not parse among it, by a version key starting a line. A
+    byte-order mark before either is read past, as the compiler reads past it."""
+    data = data.removeprefix(b"\xef\xbb\xbf")
     if data.lstrip()[:1] == b"{":
         try:
             doc = json.loads(data)

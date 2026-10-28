@@ -70,6 +70,11 @@ class SweepTest(unittest.TestCase):
             with self.subTest(data=data):
                 self.assertEqual(sweep.is_spec(data), want)
 
+    def test_a_byte_order_mark_is_read_past(self):
+        for data in (b'\xef\xbb\xbf{"openapi":"3.0.3"}', b"\xef\xbb\xbfopenapi: 3.0.3\n"):
+            with self.subTest(data=data):
+                self.assertTrue(sweep.is_spec(data))
+
     def test_a_yaml_document_is_judged_by_a_version_key_starting_a_line(self):
         cases = {b"openapi: 3.1.0\n": True, b"swagger: '2.0'\n": True, b"'openapi': 3.0.3\n": True,
                  b"openapi:schema: x\n": False, b"info:\n  title: openapi\n": False}
