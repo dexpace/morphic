@@ -88,6 +88,8 @@ canary. A behaviour found that the page lacks is added there.
 - **Rule.** When a reader moves onto an IR type with a bounded domain, tell "invalid source" from
   "unrepresentable" at each caller.
 - **Why.** A valid but huge `maxLength` drew "must be a non-negative integer" (#1113).
+- **Probe.** Compile a valid value just past the IR type's domain; its diagnostic names the limit
+  the IR cannot hold, never the source as invalid.
 
 ## A heuristic shared with another reader becomes a fact
 `heuristic-is-not-knowledge`
@@ -114,6 +116,8 @@ canary. A behaviour found that the page lacks is added there.
 - **Why.** Keying on the raw spelling read one file as several documents and held the source once
   per spelling (#780, #772); #781 removed dot segments rather than ask the file system, whose answer
   makes a compile depend on disk state.
+- **Probe.** Reference one file as `./a.yaml` and as `./x/../a.yaml`; the document's `sources`
+  lists it once.
 
 ## Take a new bound's outcome from the rule entry for its kind
 `bound-outcome-from-the-rules`
@@ -155,12 +159,14 @@ canary. A behaviour found that the page lacks is added there.
 ## Trees that reach the lowering are acyclic
 `acyclic-trees`
 
-- **Rule.** Every YAML tree that reaches the lowering through load has passed the scan's
-  anchor-cycle refusal, so a reader that follows aliases and `<<` may rely on termination. A
-  mirror's own cycle check is defence only, and its test builds the cycle by hand.
-- **Why.** Load refuses an anchor cycle before anything recursive runs, so a mirror's own cycle
-  check is unreachable through load and goes untested unless its test builds the cycle by hand
-  (#563).
+- **Rule.** A reader that follows aliases and `<<` in a tree that came through load may rely on
+  termination: load refuses an anchor cycle in every tree it hands the lowering, before anything
+  recursive runs (`docs/parser-library.md#alias-cycle`). A mirror's own cycle check is defence only, and its test
+  builds the cycle by hand.
+- **Why.** Through load a mirror's cycle check is unreachable, so a test that feeds it a document
+  never runs it (#563).
+- **Probe.** Compile `x-a: &a [*a]` and see load refuse it as `openapi/cyclic-ref`; delete the
+  mirror's check and its hand-built cycle test reddens.
 
 ## Probe the external-document reader by counting fetches
 `external-reader-probes`

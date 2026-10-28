@@ -37,6 +37,8 @@ is not behaviour held.
   0–3 bytes before a 4-byte rune), and add a run of continuation bytes for the start-of-text guard.
 - **Why.** Four green tests put the bound one byte into a rune, so `for` → `if` and a dropped
   `n > 0` both survived (#1130).
+- **Probe.** As on the cut in `barrier/text.go`: plant `for` → `if` in the rune-boundary loop, then
+  drop its `n > 0`; each must redden a case.
 
 ## Give every member of a family its own reddening case
 `one-reddening-case-per-member`

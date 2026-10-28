@@ -110,8 +110,7 @@ it.
 
 - **Rule.** When code fills several outputs, merges several fields, writes several structural keys,
   or promises to leave its input or a copy untouched, assert each of them, and give sibling cases
-  the same guard set. Every element a fixture declares should be deletable only by reddening some
-  test.
+  the same guard set. Deleting any element a fixture declares reddens some test.
 - **Why.** A $ref docs merge narrowed to description alone, an alias losing its co-declared keyword,
   a builder dropping paths, and an in-place sort of the caller's slice all passed because only one
   projection was asserted (#119, #363).
@@ -184,12 +183,14 @@ it.
 ## Keep a test's verdict independent of platform and privilege
 `environment-independent-tests`
 
-- **Rule.** A fix that matters only on a platform CI does not run injects that platform's reading
-  and tests it on the host. A fixture a privileged runner can bypass (`chmod` under root) is
-  replaced by one nobody can bypass, and a test that depends on a tool driver pins its mode
-  (`GOPACKAGESDRIVER=off`).
+- **Rule.** Test each platform branch on any host by injecting that platform's reading: a test
+  that runs the code on the host reaches the host's branch alone, and a fix that matters only on
+  a platform CI does not run is such a branch. A fixture a privileged runner can bypass (`chmod`
+  under root) is replaced by one nobody can bypass, and a test that depends on a tool driver pins
+  its mode (`GOPACKAGESDRIVER=off`).
 - **Why.** A rooted-path fix was indistinguishable from the check it replaced on every CI host, and
-  a `chmod`-based test skipped under root, failing the coverage gate (#833, #344).
+  a `chmod`-based test skipped under root, failing the coverage gate (#833, #344); scripts tested
+  only the host's branch of a unit conversion and a command choice (#1143).
 - **Probe.** Revert the platform fix and confirm the injected-reading test reddens; run the coverage
   gate once as root.
 
@@ -212,6 +213,8 @@ it.
   right site sorts last (declared at `/z`, reused at `/a`).
 - **Why.** Pointer order picked the right site by coincidence in every fixture while the rule was
   not implemented (#548). The two-order oracle cannot see this.
+- **Probe.** Make the code take the first site in sort order instead of applying the rule; the
+  fixture whose right site sorts last reddens.
 
 ## When moving tests, keep every case and the right package
 `test-moves-preserve-cases-and-scope`

@@ -91,7 +91,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Gate a commit or push on each check's exit status
 `gate-by-exit-status`
 
-- **Rule.** A check that should stop a commit or push gates it by its exit status, in the same
+- **Rule.** A check meant to stop a commit or push gates it by its exit status, in the same
   command: `check > log 2>&1 && git commit ...`. Never pipe a gating check into `tail` or `grep`,
   chain it with `;`, or print a length and commit on the same line: a pipeline's status is its last
   stage's, and a printed number gates nothing.
