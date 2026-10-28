@@ -40,7 +40,9 @@ docs/superpowers/
 .vscode/
 
 # Agent scratch space — not project content. The skills under .claude/skills
-# are the exception: reviewed project content, read in place by agents.
+# are the exception: reviewed project content, read in place by agents. A clone
+# whose .git/info/exclude lists .claude/ hides a new file there from status and
+# add until that line reads .claude/* instead.
 .claude/*
 !.claude/skills/
 .crush/
