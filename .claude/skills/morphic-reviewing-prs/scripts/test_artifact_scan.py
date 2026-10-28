@@ -19,6 +19,10 @@ PLANTED = [
     "co-authored-by: cl" "aude-code <bot@example.com>",
     "gene" "rated with cl" "aude code",
     "https://cl" "aude.ai/code/session_0123",
+    "Co-authored-by: Cop" "ilot <175728472+Cop" "ilot@users.noreply.github.com>",
+    "Co-authored-by: Cur" "sor Agent <cur" "soragent@cur" "sor.com>",
+    "Co-Authored-By: gem" "ini-code-assist[bot] <bot@example.com>",
+    "Gene" "rated by Open" "AI Cod" "ex",
 ]
 CLEAN = [
     "the .claude/skills directory",
@@ -28,6 +32,7 @@ CLEAN = [
     "a scratch module",
     "a golden generated with -update",
     "the co-authored-by trailer, which the commit rules forbid",
+    "the cursor stops at the generated code",
 ]
 
 

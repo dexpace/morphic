@@ -5,14 +5,14 @@
 """Scan what a change ships for text that must not land: assistant attribution, the vocabulary
 of the working session that wrote it, paths on one machine, and audit-finding labels.
 
-Usage: python3.14 artifact_scan.py [BASE [HEAD]] [--pr N]    BASE origin/main, HEAD HEAD by default.
+Usage: python3.14 artifact_scan.py [BASE [HEAD]]    BASE origin/main, HEAD HEAD by default.
 
-Reads the lines the change adds, its commit messages and, with --pr, the PR's title and body.
-Every hit is printed for a person to judge. Exit 0 when clean, 1 on a hit, 2 when it cannot run.
+Reads the lines the change adds and its commit messages; preflight.py --pr N also reads a PR's
+title and body. Every hit is printed for a person to judge. Exit 0 when clean, 1 on a hit, 2 when
+it cannot run.
 """
 
 import argparse
-import json
 import re
 import subprocess
 import sys
@@ -20,11 +20,13 @@ import traceback
 from collections.abc import Iterable, Iterator
 
 # Split so this file does not match its own patterns.
+# The assistants and vendors a co-author trailer or a generated-by line names.
+ASSISTANTS = "cl" "aude|anthr" "opic|cop" "ilot|open" "ai|chat" "gpt|cod" "ex|gem" "ini|cur" "sor"
 PATTERNS = [
     # Attribution in any case, as tools and GitHub write it: a co-author trailer, a generated-by
     # line, an assistant's address, and a link to an assistant's session.
-    r"(?i:co-authored-by:.*(cl" r"aude|anthr" r"opic))|Gene" r"rated with|noreply@anthr" r"opic"
-    r"|(?i:gene" r"rated (with|by)\W{0,3}\[?cl" r"aude)|(?i:cl" r"aude\.(ai|com)/)",
+    rf"(?i:co-authored-by:.*({ASSISTANTS}))|Gene" r"rated with|noreply@anthr" r"opic"
+    rf"|(?i:gene" rf"rated (with|by)\W{{0,3}}\[?({ASSISTANTS}))|(?i:cl" r"aude\.(ai|com)/)",
     r"(^|[^A-Za-z.])(Cl" r"aude|Anthr" r"opic|ChatG" r"PT)([^A-Za-z]|$)",
     r"(the|this|your|per the) bri" r"ef([^A-Za-z]|$)|\(bri" r"ef|bri" r"ef:",
     r"(^|[^A-Za-z])(coordi" r"nator|implem" r"enter|sub" r"agent|scratch" r"pad)([^A-Za-z]|$)",
@@ -70,18 +72,10 @@ def commit_lines(base: str, head: str) -> Iterator[tuple[str, str]]:
                 yield sha, text
 
 
-def pr_lines(number: str) -> Iterator[tuple[str, str]]:
-    pr = json.loads(run("gh", "pr", "view", number, "--json", "title,body"))
-    yield "title", pr["title"]
-    for text in pr["body"].split("\n"):
-        yield "body", text
-
-
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Scan a change for text that must not ship.")
     p.add_argument("base", nargs="?", default="origin/main")
     p.add_argument("head", nargs="?", default="HEAD")
-    p.add_argument("--pr")
     args = p.parse_args(sys.argv[1:] if argv is None else argv)
     try:
         for rev in (args.base, args.head):
@@ -89,8 +83,6 @@ def main(argv: list[str] | None = None) -> int:
         diff = run("git", "diff", "-U0", f"{args.base}...{args.head}")
         found = hits("added line", added_lines(diff))
         found += hits("commit", commit_lines(args.base, args.head))
-        if args.pr:
-            found += hits(f"PR #{args.pr}", pr_lines(args.pr))
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         print(f"artifact_scan: {getattr(e, 'stderr', '') or e}", file=sys.stderr)
         return 2
