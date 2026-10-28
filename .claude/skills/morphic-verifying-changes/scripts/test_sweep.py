@@ -171,8 +171,8 @@ class UnheldBaseTest(unittest.TestCase):
             first = commit("a")
             later = commit("b")
             subprocess.run(["git", "-C", d, "checkout", "-q", "--detach", first], check=True)
-            self.assertIsNone(sweep.unheld_base_warning(root, first, "sweep"))
-            warning = sweep.unheld_base_warning(root, later, "sweep")
+            self.assertIsNone(sweep.unheld_base_warning(root, first))
+            warning = sweep.unheld_base_warning(root, later)
             self.assertIsNotNone(warning)
             self.assertIn("does not hold", warning)
 

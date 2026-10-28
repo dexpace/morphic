@@ -133,14 +133,14 @@ def git(root: Path, *args: str) -> str:
     return done.stdout.strip()
 
 
-def unheld_base_warning(root: Path, sha: str, name: str) -> str | None:
+def unheld_base_warning(root: Path, sha: str) -> str | None:
     """Return a warning when HEAD does not hold the base, so the comparison also counts the
     commits the base gained since the branch left it."""
     held = subprocess.run(["git", "-C", str(root), "merge-base", "--is-ancestor", sha, "HEAD"],
                           capture_output=True).returncode == 0
     if held:
         return None
-    return (f"{name}: HEAD does not hold {sha[:12]}, so every difference includes what the base "
+    return (f"sweep: HEAD does not hold {sha[:12]}, so every difference includes what the base "
             "gained since the branch left it; merge it in, or pass -b $(git merge-base HEAD "
             "origin/main)")
 
@@ -151,19 +151,19 @@ def resolve_base(base: str) -> tuple[Path, str]:
     return root, git(root, "rev-parse", "--verify", f"{base}^{{commit}}")
 
 
-def build_pair(root: Path, sha: str, package: str, out: Path, name: str) -> tuple[Path, Path]:
-    """Build package at commit sha and at the working tree, as out/base and out/head, the base in
-    a detached worktree removed afterwards; warn as name when HEAD does not hold sha."""
-    warning = unheld_base_warning(root, sha, name)
+def build_pair(root: Path, sha: str, out: Path) -> tuple[Path, Path]:
+    """Build cmd/morphic at commit sha and at the working tree, as out/base and out/head, the base
+    in a detached worktree removed afterwards; warn when HEAD does not hold sha."""
+    warning = unheld_base_warning(root, sha)
     if warning:
         print(warning, file=sys.stderr)
     src = out / "base-src"
     remove = ["git", "-C", str(root), "worktree", "remove", "--force", str(src)]
     subprocess.run(remove, capture_output=True)  # a crashed run's worktree, if any
     try:
-        build(root, package, out / "head")
+        build(root, "./cmd/morphic", out / "head")
         git(root, "worktree", "add", "--detach", "--quiet", str(src), sha)
-        build(src, package, out / "base")
+        build(src, "./cmd/morphic", out / "base")
     finally:
         subprocess.run(remove, capture_output=True)
     return out / "base", out / "head"
@@ -209,7 +209,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     print(f"sweep: building head from the working tree and base at {sha[:12]}")
     try:
-        base, head = build_pair(root, sha, "./cmd/morphic", out, "sweep")
+        base, head = build_pair(root, sha, out)
     except subprocess.CalledProcessError as e:
         print(f"sweep: {(e.stderr or '').strip() or e}", file=sys.stderr)
         return 2
