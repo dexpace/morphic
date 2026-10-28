@@ -2,11 +2,13 @@
 
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-shipping-prs/scripts
 """
+import io
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import exported_api as api
@@ -216,6 +218,17 @@ class CrashTest(unittest.TestCase):
                              text=True, env=env)
         self.assertEqual(run.returncode, 2, run.stderr)
         self.assertEqual(run.stdout, "")
+
+
+class UsageTest(unittest.TestCase):
+    def test_help_prints_the_usage_and_any_other_option_is_refused(self):
+        cases = [(["--help"], 0), (["-h"], 0), (["--octopus"], 2), (["origin/main", "extra"], 2)]
+        for args, want in cases:
+            with self.subTest(args=args):
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    self.assertEqual(api.main(args), want)
+                self.assertIn("Usage:", (out if want == 0 else err).getvalue())
 
 
 if __name__ == "__main__":

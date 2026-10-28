@@ -96,6 +96,12 @@ def added(root: Path, mb: str, files: list[str], untracked: set[str]) -> list[st
 
 def main(argv: list[str] | None = None) -> int:
     args = sys.argv[1:] if argv is None else argv
+    if args[:1] in (["-h"], ["--help"]):
+        print(__doc__.split("\n\n")[1])
+        return 0
+    if len(args) > 1 or args[:1] and args[0].startswith("-"):  # git would read it as an option
+        print(__doc__.split("\n\n")[1], file=sys.stderr)
+        return 2
     base = args[0] if args else "origin/main"
     try:
         root = Path(run(Path.cwd(), "git", "rev-parse", "--show-toplevel").strip()).resolve()

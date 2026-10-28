@@ -2,11 +2,13 @@
 
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
 """
+import io
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import affected_packages as ap
@@ -107,6 +109,17 @@ class DecodeTest(unittest.TestCase):
     def test_a_diff_that_is_not_utf8_is_read_not_crashed_on(self):
         cut = "import sys; sys.stdout.buffer.write(b'cut \\xe2\\x82 rune\\n')"
         self.assertEqual(ap.run(HERE, sys.executable, "-c", cut), "cut \ufffd rune\n")
+
+
+class UsageTest(unittest.TestCase):
+    def test_help_prints_the_usage_and_any_other_option_is_refused(self):
+        cases = [(["--help"], 0), (["-h"], 0), (["--octopus"], 2), (["origin/main", "extra"], 2)]
+        for args, want in cases:
+            with self.subTest(args=args):
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    self.assertEqual(ap.main(args), want)
+                self.assertIn("Usage:", (out if want == 0 else err).getvalue())
 
 
 if __name__ == "__main__":
