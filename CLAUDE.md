@@ -416,12 +416,13 @@ context-switch between repos.
   - A limitation that is deliberately out of scope must be stated in the code and in the PR body, in
     a place the next reader will actually reach — not only in a commit message or a scratch note.
   - **A line you were forced onto may already have a decision recorded.** When a change makes an
-    unrelated line fail to compile or fail a new check, search the tracker for it before choosing —
-    `gh issue list --search "<file or symbol>"`. A guard tightened in #185 made one `ir.Naming`
-    literal a violation; the fix picked one of two spellings without knowing #184 had already framed
-    that exact choice, said which way it should go, and said it wanted its own change. Correcting it
-    took a second PR. Follow the recorded reasoning or say why you are departing from it, but do not
-    settle a recorded decision as a side effect of something else.
+    unrelated line fail to compile or fail a new check, search the tracker for it, closed issues
+    included, before choosing —
+    `gh issue list --state all --limit 1000 --search "<file or symbol>"`. A guard tightened in #185
+    made one `ir.Naming` literal a violation; the fix picked one of two spellings without knowing
+    #184 had already framed that exact choice, said which way it should go, and said it wanted its
+    own change. Correcting it took a second PR. Follow the recorded reasoning or say why you are
+    departing from it, but do not settle a recorded decision as a side effect of something else.
 - **Verify by executing.** Every rule below was learned by shipping its opposite here, and they are
   all one mistake: *asking a question whose answer the thing under test already controls.* Reading
   the code, reading the test, regenerating the golden, compiling one declaration order — none of
@@ -495,9 +496,11 @@ the filer sets them.
 
 ### Before filing
 
-- **Search the tracker.** `gh issue list --state all --search "<symbol, file or construct>"`. A
-  duplicate gets a comment on the existing issue. A recorded decision is followed, or the new issue
-  says why it departs from it.
+- **Search the tracker.**
+  `gh issue list --state all --limit 1000 --search "<symbol, file or construct>"`. Every `gh` list
+  command here passes a limit: without one `gh` stops at a default number of results, and outside a
+  terminal it says nothing of what it left out. A duplicate gets a comment on the existing issue. A
+  recorded decision is followed, or the new issue says why it departs from it.
 - **Probe, don't read.** Reproduce the problem before writing it up: compile the spec, then quote
   the emitted IR and the full diagnostic list. The reproduction is a minimal spec, not a description
   of one. A negative claim ("X is never checked") names the probe that shows it.
@@ -510,10 +513,10 @@ the filer sets them.
 ### Title and body
 
 The title is `area: statement`. `area` is the package or document (`openapi`, `ir`, `pass`, `cli`,
-`engine`, `test`, `docs/emitter-design`); `gh issue list --state open --json title` shows the
-prefixes in use, so reuse one. After the colon: lowercase, no trailing period. A defect states what
-happens (`a nested inline allOf lowers to an empty model`), a proposal is an imperative, and an open
-question starts `decide whether`.
+`engine`, `test`, `docs/emitter-design`); `gh issue list --state open --limit 1000 --json title`
+shows the prefixes in use, so reuse one. After the colon: lowercase, no trailing period. A defect
+states what happens (`a nested inline allOf lowers to an empty model`), a proposal is an imperative,
+and an open question starts `decide whether`.
 
 ```markdown
 ## Problem
@@ -597,8 +600,9 @@ that applies sets the tier:
 
 ### Labels
 
-One `type:` label (`gh label list` gives the vocabulary and what each means), plus `performance`,
-`security` or `dependencies` when they apply. Read the body from a file so quoting cannot alter it:
+One `type:` label (`gh label list --limit 1000` gives the vocabulary and what each means), plus
+`performance`, `security` or `dependencies` when they apply. Read the body from a file so quoting
+cannot alter it:
 
 ```bash
 gh issue create --title "<title>" --body-file draft.md --label type:bug --label priority:P1
