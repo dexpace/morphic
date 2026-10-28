@@ -180,19 +180,21 @@ def api(doc: str) -> tuple[set[Element], set[Element]]:
     i = next((n for n, line in enumerate(lines) if line in SECTIONS), len(lines))
     elements, methods = set(), set()
     while i < len(lines):
-        head = code(lines[i])[0].rstrip()
+        head, depth = code(lines[i])
+        head = head.rstrip()
         i += 1
         if not DECL.match(head):
             continue
-        if not head.endswith(("{", "(")):
+        if depth <= 0:
             elements.add((single(head), ""))
             continue
-        body = []
-        while i < len(lines) and not lines[i].startswith(("}", ")")):
-            body.append(lines[i])
+        # A declaration ends where its brackets balance: a signature's ") (" opens its results.
+        spanned = []
+        while i < len(lines) and depth > 0:
+            spanned.append(lines[i])
+            depth += code(lines[i])[1]
             i += 1
-        close = code(lines[i])[0].strip() if i < len(lines) else ""
-        i += 1
+        body, close = spanned[:-1], code(spanned[-1])[0].strip() if spanned else ""
         for element, member in block(head, body, close):
             elements.add(element)
             if member:

@@ -103,6 +103,12 @@ class ReadTest(unittest.TestCase):
         self.assertEqual(elements, want)
         self.assertEqual(methods, {e for e in want if e[0] == "type I interface" and e[1]})
 
+    def test_a_signature_spanning_lines_on_both_sides_is_read_whole(self):
+        doc = ("package q\n\nFUNCTIONS\n\nfunc Both(\n\ta int,\n) (\n\tn int,\n\terr error,\n)\n"
+               "    Both spans lines.\n\nfunc After()\n")
+        self.assertEqual(api.api(doc)[0],
+                         {("func Both(int) (int, error)", ""), ("func After()", "")})
+
     def test_a_parameter_list_is_read_as_its_types(self):
         cases = {"": "", "a, b int": "int, int", "int, string": "int, string",
                  "chan int": "chan int",
