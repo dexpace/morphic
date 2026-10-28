@@ -40,14 +40,16 @@ from pathlib import Path
 FAIL_LINE = re.compile(r"^\s*--- FAIL", re.M)
 OK_LINE = re.compile(r"^ok\s", re.M)
 NO_TESTS = "[no tests to run]"
-NO_BUILD = re.compile(r"\[build failed\]|\[setup failed\]|^# ", re.M)
+# The lines go test and unittest write themselves, matched where they write them, so a failing
+# test whose message quotes one is still a failing test.
+NO_BUILD = re.compile(r"^FAIL\s.*\[(?:build|setup) failed\]|^# ", re.M)
+NOT_LOADED = re.compile(r"^ERROR: \S+ \(unittest\.loader\._FailedTest\b", re.M)
 KILLED, SURVIVED, UNVERIFIED = 0, 1, 2
 LABELS = ("KILLED", "SURVIVED", "UNVERIFIED")
 FAILED_TEST = re.compile(r"^(?:--- FAIL: |FAIL: |ERROR: )(\S+)", re.M)
 UNITTEST_RAN = re.compile(r"^Ran (\d+) tests? in ", re.M)
 UNITTEST_FAIL = re.compile(r"^(?:FAIL|ERROR): .+", re.M)
 UNITTEST_OK = re.compile(r"^OK\b", re.M)
-NOT_LOADED = "unittest.loader._FailedTest"
 # A failing run's own lines, which a failure prints with or without a failing test's line: go
 # test's for each failing package, as an os.Exit in a test or a timeout gives, and unittest's
 # summary of a failing suite, as an unexpected success gives.
@@ -96,7 +98,7 @@ def unittest_verdict(status: int, output: str, ran: int) -> tuple[int, str]:
     verdict, a kill needs a failing or erroring test, and a survival a run that exits 0, ran a
     test and failed none."""
     fails = UNITTEST_FAIL.findall(output)
-    if NOT_LOADED in output:
+    if NOT_LOADED.search(output):
         return UNVERIFIED, ("UNVERIFIED: a test module did not load, so no verdict\n"
                             + "\n".join(fails[:10]))
     if ran == 0:

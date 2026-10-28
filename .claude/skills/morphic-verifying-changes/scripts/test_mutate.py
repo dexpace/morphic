@@ -48,10 +48,19 @@ class VerdictTest(unittest.TestCase):
             (0, "ok  \tpkg\t0.1s [no tests to run]\nok  \tpkg2\t0.1s\n", mutate.SURVIVED),
             (1, "# pkg\nx.go:1: undefined: y\nFAIL\tpkg [build failed]\n", mutate.UNVERIFIED),
             (1, "FAIL\t./nope [setup failed]\n", mutate.UNVERIFIED),
+            # A package that does not build beside one whose test fails is no verdict.
+            (1, "--- FAIL: TestA (0.00s)\nFAIL\tpkga\t0.1s\n# pkgb\nb.go:1: undefined: y\n"
+                "FAIL\tpkgb [build failed]\nFAIL\n", mutate.UNVERIFIED),
+            # A failing test whose message quotes what go test or unittest writes still fails.
+            (1, "--- FAIL: TestA (0.00s)\n    a_test.go:9: want FAIL\tpkg [build failed]\n"
+                "FAIL\tpkga\t0.1s\nFAIL\n", mutate.KILLED),
+            (1, "FAIL: test_x (m.T.test_x) (output='ERROR: test_m (unittest.loader._FailedTest)')"
+                "\nRan 3 tests in 0.1s\n\nFAILED (failures=1)\n", mutate.KILLED),
             (1, "exit status 3\n", mutate.UNVERIFIED),
             (0, "...\nRan 3 tests in 0.1s\n\nOK\n", mutate.SURVIVED),
             (0, "\nRan 0 tests in 0.000s\n\nOK\n", mutate.UNVERIFIED),
             (0, "\nRan 0 tests in 0.0s\n\nOK\n\nRan 2 tests in 0.1s\n\nOK\n", mutate.SURVIVED),
+            (0, "\nRan 2 tests in 0.1s\n\nOK\n\nRan 0 tests in 0.0s\n\nOK\n", mutate.SURVIVED),
             (5, "\nRan 0 tests in 0.000s\n\nNO TESTS RAN\n", mutate.UNVERIFIED),
             (1, "FAIL: test_x (m.T)\nRan 3 tests in 0.1s\n\nFAILED (failures=1)\n", mutate.KILLED),
             (1, "ERROR: test_m (unittest.loader._FailedTest)\nRan 1 test in 0.0s\n\n"
