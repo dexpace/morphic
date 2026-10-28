@@ -24,7 +24,7 @@ verifier and codecs must reach.
   classification tests in `ir/irverify`: an integer field needs an `integerFields` entry, an
   ID-typed field an `idPositions` entry, a `[]string` a `stringLists` entry, and no map may key an
   ID to an ID. Shrink walker state before classifying it. Remove a deleted field's entry yourself:
-  a stale `integerFields` entry passes (#1148), though the other two tables refuse one.
+  a stale `integerFields` entry passes (#1148), though `idPositions` and `stringLists` refuse one.
 - **Why.** Walker state added for `ir.FlattenedProperties` failed all three tests, and an alias
   memo mapping an ID to an ID was refused (#1141); a pair of reference-key fields failed the
   integer test (#737).

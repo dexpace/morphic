@@ -41,8 +41,8 @@ compiles a corpus with two builds; these rules decide whether its answer means a
 ## Use a transform differential for spelling and equivalence claims
 `transform-differential`
 
-- **Rule.** For a fix about how a character in keys or references is read, rename every key with two
-  suffixes (`+Q` and `_Q`), compile both, map one onto the other and compare. For "X is the whole
+- **Rule.** For a fix about how a character in keys or references is read, rename every key once
+  with the suffix `+Q` and once with `_Q`, compile both, map one onto the other and compare. For "X is the whole
   change", apply the expected rule to `main`'s output and require equality with the branch.
 - **Why.** The rename oracle found error text leaking a respelled form after a byte-identical corpus
   check had reached nothing (#933). A transform differential showed docs moving rather than lost

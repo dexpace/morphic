@@ -22,7 +22,7 @@ gives. A clock does none of that reliably; a counter does.
 `marginal-growth-on-one-path`
 
 - **Rule.** Measure at n, 2n and 4n and assert `A(4n)-A(2n) <= 2.5*(A(2n)-A(n))`: fixed cost
-  cancels, linear growth gives 2 and quadratic 4. Require the same diagnostics at all three sizes,
+  cancels, linear growth gives 2 and quadratic 4. Require the same diagnostics at each size,
   since a refused size runs other code, and pick sizes at which every planted defect still
   finishes.
 - **Why.** A ratio of totals let a quadratic term hide behind fixed cost at small n, bounds pinned

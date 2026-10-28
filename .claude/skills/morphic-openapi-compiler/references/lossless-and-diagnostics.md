@@ -236,4 +236,4 @@ and every diagnostic is true, located, and decided from what actually happened.
 - **Why.** Ordered early-return guards and single-path lowerings kept one keyword of a pair, so
   {minimum:10,exclusiveMinimum:0} and {minimum:10} compiled byte-identical (#346, #322).
 - **Probe.** For each keyword pair the code reads, compile the pair, each keyword alone and neither,
-  and diff all four documents; two identical outputs for different inputs is the drop.
+  and diff the documents; two identical outputs for different inputs is the drop.
