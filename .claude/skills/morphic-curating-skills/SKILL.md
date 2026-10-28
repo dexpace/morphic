@@ -22,9 +22,8 @@ Take the first that fits.
    `.claude/skills`.
 
 A skill links to a normative fact in `docs/`, such as a `docs/parser-library.md` or
-`docs/compilers/openapi.md` entry, and never restates it. Each skill's description says when it
-loads; read them with `grep -h '^description:' .claude/skills/*/SKILL.md` rather than keep a list
-of them here, which would drift.
+`docs/compilers/openapi.md` entry, and never restates it. List the skills with
+`grep -h '^description:' .claude/skills/*/SKILL.md`; a hand list here would drift.
 
 ## Rule format
 
@@ -58,6 +57,9 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
   checks the limits, the rule format and that every name a skill uses exists. The gate runs
   neither it nor the scripts' tests; `preflight.py` and `review_setup.py` run it on each branch
   they check, code changes included.
+- After writing or changing a rule's Why, run
+  `python3 .claude/skills/morphic-curating-skills/scripts/citations.py <key>` and read each
+  citation it lists against its item.
 - A lesson a skill already holds that failed again means the skill failed: sharpen its wording or
-  its trigger rather than adding a second copy.
-- Skill changes ship like code: a branch, a PR, a title such as `chore(skills): <subject>`.
+  its trigger, not add a second copy.
+- Skill changes ship like code, titled like `chore(skills): <subject>`.

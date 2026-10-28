@@ -81,6 +81,31 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
     return top_level, tests, {f.rsplit("/", 1)[-1] for f in listed.splitlines()}
 
 
+def rule_blocks(text: str) -> list[tuple[int, list[str]]]:
+    """Return each rule a reference holds as the line number of its heading and its lines, from
+    that "## " heading to the next."""
+    lines = text.split("\n")
+    starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
+    ends = starts[1:] + [len(lines)]
+    return [(start + 1, lines[start:end]) for start, end in zip(starts, ends)]
+
+
+def rule_bullets(block: list[str]) -> tuple[list[list[str]], list[int]]:
+    """Return a rule's bullets as [name, text] with each continuation line joined to its text, and
+    the index in block of each line that belongs to no bullet."""
+    bullets: list[list[str]] = []
+    stray = []
+    for i, text in enumerate(block[2:], 2):
+        m = BULLET.match(text)
+        if m:
+            bullets.append([m.group(1), text])
+        elif text.startswith("  ") and bullets:
+            bullets[-1][1] += " " + text.strip()
+        elif text.strip():
+            stray.append(i)
+    return bullets, stray
+
+
 def standard_module(name: str, listed: frozenset[str] | None) -> bool:
     """Report whether a top-level module ships with Python. Python 3.9 lists none of its
     modules (listed is None), so there one counts when it is built in, or found under the
@@ -180,11 +205,8 @@ class Linter:
 
     def check_rules(self, ref: Path) -> None:
         """Hold each rule a reference holds, from its heading to the next, to the rule format."""
-        lines = ref.read_text().split("\n")
-        starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
-        for n, start in enumerate(starts):
-            end = starts[n + 1] if n + 1 < len(starts) else len(lines)
-            self.check_rule(ref, start + 1, lines[start:end])
+        for line, block in rule_blocks(ref.read_text()):
+            self.check_rule(ref, line, block)
 
     def check_rule(self, ref: Path, line: int, block: list[str]) -> None:
         """Check one rule: its key is unique across the skills, its bullets are Rule, Why and an
@@ -198,15 +220,9 @@ class Linter:
         if name in self.keys:
             self.report(ref, line + 1, f"key {name} is also used at {self.keys[name]}")
         self.keys.setdefault(name, where)
-        bullets: list[list[str]] = []
-        for i, text in enumerate(block[2:], line + 2):
-            m = BULLET.match(text)
-            if m:
-                bullets.append([m.group(1), text])
-            elif text.startswith("  ") and bullets:
-                bullets[-1][1] += " " + text.strip()
-            elif text.strip():
-                self.report(ref, i, f"rule {name} has a line that is no bullet of it")
+        bullets, stray = rule_bullets(block)
+        for i in stray:
+            self.report(ref, line + i, f"rule {name} has a line that is no bullet of it")
         names = [b[0] for b in bullets]
         if names not in RULE_BULLETS:
             self.report(ref, line, f"rule {name} has {', '.join(names) or 'no'} bullets, "
