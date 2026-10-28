@@ -130,6 +130,16 @@ class LintTest(unittest.TestCase):
         line = GOOD_SKILL.count("\n") + 1
         self.assertEqual(self.lint()[1], [f"{skill}:{line}: a code span breaks onto the next line"])
 
+    def test_a_section_wrapped_onto_the_next_line_is_checked_once(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill, GOOD_SKILL + "See ir-design\n"
+              "§99.1 and ir-design §97.1, then ir-design §\n98.2, but ir-design §4.3 holds.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        want = [f"{skill}:{n}: docs/ir-design.md has no section 99.1",
+                f"{skill}:{n + 1}: docs/ir-design.md has no section 97.1",
+                f"{skill}:{n + 1}: docs/ir-design.md has no section 98.2"]
+        self.assertEqual(sorted(self.lint()[1]), want)
+
     def test_a_name_is_held_to_the_specification(self):
         for name in ("double--hyphen", "-leading", "trailing-", "x" * 65):
             with self.subTest(name=name):

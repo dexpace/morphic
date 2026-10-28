@@ -271,7 +271,8 @@ class Linter:
         """Hold every path, link, skill, test, section, keyed entry and rule a file names to the
         tree, and record each bare span that may be a rule key, which run judges once every key
         is known."""
-        for i, line in enumerate(f.read_text().split("\n"), 1):
+        lines = f.read_text().split("\n")
+        for i, line in enumerate(lines, 1):
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
             if not RULE_KEY.match(line):
@@ -295,7 +296,12 @@ class Linter:
             for name in TEST.findall(line):
                 if name not in self.tests:
                     self.report(f, i, f"no test named {name}")
-            for doc, num in SECTION.findall(line):
+            # A section citation wraps at its spaces, so read on into the next line.
+            joined = line + " " + (lines[i].lstrip() if i < len(lines) else "")
+            for m in SECTION.finditer(joined):
+                if m.start() >= len(line):
+                    break  # it starts on the next line, which reports it
+                doc, num = m.groups()
                 if not self.has(doc, r"^#{2,6} +" + re.escape(num) + r"([. ]|$)"):
                     self.report(f, i, f"docs/{doc}.md has no section {num}")
             for doc, key in KEY.findall(line):
