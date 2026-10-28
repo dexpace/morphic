@@ -9,7 +9,7 @@ import sys
 import tempfile
 import unittest
 import unittest.mock
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 import sweep
@@ -85,6 +85,32 @@ class SweepTest(unittest.TestCase):
         prefix = self.root / "slow"
         self.assertEqual(sweep.compile_one(self.bins["head"], slow, prefix, [], 1), sweep.KILLED)
         self.assertTrue(Path(f"{prefix}.ir").exists())
+
+    def test_a_spec_killed_on_both_sides_is_not_compared(self):
+        out = self.root / "out"
+        for n in (1, 2):
+            (out / "runs" / str(n)).mkdir(parents=True)
+            for side in ("base", "head"):
+                (out / "runs" / str(n) / f"{side}.ir").write_text("")
+        # Partial output from two killed compiles may differ, and still compares nothing.
+        stuck = (1, sweep.KILLED, sweep.KILLED, self.corpus / "same.yaml", "diagnostics")
+        changed = (2, 0, 0, self.corpus / "changed.yaml", "ir")
+        for results, want in (([stuck], 2), ([stuck, changed], 1)):
+            with self.subTest(want=want):
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    self.assertEqual(sweep.report(results, self.root, out), want)
+                text = buf.getvalue()
+                self.assertIn("1 spec(s) hit the time limit on both sides", text)
+                self.assertNotIn("no spec differs", text)
+                self.assertEqual("1 of 2 specs differ" in text, want == 1, text)
+
+    def test_a_limit_or_job_count_under_one_is_a_usage_error(self):
+        for argv in (["-t", "0"], ["-j", "0"], ["-t", "-5"]):
+            with self.subTest(argv=argv):
+                with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as e:
+                    sweep.parse(argv)
+                self.assertEqual(e.exception.code, 2)
 
     def test_flags_after_a_double_dash_reach_the_compile(self):
         args = sweep.parse(["-b", "x", "testdata", "--", "--opt", "a=b"])

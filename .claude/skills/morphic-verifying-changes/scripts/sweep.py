@@ -10,10 +10,11 @@ Usage: python3.14 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS.
 
 BASE is the revision to compare against (default origin/main); when HEAD does not hold it, a
 warning says the differences also count what BASE gained since. A compile running past SECONDS
-(default 60) is killed and recorded as 137. JOBS compiles run at once (default half the CPUs).
-Outputs are kept under OUTDIR (default a new temporary directory) for diffing. CORPUS
-directories are searched for OpenAPI and Swagger documents (default testdata). Exit 0 when
-nothing differs, 1 when something does, 2 when the sweep cannot run.
+(default 60) is killed and recorded as 137, and a spec killed on both sides is listed as not
+compared. JOBS compiles run at once (default half the CPUs). Outputs are kept under OUTDIR
+(default a new temporary directory) for diffing. CORPUS directories are searched for OpenAPI and
+Swagger documents (default testdata). Exit 0 when nothing differs, 1 when something does, 2 when
+the sweep cannot run or nothing differs among the specs it compared but some it did not.
 """
 
 import argparse
@@ -81,15 +82,25 @@ def report(results, root: Path, out: Path) -> int:
         size = sum((out / "runs" / str(r[0]) / f"{side}.ir").stat().st_size for r in results)
         codes = " ".join(f"{code}x{count}" for code, count in sorted(dist.items()))
         print(f"  {side} exit codes: {codes}; IR bytes: {size}")
-    differ = [r for r in results if r[4]]
-    if not differ:
-        print("sweep: no spec differs")
-        return 0
-    print(f"sweep: {len(differ)} of {len(results)} specs differ (n, then what):")
-    for n, _, _, spec, what in differ:
-        print(f"  {n}  {rel(spec)}: {what}")
-    print(f"compare one with: diff {out}/runs/<n>/base.diag {out}/runs/<n>/head.diag")
-    return 1
+    # A compile killed on both sides finished on neither, so its outputs say nothing about either.
+    unjudged = [r for r in results if r[1] == r[2] == KILLED]
+    differ = [r for r in results if r[4] and r not in unjudged]
+    if unjudged:
+        print(f"sweep: {len(unjudged)} spec(s) hit the time limit on both sides and were not "
+              "compared; raise -t:")
+        for n, _, _, spec, _ in unjudged:
+            print(f"  {n}  {rel(spec)}")
+    if differ:
+        print(f"sweep: {len(differ)} of {len(results)} specs differ (n, then what):")
+        for n, _, _, spec, what in differ:
+            print(f"  {n}  {rel(spec)}: {what}")
+        print(f"compare one with: diff {out}/runs/<n>/base.diag {out}/runs/<n>/head.diag")
+        return 1
+    if unjudged:
+        print("sweep: no compared spec differs")
+        return 2
+    print("sweep: no spec differs")
+    return 0
 
 
 def git(root: Path, *args: str) -> str:
@@ -151,6 +162,8 @@ def parse(argv: list[str]) -> argparse.Namespace:
     p.add_argument("-o", dest="out")
     p.add_argument("corpus", nargs="*")
     args = p.parse_args(argv)
+    if args.limit < 1 or args.jobs < 1:
+        p.error("-t and -j must be at least 1")
     args.flags = flags
     return args
 
