@@ -10,8 +10,10 @@ Usage: python3.14 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS.
 
 BASE is the revision to compare against (default origin/main); when HEAD does not hold it, a
 warning says the differences also count what BASE gained since. A compile running past SECONDS
-(default 60) is killed and recorded as 137, and a spec killed on both sides is listed as not
-compared. JOBS compiles run at once (default half the CPUs). Outputs are kept under OUTDIR
+(default 60) is killed and recorded as 137. A spec that is killed, or exits 2, on both sides is
+listed as not compared, since neither build finished compiling it: 2 is morphic's exit for a
+misuse, an I/O error, a broken contract or a signal, as an unknown COMPILE-FLAG gives every spec.
+JOBS compiles run at once (default half the CPUs). Outputs are kept under OUTDIR
 (default a new temporary directory) for diffing. CORPUS directories are searched for OpenAPI and
 Swagger documents (default testdata): one written as JSON, whatever its suffix, by its top-level
 keys, minified or not, and YAML by a version key starting a line. Exit 0 when nothing differs, 1
@@ -34,6 +36,9 @@ from pathlib import Path
 # A version key starting a line, ended by its colon: a key such as "openapi:schema" is another.
 SPEC = re.compile(rb'^\s*["\']?(openapi|swagger)["\']?\s*:(\s|$)', re.M)
 KILLED = 137
+# The exits after which a build did not finish compiling a spec: morphic's own failure, and the
+# time limit.
+UNFINISHED = {2: "failed to run", KILLED: "hit the time limit"}
 
 
 def is_spec(data: bytes) -> bool:
@@ -101,14 +106,14 @@ def report(results, root: Path, out: Path) -> int:
         size = sum((out / "runs" / str(r[0]) / f"{side}.ir").stat().st_size for r in results)
         codes = " ".join(f"{code}x{count}" for code, count in sorted(dist.items()))
         print(f"  {side} exit codes: {codes}; IR bytes: {size}")
-    # A compile killed on both sides finished on neither, so its outputs say nothing about either.
-    unjudged = [r for r in results if r[1] == r[2] == KILLED]
+    # A compile that finished on neither side says nothing about either.
+    unjudged = [r for r in results if r[1] == r[2] and r[1] in UNFINISHED]
     differ = [r for r in results if r[4] and r not in unjudged]
     if unjudged:
-        print(f"sweep: {len(unjudged)} spec(s) hit the time limit on both sides and were not "
-              "compared; raise -t:")
-        for n, _, _, spec, _ in unjudged:
-            print(f"  {n}  {rel(spec)}")
+        print(f"sweep: {len(unjudged)} spec(s) finished compiling on neither side and were not "
+              "compared; read a run's diagnostics, or raise -t:")
+        for n, code, _, spec, _ in unjudged:
+            print(f"  {n}  {rel(spec)}: {UNFINISHED[code]} ({code})")
     if differ:
         print(f"sweep: {len(differ)} of {len(results)} specs differ (n, then what):")
         for n, _, _, spec, what in differ:

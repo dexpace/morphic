@@ -107,7 +107,7 @@ class SweepTest(unittest.TestCase):
         self.assertEqual(sweep.compile_one(self.bins["head"], slow, prefix, [], 1), sweep.KILLED)
         self.assertTrue(Path(f"{prefix}.ir").exists())
 
-    def test_a_spec_killed_on_both_sides_is_not_compared(self):
+    def test_a_spec_finished_on_neither_side_is_not_compared(self):
         out = self.root / "out"
         for n in (1, 2):
             (out / "runs" / str(n)).mkdir(parents=True)
@@ -115,14 +115,19 @@ class SweepTest(unittest.TestCase):
                 (out / "runs" / str(n) / f"{side}.ir").write_text("")
         # Partial output from two killed compiles may differ, and still compares nothing.
         stuck = (1, sweep.KILLED, sweep.KILLED, self.corpus / "same.yaml", "diagnostics")
+        refused = (1, 2, 2, self.corpus / "same.yaml", "")
         changed = (2, 0, 0, self.corpus / "changed.yaml", "ir")
-        for results, want in (([stuck], 2), ([stuck, changed], 1)):
+        cases = (([stuck], 2), ([stuck, changed], 1), ([refused], 2), ([refused, changed], 1))
+        for results, want in cases:
             with self.subTest(want=want):
                 buf = io.StringIO()
                 with redirect_stdout(buf):
                     self.assertEqual(sweep.report(results, self.root, out), want)
                 text = buf.getvalue()
-                self.assertIn("1 spec(s) hit the time limit on both sides", text)
+                self.assertIn("1 spec(s) finished compiling on neither side", text)
+                reason = ("failed to run (2)" if results[0] is refused
+                          else "hit the time limit (137)")
+                self.assertIn(f"same.yaml: {reason}", text)
                 self.assertNotIn("no spec differs", text)
                 self.assertEqual("1 of 2 specs differ" in text, want == 1, text)
 
