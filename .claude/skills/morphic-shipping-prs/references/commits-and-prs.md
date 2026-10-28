@@ -106,9 +106,9 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   `main` package, or adds a method to an exported interface, breaks the callers or implementations
   outside the repository, even when nothing inside it is affected: the title carries `!`, the
   commit body explains the break, and the PR body has a Breaking section.
-- **Why.** `compile.NewTypes` lost its parameter in a plain `fix` (#551); `compilers/compile` is
-  the framework other compilers build on, and earlier removals there were marked breaking (#239,
-  #496).
+- **Why.** `compile.NewTypes` lost its parameter in a PR titled as a plain `fix` until review added
+  the `!` (#551); `compilers/compile` is the framework other compilers build on, and earlier
+  removals there were marked breaking (#239, #496).
 - **Probe.** `scripts/exported_api.py`, which `scripts/preflight.py` runs, lists each
   declaration, field, interface method and grouped member the branch removes or changes, and each
   method it adds to an interface, as `go doc -all` prints them at the merge base and in the
