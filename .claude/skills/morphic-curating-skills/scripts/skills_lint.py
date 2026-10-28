@@ -165,6 +165,7 @@ class Linter:
                 self.report(ref, 0, f"not named in {skill.relative_to(self.root).as_posix()}")
             self.check_rules(ref)
         for f in [skill, *refs]:
+            self.check_split_spans(f)
             self.check_names(d, f)
         self.check_scripts(d, text)
 
@@ -252,6 +253,19 @@ class Linter:
         words = len(" ".join(block).split())
         if words > MAX_RULE_WORDS:
             self.report(ref, line, f"rule {name} is {words} words, over {MAX_RULE_WORDS}")
+
+    def check_split_spans(self, f: Path) -> None:
+        """Report a code span a line break splits, once, at its first line: the checks read one
+        line at a time, so a split span escapes them, and later backticks on its line pair
+        wrongly."""
+        fenced, inside = False, False
+        for i, line in enumerate(f.read_text().split("\n"), 1):
+            if line.startswith("```"):
+                fenced = not fenced
+            elif not fenced and line.count("`") % 2:
+                if not inside:
+                    self.report(f, i, "a code span breaks onto the next line")
+                inside = not inside
 
     def check_names(self, d: Path, f: Path) -> None:
         """Hold every path, link, skill, test, section, keyed entry and rule a file names to the

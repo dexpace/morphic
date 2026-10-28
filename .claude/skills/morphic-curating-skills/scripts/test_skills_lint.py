@@ -123,6 +123,13 @@ class LintTest(unittest.TestCase):
         self.assertStartsWith(version[0], f"{bad}scripts/new.py:", version[0])
         self.assertEqual(sorted(g for g in got if g not in version), sorted(want), "\n".join(got))
 
+    def test_a_code_span_broken_across_lines_is_reported_once(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill,
+              GOOD_SKILL + "Run `go vet\n--all` there.\n\n```markdown\n`odd\n```\n")
+        line = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{line}: a code span breaks onto the next line"])
+
     def test_a_name_is_held_to_the_specification(self):
         for name in ("double--hyphen", "-leading", "trailing-", "x" * 65):
             with self.subTest(name=name):

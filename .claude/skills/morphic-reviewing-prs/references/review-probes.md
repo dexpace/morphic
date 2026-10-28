@@ -73,10 +73,10 @@ defect, keep a `main` control.
 ## A new route inherits the old route's open bugs
 `new-route-open-bugs`
 
-- **Rule.** When a change makes X "work as Y does", rewrite each open repro of Y (`gh issue list
-  --search "<mechanism>"`) into X's spelling and run both builds. A new crash path is a regression
-  even when its root is an open issue. Check merged and open PR bodies for handoffs:
-  `gh pr list --state all --search "#N in:body"`.
+- **Rule.** When a change makes X "work as Y does", rewrite each open repro of Y
+  (`gh issue list --search "<mechanism>"`) into X's spelling and run both builds. A new crash path
+  is a regression even when its root is an open issue. Check merged and open PR bodies for
+  handoffs: `gh pr list --state all --search "#N in:body"`.
 - **Why.** A discriminator mapping resolved "as a `$ref` would" made a `$ref`-only crash reachable
   (#564, #749), and another reached an unbounded library recursion (#763).
 
