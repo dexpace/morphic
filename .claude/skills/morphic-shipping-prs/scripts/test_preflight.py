@@ -85,12 +85,19 @@ class RootTest(unittest.TestCase):
                                   capture_output=True, text=True).stdout.strip()
             (root / "pkg" / "a.go").write_text("package pkg\n\nfunc Exported(x int) {}\n")
             subprocess.run(git + ["commit", "-qam", "fix: change it"], check=True, env=env)
+            (root / "other" / "README.md").write_text("y\n")
+            (root / "other" / "new.txt").write_text("z\n")
             command = [sys.executable, str(HERE / "preflight.py"), "--base", base,
                        "--body", "body.md"]
             run = subprocess.run(command, cwd=root / "other", capture_output=True, text=True,
                                  env=env)
         self.assertIn("pkg: func Exported()", run.stdout, run.stdout + run.stderr)
         self.assertIn("body       has Summary", run.stdout, "a relative --body is read where given")
+        changed = "FIX changed    other/README.md: commit or stash it, since the push carries HEAD"
+        self.assertIn(changed, run.stdout, "a check of the working tree speaks for no push")
+        untracked = "FIX untracked  other/new.txt: commit it, remove it, or ignore it"
+        self.assertIn(untracked, run.stdout)
+        self.assertEqual(run.returncode, 1, run.stdout)
 
 
 class CrashTest(unittest.TestCase):

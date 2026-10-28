@@ -4,8 +4,8 @@
 # ///
 """Check a branch before it is pushed: each commit subject, the PR title measured as it will land,
 the body's sections and closing keywords, the exported API the branch removes or changes as
-exported_api.py reads it, untracked files, the merge with main, the artifact scan, and that every
-name a skill uses exists.
+exported_api.py reads it, files the working tree holds apart from HEAD, the merge with main, the
+artifact scan, and that every name a skill uses exists.
 
 Usage: python3.14 preflight.py [--base BASE] [--pr N] [--title TITLE] [--body FILE]
 
@@ -77,6 +77,16 @@ def exported_lines(changes: list[str], title: str | None) -> list[tuple[str, boo
     return [(head, title is not None and not breaking)] + listed
 
 
+def worktree_lines() -> list[tuple[str, bool]]:
+    """Report each file the working tree holds apart from HEAD: the push carries HEAD, while the
+    checks here, the lint and the exported API among them, read the working tree."""
+    changed = run("git", "diff", "--name-only", "HEAD").splitlines()
+    untracked = run("git", "ls-files", "--others", "--exclude-standard").splitlines()
+    return ([(f"changed    {f}: commit or stash it, since the push carries HEAD", True)
+             for f in changed]
+            + [(f"untracked  {f}: commit it, remove it, or ignore it", True) for f in untracked])
+
+
 def skills_lines(root: Path) -> list[tuple[str, bool]]:
     """Report each name a skill uses that the branch leaves naming nothing, such as a test it
     renamed: the change that moves a name retargets every skill that cites it."""
@@ -112,12 +122,11 @@ def report(args: argparse.Namespace) -> list[tuple[str, bool]]:
     if number is None and title is not None:
         number = next_number()
     subjects = run("git", "log", "--no-merges", "--format=%s", f"{args.base}..HEAD").splitlines()
-    untracked = run("git", "ls-files", "--others", "--exclude-standard").splitlines()
 
     out = subject_lines(subjects)
     out += title_body_lines(title, number or 0, body)
     out += exported_lines(exported_api.listed(Path.cwd(), args.base), title)
-    out += [(f"untracked  {f}: commit it, remove it, or ignore it", True) for f in untracked]
+    out += worktree_lines()
     out.append(merge_line(args.base))
     diff = run("git", "diff", "-U0", f"{args.base}...HEAD")
     found = artifact_scan.hits("added line", artifact_scan.added_lines(diff))
