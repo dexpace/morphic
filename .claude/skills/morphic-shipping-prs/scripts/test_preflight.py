@@ -29,37 +29,8 @@ class SubjectTest(unittest.TestCase):
 
 
 class ExportedTest(unittest.TestCase):
-    DIFF = "\n".join([
-        "--- a/ir/edit.go",
-        "+++ b/ir/edit.go",
-        "-func NewTypes(src int) *Types {",
-        "+func NewTypes() *Types {",
-        "-func (e *Editor) Remove(id TypeID) bool {",
-        "-func (w *walker) Visit(v Value) bool {",
-        "-func helper() {}",
-        "-type Gone struct {",
-        "-const Version = \"0.1.0\"",
-        "-var Default = New()",
-        "-const internalOnly = 1",
-        "-\tGrouped Kind = \"g\"",
-        "--- a/ir/moved.go",
-        "+++ /dev/null",
-        "-func Moved() int {",
-        "--- /dev/null",
-        "+++ b/ir/new.go",
-        "+func Moved() int {",
-    ])
-
-    def test_removed_and_rewritten_exports_are_listed_and_moves_are_not(self):
-        want = ["ir/edit.go: func NewTypes(src int) *Types {",
-                "ir/edit.go: func (e *Editor) Remove(id TypeID) bool {",
-                "ir/edit.go: type Gone struct {",
-                "ir/edit.go: const Version = \"0.1.0\"",
-                "ir/edit.go: var Default = New()"]
-        self.assertEqual(pf.exported_changes(self.DIFF), want)
-
     def test_a_change_needs_a_bang_only_when_the_title_lacks_one(self):
-        changes = ["ir/edit.go: type Gone struct {"]
+        changes = ["ir: type Gone struct"]
         self.assertTrue(pf.exported_lines(changes, "fix(ir): drop Gone")[0][1])
         self.assertFalse(pf.exported_lines(changes, "fix(ir)!: drop Gone")[0][1])
         self.assertFalse(pf.exported_lines(changes, None)[0][1], "no title, nothing to judge")
@@ -102,6 +73,7 @@ class RootTest(unittest.TestCase):
             git = ["git", "-C", d]
             subprocess.run(git + ["init", "-q"], check=True, env=env)
             (root / "pkg").mkdir()
+            (root / "go.mod").write_text("module example.com/m\n\ngo 1.25\n")
             (root / "other").mkdir()
             (root / "other" / "README.md").write_text("x\n")
             (root / ".gitignore").write_text("body.md\n")
@@ -117,7 +89,7 @@ class RootTest(unittest.TestCase):
                        "--body", "body.md"]
             run = subprocess.run(command, cwd=root / "other", capture_output=True, text=True,
                                  env=env)
-        self.assertIn("pkg/a.go: func Exported() {}", run.stdout, run.stdout + run.stderr)
+        self.assertIn("pkg: func Exported()", run.stdout, run.stdout + run.stderr)
         self.assertIn("body       has Summary", run.stdout, "a relative --body is read where given")
 
 

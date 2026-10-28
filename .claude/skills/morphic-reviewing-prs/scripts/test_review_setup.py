@@ -105,6 +105,24 @@ class SkillsTest(unittest.TestCase):
                     self.assertEqual(rs.skills_report(Path(".")), want)
 
 
+class ExportedTest(unittest.TestCase):
+    def test_a_break_is_listed_against_the_title(self):
+        found = ["ir: type Gone struct"]
+        cases = [
+            ("fix(ir): drop Gone", found,
+             ["exported   NOT marked: the title carries no ! for these breaks:",
+              rs.INDENT + found[0]]),
+            ("fix(ir)!: drop Gone", found,
+             ["exported   breaking, as the title's ! says:", rs.INDENT + found[0]]),
+            ("fix(ir): keep", [], ["exported   no exported API removed or changed"]),
+        ]
+        for title, listed, want in cases:
+            with self.subTest(title=title):
+                with mock.patch.object(rs.exported_api, "listed", return_value=listed) as call:
+                    self.assertEqual(rs.exported_report(Path("t"), "origin/main", title), want)
+                call.assert_called_once_with(Path("t"), "origin/main")
+
+
 class FilesTest(unittest.TestCase):
     def test_files_group_by_area(self):
         files = ["ir/a.go", "ir/irverify/b.go", "ir/irverify/c.go", "README.md",

@@ -103,15 +103,16 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `exported-api-change-needs-bang`
 
 - **Rule.** A change that removes or changes an exported identifier outside an `internal/` or
-  `main` package breaks the callers outside the repository, even when no caller inside it uses it:
-  the title carries `!`, the commit body explains the break, and the PR body has a Breaking
-  section.
+  `main` package, or adds a method to an exported interface, breaks the callers or implementations
+  outside the repository, even when nothing inside it is affected: the title carries `!`, the
+  commit body explains the break, and the PR body has a Breaking section.
 - **Why.** `compile.NewTypes` lost its parameter in a plain `fix` (#551); `compilers/compile` is
   the framework other compilers build on, and earlier removals there were marked breaking (#239,
   #496).
-- **Probe.** `scripts/preflight.py` lists each exported function, method, type, constant and
-  variable the branch removes or changes; read the diff for a struct field or a member of a
-  grouped declaration, which it does not see.
+- **Probe.** `scripts/exported_api.py`, which `scripts/preflight.py` runs, lists each
+  declaration, field, interface method and grouped member the branch removes or changes, and each
+  method it adds to an interface, as `go doc -all` prints them at the merge base and in the
+  working tree.
 
 ## Build each commit of a split from whole file states, and test each
 `split-into-tested-commits`

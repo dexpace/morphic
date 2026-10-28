@@ -4,8 +4,8 @@
 # ///
 """Check a PR out in a worktree of its own, as it will land, and print what a first review pass
 needs: the title measured as it will land, commit subjects, closing keywords, files by area, the
-merge state, CI, the squash-message setting, every name a skill uses that the tree lacks, and an
-artifact scan.
+merge state, CI, the squash-message setting, the exported API the change breaks, every name a
+skill uses that the tree lacks, and an artifact scan.
 
 Usage: python3.14 review_setup.py PR-NUMBER [DIR]
 
@@ -29,7 +29,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "morphic-curating-skills" / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "morphic-shipping-prs" / "scripts"))
 import artifact_scan  # noqa: E402  (a sibling script)
+import exported_api  # noqa: E402  (a script of the shipping skill)
 import skills_lint  # noqa: E402  (a script of the curating skill)
 
 TITLE_CAP = 72
@@ -110,6 +112,19 @@ def skills_report(directory: Path) -> list[str]:
         return [f"skills     {p}" for p in problems]
     return [f"skills     {count} checked, every name they use exists" if count
             else "skills     none in this tree"]
+
+
+def exported_report(directory: Path, base: str, title: str) -> list[str]:
+    """Report the exported API the tree under review breaks against base, and whether the title
+    marks the break with !, as preflight.py does for the author."""
+    found = exported_api.listed(directory, base)
+    if not found:
+        return ["exported   no exported API removed or changed"]
+    if BREAKING.match(title):
+        head = "exported   breaking, as the title's ! says:"
+    else:
+        head = "exported   NOT marked: the title carries no ! for these breaks:"
+    return [head] + [INDENT + f for f in found]
 
 
 def run(*args: str, check: bool = True, env: dict | None = None) -> subprocess.CompletedProcess:
@@ -199,6 +214,7 @@ def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[
     out += ["", "files by area:"] + [f"{INDENT}{n:4}  {a}" for n, a in areas(files)]
     out.append(INDENT + git(root, "diff", "--shortstat", mb, head).stdout.strip())
     out += [f"load       {skill}" for skill in domain_hints(files, pr["title"])]
+    out += exported_report(directory, name, pr["title"])
     out += skills_report(directory)
 
     out += [""] + merge_lines

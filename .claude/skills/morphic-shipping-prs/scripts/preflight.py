@@ -3,9 +3,9 @@
 # requires-python = ">=3.14"
 # ///
 """Check a branch before it is pushed: each commit subject, the PR title measured as it will land,
-the body's sections and closing keywords, the exported Go functions, methods, types, constants and
-variables the branch removes or changes (bar struct fields and members of a grouped declaration),
-untracked files, the merge with main, the artifact scan, and that every name a skill uses exists.
+the body's sections and closing keywords, the exported API the branch removes or changes as
+exported_api.py reads it, untracked files, the merge with main, the artifact scan, and that every
+name a skill uses exists.
 
 Usage: python3.14 preflight.py [--base BASE] [--pr N] [--title TITLE] [--body FILE]
 
@@ -30,6 +30,7 @@ SKILLS = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SKILLS / "morphic-reviewing-prs" / "scripts"))
 sys.path.insert(0, str(SKILLS / "morphic-curating-skills" / "scripts"))
 import artifact_scan  # noqa: E402  (a script of the review skill)
+import exported_api  # noqa: E402  (a sibling script)
 import review_setup  # noqa: E402  (a script of the review skill)
 import skills_lint  # noqa: E402  (a script of the curating skill)
 from artifact_scan import run  # noqa: E402  (the same helper, not a copy)
@@ -37,11 +38,6 @@ from artifact_scan import run  # noqa: E402  (the same helper, not a copy)
 SUBJECT_CAP = 72
 # A line review_setup marks as needing a fix.
 MARKED = re.compile(r"OVER|NOT |MISSING|but the title")
-# A removed exported function, method of an exported type, type, constant or variable, each
-# declared on a line of its own.
-EXPORTED = re.compile(r"^-(func (\((\w+ )?\*?[A-Z][^)]*\) )?[A-Z]\w*|(type|const|var) [A-Z]\w*)")
-PUBLIC_GO = ["*.go", ":(exclude)*_test.go", ":(glob,exclude)**/internal/**",
-             ":(glob,exclude)cmd/**", ":(glob,exclude)**/testdata/**"]
 
 
 def subject_lines(subjects: list[str]) -> list[tuple[str, bool]]:
@@ -55,20 +51,6 @@ def subject_lines(subjects: list[str]) -> list[tuple[str, bool]]:
             problems.append("not type(scope): subject without a trailing period")
         note = "  " + "; ".join(problems) if problems else ""
         out.append((f"subject    {len(s):3}  {s}{note}", bool(problems)))
-    return out
-
-
-def exported_changes(diff: str) -> list[str]:
-    """Return each exported declaration a diff of public Go files removes or rewrites, leaving out
-    one it adds back unchanged, as a move does."""
-    lines = diff.splitlines()
-    added = {line[1:] for line in lines if line.startswith("+") and not line.startswith("+++")}
-    out, path = [], ""
-    for line in lines:
-        if line.startswith("--- "):
-            path = line[6:] if line.startswith("--- a/") else line[4:]
-        elif EXPORTED.match(line) and line[1:] not in added:
-            out.append(f"{path}: {line[1:].strip()}")
     return out
 
 
@@ -130,12 +112,11 @@ def report(args: argparse.Namespace) -> list[tuple[str, bool]]:
     if number is None and title is not None:
         number = next_number()
     subjects = run("git", "log", "--no-merges", "--format=%s", f"{args.base}..HEAD").splitlines()
-    public = run("git", "diff", f"{args.base}...HEAD", "--", *PUBLIC_GO)
     untracked = run("git", "ls-files", "--others", "--exclude-standard").splitlines()
 
     out = subject_lines(subjects)
     out += title_body_lines(title, number or 0, body)
-    out += exported_lines(exported_changes(public), title)
+    out += exported_lines(exported_api.listed(Path.cwd(), args.base), title)
     out += [(f"untracked  {f}: commit it, remove it, or ignore it", True) for f in untracked]
     out.append(merge_line(args.base))
     diff = run("git", "diff", "-U0", f"{args.base}...HEAD")

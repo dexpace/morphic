@@ -17,17 +17,18 @@ rewritten once pushed.
   (`references/commits-and-prs.md#gate-by-exit-status`).
 - `git status --untracked-files=all` lists only what you meant to add
   (`references/commits-and-prs.md#commit-only-what-you-meant`).
-- A removed or changed exported identifier outside `internal/` and `main` packages makes the change
-  breaking (`references/commits-and-prs.md#exported-api-change-needs-bang`).
+- A removed or changed exported identifier outside `internal/` and `main` packages, or a method
+  added to an exported interface, makes the change breaking
+  (`references/commits-and-prs.md#exported-api-change-needs-bang`).
 
 ## Before each push
 
 Run `python3.14 .claude/skills/morphic-shipping-prs/scripts/preflight.py` from the repository root,
 with `--pr N` once the PR exists, or `--title` and `--body FILE` for a draft. It checks each
 subject, the title measured with the number GitHub appends, the body's sections against the
-title's `!`, its closing keywords, the exported functions, methods, types, constants and variables
-the branch removes or changes, untracked files, the merge with `origin/main`, the artifact scan,
-and every name a skill uses. It exits 1 on a finding, so chain the push on it with `&&`.
+title's `!`, its closing keywords, the exported API the branch breaks (`scripts/exported_api.py`,
+which also runs alone), untracked files, the merge with `origin/main`, the artifact scan, and every
+name a skill uses. It exits 1 on a finding, so chain the push on it with `&&`.
 
 ## Merging main in
 
