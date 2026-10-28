@@ -38,11 +38,12 @@ BREAKING = re.compile(r"^[a-z]+(\([^)]+\))?!:")
 # GitHub reads a keyword in any case, a colon after it or not, before #N or OWNER/REPO#N.
 CLOSING = re.compile(r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?):? +([\w.-]+/[\w.-]+)?#[0-9]+",
                      re.I)
-# A line the title and body reports mark as needing a fix.
-MARKED = re.compile(r"OVER|NOT |MISSING|but the title")
+
+# A report line, and whether it needs fixing.
+type Line = tuple[str, bool]
 
 
-def subject_lines(subjects: list[str]) -> list[tuple[str, bool]]:
+def subject_lines(subjects: list[str]) -> list[Line]:
     """Judge each commit subject by the form CLAUDE.md gives it."""
     out = []
     for s in subjects:
@@ -56,48 +57,48 @@ def subject_lines(subjects: list[str]) -> list[tuple[str, bool]]:
     return out
 
 
-def title_report(title: str, number: str) -> list[str]:
+def title_report(title: str, number: str) -> list[Line]:
     landed = len(f"{title} (#{number})")
-    over = "  OVER" if landed > SUBJECT_CAP else ""
-    ok = CONVENTIONAL.match(title) and not title.endswith(".")
+    over = landed > SUBJECT_CAP
+    ok = CONVENTIONAL.match(title) is not None and not title.endswith(".")
     form = "ok" if ok else "NOT type(scope): subject without a trailing period"
-    return [f"title      {title}",
-            f'{INDENT}{landed} characters with " (#{number})", cap {SUBJECT_CAP}{over}',
-            f"{INDENT}conventional form: {form}"]
+    count = f'{INDENT}{landed} characters with " (#{number})", cap {SUBJECT_CAP}'
+    return [(f"title      {title}", False), (count + ("  OVER" if over else ""), over),
+            (f"{INDENT}conventional form: {form}", not ok)]
 
 
-def body_report(body: str, title: str) -> list[str]:
-    """Report the sections CLAUDE.md asks of a PR body, Breaking among them when the title marks a
-    break with !, and every closing keyword."""
+def body_report(body: str, breaking: bool | None) -> list[Line]:
+    """Report the sections CLAUDE.md asks of a PR body and every closing keyword. A Breaking
+    section follows the title's !, so with breaking None, for a body with no title, it is not
+    judged."""
     lines = []
-    breaking = BREAKING.match(title) is not None
-    for section in ("Summary", "Test plan", "Breaking"):
+    sections = ("Summary", "Test plan") + (("Breaking",) if breaking is not None else ())
+    for section in sections:
         has = re.search(rf"^#+ +{section}", body, re.M) is not None
-        if has and (breaking or section != "Breaking"):
-            lines.append(f"body       has {section}")
+        wanted = section != "Breaking" or breaking
+        if has and wanted:
+            lines.append((f"body       has {section}", False))
         elif has:
-            lines.append("body       has a Breaking section, but the title marks no break with !")
-        elif breaking or section != "Breaking":
-            lines.append(f"body       MISSING a {section} section")
-    for keyword in sorted({m.group(0) for m in CLOSING.finditer(body)}):
-        lines.append(f"closes     {keyword}")
-    return lines
+            lines.append(("body       has a Breaking section, but the title marks no break with !",
+                          True))
+        elif wanted:
+            lines.append((f"body       MISSING a {section} section", True))
+    closing = sorted({m.group(0) for m in CLOSING.finditer(body)})
+    return lines + [(f"closes     {keyword}", False) for keyword in closing]
 
 
-def title_body_lines(title: str | None, number: int, body: str | None) -> list[tuple[str, bool]]:
-    """Judge the title as it will land and the body against it. With no title, the body's
-    sections are judged without the Breaking one, which follows the title."""
-    out = title_report(title, str(number)) if title is not None else []
-    if body is not None:
-        lines = body_report(body, title or "")
-        out += lines if title is not None else [l for l in lines if "Breaking" not in l]
-    judged = [(line, MARKED.search(line) is not None) for line in out]
+def title_body_lines(title: str | None, number: int, body: str | None) -> list[Line]:
+    """Judge the title as it will land and the body against it."""
     if title is None:
-        judged.insert(0, ("title      none given: pass --pr or --title to measure it", False))
-    return judged
+        out = [("title      none given: pass --pr or --title to measure it", False)]
+    else:
+        out = title_report(title, str(number))
+    if body is not None:
+        out += body_report(body, None if title is None else BREAKING.match(title) is not None)
+    return out
 
 
-def worktree_lines() -> list[tuple[str, bool]]:
+def worktree_lines() -> list[Line]:
     """Report each file the working tree holds apart from HEAD: the push carries HEAD, while the
     checks here, the lint among them, read the working tree."""
     changed = run("git", "diff", "--name-only", "HEAD").splitlines()
@@ -107,13 +108,13 @@ def worktree_lines() -> list[tuple[str, bool]]:
             + [(f"untracked  {f}: commit it, remove it, or ignore it", True) for f in untracked])
 
 
-def skills_lines(root: Path) -> list[tuple[str, bool]]:
+def skills_lines(root: Path) -> list[Line]:
     """Report each name a skill uses that the branch leaves naming nothing, such as a test it
     renamed: the change that moves a name retargets every skill that cites it."""
     return [(f"skills     {f}", True) for f in skills_lint.findings(root)[1]]
 
 
-def merge_line(base: str) -> tuple[str, bool]:
+def merge_line(base: str) -> Line:
     if subprocess.run(["git", "merge-base", "--is-ancestor", base, "HEAD"]).returncode == 0:
         return (f"merge      holds {base}", False)
     clean = subprocess.run(["git", "merge-tree", "--write-tree", base, "HEAD"],
@@ -131,7 +132,7 @@ def next_number() -> int:
     return int(latest.strip()) + 1
 
 
-def report(args: argparse.Namespace) -> list[tuple[str, bool]]:
+def report(args: argparse.Namespace) -> list[Line]:
     run("git", "rev-parse", "--verify", "--quiet", f"{args.base}^{{commit}}")
     title, body, number = args.title, None, args.pr
     if args.pr:

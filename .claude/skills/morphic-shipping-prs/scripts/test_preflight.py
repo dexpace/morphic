@@ -31,8 +31,10 @@ class SubjectTest(unittest.TestCase):
 class TitleTest(unittest.TestCase):
     def test_the_title_is_measured_as_it_lands(self):
         title = "fix(ir): " + "x" * 55  # 64 characters, 72 with " (#1234)"
-        self.assertNotIn("OVER", pf.title_report(title, "1234")[1])
-        self.assertIn("OVER", pf.title_report(title + "y", "1234")[1])
+        self.assertEqual(pf.title_report(title, "1234")[1][1], False)
+        line, fix = pf.title_report(title + "y", "1234")[1]
+        self.assertTrue(fix)
+        self.assertIn("OVER", line)
 
     def test_the_conventional_form_is_checked(self):
         cases = [
@@ -44,7 +46,14 @@ class TitleTest(unittest.TestCase):
         ]
         for title, ok in cases:
             with self.subTest(title=title):
-                self.assertEqual(pf.title_report(title, "1")[2].endswith(": ok"), ok)
+                line, fix = pf.title_report(title, "1")[2]
+                self.assertEqual((line.endswith(": ok"), fix), (ok, not ok))
+
+    def test_a_valid_title_holding_a_marker_word_needs_no_fix(self):
+        for title in ("fix(ir): read OVERRIDE keys", "docs: say what is NOT kept",
+                      "feat: report MISSING fields"):
+            with self.subTest(title=title):
+                self.assertFalse(any(fix for _, fix in pf.title_body_lines(title, 1143, None)))
 
 
 class BodyTest(unittest.TestCase):
@@ -52,30 +61,32 @@ class BodyTest(unittest.TestCase):
         body = "## Summary\n\nCloses #12 and fixes #13; refers to #14.\n\n## Test plan\n"
         want = ["body       has Summary", "body       has Test plan",
                 "closes     Closes #12", "closes     fixes #13"]
-        self.assertEqual(pf.body_report(body, "fix: x"), want)
+        self.assertEqual([line for line, _ in pf.body_report(body, False)], want)
 
     def test_every_spelling_github_closes_on_is_listed(self):
         body = "CLOSES: #1, Fixed octo-org/octo-repo#2, resolve #3; prefix#4, fixing #5, fix:#6"
         want = ["closes     CLOSES: #1", "closes     Fixed octo-org/octo-repo#2",
                 "closes     resolve #3"]
-        self.assertEqual(pf.body_report(body, "fix: x")[2:], want)
+        self.assertEqual([line for line, _ in pf.body_report(body, False)[2:]], want)
 
     def test_a_missing_section_is_named(self):
-        got = pf.body_report("## Summary\n", "fix: x")
-        self.assertIn("body       MISSING a Test plan section", got)
+        got = pf.body_report("## Summary\n", False)
+        self.assertIn(("body       MISSING a Test plan section", True), got)
 
     def test_a_break_needs_its_section_and_only_a_break_has_one(self):
         both = "## Summary\n## Test plan\n"
         cases = [
-            ("feat(ir)!: x", both, "body       MISSING a Breaking section"),
-            ("feat!: x", both + "## Breaking\n", "body       has Breaking"),
-            ("feat(ir): x", both + "## Breaking\n",
-             "body       has a Breaking section, but the title marks no break with !"),
+            (True, both, ("body       MISSING a Breaking section", True)),
+            (True, both + "## Breaking\n", ("body       has Breaking", False)),
+            (False, both + "## Breaking\n",
+             ("body       has a Breaking section, but the title marks no break with !", True)),
         ]
-        for title, body, want in cases:
-            with self.subTest(title=title):
-                self.assertIn(want, pf.body_report(body, title))
-        self.assertEqual(len(pf.body_report(both, "fix: x")), 2, "no break, no Breaking line")
+        for breaking, body, want in cases:
+            with self.subTest(breaking=breaking, body=body):
+                self.assertIn(want, pf.body_report(body, breaking))
+        self.assertEqual(len(pf.body_report(both, False)), 2, "no break, no Breaking line")
+        self.assertEqual(len(pf.body_report(both + "## Breaking\n", None)), 2,
+                         "with no title, Breaking is not judged")
 
 
 class TitleBodyTest(unittest.TestCase):
