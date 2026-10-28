@@ -25,15 +25,18 @@ how to measure so the number means what the claim says.
   while measuring.
 - **Why.** Replacing `FieldByName` with an allocation-free field scan made `Verify` slower (#1133);
   runs alternating with the author's own test runs showed a gap quiet runs did not (#1140).
-- **Probe.** `scripts/compare_cost.py` over the golden spec.
+- **Probe.** Build `./cmd/morphic` with `go build -o <bin>` in a worktree of the merge base and at
+  the head, run the two alternately under `/usr/bin/time -l` on macOS or
+  `perf stat -e instructions:u` on Linux, and compare each side's median and range. A run that
+  exits non-zero measured a failure.
 
 ## Measure against a base the branch holds
 `check-the-base-build`
 
 - **Rule.** A build of `origin/main` holds whatever was fetched last, which can include a change
   merged minutes ago that the branch lacks. Measure against the branch's merge base, or merge
-  `main` in first; `compare_cost.py` and `sweep.py` warn when HEAD does not hold the base. Before
-  calling a difference a regression, read both builds' revisions.
+  `main` in first; `sweep.py` warns when HEAD does not hold the base. Before calling a difference a
+  regression, read both builds' revisions.
 - **Why.** A branch read 33% more CPU than a `main` build that had just gained another PR's
   speedup, which the branch lacked (#1131, #1125).
 - **Probe.** `git merge-base --is-ancestor <base> HEAD`; on a false answer, rerun with
@@ -58,7 +61,8 @@ how to measure so the number means what the claim says.
   reproducers of closed cost issues whose tests the change deletes.
 - **Why.** A pointer builder quadratic in depth passed a corpus of real specs and the full gate, and
   three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778).
-- **Probe.** `scripts/compare_cost.py` on each generated shape, at n and 2n.
+- **Probe.** Instructions retired on each generated shape at n and 2n, on both builds
+  (`references/finding-cost.md#instructions-not-wall-clock`).
 
 ## Do not take main's fast failure as the baseline for a fix
 `failing-fast-is-no-baseline`

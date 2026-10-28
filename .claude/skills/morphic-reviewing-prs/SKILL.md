@@ -11,13 +11,18 @@ unless asked.
 
 ## Setup
 
-Run `python3.14 .claude/skills/morphic-reviewing-prs/scripts/review_setup.py <PR>`. It checks out
-the head merged into `origin/main` in a worktree of its own, the tree as it will land, and names
-the domain skill to load. Probe only in that worktree, with
-`morphic-verifying-changes`. A head that conflicts with `main` is checked out alone, and the
-conflict is an `issue:`. For a branch or range with no PR, build that worktree by hand and run
-`python3.14 .claude/skills/morphic-reviewing-prs/scripts/artifact_scan.py BASE HEAD`, the scan the
-setup runs.
+Review the tree as it will land, in its own worktree:
+
+```bash
+git fetch origin main && git fetch origin "pull/<N>/head"
+git worktree add --detach <dir> FETCH_HEAD && cd <dir> && git merge --no-edit origin/main
+python3.14 .claude/skills/morphic-shipping-prs/scripts/preflight.py --pr <N>
+```
+
+A head that conflicts with `main` is reviewed alone (`git merge --abort`); the conflict is an
+`issue:`. Load the domain skill the changed files call for, and probe only there, with
+`morphic-verifying-changes`. For a branch or range with no PR, run
+`python3.14 .claude/skills/morphic-reviewing-prs/scripts/artifact_scan.py BASE HEAD`.
 
 ## Passes
 
@@ -49,7 +54,7 @@ Rank each `issue:`, `nit:` (a defect too small to break anything), `suggestion:`
 `question:`. The rank orders the work, not what may ship: every `issue:` and `nit:` is fixed or
 justified in writing before merge. Each names the rule it breaks (in `CLAUDE.md` or a skill), the
 file and line, what was run and what came back, and the smallest fix that removes the class rather
-than the instance, after sweeping its mechanism as pass 2 does.
+than the instance.
 
 - A defect the change introduces, exposes or makes reachable is in scope even when its root is
   older, and a stated limitation is an `issue:` when a valid input shows head worse than base.

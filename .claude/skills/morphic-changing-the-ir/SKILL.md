@@ -28,9 +28,8 @@ cannot be turned off.
   `TestIRVersion_HistoryRecordsEachGeneration` catch a shape change. A change of meaning with no
   change of shape, such as a lowering that starts filling a member, is the bump no test sees: make
   it, with the row's `meaning`.
-- **Other PRs.** Before claiming a version, and after each merge of `main`, run
-  `python3.14 .claude/skills/morphic-changing-the-ir/scripts/irversion_peers.py`
-  (`references/ir-lessons.md#version-collisions`).
+- **Other PRs.** Before claiming a version, and after each merge of `main`, list the open PRs
+  that claim one (`references/ir-lessons.md#version-collisions`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
   `ir/irverify`; `references/ir-lessons.md` says which test reaches each, and which one lets a stale
   entry for a deleted field pass.
@@ -39,11 +38,6 @@ cannot be turned off.
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.
 - **Breaking.** A version bump breaks every consumer, as ir-design §2.1 says: the title carries
   `!`, and the commit and PR bodies say what an older consumer sees (`morphic-shipping-prs`).
-
-## Scripts
-
-- `scripts/irversion_peers.py` lists the open PRs that move `IRVersion`, the version each claims,
-  and whether the working tree's claim collides with one or trails `main`.
 
 ## References
 

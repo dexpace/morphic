@@ -34,10 +34,9 @@ goes to the type that owns the broken state
   (`references/differentials.md#validate-the-instrument-first`).
 - Read every result line: a mutant that did not compile, a test that never ran and a panic in
   another test all look like verdicts.
-- Iterate with
-  `go test $(python3.14 .claude/skills/morphic-verifying-changes/scripts/affected_packages.py)`,
-  run `go test ./...` before concluding, and `make gate` before calling it done: `go test`
-  passing is not the coverage gate (`references/toolchain.md#coverage-per-package`).
+- Iterate with `go test` on the packages you touched, run `go test ./...` before concluding, as
+  Go's test cache keeps the unchanged packages cheap, and `make gate` before calling it done:
+  `go test` passing is not the coverage gate (`references/toolchain.md#coverage-per-package`).
 
 ## Scripts
 
@@ -49,8 +48,6 @@ options.
   only where the command passes on the clean tree.
 - `scripts/sweep.py` compiles a corpus at a base and at the working tree and reports each
   difference.
-- `scripts/affected_packages.py` lists the packages a change can affect.
-- `scripts/golden_spec.py` prints the cached golden spec's path, or counts its objects.
 
 ## References
 

@@ -28,13 +28,54 @@ class SubjectTest(unittest.TestCase):
                 self.assertEqual(pf.subject_lines([subject])[0][1], fix)
 
 
-class ExportedTest(unittest.TestCase):
-    def test_a_change_needs_a_bang_only_when_the_title_lacks_one(self):
-        changes = ["ir: type Gone struct"]
-        self.assertTrue(pf.exported_lines(changes, "fix(ir): drop Gone")[0][1])
-        self.assertFalse(pf.exported_lines(changes, "fix(ir)!: drop Gone")[0][1])
-        self.assertFalse(pf.exported_lines(changes, None)[0][1], "no title, nothing to judge")
-        self.assertEqual(pf.exported_lines([], "fix: x"), [])
+class TitleTest(unittest.TestCase):
+    def test_the_title_is_measured_as_it_lands(self):
+        title = "fix(ir): " + "x" * 55  # 64 characters, 72 with " (#1234)"
+        self.assertNotIn("OVER", pf.title_report(title, "1234")[1])
+        self.assertIn("OVER", pf.title_report(title + "y", "1234")[1])
+
+    def test_the_conventional_form_is_checked(self):
+        cases = [
+            ("feat(ir)!: add a thing", True),
+            ("chore: tidy", True),
+            ("Add a thing", False),
+            ("fix: end with a period.", False),
+            ("fix(ir):missing space", False),
+        ]
+        for title, ok in cases:
+            with self.subTest(title=title):
+                self.assertEqual(pf.title_report(title, "1")[2].endswith(": ok"), ok)
+
+
+class BodyTest(unittest.TestCase):
+    def test_sections_and_closing_keywords(self):
+        body = "## Summary\n\nCloses #12 and fixes #13; refers to #14.\n\n## Test plan\n"
+        want = ["body       has Summary", "body       has Test plan",
+                "closes     Closes #12", "closes     fixes #13"]
+        self.assertEqual(pf.body_report(body, "fix: x"), want)
+
+    def test_every_spelling_github_closes_on_is_listed(self):
+        body = "CLOSES: #1, Fixed octo-org/octo-repo#2, resolve #3; prefix#4, fixing #5, fix:#6"
+        want = ["closes     CLOSES: #1", "closes     Fixed octo-org/octo-repo#2",
+                "closes     resolve #3"]
+        self.assertEqual(pf.body_report(body, "fix: x")[2:], want)
+
+    def test_a_missing_section_is_named(self):
+        got = pf.body_report("## Summary\n", "fix: x")
+        self.assertIn("body       MISSING a Test plan section", got)
+
+    def test_a_break_needs_its_section_and_only_a_break_has_one(self):
+        both = "## Summary\n## Test plan\n"
+        cases = [
+            ("feat(ir)!: x", both, "body       MISSING a Breaking section"),
+            ("feat!: x", both + "## Breaking\n", "body       has Breaking"),
+            ("feat(ir): x", both + "## Breaking\n",
+             "body       has a Breaking section, but the title marks no break with !"),
+        ]
+        for title, body, want in cases:
+            with self.subTest(title=title):
+                self.assertIn(want, pf.body_report(body, title))
+        self.assertEqual(len(pf.body_report(both, "fix: x")), 2, "no break, no Breaking line")
 
 
 class TitleBodyTest(unittest.TestCase):
@@ -73,7 +114,6 @@ class RootTest(unittest.TestCase):
             git = ["git", "-C", d]
             subprocess.run(git + ["init", "-q"], check=True, env=env)
             (root / "pkg").mkdir()
-            (root / "go.mod").write_text("module example.com/m\n\ngo 1.25\n")
             (root / "other").mkdir()
             (root / "other" / "README.md").write_text("x\n")
             (root / ".gitignore").write_text("body.md\n")
@@ -87,11 +127,13 @@ class RootTest(unittest.TestCase):
             subprocess.run(git + ["commit", "-qam", "fix: change it"], check=True, env=env)
             (root / "other" / "README.md").write_text("y\n")
             (root / "other" / "new.txt").write_text("z\n")
+            (root / "pkg" / "stray.txt").write_text("s\n")  # outside the directory it runs from
             command = [sys.executable, str(HERE / "preflight.py"), "--base", base,
                        "--body", "body.md"]
             run = subprocess.run(command, cwd=root / "other", capture_output=True, text=True,
                                  env=env)
-        self.assertIn("pkg: func Exported()", run.stdout, run.stdout + run.stderr)
+        outside = "FIX untracked  pkg/stray.txt: commit it, remove it, or ignore it"
+        self.assertIn(outside, run.stdout, run.stdout + run.stderr)
         self.assertIn("body       has Summary", run.stdout, "a relative --body is read where given")
         changed = "FIX changed    other/README.md: commit or stash it, since the push carries HEAD"
         self.assertIn(changed, run.stdout, "a check of the working tree speaks for no push")

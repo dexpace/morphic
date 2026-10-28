@@ -57,11 +57,10 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 ## Upkeep
 
 - Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit.
-  The gate runs neither it nor the scripts' tests; `preflight.py` and `review_setup.py` run it on
-  each branch they check.
-- After writing or changing a rule's Why, run
-  `python3.14 .claude/skills/morphic-curating-skills/scripts/citations.py <key>` and read each
-  citation it lists against its item.
+  The gate runs neither it nor the scripts' tests; `preflight.py` runs it on each branch it
+  checks.
+- After writing or changing a rule's Why, open each item it cites and confirm the item shows what
+  the clause says.
 - A lesson a skill holds that failed again means the skill failed: sharpen its wording or trigger,
   not add a copy.
 - Skill changes ship like code, titled like `chore(skills): <subject>`.

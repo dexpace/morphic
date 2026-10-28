@@ -152,9 +152,10 @@ defect, keep a `main` control.
 `price-common-path`
 
 - **Rule.** When a change adds work to a path every input takes, compare instructions retired on
-  base and head for a large input of the old shape and for the golden spec
-  (`.claude/skills/morphic-verifying-changes/scripts/golden_spec.py` prints its path), with
-  `.claude/skills/morphic-measuring-performance/scripts/compare_cost.py`.
+  base and head
+  (`.claude/skills/morphic-measuring-performance/references/finding-cost.md#instructions-not-wall-clock`)
+  for a large input of the old shape and for the golden spec, which `CLAUDE.md`'s "Priority"
+  section shows how to fetch.
 - **Why.** Allocation counts miss CPU work, and load skews wall-clock time (#1133).
 
 ## Fuzz a rewritten reader against the one it replaces

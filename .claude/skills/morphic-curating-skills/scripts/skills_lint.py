@@ -87,6 +87,7 @@ NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|://|[\[<>{}]")
 ELSEWHERE = {
     "origin": "a remote's branch",
     "go": "a Go package",
+    "golang.org": "a Go module",
     "runtime": "a Go package",
     "openapi": "a diagnostic code",
 }
@@ -452,7 +453,7 @@ class Linter:
 
 
 def findings(root: Path) -> tuple[int, list[str]]:
-    """Lint the skills of the repository at root, as other scripts do for a branch they check;
+    """Lint the skills of the repository at root, as preflight.py does for a branch it checks;
     return how many skills there are and every finding. A tree with no skills has neither."""
     if not (root / ".claude" / "skills").is_dir():
         return 0, []

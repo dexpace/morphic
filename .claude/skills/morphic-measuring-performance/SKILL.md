@@ -13,7 +13,7 @@ busy machine measures the machine.
 
 | Claim | Measure |
 |---|---|
-| faster or cheaper | `scripts/compare_cost.py`: instructions retired, base and head alternating, the median and range of each |
+| faster or cheaper | instructions retired, base and head built and run alternately, the median and range of each (`references/finding-cost.md#instructions-not-wall-clock`) |
 | no cost on the common path | the same over the golden spec and a large input of the old shape (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#price-common-path`) |
 | linear in the input | count steps through a budget (`references/cost-tests.md#count-work-not-wall-clock`) at n, 2n and 4n and assert the marginal growth (`references/cost-tests.md#marginal-growth-on-one-path`) |
 | allocation-free | `testing.AllocsPerRun` under `-race -covermode=atomic`, the fewest of single runs (`references/cost-tests.md#count-in-the-gates-build`) |
@@ -28,13 +28,6 @@ busy machine measures the machine.
   (`references/finding-cost.md#check-the-base-build`).
 - Planting the defect a cost test names applies here as anywhere: a quadratic loop, an uncharged
   step, an eager render.
-
-## Scripts
-
-- `scripts/compare_cost.py [-b BASE] [-n RUNS] [-p PACKAGE] -- ARGS...` builds `./cmd/morphic`, or
-  PACKAGE, at BASE and at the working tree, runs them alternately with ARGS and prints each
-  measure's median, range and ratio. Run it from the repository root as
-  `python3.14 .claude/skills/morphic-measuring-performance/scripts/compare_cost.py`.
 
 ## References
 

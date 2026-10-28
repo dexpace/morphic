@@ -26,8 +26,7 @@ rewritten once pushed.
 Run `python3.14 .claude/skills/morphic-shipping-prs/scripts/preflight.py` from the repository root,
 with `--pr N` once the PR exists, or `--title` and `--body FILE` for a draft. It checks each
 subject, the title measured with the number GitHub appends, the body's sections against the
-title's `!`, its closing keywords, the exported API the branch breaks (`scripts/exported_api.py`,
-which also runs alone), files the working tree holds apart from HEAD, the merge with
+title's `!`, its closing keywords, files the working tree holds apart from HEAD, the merge with
 `origin/main`, the artifact scan, and every name a skill uses. It exits 1 on a finding, so chain
 the push on it with `&&`.
 

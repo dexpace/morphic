@@ -13,8 +13,9 @@ verifier and codecs must reach.
   moves the constant to the next version, and appends its own row and entry under that version.
 - **Why.** #1065 and #1066 both set 0.18.0, and the constant merged with no conflict; #734 and #735
   both bumped to 0.10.0 and conflicted only in ir-design.
-- **Probe.** `scripts/irversion_peers.py` before the bump and after each merge of `main`; after the
-  merge, `TestIRVersion_PinsTheEncodedShape` prints the row to append.
+- **Probe.** List the open PRs that set a version:
+  `for n in $(gh pr list --state open --json number --jq '.[].number'); do gh pr diff $n | grep -q '^+const IRVersion' && echo $n; done`.
+  After the merge, `TestIRVersion_PinsTheEncodedShape` prints the row to append.
 
 ## Classify every field you add to package ir, walker state included
 `classify-ir-fields`

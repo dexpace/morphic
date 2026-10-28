@@ -2,10 +2,9 @@
 # /// script
 # requires-python = ">=3.14"
 # ///
-"""Check a branch before it is pushed: each commit subject, the PR title measured as it will land,
-the body's sections and closing keywords, the exported API the branch removes or changes as
-exported_api.py reads it, files the working tree holds apart from HEAD, the merge with main, the
-artifact scan, and that every name a skill uses exists.
+"""Check a branch before it is pushed, or a PR's tree in review: each commit subject, the PR title
+measured as it will land, the body's sections and closing keywords, files the working tree holds
+apart from HEAD, the merge with main, the artifact scan, and that every name a skill uses exists.
 
 Usage: python3.14 preflight.py [--base BASE] [--pr N] [--title TITLE] [--body FILE]
 
@@ -25,18 +24,21 @@ import sys
 import traceback
 from pathlib import Path
 
-# The title, body and artifact checks are the review's own, so a branch meets the bar it is held to.
 SKILLS = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(SKILLS / "morphic-reviewing-prs" / "scripts"))
 sys.path.insert(0, str(SKILLS / "morphic-curating-skills" / "scripts"))
 import artifact_scan  # noqa: E402  (a script of the review skill)
-import exported_api  # noqa: E402  (a sibling script)
-import review_setup  # noqa: E402  (a script of the review skill)
 import skills_lint  # noqa: E402  (a script of the curating skill)
 from artifact_scan import run  # noqa: E402  (the same helper, not a copy)
 
 SUBJECT_CAP = 72
-# A line review_setup marks as needing a fix.
+INDENT = " " * 11
+CONVENTIONAL = re.compile(r"^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\([^)]+\))?!?: \S")
+BREAKING = re.compile(r"^[a-z]+(\([^)]+\))?!:")
+# GitHub reads a keyword in any case, a colon after it or not, before #N or OWNER/REPO#N.
+CLOSING = re.compile(r"\b(close[sd]?|fix(?:e[sd])?|resolve[sd]?):? +([\w.-]+/[\w.-]+)?#[0-9]+",
+                     re.I)
+# A line the title and body reports mark as needing a fix.
 MARKED = re.compile(r"OVER|NOT |MISSING|but the title")
 
 
@@ -47,19 +49,47 @@ def subject_lines(subjects: list[str]) -> list[tuple[str, bool]]:
         problems = []
         if len(s) > SUBJECT_CAP:
             problems.append(f"over {SUBJECT_CAP}")
-        if not review_setup.CONVENTIONAL.match(s) or s.endswith("."):
+        if not CONVENTIONAL.match(s) or s.endswith("."):
             problems.append("not type(scope): subject without a trailing period")
         note = "  " + "; ".join(problems) if problems else ""
         out.append((f"subject    {len(s):3}  {s}{note}", bool(problems)))
     return out
 
 
+def title_report(title: str, number: str) -> list[str]:
+    landed = len(f"{title} (#{number})")
+    over = "  OVER" if landed > SUBJECT_CAP else ""
+    ok = CONVENTIONAL.match(title) and not title.endswith(".")
+    form = "ok" if ok else "NOT type(scope): subject without a trailing period"
+    return [f"title      {title}",
+            f'{INDENT}{landed} characters with " (#{number})", cap {SUBJECT_CAP}{over}',
+            f"{INDENT}conventional form: {form}"]
+
+
+def body_report(body: str, title: str) -> list[str]:
+    """Report the sections CLAUDE.md asks of a PR body, Breaking among them when the title marks a
+    break with !, and every closing keyword."""
+    lines = []
+    breaking = BREAKING.match(title) is not None
+    for section in ("Summary", "Test plan", "Breaking"):
+        has = re.search(rf"^#+ +{section}", body, re.M) is not None
+        if has and (breaking or section != "Breaking"):
+            lines.append(f"body       has {section}")
+        elif has:
+            lines.append("body       has a Breaking section, but the title marks no break with !")
+        elif breaking or section != "Breaking":
+            lines.append(f"body       MISSING a {section} section")
+    for keyword in sorted({m.group(0) for m in CLOSING.finditer(body)}):
+        lines.append(f"closes     {keyword}")
+    return lines
+
+
 def title_body_lines(title: str | None, number: int, body: str | None) -> list[tuple[str, bool]]:
-    """Judge the title as it will land and the body against it, as the review does. With no
-    title, the body's sections are judged without the Breaking one, which follows the title."""
-    out = review_setup.title_report(title, str(number)) if title is not None else []
+    """Judge the title as it will land and the body against it. With no title, the body's
+    sections are judged without the Breaking one, which follows the title."""
+    out = title_report(title, str(number)) if title is not None else []
     if body is not None:
-        lines = review_setup.body_report(body, title or "")
+        lines = body_report(body, title or "")
         out += lines if title is not None else [l for l in lines if "Breaking" not in l]
     judged = [(line, MARKED.search(line) is not None) for line in out]
     if title is None:
@@ -67,19 +97,9 @@ def title_body_lines(title: str | None, number: int, body: str | None) -> list[t
     return judged
 
 
-def exported_lines(changes: list[str], title: str | None) -> list[tuple[str, bool]]:
-    if not changes:
-        return []
-    breaking = title is not None and review_setup.BREAKING.match(title) is not None
-    head = ("exported   the branch removes or changes these: the title carries !, and the bodies "
-            "say what breaks" if not breaking else "exported   breaking, as the title's ! says:")
-    listed = [("           " + c, False) for c in changes]
-    return [(head, title is not None and not breaking)] + listed
-
-
 def worktree_lines() -> list[tuple[str, bool]]:
     """Report each file the working tree holds apart from HEAD: the push carries HEAD, while the
-    checks here, the lint and the exported API among them, read the working tree."""
+    checks here, the lint among them, read the working tree."""
     changed = run("git", "diff", "--name-only", "HEAD").splitlines()
     untracked = run("git", "ls-files", "--others", "--exclude-standard").splitlines()
     return ([(f"changed    {f}: commit or stash it, since the push carries HEAD", True)
@@ -125,7 +145,6 @@ def report(args: argparse.Namespace) -> list[tuple[str, bool]]:
 
     out = subject_lines(subjects)
     out += title_body_lines(title, number or 0, body)
-    out += exported_lines(exported_api.listed(Path.cwd(), args.base), title)
     out += worktree_lines()
     out.append(merge_line(args.base))
     diff = run("git", "diff", "-U0", f"{args.base}...HEAD")
