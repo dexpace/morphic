@@ -11,8 +11,9 @@ take, and architecture §2.5 says how a change lands.
 
 ## Before writing it
 
-1. Find the recorded decision: ir-design §15 (deliberate exclusions) and §16 (open questions), and
-   the tracker, closed issues included (`gh issue list --state all --search "<field or type>"`).
+1. Find the recorded decision: ir-design §15 (deliberate exclusions) and ir-design §16 (open
+   questions), and the tracker, closed issues included
+   (`gh issue list --state all --search "<field or type>"`).
 2. Name each `CLAUDE.md` invariant the change touches, and check the shape against every format
    `docs/ir-spec-matrix.md` covers, not only OpenAPI.
 3. Weigh two designs, and write the loser's reason in ir-design beside the winner.

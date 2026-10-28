@@ -163,6 +163,14 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n + 1}: docs/ir-design.md has no section 98.2"]
         self.assertEqual(self.lint()[1], want)
 
+    def test_a_section_naming_no_document_is_reported(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill, GOOD_SKILL + "See ir-design §4.3 and §4.3, RFC 3986 §5.2, or\n"
+              "ir-design.md\n§4.3.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        want = f"{skill}:{n}: a § names no document: name it first, as in ir-design §N"
+        self.assertEqual(self.lint()[1], [want])
+
     def test_a_scalar_is_read_as_yaml_reads_it(self):
         cases = {"Use when: plain": "Use when: plain", "'it''s'": "it's",
                  '"a \\"b\\" \\\\c"': 'a "b" \\c', "''": "", "": "",

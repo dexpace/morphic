@@ -57,6 +57,9 @@ LINK = re.compile(r"\]\(([^)#]+)")
 LINK_TARGET = re.compile(r"\]\([^)]*\)")
 TEST = re.compile(r"(?:^|[^A-Za-z0-9_])(Test[A-Z][A-Za-z0-9_]*)")
 SECTION = re.compile(r"(ir-design|emitter-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
+# A § after the name of a document it can be in, a line break between them allowed: one of the
+# design documents SECTION holds to the tree, or an RFC. Any other names no document.
+NAMED_SECTION = re.compile(r"(?:(?:ir-design|emitter-design|architecture)(?:\.md)?|RFC \d+)\s?§")
 KEY = re.compile(r"(parser-library|compilers/openapi)\.md#([a-z0-9-]+)")
 # A fenced block's opening or closing run, as CommonMark reads one: three or more backticks or
 # tildes, indented by at most three spaces, then the info string.
@@ -317,7 +320,13 @@ class Linter:
         """Hold every path, link, skill, test, section, keyed entry and rule a file names to the
         tree, and record each bare span that may be a rule key, which run judges once every key
         is known."""
-        lines = f.read_text().split("\n")
+        text = f.read_text()
+        named = {m.end() - 1 for m in NAMED_SECTION.finditer(text)}
+        for m in re.finditer("§", text):
+            if m.start() not in named:
+                line = text.count("\n", 0, m.start()) + 1
+                self.report(f, line, "a § names no document: name it first, as in ir-design §N")
+        lines = text.split("\n")
         for i, line in enumerate(lines, 1):
             for tok in SPAN.findall(line):
                 self.check_span(d, f, i, tok)
