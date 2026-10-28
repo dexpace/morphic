@@ -102,13 +102,21 @@ class SweepTest(unittest.TestCase):
         # The hint compares the IR, where diagnostics alone would show an IR change as nothing.
         self.assertIn("/runs/<n>/base.ir ", text)
         self.assertIn("/runs/<n>/head.ir, and the .diag pair", text)
+        rows = (self.root / "out" / "results.tsv").read_text().splitlines()
+        self.assertEqual(rows[0], "n\tbase\thead\tdiffers\tspec")
+        table = {row.split("\t")[4]: row.split("\t")[1:4] for row in rows[1:]}
+        self.assertEqual(table, {"corpus/changed.yaml": ["0", "0", "ir"],
+                                 "corpus/diag.yaml": ["0", "0", "diagnostics"],
+                                 "corpus/error.yaml": ["1", "1", "-"],
+                                 "corpus/exits.yaml": ["0", "1", "exit(0->1)"],
+                                 "corpus/same.yaml": ["0", "0", "-"]})
 
     def test_identical_builds_report_nothing_and_still_print_what_ran(self):
         self.bins["head"] = self.bins["base"]
         code, _, text = self.sweep(sweep.find_specs([self.corpus]))
         self.assertEqual(code, 0)
         self.assertIn("head exit codes: 0x4 1x1", text)
-        self.assertIn("no spec differs", text)
+        self.assertIn("no spec's exit code, IR or diagnostics differ", text)
 
     def test_a_compile_past_the_limit_is_killed_and_recorded(self):
         # Only the hanging side is timed: a healthy one under a one-second limit would make the
@@ -119,31 +127,24 @@ class SweepTest(unittest.TestCase):
         self.assertEqual(sweep.compile_one(self.bins["head"], slow, prefix, [], 1), sweep.KILLED)
         self.assertTrue(Path(f"{prefix}.ir").exists())
 
-    def test_a_spec_finished_on_neither_side_is_not_compared(self):
+    def test_specs_that_fail_alike_agree_and_their_codes_are_printed(self):
+        # The sweep judges nothing: a spec neither build finished agrees, and only its codes,
+        # printed and written, show that it was compiled by neither.
         out = self.root / "out"
-        for n in (1, 2):
+        for n in (1, 2, 3):
             (out / "runs" / str(n)).mkdir(parents=True)
             for side in ("base", "head"):
                 (out / "runs" / str(n) / f"{side}.ir").write_text("")
-        # Partial output from two killed compiles may differ, and still compares nothing.
-        stuck = (1, sweep.KILLED, sweep.KILLED, self.corpus / "same.yaml", "diagnostics")
-        refused = (1, 2, 2, self.corpus / "same.yaml", "")
-        signalled = (1, -9, -9, self.corpus / "same.yaml", "")  # as an out-of-memory kill ends one
-        changed = (2, 0, 0, self.corpus / "changed.yaml", "ir")
-        reasons = {stuck: "hit the time limit (137)", refused: "failed to run (2)",
-                   signalled: "killed by signal 9 (-9)"}
-        cases = [([row], 2) for row in reasons]
-        cases += [([row, changed], 1) for row in reasons]
-        for results, want in cases:
-            with self.subTest(results=results):
-                buf = io.StringIO()
-                with redirect_stdout(buf):
-                    self.assertEqual(sweep.report(results, self.root, out), want)
-                text = buf.getvalue()
-                self.assertIn("1 spec(s) finished compiling on neither side", text)
-                self.assertIn(f"same.yaml: {reasons[results[0]]}", text)
-                self.assertNotIn("no spec differs", text)
-                self.assertEqual("1 of 2 specs differ" in text, want == 1, text)
+        results = [(1, sweep.KILLED, sweep.KILLED, self.corpus / "same.yaml", ""),
+                   (2, 2, 2, self.corpus / "diag.yaml", ""),
+                   (3, -9, -9, self.corpus / "error.yaml", "")]
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            self.assertEqual(sweep.report(results, self.root, out), 0)
+        self.assertIn("base exit codes: -9x1 2x1 137x1", buf.getvalue())
+        rows = (out / "results.tsv").read_text().splitlines()[1:]
+        self.assertEqual([row.split("\t")[1:4] for row in rows],
+                         [["137", "137", "-"], ["2", "2", "-"], ["-9", "-9", "-"]])
 
     def test_a_limit_or_job_count_under_one_is_a_usage_error(self):
         for argv in (["-t", "0"], ["-j", "0"], ["-t", "-5"]):
@@ -228,7 +229,7 @@ class MainTest(unittest.TestCase):
     def test_both_sides_are_built_and_compared_and_the_base_worktree_removed(self):
         code, out = self.sweep(BUILDING_GO, "-b", "HEAD", str(self.specs))
         self.assertEqual(code, 0, out)
-        self.assertIn("sweep: no spec differs", out)
+        self.assertIn("sweep: no spec's exit code, IR or diagnostics differ", out)
         self.assertEqual(len(self.git("worktree", "list").splitlines()), 1,
                          "the base worktree outlived the sweep")
 

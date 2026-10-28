@@ -3,24 +3,22 @@
 # requires-python = ">=3.14"
 # ///
 """Compile every spec in a corpus with cmd/morphic built at a base revision and at the working
-tree, and report each spec whose exit code, IR or diagnostics differ.
+tree, and print each side's exit codes and each spec whose exit code, IR or diagnostics differ.
 
 Usage: python3.14 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS...]
                         [-- COMPILE-FLAGS...]
 
 BASE is the revision to compare against (default origin/main); when HEAD does not hold it, a
 warning says the differences also count what BASE gained since. A compile running past SECONDS
-(default 60) is killed and recorded as 137, and one ended by a signal morphic does not handle,
-such as the kill that ends a compile out of memory, as minus the signal's number. A spec that ends
-either way, or exits 2, alike on both sides is listed as not compared, since neither build
-finished compiling it: 2 is morphic's exit for a misuse, an I/O error, a broken contract or a
-signal it handled, as an unknown COMPILE-FLAG gives every spec. JOBS compiles run at once (default
-half the CPUs). Outputs are kept under OUTDIR (default a new temporary directory) for diffing.
-CORPUS files, and the files under CORPUS directories, are read for OpenAPI and Swagger documents
-(default testdata): one written as JSON, whatever its suffix, by its top-level keys, minified or
-not, and YAML by a version key first on a line. Exit 0 when nothing differs, 1 when something
-does, 2 when the sweep cannot run or nothing differs among the specs it compared but some it did
-not.
+(default 60) is killed and recorded as 137, and one ended by a signal, such as the kill that ends
+a compile out of memory, as minus the signal's number. JOBS compiles run at once (default half the
+CPUs). Outputs are kept under OUTDIR (default a new temporary directory) for diffing, with a row
+per spec in OUTDIR/results.tsv: its number, both exit codes, what differs and its path. CORPUS
+files, and the files under CORPUS directories, are read for OpenAPI and Swagger documents (default
+testdata): one written as JSON, whatever its suffix, by its top-level keys, minified or not, and
+YAML by a version key first on a line. The sweep reports facts and judges none: specs that fail
+alike on both sides agree, so read the exit codes before taking agreement for a pass. Exit 0 when
+no spec differs, 1 when one does, 2 when the sweep cannot run.
 """
 
 import argparse
@@ -37,10 +35,8 @@ from pathlib import Path
 
 # A version key first on a line, ended by its colon: a key such as "openapi:schema" is another.
 SPEC = re.compile(rb'^\s*["\']?(openapi|swagger)["\']?\s*:(\s|$)', re.M)
+# The exit recorded for a compile killed at the time limit, as a shell reports a SIGKILL.
 KILLED = 137
-# The exits after which a build did not finish compiling a spec: morphic's own failure, and the
-# time limit; unfinished adds a signal morphic did not handle, recorded as a negative exit.
-UNFINISHED = {2: "failed to run", KILLED: "hit the time limit"}
 
 
 def is_spec(data: bytes) -> bool:
@@ -57,11 +53,6 @@ def is_spec(data: bytes) -> bool:
         else:
             return "openapi" in doc or "swagger" in doc
     return SPEC.search(data) is not None
-
-
-def unfinished(code: int) -> str | None:
-    """Say why a build with this exit did not finish compiling a spec, or None when it did."""
-    return f"killed by signal {-code}" if code < 0 else UNFINISHED.get(code)
 
 
 def find_specs(corpus: list[Path]) -> list[Path]:
@@ -108,32 +99,25 @@ def report(results, root: Path, out: Path) -> int:
     def rel(p: Path) -> str:
         return p.relative_to(root).as_posix() if p.is_relative_to(root) else str(p)
 
-    print(f"sweep: {len(results)} specs; outputs under {out}/runs/<n>/")
+    table = out / "results.tsv"
+    rows = "".join(f"{n}\t{b}\t{h}\t{what or '-'}\t{rel(spec)}\n" for n, b, h, spec, what in results)
+    table.write_text("n\tbase\thead\tdiffers\tspec\n" + rows)
+    print(f"sweep: {len(results)} specs; outputs under {out}/runs/<n>/, a row per spec in {table}")
     for side, col in (("base", 1), ("head", 2)):
         dist = Counter(r[col] for r in results)
         size = sum((out / "runs" / str(r[0]) / f"{side}.ir").stat().st_size for r in results)
         codes = " ".join(f"{code}x{count}" for code, count in sorted(dist.items()))
         print(f"  {side} exit codes: {codes}; IR bytes: {size}")
-    # A compile that finished on neither side says nothing about either.
-    unjudged = [r for r in results if r[1] == r[2] and unfinished(r[1])]
-    differ = [r for r in results if r[4] and r not in unjudged]
-    if unjudged:
-        print(f"sweep: {len(unjudged)} spec(s) finished compiling on neither side and were not "
-              "compared; read a run's diagnostics, or raise -t past a time limit:")
-        for n, code, _, spec, _ in unjudged:
-            print(f"  {n}  {rel(spec)}: {unfinished(code)} ({code})")
-    if differ:
-        print(f"sweep: {len(differ)} of {len(results)} specs differ (n, then what):")
-        for n, _, _, spec, what in differ:
-            print(f"  {n}  {rel(spec)}: {what}")
-        print(f"compare one with: diff {out}/runs/<n>/base.ir {out}/runs/<n>/head.ir, and the "
-              ".diag pair for its diagnostics")
-        return 1
-    if unjudged:
-        print("sweep: no compared spec differs")
-        return 2
-    print("sweep: no spec differs")
-    return 0
+    differ = [r for r in results if r[4]]
+    if not differ:
+        print("sweep: no spec's exit code, IR or diagnostics differ")
+        return 0
+    print(f"sweep: {len(differ)} of {len(results)} specs differ (n, then what):")
+    for n, _, _, spec, what in differ:
+        print(f"  {n}  {rel(spec)}: {what}")
+    print(f"compare one with: diff {out}/runs/<n>/base.ir {out}/runs/<n>/head.ir, and the "
+          ".diag pair for its diagnostics")
+    return 1
 
 
 def git(root: Path, *args: str) -> str:

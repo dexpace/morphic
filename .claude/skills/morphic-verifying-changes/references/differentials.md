@@ -1,7 +1,13 @@
 # Differentials and controls
 
 A comparison is evidence only when it could have come out the other way. `scripts/sweep.py`
-compiles a corpus with two builds; these rules decide whether its answer means anything.
+compiles a corpus with two builds and prints facts, never a verdict: each side's exit codes, each
+spec whose exit code, IR or diagnostics differ, and a row per spec in `results.tsv`. Morphic exits
+0 on a clean compile, 1 when the spec has findings, and 2 when it was misused, could not do its
+I/O, ran a stage that broke its contract or was stopped by a signal; the sweep records 137 for a
+compile it killed at its time limit and minus the number of a signal that ended one. A spec that
+agrees on 2, 137 or a negative code was compiled by neither build, so its agreement says nothing.
+These rules decide whether the answer means anything.
 
 ## A probe that passes on main did not reach the defect
 `main-control`
