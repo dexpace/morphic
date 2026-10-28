@@ -11,13 +11,13 @@ OLD must occur in FILE exactly once, read literally; NEW replaces it. TEST-COMMA
 current directory, such as `go test ./ir/...` or `python3.14 -m unittest discover -s DIR`, with
 Python's bytecode cache off, since a mutant restored within the second it was written keeps the
 size and mtime by which Python trusts bytecode cached from it. The verdict is read from `go test`
-or unittest output: a kill needs a failing test, a survival a passing run that ran a test, so a
-pattern matching no test gives no verdict. With the mutant in place a Go file's package and tests
-must build, a Python file must parse, and every unittest module must load, or there is no
-verdict. A kill counts only once the command passes on the restored tree, since a failure it
-shares is not the mutant's. Prints KILLED, SURVIVED or UNVERIFIED, then every failing test line,
-then the file that keeps the run's whole output, as instrumentation needs. Exit 0 KILLED, 1
-SURVIVED, 2 UNVERIFIED or a usage error.
+or unittest output: a kill needs a failing test, a survival a run that exits 0, runs a test and
+fails none, so a pattern matching no test, or a pipe that hides a failure, gives no verdict.
+With the mutant in place a Go file's package and tests must build, a Python file must parse, and
+every unittest module must load, or there is no verdict. A kill counts only once the command
+passes on the restored tree, since a failure it shares is not the mutant's. Prints KILLED,
+SURVIVED or UNVERIFIED, then every failing test line, then the file that keeps the run's whole
+output, as instrumentation needs. Exit 0 KILLED, 1 SURVIVED, 2 UNVERIFIED or a usage error.
 
 MUTANTS is a JSON-lines file, one {"file", "old", "new"} object per line with an optional "name";
 blank lines and lines starting with # are skipped, and a relative file is read from the current
@@ -48,11 +48,14 @@ UNITTEST_RAN = re.compile(r"^Ran (\d+) tests? in ", re.M)
 UNITTEST_FAIL = re.compile(r"^(?:FAIL|ERROR): .+", re.M)
 UNITTEST_OK = re.compile(r"^OK\b", re.M)
 NOT_LOADED = "unittest.loader._FailedTest"
+# A command that exits 0 past a failing test, as a pipe or a `;` makes one, says nothing.
+MASKED = ("UNVERIFIED: a test failed but the command exited 0, so its status is not the tests';"
+          " give the test command its own exit status\n")
 
 
 def verdict(status: int, output: str) -> tuple[int, str]:
     """Judge a go test or unittest run's exit status and output: a kill needs a failing test, a
-    survival a passing run that ran a test, and a build failure is never either."""
+    survival a passing run that ran a test and failed none, and a build failure is never either."""
     suites = UNITTEST_RAN.findall(output)
     if suites:  # one "Ran N tests" line per suite the command ran
         return unittest_verdict(status, output, sum(map(int, suites)))
@@ -60,6 +63,8 @@ def verdict(status: int, output: str) -> tuple[int, str]:
     if NO_BUILD.search(output):
         lines = [line for line in output.splitlines() if NO_BUILD.search(line)][:10]
         return UNVERIFIED, "UNVERIFIED: a package did not build, so no verdict\n" + "\n".join(lines)
+    if status == 0 and fails:
+        return UNVERIFIED, MASKED + "\n".join(fails[:10])
     if status == 0:
         oks = [line for line in output.splitlines() if OK_LINE.match(line)]
         ran = [line for line in oks if NO_TESTS not in line]
@@ -81,13 +86,16 @@ def verdict(status: int, output: str) -> tuple[int, str]:
 
 def unittest_verdict(status: int, output: str, ran: int) -> tuple[int, str]:
     """Judge a unittest run as verdict judges go test's: a module that does not load is no
-    verdict, a kill needs a failing or erroring test, and a survival a run that ran a test."""
+    verdict, a kill needs a failing or erroring test, and a survival a run that exits 0, ran a
+    test and failed none."""
     fails = UNITTEST_FAIL.findall(output)
     if NOT_LOADED in output:
         return UNVERIFIED, ("UNVERIFIED: a test module did not load, so no verdict\n"
                             + "\n".join(fails[:10]))
     if ran == 0:
         return UNVERIFIED, "UNVERIFIED: no test ran; check the start directory and pattern"
+    if status == 0 and fails:
+        return UNVERIFIED, MASKED + "\n".join(fails[:10])
     if status == 0:
         if UNITTEST_OK.search(output):
             return SURVIVED, f"SURVIVED: {ran} test(s) passed with the mutant in place"

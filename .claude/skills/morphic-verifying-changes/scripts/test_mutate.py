@@ -25,6 +25,8 @@ FAKE_TEST = (
     "if 'bad' in text: print('--- FAIL: TestThing (0.00s)'); print('FAIL'); sys.exit(1)\n"
     "print('ok  \tfake/pkg\t0.1s')"
 )
+# The same failure behind an exit status of 0 and another package's pass, as a pipe gives.
+MASKED_TEST = FAKE_TEST.replace("sys.exit(1)", "print('ok  \tfake/other\t0.1s'); sys.exit(0)")
 
 
 def quietly(fn, *args):
@@ -55,6 +57,11 @@ class VerdictTest(unittest.TestCase):
             (1, "ERROR: test_m (unittest.loader._FailedTest)\nRan 1 test in 0.0s\n\n"
                 "FAILED (errors=1)\n", mutate.UNVERIFIED),
             (1, "Traceback\nRan 3 tests in 0.1s\n", mutate.UNVERIFIED),
+            # A pipe or ; hands back the status of a command that is not the tests.
+            (0, "--- FAIL: TestA (0.00s)\nFAIL\nFAIL\tpkg\t0.1s\nok  \tpkg2\t0.1s\n",
+             mutate.UNVERIFIED),
+            (0, "FAIL: test_x (m.T)\nRan 1 test in 0.0s\n\nFAILED (failures=1)\n"
+                "\nRan 2 tests in 0.1s\n\nOK\n", mutate.UNVERIFIED),
         ]
         for status, output, want in cases:
             with self.subTest(output=output):
@@ -122,6 +129,11 @@ class MutateTest(unittest.TestCase):
         clean = printed.split("the clean run is in ", 1)[1].split("\n", 1)[0]
         self.assertIn("--- FAIL: TestThing", Path(clean).read_text(), "the clean run is kept")
         self.assertEqual(self.file.read_text(), "keep good bad\n")
+
+    def test_a_status_that_hides_a_failing_test_gives_no_verdict(self):
+        masked = [sys.executable, "-c", MASKED_TEST, str(self.file)]
+        self.assertEqual(self.run_mutate("good", "bad", masked), mutate.UNVERIFIED)
+        self.assertEqual(self.file.read_text(), "keep good keep\n")
 
     def test_a_harmless_mutant_survives_and_is_restored(self):
         self.assertEqual(self.run_mutate("keep\n", "keep \n"), mutate.SURVIVED)
