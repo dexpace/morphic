@@ -61,6 +61,22 @@ class SweepTest(unittest.TestCase):
         names = [p.name for p in sweep.find_specs([self.corpus])]
         self.assertEqual(names, ["changed.yaml", "diag.yaml", "error.yaml", "same.yaml"])
 
+    def test_a_json_document_is_judged_by_its_top_level_keys(self):
+        cases = {b'{"openapi":"3.0.3","info":{}}': True, b' {"swagger":"2.0"}': True,
+                 b'{\n  "info": {\n    "openapi": "3.0.0"\n  }\n}\n': False,
+                 b'{\n  "openapi:schema": {}\n}\n': False,
+                 b'{\n  "openapi": "3.1.0",\n  "paths": {\n': True}
+        for data, want in cases.items():
+            with self.subTest(data=data):
+                self.assertEqual(sweep.is_spec(data), want)
+
+    def test_a_yaml_document_is_judged_by_a_version_key_starting_a_line(self):
+        cases = {b"openapi: 3.1.0\n": True, b"swagger: '2.0'\n": True, b"'openapi': 3.0.3\n": True,
+                 b"openapi:schema: x\n": False, b"info:\n  title: openapi\n": False}
+        for data, want in cases.items():
+            with self.subTest(data=data):
+                self.assertEqual(sweep.is_spec(data), want)
+
     def test_each_kind_of_difference_is_reported(self):
         code, results, text = self.sweep(sweep.find_specs([self.corpus]))
         self.assertEqual(code, 1)

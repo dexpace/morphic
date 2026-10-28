@@ -13,12 +13,15 @@ warning says the differences also count what BASE gained since. A compile runnin
 (default 60) is killed and recorded as 137, and a spec killed on both sides is listed as not
 compared. JOBS compiles run at once (default half the CPUs). Outputs are kept under OUTDIR
 (default a new temporary directory) for diffing. CORPUS directories are searched for OpenAPI and
-Swagger documents (default testdata). Exit 0 when nothing differs, 1 when something does, 2 when
-the sweep cannot run or nothing differs among the specs it compared but some it did not.
+Swagger documents (default testdata): one written as JSON, whatever its suffix, by its top-level
+keys, minified or not, and YAML by a version key starting a line. Exit 0 when nothing differs, 1
+when something does, 2 when the sweep cannot run or nothing differs among the specs it compared
+but some it did not.
 """
 
 import argparse
 import concurrent.futures
+import json
 import os
 import re
 import subprocess
@@ -28,17 +31,31 @@ import traceback
 from collections import Counter
 from pathlib import Path
 
-SPEC = re.compile(rb'^\s*"?(openapi|swagger)"?\s*:', re.M)
+# A version key starting a line, ended by its colon: a key such as "openapi:schema" is another.
+SPEC = re.compile(rb'^\s*["\']?(openapi|swagger)["\']?\s*:(\s|$)', re.M)
 KILLED = 137
+
+
+def is_spec(data: bytes) -> bool:
+    """Report whether a document is OpenAPI or Swagger: one written as JSON, which YAML files
+    may hold too, by its top-level keys, since a minified one starts no line with its version
+    key, and any other, JSON that does not parse among it, by a version key starting a line."""
+    if data.lstrip()[:1] == b"{":
+        try:
+            doc = json.loads(data)
+        except ValueError:
+            pass  # read as text below, as a malformed fixture still is a spec to compile
+        else:
+            return "openapi" in doc or "swagger" in doc
+    return SPEC.search(data) is not None
 
 
 def find_specs(dirs: list[Path]) -> list[Path]:
     out = []
     for d in dirs:
         for p in sorted(d.rglob("*")):
-            if p.suffix not in (".yaml", ".yml", ".json") or not p.is_file():
-                continue
-            if SPEC.search(p.read_bytes()):
+            if p.suffix in (".yaml", ".yml", ".json") and p.is_file() and \
+                    is_spec(p.read_bytes()):
                 out.append(p.resolve())
     return out
 
