@@ -151,6 +151,8 @@ class ChangesTest(unittest.TestCase):
                                           "KindB Kind = iota\n\tKindA")),
                                     ["p: const KindA Kind = iota [0]", "p: const KindB [1]"]),
             "variable removed": (edit(("\tErrB error = nil\n", "")), ["p: var ErrB error"]),
+            "tag changed": (edit(("LongerName int // trailing", 'LongerName int `json:"l"`')),
+                            ["p: type T struct: LongerName int"]),
             "value changed": (edit(('"http://x // y"', '"http://z"')),
                               ['p: const URL = "http://x // y"']),
         }

@@ -10,9 +10,10 @@ Usage: python3.14 exported_api.py [BASE]    BASE defaults to origin/main.
 Reads `go doc -all` of each such package the branch changes, at its merge base with BASE and in
 the working tree, so every declaration, struct field, interface method and member of a grouped
 declaration is compared, whatever its layout. Names of receivers, parameters and results are left
-out of a signature, since renaming one changes no API; so is a variable's initializer. A constant
-in a block using iota is compared with its position. Exit 0 when nothing is listed, 1 when
-something is, 2 when it cannot run.
+out of a signature, since renaming one changes no API; so is a variable's initializer. A field is
+compared with its struct tag, which fixes how it encodes, and a constant in a block using iota
+with its position, which fixes its value. Exit 0 when nothing is listed, 1 when something is, 2
+when it cannot run.
 """
 
 import contextlib
