@@ -5,7 +5,8 @@
 
 - **Rule.** `make coverage` profiles each package against its own tests (no `-coverpkg`). Give new
   code a test in its own package, and check a package as the `Makefile` does:
-  `go test ./pkg -race -covermode=atomic -coverprofile=f`, then `go run ./cmd/morphic-covergate f`.
+  `go test ./<pkg> -race -covermode=atomic -coverprofile=f`, then
+  `go run ./cmd/morphic-covergate f`.
 - **Why.** End-to-end tests exercised every branch of a schema helper and the gate still found 13
   uncovered statements (#1065).
 

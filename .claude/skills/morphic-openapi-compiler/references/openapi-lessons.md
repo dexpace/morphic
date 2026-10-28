@@ -116,7 +116,7 @@ canary. A behaviour found that the page lacks is added there.
 - **Why.** Keying on the raw spelling read one file as several documents and held the source once
   per spelling (#780, #772); #781 removed dot segments rather than ask the file system, whose answer
   makes a compile depend on disk state.
-- **Probe.** Reference one file as `./a.yaml` and as `./x/../a.yaml`; the document's `sources`
+- **Probe.** Reference one file as `./<file>` and as `./x/../<file>`; the document's `sources`
   lists it once.
 
 ## Take a new bound's outcome from the rule entry for its kind

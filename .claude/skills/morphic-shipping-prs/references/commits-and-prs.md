@@ -54,7 +54,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `closing-keywords`
 
 - **Rule.** On merge, GitHub closes each issue that `close`, `fix` or `resolve`, in any tense and
-  case, a colon after it or not, precedes as `#N` or `OWNER/REPO#N` anywhere in the body, and a
+  case, a colon after it or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body, and a
   keyword reaches only the reference after it. Write one `Closes #N` line per finished issue,
   narrate other work with other verbs ("landed"), and give a stack landing through one PR every
   child's `Closes #N`: a keyword links only in a PR based on `main`.

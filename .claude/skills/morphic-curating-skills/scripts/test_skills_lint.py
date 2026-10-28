@@ -123,6 +123,20 @@ class LintTest(unittest.TestCase):
         self.assertStartsWith(version[0], f"{bad}scripts/new.py:", version[0])
         self.assertEqual(sorted(g for g in got if g not in version), sorted(want), "\n".join(got))
 
+    def test_a_span_path_is_held_whatever_its_first_segment(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        # Each span below names no repository path, by its form or by its first segment.
+        elsewhere = ("`/components/schemas`, `-o=/dev/null`, `:(exclude)*/x.go`, `+(a/b)`, "
+                     "`[[:alnum:]]/x`, `http://h/x`, `<owner>/<repo>`, `origin/main`, "
+                     "`go/types`, `runtime/metrics`, `openapi/cyclic-ref`, `_test.go`, `./...`.\n")
+        # A misspelt or renamed first segment is held in a span and in a command, never in
+        # prose, where words join with a slash.
+        held = "See `gone/a.go`, `./gone/b` and `go test ./gone/...`, but prose gone/c.go.\n"
+        write(self.root, skill, GOOD_SKILL + elsewhere + held)
+        n = GOOD_SKILL.count("\n") + 2
+        want = [f"{skill}:{n}: {p} does not exist" for p in ("gone/a.go", "./gone/b", "./gone/...")]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
     def test_a_code_span_broken_across_lines_is_reported_once(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         # Each fence holds an odd backtick: tildes around backticks, an indented fence, a longer

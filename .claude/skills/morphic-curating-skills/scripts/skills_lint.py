@@ -72,11 +72,20 @@ FRONT_KEY = re.compile(r"^([^\s#:][^:]*):(?: (.*))?$")
 # doubled.
 DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"(?:[ \t]+#.*)?')
 SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'(?:[ \t]+#.*)?")
-PATH_LIKE = re.compile(r"/|\.(go|md|py|yaml|json|txt)$")
 TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
 LINE_SUFFIX = re.compile(r":[0-9]+$")
-# A placeholder or template inside a command, such as <spec> or {owner}, names no path.
-TEMPLATE = re.compile(r"[<>{}]")
+# A code span holding a "/" names a repository path unless its form marks it as something else:
+# a JSON pointer or device (/), a flag (-), a pathspec's magic (:(), a pattern (+ or [), a URL
+# (://), or a placeholder (<spec>, {owner}).
+NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|://|[\[<>{}]")
+# The first segments of what a span names outside the tree. Any other first segment is held to
+# the tree, so a misspelt or renamed directory is reported rather than passed.
+ELSEWHERE = {
+    "origin": "a remote's branch",
+    "go": "a Go package",
+    "runtime": "a Go package",
+    "openapi": "a diagnostic code",
+}
 # A file named without its directory, such as `preflight.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 
@@ -102,6 +111,14 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
         raise RuntimeError("found no declared test, so a test name cannot be checked")
     listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard")
     return top_level, tests, {f.rsplit("/", 1)[-1] for f in listed.splitlines()}
+
+
+def names_a_path(tok: str) -> bool:
+    """Report whether a span's token names a repository path: it holds a "/", and neither its
+    form nor its first segment marks it as something else."""
+    if "/" not in tok or NOT_A_PATH.search(tok):
+        return False
+    return tok.removeprefix("./").split("/", 1)[0] not in ELSEWHERE
 
 
 def scalar(value: str) -> str | None:
@@ -314,11 +331,14 @@ class Linter:
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").split():
                     word = word.strip("'\"$();,")
-                    if "/" in word and not TEMPLATE.search(word) and not self.exists(d, word):
+                    if names_a_path(word) and not self.exists(d, word):
                         self.report(f, i, f"{word} does not exist")
+            # Prose joins words with a slash (I/O, kept/dropped), so a path there is held only
+            # when its first segment is a tracked entry; one in a span is held whatever it starts
+            # with.
             for p in PROSE_PATH.findall(LINK_TARGET.sub("]", ANY_SPAN.sub("", line))):
                 p = p.rstrip(".,;:)")
-                if not self.exists(d, p):
+                if self.first_is_tracked(p) and not self.exists(d, p):
                     self.report(f, i, f"{p} does not exist")
             for target in LINK.findall(line):
                 if not target.startswith(("http", "mailto:")) and not (f.parent / target).exists():
@@ -348,21 +368,24 @@ class Linter:
         elif BARE_FILE.fullmatch(tok):
             if tok not in self.names:
                 self.report(f, line, f"no file named {tok}")
-        elif PATH_LIKE.search(tok) and not TEMPLATE.search(tok) and not self.exists(d, tok):
+        elif names_a_path(tok) and not self.exists(d, tok):
             self.report(f, line, f"{tok} does not exist")
+
+    def first_is_tracked(self, p: str) -> bool:
+        first = p.removeprefix("./").split("/", 1)[0]
+        return first in self.top_level or first in ("references", "scripts")
 
     def exists(self, d: Path, p: str) -> bool:
         """Report whether a path a skill names exists: relative to the skill for its own
-        references/ and scripts/, to the repository otherwise. A path whose first segment is
-        no tracked top-level entry is not a repository path, and passes."""
+        references/ and scripts/, to the repository otherwise. A glob is held up to its first
+        wildcard, and ./... names the module's packages."""
         p = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
-        p = p[:-len("/...")] if p.endswith("/...") else p.rstrip("/")
+        p = "" if p == "..." else p.removesuffix("/...").rstrip("/")
         if not p:
             return True
-        first = p.split("/", 1)[0]
-        if first in ("references", "scripts"):
+        if p.split("/", 1)[0] in ("references", "scripts"):
             return (d / p).exists()
-        return first not in self.top_level or (self.root / p).exists()
+        return (self.root / p).exists()
 
     def has(self, doc: str, pattern: str) -> bool:
         path = self.root / "docs" / f"{doc}.md"
