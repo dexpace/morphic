@@ -14,7 +14,7 @@ kept in a file. These rules are the ways a verdict still lies.
 - **Why.** A hand-rolled backup restored from the wrong copy and left a switch planted (#591); two
   files sharing a basename shared one backup, so a restore put one package's file in another (#566);
   a full disk stopped a restore mid-batch (#1141); a same-size Python mutant restored within its
-  second left bytecode, cached outside the tree, that Python 3.9 went on running (#1143).
+  second left bytecode in an ignored `__pycache__` that Python 3.9 went on running (#1143).
 - **Probe.** `git status --short` lists nothing you did not mean to change.
 
 ## A mutant that does not compile proves nothing

@@ -13,8 +13,8 @@ how to measure so the number means what the claim says.
 - **Why.** A per-walk view was kept for a benefit that never reproduced, and a shared count bound
   let retained memory grow (#379, #362); a cost quoted from runs taken under other load sat in five
   places, a commit body among them (#1119).
-- **Probe.** `go test -bench` and a heap profile after `runtime.GC` on the workload, before and
-  after.
+- **Probe.** `go test ./<pkg> -run '^$' -bench '<Benchmark>'` and a heap profile after
+  `runtime.GC` on the workload, before and after.
 
 ## Quote instructions retired, never alone and never under your own load
 `instructions-not-wall-clock`

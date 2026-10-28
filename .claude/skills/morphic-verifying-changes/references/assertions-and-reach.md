@@ -177,8 +177,8 @@ it.
 - **Why.** A ratio allowance of 3 against a separation of 2 failed CI on noise, `go/types` raced on
   a shared import in a fraction of runs, and a leak test failing 2 in 1000 runs passed every run
   once a print was added (#494, #560, #535).
-- **Probe.** `go test -count=1000 -run X`, plain and under `-race`: no failure for the test, every
-  run for its planted defect.
+- **Probe.** `go test ./<pkg> -count=1000 -run '<Test>'`, plain and under `-race`: no failure for
+  the test, every run for its planted defect.
 
 ## Keep a test's verdict independent of platform and privilege
 `environment-independent-tests`
@@ -224,8 +224,8 @@ it.
   package foo_test.
 - **Why.** Consolidations silently dropped a table row and moved public-API tests into the internal
   package (#246, #92).
-- **Probe.** Diff the `--- PASS` lines of `go test -run '<Test>' -v` before and after, since
-  `go test -list` names no subtest; check the package clause of every touched test file; map
+- **Probe.** Diff the `--- PASS` lines of `go test ./<pkg> -run '<Test>' -v` before and after,
+  since `go test -list` names no subtest; check the package clause of every touched test file; map
   unexported calls to defining files.
 
 ## Keep an oracle's equality options from hiding its defect

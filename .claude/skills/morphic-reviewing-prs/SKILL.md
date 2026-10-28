@@ -11,7 +11,7 @@ unless asked.
 
 ## Setup
 
-Review the tree as it will land, in its own worktree:
+Review the tree as it will land, in a worktree you remove afterwards:
 
 ```bash
 git fetch origin main && git fetch origin "pull/<N>/head"
@@ -60,7 +60,7 @@ than the instance.
   older, and a stated limitation is an `issue:` when a valid input shows head worse than base.
 - A deliberate oddity (a documented policy, an open issue) is a finding only where its comment
   fails to say so.
-- Also list what was probed clean, each class with how many members were checked, and each
+- List what was probed clean, each class with how many members were checked, and each
   equivalent mutant with its reason.
 - A fix the review makes is a change under review
   (`references/review-probes.md#review-own-fixes`).

@@ -7,15 +7,16 @@ gives. A clock does none of that reliably; a counter does.
 `count-work-not-wall-clock`
 
 - **Rule.** Pin a cost by counting the steps a walk takes through an explicit budget
-  (`compilers/openapi/internal/budget`, passed as a parameter, never package state) and asserting
-  `work(2n) <= 2*work(n) + c` over shapes that vary the spelling as well as the size. Charge every
-  loop, and test that an exactly spent budget takes no step, since other phases' charges mask a
-  loop that charges nothing. Count steps, not allocations, where each step is a map insert.
+  (`compilers/openapi/internal/budget`, passed as a parameter, never package state), over shapes
+  that vary the spelling as well as the size, and assert their growth as
+  `references/cost-tests.md#marginal-growth-on-one-path` gives it. Charge every loop, and test that
+  an exactly spent budget takes no step, since other phases' charges mask a loop that charges
+  nothing. Count steps, not allocations, where each step is a map insert.
 - **Why.** A wall-clock ratio failed CI on noise (#555); shapes varying only size missed quadratic
   lookups, and uncharged loops took seconds while recording no work (#563); allocations grew
   linearly while time grew with the square (#1006).
-- **Probe.** `TestBind_CountsWorkLinearInTheDocument` is the form; plant a quadratic walk and an
-  uncharged loop, and see each redden it.
+- **Probe.** `TestBind_CountsWorkLinearInTheDocument` counts steps this way; plant a quadratic walk
+  and an uncharged loop, and see each redden it.
 
 ## Assert the marginal growth, on one path
 `marginal-growth-on-one-path`
@@ -51,7 +52,7 @@ gives. A clock does none of that reliably; a counter does.
 - **Why.** Allocation tests that passed `go test` failed the coverage step (#1137); a byte count
   flaked under `-race` until its inputs were formatted outside it (#1006); fewest-of-twenty failed
   for a visit with a pool round trip per entry (#1147).
-- **Probe.** `go test -race -covermode=atomic -coverprofile=/dev/null -count=50 -run '<Test>'`.
+- **Probe.** `go test ./<pkg> -race -covermode=atomic -coverprofile=/dev/null -count=50 -run '<Test>'`.
 
 ## Expect instrumentation to move what escapes
 `what-allocates-when-instrumented`
@@ -63,8 +64,8 @@ gives. A clock does none of that reliably; a counter does.
   eight allocates even an empty one.
 - **Why.** Iterator closures and an embedded stack allocated only under `-race` and coverage
   (#1137); a size hint made a one-name map allocate (#1142).
-- **Probe.** `go build -gcflags=-m=1` for "moved to heap" and "leaking param content" on the types
-  involved, then the allocation test in the gate's build.
+- **Probe.** `go build -gcflags=-m=1 ./<pkg>` for "moved to heap" and "leaking param content" on
+  the types involved, then the allocation test in the gate's build.
 
 ## Give an optimization a counting seam
 `counting-seam-for-optimizations`

@@ -86,7 +86,8 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   worktree, never by stashing: the stash is shared by every worktree.
 - **Why.** A fold onto a just-fetched `origin/main` reverted #870 in silence (#878); a pop applied
   another worktree's stash (#966, #475).
-- **Probe.** `git diff origin/main --stat` lists only files the branch changed.
+- **Probe.** `git diff --stat origin/main...HEAD`, read from the merge base, lists only files the
+  branch changed; a two-dot diff against `origin/main` also lists what `main` gained since.
 
 ## Trial-merge the open PRs after removing a name they may use
 `trial-merge-open-prs`

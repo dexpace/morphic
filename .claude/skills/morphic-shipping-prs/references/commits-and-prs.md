@@ -104,16 +104,18 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** A change that removes or changes an exported identifier outside an `internal/` or
   `main` package, or adds a method to an exported interface, breaks callers or implementations
-  outside the repository, even when nothing inside it is affected: the title carries `!`, the
+  outside the repository, even with nothing inside it affected: the title carries `!`, the
   commit body explains the break, and the PR body has a Breaking section.
 - **Why.** `compile.NewTypes` lost its parameter in a PR titled as a plain `fix` until review added
   `!` (#551); `compilers/compile` is the framework other compilers build on, and earlier
   removals there were marked breaking (#239, #496).
 - **Probe.** For each public package changed, write export data in worktrees of the merge base
-  and the head with
+  and head with
   `go run golang.org/x/exp/cmd/apidiff@v0.0.0-20260410095643-746e56fc9e2f -w <file> <import path>`,
-  then run `apidiff <old> <new>`; an incompatible change needs the `!`. It misses struct tags,
-  which `ir` holds by `TestIRVersion_PinsTheEncodedShape`.
+  then compare with
+  `go run golang.org/x/exp/cmd/apidiff@v0.0.0-20260410095643-746e56fc9e2f <old> <new>`. An
+  incompatible change needs `!`. It misses struct tags, which `ir` holds by
+  `TestIRVersion_PinsTheEncodedShape`.
 
 ## Build each commit of a split from whole file states, and test each
 `split-into-tested-commits`
