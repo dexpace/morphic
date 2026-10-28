@@ -10,7 +10,9 @@ from pathlib import Path
 
 import skills_lint
 
-# The script block each script declares Python 3.14 in, written out rather than read from the lint.
+# A script's first line and the script block it declares Python 3.14 in, written out rather than
+# read from the lint.
+SHEBANG = "#!/usr/bin/env python3.14\n"
 HEADER = '# /// script\n# requires-python = ">=3.14"\n# ///\n'
 GOOD_SKILL = """---
 name: good-skill
@@ -36,6 +38,13 @@ def write(root: Path, rel: str, text: str) -> Path:
     return p
 
 
+def script(root: Path, rel: str, text: str) -> Path:
+    """Write a script with the first line and the mode the lint requires."""
+    p = write(root, rel, SHEBANG + text)
+    p.chmod(0o755)
+    return p
+
+
 class LintTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -47,7 +56,7 @@ class LintTest(unittest.TestCase):
         skill = ".claude/skills/good-skill/"
         write(self.root, skill + "SKILL.md", GOOD_SKILL)
         write(self.root, skill + "references/r.md", GOOD_REFERENCE)
-        write(self.root, skill + "scripts/tool.py", HEADER + "import json\n")
+        script(self.root, skill + "scripts/tool.py", HEADER + "import json\n")
         write(self.root, skill + "scripts/test_tool.py", "import unittest\nimport tool\n")
 
     def tearDown(self):
@@ -97,6 +106,8 @@ class LintTest(unittest.TestCase):
             f"{bad}scripts/new.py: has no test_new.py beside it",
             f"{bad}scripts/new.py: not named in {bad}SKILL.md",
             f'{bad}scripts/new.py: declares no `requires-python = ">=3.14"` script block',
+            f"{bad}scripts/new.py: has no `#!/usr/bin/env python3.14` first line",
+            f"{bad}scripts/new.py: is not executable",
             f"{bad}scripts/tool.sh: scripts are Python files",
             f"{bad}SKILL.md:8: names one machine or a memory link",
             f"{bad}SKILL.md:9: scripts/gone.py does not exist",
@@ -190,13 +201,13 @@ class LintTest(unittest.TestCase):
         write(self.root, ".claude/skills/other-skill/SKILL.md",
               "---\nname: other-skill\ndescription: Use when testing.\n---\n\n"
               "Run `scripts/shared.py`.\n")
-        write(self.root, ".claude/skills/other-skill/scripts/shared.py", HEADER + "x = 1\n")
+        script(self.root, ".claude/skills/other-skill/scripts/shared.py", HEADER + "x = 1\n")
         write(self.root, ".claude/skills/other-skill/scripts/test_shared.py", "import shared\n")
-        write(self.root, ".claude/skills/good-skill/scripts/tool.py",
-              HEADER + "import json\nimport concurrent.futures\nfrom os import path\n"
-              "import no_such_module_anywhere\nimport shared\n")
+        script(self.root, ".claude/skills/good-skill/scripts/tool.py",
+               HEADER + "import json\nimport concurrent.futures\nfrom os import path\n"
+               "import no_such_module_anywhere\nimport shared\n")
         _, got = self.lint()
-        want = (".claude/skills/good-skill/scripts/tool.py:7: "
+        want = (".claude/skills/good-skill/scripts/tool.py:8: "
                 "imports no_such_module_anywhere, outside the standard library")
         self.assertEqual(got, [want])
 
@@ -205,7 +216,18 @@ class LintTest(unittest.TestCase):
         want = f'{tool}: declares no `requires-python = ">=3.14"` script block'
         for text in ("import json\n", HEADER.replace("3.14", "3.9") + "import json\n"):
             with self.subTest(text=text):
-                write(self.root, tool, text)
+                script(self.root, tool, text)
+                self.assertEqual(self.lint()[1], [want])
+
+    def test_a_script_runs_on_its_own_under_python_3_14(self):
+        tool = ".claude/skills/good-skill/scripts/tool.py"
+        first = f"{tool}: has no `#!/usr/bin/env python3.14` first line"
+        cases = [(HEADER, 0o755, first), ("#!/usr/bin/env python3\n" + HEADER, 0o755, first),
+                 ("\n" + SHEBANG + HEADER, 0o755, first),
+                 (SHEBANG + HEADER, 0o644, f"{tool}: is not executable")]
+        for text, mode, want in cases:
+            with self.subTest(text=text, mode=oct(mode)):
+                write(self.root, tool, text + "import json\n").chmod(mode)
                 self.assertEqual(self.lint()[1], [want])
 
 

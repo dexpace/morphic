@@ -9,12 +9,13 @@ Usage: python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 
 Prints one "path:line: problem" per finding. Exit 0 when clean, 1 on a finding, 2 when it
 cannot run. Each rule in a reference is held to the format morphic-curating-skills gives. Scripts
-are Python 3.14, declared in a PEP 723 script block, with the standard library only and a
-test_<name>.py beside each.
+are executable Python 3.14, declared in their first line and a PEP 723 script block, with the
+standard library only and a test_<name>.py beside each.
 """
 
 import ast
 import itertools
+import os
 import re
 import subprocess
 import sys
@@ -30,6 +31,8 @@ PYTHON_TARGET = (3, 14)
 PYTHON = ".".join(map(str, PYTHON_TARGET))
 # The block each script declares its interpreter in (PEP 723), which `uv run` and `pipx run` read.
 REQUIRES = f'# /// script\n# requires-python = ">={PYTHON}"\n# ///\n'
+# The first line, through which `./script.py` runs under the interpreter the block declares.
+SHEBANG = f"#!/usr/bin/env python{PYTHON}\n"
 RULE_KEY = re.compile(r"^`([a-z0-9]+(?:-[a-z0-9]+)*)`$")
 BULLET = re.compile(r"^- \*\*([A-Za-z]+)\.\*\* \S")
 RULE_BULLETS = (["Rule", "Why"], ["Rule", "Why", "Probe"])
@@ -316,8 +319,7 @@ class Linter:
         return path.is_file() and re.search(pattern, path.read_text(), re.M) is not None
 
     def check_scripts(self, d: Path, text: str) -> None:
-        """Hold each script to Python, its declared interpreter, a test beside it, and a mention
-        in SKILL.md, where a reader finds it."""
+        """Hold each script to Python, and each one other than a test to check_tool."""
         scripts = d / "scripts"
         if not scripts.is_dir():
             return
@@ -329,14 +331,25 @@ class Linter:
             if s.suffix != ".py":
                 self.report(s, 0, "scripts are Python files")
                 continue
-            if not s.name.startswith("test_") and not (scripts / f"test_{s.name}").is_file():
-                self.report(s, 0, f"has no test_{s.name} beside it")
-            if not s.name.startswith("test_") and REQUIRES not in s.read_text():
-                self.report(s, 0, f'declares no `requires-python = ">={PYTHON}"` script block')
-            if not s.name.startswith("test_") and f"scripts/{s.name}" not in text:
-                skill = (d / "SKILL.md").relative_to(self.root).as_posix()
-                self.report(s, 0, f"not named in {skill}")
+            if not s.name.startswith("test_"):
+                self.check_tool(d, s, text)
             self.check_python(s, siblings)
+
+    def check_tool(self, d: Path, s: Path, text: str) -> None:
+        """Hold a script to a test beside it, its interpreter declared in its first line and its
+        script block, an executable mode, and a mention in SKILL.md, where a reader finds it."""
+        source = s.read_text()
+        if not (s.parent / f"test_{s.name}").is_file():
+            self.report(s, 0, f"has no test_{s.name} beside it")
+        if REQUIRES not in source:
+            self.report(s, 0, f'declares no `requires-python = ">={PYTHON}"` script block')
+        if not source.startswith(SHEBANG):
+            self.report(s, 0, f"has no `{SHEBANG.strip()}` first line")
+        if not os.access(s, os.X_OK):
+            self.report(s, 0, "is not executable")
+        if f"scripts/{s.name}" not in text:
+            skill = (d / "SKILL.md").relative_to(self.root).as_posix()
+            self.report(s, 0, f"not named in {skill}")
 
     def check_python(self, s: Path, siblings: set[str]) -> None:
         try:
