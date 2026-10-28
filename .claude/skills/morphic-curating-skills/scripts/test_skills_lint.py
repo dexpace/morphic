@@ -138,7 +138,7 @@ class LintTest(unittest.TestCase):
         want = [f"{skill}:{n}: docs/ir-design.md has no section 99.1",
                 f"{skill}:{n + 1}: docs/ir-design.md has no section 97.1",
                 f"{skill}:{n + 1}: docs/ir-design.md has no section 98.2"]
-        self.assertEqual(sorted(self.lint()[1]), want)
+        self.assertEqual(self.lint()[1], want)
 
     def test_a_name_is_held_to_the_specification(self):
         for name in ("double--hyphen", "-leading", "trailing-", "x" * 65):
