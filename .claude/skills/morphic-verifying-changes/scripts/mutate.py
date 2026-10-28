@@ -2,12 +2,14 @@
 # /// script
 # requires-python = ">=3.14"
 # ///
-"""Plant one defect, run the tests, and restore the file whatever happens.
+"""Plant one defect, run the tests, and restore the file, keeping its original on disk until then.
 
 Usage: python3.14 mutate.py FILE OLD NEW -- TEST-COMMAND...
        python3.14 mutate.py --batch MUTANTS -- TEST-COMMAND...
 
-OLD must occur in FILE exactly once, read literally; NEW replaces it. TEST-COMMAND runs from the
+OLD must occur in FILE exactly once, read literally; NEW replaces it. The original is copied beside
+the kept output before anything is planted, and a file that cannot be written back, as on a full
+disk, ends the run, a batch's included, with exit 2 and the copy named. TEST-COMMAND runs from the
 current directory, such as `go test ./ir/...` or `python3.14 -m unittest discover -s DIR`, with
 Python's bytecode cache off, since a mutant restored within the second it was written keeps the
 size and mtime by which Python trusts bytecode cached from it. The verdict is read from `go test`
@@ -41,8 +43,11 @@ FAIL_LINE = re.compile(r"^\s*--- FAIL", re.M)
 OK_LINE = re.compile(r"^ok\s", re.M)
 NO_TESTS = "[no tests to run]"
 # The lines go test and unittest write themselves, matched where they write them, so a failing
-# test whose message quotes one is still a failing test.
-NO_BUILD = re.compile(r"^FAIL\s.*\[(?:build|setup) failed\]|^# ", re.M)
+# test whose message quotes one is still a failing test. Go heads a package that does not build
+# with "# <package>", "# [<package>]" when vet fails it, or "# <package> [<package>.test]" when a
+# test file does; a pipe can cut the FAIL line after a header, and a line a test prints, such as a
+# "# Title", is no header.
+NO_BUILD = re.compile(r"^FAIL\s.*\[(?:build|setup) failed\]|^# \S+(?: \[\S+\])?$", re.M)
 NOT_LOADED = re.compile(r"^ERROR: \S+ \(unittest\.loader\._FailedTest\b", re.M)
 KILLED, SURVIVED, UNVERIFIED = 0, 1, 2
 LABELS = ("KILLED", "SURVIVED", "UNVERIFIED")
@@ -145,9 +150,34 @@ def interrupted(signum, frame):
     raise SystemExit(UNVERIFIED)
 
 
+class RestoreFailed(Exception):
+    """The file does not hold its original after a run; the message names the copy kept."""
+
+
+def restore(path: Path, original: bytes, backup: Path) -> None:
+    """Write the original back with the signals that end a run ignored, so none cuts the write
+    short, and drop its copy; raise RestoreFailed, naming the copy, when the file does not hold
+    it."""
+    ending = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+    handlers = [signal.signal(sig, signal.SIG_IGN) for sig in ending]
+    try:
+        path.write_bytes(original)
+        restored = path.read_bytes() == original
+    except OSError:
+        restored = False
+    finally:
+        for sig, handler in zip(ending, handlers):
+            signal.signal(sig, handler)
+    if not restored:
+        raise RestoreFailed(f"mutate: RESTORE FAILED: {path} does not hold its original; copy it "
+                            f"back from {backup}")
+    backup.unlink(missing_ok=True)
+
+
 def mutate(path: Path, old: str, new: str, command: list[str], keep: Path) -> tuple[int, str]:
     """Plant the mutant, judge the run, and restore the file; keep receives the output of the
-    build that failed or of the test command."""
+    build that failed or of the test command, and the original waits beside it until the file
+    holds it again."""
     original = path.read_bytes()
     count = original.count(old.encode())
     if count != 1:
@@ -161,6 +191,14 @@ def mutate(path: Path, old: str, new: str, command: list[str], keep: Path) -> tu
             compile(mutant, str(path), "exec")
         except SyntaxError as e:
             return UNVERIFIED, f"UNVERIFIED: the mutant is not Python ({e.msg}); adjust it"
+    # A write that fails partway, as on a full disk, has already emptied the file, so the
+    # original goes to disk before the mutant does.
+    backup = keep.with_name(keep.stem + ".original")
+    try:
+        backup.write_bytes(original)
+    except OSError as e:
+        return UNVERIFIED, (f"mutate: cannot copy {path} aside ({e.strerror}), so nothing was "
+                            "planted")
     for sig in (signal.SIGTERM, signal.SIGHUP):
         signal.signal(sig, interrupted)
     try:
@@ -176,9 +214,7 @@ def mutate(path: Path, old: str, new: str, command: list[str], keep: Path) -> tu
         keep.write_text(run.stdout)
         return verdict(run.returncode, run.stdout)
     finally:
-        path.write_bytes(original)
-        if path.read_bytes() != original:
-            print(f"mutate: RESTORE FAILED, {path} still holds the mutant", file=sys.stderr)
+        restore(path, original, backup)
 
 
 def confirmed(command: list[str], keep: Path, text: str) -> tuple[int, str]:
@@ -273,6 +309,9 @@ def main(argv: list[str] | None = None) -> int:
         except KeyboardInterrupt:
             print("mutate: interrupted; every file is restored", file=sys.stderr)
             return UNVERIFIED
+        except RestoreFailed as e:  # the tree is no longer clean, so no later mutant ran
+            print(e, file=sys.stderr)
+            return UNVERIFIED
     if len(args) < 5 or args[3] != "--":
         print(__doc__.split("\n\n")[1], file=sys.stderr)
         return UNVERIFIED
@@ -287,6 +326,8 @@ def main(argv: list[str] | None = None) -> int:
             code, text = confirmed(args[4:], keep.with_name("clean.txt"), text)
     except KeyboardInterrupt:
         code, text = UNVERIFIED, "mutate: interrupted; the file is restored"
+    except RestoreFailed as e:
+        code, text = UNVERIFIED, str(e)
     print(text, file=sys.stderr if text.startswith("mutate:") else sys.stdout)
     if keep.is_file():
         print(f"output: {keep}")

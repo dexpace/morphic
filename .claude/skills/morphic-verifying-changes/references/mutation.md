@@ -1,16 +1,17 @@
 # Planting defects
 
 `scripts/mutate.py` handles the mechanics: one literal replacement, a compile check, the test run,
-a restore whatever happens, a clean run behind every kill, a verdict, and the run's whole output
-kept in a file. These rules are the ways a verdict still lies.
+a restore with the original kept on disk until it is back, a clean run behind every kill, a
+verdict, and the run's whole output kept in a file. These rules are the ways a verdict still lies.
 
 ## Route every temporary edit through a restoring script
 `mutation-restore-always`
 
 - **Rule.** Plant every temporary edit of a tracked file, instrumentation and measurement switches
-  included, through `scripts/mutate.py`, which restores it whatever happens and keeps the output
-  they print. Delete a scratch file you added before anything is committed. After a batch,
-  `git diff` each touched file and search the tree for each planted string.
+  included, through `scripts/mutate.py`, which restores it, or names a copy of its original when
+  it cannot, and keeps the output they print. Delete a scratch file you added before anything is
+  committed. After a batch, `git diff` each touched file and search the tree for each planted
+  string.
 - **Why.** A hand-rolled backup restored from the wrong copy and left a switch planted (#591); two
   files sharing a basename shared one backup, so a restore put one package's file in another (#566);
   a full disk stopped a restore mid-batch (#1141); a same-size Python mutant restored within its

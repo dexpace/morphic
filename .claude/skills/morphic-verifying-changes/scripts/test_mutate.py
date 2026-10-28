@@ -3,6 +3,7 @@
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-verifying-changes/scripts
 """
 import contextlib
+import errno
 import importlib.util
 import io
 import json
@@ -36,6 +37,32 @@ def quietly(fn, *args):
         return fn(*args), out.getvalue()
 
 
+def full(write, path, data):
+    """Fail as a full disk does once a write has begun: the file emptied, then an error."""
+    write(path, b"")
+    raise OSError(errno.ENOSPC, "No space left on device")
+
+
+def torn(write, path, data):
+    """Write half of data and report success, as when another writer races the write."""
+    write(path, data[: len(data) // 2])
+
+
+def failing(when, fail):
+    """Patch Path.write_bytes so that each write when(path, data) picks goes to fail instead."""
+    write = Path.write_bytes
+
+    def write_bytes(path, data):
+        return fail(write, path, data) if when(path, data) else write(path, data)
+
+    return mock.patch.object(Path, "write_bytes", write_bytes)
+
+
+def copy_named(printed: str) -> Path:
+    """Return the copy of the original a failed restore names."""
+    return Path(printed.split("copy it back from ", 1)[1].split("\n", 1)[0])
+
+
 class VerdictTest(unittest.TestCase):
     def test_each_outcome(self):
         cases = [
@@ -54,6 +81,15 @@ class VerdictTest(unittest.TestCase):
             # A failing test whose message quotes what go test or unittest writes still fails.
             (1, "--- FAIL: TestA (0.00s)\n    a_test.go:9: want FAIL\tpkg [build failed]\n"
                 "FAIL\tpkga\t0.1s\nFAIL\n", mutate.KILLED),
+            # A heading the code under test prints is no build failure's header.
+            (1, "# Heading the code printed\n--- FAIL: TestG (0.00s)\nFAIL\nFAIL\tx/b\t0.6s\n",
+             mutate.KILLED),
+            # Each header go writes for a package that did not build, seen where a pipe cut the
+            # FAIL line: a package, its vet run, and a test file of it or of its external tests.
+            (0, "# x/a\na.go:1: undefined: y\nok  \tx/b\t0.1s\n", mutate.UNVERIFIED),
+            (0, "# [x/a]\na.go:5: bad format\nok  \tx/b\t0.1s\n", mutate.UNVERIFIED),
+            (0, "# x/c_test [x/c.test]\nc_test.go:5: undefined: z\nok  \tx/b\t0.1s\n",
+             mutate.UNVERIFIED),
             (1, "FAIL: test_x (m.T.test_x) (output='ERROR: test_m (unittest.loader._FailedTest)')"
                 "\nRan 3 tests in 0.1s\n\nFAILED (failures=1)\n", mutate.KILLED),
             (1, "exit status 3\n", mutate.UNVERIFIED),
@@ -139,6 +175,54 @@ class MutateTest(unittest.TestCase):
         self.assertEqual(len(kept), 1, printed)
         self.assertIn("probe hit 42", Path(kept[0]).read_text())
         self.assertTrue(Path(kept[0]).is_relative_to(self.dir.name))
+        self.assertEqual([p.name for p in Path(kept[0]).parent.iterdir()], ["output.txt"],
+                         "the copy of the original outlived the restore")
+
+    def restoring(self, data: bytes):
+        """Pick the write that puts data back into the subject file."""
+        target = self.file.resolve()
+        return lambda path, written: path.resolve() == target and written == data
+
+    def test_a_restore_that_fails_names_the_copy_of_the_original(self):
+        original = self.file.read_bytes()
+        for fail, left in ((full, b""), (torn, original[: len(original) // 2])):
+            with self.subTest(fail=fail.__name__):
+                with failing(self.restoring(original), fail):
+                    code, printed = quietly(mutate.main,
+                                            [str(self.file), "good", "bad", "--", *self.command])
+                self.assertEqual(code, mutate.UNVERIFIED, printed)
+                self.assertIn("RESTORE FAILED", printed)
+                self.assertEqual(self.file.read_bytes(), left)
+                self.assertEqual(copy_named(printed).read_bytes(), original)
+                self.file.write_bytes(original)
+
+    def test_nothing_is_planted_when_the_original_cannot_be_copied_aside(self):
+        marker = Path(self.dir.name) / "ran"
+        command = [sys.executable, "-c", f"open({str(marker)!r}, 'a').write('x')\n" + FAKE_TEST,
+                   str(self.file)]
+        with failing(lambda path, data: path.suffix == ".original", full):
+            code, printed = quietly(mutate.main, [str(self.file), "good", "bad", "--", *command])
+        self.assertEqual(code, mutate.UNVERIFIED, printed)
+        self.assertIn("so nothing was planted", printed)
+        self.assertFalse(marker.exists(), "the command ran")
+        self.assertEqual(self.file.read_text(), "keep good keep\n")
+
+    def test_no_signal_that_ends_a_run_can_cut_the_restore_short(self):
+        ending = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
+        during = []
+
+        def watching(write, path, data):
+            during.extend(signal.getsignal(sig) for sig in ending)
+            return write(path, data)
+
+        def own(signum, frame):
+            raise AssertionError("the run's own SIGINT handler ran")
+
+        self.addCleanup(signal.signal, signal.SIGINT, signal.signal(signal.SIGINT, own))
+        with failing(self.restoring(self.file.read_bytes()), watching):
+            self.assertEqual(self.run_mutate("good", "bad"), mutate.KILLED)
+        self.assertEqual(during, [signal.SIG_IGN] * len(ending))
+        self.assertIs(signal.getsignal(signal.SIGINT), own, "the handler was not put back")
 
     def test_a_kill_needs_the_command_to_pass_on_the_clean_tree(self):
         self.file.write_text("keep good bad\n")
@@ -267,6 +351,15 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(names, ["1.txt", "2.txt", "baseline.txt"])
         self.assertIn("--- FAIL: TestThing", (outputs / "1.txt").read_text())
         self.assertNotIn("FAIL", (outputs / "baseline.txt").read_text())
+
+    def test_a_restore_that_fails_ends_the_batch(self):
+        original, target = self.file.read_bytes(), self.file.resolve()
+        with failing(lambda path, data: path.resolve() == target and data == original, full):
+            code, out = self.run_batch(self.mutant("good", "bad"), self.mutant("more", "bad more"))
+        self.assertEqual(code, mutate.UNVERIFIED, out)
+        self.assertEqual(copy_named(out).read_bytes(), original)
+        self.assertEqual(self.marker.read_text(), "xx",
+                         "a mutant ran on a tree still holding the one before it")
 
     def test_one_survivor_makes_the_batch_survive(self):
         code, out = self.run_batch(self.mutant("good", "bad"), self.mutant("more", "less", "x"))

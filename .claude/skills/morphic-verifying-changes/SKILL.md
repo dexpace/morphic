@@ -44,8 +44,8 @@ Run each from the repository root as
 `python3.14 .claude/skills/morphic-verifying-changes/scripts/<name>.py`; its docstring gives the
 options.
 
-- `scripts/mutate.py` plants one defect or a batch and always restores the file; a kill counts
-  only where the command passes on the clean tree.
+- `scripts/mutate.py` plants one defect or a batch and restores the file, or says where a copy of
+  its original waits; a kill counts only where the command passes on the clean tree.
 - `scripts/sweep.py` compiles a corpus at a base and at the working tree and reports each
   difference.
 
