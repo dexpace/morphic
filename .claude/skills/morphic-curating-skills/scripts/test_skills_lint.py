@@ -152,7 +152,9 @@ class LintTest(unittest.TestCase):
     def test_a_scalar_is_read_as_yaml_reads_it(self):
         cases = {"Use when: plain": "Use when: plain", "'it''s'": "it's",
                  '"a \\"b\\" \\\\c"': 'a "b" \\c', "''": "", "": "",
-                 ">-": None, "|": None, "'open": None, '"open': None}
+                 '"x" # a comment': "x", "'x'\t# a comment": "x",
+                 ">-": None, "|": None, "'open": None, '"open': None, '"ends in \\"': None,
+                 "'it''": None, '"x" b': None, '"x"#c': None}
         for value, want in cases.items():
             with self.subTest(value=value):
                 self.assertEqual(skills_lint.scalar(value), want)
@@ -160,7 +162,7 @@ class LintTest(unittest.TestCase):
     def test_a_quoted_value_is_read_as_yaml_reads_it_and_a_block_scalar_is_refused(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         body = GOOD_SKILL.split("---\n", 2)[2]
-        spans = f"{skill}:1: description spans lines; write it on one line, plain or quoted"
+        spans = f"{skill}:1: description is not a one-line plain or quoted value; write it as one"
         cases = [
             ('name: "good-skill"\ndescription: "Use when quoted: \\"as told\\"."\n', []),
             ("name: good-skill\ndescription: 'Use when it''s quoted: once.'\n", []),

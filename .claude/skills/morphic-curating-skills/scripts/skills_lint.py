@@ -67,6 +67,11 @@ MAX_NAME_CHARS = 64
 # The specification's frontmatter fields; any other key is a typo until a reason adds it here.
 FIELDS = ("name", "description", "license", "compatibility", "metadata", "allowed-tools")
 FRONT_KEY = re.compile(r"^([^\s#:][^:]*):(?: (.*))?$")
+# A one-line quoted value, and the comment YAML lets follow it after a space: a double-quoted one
+# closes at the first quote no backslash escapes, a single-quoted one at the first quote not
+# doubled.
+DOUBLE_QUOTED = re.compile(r'"((?:[^"\\]|\\.)*)"(?:[ \t]+#.*)?')
+SINGLE_QUOTED = re.compile(r"'((?:[^']|'')*)'(?:[ \t]+#.*)?")
 PATH_LIKE = re.compile(r"/|\.(go|md|py|yaml|json|txt)$")
 TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
 LINE_SUFFIX = re.compile(r":[0-9]+$")
@@ -100,15 +105,14 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
 
 
 def scalar(value: str) -> str | None:
-    """Return what YAML reads from a one-line plain or quoted value, or None for one that spans
-    lines, a block scalar or an unclosed quote, which this lint does not read."""
-    if value[:1] in ("|", ">"):
-        return None
-    if len(value) > 1 and value[0] == value[-1] == "'":
-        return value[1:-1].replace("''", "'")
-    if len(value) > 1 and value[0] == value[-1] == '"':
-        return re.sub(r'\\(["\\])', r"\1", value[1:-1])
-    return None if value[:1] in ("'", '"') else value
+    """Return what YAML reads from a one-line plain or quoted value, a comment after the quote
+    allowed, or None for any other: a block scalar, which this lint does not read, or a quote that
+    does not close on its line or has text after it, which YAML refuses."""
+    if m := SINGLE_QUOTED.fullmatch(value):
+        return m.group(1).replace("''", "'")
+    if m := DOUBLE_QUOTED.fullmatch(value):
+        return re.sub(r'\\(["\\])', r"\1", m.group(1))
+    return None if value[:1] in ("'", '"', "|", ">") else value
 
 
 def rule_blocks(text: str) -> list[tuple[int, list[str]]]:
@@ -204,7 +208,8 @@ class Linter:
                   for m in map(FRONT_KEY.match, front) if m}
         for key in ("name", "description"):
             if key in values and values[key] is None:
-                self.report(skill, 1, f"{key} spans lines; write it on one line, plain or quoted")
+                self.report(skill, 1, f"{key} is not a one-line plain or quoted value; write it "
+                                      "as one")
         if values.get("name", "") not in (name, None):
             self.report(skill, 1, f"frontmatter name must be {name!r}")
         desc = values.get("description", "")
