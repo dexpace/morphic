@@ -63,7 +63,8 @@ verifier and codecs must reach.
   whether the parser can produce the violation.
 - **Why.** `OAuthFlow.Scopes` went from a map to a list for source order, and a scope named twice
   verified clean until `irverify` gained a check for a duplicate scope (#878).
-- **Probe.** Build a document holding what the old type could not, and run `irverify` on it.
+- **Probe.** In a test, build a document holding what the old type could not and assert
+  `irverify.Verify` reports it.
 
 ## Sweep the predicates that name a struct's fields when it grows one
 `predicates-that-list-fields`

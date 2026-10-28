@@ -12,7 +12,8 @@ it.
   refusal arm the earlier check may now shadow.
 - **Why.** Fixtures for the round-trip and order oracles stopped at an unrelated error, and a
   grammar check moved ahead of `ParseFloat` shadowed its `IsInf` arm, all while green (#549, #269).
-- **Probe.** Run `harness.Check` on each fixture and read which oracle fired first.
+- **Probe.** `go run ./cmd/morphic-harness <fixture>` runs `harness.Check` and prints `ok` or the
+  first oracle that fired, with its code.
 
 ## Show a corpus witness for every site a lowering handles
 `corpus-witnesses-every-site`
