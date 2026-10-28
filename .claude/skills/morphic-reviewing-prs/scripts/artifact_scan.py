@@ -1,13 +1,15 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Scan what a change ships for text that must not land: assistant attribution, the vocabulary
 of the working session that wrote it, paths on one machine, and audit-finding labels.
 
-Usage: python3 artifact_scan.py [BASE [HEAD]] [--pr N]    BASE origin/main, HEAD HEAD by default.
+Usage: python3.14 artifact_scan.py [BASE [HEAD]] [--pr N]    BASE origin/main, HEAD HEAD by default.
 
 Reads the lines the change adds, its commit messages and, with --pr, the PR's title and body.
 Every hit is printed for a person to judge. Exit 0 when clean, 1 on a hit, 2 when it cannot run.
 """
-from __future__ import annotations
 
 import argparse
 import json
@@ -15,7 +17,7 @@ import re
 import subprocess
 import sys
 import traceback
-from typing import Iterable, Iterator
+from collections.abc import Iterable, Iterator
 
 # Split so this file does not match its own patterns.
 PATTERNS = [

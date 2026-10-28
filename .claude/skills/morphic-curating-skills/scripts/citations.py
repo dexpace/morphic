@@ -1,8 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """List the citations in the skills' rules that the cited issue or PR may not bear out, for a person
 to read against the item.
 
-Usage: python3 citations.py [KEY...]    every rule by default, else the rules with these keys
+Usage: python3.14 citations.py [KEY...]    every rule by default, else the rules with these keys
 
 A rule's Why cites the PRs and issues that showed its failure. For each citation this fetches the
 item's text (title, body, comments, reviews, review comments and commit messages) through gh,
@@ -12,7 +15,6 @@ in its clause, is listed with the terms the item lacks. Most listed citations ho
 score only orders the reading. A number that names no issue or PR is an error. Exit 0 when every
 cited number exists, 1 when one does not, 2 when it cannot run.
 """
-from __future__ import annotations
 
 import argparse
 import concurrent.futures
@@ -22,8 +24,9 @@ import subprocess
 import sys
 import tempfile
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Dict, List, NamedTuple, Optional
+from typing import NamedTuple
 
 import skills_lint
 
@@ -58,10 +61,10 @@ class Listed(NamedTuple):
     number: int
     title: str
     clause: str
-    absent: List[str]
+    absent: list[str]
 
 
-def rules_in(root: Path) -> List[Rule]:
+def rules_in(root: Path) -> list[Rule]:
     """Return every rule the skills' reference files hold, read as skills_lint reads them."""
     out = []
     for ref in sorted(root.glob(".claude/skills/*/references/*.md")):
@@ -75,10 +78,10 @@ def rules_in(root: Path) -> List[Rule]:
     return out
 
 
-def clauses(why: str) -> Dict[int, str]:
+def clauses(why: str) -> dict[int, str]:
     """Map each number a Why cites to the clause it is evidence for: the text before its
     parenthesised group, back to the previous group, or the sentence around a bare #N."""
-    out: Dict[int, str] = {}
+    out: dict[int, str] = {}
     start = 0
     for m in GROUP.finditer(why):
         if m.group(0).startswith("("):
@@ -92,14 +95,14 @@ def clauses(why: str) -> Dict[int, str]:
     return out
 
 
-def terms(clause: str) -> tuple[List[str], List[str]]:
+def terms(clause: str) -> tuple[list[str], list[str]]:
     """Return the terms a clause rests on: the identifiers it quotes, and its longer words."""
     quoted = {t for span in re.findall(r"`([^`]+)`", clause) for t in IDENTIFIER.findall(span)}
     prose = {w.lower() for w in WORD.findall(re.sub(r"`[^`]*`", " ", clause))} - STOP
     return sorted(quoted), sorted(prose)
 
 
-def score(clause: str, text: str) -> tuple[float, List[str]]:
+def score(clause: str, text: str) -> tuple[float, list[str]]:
     """Return the share of a clause's terms the text holds, and the terms it lacks: a quoted
     identifier must appear as written, a word by its first STEM letters in any case."""
     quoted, prose = terms(clause)
@@ -113,7 +116,7 @@ def gh(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["gh", "api", *args], capture_output=True, text=True, errors="replace")
 
 
-def fetch(number: int) -> Optional[str]:
+def fetch(number: int) -> str | None:
     """Return an issue's or PR's text, its title first, or None when the repository has none by
     that number."""
     base = "repos/{owner}/{repo}"
@@ -142,13 +145,13 @@ def checked(run: subprocess.CompletedProcess) -> subprocess.CompletedProcess:
     return run
 
 
-def texts(numbers: List[int], cache: Path,
-          get: Callable[[int], Optional[str]] = fetch) -> Dict[int, Optional[str]]:
+def texts(numbers: list[int], cache: Path,
+          get: Callable[[int], str | None] = fetch) -> dict[int, str | None]:
     """Return each number's text, read from cache or fetched JOBS at a time and cached; a
     number that names nothing maps to None and is not cached."""
     cache.mkdir(parents=True, exist_ok=True)
 
-    def one(n: int) -> tuple[int, Optional[str]]:
+    def one(n: int) -> tuple[int, str | None]:
         path = cache / f"{n}.txt"
         if path.is_file():
             return n, path.read_text()
@@ -163,7 +166,7 @@ def texts(numbers: List[int], cache: Path,
         return dict(pool.map(one, numbers))
 
 
-def audit(rules: List[Rule], found: Dict[int, Optional[str]]) -> List[Listed]:
+def audit(rules: list[Rule], found: dict[int, str | None]) -> list[Listed]:
     """Score every citation and return those to read: under LOW, or under OUTLIER times the
     best score among the citations sharing its clause."""
     listed = []
@@ -181,7 +184,7 @@ def audit(rules: List[Rule], found: Dict[int, Optional[str]]) -> List[Listed]:
     return sorted(listed, key=lambda x: (x.score, x.rule.key, x.number))
 
 
-def report(rules: List[Rule], found: Dict[int, Optional[str]]) -> tuple[List[str], bool]:
+def report(rules: list[Rule], found: dict[int, str | None]) -> tuple[list[str], bool]:
     """Return the report's lines, and whether every cited number names an issue or PR."""
     missing = [(r, n) for r in rules for n in clauses(r.why) if found.get(n) is None]
     listed = audit(rules, found)

@@ -1,10 +1,13 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Check a PR out in a worktree of its own, as it will land, and print what a first review pass
 needs: the title measured as it will land, commit subjects, closing keywords, files by area, the
 merge state, CI, the squash-message setting, every name a skill uses that the tree lacks, and an
 artifact scan.
 
-Usage: python3 review_setup.py PR-NUMBER [DIR]
+Usage: python3.14 review_setup.py PR-NUMBER [DIR]
 
 The worktree holds the head merged into main when the two merge cleanly, the head itself when it
 already contains main, and the head alone, reported, when it conflicts. DIR defaults to
@@ -12,7 +15,6 @@ already contains main, and the head alone, reported, when it conflicts. DIR defa
 with local changes is left alone. Set REMOTE when the repository the PR belongs to is not origin,
 as in a clone of a fork. Exit 0 when set up, 2 when it cannot be.
 """
-from __future__ import annotations
 
 import json
 import os

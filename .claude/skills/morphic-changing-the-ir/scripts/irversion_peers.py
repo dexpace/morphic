@@ -1,8 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """List the open pull requests that move IRVersion, the version each claims, and whether the
 working tree's claim collides with one or trails main.
 
-Usage: python3 irversion_peers.py
+Usage: python3.14 irversion_peers.py
 
 Reads ir.IRVersion from main, from the working tree, and from the head of each open PR, fetched
 from origin unless REMOTE names another remote. A PR whose head the working tree already holds is
@@ -11,7 +14,6 @@ base with main does. A PR that bumped from a base main has since passed is liste
 claims a version past main's once it merges main. Exit 0 when nothing collides, 1 when the working
 tree claims a version another PR claims or one main has passed, 2 when it cannot run.
 """
-from __future__ import annotations
 
 import json
 import os
@@ -20,7 +22,6 @@ import subprocess
 import sys
 import traceback
 from pathlib import Path
-from typing import Optional, Tuple
 
 DECLARED = re.compile(r'^const IRVersion = "([^"]+)"', re.M)
 
@@ -48,7 +49,7 @@ def ahead(version: str, main: str) -> bool:
     return v is None or m is None or v > m
 
 
-Peer = Tuple[int, str, str, Optional[str]]  # number, title, version, its merge base's version
+type Peer = tuple[int, str, str, str | None]  # number, title, version, its merge base's version
 
 
 def judge(main: str, tree: str, peers: list[Peer]) -> tuple[list[str], bool]:

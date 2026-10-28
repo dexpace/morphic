@@ -1,16 +1,18 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Fetch the golden spec (CLAUDE.md, "Priority") once at a pinned revision, and print its path
 or count what it holds.
 
-Usage: python3 golden_spec.py [--rev REV] [--count KEY...]
+Usage: python3.14 golden_spec.py [--rev REV] [--count KEY...]
 
 REV is a commit of cloudflare/api-schemas (default its current HEAD, resolved to a commit so the
 result names what was measured). The spec is cached outside the repository, under the system's
 temporary directory, one file per commit. Without --count, prints the cached file's path, for
-use as $(python3 golden_spec.py). With --count, prints how many JSON objects in the spec carry
+use as $(python3.14 golden_spec.py). With --count, prints how many JSON objects in the spec carry
 each KEY. The commit measured goes to stderr. Exit 0 on success, 2 when it cannot fetch or read.
 """
-from __future__ import annotations
 
 import argparse
 import json
@@ -18,8 +20,8 @@ import subprocess
 import sys
 import tempfile
 import traceback
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 REPO = "cloudflare/api-schemas"
 FILE = "openapi.json"

@@ -28,7 +28,7 @@ cannot be turned off.
   change of shape, such as a lowering that starts filling a member, is the bump no test sees: make
   it, with the row's `meaning`.
 - **Other PRs.** Before claiming a version, and after each merge of `main`, run
-  `python3 .claude/skills/morphic-changing-the-ir/scripts/irversion_peers.py`
+  `python3.14 .claude/skills/morphic-changing-the-ir/scripts/irversion_peers.py`
   (`references/ir-lessons.md#version-collisions`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
   `ir/irverify`; `references/ir-lessons.md` says which test reaches each, and which one lets a stale

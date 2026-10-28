@@ -1,20 +1,22 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Build a command at a base revision and at the working tree, run the two builds in turn, and
 report what each run cost: instructions retired, CPU time, peak memory and wall time.
 
-Usage: python3 compare_cost.py [-b BASE] [-n RUNS] [-p PACKAGE] -- ARGS...
+Usage: python3.14 compare_cost.py [-b BASE] [-n RUNS] [-p PACKAGE] -- ARGS...
 
 PACKAGE (default ./cmd/morphic) is built at BASE (default origin/main) and at the working tree,
 and each build runs with ARGS RUNS times (default 7), base and head alternating, after one
 uncounted run each; stdout is discarded. For the golden spec, pass
-compile "$(python3 .claude/skills/morphic-verifying-changes/scripts/golden_spec.py)".
+compile "$(python3.14 .claude/skills/morphic-verifying-changes/scripts/golden_spec.py)".
 Instructions retired come from /usr/bin/time -l on macOS and perf stat on Linux; without either,
 the instructions row is left out. Prints each measure's median and range per side, and head's
 median over base's. A side whose runs exit differently from each other, or from the other side,
 is reported, and so is a BASE the working tree's HEAD does not hold, since the difference then
 counts what BASE gained too. It judges nothing: exit 0 when measured, 2 when it cannot run.
 """
-from __future__ import annotations
 
 import argparse
 import os

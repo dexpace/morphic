@@ -48,17 +48,17 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
   removing one.
 - Everything works from a fresh clone and names no machine. Paths start at the repository root,
   bar those inside the skill's own folder, and commands run from the root.
-- Scripts are Python 3.9 with the standard library only, each with a `test_<name>.py` beside it.
-  Run a skill's tests with `python3 -m unittest discover -s .claude/skills/<skill>/scripts`.
+- Scripts are Python 3.14 with the standard library only, each with a `test_<name>.py` beside it.
+  Run a skill's tests with `python3.14 -m unittest discover -s .claude/skills/<skill>/scripts`.
 
 ## Upkeep
 
-- Run `python3 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit: it
+- Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit: it
   checks the frontmatter, limits, rule format and that every name a skill uses exists. The gate runs
   neither it nor the scripts' tests; `preflight.py` and `review_setup.py` run it on each branch
   they check, code changes included.
 - After writing or changing a rule's Why, run
-  `python3 .claude/skills/morphic-curating-skills/scripts/citations.py <key>` and read each
+  `python3.14 .claude/skills/morphic-curating-skills/scripts/citations.py <key>` and read each
   citation it lists against its item.
 - A lesson a skill already holds that failed again means the skill failed: sharpen its wording or
   its trigger, not add a second copy.

@@ -34,14 +34,14 @@ goes to the type that owns the broken state
   (`references/differentials.md#validate-the-instrument-first`).
 - Read every result line: a mutant that did not compile, a test that never ran and a panic in
   another test all look like verdicts.
-- Iterate with `go test $(python3 .claude/skills/morphic-verifying-changes/scripts/affected_packages.py)`,
+- Iterate with `go test $(python3.14 .claude/skills/morphic-verifying-changes/scripts/affected_packages.py)`,
   run `go test ./...` before concluding, and `make gate` before calling it done: `go test`
   passing is not the coverage gate (`references/toolchain.md#coverage-per-package`).
 
 ## Scripts
 
 Run each from the repository root as
-`python3 .claude/skills/morphic-verifying-changes/scripts/<name>.py`; its docstring gives the
+`python3.14 .claude/skills/morphic-verifying-changes/scripts/<name>.py`; its docstring gives the
 options.
 
 - `scripts/mutate.py` plants a defect, or a batch after a clean run, reads `go test` or unittest

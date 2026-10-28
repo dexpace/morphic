@@ -1,6 +1,6 @@
 """Tests for artifact_scan.
 
-Run: python3 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scripts
+Run: python3.14 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scripts
 """
 import sys
 import unittest

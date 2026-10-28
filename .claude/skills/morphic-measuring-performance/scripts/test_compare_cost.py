@@ -1,6 +1,6 @@
 """Tests for compare_cost.
 
-Run: python3 -m unittest discover -s .claude/skills/morphic-measuring-performance/scripts
+Run: python3.14 -m unittest discover -s .claude/skills/morphic-measuring-performance/scripts
 """
 import platform
 import subprocess

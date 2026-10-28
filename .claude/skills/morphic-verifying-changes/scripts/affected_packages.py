@@ -1,7 +1,10 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """List the packages a change can affect, for a fast `go test` while iterating.
 
-Usage: go test $(python3 affected_packages.py [BASE])    BASE defaults to origin/main.
+Usage: go test $(python3.14 affected_packages.py [BASE])    BASE defaults to origin/main.
 
 Lists each package holding a changed file, each package whose code or tests import one of them,
 internal/archtest whenever a Go or Markdown file changed, since it reads both, and, when the change
@@ -13,7 +16,6 @@ under .claude alone; run from the repository root, `go test` given no package th
 Go files", which says nothing about the change. The full gate still runs before a change is called
 done.
 """
-from __future__ import annotations
 
 import re
 import subprocess

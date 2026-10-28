@@ -1,6 +1,6 @@
 """Tests for citations.
 
-Run: python3 -m unittest discover -s .claude/skills/morphic-curating-skills/scripts
+Run: python3.14 -m unittest discover -s .claude/skills/morphic-curating-skills/scripts
 """
 import os
 import subprocess
@@ -137,7 +137,7 @@ class ReportTest(unittest.TestCase):
         lines, complete = ct.report([rule("It broke (#1, #2).")], {1: "it broke\nbody", 2: None})
         self.assertFalse(complete)
         self.assertIn("MISSING x/references/r.md#r: #2 names no issue or PR", lines)
-        self.assertTrue(lines[0].startswith("citations: 1 rules, 2 citations of 2 numbers;"))
+        self.assertStartsWith(lines[0], "citations: 1 rules, 2 citations of 2 numbers;")
 
     def test_main_exits_1_when_a_number_names_nothing(self):
         slug = subprocess.CompletedProcess([], 0, "o/r\n", "")

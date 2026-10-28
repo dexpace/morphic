@@ -1,11 +1,14 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Plant one defect, run the tests, and restore the file whatever happens.
 
-Usage: python3 mutate.py FILE OLD NEW -- TEST-COMMAND...
-       python3 mutate.py --batch MUTANTS -- TEST-COMMAND...
+Usage: python3.14 mutate.py FILE OLD NEW -- TEST-COMMAND...
+       python3.14 mutate.py --batch MUTANTS -- TEST-COMMAND...
 
 OLD must occur in FILE exactly once, read literally; NEW replaces it. TEST-COMMAND runs from the
-current directory, such as `go test ./ir/...` or `python3 -m unittest discover -s DIR`, with
+current directory, such as `go test ./ir/...` or `python3.14 -m unittest discover -s DIR`, with
 Python's bytecode cache off, since a mutant restored within the second it was written keeps the
 size and mtime by which Python trusts bytecode cached from it. The verdict is read from `go test`
 or unittest output: a kill needs a failing test, a survival a passing run that ran a test, so a
@@ -22,7 +25,6 @@ running a test, or no mutant can be judged. Prints a line per mutant and a tally
 run's output in a directory, the baseline's as baseline.txt and the mutants' numbered in batch
 order. Exit 0 when every mutant was killed, 1 when one survived, 2 when one has no verdict.
 """
-from __future__ import annotations
 
 import json
 import os

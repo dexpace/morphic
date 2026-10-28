@@ -34,7 +34,7 @@ busy machine measures the machine.
 - `scripts/compare_cost.py [-b BASE] [-n RUNS] [-p PACKAGE] -- ARGS...` builds `./cmd/morphic`, or
   PACKAGE, at BASE and at the working tree, runs them alternately with ARGS and prints each
   measure's median, range and ratio. Run it from the repository root as
-  `python3 .claude/skills/morphic-measuring-performance/scripts/compare_cost.py`.
+  `python3.14 .claude/skills/morphic-measuring-performance/scripts/compare_cost.py`.
 
 ## References
 

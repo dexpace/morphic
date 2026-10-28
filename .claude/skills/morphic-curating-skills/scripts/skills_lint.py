@@ -1,21 +1,23 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Hold the skills under .claude/skills to their frontmatter, their limits and the tree they
 describe.
 
-Usage: python3 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
+Usage: python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 
 Prints one "path:line: problem" per finding. Exit 0 when clean, 1 on a finding, 2 when it
 cannot run. Each rule in a reference is held to the format morphic-curating-skills gives. Scripts
-are Python 3.9 with the standard library only, each with a test_<name>.py beside it.
+are Python 3.14, declared in a PEP 723 script block, with the standard library only and a
+test_<name>.py beside each.
 """
-from __future__ import annotations
 
 import ast
-import importlib.util
+import itertools
 import re
 import subprocess
 import sys
-import sysconfig
 import traceback
 from pathlib import Path
 
@@ -24,7 +26,10 @@ MAX_REFERENCE_WORDS = 4000
 MAX_RULE_WORDS = 150
 MAX_DESCRIPTION_CHARS = 500
 MAX_FRONTMATTER_CHARS = 1024
-PYTHON_TARGET = (3, 9)
+PYTHON_TARGET = (3, 14)
+PYTHON = ".".join(map(str, PYTHON_TARGET))
+# The block each script declares its interpreter in (PEP 723), which `uv run` and `pipx run` read.
+REQUIRES = f'# /// script\n# requires-python = ">={PYTHON}"\n# ///\n'
 RULE_KEY = re.compile(r"^`([a-z0-9]+(?:-[a-z0-9]+)*)`$")
 BULLET = re.compile(r"^- \*\*([A-Za-z]+)\.\*\* \S")
 RULE_BULLETS = (["Rule", "Why"], ["Rule", "Why", "Probe"])
@@ -93,8 +98,8 @@ def rule_blocks(text: str) -> list[tuple[int, list[str]]]:
     that "## " heading to the next."""
     lines = text.split("\n")
     starts = [i for i, line in enumerate(lines) if line.startswith("## ")]
-    ends = starts[1:] + [len(lines)]
-    return [(start + 1, lines[start:end]) for start, end in zip(starts, ends)]
+    bounds = itertools.pairwise([*starts, len(lines)])
+    return [(start + 1, lines[start:end]) for start, end in bounds]
 
 
 def rule_bullets(block: list[str]) -> tuple[list[list[str]], list[int]]:
@@ -111,30 +116,6 @@ def rule_bullets(block: list[str]) -> tuple[list[list[str]], list[int]]:
         elif text.strip():
             stray.append(i)
     return bullets, stray
-
-
-def standard_module(name: str, listed: frozenset[str] | None) -> bool:
-    """Report whether a top-level module ships with Python. Python 3.9 lists none of its
-    modules (listed is None), so there one counts when it is built in, or found under the
-    standard library's directory and outside site-packages."""
-    if listed is not None:
-        return name in listed
-    if name in sys.builtin_module_names:
-        return True
-    try:
-        spec = importlib.util.find_spec(name)
-    except (ImportError, ValueError):
-        return False
-    origin = spec.origin if spec else None
-    if origin in ("built-in", "frozen"):
-        return True
-    if not origin:
-        return False
-    where = Path(origin).resolve()
-    paths = sysconfig.get_paths()
-    homes = {Path(paths[k]).resolve() for k in ("stdlib", "platstdlib")}
-    installed = {"site-packages", "dist-packages"} & set(where.parts)
-    return not installed and any(home in where.parents for home in homes)
 
 
 class Linter:
@@ -335,8 +316,8 @@ class Linter:
         return path.is_file() and re.search(pattern, path.read_text(), re.M) is not None
 
     def check_scripts(self, d: Path, text: str) -> None:
-        """Hold each script to Python, a test beside it, and a mention in SKILL.md, where a
-        reader finds it."""
+        """Hold each script to Python, its declared interpreter, a test beside it, and a mention
+        in SKILL.md, where a reader finds it."""
         scripts = d / "scripts"
         if not scripts.is_dir():
             return
@@ -350,6 +331,8 @@ class Linter:
                 continue
             if not s.name.startswith("test_") and not (scripts / f"test_{s.name}").is_file():
                 self.report(s, 0, f"has no test_{s.name} beside it")
+            if not s.name.startswith("test_") and REQUIRES not in s.read_text():
+                self.report(s, 0, f'declares no `requires-python = ">={PYTHON}"` script block')
             if not s.name.startswith("test_") and f"scripts/{s.name}" not in text:
                 skill = (d / "SKILL.md").relative_to(self.root).as_posix()
                 self.report(s, 0, f"not named in {skill}")
@@ -359,10 +342,8 @@ class Linter:
         try:
             tree = ast.parse(s.read_text(), str(s), feature_version=PYTHON_TARGET)
         except SyntaxError as e:
-            target = ".".join(map(str, PYTHON_TARGET))
-            self.report(s, e.lineno or 0, f"is not Python {target}: {e.msg}")
+            self.report(s, e.lineno or 0, f"is not Python {PYTHON}: {e.msg}")
             return
-        listed = getattr(sys, "stdlib_module_names", None)
         for node in ast.walk(tree):
             names = []
             if isinstance(node, ast.Import):
@@ -371,7 +352,7 @@ class Linter:
                 names = [node.module]
             for n in names:
                 top = n.split(".", 1)[0]
-                if top in siblings or top == "__future__" or standard_module(top, listed):
+                if top in siblings or top in sys.stdlib_module_names:
                     continue
                 self.report(s, node.lineno, f"imports {top}, outside the standard library")
 

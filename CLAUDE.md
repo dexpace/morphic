@@ -51,7 +51,8 @@ covers.
 
 `.claude/skills/` holds the procedures for recurring work, such as verifying a change or reviewing
 a PR, the lessons past PRs taught, and the scripts both use. A skill links to these documents
-rather than restating them; `morphic-curating-skills` says where a new lesson goes.
+rather than restating them; `morphic-curating-skills` says where a new lesson goes. Their scripts
+need Python 3.14, run as `python3.14`.
 
 ## Invariants that must not be violated
 

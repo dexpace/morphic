@@ -1,8 +1,11 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.14
+# /// script
+# requires-python = ">=3.14"
+# ///
 """Compile every spec in a corpus with cmd/morphic built at a base revision and at the working
 tree, and report each spec whose exit code, IR or diagnostics differ.
 
-Usage: python3 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS...]
+Usage: python3.14 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS...]
                         [-- COMPILE-FLAGS...]
 
 BASE is the revision to compare against (default origin/main); when HEAD does not hold it, a
@@ -12,7 +15,6 @@ Outputs are kept under OUTDIR (default a new temporary directory) for diffing. C
 directories are searched for OpenAPI and Swagger documents (default testdata). Exit 0 when
 nothing differs, 1 when something does, 2 when the sweep cannot run.
 """
-from __future__ import annotations
 
 import argparse
 import concurrent.futures
@@ -145,7 +147,7 @@ def parse(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Compare two builds of cmd/morphic over a corpus.")
     p.add_argument("-b", dest="base", default="origin/main")
     p.add_argument("-t", dest="limit", type=int, default=60)
-    p.add_argument("-j", dest="jobs", type=int, default=max(1, (os.cpu_count() or 2) // 2))
+    p.add_argument("-j", dest="jobs", type=int, default=max(1, (os.process_cpu_count() or 2) // 2))
     p.add_argument("-o", dest="out")
     p.add_argument("corpus", nargs="*")
     args = p.parse_args(argv)

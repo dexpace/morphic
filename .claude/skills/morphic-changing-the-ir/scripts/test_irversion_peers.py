@@ -1,6 +1,6 @@
 """Tests for irversion_peers.
 
-Run: python3 -m unittest discover -s .claude/skills/morphic-changing-the-ir/scripts
+Run: python3.14 -m unittest discover -s .claude/skills/morphic-changing-the-ir/scripts
 """
 import subprocess
 import sys

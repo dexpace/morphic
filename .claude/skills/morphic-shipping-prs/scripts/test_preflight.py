@@ -1,6 +1,6 @@
 """Tests for preflight.
 
-Run: python3 -m unittest discover -s .claude/skills/morphic-shipping-prs/scripts
+Run: python3.14 -m unittest discover -s .claude/skills/morphic-shipping-prs/scripts
 """
 import os
 import subprocess

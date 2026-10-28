@@ -1,18 +1,17 @@
 """Tests for skills_lint.
 
-Run: python3 -m unittest discover -s .claude/skills/morphic-curating-skills/scripts
+Run: python3.14 -m unittest discover -s .claude/skills/morphic-curating-skills/scripts
 """
-import importlib
 import os
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 import skills_lint
 
+# The script block each script declares Python 3.14 in, written out rather than read from the lint.
+HEADER = '# /// script\n# requires-python = ">=3.14"\n# ///\n'
 GOOD_SKILL = """---
 name: good-skill
 description: Use when testing.
@@ -20,7 +19,7 @@ description: Use when testing.
 
 See `references/r.md`, `scripts/tool.py`, `ir/a.go`, ir/a.go, TestKnown, TestKnown_Case,
 ir-design §4.3, docs/parser-library.md#known, `morphic-harness` and [a link](references/r.md).
-Run `go test ./ir/... $(python3 scripts/tool.py)` or `go run ./cmd/morphic-harness <spec>`
+Run `go test ./ir/... $(python3.14 scripts/tool.py)` or `go run ./cmd/morphic-harness <spec>`
 and `gh api repos/{owner}/{repo}`, by `references/r.md#do-the-thing` and
 `.claude/skills/good-skill/references/r.md#do-the-thing`; see `references/<file>.md#<key>`.
 Name `tool.py`, `a.go` and `SKILL.md` alone, and a suffix such as `_test.go`.
@@ -48,7 +47,7 @@ class LintTest(unittest.TestCase):
         skill = ".claude/skills/good-skill/"
         write(self.root, skill + "SKILL.md", GOOD_SKILL)
         write(self.root, skill + "references/r.md", GOOD_REFERENCE)
-        write(self.root, skill + "scripts/tool.py", "import json\n")
+        write(self.root, skill + "scripts/tool.py", HEADER + "import json\n")
         write(self.root, skill + "scripts/test_tool.py", "import unittest\nimport tool\n")
 
     def tearDown(self):
@@ -76,7 +75,7 @@ class LintTest(unittest.TestCase):
         write(self.root, skill + "SKILL.md", front + "word " * 501 + "\n" + body)
         write(self.root, skill + "references/orphan.md", "word " * 4001)
         write(self.root, skill + "scripts/tool.sh", "echo\n")
-        write(self.root, skill + "scripts/new.py", "x = (y := 1)\nmatch x:\n    case 1: pass\n")
+        write(self.root, skill + "scripts/new.py", "def broken(:\n")
         n, got = self.lint()
         self.assertEqual(n, 2)
         bad = ".claude/skills/Bad_Skill/"
@@ -97,6 +96,7 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:8: link target references/none.md does not exist",
             f"{bad}scripts/new.py: has no test_new.py beside it",
             f"{bad}scripts/new.py: not named in {bad}SKILL.md",
+            f'{bad}scripts/new.py: declares no `requires-python = ">=3.14"` script block',
             f"{bad}scripts/tool.sh: scripts are Python files",
             f"{bad}SKILL.md:8: names one machine or a memory link",
             f"{bad}SKILL.md:9: scripts/gone.py does not exist",
@@ -107,9 +107,9 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:10: no file named gone.py",
         ]
         # The line a too-new construct is reported at depends on the interpreter's parser.
-        version = [g for g in got if " is not Python 3.9: " in g]
+        version = [g for g in got if " is not Python 3.14: " in g]
         self.assertEqual(len(version), 1, "\n".join(got))
-        self.assertTrue(version[0].startswith(f"{bad}scripts/new.py:"), version[0])
+        self.assertStartsWith(version[0], f"{bad}scripts/new.py:", version[0])
         self.assertEqual(sorted(g for g in got if g not in version), sorted(want), "\n".join(got))
 
     def test_a_name_is_held_to_the_specification(self):
@@ -190,36 +190,23 @@ class LintTest(unittest.TestCase):
         write(self.root, ".claude/skills/other-skill/SKILL.md",
               "---\nname: other-skill\ndescription: Use when testing.\n---\n\n"
               "Run `scripts/shared.py`.\n")
-        write(self.root, ".claude/skills/other-skill/scripts/shared.py", "x = 1\n")
+        write(self.root, ".claude/skills/other-skill/scripts/shared.py", HEADER + "x = 1\n")
         write(self.root, ".claude/skills/other-skill/scripts/test_shared.py", "import shared\n")
         write(self.root, ".claude/skills/good-skill/scripts/tool.py",
-              "import json\nimport concurrent.futures\nfrom os import path\n"
+              HEADER + "import json\nimport concurrent.futures\nfrom os import path\n"
               "import no_such_module_anywhere\nimport shared\n")
         _, got = self.lint()
-        want = (".claude/skills/good-skill/scripts/tool.py:4: "
+        want = (".claude/skills/good-skill/scripts/tool.py:7: "
                 "imports no_such_module_anywhere, outside the standard library")
         self.assertEqual(got, [want])
 
-    def test_python_3_9_finds_the_standard_library_without_its_list(self):
-        for name in ("json", "os", "sys", "concurrent", "importlib", "_thread", "math"):
-            with self.subTest(name=name):
-                self.assertTrue(skills_lint.standard_module(name, None))
-        self.assertFalse(skills_lint.standard_module("no_such_module_anywhere", None))
-        self.assertFalse(skills_lint.standard_module("json", frozenset({"os"})))
-
-    def test_python_3_9_counts_an_installed_module_as_outside(self):
-        home = self.root / "lib"
-        write(self.root, "lib/shipped_here.py", "")
-        write(self.root, "lib/site-packages/installed_here.py", "")
-        write(self.root, "elsewhere/beside_it.py", "")
-        paths = {"stdlib": str(home), "platstdlib": str(home)}
-        found = [str(home), str(home / "site-packages"), str(self.root / "elsewhere")]
-        with mock.patch.object(skills_lint.sysconfig, "get_paths", return_value=paths), \
-                mock.patch.object(sys, "path", found + sys.path):
-            importlib.invalidate_caches()
-            self.assertTrue(skills_lint.standard_module("shipped_here", None))
-            self.assertFalse(skills_lint.standard_module("installed_here", None))
-            self.assertFalse(skills_lint.standard_module("beside_it", None))
+    def test_a_script_declares_python_3_14_in_its_script_block(self):
+        tool = ".claude/skills/good-skill/scripts/tool.py"
+        want = f'{tool}: declares no `requires-python = ">=3.14"` script block'
+        for text in ("import json\n", HEADER.replace("3.14", "3.9") + "import json\n"):
+            with self.subTest(text=text):
+                write(self.root, tool, text)
+                self.assertEqual(self.lint()[1], [want])
 
 
 class LoadTreeTest(unittest.TestCase):
