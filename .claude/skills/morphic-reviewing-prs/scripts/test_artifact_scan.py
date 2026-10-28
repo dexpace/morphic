@@ -47,6 +47,15 @@ class ScanTest(unittest.TestCase):
                 ("new.md:1", "fourth")]
         self.assertEqual(list(scan.added_lines(diff)), want)
 
+    def test_a_line_reading_like_a_header_inside_a_hunk_is_content(self):
+        diff = "\n".join([
+            "--- a/x.md", "+++ b/x.md", "@@ -3,2 +3,2 @@", "--- removed", " kept",
+            "+++ " + PLANTED[1], "\\ No newline at end of file",
+            "--- a/y.md", "+++ b/y.md", "@@ -1 +1 @@", "-old", "+new",
+        ])
+        want = [("x.md:4", "++ " + PLANTED[1]), ("y.md:1", "new")]
+        self.assertEqual(list(scan.added_lines(diff)), want)
+
     def test_hits_are_labelled(self):
         got = scan.hits("commit", [("abc123", PLANTED[0]), ("def456", "fine")])
         self.assertEqual(got, [f"commit: abc123: {PLANTED[0]}"])

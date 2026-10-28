@@ -23,6 +23,9 @@ import sys
 import traceback
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "morphic-reviewing-prs" / "scripts"))
+from artifact_scan import added_lines  # noqa: E402  (the review skill's diff reader, not a copy)
+
 EVERYTHING = re.compile(r"^(go\.(mod|sum)|testdata/|docs/|Makefile|\.golangci\.yml|\.github/)")
 # internal/keydoc reads a citation on any Markdown line and in any Go or YAML comment.
 CITING = (".go", ".md", ".yaml", ".yml")
@@ -59,10 +62,9 @@ def hit_packages(changed: list[str], dirs: set[str], module: str) -> tuple[set[s
     return hits, unmapped
 
 
-def adds_a_citation(diff: str) -> bool:
-    """Report whether a unified diff adds a line citing a keyed document's entry."""
-    return any(line.startswith("+") and not line.startswith("+++") and CITATION.search(line)
-               for line in diff.splitlines())
+def adds_a_citation(lines: list[str]) -> bool:
+    """Report whether any added line cites a keyed document's entry."""
+    return any(CITATION.search(line) for line in lines)
 
 
 def citation_readers(grep: str, module: str) -> set[str]:
@@ -82,14 +84,14 @@ def dependents(listing: str, hits: set[str]) -> list[str]:
     return sorted(out)
 
 
-def added(root: Path, mb: str, files: list[str], untracked: set[str]) -> str:
-    """Return a diff of files since mb, each untracked file's lines counted as added."""
+def added(root: Path, mb: str, files: list[str], untracked: set[str]) -> list[str]:
+    """Return the lines files add since mb, every line of an untracked one."""
     tracked = [f for f in files if f not in untracked]
-    text = run(root, "git", "diff", "-U0", mb, "--", *tracked) if tracked else ""
+    diff = run(root, "git", "diff", "-U0", mb, "--", *tracked) if tracked else ""
+    lines = [text for _, text in added_lines(diff)]
     for f in sorted(untracked & set(files)):
-        lines = (root / f).read_text(errors="replace").splitlines()
-        text += "".join(f"+{line}\n" for line in lines)
-    return text
+        lines += (root / f).read_text(errors="replace").splitlines()
+    return lines
 
 
 def main(argv: list[str] | None = None) -> int:

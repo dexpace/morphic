@@ -29,7 +29,8 @@ PATTERNS = [
     r"remedi" r"ation|audit sw" r"eep|(^|[^A-Za-z0-9])[HM][0-9]{1,2}([^0-9A-Za-z]|$)",
 ]
 ARTIFACT = re.compile("|".join(f"(?:{p})" for p in PATTERNS))
-HUNK = re.compile(r"^@@ -\S+ \+(\d+)")
+# A hunk's header: its old side's line count, then its new side's first line and count.
+HUNK = re.compile(r"^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
 
 
 def run(*args: str) -> str:
@@ -37,17 +38,22 @@ def run(*args: str) -> str:
 
 
 def added_lines(diff: str) -> Iterator[tuple[str, str]]:
-    """Yield ("path:line", text) for each line a unified diff adds."""
-    path, line = "", 0
+    """Yield ("path:line", text) for each line a unified diff adds. Each hunk's lines are counted
+    from its header, so an added line reading "++ x" is never taken for a file's "+++ " header."""
+    path, line, old, new = "", 0, 0, 0  # old and new: the hunk's lines still to read per side
     for raw in diff.split("\n"):
-        if raw.startswith("+++ "):
+        if old or new:
+            if raw.startswith("+"):
+                yield f"{path}:{line}", raw[1:]
+                line, new = line + 1, new - 1
+            elif raw.startswith("-"):
+                old -= 1
+            elif raw.startswith(" "):
+                line, old, new = line + 1, old - 1, new - 1
+        elif raw.startswith("+++ "):
             path = raw[6:] if raw.startswith("+++ b/") else raw[4:]
-        elif raw.startswith("@@"):
-            m = HUNK.match(raw)
-            line = int(m.group(1)) if m else 0
-        elif raw.startswith("+"):
-            yield f"{path}:{line}", raw[1:]
-            line += 1
+        elif m := HUNK.match(raw):
+            old, line, new = int(m.group(1) or 1), int(m.group(2)), int(m.group(3) or 1)
 
 
 def hits(label: str, lines: Iterable[tuple[str, str]]) -> list[str]:
