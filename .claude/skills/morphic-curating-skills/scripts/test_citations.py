@@ -124,9 +124,10 @@ class FetchTest(unittest.TestCase):
         self.assertEqual(gh.call_count, 2)
 
     def test_a_number_naming_nothing_is_none_and_any_other_failure_raises(self):
-        missing = answered(code=1, stderr="gh: Not Found (HTTP 404)")
-        with mock.patch.object(ct, "gh", return_value=missing):
-            self.assertIsNone(ct.fetch(7))
+        for stderr in ("gh: Not Found (HTTP 404)", "gh: This issue was deleted (HTTP 410)"):
+            with self.subTest(stderr=stderr):
+                with mock.patch.object(ct, "gh", return_value=answered(code=1, stderr=stderr)):
+                    self.assertIsNone(ct.fetch(7))
         with mock.patch.object(ct, "gh", return_value=answered(code=1, stderr="HTTP 502")):
             with self.assertRaises(subprocess.CalledProcessError):
                 ct.fetch(7)

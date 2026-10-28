@@ -118,11 +118,11 @@ def gh(*args: str) -> subprocess.CompletedProcess:
 
 def fetch(number: int) -> str | None:
     """Return an issue's or PR's text, its title first, or None when the repository has none by
-    that number."""
+    that number, or deleted it."""
     base = "repos/{owner}/{repo}"
     item = gh(f"{base}/issues/{number}")
     if item.returncode != 0:
-        if "HTTP 404" in item.stderr:
+        if "HTTP 404" in item.stderr or "HTTP 410" in item.stderr:  # never existed, or deleted
             return None
         raise subprocess.CalledProcessError(item.returncode, item.args, item.stdout, item.stderr)
     data = json.loads(item.stdout)
