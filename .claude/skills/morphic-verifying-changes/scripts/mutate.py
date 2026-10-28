@@ -131,8 +131,8 @@ def mutate(path: Path, old: str, new: str, command: list[str], keep: Path) -> tu
     original = path.read_bytes()
     count = original.count(old.encode())
     if count != 1:
-        reason = f"mutate: OLD occurs {count} times in {path}; widen it until it is unique"
-        return UNVERIFIED, reason
+        fix = "widen it until it is unique" if count else "copy it from the file as written"
+        return UNVERIFIED, f"mutate: OLD occurs {count} times in {path}; {fix}"
     mutant = original.replace(old.encode(), new.encode(), 1)
     if mutant == original:
         return UNVERIFIED, "mutate: the replacement changed nothing"

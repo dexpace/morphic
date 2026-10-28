@@ -123,6 +123,15 @@ class MutateTest(unittest.TestCase):
         self.assertEqual(self.run_mutate("good", "good"), mutate.UNVERIFIED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
 
+    def test_a_refusal_says_how_to_fix_old(self):
+        keep = Path(self.dir.name) / "output.txt"
+        for old, fix in (("keep", "widen it until it is unique"),
+                         ("absent", "copy it from the file as written")):
+            with self.subTest(old=old):
+                code, text = mutate.mutate(self.file, old, "x", ["true"], keep)
+                self.assertEqual(code, mutate.UNVERIFIED)
+                self.assertTrue(text.endswith(fix), text)
+
     def test_a_usage_error_changes_nothing(self):
         code, _ = quietly(mutate.main, [str(self.file), "good", "bad", "echo"])
         self.assertEqual(code, mutate.UNVERIFIED)

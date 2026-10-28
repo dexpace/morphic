@@ -10,10 +10,10 @@ untracked files, the merge with main, the artifact scan, and that every name a s
 Usage: python3.14 preflight.py [--base BASE] [--pr N] [--title TITLE] [--body FILE]
 
 Run it anywhere in the repository: it reads the whole tree from the root. BASE defaults to
-origin/main. With --pr, the title and body are
-the PR's own unless --title or --body gives a draft; without it, the title is measured with the
-number the next issue or PR takes. Prints a line per check, FIX before each that needs fixing.
-Exit 0 when nothing does, 1 when something does, 2 when it cannot run.
+origin/main. With --pr, the title and body are the PR's own unless --title or --body gives a draft;
+without it, the title is measured with the number the next issue or PR takes. Prints a line per
+check, FIX before each that needs fixing. Exit 0 when nothing does, 1 when something does, 2 when
+it cannot run.
 """
 
 import argparse
