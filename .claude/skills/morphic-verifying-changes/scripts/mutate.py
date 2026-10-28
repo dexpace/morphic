@@ -48,9 +48,14 @@ UNITTEST_RAN = re.compile(r"^Ran (\d+) tests? in ", re.M)
 UNITTEST_FAIL = re.compile(r"^(?:FAIL|ERROR): .+", re.M)
 UNITTEST_OK = re.compile(r"^OK\b", re.M)
 NOT_LOADED = "unittest.loader._FailedTest"
-# A command that exits 0 past a failing test, as a pipe or a `;` makes one, says nothing.
-MASKED = ("UNVERIFIED: a test failed but the command exited 0, so its status is not the tests';"
-          " give the test command its own exit status\n")
+# A failing run's own lines, which a failure prints with or without a failing test's line: go
+# test's for each failing package, as an os.Exit in a test or a timeout gives, and unittest's
+# summary of a failing suite, as an unexpected success gives.
+PACKAGE_FAIL = re.compile(r"^FAIL(?:\s|$)", re.M)
+UNITTEST_FAILED = re.compile(r"^FAILED \(", re.M)
+# A command that exits 0 past a failure, as a pipe or a `;` makes one, says nothing.
+MASKED = ("UNVERIFIED: the tests failed but the command exited 0, so its status is not the "
+          "tests'; give the test command its own exit status\n")
 
 
 def verdict(status: int, output: str) -> tuple[int, str]:
@@ -63,8 +68,10 @@ def verdict(status: int, output: str) -> tuple[int, str]:
     if NO_BUILD.search(output):
         lines = [line for line in output.splitlines() if NO_BUILD.search(line)][:10]
         return UNVERIFIED, "UNVERIFIED: a package did not build, so no verdict\n" + "\n".join(lines)
-    if status == 0 and fails:
-        return UNVERIFIED, MASKED + "\n".join(fails[:10])
+    failing = [line for line in output.splitlines()
+               if FAIL_LINE.match(line) or PACKAGE_FAIL.match(line)]
+    if status == 0 and failing:
+        return UNVERIFIED, MASKED + "\n".join(failing[:10])
     if status == 0:
         oks = [line for line in output.splitlines() if OK_LINE.match(line)]
         ran = [line for line in oks if NO_TESTS not in line]
@@ -94,8 +101,10 @@ def unittest_verdict(status: int, output: str, ran: int) -> tuple[int, str]:
                             + "\n".join(fails[:10]))
     if ran == 0:
         return UNVERIFIED, "UNVERIFIED: no test ran; check the start directory and pattern"
-    if status == 0 and fails:
-        return UNVERIFIED, MASKED + "\n".join(fails[:10])
+    failing = [line for line in output.splitlines()
+               if UNITTEST_FAIL.match(line) or UNITTEST_FAILED.match(line)]
+    if status == 0 and failing:
+        return UNVERIFIED, MASKED + "\n".join(failing[:10])
     if status == 0:
         if UNITTEST_OK.search(output):
             return SURVIVED, f"SURVIVED: {ran} test(s) passed with the mutant in place"

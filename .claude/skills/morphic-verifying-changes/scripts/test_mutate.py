@@ -62,6 +62,16 @@ class VerdictTest(unittest.TestCase):
              mutate.UNVERIFIED),
             (0, "FAIL: test_x (m.T)\nRan 1 test in 0.0s\n\nFAILED (failures=1)\n"
                 "\nRan 2 tests in 0.1s\n\nOK\n", mutate.UNVERIFIED),
+            # A failure that prints no failing test's line: an os.Exit in a Go test, as go test
+            # reports it, and an unexpected success, as unittest does.
+            (0, "exit status 1\nFAIL\tx/a\t1.059s\nok  \tx/b\t0.375s\nFAIL\n",
+             mutate.UNVERIFIED),
+            (0, "u\nUNEXPECTED SUCCESS: test_x (test_u.T.test_x)\nRan 1 test in 0.000s\n\n"
+                "FAILED (unexpected successes=1)\n\nRan 2 tests in 0.1s\n\nOK\n",
+             mutate.UNVERIFIED),
+            # A passing run whose words hold FAIL fails nothing.
+            (0, "=== RUN   TestNoFAIL\n--- PASS: TestNoFAIL (0.00s)\nPASS\nok  \tpkg\t0.1s\n",
+             mutate.SURVIVED),
         ]
         for status, output, want in cases:
             with self.subTest(output=output):
