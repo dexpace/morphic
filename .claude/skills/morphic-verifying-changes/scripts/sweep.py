@@ -18,7 +18,7 @@ signal it handled, as an unknown COMPILE-FLAG gives every spec. JOBS compiles ru
 half the CPUs). Outputs are kept under OUTDIR (default a new temporary directory) for diffing.
 CORPUS files, and the files under CORPUS directories, are read for OpenAPI and Swagger documents
 (default testdata): one written as JSON, whatever its suffix, by its top-level keys, minified or
-not, and YAML by a version key starting a line. Exit 0 when nothing differs, 1 when something
+not, and YAML by a version key first on a line. Exit 0 when nothing differs, 1 when something
 does, 2 when the sweep cannot run or nothing differs among the specs it compared but some it did
 not.
 """
@@ -35,7 +35,7 @@ import traceback
 from collections import Counter
 from pathlib import Path
 
-# A version key starting a line, ended by its colon: a key such as "openapi:schema" is another.
+# A version key first on a line, ended by its colon: a key such as "openapi:schema" is another.
 SPEC = re.compile(rb'^\s*["\']?(openapi|swagger)["\']?\s*:(\s|$)', re.M)
 KILLED = 137
 # The exits after which a build did not finish compiling a spec: morphic's own failure, and the
@@ -46,7 +46,7 @@ UNFINISHED = {2: "failed to run", KILLED: "hit the time limit"}
 def is_spec(data: bytes) -> bool:
     """Report whether a document is OpenAPI or Swagger: one written as JSON, which YAML files
     may hold too, by its top-level keys, since a minified one starts no line with its version
-    key, and any other, JSON that does not parse among it, by a version key starting a line. A
+    key, and any other, JSON that does not parse among it, by a version key first on a line. A
     byte-order mark before either is read past, as the compiler reads past it."""
     data = data.removeprefix(b"\xef\xbb\xbf")
     if data.lstrip()[:1] == b"{":
@@ -126,7 +126,8 @@ def report(results, root: Path, out: Path) -> int:
         print(f"sweep: {len(differ)} of {len(results)} specs differ (n, then what):")
         for n, _, _, spec, what in differ:
             print(f"  {n}  {rel(spec)}: {what}")
-        print(f"compare one with: diff {out}/runs/<n>/base.diag {out}/runs/<n>/head.diag")
+        print(f"compare one with: diff {out}/runs/<n>/base.ir {out}/runs/<n>/head.ir, and the "
+              ".diag pair for its diagnostics")
         return 1
     if unjudged:
         print("sweep: no compared spec differs")

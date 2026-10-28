@@ -79,7 +79,7 @@ class SweepTest(unittest.TestCase):
             with self.subTest(data=data):
                 self.assertTrue(sweep.is_spec(data))
 
-    def test_a_yaml_document_is_judged_by_a_version_key_starting_a_line(self):
+    def test_a_yaml_document_is_judged_by_a_version_key_first_on_a_line(self):
         cases = {b"openapi: 3.1.0\n": True, b"swagger: '2.0'\n": True, b"'openapi': 3.0.3\n": True,
                  b"openapi:schema: x\n": False, b"info:\n  title: openapi\n": False}
         for data, want in cases.items():
@@ -94,6 +94,9 @@ class SweepTest(unittest.TestCase):
         self.assertEqual(what, want)
         self.assertIn("base exit codes: 0x3 1x1", text)
         self.assertIn("2 of 4 specs differ", text)
+        # The hint compares the IR, where diagnostics alone would show an IR change as nothing.
+        self.assertIn("/runs/<n>/base.ir ", text)
+        self.assertIn("/runs/<n>/head.ir, and the .diag pair", text)
 
     def test_identical_builds_report_nothing_and_still_print_what_ran(self):
         self.bins["head"] = self.bins["base"]
