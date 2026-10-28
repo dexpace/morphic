@@ -1,6 +1,6 @@
 ---
 name: morphic-verifying-changes
-description: Use when writing or changing a test, a verifier, or a lint or archtest rule in this repository, fixing a defect, claiming that a test, check or fix catches or prevents something, comparing behaviour with main, stating a count, a cost, or an every/never/only claim about the code, or before calling a change done.
+description: Use when writing or changing a test, a verifier, a lint or archtest rule, or a script under .claude/skills in this repository, fixing a defect, claiming that a test, check or fix catches or prevents something, comparing behaviour with main, stating a count, a cost, or an every/never/only claim about the code, or before calling a change done.
 ---
 
 # Verifying changes in morphic

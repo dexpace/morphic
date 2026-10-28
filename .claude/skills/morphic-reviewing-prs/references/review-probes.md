@@ -19,11 +19,11 @@ defect, keep a `main` control.
 - **Rule.** Before the first finding, list the change's classes of claim and check every member:
   each name against the tree, citation against the item it cites, statement about code on `main`,
   statement about a library against its `docs/parser-library.md` entry, quoted command run from
-  the root, script in each context it runs in (a subdirectory, each platform branch, each
-  supported Python), and body sentence on the final tree. A class checked by sample is reported
-  unreviewed, never clean.
-- **Why.** A review of #1143 took nine rounds, each sampling a class or trying one angle:
-  citations were read for 58 of 203 rules before all 383, and a misattribution sat in the rest.
+  the root, script in each context it runs in (a subdirectory, each platform branch), and body
+  sentence on the final tree. A class checked by sample is reported unreviewed, never clean.
+- **Why.** Before this rule, a review of #1143 took nine rounds, each sampling a class or trying
+  one angle: citations were read for 58 of 203 rules before all 383, and a misattribution sat in
+  the rest.
 - **Probe.** The report gives each class with the count of members checked; a count below the
   class's size is a round still open.
 
