@@ -208,20 +208,19 @@ class MutateTest(unittest.TestCase):
         self.assertEqual(self.file.read_text(), "keep good keep\n")
 
     def test_no_signal_that_ends_a_run_can_cut_the_restore_short(self):
-        ending = (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)
-        during = []
-
-        def watching(write, path, data):
-            during.extend(signal.getsignal(sig) for sig in ending)
+        def interrupted(write, path, data):
+            # Each signal that ends a run arrives as the restore starts writing.
+            for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+                os.kill(os.getpid(), sig)
             return write(path, data)
 
         def own(signum, frame):
-            raise AssertionError("the run's own SIGINT handler ran")
+            raise AssertionError("a SIGINT reached the run during its restore")
 
         self.addCleanup(signal.signal, signal.SIGINT, signal.signal(signal.SIGINT, own))
-        with failing(self.restoring(self.file.read_bytes()), watching):
+        with failing(self.restoring(self.file.read_bytes()), interrupted):
             self.assertEqual(self.run_mutate("good", "bad"), mutate.KILLED)
-        self.assertEqual(during, [signal.SIG_IGN] * len(ending))
+        self.assertEqual(self.file.read_text(), "keep good keep\n")
         self.assertIs(signal.getsignal(signal.SIGINT), own, "the handler was not put back")
 
     def test_a_kill_needs_the_command_to_pass_on_the_clean_tree(self):
