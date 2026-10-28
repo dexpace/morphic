@@ -16,6 +16,19 @@ it.
 - **Probe.** For each hit of the mechanism's grep, show the fix or plant the reproducer there and
   watch it go red.
 
+## Fix the state at the type that owns it, not where the defect surfaced
+`fix-at-the-invariants-owner`
+
+- **Rule.** When a defect comes from state a type owns, fix that type, so every reader through
+  its accessors inherits the fix, rather than guard the call where the crash fired. Say in the PR
+  body why each alternative loses, and hold the correctness argument with tests: a two-order case
+  and a sweep across every position kind, with a `main` control that fails.
+- **Why.** A nil check where #749's crash fired would have left `compile.Types` claiming every
+  resolved coordinate has a node, and another reader would have turned the crash into a false
+  internal-invariant error; the type gained `Building` beside `NodeAt` instead (#564, #749).
+- **Probe.** `git grep` each reader of the state's accessors and fields; the fix changes what
+  every one of them reads, not one call site.
+
 ## Retarget everything that names a renamed or deleted symbol
 `sweep-old-name-after-rename-or-delete`
 

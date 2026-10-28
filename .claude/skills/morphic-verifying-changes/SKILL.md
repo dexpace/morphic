@@ -9,6 +9,12 @@ A result is evidence only when something outside it could have disagreed: a plan
 probe, a `main` control, the opposite order. `CLAUDE.md`'s "Verify by executing" is the rule; this
 skill is how.
 
+The bar is `CLAUDE.md`'s: done means nothing left to find. A defect `main` shares inside the
+change's mechanism is fixed or filed, never a reason to stop
+(`.claude/skills/morphic-reviewing-prs/references/review-probes.md#better-than-main`), and a fix
+goes to the type that owns the broken state
+(`references/sweep-every-site.md#fix-at-the-invariants-owner`).
+
 ## Claim → probe
 
 | Claim | Probe |
@@ -24,13 +30,13 @@ skill is how.
 
 ## Habits
 
-- Before trusting "identical" or "none found", print what ran: exit codes on each side, bytes of
-  output, files parsed, a positive control's hit.
+- Before trusting "identical" or "none found", print what ran
+  (`references/differentials.md#validate-the-instrument-first`).
 - Read every result line: a mutant that did not compile, a test that never ran and a panic in
   another test all look like verdicts.
 - Iterate with `go test $(python3 .claude/skills/morphic-verifying-changes/scripts/affected_packages.py)`,
-  run `go test ./...` before concluding, and `make gate` before calling it done. Coverage counts
-  each package's own tests: `go test` passing is not the coverage gate.
+  run `go test ./...` before concluding, and `make gate` before calling it done: `go test`
+  passing is not the coverage gate (`references/toolchain.md#coverage-per-package`).
 
 ## Scripts
 
@@ -38,14 +44,12 @@ Run each from the repository root as
 `python3 .claude/skills/morphic-verifying-changes/scripts/<name>.py`; its docstring gives the
 options.
 
-- `scripts/mutate.py FILE OLD NEW -- TEST-COMMAND` plants one literal replacement, checks it
-  compiles, runs `go test` or unittest, keeps the output, always restores the file.
-  `--batch MUTANTS` plants a JSON-lines set in turn, after the command passes on the clean tree.
-- `scripts/sweep.py [-b BASE] [CORPUS...]` compiles a corpus (default `testdata/`) at BASE
-  and at the working tree, and reports each difference.
-- `scripts/affected_packages.py [BASE]` lists the packages a change can affect.
-- `scripts/golden_spec.py [--count KEY...]` prints the cached golden spec's path, or objects
-  per key.
+- `scripts/mutate.py` plants a defect, or a batch after a clean run, reads `go test` or unittest
+  output for its verdict, and always restores the file.
+- `scripts/sweep.py` compiles a corpus at a base and at the working tree and reports each
+  difference.
+- `scripts/affected_packages.py` lists the packages a change can affect.
+- `scripts/golden_spec.py` prints the cached golden spec's path, or counts its objects.
 
 ## References
 

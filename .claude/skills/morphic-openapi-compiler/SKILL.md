@@ -5,6 +5,10 @@ description: Use when changing, reviewing or debugging code under compilers/open
 
 # Working in the OpenAPI compiler
 
+A change here is done when every construct it touches lands in the IR, at every position and in
+every spelling the specification allows, and every diagnostic it emits is true for the input that
+drew it (`references/lossless-and-diagnostics.md`).
+
 ## Where things are
 
 - **Rules.** `docs/compilers/openapi.md` is normative: one keyed entry per lowering rule, each
