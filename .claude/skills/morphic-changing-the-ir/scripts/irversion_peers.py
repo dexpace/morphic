@@ -8,7 +8,8 @@ working tree's claim collides with one or trails main.
 Usage: python3.14 irversion_peers.py
 
 Reads ir.IRVersion from main, from the working tree, and from the head of each open PR, all of
-origin's repository unless REMOTE names another remote. A PR whose head the working tree already
+origin's repository unless REMOTE names another remote, from whichever file under ir/ declares it
+in each. A PR whose head the working tree already
 holds is taken for this branch's own and left out, and so is one whose head declares the version
 its merge base with main does. A PR that bumped from a base main has since passed is listed too,
 since it claims a version past main's once it merges main. Exit 0 when nothing collides, 1 when the
@@ -80,7 +81,16 @@ def judge(main: str, tree: str, peers: list[Peer]) -> tuple[list[str], bool]:
     return lines, bad
 
 
-def peers_of(root: Path, remote: str, path: str, base: str) -> list[Peer]:
+def declared_at(root: Path, rev: str | None) -> str | None:
+    """Return the IRVersion the tree at rev declares, or the working tree with rev None, wherever
+    under ir/ the constant sits: a branch, a peer or main may have moved it to another file."""
+    flags, trees = (["--untracked"], []) if rev is None else ([], [rev])
+    found = git(root, "grep", "-h", *flags, "-E", "^const IRVersion = ", *trees, "--", "ir/*.go",
+                ":(exclude)ir/*_test.go", check=False)
+    return declared(found.stdout)
+
+
+def peers_of(root: Path, remote: str, base: str) -> list[Peer]:
     """Return a Peer for each open PR whose head the working tree lacks and declares a version."""
     listing = subprocess.run(["gh", "pr", "list", "--state", "open", "--limit", str(MAX_PRS + 1),
                               "--json", "number,title,headRefOid"], check=True,
@@ -95,13 +105,11 @@ def peers_of(root: Path, remote: str, path: str, base: str) -> list[Peer]:
             git(root, "fetch", "-q", remote, f"pull/{pr['number']}/head")
         if git(root, "merge-base", "--is-ancestor", sha, "HEAD", check=False).returncode == 0:
             continue  # this branch's own PR
-        shown = git(root, "show", f"{sha}:{path}", check=False)
-        version = declared(shown.stdout) if shown.returncode == 0 else None
+        version = declared_at(root, sha)
         if version is None:  # a head that declares no version claims none
             continue
         mb = git(root, "merge-base", sha, base, check=False).stdout.strip()
-        at_base = git(root, "show", f"{mb}:{path}", check=False) if mb else None
-        before = declared(at_base.stdout) if at_base and at_base.returncode == 0 else None
+        before = declared_at(root, mb) if mb else None
         out.append((pr["number"], pr["title"], version, before))
     return out
 
@@ -113,15 +121,11 @@ def main() -> int:
         point_gh_at(root, remote)
         git(root, "fetch", "-q", remote, "main")
         base = f"{remote}/main"
-        found = git(root, "grep", "-l", "const IRVersion = ", base, "--", "ir/*.go").stdout.split()
-        if not found:
-            raise RuntimeError(f"no file under ir/ declares IRVersion on {base}")
-        path = found[0].split(":", 1)[1]
-        main_v = declared(git(root, "show", f"{base}:{path}").stdout)
-        tree_v = declared((root / path).read_text())
+        main_v, tree_v = declared_at(root, base), declared_at(root, None)
         if main_v is None or tree_v is None:
-            raise RuntimeError(f"{path} declares no IRVersion on {base} or in the working tree")
-        lines, bad = judge(main_v, tree_v, peers_of(root, remote, path, base))
+            raise RuntimeError(f"no file under ir/ declares IRVersion on {base} or in the "
+                               "working tree")
+        lines, bad = judge(main_v, tree_v, peers_of(root, remote, base))
     except subprocess.CalledProcessError as e:
         print(f"irversion_peers: {' '.join(e.cmd)}: {e.stderr.strip()}", file=sys.stderr)
         return 2

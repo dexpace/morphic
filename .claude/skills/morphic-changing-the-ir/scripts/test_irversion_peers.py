@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
@@ -78,11 +79,64 @@ class PeersTest(unittest.TestCase):
 
         with mock.patch.object(ip.subprocess, "run", return_value=listing(ip.MAX_PRS + 1)):
             with self.assertRaises(RuntimeError):
-                ip.peers_of(HERE, "origin", "ir/document.go", "origin/main")
+                ip.peers_of(HERE, "origin", "origin/main")
         # At the cap every head reads as held by this tree, so each is left out, none refused.
         with mock.patch.object(ip.subprocess, "run", return_value=listing(ip.MAX_PRS)) as run:
-            self.assertEqual(ip.peers_of(HERE, "origin", "ir/document.go", "origin/main"), [])
+            self.assertEqual(ip.peers_of(HERE, "origin", "origin/main"), [])
         self.assertIn(str(ip.MAX_PRS + 1), run.call_args_list[0].args[0])
+
+
+class TreeTest(unittest.TestCase):
+    """peers_of and declared_at on a repository built here, the declaration moved between files."""
+
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.dir.name)
+        self.env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                    "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        self.git("init", "-q", "-b", "main")
+        self.commit({"ir/document.go": 'package ir\n\nconst IRVersion = "0.21.0"\n'}, "base")
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(["git", "-C", self.dir.name, *args], check=True, env=self.env,
+                              capture_output=True, text=True).stdout.strip()
+
+    def commit(self, files: dict[str, str], message: str) -> str:
+        for rel, text in files.items():
+            (self.root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.root / rel).write_text(text)
+        self.git("add", "-A")
+        self.git("commit", "-qm", message)
+        return self.git("rev-parse", "HEAD")
+
+    def peers(self, head: str) -> list:
+        real = subprocess.run
+        listing = json.dumps([{"number": 9, "title": "peer", "headRefOid": head}])
+
+        def fake(args, *a, **k):
+            if args[0] == "gh":
+                return subprocess.CompletedProcess(args, 0, listing, "")
+            return real(args, *a, **k)
+
+        with mock.patch.object(ip.subprocess, "run", side_effect=fake):
+            return ip.peers_of(self.root, "origin", "main")
+
+    def test_a_peer_that_moves_the_declaration_is_read(self):
+        self.git("checkout", "-q", "-b", "peer")
+        peer = self.commit({"ir/document.go": "package ir\n",
+                            "ir/version.go": 'package ir\n\nconst IRVersion = "0.22.0"\n'}, "move")
+        self.git("checkout", "-q", "main")
+        self.assertEqual(self.peers(peer), [(9, "peer", "0.22.0", "0.21.0")])
+
+    def test_a_working_tree_that_moved_it_is_read_and_a_test_file_is_not(self):
+        (self.root / "ir/document.go").write_text("package ir\n")
+        (self.root / "ir/version.go").write_text('package ir\n\nconst IRVersion = "0.22.0"\n')
+        (self.root / "ir/a_test.go").write_text('package ir\n\nconst IRVersion = "9.9.9"\n')
+        self.assertEqual(ip.declared_at(self.root, None), "0.22.0")
+        self.assertEqual(ip.declared_at(self.root, "main"), "0.21.0")
 
 
 class CrashTest(unittest.TestCase):
