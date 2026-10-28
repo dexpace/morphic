@@ -149,6 +149,34 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n + 1}: docs/ir-design.md has no section 98.2"]
         self.assertEqual(self.lint()[1], want)
 
+    def test_a_scalar_is_read_as_yaml_reads_it(self):
+        cases = {"Use when: plain": "Use when: plain", "'it''s'": "it's",
+                 '"a \\"b\\" \\\\c"': 'a "b" \\c', "''": "", "": "",
+                 ">-": None, "|": None, "'open": None, '"open': None}
+        for value, want in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(skills_lint.scalar(value), want)
+
+    def test_a_quoted_value_is_read_as_yaml_reads_it_and_a_block_scalar_is_refused(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        body = GOOD_SKILL.split("---\n", 2)[2]
+        spans = f"{skill}:1: description spans lines; write it on one line, plain or quoted"
+        cases = [
+            ('name: "good-skill"\ndescription: "Use when quoted: \\"as told\\"."\n', []),
+            ("name: good-skill\ndescription: 'Use when it''s quoted: once.'\n", []),
+            ("name: good-skill\ndescription: >-\n  Use when folded.\n", [spans]),
+            ('name: good-skill\ndescription: "Use when\n  never closed."\n', [spans]),
+        ]
+        for front, want in cases:
+            with self.subTest(front=front):
+                write(self.root, skill, f"---\n{front}---\n{body}")
+                self.assertEqual(self.lint()[1], want)
+        # A value the lint does not read leaves the body's limit checked.
+        long = "word " * 501 + body
+        write(self.root, skill, f"---\n{cases[2][0]}---\n{long}")
+        words = len(long.split())
+        self.assertEqual(self.lint()[1], [spans, f"{skill}: body is {words} words, over 500"])
+
     def test_a_name_is_held_to_the_specification(self):
         for name in ("double--hyphen", "-leading", "trailing-", "x" * 65):
             with self.subTest(name=name):

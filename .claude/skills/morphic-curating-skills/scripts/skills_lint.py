@@ -99,6 +99,18 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
     return top_level, tests, {f.rsplit("/", 1)[-1] for f in listed.splitlines()}
 
 
+def scalar(value: str) -> str | None:
+    """Return what YAML reads from a one-line plain or quoted value, or None for one that spans
+    lines, a block scalar or an unclosed quote, which this lint does not read."""
+    if value[:1] in ("|", ">"):
+        return None
+    if len(value) > 1 and value[0] == value[-1] == "'":
+        return value[1:-1].replace("''", "'")
+    if len(value) > 1 and value[0] == value[-1] == '"':
+        return re.sub(r'\\(["\\])', r"\1", value[1:-1])
+    return None if value[:1] in ("'", '"') else value
+
+
 def rule_blocks(text: str) -> list[tuple[int, list[str]]]:
     """Return each rule a reference holds as the line number of its heading and its lines, from
     that "## " heading to the next."""
@@ -188,12 +200,17 @@ class Linter:
         if len("\n".join(front)) > MAX_FRONTMATTER_CHARS:
             self.report(skill, 1, f"frontmatter is over {MAX_FRONTMATTER_CHARS} characters")
         self.check_front_keys(skill, front)
-        if f"name: {name}" not in front:
+        values = {m.group(1): scalar((m.group(2) or "").strip())
+                  for m in map(FRONT_KEY.match, front) if m}
+        for key in ("name", "description"):
+            if key in values and values[key] is None:
+                self.report(skill, 1, f"{key} spans lines; write it on one line, plain or quoted")
+        if values.get("name", "") not in (name, None):
             self.report(skill, 1, f"frontmatter name must be {name!r}")
-        desc = next((f[len("description: "):] for f in front if f.startswith("description: ")), "")
-        if not desc.startswith("Use when "):
+        desc = values.get("description", "")
+        if desc is not None and not desc.startswith("Use when "):
             self.report(skill, 1, 'description must start "Use when"')
-        if len(desc) > MAX_DESCRIPTION_CHARS:
+        if desc is not None and len(desc) > MAX_DESCRIPTION_CHARS:
             self.report(skill, 1, f"description is {len(desc)} characters, "
                                   f"over {MAX_DESCRIPTION_CHARS}")
         words = len("\n".join(lines[end + 1:]).split())
