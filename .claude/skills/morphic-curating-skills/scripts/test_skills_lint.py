@@ -125,13 +125,19 @@ class LintTest(unittest.TestCase):
 
     def test_a_code_span_broken_across_lines_is_reported_once(self):
         skill = ".claude/skills/good-skill/SKILL.md"
-        # Each fence holds an odd backtick: tildes around backticks, an indented fence, and a
-        # longer fence around a shorter one.
+        # Each fence holds an odd backtick: tildes around backticks, an indented fence, a longer
+        # fence around a shorter one, and a block around a line that, with an info string after
+        # its run, cannot close it.
         fences = ("```markdown\n`odd\n```\n\n~~~\n```\n`odd\n~~~\n\n   ```\n`odd\n   ```\n\n"
-                  "````\n```\n`odd\n````\n")
-        write(self.root, skill, GOOD_SKILL + "Run `go vet\n--all` there.\n\n" + fences)
-        line = GOOD_SKILL.count("\n") + 1
-        self.assertEqual(self.lint()[1], [f"{skill}:{line}: a code span breaks onto the next line"])
+                  "````\n```\n`odd\n````\n\n```\n```text\n`odd\n```\n\n")
+        # A backtick run with a backtick in its info string opens no block, so the span after it
+        # is read.
+        text = (GOOD_SKILL + "Run `go vet\n--all` there.\n\n" + fences
+                + "```a`b\nRun `go vet\n--all` too.\n")
+        write(self.root, skill, text)
+        lines = [GOOD_SKILL.count("\n") + 1, text.count("\n") - 1]
+        want = [f"{skill}:{n}: a code span breaks onto the next line" for n in lines]
+        self.assertEqual(self.lint()[1], want)
 
     def test_a_section_wrapped_onto_the_next_line_is_checked_once(self):
         skill = ".claude/skills/good-skill/SKILL.md"
