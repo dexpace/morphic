@@ -137,7 +137,7 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   stop when an anchor is absent.
 - **Why.** A body rebuilt from a stale draft erased another author's rewrite (#1143), and
   `gh pr edit` applied a body and never exited (#724). `--jq .body` appends a newline, so each
-  edit added a blank line, 26 before a diff showed them (#1143).
+  edit added a blank line, and 26 gathered unnoticed (#1143).
 - **Probe.** Fetch it back the same way and `cmp` it with the file sent.
 
 ## Re-read the prose when a review round changes the design

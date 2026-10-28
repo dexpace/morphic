@@ -161,8 +161,8 @@ canary. A behaviour found that the page lacks is added there.
 
 - **Rule.** A reader that follows aliases and `<<` in a tree that came through load may rely on
   termination: load refuses an anchor cycle in every tree it hands the lowering, before anything
-  recursive runs (`docs/parser-library.md#alias-cycle`). A mirror's own cycle check is defence only, and its test
-  builds the cycle by hand.
+  recursive runs (`docs/parser-library.md#alias-cycle`). A mirror's own cycle check is defence
+  only, and its test builds the cycle by hand.
 - **Why.** Through load a mirror's cycle check is unreachable, so a test that feeds it a document
   never runs it (#563).
 - **Probe.** Compile `x-a: &a [*a]` and see load refuse it as `openapi/cyclic-ref`; delete the

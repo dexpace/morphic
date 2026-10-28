@@ -34,7 +34,8 @@ goes to the type that owns the broken state
   (`references/differentials.md#validate-the-instrument-first`).
 - Read every result line: a mutant that did not compile, a test that never ran and a panic in
   another test all look like verdicts.
-- Iterate with `go test $(python3.14 .claude/skills/morphic-verifying-changes/scripts/affected_packages.py)`,
+- Iterate with
+  `go test $(python3.14 .claude/skills/morphic-verifying-changes/scripts/affected_packages.py)`,
   run `go test ./...` before concluding, and `make gate` before calling it done: `go test`
   passing is not the coverage gate (`references/toolchain.md#coverage-per-package`).
 

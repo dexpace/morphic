@@ -12,8 +12,9 @@ drew it (`references/lossless-and-diagnostics.md`).
 ## Where things are
 
 - **Rules.** `docs/compilers/openapi.md` is normative: one keyed entry per lowering rule, each
-  naming its cases, codes and tests. Find a rule by its key (`grep -n '^### ' docs/compilers/openapi.md`)
-  rather than reading the whole file, and cite it as `docs/compilers/openapi.md#<key>`.
+  naming its cases, codes and tests. Find a rule by its key
+  (`grep -n '^### ' docs/compilers/openapi.md`) rather than reading the whole file, and cite it as
+  `docs/compilers/openapi.md#<key>`.
 - **The library.** `docs/parser-library.md` records each parser-library behaviour the compiler
   depends on, each pinned by a canary in `compilers/openapi/internal/canary`. Cite the entry; never
   restate a behaviour or name a library version.
