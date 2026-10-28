@@ -54,16 +54,17 @@ a PR, the lessons past PRs taught, and the scripts both use. A skill links to th
 rather than restating them; `morphic-curating-skills` says where a new lesson goes. Their scripts
 need Python 3.14, run as `python3.14`.
 
-**The skills are experimental.** A rule can be wrong or stale, and a script can report a verdict
-its input does not support. Treat what a skill says as a claim to check, not a result: before
-relying on a script's verdict, confirm it with a probe of your own, and before following a rule
-that turns on a fact about the code, check that fact on `main`. After using a skill, say in your
-report whether it helped and where it was wrong, unclear or missing something the task needed, and
-file each flaw it showed as an issue by "Filing issues" below: titled `skills: <statement>`,
-with the `type:` label its kind calls for (`type:bug` for a wrong rule or script, `type:feature`
-for a missing one, `type:docs` for unclear wording), ranked by the housekeeping rule, and with the
-command and output that showed it. A defect in the code that the flaw let through is an issue of
-its own.
+**The skills are experimental.** A rule can be wrong or stale, and a script can report a verdict its
+input does not support. Treat what a skill says as a claim to check, not a result: before relying on
+a script's verdict, confirm it with a probe of your own, and before following a rule that turns on a
+fact about the code, check that fact on `main`. A rule's Why cites the PR or issue whose work showed
+its failure, which that item's record may not describe, so a rule is checked by its Probe, not by
+its citation. After using a skill, say in your report whether it helped and where it was wrong,
+unclear or missing something the task needed, and file each flaw it showed as an issue by "Filing
+issues" below: titled `skills: <statement>`, with the `type:` label its kind calls for (`type:bug`
+for a wrong rule or script, `type:feature` for a missing one, `type:docs` for unclear wording),
+ranked by the housekeeping rule, and with the command and output that showed it. A defect in the
+code that the flaw let through is an issue of its own.
 
 ## Invariants that must not be violated
 

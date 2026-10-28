@@ -5,8 +5,7 @@ description: Use when work in this repository taught something worth keeping (a 
 
 # Curating the morphic skills
 
-Each lesson is kept once, in the strongest form it can take, where the next person will be when it
-applies.
+Keep each lesson once, in its strongest form, where the next person will be when it applies.
 
 ## Where a lesson goes
 
@@ -33,7 +32,8 @@ list.
 `<stable-key>`
 
 - **Rule.** What to do, stated so it can be checked.
-- **Why.** The failure it prevents, citing the PR or issue that showed it (#N).
+- **Why.** The failure it prevents, citing the PR or issue whose work showed it (#N), which its
+  record may not describe.
 - **Probe.** The command or planted defect that shows whether it holds, unless the Rule is one.
 ```
 
@@ -58,9 +58,8 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 ## Upkeep
 
 - Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit.
-  The gate runs neither it nor the scripts' tests; `preflight.py` runs it on each branch it
-  checks.
-- After changing a rule's Why, confirm each item it cites shows what its clause says.
+  The gate does not run it; `preflight.py` does, on each branch it checks.
+- After changing a rule's Why, confirm each item it cites is the work its clause describes.
 - A lesson a skill holds that failed again means the skill failed: sharpen its wording or trigger,
   not add a copy.
 - Skill changes ship like code, titled like `chore(skills): <subject>`.
