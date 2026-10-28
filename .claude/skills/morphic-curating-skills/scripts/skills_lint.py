@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Hold the skills under .claude/skills to their limits and to the tree they describe.
+"""Hold the skills under .claude/skills to their frontmatter, their limits and the tree they
+describe.
 
 Usage: python3 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 
@@ -48,7 +49,13 @@ LINK_TARGET = re.compile(r"\]\([^)]*\)")
 TEST = re.compile(r"(?:^|[^A-Za-z0-9_])(Test[A-Z][A-Za-z0-9_]*)")
 SECTION = re.compile(r"(ir-design|emitter-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
 KEY = re.compile(r"(parser-library|compilers/openapi)\.md#([a-z0-9-]+)")
-NAME = re.compile(r"^[a-z0-9-]+$")
+# A skill's name, as the Agent Skills specification gives it: 1 to MAX_NAME_CHARS lowercase
+# letters and digits, joined by single hyphens.
+NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+MAX_NAME_CHARS = 64
+# The specification's frontmatter fields; any other key is a typo until a reason adds it here.
+FIELDS = ("name", "description", "license", "compatibility", "metadata", "allowed-tools")
+FRONT_KEY = re.compile(r"^([^\s#:][^:]*):(?: (.*))?$")
 PATH_LIKE = re.compile(r"/|\.(go|md|py|yaml|json|txt)$")
 TEST_DECL = re.compile(r"^func (Test[A-Za-z0-9_]*)\(", re.M)
 LINE_SUFFIX = re.compile(r":[0-9]+$")
@@ -178,8 +185,9 @@ class Linter:
         self.check_scripts(d, text)
 
     def check_frontmatter(self, name: str, skill: Path, text: str) -> None:
-        if not NAME.match(name):
-            self.report(skill, 1, f"name {name!r} is not lowercase letters, digits and hyphens")
+        if not NAME.match(name) or len(name) > MAX_NAME_CHARS:
+            self.report(skill, 1, f"name {name!r} is not 1-{MAX_NAME_CHARS} lowercase letters "
+                                  "and digits joined by single hyphens")
         lines = text.split("\n")
         if lines[0] != "---":
             self.report(skill, 1, "frontmatter must open with ---")
@@ -191,6 +199,7 @@ class Linter:
         front = lines[1:end]
         if len("\n".join(front)) > MAX_FRONTMATTER_CHARS:
             self.report(skill, 1, f"frontmatter is over {MAX_FRONTMATTER_CHARS} characters")
+        self.check_front_keys(skill, front)
         if f"name: {name}" not in front:
             self.report(skill, 1, f"frontmatter name must be {name!r}")
         desc = next((f[len("description: "):] for f in front if f.startswith("description: ")), "")
@@ -202,6 +211,32 @@ class Linter:
         words = len("\n".join(lines[end + 1:]).split())
         if words > MAX_BODY_WORDS:
             self.report(skill, 0, f"body is {words} words, over {MAX_BODY_WORDS}")
+
+    def check_front_keys(self, skill: Path, front: list[str]) -> None:
+        """Hold each frontmatter key to the specification's fields, once each, and each plain
+        value to what a YAML parser reads: an unquoted ": " or trailing ":" does not parse, and
+        " #" starts a comment that cuts the value there."""
+        seen = set()
+        for i, line in enumerate(front, 2):
+            if not line.strip() or line.startswith((" ", "\t", "#")):
+                continue  # a nested value, such as metadata's, or a comment
+            m = FRONT_KEY.match(line)
+            if not m:
+                self.report(skill, i, "frontmatter line is no key: value")
+                continue
+            key, value = m.group(1), (m.group(2) or "").strip()
+            if key not in FIELDS:
+                self.report(skill, i, f"{key} is not a frontmatter field ({', '.join(FIELDS)})")
+            if key in seen:
+                self.report(skill, i, f"{key} is set twice, and YAML keeps only the last")
+            seen.add(key)
+            if value[:1] in ("'", '"', "|", ">"):
+                continue  # quoted or a block scalar: YAML reads it whole
+            if ": " in value or value.endswith(":"):
+                self.report(skill, i, f"{key} holds an unquoted ':', which YAML refuses: quote it")
+            if " #" in value:
+                self.report(skill, i, f"{key} holds ' #', which YAML reads as a comment that cuts "
+                                      "the value: quote it")
 
     def check_rules(self, ref: Path) -> None:
         """Hold each rule a reference holds, from its heading to the next, to the rule format."""

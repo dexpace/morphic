@@ -54,7 +54,7 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 ## Upkeep
 
 - Run `python3 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit: it
-  checks the limits, the rule format and that every name a skill uses exists. The gate runs
+  checks the frontmatter, limits, rule format and that every name a skill uses exists. The gate runs
   neither it nor the scripts' tests; `preflight.py` and `review_setup.py` run it on each branch
   they check, code changes included.
 - After writing or changing a rule's Why, run

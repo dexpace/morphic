@@ -81,7 +81,8 @@ class LintTest(unittest.TestCase):
         self.assertEqual(n, 2)
         bad = ".claude/skills/Bad_Skill/"
         want = [
-            f"{bad}SKILL.md:1: name 'Bad_Skill' is not lowercase letters, digits and hyphens",
+            f"{bad}SKILL.md:1: name 'Bad_Skill' is not 1-64 lowercase letters and digits joined by "
+            "single hyphens",
             f"{bad}SKILL.md:1: frontmatter name must be 'Bad_Skill'",
             f'{bad}SKILL.md:1: description must start "Use when"',
             f"{bad}SKILL.md: body is 530 words, over 500",
@@ -110,6 +111,48 @@ class LintTest(unittest.TestCase):
         self.assertEqual(len(version), 1, "\n".join(got))
         self.assertTrue(version[0].startswith(f"{bad}scripts/new.py:"), version[0])
         self.assertEqual(sorted(g for g in got if g not in version), sorted(want), "\n".join(got))
+
+    def test_a_name_is_held_to_the_specification(self):
+        for name in ("double--hyphen", "-leading", "trailing-", "x" * 65):
+            with self.subTest(name=name):
+                skill = f".claude/skills/{name}/"
+                write(self.root, skill + "SKILL.md",
+                      f"---\nname: {name}\ndescription: Use when testing.\n---\n")
+                _, got = self.lint()
+                want = (f"{skill}SKILL.md:1: name {name!r} is not 1-64 lowercase letters and "
+                        "digits joined by single hyphens")
+                self.assertIn(want, got)
+                (self.root / skill / "SKILL.md").unlink()
+                (self.root / skill).rmdir()
+        write(self.root, ".claude/skills/" + "x" * 64 + "/SKILL.md",
+              "---\nname: " + "x" * 64 + "\ndescription: Use when testing.\n---\n")
+        self.assertEqual(self.lint()[1], [], "64 characters is within the limit")
+
+    def test_frontmatter_holds_only_fields_once_and_values_yaml_reads_whole(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill, "---\nname: good-skill\n"
+              "description: Use when testing: a colon.\n"
+              "descripton: typo\n"
+              "license: MIT #note\n"
+              "compatibility: Needs git:\n"
+              "name: good-skill\n"
+              "metadata:\n  author: x\n"
+              "allowed-tools: 'Bash(a: b) #ok'\n"
+              "# a comment\n"
+              "not a key\n"
+              "---\n\n" + GOOD_SKILL.split("---\n", 2)[2])
+        _, got = self.lint()
+        want = [
+            f"{skill}:3: description holds an unquoted ':', which YAML refuses: quote it",
+            f"{skill}:4: descripton is not a frontmatter field (name, description, license, "
+            "compatibility, metadata, allowed-tools)",
+            f"{skill}:5: license holds ' #', which YAML reads as a comment that cuts the value: "
+            "quote it",
+            f"{skill}:6: compatibility holds an unquoted ':', which YAML refuses: quote it",
+            f"{skill}:7: name is set twice, and YAML keeps only the last",
+            f"{skill}:12: frontmatter line is no key: value",
+        ]
+        self.assertEqual(sorted(got), sorted(want), "\n".join(got))
 
     def test_a_memory_link_is_caught_and_a_bracket_class_is_not(self):
         write(self.root, ".claude/skills/good-skill/references/r.md",
