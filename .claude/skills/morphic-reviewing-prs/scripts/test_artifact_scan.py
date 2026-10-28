@@ -15,6 +15,10 @@ PLANTED = [
     "kept by the coordi" "nator",
     "see /U" "sers/someone/x",
     "an audit sw" "eep found M" "3",
+    "Co-authored-by: cl" "aude <cl" "aude@users.noreply.github.com>",
+    "co-authored-by: cl" "aude-code <bot@example.com>",
+    "gene" "rated with cl" "aude code",
+    "https://cl" "aude.ai/code/session_0123",
 ]
 CLEAN = [
     "the .claude/skills directory",
@@ -22,6 +26,8 @@ CLEAN = [
     "a brief description",
     "an H2O molecule and M10K",
     "a scratch module",
+    "a golden generated with -update",
+    "the co-authored-by trailer, which the commit rules forbid",
 ]
 
 

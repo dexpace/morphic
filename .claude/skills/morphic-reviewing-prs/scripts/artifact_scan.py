@@ -21,7 +21,10 @@ from collections.abc import Iterable, Iterator
 
 # Split so this file does not match its own patterns.
 PATTERNS = [
-    r"Co-Authored-By:.*(Cl" r"aude|[Aa]nthr" r"opic)|Gene" r"rated with|noreply@anthr" r"opic",
+    # Attribution in any case, as tools and GitHub write it: a co-author trailer, a generated-by
+    # line, an assistant's address, and a link to an assistant's session.
+    r"(?i:co-authored-by:.*(cl" r"aude|anthr" r"opic))|Gene" r"rated with|noreply@anthr" r"opic"
+    r"|(?i:gene" r"rated (with|by)\W{0,3}\[?cl" r"aude)|(?i:cl" r"aude\.(ai|com)/)",
     r"(^|[^A-Za-z.])(Cl" r"aude|Anthr" r"opic|ChatG" r"PT)([^A-Za-z]|$)",
     r"(the|this|your|per the) bri" r"ef([^A-Za-z]|$)|\(bri" r"ef|bri" r"ef:",
     r"(^|[^A-Za-z])(coordi" r"nator|implem" r"enter|sub" r"agent|scratch" r"pad)([^A-Za-z]|$)",
