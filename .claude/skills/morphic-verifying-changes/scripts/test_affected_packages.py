@@ -96,6 +96,30 @@ class DependentsTest(unittest.TestCase):
         self.assertEqual(ap.dependents(listing, {f"{M}/hit"}), want)
 
 
+class MoveTest(unittest.TestCase):
+    def test_a_file_moved_between_packages_lists_the_one_it_left(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t",
+                   "PYTHONDONTWRITEBYTECODE": "1"}
+            git = ["git", "-C", d]
+            files = {"go.mod": "module example.com/m\n\ngo 1.25\n",
+                     "a/a.go": "package a\n", "a/x.go": "package a\n\nfunc X() {}\n",
+                     "b/b.go": "package b\n"}
+            for rel, text in files.items():
+                (root / rel).parent.mkdir(parents=True, exist_ok=True)
+                (root / rel).write_text(text)
+            subprocess.run(git + ["init", "-q"], check=True, env=env)
+            subprocess.run(git + ["add", "-A"], check=True, env=env)
+            subprocess.run(git + ["commit", "-qm", "base"], check=True, env=env)
+            subprocess.run(git + ["mv", "a/x.go", "b/x.go"], check=True, env=env)
+            (root / "b" / "x.go").write_text("package b\n\nfunc X() {}\n")
+            run = subprocess.run([sys.executable, str(HERE / "affected_packages.py"), "HEAD"],
+                                 cwd=root, capture_output=True, text=True, env=env)
+        self.assertEqual(run.stdout.split(), ["example.com/m/a", "example.com/m/b"], run.stderr)
+
+
 class CrashTest(unittest.TestCase):
     def test_a_missing_tool_exits_2_never_a_verdict(self):
         env = {"PATH": "", "PYTHONDONTWRITEBYTECODE": "1"}

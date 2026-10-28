@@ -199,6 +199,12 @@ class LandingTest(unittest.TestCase):
         self.assertIn("CONFLICTS", lines[0])
         self.assertEqual(lines[1:], [rs.INDENT + "a.txt"])
 
+    def test_a_moved_file_counts_where_it_left(self):
+        self.git("mv", "a.txt", "b.txt")
+        self.git("commit", "-q", "-m", "move")
+        got = rs.changed_files(self.root, self.base, self.git("rev-parse", "HEAD"))
+        self.assertEqual(sorted(got), ["a.txt", "b.txt"])
+
     def test_a_merge_needs_no_configured_identity(self):
         head = self.branch_from(self.base, "h.txt", "h\n")
         main = self.branch_from(self.base, "m.txt", "m\n")

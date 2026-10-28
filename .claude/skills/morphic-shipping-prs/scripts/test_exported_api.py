@@ -199,7 +199,9 @@ class TreeTest(unittest.TestCase):
                      "pub/a.go": "package pub\n\nfunc F(a int) {}\n",
                      "pub/internal/x/x.go": "package x\n\nfunc G(a int) {}\n",
                      "cmd/tool/main.go": "package main\n\nfunc H(a int) {}\n\nfunc main() {}\n",
-                     "gone/g.go": "package gone\n\nfunc Gone() {}\n"}
+                     "gone/g.go": "package gone\n\nfunc Gone() {}\n",
+                     "left/l.go": "package left\n\nfunc Kept() {}\n",
+                     "left/moved.go": "package left\n\nfunc Moved() {}\n"}
             for rel, text in files.items():
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 (root / rel).write_text(text)
@@ -210,10 +212,14 @@ class TreeTest(unittest.TestCase):
                 text = (root / rel).read_text().replace("(a int)", "(a string)")
                 (root / rel).write_text(text)
             (root / "gone" / "g.go").unlink()
+            # A file moved to another package takes its API out of the one it left.
+            subprocess.run(git + ["mv", "left/moved.go", "pub/moved.go"], check=True, env=env)
+            moved = (root / "pub" / "moved.go").read_text().replace("package left", "package pub")
+            (root / "pub" / "moved.go").write_text(moved)
             got = api.listed(root, "HEAD")
             worktrees = subprocess.run(git + ["worktree", "list"], check=True, env=env,
                                        capture_output=True, text=True).stdout.splitlines()
-        self.assertEqual(got, ["gone: func Gone()", "pub: func F(int)"])
+        self.assertEqual(got, ["gone: func Gone()", "left: func Moved()", "pub: func F(int)"])
         self.assertEqual(len(worktrees), 1, "the merge base's worktree is removed")
 
 

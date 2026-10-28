@@ -106,7 +106,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         root = Path(run(Path.cwd(), "git", "rev-parse", "--show-toplevel").strip()).resolve()
         mb = run(root, "git", "merge-base", base, "HEAD").strip()
-        diffed = run(root, "git", "diff", "--name-only", mb).split()
+        # A moved file names its source too, so the package it left is listed.
+        diffed = run(root, "git", "diff", "--no-renames", "--name-only", mb).split()
         untracked = run(root, "git", "ls-files", "--others", "--exclude-standard").split()
         changed = sorted(set(diffed) | set(untracked))
     except subprocess.CalledProcessError as e:

@@ -97,6 +97,12 @@ def areas(files: list[str]) -> list[tuple[int, str]]:
     return sorted(((n, a) for a, n in Counter(map(area, files)).items()), key=lambda x: x[1])
 
 
+def changed_files(root: Path, base: str, head: str) -> list[str]:
+    """Return the files head changes from base, a moved file under both its paths, so the area
+    it left counts too."""
+    return git(root, "diff", "--no-renames", "--name-only", base, head).stdout.split()
+
+
 def domain_hints(files: list[str], title: str = "") -> list[str]:
     hints = {skill for pattern, skill in DOMAINS if any(pattern.match(f) for f in files)}
     if PERF_TITLE.match(title):
@@ -210,7 +216,7 @@ def report(root: Path, number: str, directory: Path, remote: str) -> tuple[list[
         over = "  OVER 72" if len(s) > TITLE_CAP else ""
         out.append(f"{INDENT}{len(s):3}  {s}{over}")
 
-    files = git(root, "diff", "--name-only", mb, head).stdout.split()
+    files = changed_files(root, mb, head)
     out += ["", "files by area:"] + [f"{INDENT}{n:4}  {a}" for n, a in areas(files)]
     out.append(INDENT + git(root, "diff", "--shortstat", mb, head).stdout.strip())
     out += [f"load       {skill}" for skill in domain_hints(files, pr["title"])]

@@ -246,7 +246,8 @@ def listed(root: Path, base: str) -> list[str]:
     """Return what the working tree changes in the exported API of each public package it touches
     since its merge base with base."""
     mb = run(root, "git", "merge-base", base, "HEAD").strip()
-    files = run(root, "git", "diff", "--name-only", mb, "--", *PUBLIC_GO).split()
+    # A moved file names its source too, so the package it left is read.
+    files = run(root, "git", "diff", "--no-renames", "--name-only", mb, "--", *PUBLIC_GO).split()
     packages = sorted({Path(f).parent.as_posix() for f in files})
     if not packages:
         return []
