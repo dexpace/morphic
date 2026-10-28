@@ -41,14 +41,22 @@ def fetch(sha: str) -> bytes:
 
 def cached(sha: str, cache: Path, get: Callable[[str], bytes] = fetch) -> Path:
     """Return the spec's path at commit sha under cache, fetching it only when absent. A fetch
-    lands in a temporary file first, so an interrupted one never leaves a partial spec."""
+    lands in a temporary file first, so an interrupted one never leaves a partial spec, and is
+    kept only when it is an OpenAPI document: the contents API answers with JSON about the file,
+    not the file, when the raw form is not served."""
     path = cache / sha / FILE
     if path.is_file():
         return path
     path.parent.mkdir(parents=True, exist_ok=True)
     partial = path.with_suffix(".partial")
     partial.write_bytes(get(sha))
-    json.loads(partial.read_bytes())  # refuse to cache what is not a JSON document
+    try:
+        doc = json.loads(partial.read_bytes())  # raises for what is not JSON
+        if not isinstance(doc, dict) or "openapi" not in doc:
+            raise ValueError(f"{REPO}@{sha}:{FILE} fetched as no OpenAPI document")
+    except ValueError:
+        partial.unlink()
+        raise
     partial.replace(path)
     return path
 
@@ -80,6 +88,9 @@ def main(argv: list[str] | None = None) -> int:
         path = cached(sha, Path(tempfile.gettempdir()) / "morphic-golden-spec")
     except subprocess.CalledProcessError as e:
         print(f"golden_spec: {(e.stderr or b'').decode().strip() or e}", file=sys.stderr)
+        return 2
+    except ValueError as e:  # a fetch that is not the spec, kept out of the cache
+        print(f"golden_spec: {e}", file=sys.stderr)
         return 2
     print(f"golden spec {REPO}@{sha}: {path}", file=sys.stderr)
     if not args.count:

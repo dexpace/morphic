@@ -35,10 +35,14 @@ class CacheTest(unittest.TestCase):
         self.assertEqual((first, again, self.fetches), (again, first, ["abc"]))
         self.assertEqual(json.loads(first.read_bytes()), {"openapi": "3.0.3"})
 
-    def test_what_is_not_json_is_never_cached(self):
-        with self.assertRaises(ValueError):
-            golden_spec.cached("abc", self.cache, self.get(b"<html>rate limited</html>"))
-        self.assertFalse((self.cache / "abc" / golden_spec.FILE).exists())
+    def test_what_is_not_the_spec_is_never_cached(self):
+        # A page that is not JSON, and the JSON about the file the contents API sends when it
+        # does not serve the file itself.
+        for reply in (b"<html>rate limited</html>", b'{"name": "openapi.json", "content": ""}'):
+            with self.subTest(reply=reply):
+                with self.assertRaises(ValueError):
+                    golden_spec.cached("abc", self.cache, self.get(reply))
+                self.assertEqual(list((self.cache / "abc").iterdir()), [], "nothing is left")
 
 
 class CountTest(unittest.TestCase):
