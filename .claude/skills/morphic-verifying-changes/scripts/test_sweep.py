@@ -61,6 +61,10 @@ class SweepTest(unittest.TestCase):
         names = [p.name for p in sweep.find_specs([self.corpus])]
         self.assertEqual(names, ["changed.yaml", "diag.yaml", "error.yaml", "same.yaml"])
 
+    def test_a_corpus_file_is_read_as_one_document(self):
+        specs = [self.corpus / "same.yaml", self.corpus / "notes.txt", self.corpus / "golden.json"]
+        self.assertEqual(sweep.find_specs(specs), [specs[0].resolve()])
+
     def test_a_json_document_is_judged_by_its_top_level_keys(self):
         cases = {b'{"openapi":"3.0.3","info":{}}': True, b' {"swagger":"2.0"}': True,
                  b'{\n  "info": {\n    "openapi": "3.0.0"\n  }\n}\n': False,
@@ -116,18 +120,20 @@ class SweepTest(unittest.TestCase):
         # Partial output from two killed compiles may differ, and still compares nothing.
         stuck = (1, sweep.KILLED, sweep.KILLED, self.corpus / "same.yaml", "diagnostics")
         refused = (1, 2, 2, self.corpus / "same.yaml", "")
+        signalled = (1, -9, -9, self.corpus / "same.yaml", "")  # as an out-of-memory kill ends one
         changed = (2, 0, 0, self.corpus / "changed.yaml", "ir")
-        cases = (([stuck], 2), ([stuck, changed], 1), ([refused], 2), ([refused, changed], 1))
+        reasons = {stuck: "hit the time limit (137)", refused: "failed to run (2)",
+                   signalled: "killed by signal 9 (-9)"}
+        cases = [([row], 2) for row in reasons]
+        cases += [([row, changed], 1) for row in reasons]
         for results, want in cases:
-            with self.subTest(want=want):
+            with self.subTest(results=results):
                 buf = io.StringIO()
                 with redirect_stdout(buf):
                     self.assertEqual(sweep.report(results, self.root, out), want)
                 text = buf.getvalue()
                 self.assertIn("1 spec(s) finished compiling on neither side", text)
-                reason = ("failed to run (2)" if results[0] is refused
-                          else "hit the time limit (137)")
-                self.assertIn(f"same.yaml: {reason}", text)
+                self.assertIn(f"same.yaml: {reasons[results[0]]}", text)
                 self.assertNotIn("no spec differs", text)
                 self.assertEqual("1 of 2 specs differ" in text, want == 1, text)
 

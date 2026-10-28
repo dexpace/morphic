@@ -10,15 +10,17 @@ Usage: python3.14 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS.
 
 BASE is the revision to compare against (default origin/main); when HEAD does not hold it, a
 warning says the differences also count what BASE gained since. A compile running past SECONDS
-(default 60) is killed and recorded as 137. A spec that is killed, or exits 2, on both sides is
-listed as not compared, since neither build finished compiling it: 2 is morphic's exit for a
-misuse, an I/O error, a broken contract or a signal, as an unknown COMPILE-FLAG gives every spec.
-JOBS compiles run at once (default half the CPUs). Outputs are kept under OUTDIR
-(default a new temporary directory) for diffing. CORPUS directories are searched for OpenAPI and
-Swagger documents (default testdata): one written as JSON, whatever its suffix, by its top-level
-keys, minified or not, and YAML by a version key starting a line. Exit 0 when nothing differs, 1
-when something does, 2 when the sweep cannot run or nothing differs among the specs it compared
-but some it did not.
+(default 60) is killed and recorded as 137, and one ended by a signal morphic does not handle,
+such as the kill that ends a compile out of memory, as minus the signal's number. A spec that ends
+either way, or exits 2, alike on both sides is listed as not compared, since neither build
+finished compiling it: 2 is morphic's exit for a misuse, an I/O error, a broken contract or a
+signal it handled, as an unknown COMPILE-FLAG gives every spec. JOBS compiles run at once (default
+half the CPUs). Outputs are kept under OUTDIR (default a new temporary directory) for diffing.
+CORPUS files, and the files under CORPUS directories, are read for OpenAPI and Swagger documents
+(default testdata): one written as JSON, whatever its suffix, by its top-level keys, minified or
+not, and YAML by a version key starting a line. Exit 0 when nothing differs, 1 when something
+does, 2 when the sweep cannot run or nothing differs among the specs it compared but some it did
+not.
 """
 
 import argparse
@@ -37,7 +39,7 @@ from pathlib import Path
 SPEC = re.compile(rb'^\s*["\']?(openapi|swagger)["\']?\s*:(\s|$)', re.M)
 KILLED = 137
 # The exits after which a build did not finish compiling a spec: morphic's own failure, and the
-# time limit.
+# time limit; unfinished adds a signal morphic did not handle, recorded as a negative exit.
 UNFINISHED = {2: "failed to run", KILLED: "hit the time limit"}
 
 
@@ -57,10 +59,16 @@ def is_spec(data: bytes) -> bool:
     return SPEC.search(data) is not None
 
 
-def find_specs(dirs: list[Path]) -> list[Path]:
+def unfinished(code: int) -> str | None:
+    """Say why a build with this exit did not finish compiling a spec, or None when it did."""
+    return f"killed by signal {-code}" if code < 0 else UNFINISHED.get(code)
+
+
+def find_specs(corpus: list[Path]) -> list[Path]:
+    """Return the documents among each corpus file and the files under each corpus directory."""
     out = []
-    for d in dirs:
-        for p in sorted(d.rglob("*")):
+    for d in corpus:
+        for p in [d] if d.is_file() else sorted(d.rglob("*")):
             if p.suffix in (".yaml", ".yml", ".json") and p.is_file() and \
                     is_spec(p.read_bytes()):
                 out.append(p.resolve())
@@ -107,13 +115,13 @@ def report(results, root: Path, out: Path) -> int:
         codes = " ".join(f"{code}x{count}" for code, count in sorted(dist.items()))
         print(f"  {side} exit codes: {codes}; IR bytes: {size}")
     # A compile that finished on neither side says nothing about either.
-    unjudged = [r for r in results if r[1] == r[2] and r[1] in UNFINISHED]
+    unjudged = [r for r in results if r[1] == r[2] and unfinished(r[1])]
     differ = [r for r in results if r[4] and r not in unjudged]
     if unjudged:
         print(f"sweep: {len(unjudged)} spec(s) finished compiling on neither side and were not "
-              "compared; read a run's diagnostics, or raise -t:")
+              "compared; read a run's diagnostics, or raise -t past a time limit:")
         for n, code, _, spec, _ in unjudged:
-            print(f"  {n}  {rel(spec)}: {UNFINISHED[code]} ({code})")
+            print(f"  {n}  {rel(spec)}: {unfinished(code)} ({code})")
     if differ:
         print(f"sweep: {len(differ)} of {len(results)} specs differ (n, then what):")
         for n, _, _, spec, what in differ:
