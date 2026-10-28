@@ -51,11 +51,14 @@ def script(root: Path, rel: str, text: str) -> Path:
 class LintTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
-        self.root = Path(self.dir.name)
+        # The repository sits one level down, so a test can put a file outside it.
+        self.root = Path(self.dir.name) / "repo"
+        # Files on disk that git ignores, which the tree a clone holds leaves out.
+        self.ignored: set[str] = set()
         write(self.root, "docs/parser-library.md", "### `known`\n")
         write(self.root, "docs/ir-design.md", "## 4. Types\n\n### 4.3 Unions\n")
         write(self.root, "ir/a.go", "package ir\n")
-        (self.root / "cmd" / "morphic-harness").mkdir(parents=True)
+        write(self.root, "cmd/morphic-harness/main.go", "package main\n")
         skill = ".claude/skills/good-skill/"
         write(self.root, skill + "SKILL.md", GOOD_SKILL)
         write(self.root, skill + "references/r.md", GOOD_REFERENCE)
@@ -68,8 +71,8 @@ class LintTest(unittest.TestCase):
     def lint(self):
         files = [p for p in (self.root / ".claude" / "skills").rglob("*") if p.is_file()]
         top_level, tests = {"docs", "ir", "cmd", ".claude"}, {"TestKnown", "TestKnown_Case"}
-        names = {p.name for p in self.root.rglob("*") if p.is_file()}
-        lint = skills_lint.Linter(self.root, top_level, tests, names, files)
+        on_disk = {p.relative_to(self.root).as_posix() for p in self.root.rglob("*") if p.is_file()}
+        lint = skills_lint.Linter(self.root, top_level, tests, on_disk - self.ignored, files)
         return lint.run(), lint.findings
 
     def test_a_clean_skill_has_no_finding(self):
@@ -116,7 +119,8 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:9: scripts/gone.py does not exist",
             f"{bad}SKILL.md:9: ./ir/nope/... does not exist",
             f"{bad}SKILL.md:10: cites rule do-the-thing without the file that holds it",
-            f"{bad}SKILL.md:10: references/r.md holds no rule gone",
+            # This skill has no r.md of its own; good-skill's holds no such rule.
+            f"{bad}SKILL.md:10: references/r.md does not exist",
             f"{bad}SKILL.md:10: .claude/skills/good-skill/references/r.md holds no rule gone",
             f"{bad}SKILL.md:10: no file named gone.py",
         ]
@@ -139,6 +143,32 @@ class LintTest(unittest.TestCase):
         write(self.root, skill, GOOD_SKILL + elsewhere + held)
         n = GOOD_SKILL.count("\n") + 2
         want = [f"{skill}:{n}: {p} does not exist" for p in ("gone/a.go", "./gone/b", "./gone/...")]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_path_git_ignores_is_held_as_no_clone_has_it(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        local = ("# L\n\nRules kept on one machine.\n\n## Local\n`local-rule`\n\n"
+                 "- **Rule.** x.\n- **Why.** y (#1).\n")
+        for rel, text in (("docs/plan.md", "a plan\n"),
+                          ("cmd/morphic-local/main.go", "package main\n"),
+                          (".claude/skills/good-skill/references/local.md", local)):
+            write(self.root, rel, text)
+            self.ignored.add(rel)
+        # A file outside the repository is in no clone either, whatever is on disk.
+        write(Path(self.dir.name), "outside.md", "x\n")
+        write(self.root, skill, GOOD_SKILL
+              + "Ignored: `docs/plan.md`, `go run ./cmd/morphic-local`, prose docs/plan.md, "
+                "[the plan](../../../docs/plan.md), `morphic-local`, "
+                "`references/local.md#local-rule`,\nand outside: [x](../../../../outside.md), "
+                "but `ir/./a.go` is in the tree.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        lost = "is ignored by git, so no clone holds it"
+        want = [f"{skill}:{n}: docs/plan.md {lost}", f"{skill}:{n}: ./cmd/morphic-local {lost}",
+                f"{skill}:{n}: docs/plan.md {lost}",
+                f"{skill}:{n}: link target ../../../docs/plan.md {lost}",
+                f"{skill}:{n}: no skill or command named morphic-local",
+                f"{skill}:{n}: references/local.md {lost}",
+                f"{skill}:{n + 1}: link target ../../../../outside.md does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
     def test_a_code_span_broken_across_lines_is_reported_once(self):
@@ -346,7 +376,7 @@ class ArgumentsTest(unittest.TestCase):
 
 
 class LoadTreeTest(unittest.TestCase):
-    def test_tests_top_level_entries_and_every_file_name_are_read(self):
+    def test_tests_top_level_entries_and_every_file_path_are_read(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
@@ -354,16 +384,18 @@ class LoadTreeTest(unittest.TestCase):
             git = ["git", "-C", d]
             subprocess.run(git + ["init", "-q"], check=True, env=env)
             write(root, "ir/a_test.go", "package ir\n\nfunc TestA_B(t *testing.T) {}\n")
+            write(root, "ir/gone.go", "package ir\n")
             write(root, ".gitignore", "out/\n")
             subprocess.run(git + ["add", "-A"], check=True, env=env)
             subprocess.run(git + ["commit", "-qm", "x"], check=True, env=env)
             write(root, "scripts/new.py", "")
             write(root, "out/built.txt", "")
-            top_level, tests, names = skills_lint.load_tree(root)
+            (root / "ir" / "gone.go").unlink()
+            top_level, tests, known = skills_lint.load_tree(root)
         self.assertEqual(top_level, {".claude", ".gitignore", "ir"})
         self.assertEqual(tests, {"TestA", "TestA_B"})
-        self.assertEqual(names, {".gitignore", "a_test.go", "new.py"},
-                         "untracked files count, ignored ones do not")
+        self.assertEqual(known, {".gitignore", "ir/a_test.go", "scripts/new.py"},
+                         "untracked files count, and ignored or deleted ones do not")
 
 
 if __name__ == "__main__":

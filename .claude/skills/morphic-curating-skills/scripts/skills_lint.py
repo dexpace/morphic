@@ -104,8 +104,8 @@ def git(root: Path, *args: str) -> str:
 
 def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
     """Return the first segment of every tracked path, every declared Go test name with each
-    family prefix of it, as TestA_B declares TestA, and the name of every file the tree holds,
-    untracked ones included."""
+    family prefix of it, as TestA_B declares TestA, and the path of every file the tree holds:
+    each one git lists, untracked ones included and ignored ones not, that is on disk."""
     top_level, tests = {".claude"}, set()
     for f in git(root, "ls-files").splitlines():
         top_level.add(f.split("/", 1)[0])
@@ -116,7 +116,7 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
     if not tests:
         raise RuntimeError("found no declared test, so a test name cannot be checked")
     listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard")
-    return top_level, tests, {f.rsplit("/", 1)[-1] for f in listed.splitlines()}
+    return top_level, tests, {f for f in listed.splitlines() if (root / f).is_file()}
 
 
 def names_a_path(tok: str) -> bool:
@@ -164,10 +164,16 @@ def rule_bullets(block: list[str]) -> tuple[list[list[str]], list[int]]:
 
 
 class Linter:
-    def __init__(self, root: Path, top_level: set[str], tests: set[str], names: set[str],
+    def __init__(self, root: Path, top_level: set[str], tests: set[str], known: set[str],
                  files: list[Path]):
         self.root, self.top_level, self.tests, self.files = root, top_level, tests, files
-        self.names = names
+        # The tree a clone holds, as load_tree lists it, with each directory above a file: a path
+        # on disk that git ignores, such as a local plan or a built binary, is in no clone.
+        self.names = {f.rsplit("/", 1)[-1] for f in known}
+        self.paths = set(known)
+        for f in known:
+            parts = f.split("/")
+            self.paths.update("/".join(parts[:i]) for i in range(1, len(parts)))
         self.findings: list[str] = []
         self.keys: dict[str, str] = {}
         self.citations: list[tuple[Path, int, str]] = []
@@ -336,23 +342,26 @@ class Linter:
                 self.citations += [(f, i, k) for k in BARE_KEY.findall(line)]
             for path, key in RULE_CITE.findall(line):
                 held = d / path if path.startswith("references/") else self.root / path
-                if not held.is_file() or f"\n`{key}`\n" not in "\n" + held.read_text():
-                    self.report(f, i, f"{path} holds no rule {key}")
+                why = self.absent(path, held.relative_to(self.root).as_posix())
+                if why or f"\n`{key}`\n" not in "\n" + held.read_text():
+                    self.report(f, i, why or f"{path} holds no rule {key}")
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").split():
                     word = word.strip("'\"$();,")
-                    if names_a_path(word) and not self.exists(d, word):
-                        self.report(f, i, f"{word} does not exist")
+                    if names_a_path(word) and (why := self.missing(d, word)):
+                        self.report(f, i, why)
             # Prose joins words with a slash (I/O, kept/dropped), so a path there is held only
             # when its first segment is a tracked entry; one in a span is held whatever it starts
             # with.
             for p in PROSE_PATH.findall(LINK_TARGET.sub("]", ANY_SPAN.sub("", line))):
                 p = p.rstrip(".,;:)")
-                if self.first_is_tracked(p) and not self.exists(d, p):
-                    self.report(f, i, f"{p} does not exist")
+                if self.first_is_tracked(p) and (why := self.missing(d, p)):
+                    self.report(f, i, why)
             for target in LINK.findall(line):
-                if not target.startswith(("http", "mailto:")) and not (f.parent / target).exists():
-                    self.report(f, i, f"link target {target} does not exist")
+                if target.startswith(("http", "mailto:")):
+                    continue
+                if why := self.absent(target, os.path.relpath(f.parent / target, self.root)):
+                    self.report(f, i, f"link target {why}")
             for name in TEST.findall(line):
                 if name not in self.tests:
                     self.report(f, i, f"no test named {name}")
@@ -372,30 +381,38 @@ class Linter:
         if RULE_CITE.fullmatch(tok):
             return  # check_names holds a rule citation to its file, and reports it once
         if tok.startswith("morphic-") and "/" not in tok:
-            homes = (self.root / ".claude" / "skills" / tok, self.root / "cmd" / tok)
-            if not any(h.is_dir() for h in homes):
+            if not {f".claude/skills/{tok}", f"cmd/{tok}"} & self.paths:
                 self.report(f, line, f"no skill or command named {tok}")
         elif BARE_FILE.fullmatch(tok):
             if tok not in self.names:
                 self.report(f, line, f"no file named {tok}")
-        elif names_a_path(tok) and not self.exists(d, tok):
-            self.report(f, line, f"{tok} does not exist")
+        elif names_a_path(tok) and (why := self.missing(d, tok)):
+            self.report(f, line, why)
 
     def first_is_tracked(self, p: str) -> bool:
         first = p.removeprefix("./").split("/", 1)[0]
         return first in self.top_level or first in ("references", "scripts")
 
-    def exists(self, d: Path, p: str) -> bool:
-        """Report whether a path a skill names exists: relative to the skill for its own
-        references/ and scripts/, to the repository otherwise. A glob is held up to its first
-        wildcard, and ./... names the module's packages."""
-        p = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
-        p = "" if p == "..." else p.removesuffix("/...").rstrip("/")
-        if not p:
-            return True
-        if p.split("/", 1)[0] in ("references", "scripts"):
-            return (d / p).exists()
-        return (self.root / p).exists()
+    def missing(self, d: Path, p: str) -> str | None:
+        """Say why a path a skill names is not in the tree, or None when it is: relative to the
+        skill for its own references/ and scripts/, to the repository otherwise. A glob is held
+        up to its first wildcard, and ./... names the module's packages."""
+        rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
+        rel = "" if rel == "..." else rel.removesuffix("/...").rstrip("/")
+        if not rel:
+            return None
+        if rel.split("/", 1)[0] in ("references", "scripts"):
+            rel = (d / rel).relative_to(self.root).as_posix()
+        return self.absent(p, os.path.normpath(rel))
+
+    def absent(self, shown: str, rel: str) -> str | None:
+        """Say why rel, a path from the repository root, is not in the tree a clone holds, naming
+        it as shown, or None when it is."""
+        if rel in self.paths:
+            return None
+        if rel.split("/", 1)[0] != ".." and (self.root / rel).exists():
+            return f"{shown} is ignored by git, so no clone holds it"
+        return f"{shown} does not exist"
 
     def has(self, doc: str, pattern: str) -> bool:
         path = self.root / "docs" / f"{doc}.md"
@@ -458,10 +475,9 @@ def findings(root: Path) -> tuple[int, list[str]]:
     return how many skills there are and every finding. A tree with no skills has neither."""
     if not (root / ".claude" / "skills").is_dir():
         return 0, []
-    top_level, tests, names = load_tree(root)
-    listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard", ".claude/skills")
-    files = [root / f for f in listed.splitlines() if (root / f).is_file()]
-    lint = Linter(root, top_level, tests, names, files)
+    top_level, tests, known = load_tree(root)
+    files = [root / f for f in sorted(known) if f.startswith(".claude/skills/")]
+    lint = Linter(root, top_level, tests, known, files)
     return lint.run(), lint.findings
 
 
