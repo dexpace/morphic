@@ -1,8 +1,8 @@
 # Planting defects
 
 `scripts/mutate.py` handles the mechanics: one literal replacement, a compile check, the test run,
-a restore whatever happens, a verdict, and the run's whole output kept in a file. These rules are
-the ways a verdict still lies.
+a restore whatever happens, a clean run behind every kill, a verdict, and the run's whole output
+kept in a file. These rules are the ways a verdict still lies.
 
 ## Route every temporary edit through a restoring script
 `mutation-restore-always`

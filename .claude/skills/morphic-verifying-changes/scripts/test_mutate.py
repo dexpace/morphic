@@ -114,6 +114,15 @@ class MutateTest(unittest.TestCase):
         self.assertIn("probe hit 42", Path(kept[0]).read_text())
         self.assertTrue(Path(kept[0]).is_relative_to(self.dir.name))
 
+    def test_a_kill_needs_the_command_to_pass_on_the_clean_tree(self):
+        self.file.write_text("keep good bad\n")
+        code, printed = quietly(mutate.main, [str(self.file), "good", "fine", "--", *self.command])
+        self.assertEqual(code, mutate.UNVERIFIED, printed)
+        self.assertIn("does not pass on the clean tree either", printed)
+        clean = printed.split("the clean run is in ", 1)[1].split("\n", 1)[0]
+        self.assertIn("--- FAIL: TestThing", Path(clean).read_text(), "the clean run is kept")
+        self.assertEqual(self.file.read_text(), "keep good bad\n")
+
     def test_a_harmless_mutant_survives_and_is_restored(self):
         self.assertEqual(self.run_mutate("keep\n", "keep \n"), mutate.SURVIVED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
@@ -180,9 +189,12 @@ class MutateTest(unittest.TestCase):
 
 
     def test_output_that_is_not_utf8_is_judged_not_crashed_on(self):
-        printing = ("import sys; sys.stdout.buffer.write(b'cut \\xe2\\x82 rune\\n"
-                    "--- FAIL: TestCut (0.00s)\\nFAIL\\n'); sys.exit(1)")
-        code = self.run_mutate("good", "bad", [sys.executable, "-c", printing])
+        # Both the mutant's run and the clean one print a cut rune.
+        printing = ("import sys; bad = 'bad' in open(sys.argv[1]).read(); "
+                    "sys.stdout.buffer.write(b'cut \\xe2\\x82 rune\\n' + (b'--- FAIL: TestCut "
+                    "(0.00s)\\nFAIL\\n' if bad else b'ok  \\tfake/pkg\\t0.1s\\n')); "
+                    "sys.exit(1 if bad else 0)")
+        code = self.run_mutate("good", "bad", [sys.executable, "-c", printing, str(self.file)])
         self.assertEqual(code, mutate.KILLED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
 

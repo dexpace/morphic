@@ -14,9 +14,10 @@ size and mtime by which Python trusts bytecode cached from it. The verdict is re
 or unittest output: a kill needs a failing test, a survival a passing run that ran a test, so a
 pattern matching no test gives no verdict. With the mutant in place a Go file's package and tests
 must build, a Python file must parse, and every unittest module must load, or there is no
-verdict. Prints KILLED, SURVIVED or UNVERIFIED, then every failing test line, then the file that
-keeps the run's whole output, as instrumentation needs. Exit 0 KILLED, 1 SURVIVED, 2 UNVERIFIED or
-a usage error.
+verdict. A kill counts only once the command passes on the restored tree, since a failure it
+shares is not the mutant's. Prints KILLED, SURVIVED or UNVERIFIED, then every failing test line,
+then the file that keeps the run's whole output, as instrumentation needs. Exit 0 KILLED, 1
+SURVIVED, 2 UNVERIFIED or a usage error.
 
 MUTANTS is a JSON-lines file, one {"file", "old", "new"} object per line with an optional "name";
 blank lines and lines starting with # are skipped, and a relative file is read from the current
@@ -161,6 +162,18 @@ def mutate(path: Path, old: str, new: str, command: list[str], keep: Path) -> tu
             print(f"mutate: RESTORE FAILED, {path} still holds the mutant", file=sys.stderr)
 
 
+def confirmed(command: list[str], keep: Path, text: str) -> tuple[int, str]:
+    """Confirm a kill by running the command on the restored tree, keeping its output in keep: a
+    failure the clean tree shares is not the mutant's."""
+    run = run_tests(command)
+    keep.write_text(run.stdout)
+    if verdict(run.returncode, run.stdout)[0] == SURVIVED:
+        return KILLED, text
+    return UNVERIFIED, ("UNVERIFIED: the command does not pass on the clean tree either, so the "
+                        f"failure is not the mutant's; the clean run is in {keep}\n"
+                        + text.partition("\n")[2])
+
+
 def load_batch(path: Path) -> tuple[list[dict], list[str]]:
     """Read a batch of mutants; return them and every problem found, so that a batch with any
     problem runs nothing."""
@@ -251,6 +264,8 @@ def main(argv: list[str] | None = None) -> int:
     keep = Path(tempfile.mkdtemp(prefix="mutate-")) / "output.txt"
     try:
         code, text = mutate(path, args[1], args[2], args[4:], keep)
+        if code == KILLED:  # a batch's baseline confirms every kill at once
+            code, text = confirmed(args[4:], keep.with_name("clean.txt"), text)
     except KeyboardInterrupt:
         code, text = UNVERIFIED, "mutate: interrupted; the file is restored"
     print(text, file=sys.stderr if text.startswith("mutate:") else sys.stdout)
