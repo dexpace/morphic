@@ -2,6 +2,7 @@
 
 Run: python3 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scripts
 """
+import sys
 import unittest
 
 import artifact_scan as scan
@@ -49,6 +50,12 @@ class ScanTest(unittest.TestCase):
     def test_hits_are_labelled(self):
         got = scan.hits("commit", [("abc123", PLANTED[0]), ("def456", "fine")])
         self.assertEqual(got, [f"commit: abc123: {PLANTED[0]}"])
+
+
+class DecodeTest(unittest.TestCase):
+    def test_a_diff_that_is_not_utf8_is_read_not_crashed_on(self):
+        cut = "import sys; sys.stdout.buffer.write(b'cut \\xe2\\x82 rune\\n')"
+        self.assertEqual(scan.run(sys.executable, "-c", cut), "cut \ufffd rune\n")
 
 
 if __name__ == "__main__":

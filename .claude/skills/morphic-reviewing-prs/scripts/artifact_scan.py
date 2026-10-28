@@ -31,7 +31,7 @@ HUNK = re.compile(r"^@@ -\S+ \+(\d+)")
 
 
 def run(*args: str) -> str:
-    return subprocess.run(args, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(args, check=True, capture_output=True, text=True, errors="replace").stdout
 
 
 def added_lines(diff: str) -> Iterator[tuple[str, str]]:

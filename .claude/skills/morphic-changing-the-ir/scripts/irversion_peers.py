@@ -27,7 +27,7 @@ DECLARED = re.compile(r'^const IRVersion = "([^"]+)"', re.M)
 
 def git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
     return subprocess.run(["git", "-C", str(root), *args], check=check, capture_output=True,
-                          text=True)
+                          text=True, errors="replace")
 
 
 def declared(text: str) -> str | None:
@@ -79,7 +79,7 @@ def peers_of(root: Path, remote: str, path: str, base: str) -> list[Peer]:
     """Return a Peer for each open PR whose head the working tree lacks and declares a version."""
     listing = subprocess.run(["gh", "pr", "list", "--state", "open", "--limit", "200", "--json",
                               "number,title,headRefOid"], check=True, capture_output=True,
-                             text=True, cwd=root).stdout
+                             text=True, errors="replace", cwd=root).stdout
     out = []
     for pr in json.loads(listing):
         sha = pr["headRefOid"]

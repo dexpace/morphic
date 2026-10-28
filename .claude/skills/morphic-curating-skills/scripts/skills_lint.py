@@ -60,7 +60,7 @@ BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 
 def git(root: Path, *args: str) -> str:
     done = subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True,
-                          text=True)
+                          text=True, errors="replace")
     return done.stdout
 
 

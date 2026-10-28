@@ -109,7 +109,8 @@ def skills_report(directory: Path) -> list[str]:
 
 def run(*args: str, check: bool = True, env: dict | None = None) -> subprocess.CompletedProcess:
     full = {**os.environ, **env} if env else None
-    return subprocess.run(args, check=check, capture_output=True, text=True, env=full)
+    return subprocess.run(args, check=check, capture_output=True, text=True, errors="replace",
+                          env=full)
 
 
 def git(root: Path, *args: str, check: bool = True,

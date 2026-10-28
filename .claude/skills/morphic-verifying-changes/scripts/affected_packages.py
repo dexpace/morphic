@@ -29,7 +29,8 @@ READS_CITATIONS = ("keydoc.Citations(", "keydoc.Walk(")
 
 
 def run(root: Path, *args: str) -> str:
-    return subprocess.run(args, cwd=root, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(args, cwd=root, check=True, capture_output=True, text=True,
+                          errors="replace").stdout
 
 
 def hit_packages(changed: list[str], dirs: set[str], module: str) -> tuple[set[str], list[str]]:

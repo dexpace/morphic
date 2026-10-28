@@ -110,7 +110,7 @@ def score(clause: str, text: str) -> tuple[float, List[str]]:
 
 
 def gh(*args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(["gh", "api", *args], capture_output=True, text=True)
+    return subprocess.run(["gh", "api", *args], capture_output=True, text=True, errors="replace")
 
 
 def fetch(number: int) -> Optional[str]:
@@ -202,8 +202,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("keys", nargs="*", metavar="KEY")
     args = p.parse_args(sys.argv[1:] if argv is None else argv)
     try:
-        root = Path(checked(subprocess.run(["git", "rev-parse", "--show-toplevel"],
-                                           capture_output=True, text=True)).stdout.strip())
+        top = subprocess.run(["git", "rev-parse", "--show-toplevel"], capture_output=True,
+                             text=True, errors="replace")
+        root = Path(checked(top).stdout.strip())
         rules = rules_in(root)
         unknown = sorted(set(args.keys) - {r.key for r in rules})
         if unknown:

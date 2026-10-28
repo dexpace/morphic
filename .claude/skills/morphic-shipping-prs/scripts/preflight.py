@@ -103,7 +103,7 @@ def merge_line(base: str) -> tuple[str, bool]:
     if subprocess.run(["git", "merge-base", "--is-ancestor", base, "HEAD"]).returncode == 0:
         return (f"merge      holds {base}", False)
     clean = subprocess.run(["git", "merge-tree", "--write-tree", base, "HEAD"],
-                           capture_output=True, text=True).returncode == 0
+                           capture_output=True, text=True, errors="replace").returncode == 0
     if clean:
         return (f"merge      merges {base} cleanly but does not hold it: merge it, then rerun the "
                 "suite", False)

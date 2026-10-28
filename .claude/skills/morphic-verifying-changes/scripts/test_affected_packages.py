@@ -85,5 +85,11 @@ class CrashTest(unittest.TestCase):
         self.assertEqual(run.stdout, "")
 
 
+class DecodeTest(unittest.TestCase):
+    def test_a_diff_that_is_not_utf8_is_read_not_crashed_on(self):
+        cut = "import sys; sys.stdout.buffer.write(b'cut \\xe2\\x82 rune\\n')"
+        self.assertEqual(ap.run(HERE, sys.executable, "-c", cut), "cut \ufffd rune\n")
+
+
 if __name__ == "__main__":
     unittest.main()

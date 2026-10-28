@@ -170,6 +170,14 @@ class MutateTest(unittest.TestCase):
                          "bytecode of the mutant would outlive its restore")
 
 
+    def test_output_that_is_not_utf8_is_judged_not_crashed_on(self):
+        printing = ("import sys; sys.stdout.buffer.write(b'cut \\xe2\\x82 rune\\n"
+                    "--- FAIL: TestCut (0.00s)\\nFAIL\\n'); sys.exit(1)")
+        code = self.run_mutate("good", "bad", [sys.executable, "-c", printing])
+        self.assertEqual(code, mutate.KILLED)
+        self.assertEqual(self.file.read_text(), "keep good keep\n")
+
+
 class BatchTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()

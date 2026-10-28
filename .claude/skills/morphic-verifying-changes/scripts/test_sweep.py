@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -123,6 +124,18 @@ class UnheldBaseTest(unittest.TestCase):
             self.assertIsNotNone(warning)
             self.assertIn("does not hold", warning)
 
+
+class DecodeTest(unittest.TestCase):
+    def test_a_build_error_that_is_not_utf8_is_reported_not_crashed_on(self):
+        with tempfile.TemporaryDirectory() as d:
+            go = Path(d) / "go"
+            go.write_text("#!/bin/sh\nprintf 'bad \\342\\202 byte\\n' >&2\nexit 1\n")
+            go.chmod(0o755)
+            env = {**os.environ, "PATH": d + os.pathsep + os.environ["PATH"]}
+            with unittest.mock.patch.dict(os.environ, env):
+                with self.assertRaises(subprocess.CalledProcessError) as caught:
+                    sweep.build(Path(d), "./x", Path(d) / "out")
+        self.assertIn("bad \ufffd byte", caught.exception.stderr)
 
 if __name__ == "__main__":
     unittest.main()

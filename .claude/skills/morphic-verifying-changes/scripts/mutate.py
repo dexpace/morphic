@@ -104,16 +104,18 @@ def run_tests(command: list[str]) -> subprocess.CompletedProcess:
     """Run the test command with Python's bytecode cache off, so no mutant outlives its restore
     as bytecode Python still trusts."""
     return subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-                          env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+                          errors="replace", env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
 
 
 def builds(path: Path) -> tuple[bool, str]:
     """Report whether a Go file's package and its tests build and vet with the file as it is."""
-    root = Path(subprocess.run(["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"],
-                               check=True, capture_output=True, text=True).stdout.strip())
+    top = subprocess.run(["git", "-C", str(path.parent), "rev-parse", "--show-toplevel"],
+                         check=True, capture_output=True, text=True, errors="replace")
+    root = Path(top.stdout.strip())
     pkg = "./" + path.parent.relative_to(root).as_posix()
     run = subprocess.run(["go", "test", "-count=1", "-run", "^$", pkg], cwd=root,
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                         errors="replace")
     return run.returncode == 0, run.stdout
 
 

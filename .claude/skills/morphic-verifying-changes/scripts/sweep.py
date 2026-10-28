@@ -92,7 +92,7 @@ def report(results, root: Path, out: Path) -> int:
 
 def git(root: Path, *args: str) -> str:
     done = subprocess.run(["git", "-C", str(root), *args], check=True, capture_output=True,
-                          text=True)
+                          text=True, errors="replace")
     return done.stdout.strip()
 
 
@@ -134,7 +134,7 @@ def build_pair(root: Path, sha: str, package: str, out: Path, name: str) -> tupl
 
 def build(src: Path, package: str, dest: Path) -> None:
     subprocess.run(["go", "build", "-o", str(dest), package], cwd=src, check=True,
-                   capture_output=True, text=True)
+                   capture_output=True, text=True, errors="replace")
 
 
 def parse(argv: list[str]) -> argparse.Namespace:
