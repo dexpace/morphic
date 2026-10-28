@@ -2,8 +2,10 @@
 
 Run: python3 -m unittest discover -s .claude/skills/morphic-shipping-prs/scripts
 """
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -88,6 +90,35 @@ class SkillsTest(unittest.TestCase):
             self.assertEqual(pf.skills_lines(Path(".")), [("skills     " + finding, True)])
         with mock.patch.object(pf.skills_lint, "findings", return_value=(1, [])):
             self.assertEqual(pf.skills_lines(Path(".")), [])
+
+
+class RootTest(unittest.TestCase):
+    def test_a_run_from_a_subdirectory_checks_the_whole_tree(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1",
+                   "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                   "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+            git = ["git", "-C", d]
+            subprocess.run(git + ["init", "-q"], check=True, env=env)
+            (root / "pkg").mkdir()
+            (root / "other").mkdir()
+            (root / "other" / "README.md").write_text("x\n")
+            (root / ".gitignore").write_text("body.md\n")
+            (root / "other" / "body.md").write_text("## Summary\n\n## Test plan\n")
+            (root / "pkg" / "a.go").write_text("package pkg\n\nfunc Exported() {}\n")
+            subprocess.run(git + ["add", "-A"], check=True, env=env)
+            subprocess.run(git + ["commit", "-qm", "base"], check=True, env=env)
+            base = subprocess.run(git + ["rev-parse", "HEAD"], check=True, env=env,
+                                  capture_output=True, text=True).stdout.strip()
+            (root / "pkg" / "a.go").write_text("package pkg\n\nfunc Exported(x int) {}\n")
+            subprocess.run(git + ["commit", "-qam", "fix: change it"], check=True, env=env)
+            command = [sys.executable, str(HERE / "preflight.py"), "--base", base,
+                       "--body", "body.md"]
+            run = subprocess.run(command, cwd=root / "other", capture_output=True, text=True,
+                                 env=env)
+        self.assertIn("pkg/a.go: func Exported() {}", run.stdout, run.stdout + run.stderr)
+        self.assertIn("body       has Summary", run.stdout, "a relative --body is read where given")
 
 
 class CrashTest(unittest.TestCase):

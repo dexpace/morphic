@@ -6,7 +6,8 @@ untracked files, the merge with main, the artifact scan, and that every name a s
 
 Usage: python3 preflight.py [--base BASE] [--pr N] [--title TITLE] [--body FILE]
 
-Run it from the repository root. BASE defaults to origin/main. With --pr, the title and body are
+Run it anywhere in the repository: it reads the whole tree from the root. BASE defaults to
+origin/main. With --pr, the title and body are
 the PR's own unless --title or --body gives a draft; without it, the title is measured with the
 number the next issue or PR takes. Prints a line per check, FIX before each that needs fixing.
 Exit 0 when nothing does, 1 when something does, 2 when it cannot run.
@@ -15,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -153,6 +155,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--body")
     args = p.parse_args(sys.argv[1:] if argv is None else argv)
     try:
+        if args.body:
+            args.body = str(Path(args.body).resolve())
+        # git reads pathspecs and untracked files from the working directory, so a run from a
+        # subdirectory would check only that subdirectory and call the rest clean.
+        os.chdir(run("git", "rev-parse", "--show-toplevel").strip())
         lines = report(args)
     except subprocess.CalledProcessError as e:
         print(f"preflight: {' '.join(e.cmd)}: {(e.stderr or '').strip() or e}", file=sys.stderr)
