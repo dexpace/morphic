@@ -70,13 +70,13 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Rule.** Before changing or adding a line a decision may cover, search open and closed issues
   for the file, symbol or construct, and follow the decision or state the departure in code and PR
   body. Search too for each behaviour the PR's tests pin as correct or as a control, and read the
-  normative docs before filing an issue that questions one. A recorded blocking edge must not
-  contradict the reason the item was split out.
+  normative docs before filing an issue questioning one. A recorded blocking edge must not
+  contradict why the item was split out.
 - **Why.** Changes settled questions issues had framed (#404, #379, #158); a pointer a closed issue
   had ruled out was written beside a component (#296, #107); a test pinned as a control what an open
   issue called a defect (#542, #534).
-- **Probe.** `gh issue list --state all --search "<file, symbol or construct>"`; the PR body cites
-  each hit.
+- **Probe.** `gh issue list --state all --limit 1000 --search "<file, symbol or construct>"`; the
+  PR body cites each hit.
 
 ## Commit only the files you meant to
 `commit-only-what-you-meant`

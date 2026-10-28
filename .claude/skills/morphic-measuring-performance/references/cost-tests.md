@@ -125,15 +125,15 @@ gives. A clock does none of that reliably; a counter does.
 - **Probe.** Seed the encoder pool from a probe with fresh and full buffers, and diff `main` against
   the branch.
 
-## Time only the code under test, and measure what the defect moves
+## Measure only the code under test, and the quantity the defect moves
 `perf-guards-measure-the-defect`
 
-- **Rule.** A cost test or benchmark must time only the function under test with inputs built
-  outside the clock, pin the code path when input size is near a path-selecting threshold, and
-  measure the quantity the defect changes (walk steps, not allocations); confirm it reddens on the
-  reverted code.
+- **Rule.** A benchmark times, and a cost test counts, only the function under test, with inputs
+  built outside the measured region; pin the code path when input size is near a path-selecting
+  threshold, and measure the quantity the defect changes (walk steps, not allocations); confirm it
+  reddens on the reverted code.
 - **Why.** An allocation-ratio guard could not see a read-only quadratic walk, a timing test
   measured the parser instead of the walk, and a benchmark crossed the sniff size cap and timed the
   byte scanner (#488).
-- **Probe.** Revert the fix and confirm the guard fails; add a counter or probe inside the timed
-  region to confirm the target function, on the intended path, is what runs.
+- **Probe.** Revert the fix and confirm the guard fails; add a counter or probe inside the
+  measured region to confirm the target function, on the intended path, is what runs.

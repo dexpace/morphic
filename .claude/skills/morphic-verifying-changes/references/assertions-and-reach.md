@@ -172,8 +172,9 @@ it.
 
 - **Rule.** Run a test that depends on timing or goroutine scheduling hundreds of times, through the
   path CI uses, with and without `-race`, before calling it stable, and diagnose without adding
-  output. A timing ratio interleaves its measurements and separates the growth rates well beyond
-  noise. A helper type-checking several packages in one load runs repeatedly under `-race`.
+  output. A cost is pinned by a count, never a timing ratio
+  (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#count-work-not-wall-clock`).
+  A helper type-checking several packages in one load runs repeatedly under `-race`.
 - **Why.** A ratio allowance of 3 against a separation of 2 failed CI on noise, `go/types` raced on
   a shared import in a fraction of runs, and a leak test failing 2 in 1000 runs passed every run
   once a print was added (#494, #560, #535).
