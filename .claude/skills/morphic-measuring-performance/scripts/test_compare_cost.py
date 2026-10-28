@@ -76,6 +76,17 @@ class TableTest(unittest.TestCase):
         self.assertIn("base runs exited differently: [0, 1]", lines)
 
 
+class FailureTest(unittest.TestCase):
+    def run_of(self, status):
+        return {"status": status, "instructions": 1, "cpu": 1.0, "rss": 1, "wall": 1.0}
+
+    def test_a_run_that_fails_is_named_even_when_every_run_fails_alike(self):
+        note = "runs exited [1]: these measure a failure; check ARGS before the ratios"
+        self.assertIn(note, cc.table([self.run_of(1)] * 3, [self.run_of(1)] * 3))
+        self.assertFalse(any("measure a failure" in l
+                             for l in cc.table([self.run_of(0)] * 3, [self.run_of(0)] * 3)))
+
+
 class CrashTest(unittest.TestCase):
     def test_a_missing_tool_exits_2_never_a_verdict(self):
         env = {"PATH": "", "PYTHONDONTWRITEBYTECODE": "1"}

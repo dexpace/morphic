@@ -13,9 +13,10 @@ uncounted run each; stdout is discarded. For the golden spec, pass
 compile "$(python3.14 .claude/skills/morphic-verifying-changes/scripts/golden_spec.py)".
 Instructions retired come from /usr/bin/time -l on macOS and perf stat on Linux; without either,
 the instructions row is left out. Prints each measure's median and range per side, and head's
-median over base's. A side whose runs exit differently from each other, or from the other side,
-is reported, and so is a BASE the working tree's HEAD does not hold, since the difference then
-counts what BASE gained too. It judges nothing: exit 0 when measured, 2 when it cannot run.
+median over base's. A run that exits non-zero is reported, since its cost is a failure's, as for
+ARGS naming no spec; so is a side whose runs exit differently from each other or from the other
+side, and a BASE the working tree's HEAD does not hold, since the difference then counts what BASE
+gained too. It judges nothing: exit 0 when measured, 2 when it cannot run.
 """
 
 import argparse
@@ -108,6 +109,9 @@ def table(base: list[dict], head: list[dict]) -> list[str]:
             out.append(f"{name} runs exited differently: {codes}")
     if {r["status"] for r in base} != {r["status"] for r in head}:
         out.append("base and head exit differently, so they did different work")
+    failed = sorted({r["status"] for r in base + head} - {0})
+    if failed:
+        out.append(f"runs exited {failed}: these measure a failure; check ARGS before the ratios")
     return out
 
 
