@@ -2,10 +2,18 @@
 
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scripts
 """
+import contextlib
+import io
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 import artifact_scan as scan
+
+HERE = Path(__file__).resolve().parent
 
 # Each planted line is split so this file does not match the patterns it tests.
 PLANTED = [
@@ -72,10 +80,48 @@ class ScanTest(unittest.TestCase):
         self.assertEqual(got, [f"commit: abc123: {PLANTED[0]}"])
 
 
+class MainTest(unittest.TestCase):
+    def test_each_outcome_has_its_exit_status(self):
+        env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+        with tempfile.TemporaryDirectory() as d:
+            def commit(message: str) -> str:
+                subprocess.run(["git", "-C", d, "commit", "-q", "--allow-empty", "-m", message],
+                               check=True, env=env)
+                return subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], check=True,
+                                      capture_output=True, text=True).stdout.strip()
+
+            subprocess.run(["git", "-C", d, "init", "-q"], check=True, env=env)
+            base = commit("docs: start")
+            clean = commit("docs: go on")
+            hit = commit("docs: end\n\n" + PLANTED[1])
+            cases = [([base, clean], 0), ([base, hit], 1), ([base, "no-such-ref"], 2)]
+            for argv, want in cases:
+                with self.subTest(argv=argv):
+                    out = io.StringIO()
+                    with contextlib.chdir(d), contextlib.redirect_stdout(out), \
+                            contextlib.redirect_stderr(out):
+                        self.assertEqual(scan.main(argv), want, out.getvalue())
+
+
 class DecodeTest(unittest.TestCase):
     def test_a_diff_that_is_not_utf8_is_read_not_crashed_on(self):
         cut = "import sys; sys.stdout.buffer.write(b'cut \\xe2\\x82 rune\\n')"
         self.assertEqual(scan.run(sys.executable, "-c", cut), "cut \ufffd rune\n")
+
+
+class UnexpectedErrorTest(unittest.TestCase):
+    def test_an_unexpected_error_exits_2_never_a_verdict(self):
+        # Every command the script runs fails in a way no handler of its own expects.
+        crash = ("import runpy, subprocess, sys\n"
+                 "def broken(*args, **kwargs): raise ZeroDivisionError('planted')\n"
+                 "subprocess.run = broken\n"
+                 f"sys.argv = [{str(HERE / 'artifact_scan.py')!r}]\n"
+                 "runpy.run_path(sys.argv[0], run_name='__main__')\n")
+        run = subprocess.run([sys.executable, "-c", crash], capture_output=True, text=True,
+                             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(run.returncode, 2, run.stderr)
+        self.assertIn("ZeroDivisionError: planted", run.stderr)
 
 
 if __name__ == "__main__":

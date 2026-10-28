@@ -95,6 +95,8 @@ class VerdictTest(unittest.TestCase):
             (1, "exit status 3\n", mutate.UNVERIFIED),
             (0, "...\nRan 3 tests in 0.1s\n\nOK\n", mutate.SURVIVED),
             (0, "\nRan 0 tests in 0.000s\n\nOK\n", mutate.UNVERIFIED),
+            # A run that exits 0 without unittest's OK, as one cut short behind a pipe.
+            (0, "\nRan 2 tests in 0.1s\n", mutate.UNVERIFIED),
             (0, "\nRan 0 tests in 0.0s\n\nOK\n\nRan 2 tests in 0.1s\n\nOK\n", mutate.SURVIVED),
             (0, "\nRan 2 tests in 0.1s\n\nOK\n\nRan 0 tests in 0.0s\n\nOK\n", mutate.SURVIVED),
             (5, "\nRan 0 tests in 0.000s\n\nNO TESTS RAN\n", mutate.UNVERIFIED),
@@ -260,6 +262,56 @@ class MutateTest(unittest.TestCase):
         self.assertEqual(code, mutate.UNVERIFIED)
         self.assertEqual(self.file.read_text(), "keep good keep\n")
 
+    def test_a_missing_file_or_batch_is_a_usage_error(self):
+        for argv in (["/no/such/file", "good", "bad", "--", "true"],
+                     ["--batch", "/no/such/batch", "--", "true"]):
+            with self.subTest(argv=argv):
+                self.assertEqual(quietly(mutate.main, argv)[0], mutate.UNVERIFIED)
+
+    def test_a_go_mutant_that_does_not_build_is_no_verdict(self):
+        repo = Path(self.dir.name) / "repo"
+        target = repo / "pkg" / "x.go"
+        target.parent.mkdir(parents=True)
+        target.write_text("package pkg\n\nconst X = 1\n")
+        subprocess.run(["git", "-C", str(repo), "init", "-q"], check=True)
+        # A go whose build of the package fails, and a test command that passes whatever the
+        # file holds, as one testing another package does.
+        go = Path(self.dir.name) / "bin" / "go"
+        go.parent.mkdir()
+        go.write_text("#!/bin/sh\necho '# x/pkg'\necho 'pkg/x.go:3:11: undefined: y'\nexit 1\n")
+        go.chmod(0o755)
+        passing = [sys.executable, "-c", "print('ok  \\tother/pkg\\t0.1s')"]
+        with mock.patch.dict(os.environ, {"PATH": f"{go.parent}{os.pathsep}{os.environ['PATH']}"}):
+            code, printed = quietly(mutate.main, [str(target), "X = 1", "X = y", "--", *passing])
+        self.assertEqual(code, mutate.UNVERIFIED, printed)
+        self.assertIn("does not build or vet", printed)
+        self.assertEqual(target.read_text(), "package pkg\n\nconst X = 1\n")
+
+    def test_an_interrupted_run_restores_the_file_and_gives_no_verdict(self):
+        # The clean tree passes at once, so a batch's baseline is done before the mutant hangs.
+        hang = ("import sys, time; t = open(sys.argv[1]).read()\n"
+                "time.sleep(30) if 'bad' in t else print('ok  \\tfake/pkg\\t0.1s')")
+        batch = Path(self.dir.name) / "one.jsonl"
+        batch.write_text(json.dumps({"file": str(self.file), "old": "good", "new": "bad"}))
+        for args in ([str(self.file), "good", "bad"], ["--batch", str(batch)]):
+            with self.subTest(mode=args[0]):
+                # SIGINT at its default, so Python turns it into KeyboardInterrupt.
+                proc = subprocess.Popen(
+                    [sys.executable, str(HERE / "mutate.py"), *args, "--", sys.executable, "-c",
+                     hang, str(self.file)], env=self.env, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, text=True,
+                    preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+                for _ in range(100):
+                    if "bad" in self.file.read_text():
+                        break
+                    time.sleep(0.05)
+                self.assertIn("bad", self.file.read_text(), "the mutant was never planted")
+                proc.send_signal(signal.SIGINT)
+                out = proc.communicate(timeout=10)[0]
+                self.assertEqual(proc.returncode, mutate.UNVERIFIED, out)
+                self.assertIn("mutate: interrupted;", out)
+                self.assertEqual(self.file.read_text(), "keep good keep\n")
+
     def test_a_command_that_cannot_start_is_no_verdict(self):
         command = [sys.executable, str(HERE / "mutate.py"), str(self.file), "good", "bad", "--",
                    "/no/such/command"]
@@ -359,6 +411,14 @@ class BatchTest(unittest.TestCase):
         self.assertEqual(copy_named(out).read_bytes(), original)
         self.assertEqual(self.marker.read_text(), "xx",
                          "a mutant ran on a tree still holding the one before it")
+
+    def test_a_mutant_without_a_verdict_says_why(self):
+        target = Path(self.dir.name) / "planted.py"
+        target.write_text("X = 1\n")
+        unparsed = {"file": str(target), "old": "X = 1", "new": "X = (", "name": "unparsed"}
+        code, out = self.run_batch(self.mutant("good", "bad"), unparsed)
+        self.assertEqual(code, mutate.UNVERIFIED, out)
+        self.assertIn("UNVERIFIED unparsed: the mutant is not Python", out)
 
     def test_one_survivor_makes_the_batch_survive(self):
         code, out = self.run_batch(self.mutant("good", "bad"), self.mutant("more", "less", "x"))

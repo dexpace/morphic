@@ -4,6 +4,7 @@ Run: python3.14 -m unittest discover -s .claude/skills/morphic-shipping-prs/scri
 """
 import argparse
 import contextlib
+import io
 import json
 import os
 import subprocess
@@ -16,6 +17,17 @@ from unittest import mock
 import preflight as pf
 
 HERE = Path(__file__).resolve().parent
+ENV = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+       "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
+
+
+def commit_file(d: str, name: str, text: str, message: str) -> str:
+    """Write name in the repository at d, commit it with message, and return the commit."""
+    (Path(d) / name).write_text(text)
+    subprocess.run(["git", "-C", d, "add", name], check=True, env=ENV)
+    subprocess.run(["git", "-C", d, "commit", "-q", "-m", message], check=True, env=ENV)
+    return subprocess.run(["git", "-C", d, "rev-parse", "HEAD"], check=True, env=ENV,
+                          capture_output=True, text=True).stdout.strip()
 
 
 class SubjectTest(unittest.TestCase):
@@ -159,6 +171,73 @@ class PrHeadTest(unittest.TestCase):
         self.assertIn(want, lines)
 
 
+class MergeTest(unittest.TestCase):
+    def test_only_a_base_that_conflicts_is_a_fix(self):
+        with tempfile.TemporaryDirectory() as d:
+            git = ["git", "-C", d]
+            subprocess.run(git + ["init", "-q"], check=True, env=ENV)
+            root = commit_file(d, "a.txt", "a\n", "root")
+            subprocess.run(git + ["checkout", "-q", "-b", "clean"], check=True, env=ENV)
+            clean = commit_file(d, "b.txt", "b\n", "beside")
+            subprocess.run(git + ["checkout", "-q", "-b", "clash", root], check=True, env=ENV)
+            clash = commit_file(d, "a.txt", "other\n", "against")
+            subprocess.run(git + ["checkout", "-q", "-b", "head", root], check=True, env=ENV)
+            commit_file(d, "a.txt", "head\n", "head")
+            cases = [(root, "holds", False), (clean, "merges", False), (clash, "CONFLICTS", True)]
+            with contextlib.chdir(d):
+                for base, word, fix in cases:
+                    with self.subTest(word=word):
+                        line, got = pf.merge_line(base)
+                        self.assertEqual(line.split()[1], word, line)
+                        self.assertEqual(got, fix, line)
+
+
+class ArtifactTest(unittest.TestCase):
+    def test_an_artifact_in_an_added_line_or_a_commit_message_is_a_fix(self):
+        # Split so this file does not match the patterns preflight scans for.
+        path, attribution = "see /U" "sers/someone", "Gene" "rated with a tool"
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "-C", d, "init", "-q"], check=True, env=ENV)
+            base = commit_file(d, "a.txt", "a\n", "docs: start")
+            commit_file(d, "x.md", path + "\n", "docs: add x\n\n" + attribution)
+            args = argparse.Namespace(base=base, pr=None, title=None, body=None)
+            with contextlib.chdir(d):
+                lines = pf.report(args)
+        found = [(line.split(": ", 2), fix) for line, fix in lines if line.startswith("artifact")]
+        self.assertEqual([(where[0], where[-1], fix) for where, fix in found],
+                         [("artifact   added line", path, True),
+                          ("artifact   commit", attribution, True)], lines)
+
+
+class MainTest(unittest.TestCase):
+    def test_a_clean_branch_exits_0_and_a_failed_git_command_2(self):
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "-C", d, "init", "-q"], check=True, env=ENV)
+            base = commit_file(d, "a.txt", "a\n", "docs: start")
+            commit_file(d, "b.txt", "b\n", "docs: add b")
+            for argv, want in ((["--base", base], 0), (["--base", "no-such-ref"], 2)):
+                with self.subTest(argv=argv):
+                    out = io.StringIO()
+                    with contextlib.chdir(d), contextlib.redirect_stdout(out), \
+                            contextlib.redirect_stderr(out):
+                        self.assertEqual(pf.main(argv), want, out.getvalue())
+                    self.assertEqual("preflight: clean" in out.getvalue(), want == 0)
+
+    def test_a_draft_title_is_measured_with_the_next_number(self):
+        with tempfile.TemporaryDirectory() as d:
+            subprocess.run(["git", "-C", d, "init", "-q"], check=True, env=ENV)
+            base = commit_file(d, "a.txt", "a\n", "docs: start")
+            real = pf.run
+
+            def answer(*command: str) -> str:
+                return "1200\n" if command[0] == "gh" else real(*command)
+
+            args = argparse.Namespace(base=base, pr=None, title="fix: x", body=None)
+            with contextlib.chdir(d), mock.patch.object(pf, "run", side_effect=answer):
+                lines = pf.report(args)
+        self.assertIn((f'{pf.INDENT}14 characters with " (#1201)", cap 72', False), lines)
+
+
 class RootTest(unittest.TestCase):
     def test_a_run_from_a_subdirectory_checks_the_whole_tree(self):
         with tempfile.TemporaryDirectory() as d:
@@ -204,6 +283,20 @@ class CrashTest(unittest.TestCase):
                              text=True, env=env)
         self.assertEqual(run.returncode, 2, run.stderr)
         self.assertEqual(run.stdout, "")
+
+
+class UnexpectedErrorTest(unittest.TestCase):
+    def test_an_unexpected_error_exits_2_never_a_verdict(self):
+        # Every command the script runs fails in a way no handler of its own expects.
+        crash = ("import runpy, subprocess, sys\n"
+                 "def broken(*args, **kwargs): raise ZeroDivisionError('planted')\n"
+                 "subprocess.run = broken\n"
+                 f"sys.argv = [{str(HERE / 'preflight.py')!r}]\n"
+                 "runpy.run_path(sys.argv[0], run_name='__main__')\n")
+        run = subprocess.run([sys.executable, "-c", crash], capture_output=True, text=True,
+                             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(run.returncode, 2, run.stderr)
+        self.assertIn("ZeroDivisionError: planted", run.stderr)
 
 
 if __name__ == "__main__":
