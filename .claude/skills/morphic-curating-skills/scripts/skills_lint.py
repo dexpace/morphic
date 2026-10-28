@@ -57,6 +57,9 @@ LINK_TARGET = re.compile(r"\]\([^)]*\)")
 TEST = re.compile(r"(?:^|[^A-Za-z0-9_])(Test[A-Z][A-Za-z0-9_]*)")
 SECTION = re.compile(r"(ir-design|emitter-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
 KEY = re.compile(r"(parser-library|compilers/openapi)\.md#([a-z0-9-]+)")
+# A fenced block's opening or closing line, as CommonMark reads one: three or more backticks or
+# tildes, indented by at most three spaces.
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 # A skill's name, as the Agent Skills specification gives it: 1 to MAX_NAME_CHARS lowercase
 # letters and digits, joined by single hyphens.
 NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -258,11 +261,14 @@ class Linter:
         """Report a code span a line break splits, once, at its first line: the checks read one
         line at a time, so a split span escapes them, and later backticks on its line pair
         wrongly."""
-        fenced, inside = False, False
+        fence, inside = "", False
         for i, line in enumerate(f.read_text().split("\n"), 1):
-            if line.startswith("```"):
-                fenced = not fenced
-            elif not fenced and line.count("`") % 2:
+            m = FENCE.match(line)
+            if m and not fence:
+                fence = m.group(1)
+            elif m and m.group(1)[0] == fence[0] and len(m.group(1)) >= len(fence):
+                fence = ""  # only a run of the opening character, as long or longer, closes it
+            elif not fence and line.count("`") % 2:
                 if not inside:
                     self.report(f, i, "a code span breaks onto the next line")
                 inside = not inside

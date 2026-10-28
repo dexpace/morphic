@@ -125,8 +125,11 @@ class LintTest(unittest.TestCase):
 
     def test_a_code_span_broken_across_lines_is_reported_once(self):
         skill = ".claude/skills/good-skill/SKILL.md"
-        write(self.root, skill,
-              GOOD_SKILL + "Run `go vet\n--all` there.\n\n```markdown\n`odd\n```\n")
+        # Each fence holds an odd backtick: tildes around backticks, an indented fence, and a
+        # longer fence around a shorter one.
+        fences = ("```markdown\n`odd\n```\n\n~~~\n```\n`odd\n~~~\n\n   ```\n`odd\n   ```\n\n"
+                  "````\n```\n`odd\n````\n")
+        write(self.root, skill, GOOD_SKILL + "Run `go vet\n--all` there.\n\n" + fences)
         line = GOOD_SKILL.count("\n") + 1
         self.assertEqual(self.lint()[1], [f"{skill}:{line}: a code span breaks onto the next line"])
 
