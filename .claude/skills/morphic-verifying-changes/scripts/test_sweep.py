@@ -104,12 +104,14 @@ class SweepTest(unittest.TestCase):
         self.assertIn("/runs/<n>/head.ir, and the .diag pair", text)
         rows = (self.root / "out" / "results.tsv").read_text().splitlines()
         self.assertEqual(rows[0], "n\tbase\thead\tdiffers\tspec")
-        table = {row.split("\t")[4]: row.split("\t")[1:4] for row in rows[1:]}
-        self.assertEqual(table, {"corpus/changed.yaml": ["0", "0", "ir"],
-                                 "corpus/diag.yaml": ["0", "0", "diagnostics"],
-                                 "corpus/error.yaml": ["1", "1", "-"],
-                                 "corpus/exits.yaml": ["0", "1", "exit(0->1)"],
-                                 "corpus/same.yaml": ["0", "0", "-"]})
+        # Keyed by name: a temporary directory reached through a symlink, as /tmp is on macOS,
+        # holds specs whose resolved paths the table writes whole.
+        table = {Path(row.split("\t")[4]).name: row.split("\t")[1:4] for row in rows[1:]}
+        self.assertEqual(table, {"changed.yaml": ["0", "0", "ir"],
+                                 "diag.yaml": ["0", "0", "diagnostics"],
+                                 "error.yaml": ["1", "1", "-"],
+                                 "exits.yaml": ["0", "1", "exit(0->1)"],
+                                 "same.yaml": ["0", "0", "-"]})
 
     def test_identical_builds_report_nothing_and_still_print_what_ran(self):
         self.bins["head"] = self.bins["base"]
