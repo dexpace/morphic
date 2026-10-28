@@ -66,7 +66,8 @@ how to measure so the number means what the claim says.
 - **Rule.** When a change makes a failing resolution succeed, the work `main` skipped by failing is
   now paid: time growing counts of references into one wide mapping against `main`, then the same
   keys split into narrow mappings. To profile, use a throwaway `main` package with
-  `GOMAXPROCS=1`, since the library's goroutine per key scatters a multi-threaded profile.
+  `GOMAXPROCS=1`, since decoding's goroutine per node (`docs/parser-library.md#goroutine-per-node`)
+  scatters a multi-threaded profile.
 - **Why.** Chains through another document were quadratic in one wide mapping, while `main` failed
   each after the first and paid nothing (#763, #773).
 - **Probe.** Time each layout at n, 2n and 4n; superlinear growth in the wide one alone names the
