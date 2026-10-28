@@ -6,12 +6,15 @@ import contextlib
 import io
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest import mock
 
 import skills_lint
+
+HERE = Path(__file__).resolve().parent
 
 # A script's first line and the script block it declares Python 3.14 in, written out rather than
 # read from the lint.
@@ -28,6 +31,7 @@ Run `go test ./ir/... $(python3.14 scripts/tool.py)` or `go run ./cmd/morphic-ha
 and `gh api repos/{owner}/{repo}`, by `references/r.md#do-the-thing` and
 `.claude/skills/good-skill/references/r.md#do-the-thing`; see `references/<file>.md#<key>`.
 Name `tool.py`, `a.go` and `SKILL.md` alone, and a suffix such as `_test.go`.
+Links to [a site](https://example.com/a/b) and [mail](mailto:x@example.com) leave the tree.
 """
 RULE = ("## Do the thing\n`do-the-thing`\n\n- **Rule.** Do it, as `ir/a.go` and TestKnown do.\n"
         "- **Why.** It broke\n  once (#1).\n- **Probe.** ir-design §4.3.\n")
@@ -48,6 +52,20 @@ def script(root: Path, rel: str, text: str) -> Path:
     return p
 
 
+def fixture(root: Path) -> None:
+    """Write a tree holding one clean skill and everything it names."""
+    write(root, "docs/parser-library.md", "### `known`\n")
+    write(root, "docs/ir-design.md", "## 4. Types\n\n### 4.3 Unions\n")
+    write(root, "ir/a.go", "package ir\n")
+    write(root, "cmd/morphic-harness/main.go", "package main\n")
+    skill = ".claude/skills/good-skill/"
+    write(root, skill + "SKILL.md", GOOD_SKILL)
+    write(root, skill + "references/r.md", GOOD_REFERENCE)
+    script(root, skill + "scripts/tool.py", HEADER + "import json\n")
+    write(root, skill + "scripts/test_tool.py", "import unittest\nimport tool\n")
+    write(root, skill + "scripts/__pycache__/tool.cpython-314.pyc", "")
+
+
 class LintTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -55,15 +73,7 @@ class LintTest(unittest.TestCase):
         self.root = Path(self.dir.name) / "repo"
         # Files on disk that git ignores, which the tree a clone holds leaves out.
         self.ignored: set[str] = set()
-        write(self.root, "docs/parser-library.md", "### `known`\n")
-        write(self.root, "docs/ir-design.md", "## 4. Types\n\n### 4.3 Unions\n")
-        write(self.root, "ir/a.go", "package ir\n")
-        write(self.root, "cmd/morphic-harness/main.go", "package main\n")
-        skill = ".claude/skills/good-skill/"
-        write(self.root, skill + "SKILL.md", GOOD_SKILL)
-        write(self.root, skill + "references/r.md", GOOD_REFERENCE)
-        script(self.root, skill + "scripts/tool.py", HEADER + "import json\n")
-        write(self.root, skill + "scripts/test_tool.py", "import unittest\nimport tool\n")
+        fixture(self.root)
 
     def tearDown(self):
         self.dir.cleanup()
@@ -77,6 +87,15 @@ class LintTest(unittest.TestCase):
 
     def test_a_clean_skill_has_no_finding(self):
         self.assertEqual(self.lint(), (1, []))
+
+    def test_a_skill_without_its_file_or_whole_frontmatter_is_reported(self):
+        (self.root / ".claude" / "skills" / "no-file").mkdir()
+        write(self.root, ".claude/skills/no-open/SKILL.md", "name: no-open\n")
+        write(self.root, ".claude/skills/no-close/SKILL.md", "---\nname: no-close\n")
+        want = [".claude/skills/no-file: no SKILL.md",
+                ".claude/skills/no-open/SKILL.md:1: frontmatter must open with ---",
+                ".claude/skills/no-close/SKILL.md:1: frontmatter never closes"]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
     def test_each_planted_problem_is_reported(self):
         skill = ".claude/skills/Bad_Skill/"
@@ -385,17 +404,64 @@ class LoadTreeTest(unittest.TestCase):
             subprocess.run(git + ["init", "-q"], check=True, env=env)
             write(root, "ir/a_test.go", "package ir\n\nfunc TestA_B(t *testing.T) {}\n")
             write(root, "ir/gone.go", "package ir\n")
+            # Names git would quote and escape, as it does one holding a non-ASCII letter.
+            write(root, "données/b_test.go", "package d\n\nfunc TestB(t *testing.T) {}\n")
             write(root, ".gitignore", "out/\n")
             subprocess.run(git + ["add", "-A"], check=True, env=env)
             subprocess.run(git + ["commit", "-qm", "x"], check=True, env=env)
             write(root, "scripts/new.py", "")
+            write(root, "notes/café.md", "")
             write(root, "out/built.txt", "")
             (root / "ir" / "gone.go").unlink()
             top_level, tests, known = skills_lint.load_tree(root)
-        self.assertEqual(top_level, {".claude", ".gitignore", "ir"})
-        self.assertEqual(tests, {"TestA", "TestA_B"})
-        self.assertEqual(known, {".gitignore", "ir/a_test.go", "scripts/new.py"},
+        self.assertEqual(top_level, {".claude", ".gitignore", "ir", "données"})
+        self.assertEqual(tests, {"TestA", "TestA_B", "TestB"})
+        self.assertEqual(known, {".gitignore", "ir/a_test.go", "données/b_test.go",
+                                 "scripts/new.py", "notes/café.md"},
                          "untracked files count, and ignored or deleted ones do not")
+
+
+class MainTest(unittest.TestCase):
+    def run_lint(self, cwd: Path) -> tuple[int, str]:
+        out = io.StringIO()
+        with contextlib.chdir(cwd), contextlib.redirect_stdout(out), \
+                contextlib.redirect_stderr(out):
+            return skills_lint.main([]), out.getvalue()
+
+    def test_each_outcome_has_its_exit_status(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "repo"
+            fixture(root)
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            self.assertEqual(self.run_lint(root)[0], 2, "a tree declaring no test")
+            write(root, "ir/a_test.go", "package ir\n\nfunc TestKnown_Case(t *testing.T) {}\n")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            code, out = self.run_lint(root)
+            self.assertEqual((code, out), (0, "skills_lint: clean (1 skills)\n"))
+            # Seen only in the skill files the lint lists from git, not by any rule check.
+            skill = root / ".claude/skills/good-skill/SKILL.md"
+            skill.write_text(skill.read_text() + "Kept at /U" "sers/someone.\n")
+            code, out = self.run_lint(root)
+            self.assertEqual(code, 1, out)
+            self.assertIn("names one machine or a memory link", out)
+            outside = Path(d) / "outside"
+            outside.mkdir()
+            self.assertEqual(self.run_lint(outside)[0], 2, "a directory outside any repository")
+
+
+class UnexpectedErrorTest(unittest.TestCase):
+    def test_an_unexpected_error_exits_2_never_a_verdict(self):
+        # Every command the script runs fails in a way no handler of its own expects.
+        crash = ("import runpy, subprocess, sys\n"
+                 "def broken(*args, **kwargs): raise ZeroDivisionError('planted')\n"
+                 "subprocess.run = broken\n"
+                 f"sys.argv = [{str(HERE / 'skills_lint.py')!r}]\n"
+                 "runpy.run_path(sys.argv[0], run_name='__main__')\n")
+        run = subprocess.run([sys.executable, "-c", crash], capture_output=True, text=True,
+                             env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"})
+        self.assertEqual(run.returncode, 2, run.stderr)
+        self.assertIn("ZeroDivisionError: planted", run.stderr)
 
 
 if __name__ == "__main__":

@@ -103,12 +103,18 @@ def git(root: Path, *args: str) -> str:
     return done.stdout
 
 
+def listing(root: Path, *args: str) -> list[str]:
+    """Return the paths git ls-files lists, each as it is on disk: without -z, git quotes and
+    escapes a name holding a non-ASCII letter."""
+    return [f for f in git(root, "ls-files", "-z", *args).split("\0") if f]
+
+
 def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
     """Return the first segment of every tracked path, every declared Go test name with each
     family prefix of it, as TestA_B declares TestA, and the path of every file the tree holds:
     each one git lists, untracked ones included and ignored ones not, that is on disk."""
     top_level, tests = {".claude"}, set()
-    for f in git(root, "ls-files").splitlines():
+    for f in listing(root):
         top_level.add(f.split("/", 1)[0])
         if f.endswith("_test.go") and (root / f).is_file():
             for name in TEST_DECL.findall((root / f).read_text(errors="replace")):
@@ -116,8 +122,8 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
                 tests.update("_".join(parts[:i]) for i in range(1, len(parts) + 1))
     if not tests:
         raise RuntimeError("found no declared test, so a test name cannot be checked")
-    listed = git(root, "ls-files", "--cached", "--others", "--exclude-standard")
-    return top_level, tests, {f for f in listed.splitlines() if (root / f).is_file()}
+    listed = listing(root, "--cached", "--others", "--exclude-standard")
+    return top_level, tests, {f for f in listed if (root / f).is_file()}
 
 
 def names_a_path(tok: str) -> bool:
