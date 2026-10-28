@@ -3,6 +3,7 @@
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-changing-the-ir/scripts
 """
 import io
+import json
 import os
 import subprocess
 import sys
@@ -67,6 +68,21 @@ class RemoteTest(unittest.TestCase):
             self.assertEqual(ip.main(), 2)
         self.assertEqual(point.call_args.args[1], "upstream")
         peers.assert_not_called()
+
+
+class PeersTest(unittest.TestCase):
+    def test_more_open_prs_than_it_reads_is_refused_and_as_many_are_read(self):
+        def listing(n):
+            prs = [{"number": i, "title": "t", "headRefOid": "0"} for i in range(n)]
+            return subprocess.CompletedProcess([], 0, json.dumps(prs), "")
+
+        with mock.patch.object(ip.subprocess, "run", return_value=listing(ip.MAX_PRS + 1)):
+            with self.assertRaises(RuntimeError):
+                ip.peers_of(HERE, "origin", "ir/document.go", "origin/main")
+        # At the cap every head reads as held by this tree, so each is left out, none refused.
+        with mock.patch.object(ip.subprocess, "run", return_value=listing(ip.MAX_PRS)) as run:
+            self.assertEqual(ip.peers_of(HERE, "origin", "ir/document.go", "origin/main"), [])
+        self.assertIn(str(ip.MAX_PRS + 1), run.call_args_list[0].args[0])
 
 
 class CrashTest(unittest.TestCase):

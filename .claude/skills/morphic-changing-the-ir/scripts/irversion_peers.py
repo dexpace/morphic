@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "morphic-reviewing-
 from review_setup import point_gh_at  # noqa: E402  (a script of the review skill)
 
 DECLARED = re.compile(r'^const IRVersion = "([^"]+)"', re.M)
+MAX_PRS = 200  # open PRs read; more is refused, since a collision past them would go unseen
 
 
 def git(root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess:
@@ -81,11 +82,14 @@ def judge(main: str, tree: str, peers: list[Peer]) -> tuple[list[str], bool]:
 
 def peers_of(root: Path, remote: str, path: str, base: str) -> list[Peer]:
     """Return a Peer for each open PR whose head the working tree lacks and declares a version."""
-    listing = subprocess.run(["gh", "pr", "list", "--state", "open", "--limit", "200", "--json",
-                              "number,title,headRefOid"], check=True, capture_output=True,
-                             text=True, errors="replace", cwd=root).stdout
+    listing = subprocess.run(["gh", "pr", "list", "--state", "open", "--limit", str(MAX_PRS + 1),
+                              "--json", "number,title,headRefOid"], check=True,
+                             capture_output=True, text=True, errors="replace", cwd=root).stdout
+    prs = json.loads(listing)
+    if len(prs) > MAX_PRS:
+        raise RuntimeError(f"more than {MAX_PRS} open PRs; raise MAX_PRS to read them all")
     out = []
-    for pr in json.loads(listing):
+    for pr in prs:
         sha = pr["headRefOid"]
         if git(root, "cat-file", "-e", f"{sha}^{{commit}}", check=False).returncode != 0:
             git(root, "fetch", "-q", remote, f"pull/{pr['number']}/head")
