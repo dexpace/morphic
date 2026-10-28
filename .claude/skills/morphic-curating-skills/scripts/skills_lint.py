@@ -86,6 +86,7 @@ NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|://|[\[<>{}]")
 # The first segments of what a span names outside the tree. Any other first segment is held to
 # the tree, so a misspelt or renamed directory is reported rather than passed.
 ELSEWHERE = {
+    ".git": "git's own files, which no listing holds and a worktree keeps elsewhere",
     "origin": "a remote's branch",
     "go": "a Go package",
     "golang.org": "a Go module",

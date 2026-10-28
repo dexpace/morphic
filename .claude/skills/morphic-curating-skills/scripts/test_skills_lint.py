@@ -136,7 +136,7 @@ class LintTest(unittest.TestCase):
         elsewhere = ("`/components/schemas`, `-o=/dev/null`, `:(exclude)*/x.go`, `+(a/b)`, "
                      "`[[:alnum:]]/x`, `http://h/x`, `<owner>/<repo>`, `origin/main`, "
                      "`go/types`, `runtime/metrics`, `golang.org/x/exp`, `openapi/cyclic-ref`, "
-                     "`_test.go`, `./...`.\n")
+                     "`.git/info/exclude`, `_test.go`, `./...`.\n")
         # A misspelt or renamed first segment is held in a span and in a command, never in
         # prose, where words join with a slash.
         held = "See `gone/a.go`, `./gone/b` and `go test ./gone/...`, but prose gone/c.go.\n"
