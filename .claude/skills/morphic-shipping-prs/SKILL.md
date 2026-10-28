@@ -18,7 +18,7 @@ rewritten once pushed.
 - `git status --untracked-files=all` lists only what you meant to add
   (`references/commits-and-prs.md#commit-only-what-you-meant`).
 - A removed or changed exported identifier outside `internal/` and `main` packages, or a method
-  added to an exported interface, makes the change breaking
+  added to an exported interface with no unexported method, makes the change breaking
   (`references/commits-and-prs.md#exported-api-change-needs-bang`).
 
 ## Before each push
