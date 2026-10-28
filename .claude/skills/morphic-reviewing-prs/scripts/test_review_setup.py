@@ -2,9 +2,11 @@
 
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scripts
 """
+import io
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
 from unittest import mock
 
@@ -59,6 +61,34 @@ class BodyTest(unittest.TestCase):
             with self.subTest(title=title):
                 self.assertIn(want, rs.body_report(body, title))
         self.assertEqual(len(rs.body_report(both, "fix: x")), 2, "no break, no Breaking line")
+
+
+class RemoteTest(unittest.TestCase):
+    def test_gh_reads_the_repository_the_remote_names(self):
+        cases = {"https://github.com/o/r.git": "github.com/o/r",
+                 "git@github.com:o/r.git": "github.com/o/r",
+                 "ssh://git@ghe.example.com/team/repo": "ghe.example.com/team/repo",
+                 "https://user:token@github.com/o/r/": "github.com/o/r"}
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            rs.git(root, "init", "-q")
+            rs.git(root, "remote", "add", "x", "/nowhere")
+            for url, want in cases.items():
+                with self.subTest(url=url), mock.patch.dict(os.environ):
+                    rs.git(root, "remote", "set-url", "x", url)
+                    rs.point_gh_at(root, "x")
+                    self.assertEqual(os.environ["GH_REPO"], want)
+            rs.git(root, "remote", "set-url", "x", d)
+            with mock.patch.dict(os.environ), self.assertRaises(RuntimeError):
+                rs.point_gh_at(root, "x")
+
+    def test_main_points_gh_at_the_remote_before_any_call(self):
+        with mock.patch.dict(os.environ, {"REMOTE": "upstream"}), \
+                mock.patch.object(rs, "point_gh_at", side_effect=RuntimeError("stop")) as point, \
+                mock.patch.object(rs, "report") as report, redirect_stderr(io.StringIO()):
+            self.assertEqual(rs.main(["1143"]), 2)
+        self.assertEqual(point.call_args.args[1], "upstream")
+        report.assert_not_called()
 
 
 class SkillsTest(unittest.TestCase):

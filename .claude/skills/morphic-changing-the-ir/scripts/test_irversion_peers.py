@@ -2,10 +2,14 @@
 
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-changing-the-ir/scripts
 """
+import io
+import os
 import subprocess
 import sys
 import unittest
+from contextlib import redirect_stderr
 from pathlib import Path
+from unittest import mock
 
 import irversion_peers as ip
 
@@ -53,6 +57,16 @@ class JudgeTest(unittest.TestCase):
 
     def test_a_claim_ahead_of_main_with_no_peer_is_clean(self):
         self.assertFalse(ip.judge("0.9.0", "0.10.0", [(7, "a", "0.11.0", "0.9.0")])[1])
+
+
+class RemoteTest(unittest.TestCase):
+    def test_gh_is_pointed_at_the_remote_before_any_call(self):
+        with mock.patch.dict(os.environ, {"REMOTE": "upstream"}), \
+                mock.patch.object(ip, "point_gh_at", side_effect=RuntimeError("stop")) as point, \
+                mock.patch.object(ip, "peers_of") as peers, redirect_stderr(io.StringIO()):
+            self.assertEqual(ip.main(), 2)
+        self.assertEqual(point.call_args.args[1], "upstream")
+        peers.assert_not_called()
 
 
 class CrashTest(unittest.TestCase):

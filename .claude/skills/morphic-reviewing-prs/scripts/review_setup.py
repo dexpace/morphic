@@ -13,7 +13,8 @@ The worktree holds the head merged into main when the two merge cleanly, the hea
 already contains main, and the head alone, reported, when it conflicts. DIR defaults to
 <temp dir>/morphic-review-<PR>. An existing clean worktree there is moved to the new commit; one
 with local changes is left alone. Set REMOTE when the repository the PR belongs to is not origin,
-as in a clone of a fork. Exit 0 when set up, 2 when it cannot be.
+as in a clone of a fork. Every gh call reads the repository of the remote it fetches from, not one
+gh picks by its own rules. Exit 0 when set up, 2 when it cannot be.
 """
 
 import json
@@ -51,6 +52,8 @@ DOMAINS = [
      "morphic-changing-the-ir"),
     (re.compile(r"^\.claude/skills/"), "morphic-curating-skills"),
 ]
+# A remote's URL as host, owner and repository: https://host/o/r, git@host:o/r or ssh://host/o/r.
+REMOTE_URL = re.compile(r"^(?:[a-z+]+://)?(?:[^@/]+@)?([^/:]+)[:/]([^/]+)/([^/]+?)(?:\.git)?/?$")
 # A title of this type makes a cost claim, which the performance skill measures.
 PERF_TITLE = re.compile(r"^perf(\([^)]+\))?!?:")
 
@@ -118,6 +121,17 @@ def run(*args: str, check: bool = True, env: dict | None = None) -> subprocess.C
 def git(root: Path, *args: str, check: bool = True,
         env: dict | None = None) -> subprocess.CompletedProcess:
     return run("git", "-C", str(root), *args, check=check, env=env)
+
+
+def point_gh_at(root: Path, remote: str) -> None:
+    """Point every gh call this process and its children make at the repository remote names,
+    which gh would otherwise choose by its own rules, so the PR a script reads is the one it
+    fetched."""
+    url = git(root, "remote", "get-url", remote).stdout.strip()
+    m = REMOTE_URL.match(url)
+    if not m:
+        raise RuntimeError(f"{remote} ({url}) names no GitHub repository")
+    os.environ["GH_REPO"] = "/".join(m.groups())
 
 
 def checkout(root: Path, directory: Path, head: str) -> None:
@@ -210,6 +224,7 @@ def main(argv: list[str] | None = None) -> int:
         default = Path(tempfile.gettempdir()) / f"morphic-review-{number}"
         directory = Path(args[1] if len(args) > 1 else default).resolve()
         remote = os.environ.get("REMOTE", "origin")
+        point_gh_at(root, remote)
         lines, mb, head = report(root, number, directory, remote)
     except subprocess.CalledProcessError as e:
         print(f"review_setup: {' '.join(e.cmd)}: {e.stderr.strip()}", file=sys.stderr)

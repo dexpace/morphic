@@ -7,12 +7,12 @@ working tree's claim collides with one or trails main.
 
 Usage: python3.14 irversion_peers.py
 
-Reads ir.IRVersion from main, from the working tree, and from the head of each open PR, fetched
-from origin unless REMOTE names another remote. A PR whose head the working tree already holds is
-taken for this branch's own and left out, and so is one whose head declares the version its merge
-base with main does. A PR that bumped from a base main has since passed is listed too, since it
-claims a version past main's once it merges main. Exit 0 when nothing collides, 1 when the working
-tree claims a version another PR claims or one main has passed, 2 when it cannot run.
+Reads ir.IRVersion from main, from the working tree, and from the head of each open PR, all of
+origin's repository unless REMOTE names another remote. A PR whose head the working tree already
+holds is taken for this branch's own and left out, and so is one whose head declares the version
+its merge base with main does. A PR that bumped from a base main has since passed is listed too,
+since it claims a version past main's once it merges main. Exit 0 when nothing collides, 1 when the
+working tree claims a version another PR claims or one main has passed, 2 when it cannot run.
 """
 
 import json
@@ -22,6 +22,9 @@ import subprocess
 import sys
 import traceback
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "morphic-reviewing-prs" / "scripts"))
+from review_setup import point_gh_at  # noqa: E402  (a script of the review skill)
 
 DECLARED = re.compile(r'^const IRVersion = "([^"]+)"', re.M)
 
@@ -103,6 +106,7 @@ def main() -> int:
     try:
         root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").stdout.strip())
         remote = os.environ.get("REMOTE", "origin")
+        point_gh_at(root, remote)
         git(root, "fetch", "-q", remote, "main")
         base = f"{remote}/main"
         found = git(root, "grep", "-l", "const IRVersion = ", base, "--", "ir/*.go").stdout.split()
