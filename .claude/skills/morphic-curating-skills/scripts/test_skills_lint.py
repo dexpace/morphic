@@ -2,11 +2,14 @@
 
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-curating-skills/scripts
 """
+import contextlib
+import io
 import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import skills_lint
 
@@ -319,6 +322,27 @@ class LintTest(unittest.TestCase):
             with self.subTest(text=text, mode=oct(mode)):
                 write(self.root, tool, text + "import json\n").chmod(mode)
                 self.assertEqual(self.lint()[1], [want])
+
+
+class ArgumentsTest(unittest.TestCase):
+    def test_an_argument_is_refused_before_anything_is_linted(self):
+        for argv in (["--strict"], [".claude/skills/one-skill"]):
+            with self.subTest(argv=argv):
+                with mock.patch.object(skills_lint, "findings") as lint, \
+                        contextlib.redirect_stderr(io.StringIO()), \
+                        self.assertRaises(SystemExit) as e:
+                    skills_lint.main(argv)
+                self.assertEqual(e.exception.code, 2)
+                lint.assert_not_called()
+
+    def test_help_prints_the_usage_and_lints_nothing(self):
+        out = io.StringIO()
+        with mock.patch.object(skills_lint, "findings") as lint, \
+                contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as e:
+            skills_lint.main(["--help"])
+        self.assertEqual(e.exception.code, 0)
+        self.assertIn("Hold the skills under .claude/skills", out.getvalue())
+        lint.assert_not_called()
 
 
 class LoadTreeTest(unittest.TestCase):

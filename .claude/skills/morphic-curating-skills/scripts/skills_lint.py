@@ -13,6 +13,7 @@ are executable Python 3.14, declared in their first line and a PEP 723 script bl
 standard library only and a test_<name>.py beside each.
 """
 
+import argparse
 import ast
 import itertools
 import os
@@ -464,7 +465,11 @@ def findings(root: Path) -> tuple[int, list[str]]:
     return lint.run(), lint.findings
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    # It takes no argument, so --help prints the usage and any other argument is refused, rather
+    # than read as an option a clean result would then seem to have honoured.
+    argparse.ArgumentParser(description=__doc__.split("\n\n")[0].replace("\n", " ")).parse_args(
+        sys.argv[1:] if argv is None else argv)
     try:
         root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
         n, found = findings(root)
