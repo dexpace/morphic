@@ -23,13 +23,26 @@ rewritten once pushed.
 
 ## Before each push
 
-After `git fetch origin main`, run
-`python3.14 .claude/skills/morphic-shipping-prs/scripts/preflight.py` from the repository root,
-with `--pr N` once the PR exists, or `--title` and `--body FILE` for a draft. It checks each
-subject, the title measured with the number GitHub appends, the body's sections against the
-title's `!`, its closing keywords, files the working tree holds apart from HEAD, that HEAD holds
-the PR's head, the merge with `origin/main` as last fetched, the artifact scan, and every name a
-skill uses. It exits 1 on a finding, so chain the push on it with `&&`.
+After `git fetch origin main`, run this checklist from the repository root and read what each line
+prints. N is the PR's number, or before it exists one past
+`gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`.
+
+```bash
+pat='co-auth[o]red-by:.*(cl[a]ude|anthr[o]pic|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni)|gene[r]ated (with|by)[^a-z0-9]{0,3}\[?(cl[a]ude|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni|cod[e]x)|cl[a]ude\.(ai|com)/|(^|[^.])cl[a]ude([^./a-z]|$)|anthr[o]pic|chatg[p]t|(the|this|your) bri[e]f([^a-z]|$)|scr[a]tchpad|sub[a]gent|coordi[n]ator|/u[s]ers/|/h[o]me/[a-z]|/p[r]ivate/(tmp|var)|remedi[a]tion|audit sw[e]ep|(^|[^a-z0-9])[hm][0-9]{1,2}([^0-9a-z]|$)'
+git log --no-merges --format=%s origin/main..HEAD |
+  awk 'length > 72 || !/^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: [^ ]/ || /\.$/'
+printf '%s (#%s)' "<title>" N | wc -c
+git status --short --untracked-files=all
+git merge-tree --write-tree origin/main HEAD >/dev/null || echo 'conflicts with origin/main'
+git log --format=%B origin/main..HEAD | grep -niE "$pat"
+git diff origin/main...HEAD | grep '^+' | grep -niE "$pat"
+python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py && git push
+```
+
+Each line prints nothing when all is well, bar the title's count, at most 72, and the lint's clean
+line: `git status` is empty because the push carries HEAD, and each artifact hit is a line to judge.
+Grep the PR's own text the same way (`gh pr view N --json title,body --jq '.title, .body'`). The
+lint exits 1 on a name a skill uses that this branch leaves naming nothing, so the push waits.
 
 ## Merging main in
 

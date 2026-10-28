@@ -93,7 +93,7 @@ ELSEWHERE = {
     "runtime": "a Go package",
     "openapi": "a diagnostic code",
 }
-# A file named without its directory, such as `preflight.py`; a suffix such as `_test.go` is none.
+# A file named without its directory, such as `sweep.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 
 
@@ -430,7 +430,7 @@ class Linter:
         scripts = d / "scripts"
         if not scripts.is_dir():
             return
-        # A script may import any skill's script, as preflight.py imports the review's.
+        # A script may import any skill's script, as each test imports the script it tests.
         siblings = {p.stem for p in (self.root / ".claude" / "skills").glob("*/scripts/*.py")}
         for s in sorted(scripts.iterdir()):
             if s.name == "__pycache__":
@@ -478,8 +478,8 @@ class Linter:
 
 
 def findings(root: Path) -> tuple[int, list[str]]:
-    """Lint the skills of the repository at root, as preflight.py does for a branch it checks;
-    return how many skills there are and every finding. A tree with no skills has neither."""
+    """Lint the skills of the repository at root; return how many skills there are and every
+    finding. A tree with no skills has neither."""
     if not (root / ".claude" / "skills").is_dir():
         return 0, []
     top_level, tests, known = load_tree(root)

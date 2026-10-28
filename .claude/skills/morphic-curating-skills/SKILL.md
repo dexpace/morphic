@@ -13,9 +13,10 @@ Take the first that fits.
 
 1. **A check.** If a test or a lint or archtest rule can catch it, write or file that check. A
    filed check keeps a rule naming its issue until it lands.
-2. **A script**, only when doing the job by hand has gone wrong here, the job comes up on most
-   changes, and no command or existing tool does it. Nothing runs a script's tests, so each is
-   upkeep; otherwise the command goes in the rule's Probe.
+2. **A script**, only to hold an invariant through a crash, count or compare exactly, or check
+   every member of a large set. It prints facts, not verdicts parsed from tool output.
+   Nothing runs a script's tests, so each is upkeep; otherwise the command goes in the rule's
+   Probe.
 3. **A rule in a skill.** Add it to a reference file of the narrowest skill whose trigger fires
    when the lesson applies. If none does, widen a description or add a skill: a rule no trigger
    reaches is never read.
@@ -58,7 +59,7 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 ## Upkeep
 
 - Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit.
-  The gate does not run it; `preflight.py` does, on each branch it checks.
+  The gate does not run it; each push chains on it.
 - After changing a rule's Why, confirm each item it cites is the work its clause describes.
 - A lesson a skill holds that failed again means the skill failed: sharpen its wording or trigger,
   not add a copy.

@@ -73,8 +73,8 @@ is not behaviour held.
   where old and new behaviour disagree, and confirm the revert reddens it.
 - **Why.** Defects in encoded fragments, constraints beside verbatim unions and outside `$ref`s to
   inline positions survived because no committed spec held the shape (#363, #119).
-- **Probe.** Revert the fix's code and keep its tests and fixtures, with `scripts/mutate.py` for a
-  one-hunk fix, else in a detached worktree of the head, removed after:
+- **Probe.** Revert the fix's code and keep its tests and fixtures, in a detached worktree of the
+  head removed after:
   `git diff <merge-base> HEAD -- ':(exclude)*_test.go' ':(exclude,glob)**/testdata/**' | git apply -R`.
   Run `go test ./...`, which sweeps `testdata/` through the harness; once a fixture reddens, check
   the golden diff is exactly the fix's effect.

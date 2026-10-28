@@ -33,12 +33,12 @@ defect, keep a `main` control.
 - **Rule.** When a review fixes what it finds, give each fix's own diff the passes, sweep its
   mechanism, and reread what it adds as unreviewed
   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
-  Push a round's fixes once, behind `preflight.py`, then rerun the setup.
+  Push a round's fixes once, behind the push checklist, then rerun the setup.
 - **Why.** Later rounds of #1143's review kept finding defects its own fixes had added: a PR-body
   example the scripts listed as a closing reference, a command that failed from the repository
   root, and a sentence saying the lint ran on every branch.
-- **Probe.** Before the push, read `git diff <round's base>..HEAD` with the passes;
-  `preflight.py` exits 0.
+- **Probe.** Before the push, read `git diff <round's base>..HEAD` with the passes, and run the
+  push checklist on it.
 
 ## Review the tree as it will merge
 `recheck-against-final-tree`

@@ -16,13 +16,11 @@ Review the tree as it will land, in a worktree you remove afterwards:
 ```bash
 git fetch origin main && git fetch origin "pull/<N>/head"
 git worktree add --detach <dir> FETCH_HEAD && cd <dir> && git merge --no-edit origin/main
-python3.14 .claude/skills/morphic-shipping-prs/scripts/preflight.py --pr <N>
 ```
 
 A head that conflicts with `main` is reviewed alone (`git merge --abort`); the conflict is an
 `issue:`. Load the domain skill the changed files call for, and probe only there, with
-`morphic-verifying-changes`. For a branch or range with no PR, run
-`python3.14 .claude/skills/morphic-reviewing-prs/scripts/artifact_scan.py BASE HEAD`.
+`morphic-verifying-changes`.
 
 ## Passes
 
@@ -43,7 +41,8 @@ Run all; each finds what the others cannot.
 5. **Claims, every class in full.** Check every member of each class of claim, never a sample
    (`references/review-probes.md#sweep-each-claim-class`). Counts are derived
    (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`).
-6. **Process.** Title, commit messages, body, closing keywords and scope, by
+6. **Process.** The push checklist in `morphic-shipping-prs`, without its push, on the PR's tree
+   and text; then title, commit messages, body, closing keywords and scope, by
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`.
 7. **New commits.** When the branch or `origin/main` moves, rerun the setup and every pass the new
    commits can affect.

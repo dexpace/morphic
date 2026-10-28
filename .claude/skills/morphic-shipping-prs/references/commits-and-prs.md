@@ -35,8 +35,9 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Why.** Over-length subjects and prose titles land on main via squash and cannot be fixed without
   rewriting a pushed branch; a break marked only in the PR title is invisible in branch history
   (#834, #157).
-- **Probe.** `scripts/preflight.py` measures each subject and the title and runs the artifact scan
-  before a push, and a reviewer runs it with `--pr <N>` on the PR's tree.
+- **Probe.** The push checklist in `.claude/skills/morphic-shipping-prs/SKILL.md` prints each
+  subject off the form, the title's length and each possible artifact; a reviewer runs it on
+  the PR's tree.
 
 ## Keep the diff to in-scope files and keep scratch notes out of the tree
 `diff-contains-only-in-scope-files`
@@ -97,7 +98,8 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
   stage's, and a printed number gates nothing.
 - **Why.** Over-cap subjects and lint and archtest failures were committed past checks that printed
   them (#1007, #1005, #1046, #1141, #1147).
-- **Probe.** `scripts/preflight.py` exits 1 on any finding; chain the push on it with `&&`.
+- **Probe.** Plant a failure the check must catch and run `<check> && echo pushed`: nothing
+  prints.
 
 ## Mark a change to exported API as breaking
 `exported-api-change-needs-bang`

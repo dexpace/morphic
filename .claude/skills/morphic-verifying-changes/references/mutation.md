@@ -1,40 +1,44 @@
 # Planting defects
 
-`scripts/mutate.py` handles the mechanics: one literal replacement, a compile check, the test run,
-a restore with the original kept on disk until it is back, a clean run behind every kill, a
-verdict, and the run's whole output kept in a file. These rules are the ways a verdict still lies.
+Plant a defect in a throwaway worktree, run the real test command there, and read its output
+yourself. These rules are the ways that reading still lies.
 
-## Route every temporary edit through a restoring script
-`mutation-restore-always`
+## Plant every temporary edit in a throwaway worktree
+`plant-in-a-throwaway-worktree`
 
-- **Rule.** Plant every temporary edit of a tracked file, instrumentation and measurement switches
-  included, through `scripts/mutate.py`, which restores it, or names a copy of its original when
-  it cannot, and keeps the output they print. Delete a scratch file you added before anything is
-  committed. After a batch, `git diff` each touched file and search the tree for each planted
-  string.
-- **Why.** A hand-rolled backup restored from the wrong copy and left a switch planted (#591); two
-  files sharing a basename shared one backup, so a restore put one package's file in another (#566);
-  a full disk stopped a restore mid-batch (#1141); a same-size Python mutant restored within its
-  second left bytecode in an ignored `__pycache__` that Python 3.9 went on running (#1143).
-- **Probe.** `git status --short` lists nothing you did not mean to change.
+- **Rule.** Plant a mutant, instrumentation or a measurement switch in a detached worktree, never
+  in the tree you work in: `git add` new files, then
+  `git worktree add --detach <dir> $(git stash create)`, which holds uncommitted work without
+  touching the stash list. Put a file back with `git -C <dir> checkout -- <file>`, and remove the
+  worktree at the end. Run Python with `PYTHONDONTWRITEBYTECODE=1`.
+- **Why.** Restores in the working tree failed: a backup restored from the wrong copy (#591), one
+  backup shared by two files of one basename (#566), a full disk emptying a file mid-restore
+  (#1141, #1143), and bytecode outliving a same-size Python mutant restored within its second
+  (#1143).
+- **Probe.** `git status --short` in your own tree lists only your changes, and
+  `git worktree list` no longer names the throwaway.
 
-## A mutant that does not compile proves nothing
-`mutation-must-compile`
+## Read a kill in the output, never in the exit status
+`read-the-kill-in-the-output`
 
-- **Rule.** Build the mutant before reading results, and adjust it until it compiles (`_ = x` for an
-  unused variable). A run that reports a kill with no `--- FAIL` line is unverified; `mutate.py`
-  reports both as UNVERIFIED rather than as a verdict.
+- **Rule.** A mutant is killed only where the output names a failing test (`--- FAIL: <test>`, or
+  unittest's `FAIL:` or `ERROR:`) and the mutant compiled. A `[build failed]` or `[setup failed]`
+  line, a `# <package>` header, a package `FAIL` with no failing test above it (an `os.Exit`, a
+  timeout), `[no tests to run]`, `Ran 0 tests` and an `ERROR` naming
+  `unittest.loader._FailedTest`, a module that did not load, are no verdict. Adjust a mutant
+  until it compiles (`_ = x` for an unused variable).
 - **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
   (#321, #322) and as "killed" with an empty failure list (#1100).
 
 ## Require a clean baseline and a control that must survive
 `mutation-controls`
 
-- **Rule.** Plant a set of mutants with `scripts/mutate.py --batch`, which judges none unless the
-  command passes on the clean tree and runs a test, and include a no-op control (a changed
-  comment) that must survive. Keep probe programs outside the module tree.
+- **Rule.** Run the test command on the clean worktree first: it passes and runs a test. Run it
+  bare, since a pipe or `;` hands back another command's status. Include a no-op control (a
+  changed comment) that must survive. Keep probe programs outside the module tree.
 - **Why.** A quoting slip made `go test` match no packages, so every mutant read as killed, and a
-  stray probe `main` package in the worktree kills every mutant through archtest (#591).
+  stray probe `main` package in the worktree kills every mutant through archtest (#591); a run
+  piped into `cat` exited 0 past a failing test (#1143).
 
 ## A survivor of one package is not yet a gap
 `mutation-survivor-scope`

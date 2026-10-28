@@ -19,7 +19,7 @@ goes to the type that owns the broken state
 
 | Claim | Probe |
 |---|---|
-| test T catches defect D | plant D with `scripts/mutate.py`; T reddens and the mutant compiled |
+| test T catches defect D | plant D in a throwaway worktree (`references/mutation.md#plant-in-a-throwaway-worktree`); the output names T failing, the mutant compiled, and the clean tree passes |
 | this guard or branch matters | force each side (`cond \|\| true`, `cond && false`); a test reddens for each. Coverage cannot see a side that holds no statement |
 | order-independent | swap the declaration order; diff the documents, and the diagnostics as a sorted multiset |
 | no regression against main | `scripts/sweep.py`; each new probe fails on `main`, and a build with the fix broken differs |
@@ -38,16 +38,12 @@ goes to the type that owns the broken state
   Go's test cache keeps the unchanged packages cheap, and `make gate` before calling it done:
   `go test` passing is not the coverage gate (`references/toolchain.md#coverage-per-package`).
 
-## Scripts
+## Script
 
-Run each from the repository root as
-`python3.14 .claude/skills/morphic-verifying-changes/scripts/<name>.py`; its docstring gives the
-options.
-
-- `scripts/mutate.py` plants one defect or a batch and restores the file, or says where a copy of
-  its original waits; a kill counts only where the command passes on the clean tree.
-- `scripts/sweep.py` compiles a corpus at a base and at the working tree and reports each
-  difference.
+`python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py`, run from the repository
+root, compiles a corpus at a base and at the working tree, then prints each side's exit codes and
+each spec whose exit code or output differs. It judges nothing: `references/differentials.md` says
+what the codes mean, and its docstring gives the options.
 
 ## References
 
