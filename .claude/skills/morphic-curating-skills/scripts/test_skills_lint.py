@@ -209,6 +209,17 @@ class LintTest(unittest.TestCase):
               "---\nname: " + "x" * 64 + "\ndescription: Use when testing.\n---\n")
         self.assertEqual(self.lint()[1], [], "64 characters is within the limit")
 
+    def test_a_description_is_held_to_500_characters(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        body = GOOD_SKILL.split("---\n", 2)[2]
+        over = f"{skill}:1: description is 501 characters, over 500"
+        for size, want in ((500, []), (501, [over])):
+            with self.subTest(size=size):
+                description = "Use when " + "x" * (size - len("Use when "))
+                front = f"---\nname: good-skill\ndescription: {description}\n---\n"
+                write(self.root, skill, front + body)
+                self.assertEqual(self.lint()[1], want)
+
     def test_frontmatter_holds_only_fields_once_and_values_yaml_reads_whole(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         write(self.root, skill, "---\nname: good-skill\n"

@@ -21,9 +21,9 @@ Take the first that fits.
 4. **Not in the repository.** A fact about one machine, shell or person stays out of
    `.claude/skills`.
 
-A skill links to a normative fact in `docs/`, such as a `docs/parser-library.md` or
-`docs/compilers/openapi.md` entry, and never restates it. List the skills with
-`grep -h '^description:' .claude/skills/*/SKILL.md`; a hand list here would drift.
+A skill links to a normative fact in `docs/`, such as a `docs/parser-library.md` entry, and never
+restates it. List the skills with `grep -h '^description:' .claude/skills/*/SKILL.md` rather than
+a hand list.
 
 ## Rule format
 
@@ -42,8 +42,10 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 
 ## Limits
 
-- A `SKILL.md` body stays within 500 words. Its description starts "Use when" and says when to load
-  the skill, never what the skill does: an agent follows a summary instead of reading the body.
+- A `SKILL.md` body stays within 500 words. Its description stays within 500 characters, since
+  every session loads it, starts "Use when" and says when to load the skill, never what it does:
+  an agent follows a summary instead of reading the body. Other frontmatter follows
+  `https://agentskills.io/specification`.
 - A reference file stays within 4,000 words. A full file takes a new rule only by merging or
   removing one.
 - Everything works from a fresh clone and names no machine. Paths start at the repository root,
@@ -56,10 +58,10 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 
 - Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit.
   The gate runs neither it nor the scripts' tests; `preflight.py` and `review_setup.py` run it on
-  each branch they check, code changes included.
+  each branch they check.
 - After writing or changing a rule's Why, run
   `python3.14 .claude/skills/morphic-curating-skills/scripts/citations.py <key>` and read each
   citation it lists against its item.
-- A lesson a skill already holds that failed again means the skill failed: sharpen its wording or
-  its trigger, not add a second copy.
+- A lesson a skill holds that failed again means the skill failed: sharpen its wording or trigger,
+  not add a copy.
 - Skill changes ship like code, titled like `chore(skills): <subject>`.

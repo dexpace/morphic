@@ -25,8 +25,9 @@ from pathlib import Path
 MAX_BODY_WORDS = 500
 MAX_REFERENCE_WORDS = 4000
 MAX_RULE_WORDS = 150
+# Every session loads every description, so the curating skill holds one to half the
+# specification's 1,024 characters.
 MAX_DESCRIPTION_CHARS = 500
-MAX_FRONTMATTER_CHARS = 1024
 PYTHON_TARGET = (3, 14)
 PYTHON = ".".join(map(str, PYTHON_TARGET))
 # The block each script declares its interpreter in (PEP 723), which `uv run` and `pipx run` read.
@@ -218,8 +219,6 @@ class Linter:
             return
         end = lines.index("---", 1)
         front = lines[1:end]
-        if len("\n".join(front)) > MAX_FRONTMATTER_CHARS:
-            self.report(skill, 1, f"frontmatter is over {MAX_FRONTMATTER_CHARS} characters")
         self.check_front_keys(skill, front)
         values = {m.group(1): scalar((m.group(2) or "").strip())
                   for m in map(FRONT_KEY.match, front) if m}
