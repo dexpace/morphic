@@ -1,7 +1,8 @@
 # Review probes
 
-Probes that found what earlier review rounds missed. Each one runs through
-`morphic-verifying-changes`: compile the input, plant the defect, keep a `main` control.
+Probes that found what earlier review rounds missed, and the rules that let the first round find
+everything. Each probe runs through `morphic-verifying-changes`: compile the input, plant the
+defect, keep a `main` control.
 
 ## Probe the code before the claims
 `code-before-claims`
@@ -11,6 +12,33 @@ Probes that found what earlier review rounds missed. Each one runs through
   nesting, oversized documents, aliasing), and grep for mutable globals and layering breaks.
 - **Why.** Three rounds that took their agenda from the PR body found only body defects. A fourth
   that read the new file found two code defects in it (#340).
+
+## Check every class of claim in full, in the first round
+`sweep-each-claim-class`
+
+- **Rule.** Before the first finding, list the change's classes of claim and check every member:
+  each name against the tree, citation against the item it cites, statement about code on `main`,
+  statement about a library against its `docs/parser-library.md` entry, quoted command run from
+  the root, script in each context it runs in (a subdirectory, each platform branch, each
+  supported Python), and body sentence on the final tree. A class checked by sample is reported
+  unreviewed, never clean.
+- **Why.** A review of #1143 took nine rounds, each sampling a class or trying one angle:
+  citations were read for 58 of 203 rules before all 383, and a misattribution sat in the rest.
+- **Probe.** The report gives each class with the count of members checked; a count below the
+  class's size is a round still open.
+
+## A fix the review makes is reviewed before it is pushed
+`review-own-fixes`
+
+- **Rule.** When a review fixes what it finds, give each fix's own diff the passes, sweep its
+  mechanism, and reread what it adds as unreviewed
+  (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
+  Push a round's fixes once, behind `preflight.py`, then rerun the setup.
+- **Why.** Later rounds of #1143's review kept finding defects its own fixes had added: a PR-body
+  example the scripts listed as a closing reference, a command that failed from the repository
+  root, and a sentence saying the lint ran on every branch.
+- **Probe.** Before the push, read `git diff <round's base>..HEAD` with the passes;
+  `preflight.py` exits 0.
 
 ## Review the tree as it will merge
 `recheck-against-final-tree`

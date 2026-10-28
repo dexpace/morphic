@@ -36,6 +36,12 @@ before resolving a conflict, and rerun what the merge can break
 (`references/merging-main.md#merge-main-first`). A branch that bumps `IRVersion` takes its version
 by `morphic-changing-the-ir`.
 
+## Before the first push
+
+Give the branch the review's first round yourself, every class of claim checked in full
+(`.claude/skills/morphic-reviewing-prs/references/review-probes.md#sweep-each-claim-class`), so a
+reviewer's first round finds nothing.
+
 ## PR text
 
 A Summary and a Test plan, and a Breaking section when the title carries `!`. Every sentence that

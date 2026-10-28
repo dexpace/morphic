@@ -6,13 +6,13 @@ it.
 ## Fix the mechanism at every site that runs it
 `sweep-every-site-of-the-mechanism`
 
-- **Rule.** When a change fixes a defect, adds a guard or closes an issue, name the mechanism, grep
-  every site that runs it and every writer of the field it governs, and probe each node kind it can
-  land on. Fix each site, or state the uncovered one in code and in the PR body. An issue's own site
-  list is a claim, not the scope.
+- **Rule.** When a change fixes a defect, adds a guard or closes an issue, or a review finds a
+  defect, name the mechanism, grep every site that runs it and every writer of the field it
+  governs, and probe each node kind it can land on. Fix each site, or state the uncovered one in
+  code and in the PR body. An issue's own site list is a claim, not the scope.
 - **Why.** The pointer-collision fix left the same collision in the inline-position hoist; grids
   built from an issue's shapes passed while a type-array variant still failed; a per-site revert
-  showed most call sites untested (#157, #101, #808, #542).
+  showed most call sites untested (#157, #101, #808, #542, #1143).
 - **Probe.** For each hit of the mechanism's grep, show the fix or plant the reproducer there and
   watch it go red.
 
