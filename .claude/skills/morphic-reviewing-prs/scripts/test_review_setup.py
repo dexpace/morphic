@@ -4,6 +4,7 @@ Run: python3.14 -m unittest discover -s .claude/skills/morphic-reviewing-prs/scr
 """
 import io
 import os
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr
@@ -204,6 +205,31 @@ class LandingTest(unittest.TestCase):
         self.git("commit", "-q", "-m", "move")
         got = rs.changed_files(self.root, self.base, self.git("rev-parse", "HEAD"))
         self.assertEqual(sorted(got), ["a.txt", "b.txt"])
+
+    def test_only_a_clean_detached_worktree_of_this_repository_is_reused(self):
+        head = self.git("rev-parse", "HEAD")
+        away = tempfile.TemporaryDirectory()  # removed with the repository its worktrees belong to
+        self.addCleanup(away.cleanup)
+        plain, other = Path(away.name) / "plain", Path(away.name) / "other"
+        plain.mkdir()
+        (plain / "f.txt").write_text("x\n")
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        review, branch = Path(away.name) / "review", Path(away.name) / "branch"
+        self.git("worktree", "add", "-q", "--detach", str(review), self.base)
+        self.git("worktree", "add", "-q", "-b", "mine", str(branch), self.base)
+        cases = [(plain, "is not a worktree"), (other, "of another repository"),
+                 (branch, "has a branch checked out")]
+        for directory, want in cases:
+            with self.subTest(directory=directory.name):
+                with self.assertRaisesRegex(RuntimeError, want):
+                    rs.checkout(self.root, directory, head)
+        self.assertEqual(rs.git(branch, "symbolic-ref", "--short", "HEAD").stdout.strip(), "mine")
+        (review / "a.txt").write_text("changed\n")
+        with self.assertRaisesRegex(RuntimeError, "has local changes"):
+            rs.checkout(self.root, review, head)
+        rs.git(review, "checkout", "-q", "--", "a.txt")
+        rs.checkout(self.root, review, head)
+        self.assertEqual(rs.git(review, "rev-parse", "HEAD").stdout.strip(), head)
 
     def test_a_merge_needs_no_configured_identity(self):
         head = self.branch_from(self.base, "h.txt", "h\n")

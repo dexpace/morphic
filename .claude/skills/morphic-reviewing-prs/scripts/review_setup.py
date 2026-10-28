@@ -11,8 +11,10 @@ Usage: python3.14 review_setup.py PR-NUMBER [DIR]
 
 The worktree holds the head merged into main when the two merge cleanly, the head itself when it
 already contains main, and the head alone, reported, when it conflicts. DIR defaults to
-<temp dir>/morphic-review-<PR>. An existing clean worktree there is moved to the new commit; one
-with local changes is left alone. Set REMOTE when the repository the PR belongs to is not origin,
+<temp dir>/morphic-review-<PR>. An existing clean, detached worktree of this repository there,
+as an earlier run leaves, is moved to the new commit; any other directory is left alone and the
+run refused, so a checkout holding a branch is never moved. Set REMOTE when the repository the PR
+belongs to is not origin,
 as in a clone of a fork. Every gh call reads the repository of the remote it fetches from, not one
 gh picks by its own rules. Exit 0 when set up, 2 when it cannot be.
 """
@@ -156,14 +158,33 @@ def point_gh_at(root: Path, remote: str) -> None:
 
 
 def checkout(root: Path, directory: Path, head: str) -> None:
-    if directory.exists():
-        status = git(directory, "status", "--porcelain", check=False)
-        if status.returncode != 0 or status.stdout.strip():
-            raise RuntimeError(f"{directory} has local changes; remove it "
-                               "(git worktree remove --force) or pass another DIR")
-        git(directory, "checkout", "-q", "--detach", head)
-    else:
+    if not directory.exists():
         git(root, "worktree", "add", "-q", "--detach", str(directory), head)
+        return
+    problem = reuse_problem(root, directory)
+    if problem:
+        raise RuntimeError(f"{directory} {problem}; pass another DIR")
+    git(directory, "checkout", "-q", "--detach", head)
+
+
+def reuse_problem(root: Path, directory: Path) -> str | None:
+    """Say why an existing directory cannot take the review, or None: only a clean, detached
+    worktree of this repository can, as an earlier run leaves one."""
+    top = git(directory, "rev-parse", "--show-toplevel", check=False)
+    if top.returncode != 0 or Path(top.stdout.strip()).resolve() != directory.resolve():
+        return "is not a worktree"
+
+    def common(d: Path) -> Path:
+        out = git(d, "rev-parse", "--path-format=absolute", "--git-common-dir").stdout.strip()
+        return Path(out).resolve()
+
+    if common(directory) != common(root):
+        return "is a worktree of another repository"
+    if git(directory, "symbolic-ref", "-q", "HEAD", check=False).returncode == 0:
+        return "has a branch checked out, which a review never moves"
+    if git(directory, "status", "--porcelain").stdout.strip():
+        return "has local changes"
+    return None
 
 
 def landing(root: Path, name: str, base: str, head: str) -> tuple[list[str], str, bool]:
