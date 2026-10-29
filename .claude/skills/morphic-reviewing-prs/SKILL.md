@@ -1,6 +1,6 @@
 ---
 name: morphic-reviewing-prs
-description: Use when asked to review a pull request, branch or commit range in this repository, including a re-review of a PR's final state after new commits or a merge of main.
+description: Use when asked to review a pull request, branch or commit range in this repository, right after opening a pull request here, or for a re-review of a PR's final state after new commits or a merge of main.
 ---
 
 # Reviewing morphic pull requests

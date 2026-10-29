@@ -58,7 +58,8 @@ Give the branch the review's first round yourself, every class of claim checked 
 (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#sweep-each-claim-class`), so a
 reviewer's first round finds nothing. That sweep finds false sentences, not missing ones: also find
 each limitation the body states in the diff
-(`references/commits-and-prs.md#limitation-stated-in-code`).
+(`references/commits-and-prs.md#limitation-stated-in-code`). Once the PR is open, run
+`morphic-reviewing-prs` on it.
 
 ## PR text
 

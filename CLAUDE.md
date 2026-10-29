@@ -495,6 +495,8 @@ context-switch between repos.
   logical change; split unrelated changes into separate PRs. Every hunk traces to the change's
   request or to a site of its mechanism ("Scope a result narrowly, a defect widely" above); a
   cleanup or bug beside it is filed, not folded in.
+- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it
+  and land what it finds as new commits, then rerun the passes those commits can affect.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.
