@@ -13,12 +13,12 @@ warning says the differences also count what BASE gained since. A compile runnin
 (default 60) is killed and recorded as 137, and one ended by a signal, such as the kill that ends
 a compile out of memory, as minus the signal's number. JOBS compiles run at once (default half the
 CPUs). Outputs are kept under OUTDIR (default a new temporary directory) for diffing, with a row
-per spec in OUTDIR/results.tsv: its number, both exit codes, what differs and its path. CORPUS
-files, and the files under CORPUS directories, are read for OpenAPI and Swagger documents (default
-testdata): one written as JSON, whatever its suffix, by its top-level keys, minified or not, and
-YAML by a version key first on a line. The sweep reports facts and judges none: specs that fail
-alike on both sides agree, so read the exit codes before taking agreement for a pass. Exit 0 when
-no spec differs, 1 when one does, 2 when the sweep cannot run.
+per spec in OUTDIR/results.tsv: its number, both exit codes, what differs and its path. The .yaml,
+.yml and .json files CORPUS names, and those under its directories (default testdata), are read
+for OpenAPI and Swagger documents: a JSON one, even one saved as .yaml or .yml, by its top-level
+keys, minified or not, and a YAML one by a version key first on a line. The sweep reports facts
+and judges none: specs that fail alike on both sides agree, so read the exit codes before taking
+agreement for a pass. Exit 0 when no spec differs, 1 when one does, 2 when the sweep cannot run.
 """
 
 import argparse
@@ -56,7 +56,8 @@ def is_spec(data: bytes) -> bool:
 
 
 def find_specs(corpus: list[Path]) -> list[Path]:
-    """Return the documents among each corpus file and the files under each corpus directory."""
+    """Return the OpenAPI and Swagger documents among the .yaml, .yml and .json files corpus names
+    and those under its directories."""
     out = []
     for d in corpus:
         for p in [d] if d.is_file() else sorted(d.rglob("*")):

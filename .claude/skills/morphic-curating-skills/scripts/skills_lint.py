@@ -7,10 +7,11 @@ describe.
 
 Usage: python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 
-Prints one "path:line: problem" per finding. Exit 0 when clean, 1 on a finding, 2 when it
-cannot run. Each rule in a reference is held to the format morphic-curating-skills gives. Scripts
-are executable Python 3.14, declared in their first line and a PEP 723 script block, with the
-standard library only and a test_<name>.py beside each.
+Prints one "path:line: problem" per finding, the line left out for one about a whole file, then a
+summary line. Exit 0 when clean, 1 on a finding, 2 when it cannot run. Each rule in a reference is
+held to the format morphic-curating-skills gives. Scripts are executable Python 3.14, declared in
+their first line and a PEP 723 script block, with the standard library only and a test_<name>.py
+beside each.
 """
 
 import argparse
@@ -402,8 +403,8 @@ class Linter:
 
     def missing(self, d: Path, p: str) -> str | None:
         """Say why a path a skill names is not in the tree, or None when it is: relative to the
-        skill for its own references/ and scripts/, to the repository otherwise. A glob is held
-        up to its first wildcard, and ./... names the module's packages."""
+        skill for its own references/ and scripts/, to the repository otherwise. A path is held
+        up to a #entry, a :line or its first wildcard, and ./... names the module's packages."""
         rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
         rel = "" if rel == "..." else rel.removesuffix("/...").rstrip("/")
         if not rel:
