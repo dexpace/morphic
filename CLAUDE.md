@@ -50,8 +50,8 @@ covers.
   package boundaries fall where they do, not as a proposal or a backlog.
 
 `.claude/skills/` holds the procedures for recurring work, such as verifying a change or reviewing
-a PR, the lessons past PRs taught, and the scripts both use. A skill links to these documents
-rather than restating them; `morphic-curating-skills` says where a new lesson goes. Their scripts
+a PR, the lessons past PRs taught, and the scripts they use. A skill links to these documents
+rather than restating them; `morphic-curating-skills` says where a new lesson goes. The scripts
 need Python 3.14, run as `python3.14`.
 
 **The skills are experimental.** A rule can be wrong or stale, and a script can report what its
