@@ -31,6 +31,7 @@ Run `go test ./ir/... $(python3.14 scripts/tool.py)` or `go run ./cmd/morphic-ha
 and `gh api repos/{owner}/{repo}`, by `references/r.md#do-the-thing` and
 `.claude/skills/good-skill/references/r.md#do-the-thing`; see `references/<file>.md#<key>`.
 Name `tool.py`, `a.go` and `SKILL.md` alone, and a suffix such as `_test.go`.
+Hold `docs/parser-library.md#known`, `ir/a.go:1` and `ir/*.go` up to the entry, line or glob.
 Links to [a site](https://example.com/a/b) and [mail](mailto:x@example.com) leave the tree.
 """
 RULE = ("## Do the thing\n`do-the-thing`\n\n- **Rule.** Do it, as `ir/a.go` and TestKnown do.\n"
@@ -404,6 +405,7 @@ class LoadTreeTest(unittest.TestCase):
             subprocess.run(git + ["init", "-q"], check=True, env=env)
             write(root, "ir/a_test.go", "package ir\n\nfunc TestA_B(t *testing.T) {}\n")
             write(root, "ir/gone.go", "package ir\n")
+            write(root, "ir/gone_test.go", "package ir\n\nfunc TestGone(t *testing.T) {}\n")
             # Names git would quote and escape, as it does one holding a non-ASCII letter.
             write(root, "données/b_test.go", "package d\n\nfunc TestB(t *testing.T) {}\n")
             write(root, ".gitignore", "out/\n")
@@ -412,7 +414,9 @@ class LoadTreeTest(unittest.TestCase):
             write(root, "scripts/new.py", "")
             write(root, "notes/café.md", "")
             write(root, "out/built.txt", "")
-            (root / "ir" / "gone.go").unlink()
+            # A tracked test file deleted mid-change, as before a git rm, declares nothing.
+            for gone in ("gone.go", "gone_test.go"):
+                (root / "ir" / gone).unlink()
             top_level, tests, known = skills_lint.load_tree(root)
         self.assertEqual(top_level, {".claude", ".gitignore", "ir", "données"})
         self.assertEqual(tests, {"TestA", "TestA_B", "TestB"})
