@@ -79,11 +79,11 @@ func validate(ctx context.Context, doc *ir.Document, walk walkFunc) ([]ir.Diagno
 // in the order they report. Validate asks its context between two, so a cancel
 // waits out one family at most.
 //
-// A family spells a location, sorts a collection or makes a map only for a
-// diagnostic, so a value with nothing wrong costs it no allocation but a step a
-// map or a log it keeps may grow by. The index it asks, facts, is not yet held
-// to that: it allocates per type it indexes and per question it walks (GitHub
-// #1150).
+// A family allocates only for a diagnostic. It sorts and keys collections in a
+// list and a map it keeps for the run, so a value with nothing wrong costs it
+// nothing but a step those or a log may grow by. The index it asks, facts, is
+// not yet held to that: it allocates per type it indexes and per question it
+// walks (GitHub #1150).
 func families(doc *ir.Document, read walked, facts *irfacts.Index) []func() []ir.Diagnostic {
 	return []func() []ir.Diagnostic{
 		func() []ir.Diagnostic { return checkNilTypes(doc) },
