@@ -52,8 +52,9 @@ func TestCheckRawPayloads_VisitingCostsNoAllocation(t *testing.T) {
 // TestPayloadReader_ReadsAsIsValidDoes holds payloadReader to the rules
 // jsontext.Value.IsValid applies by default, over every string of up to five
 // bytes drawn from the ones JSON's grammar turns on, an ill-formed byte among
-// them, and over the shapes no short string reaches. One reader reads them
-// all, so what one payload leaves in it reaching the next would show too.
+// them, and over the shapes no short string reaches, nesting either side of the
+// limit a decoder holds a value to among them. One reader reads them all, so
+// what one payload leaves in it reaching the next would show too.
 func TestPayloadReader_ReadsAsIsValidDoes(t *testing.T) {
 	t.Parallel()
 	const alphabet, longest = "{}[]\",:1a \xff", 5
@@ -73,7 +74,11 @@ func TestPayloadReader_ReadsAsIsValidDoes(t *testing.T) {
 		payloads, shorter = append(payloads, longer...), longer
 	}
 	payloads = append(payloads, `{"a":1,"a":2}`, `{"a":{"b":1,"b":2}}`, `"\ud800"`, `"\u00e9"`, " 1 ", "1 2",
-		`{"a":1}x`, `[1,]`, "01", "-0", "1e999", "\t\n1\r\n", strings.Repeat("[", 20000)+strings.Repeat("]", 20000))
+		`{"a":1}x`, `[1,]`, "01", "-0", "1e999", "\t\n1\r\n")
+	for _, depth := range []int{10000, 10001} { // either side of the nesting limit
+		payloads = append(payloads, strings.Repeat("[", depth)+strings.Repeat("]", depth),
+			strings.Repeat(`{"a":`, depth)+"1"+strings.Repeat("}", depth))
+	}
 	var reader payloadReader
 	var valid int
 	for _, p := range payloads {
