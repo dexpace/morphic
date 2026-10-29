@@ -135,8 +135,10 @@ func TestValidate_AmbiguousAliasIsReported(t *testing.T) {
 
 // TestValidate_UnambiguousAliasIsClean pins what the check leaves alone. An
 // alias repeating its own property's name is irverify's, as is a repeat within
-// one list; an empty alias answers to nothing; and the same alias on two
-// models is two scopes, since a field alias is resolved within its record.
+// one list; an empty alias answers to nothing; and two models are two scopes,
+// since a field alias is resolved within its record, whether the other model
+// holds the same alias or, read just before, a property of that name at
+// another position.
 func TestValidate_UnambiguousAliasIsClean(t *testing.T) {
 	t.Parallel()
 	twoModels := aliasDoc(aliasProperty("b", "x"))
@@ -144,12 +146,15 @@ func TestValidate_UnambiguousAliasIsClean(t *testing.T) {
 		{ID: "p/n/c", Name: ir.Naming{Source: "c", Canonical: "c", Aliases: []string{"x"}},
 			Type: ir.TypeRef{Target: "t/prim/string"}},
 	}}
+	claimedBefore := aliasDoc(aliasProperty("b", "x"), aliasProperty("c"))
+	claimedBefore.Types["t/a"] = &ir.Model{ID: "t/a", Properties: []ir.Property{aliasProperty("a"), aliasProperty("x")}}
 	for name, doc := range map[string]*ir.Document{
-		"distinct aliases":       aliasDoc(aliasProperty("a", "x"), aliasProperty("b", "y")),
-		"its own name":           aliasDoc(aliasProperty("a", "a")),
-		"repeated in one list":   aliasDoc(aliasProperty("a", "x", "x")),
-		"empty on two siblings":  aliasDoc(aliasProperty("a", ""), aliasProperty("b", "")),
-		"same alias, two models": twoModels,
+		"distinct aliases":                 aliasDoc(aliasProperty("a", "x"), aliasProperty("b", "y")),
+		"its own name":                     aliasDoc(aliasProperty("a", "a")),
+		"repeated in one list":             aliasDoc(aliasProperty("a", "x", "x")),
+		"empty on two siblings":            aliasDoc(aliasProperty("a", ""), aliasProperty("b", "")),
+		"same alias, two models":           twoModels,
+		"a name another model reads first": claimedBefore,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

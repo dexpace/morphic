@@ -342,3 +342,22 @@ func TestValidate_MappingDiagnosticsAreDeterministic(t *testing.T) {
 		assert.Equal(t, want, messages())
 	}
 }
+
+// TestValidate_UnionMappingIsHeldToItsOwnVariants pins that a union's mapping
+// answers to its own variants alone. The union read just before it lists the
+// target as a variant, so a check carrying what it read of one union into the
+// next would let the mapping through.
+func TestValidate_UnionMappingIsHeldToItsOwnVariants(t *testing.T) {
+	t.Parallel()
+	doc := discriminatedUnion("t/n")
+	doc.Types["t/n"] = &ir.Model{ID: "t/n"}
+	doc.Types["t/a"] = &ir.Union{ // sorts before t/u, so it is read first
+		ID:            "t/a",
+		Variants:      []ir.Variant{{Type: ir.TypeRef{Target: "t/n"}}},
+		Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{"n": "t/n"}},
+	}
+
+	found := withCode(validated(t, doc), "pass/discriminator-missing-variant")
+	require.Len(t, found, 1, "the union listing t/n routes to it, and the other does not")
+	assert.Equal(t, `discriminator mapping "a" on t/u references "t/n", which is not a variant of it`, found[0].Message)
+}
