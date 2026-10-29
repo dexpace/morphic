@@ -55,8 +55,10 @@ class SweepTest(unittest.TestCase):
         out = self.root / "out"
         results = sweep.compare(self.bins["base"], self.bins["head"], specs, out, [], limit, 2)
         buf = io.StringIO()
+        # find_specs resolves each spec's path, so the root is resolved too: on macOS a temporary
+        # directory is reached through a symlink, and the paths would not be relative to it.
         with redirect_stdout(buf):
-            code = sweep.report(results, self.root, out)
+            code = sweep.report(results, self.root.resolve(), out)
         return code, results, buf.getvalue()
 
     def test_only_openapi_and_swagger_documents_are_swept(self):
@@ -96,22 +98,26 @@ class SweepTest(unittest.TestCase):
         want = {"changed.yaml": "ir", "diag.yaml": "diagnostics", "error.yaml": "",
                 "exits.yaml": "exit(0->1)", "same.yaml": ""}
         self.assertEqual(what, want)
-        self.assertIn("base exit codes: 0x4 1x1", text)
-        self.assertIn("head exit codes: 0x3 1x2", text)
-        self.assertIn("3 of 5 specs differ", text)
-        # The hint compares the IR, where diagnostics alone would show an IR change as nothing.
-        self.assertIn("/runs/<n>/base.ir ", text)
-        self.assertIn("/runs/<n>/head.ir, and the .diag pair", text)
-        rows = (self.root / "out" / "results.tsv").read_text().splitlines()
-        self.assertEqual(rows[0], "n\tbase\thead\tdiffers\tspec")
-        # Keyed by name: a temporary directory reached through a symlink, as /tmp is on macOS,
-        # holds specs whose resolved paths the table writes whole.
-        table = {Path(row.split("\t")[4]).name: row.split("\t")[1:4] for row in rows[1:]}
-        self.assertEqual(table, {"changed.yaml": ["0", "0", "ir"],
-                                 "diag.yaml": ["0", "0", "diagnostics"],
-                                 "error.yaml": ["1", "1", "-"],
-                                 "exits.yaml": ["0", "1", "exit(0->1)"],
-                                 "same.yaml": ["0", "0", "-"]})
+        out = self.root / "out"
+        # Each spec's IR is 17 bytes, bar head's 3 for changed.yaml. The hint compares the IR,
+        # where diagnostics alone would show an IR change as nothing.
+        self.assertEqual(text, "".join([
+            f"sweep: 5 specs; outputs under {out}/runs/<n>/, a row per spec in {out}/results.tsv\n",
+            "  base exit codes: 0x4 1x1; IR bytes: 85\n",
+            "  head exit codes: 0x3 1x2; IR bytes: 71\n",
+            "sweep: 3 of 5 specs differ (n, then what):\n",
+            "  1  corpus/changed.yaml: ir\n",
+            "  2  corpus/diag.yaml: diagnostics\n",
+            "  4  corpus/exits.yaml: exit(0->1)\n",
+            f"compare one with: diff {out}/runs/<n>/base.ir {out}/runs/<n>/head.ir, and the "
+            ".diag pair for its diagnostics\n"]))
+        rows = (out / "results.tsv").read_text().splitlines()
+        self.assertEqual(rows, ["n\tbase\thead\tdiffers\tspec",
+                                "1\t0\t0\tir\tcorpus/changed.yaml",
+                                "2\t0\t0\tdiagnostics\tcorpus/diag.yaml",
+                                "3\t1\t1\t-\tcorpus/error.yaml",
+                                "4\t0\t1\texit(0->1)\tcorpus/exits.yaml",
+                                "5\t0\t0\t-\tcorpus/same.yaml"])
 
     def test_identical_builds_report_nothing_and_still_print_what_ran(self):
         self.bins["head"] = self.bins["base"]
