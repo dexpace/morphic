@@ -91,18 +91,19 @@ func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 	assert.Empty(t, irtest.AllocatingVisits(doc, irverify.WalkVisitors(doc)...))
 }
 
-// TestWalkChecks_AFirstMeetingCostsNothing holds the walking checks to costing
-// nothing for a value when the walk first meets it, which
-// irtest.AllocatingVisits never measures, so a check keeping a path for each
-// PropID it meets passes the test above. A document compiled from twice the
-// components must cost the checks less than one allocation more per component
-// added, the walk's own growth taken out; a map a check keeps grows in steps,
-// far fewer. It is not run in parallel: AllocsPerRun measures the process.
-func TestWalkChecks_AFirstMeetingCostsNothing(t *testing.T) {
+// TestVerify_ACleanComponentCostsNothing holds all Verify does to costing
+// nothing for a value it finds clean, including what irtest.AllocatingVisits
+// never measures: a check's first meeting with a value, and its report once
+// the walk is over. A check keeping a path per PropID it meets, or spelling
+// every declaration's path to report a few, passes the test above. Twice the
+// components must cost less than one allocation more per component added, the
+// walk's growth aside; a map or a log a check keeps grows in steps. It is not
+// run in parallel: AllocsPerRun measures the process.
+func TestVerify_ACleanComponentCostsNothing(t *testing.T) {
 	const components = 100
 	few, many := scaledDocument(t, components), scaledDocument(t, 2*components)
 
-	added := checkingAllocs(many) - checkingAllocs(few)
+	added := verifyingAllocs(many) - verifyingAllocs(few)
 	assert.Less(t, added, float64(components), "%v allocations more for %d components more", added, components)
 }
 
@@ -147,16 +148,14 @@ func scaledDocument(t *testing.T, n int) *ir.Document {
 	return doc
 }
 
-// checkingAllocs returns what one walk of doc carrying what Verify's walk does
-// allocates, built afresh, less what the walk allocates visiting nothing.
-func checkingAllocs(doc *ir.Document) float64 {
-	checking := testing.AllocsPerRun(5, func() {
-		ir.WalkValues(doc, ir.DocumentPath, irverify.WalkVisitors(doc)...)
-	})
+// verifyingAllocs returns what one Verify of doc allocates, less what a walk of
+// doc allocates visiting nothing.
+func verifyingAllocs(doc *ir.Document) float64 {
+	verifying := testing.AllocsPerRun(5, func() { _ = irverify.Verify(doc) })
 	walking := testing.AllocsPerRun(5, func() {
 		ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true }))
 	})
-	return checking - walking
+	return verifying - walking
 }
 
 // uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture
