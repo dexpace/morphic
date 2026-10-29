@@ -87,6 +87,35 @@ func TestPathLog_KeepsEachWalksRoot(t *testing.T) {
 	assert.Equal(t, shown, replayed)
 }
 
+// TestPathLog_KeepsTheTypeEachFieldIsSpelledOn holds a log fed by walks of two
+// types to the struct each step names its field on: the second path ends in
+// the field at the same position of its struct as the first path's does, so
+// only the struct's type tells the two steps apart.
+func TestPathLog_KeepsTheTypeEachFieldIsSpelledOn(t *testing.T) {
+	t.Parallel()
+	version, _ := reflect.TypeFor[ir.Document]().FieldByName("IRVersion")
+	id, _ := reflect.TypeFor[ir.Channel]().FieldByName("ID")
+	require.Equal(t, version.Index, id.Index, "the two fields share a position, or the owner decides nothing")
+
+	var log ir.PathLog
+	for _, walk := range []struct {
+		root any
+		want string
+	}{{&ir.Document{IRVersion: "x"}, "a.IRVersion"}, {&ir.Channel{ID: "c/x"}, "a.ID"}} {
+		ir.WalkValues(walk.root, "a", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+			if at.String() == walk.want {
+				log.Record(at)
+			}
+			return true
+		}))
+	}
+	var replayed []string
+	for _, at := range log.All() {
+		replayed = append(replayed, at.String())
+	}
+	assert.Equal(t, []string{"a.IRVersion", "a.ID"}, replayed)
+}
+
 // TestPathLog_KeepsTheZeroPathAsEmpty pins the zero WalkPath, which no walk is
 // behind: it is kept as the empty path it renders, beside a path a walk showed.
 func TestPathLog_KeepsTheZeroPathAsEmpty(t *testing.T) {

@@ -1,7 +1,9 @@
 package ir_test
 
 import (
+	"math/bits"
 	"reflect"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -264,4 +266,34 @@ func TestIDDeclarations_AllocatesNothingPerDeclaration(t *testing.T) {
 
 	var visitor ir.IDDeclarations
 	assert.Empty(t, irtest.AllocatingVisits(doc, &visitor))
+}
+
+// TestIDDeclarations_GrowsTheListGeometrically holds the list of declarations
+// to a growth factor well past append's, as TestPathLog_GrowsGeometrically holds
+// the log its paths are kept in: append grows a large slice by a quarter at a
+// time, so a list built one declaration at a time is copied several times
+// over. Beside a log recording the same paths, the list may grow fewer times
+// than doubling would take, log2(n). It is not run in parallel: AllocsPerRun
+// measures the process.
+func TestIDDeclarations_GrowsTheListGeometrically(t *testing.T) {
+	const declarations = 1 << 13
+	enum := &ir.Enum{ID: "t/e"}
+	for i := range declarations {
+		enum.Members = append(enum.Members, ir.EnumMember{ID: ir.EnumMemberID("e/e/" + strconv.Itoa(i))})
+	}
+	doc := &ir.Document{Types: ir.TypeRegistry{enum.ID: enum}}
+	declaring := testing.AllocsPerRun(3, func() {
+		ir.WalkValues(doc, ir.DocumentPath, &ir.IDDeclarations{})
+	})
+	recording := testing.AllocsPerRun(3, func() {
+		var ids ir.IDReader
+		var log ir.PathLog
+		ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+			if _, id, declares := ids.DeclaredIDOf(v); declares && id != "" {
+				log.Record(at)
+			}
+			return true
+		}))
+	})
+	assert.Less(t, declaring-recording, float64(bits.Len(declarations)-1), "%v allocations to list", declaring-recording)
 }
