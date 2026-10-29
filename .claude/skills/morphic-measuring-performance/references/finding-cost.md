@@ -123,9 +123,9 @@ how to measure so the number means what the claim says.
 
 - **Rule.** Clearing a non-empty map costs more the more it has ever held. Clear a map reused
   across collections only until one fills it past a bound, then replace it, through a `reusedMap`
-  and a source test refusing any other `clear`, as `ir/irverify` and `pass` keep. `reusedMap`'s
-  length check can miss a collection that deletes, and the source test refuses no delete loop
-  (#1152).
+  (#1155) and a source test refusing any other `clear`, as `ir/irverify` and `pass` keep.
+  `reusedMap`'s length check can miss a collection that deletes, and the source test refuses no
+  delete loop (#1152).
 - **Why.** Checks reusing maps with no bound passed every cost test, while one model listing a
   million names beside 200,000 listing two took `checkRequires` from a median of 168 ms to 622 ms
   (#1147, #1153).
