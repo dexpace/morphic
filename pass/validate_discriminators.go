@@ -2,7 +2,6 @@ package pass
 
 import (
 	"fmt"
-	"maps"
 	"slices"
 
 	"github.com/dexpace/morphic/ir"
@@ -14,12 +13,13 @@ import (
 // tag property the model does not expose. facts indexes doc.
 func checkDiscriminators(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	var read mappingReads
 	for _, id := range liveTypeIDs(doc) {
 		switch t := doc.Types[id].(type) {
 		case *ir.Union:
-			diags = append(diags, checkUnionDiscriminator(doc, t)...)
+			diags = append(diags, checkUnionDiscriminator(doc, t, &read)...)
 		case *ir.Model:
-			diags = append(diags, checkModelDiscriminator(doc, facts, t)...)
+			diags = append(diags, checkModelDiscriminator(doc, facts, t, &read)...)
 		default:
 			// Only Union and Model can declare a discriminator; every other
 			// TypeDef kind has nothing to check. A new discriminator-bearing
@@ -29,17 +29,25 @@ func checkDiscriminators(doc *ir.Document, facts *irfacts.Index) []ir.Diagnostic
 	return diags
 }
 
+// mappingReads is what checkDiscriminators reads each discriminator through,
+// so none costs a collection of its own: a union's variant targets, and a
+// mapping's keys, sorted.
+type mappingReads struct {
+	variants reusedMap[ir.TypeID, bool]
+	keys     []string
+}
+
 // checkUnionDiscriminator requires each mapping target to be one of the union's
 // variant targets.
-func checkUnionDiscriminator(doc *ir.Document, u *ir.Union) []ir.Diagnostic {
+func checkUnionDiscriminator(doc *ir.Document, u *ir.Union, read *mappingReads) []ir.Diagnostic {
 	if u.Discriminator == nil {
 		return nil
 	}
-	variants := make(map[ir.TypeID]bool, len(u.Variants))
+	variants := read.variants.emptied()
 	for _, v := range u.Variants {
 		variants[v.Type.Target] = true
 	}
-	return checkMapping(doc, u.Discriminator, string(u.ID), func(target ir.TypeID) bool {
+	return checkMapping(doc, u.Discriminator, string(u.ID), read, func(target ir.TypeID) bool {
 		return variants[target]
 	})
 }
@@ -47,12 +55,12 @@ func checkUnionDiscriminator(doc *ir.Document, u *ir.Union) []ir.Diagnostic {
 // checkModelDiscriminator requires each mapping target to be a declared subtype
 // of the discriminated base model, and the tag property to be one this model
 // exposes. Its routes and tag are asked of facts, the one index of the run.
-func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model) []ir.Diagnostic {
+func checkModelDiscriminator(doc *ir.Document, facts *irfacts.Index, m *ir.Model, read *mappingReads) []ir.Diagnostic {
 	if m.Discriminator == nil {
 		return nil
 	}
 	diags := checkDiscriminatorProperty(facts, m)
-	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), func(target ir.TypeID) bool {
+	return append(diags, checkMapping(doc, m.Discriminator, string(m.ID), read, func(target ir.TypeID) bool {
 		return facts.IsSubtype(target, m.ID)
 	})...)
 }
@@ -88,24 +96,38 @@ func checkDiscriminatorProperty(facts *irfacts.Index, m *ir.Model) []ir.Diagnost
 // not referentially closed, while pass/discriminator-missing-variant says this
 // discriminator cannot route that wire value, which a polymorphic decoder's
 // emitter subscribes to. Neither consumer should need the other's code.
-func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, member func(ir.TypeID) bool) []ir.Diagnostic {
+func checkMapping(doc *ir.Document, d *ir.Discriminator, where string, read *mappingReads,
+	member func(ir.TypeID) bool,
+) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	report := func(target ir.TypeID, position string) {
-		legal, why := mappingTarget(doc, target, member)
-		if legal {
-			return
+	// Asked in ascending key order, sorted in read's list, so map iteration
+	// reaches neither the output nor the questions member asks.
+	read.keys = read.keys[:0]
+	for key := range d.Mapping {
+		read.keys = append(read.keys, key)
+	}
+	slices.Sort(read.keys)
+	for _, key := range read.keys {
+		target := d.Mapping[key]
+		if legal, why := mappingTarget(doc, target, member); !legal {
+			diags = append(diags, missingVariant(fmt.Sprintf("mapping %q", key), where, target, why))
 		}
-		diags = append(diags, diag(ir.SeverityError, "pass/discriminator-missing-variant",
-			fmt.Sprintf("discriminator %s on %s references %q, which %s", position, where, target, why),
-			where))
 	}
-	for _, key := range slices.Sorted(maps.Keys(d.Mapping)) {
-		report(d.Mapping[key], fmt.Sprintf("mapping %q", key))
+	if d.Default == "" {
+		return diags
 	}
-	if d.Default != "" {
-		report(d.Default, "default")
+	if legal, why := mappingTarget(doc, d.Default, member); !legal {
+		diags = append(diags, missingVariant("default", where, d.Default, why))
 	}
 	return diags
+}
+
+// missingVariant reports that the discriminator on where routes position to
+// target, which why says is no legal target.
+func missingVariant(position, where string, target ir.TypeID, why string) ir.Diagnostic {
+	return diag(ir.SeverityError, "pass/discriminator-missing-variant",
+		fmt.Sprintf("discriminator %s on %s references %q, which %s", position, where, target, why),
+		where)
 }
 
 // mappingTarget reports whether target is a legal mapping target and, when it is

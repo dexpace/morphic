@@ -7,15 +7,17 @@ import (
 )
 
 // checkDuplicateWireNames reports wire-name collisions within a single model's
-// own properties.
+// own properties. Every model is read through the same map, so none costs one
+// of its own.
 func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	var names reusedMap[string, bool]
 	for _, id := range liveTypeIDs(doc) {
 		m, ok := doc.Types[id].(*ir.Model)
 		if !ok {
 			continue
 		}
-		seen := make(map[string]bool, len(m.Properties))
+		seen := names.emptied()
 		for _, p := range m.Properties {
 			name := p.EffectiveWireName()
 			if name == "" {
@@ -44,9 +46,10 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 // (ir/naming-alias-duplicate, ir/naming-alias-redundant).
 func checkAmbiguousAliases(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	var claims reusedMap[string, int]
 	for _, id := range liveTypeIDs(doc) {
 		if m, ok := doc.Types[id].(*ir.Model); ok {
-			diags = append(diags, ambiguousAliases(id, m.Properties)...)
+			diags = append(diags, ambiguousAliases(id, m.Properties, &claims)...)
 		}
 	}
 	return diags
@@ -56,9 +59,10 @@ func checkAmbiguousAliases(doc *ir.Document) []ir.Diagnostic {
 // wire name is claimed before any alias, so an alias meeting a sibling's wire
 // name is reported whichever comes first; an alias meeting a sibling's alias is
 // reported at the later one. Either way the alias is reported, since it is the
-// name a fix renames or removes, and the message names the sibling.
-func ambiguousAliases(id ir.TypeID, props []ir.Property) []ir.Diagnostic {
-	claimant := make(map[string]int, len(props))
+// name a fix renames or removes, and the message names the sibling. The names
+// are read through claims.
+func ambiguousAliases(id ir.TypeID, props []ir.Property, claims *reusedMap[string, int]) []ir.Diagnostic {
+	claimant := claims.emptied()
 	for i, p := range props {
 		if name := p.EffectiveWireName(); name != "" {
 			if _, taken := claimant[name]; !taken {
