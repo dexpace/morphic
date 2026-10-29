@@ -130,8 +130,9 @@ type visitorSet uint64
 //
 // A WalkPath reads the walk's own state, and nothing renders it until String or
 // AppendTo is called, so a visit that never reads its path pays nothing for it.
-// It is valid only until the call it was passed to returns; a visitor that keeps
-// a path keeps its String. The zero WalkPath is empty.
+// It is valid until the call it was passed to returns, or, replayed by a
+// [PathLog], until the next is yielded; a visitor keeps its String, or records
+// it in a PathLog. The zero WalkPath is empty.
 type WalkPath struct {
 	walk *valueWalk
 	// depth is how many of the walk's steps lead to the value.
