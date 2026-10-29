@@ -308,7 +308,9 @@ below are the ones most likely to bite in this codebase — the full guide gover
   sections; guard clauses and early returns over nesting; no `else` after a returning `if`.
 - **Assert aggressively** (TigerBeetle discipline): validate at every public boundary; aim ≥2
   assertions (precondition/postcondition/invariant checks returning errors) per function; split
-  compound checks. Never accept garbage silently.
+  compound checks. Never accept garbage silently. An "impossible" state is asserted, not assumed
+  away: simplifying may remove only a check a second reader of the same concept already makes
+  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#redundant-guard`).
 - **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
   Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
   against a named hard cap, recovered at the public boundary through `barrier.Catch`, the one
@@ -431,6 +433,12 @@ context-switch between repos.
   the opposite order.
   - **Probe, don't read.** Reviews that read the code pronounced it clean while it was silently
     dropping data. Compile the input; inspect the emitted IR *and* the full diagnostic list.
+  - **Check a fact where it happens, not where it is configured.** A setting, a default, a document
+    or a skill says what should happen; a log, a probe or the tree says what does. Before a change,
+    a finding or a rule rests on a fact, name it and check it the second way. A review ranked a
+    pushed commit body as landing on `main` because the repository's default squash pastes branch
+    bodies, while every merge sets its own (#1153):
+    `git log --first-parent --format=%b origin/main` shows it.
   - **Break what a test claims to catch.** Assertions that look correct on the page find nothing.
     Tests here have been caught asserting nothing at all, and one "safety net" permitted the exact
     addition it advertised catching. Plant the defect and watch it go red.
@@ -484,7 +492,9 @@ context-switch between repos.
   pastes, and `COMMIT_MESSAGES` pastes every branch commit's body. So write commit messages that
   could stand on `main`, and set the squash body at merge time.
 - PR description: Summary / Test plan (/ Breaking, when applicable). Keep PRs scoped to one
-  logical change; split unrelated changes into separate PRs.
+  logical change; split unrelated changes into separate PRs. Every hunk traces to the change's
+  request or to a site of its mechanism ("Scope a result narrowly, a defect widely" above); a
+  cleanup or bug beside it is filed, not folded in.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.
