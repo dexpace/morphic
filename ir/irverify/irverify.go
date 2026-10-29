@@ -97,7 +97,7 @@ func (d declarations) list() []ir.IDDeclaration {
 // pathsAt spells the path of each declaration at a position in at, keyed by
 // that position, so a check spells only the paths it reports.
 func (d declarations) pathsAt(at map[int]bool) map[int]string {
-	if len(at) == 0 || d.collected == nil {
+	if d.collected == nil {
 		return nil
 	}
 	paths := make(map[int]string, len(at))
