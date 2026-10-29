@@ -98,6 +98,9 @@ type heldList struct {
 func checkStringLists(*ir.Document) walkCheck {
 	var vs []Violation
 	fields := map[reflect.Type][]heldList{}
+	// Every held list is read through this one, so a list costs no map of its
+	// own however long it is.
+	var entries reusedMap[string, int]
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Struct {
@@ -109,7 +112,7 @@ func checkStringLists(*ir.Document) walkCheck {
 				fields[v.Type()] = byType
 			}
 			for _, f := range byType {
-				vs = appendListViolations(vs, v.Field(f.index), at, f)
+				vs = appendListViolations(vs, v.Field(f.index), at, f, &entries)
 			}
 			return true
 		},
@@ -134,9 +137,12 @@ func heldListsOf(t reflect.Type) []heldList {
 }
 
 // appendListViolations reports each entry of the held list f that breaks its
-// rule, at the entry itself; owner is where the struct holding it sits.
-func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath, f heldList) []Violation {
-	first := map[string]int{}
+// rule, at the entry itself; owner is where the struct holding it sits, and
+// entries is what the list is read through.
+func appendListViolations(vs []Violation, list reflect.Value, owner ir.WalkPath, f heldList,
+	entries *reusedMap[string, int],
+) []Violation {
+	first := entries.emptied()
 	for i := range list.Len() {
 		entry := list.Index(i).String()
 		switch earlier, repeated := first[entry]; {

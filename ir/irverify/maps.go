@@ -22,7 +22,7 @@ func checkMaps(doc *ir.Document) []Violation {
 		vs = append(vs, Violation{
 			Code:    "ir/map-as-model",
 			Message: "model is a map and nothing else, which is a MapT",
-			Path:    "types[" + string(id) + "]",
+			Path:    typePath(id),
 		})
 	}
 	return vs
@@ -43,7 +43,7 @@ func checkMapKeys(doc *ir.Document) []Violation {
 		vs = append(vs, Violation{
 			Code:    "ir/map-key-string",
 			Message: "key names the string primitive, which a nil key already states",
-			Path:    "types[" + string(id) + "]." + field,
+			Path:    typePath(id) + "." + field,
 		})
 	}
 	return vs

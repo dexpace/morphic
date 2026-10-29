@@ -108,6 +108,50 @@ func TestValidate_ParamBinding_OtherOperationsParamIsRejected(t *testing.T) {
 	assert.Contains(t, mismatches[0], "does not declare")
 }
 
+// TestValidate_ParamBinding_EachBindingIsJudgedAlone pins that an operation's
+// HTTP bindings are judged one at a time, each report placed at its binding.
+// The first binding places the parameter once: a second placing nothing
+// leaves it unbound there, one placing it once binds it once there too, and
+// the second's repeat and foreign parameter are the second's.
+func TestValidate_ParamBinding_EachBindingIsJudgedAlone(t *testing.T) {
+	t.Parallel()
+	own := ir.HTTPParamBinding{Param: "param/x/op/id/query", Location: ir.HTTPLocationQuery}
+	foreign := ir.HTTPParamBinding{Param: "param/x/other/id/query", Location: ir.HTTPLocationQuery}
+	type report struct {
+		severity ir.Severity
+		message  string
+	}
+	for _, tc := range []struct {
+		name   string
+		second []ir.HTTPParamBinding
+		want   []report
+	}{
+		{"placing nothing", nil, []report{{ir.SeverityWarning,
+			`parameter "id" on op/bindings/http/1 is not bound to any HTTP location`}}},
+		{"placing it once", []ir.HTTPParamBinding{own}, []report{}},
+		{"placing it twice", []ir.HTTPParamBinding{own, own}, []report{{ir.SeverityError,
+			`parameter "id" is bound more than once in location "query" on op/bindings/http/1`}}},
+		{"placing another operation's parameter", []ir.HTTPParamBinding{own, foreign}, []report{{ir.SeverityError,
+			`binding on op/bindings/http/1 names parameter "param/x/other/id/query", which this operation does not declare`}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			op := paramBindingOp("op", ir.Parameter{ID: own.Param, Name: ir.Naming{Source: "id"}})
+			op.Bindings.HTTP = append(op.Bindings.HTTP,
+				ir.HTTPBinding{Method: "POST", URITemplate: "/x", ParamBindings: tc.second})
+			other := paramBindingOp("other", ir.Parameter{ID: foreign.Param, Name: ir.Naming{Source: "id"}})
+
+			found := withCode(validated(t, docWithOperations(op, other)), "pass/param-binding-mismatch")
+			got := make([]report, 0, len(found))
+			for _, d := range found {
+				assert.Equal(t, "op/bindings/http/1", d.Provenance.Node, d.Message)
+				got = append(got, report{d.Severity, d.Message})
+			}
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 // TestValidate_HostParamBoundMultipleTimesIsLegal covers the host-location
 // continue: a host label may be filled by a param several times without a
 // double-bind error.

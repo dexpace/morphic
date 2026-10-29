@@ -22,13 +22,27 @@ type BigVal string
 // value whose leading digit carries a power of ten past [MaxDecimalExp] with
 // [ErrExponentRange]. It never rounds or reformats the significant digits: a
 // high-precision decimal and an exponential literal are preserved verbatim,
-// and only JSON-invalid affixes are normalized.
+// and only JSON-invalid affixes are normalized. A literal in JSON form already
+// is returned as it is, allocating nothing.
 func NewBigVal(s string) (BigVal, error) {
 	l, _, err := readDecimal(s)
 	if err != nil {
 		return "", fmt.Errorf("bigval: %q: %w", s, err)
 	}
+	if l.spelledForJSON(s) {
+		return BigVal(s), nil
+	}
 	return BigVal(jsonSpelling(l)), nil
+}
+
+// spelledForJSON reports whether s, the text l was scanned from, is what
+// jsonSpelling makes of l already: no leading "+", an integer part that is "0"
+// or opens with another digit, and a point only where digits follow it. Those
+// are the only affixes jsonSpelling rewrites, and it keeps every other part as
+// written.
+func (l decimalLiteral) spelledForJSON(s string) bool {
+	whole := l.intPart == "0" || (l.intPart != "" && l.intPart[0] != '0')
+	return whole && s[0] != '+' && l.point == (l.frac != "")
 }
 
 // jsonSpelling rewrites the JSON-invalid affixes of a scanned literal into JSON

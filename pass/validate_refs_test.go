@@ -865,10 +865,11 @@ func TestCheckDanglingRefs_NilTypeDefIsNotFollowed(t *testing.T) {
 
 // TestPropIDSites_KeepOnlyWhatIsNotYetDeclared holds the PropID walk to
 // settling what it can as it goes. A model's discriminator follows its
-// properties, so naming one is settled on the spot and its path never rendered;
-// a pagination path sits in a service, which the walk reaches before any type,
-// so it is kept until every property is read, and then only the ghost dangles.
-// It is not run in parallel: AllocsPerRun measures the process.
+// properties, so naming one is settled on the spot; a pagination path sits in a
+// service, which the walk reaches before any type, so it is kept until every
+// property is read, and then only the ghost dangles. Keeping one costs no
+// allocation, as its path is spelled only once it dangles. It is not run in
+// parallel: AllocsPerRun measures the process.
 func TestPropIDSites_KeepOnlyWhatIsNotYetDeclared(t *testing.T) {
 	doc := docWithOperation(ir.Operation{ID: "op/o", Pagination: &ir.Pagination{
 		Items: &ir.PropPath{Segments: []ir.PropID{"p/m/a", "p/ghost"}},
@@ -882,8 +883,8 @@ func TestPropIDSites_KeepOnlyWhatIsNotYetDeclared(t *testing.T) {
 		"doc.Services[0].Groups[0].Operations[0].Pagination.Items.Segments[1]",
 	}
 	assert.Equal(t, kept, pass.KeptPropIDs(t, doc))
-	assert.Equal(t, kept, irtest.AllocatingVisits(doc, pass.WalkVisitors(t, doc)...),
-		"a path is rendered only for what is kept")
+	assert.Empty(t, irtest.AllocatingVisits(doc, pass.WalkVisitors(t, doc)...),
+		"keeping a reference spells no path")
 	var dangling []string
 	for _, d := range validated(t, doc) {
 		if d.Code == "ir/dangling-prop-ref" {
@@ -891,6 +892,20 @@ func TestPropIDSites_KeepOnlyWhatIsNotYetDeclared(t *testing.T) {
 		}
 	}
 	assert.Equal(t, []string{"doc.Services[0].Groups[0].Operations[0].Pagination.Items.Segments[1]"}, dangling)
+}
+
+// TestCheckPropIDRefs_SettlingAKeptReferenceCostsNothing holds settling a
+// PropID the walk kept to spelling nothing once it resolves: a pagination path
+// sits in a service, which the walk reaches before the property it names. It
+// is not run in parallel: AllocsPerRun measures the process.
+func TestCheckPropIDRefs_SettlingAKeptReferenceCostsNothing(t *testing.T) {
+	doc := docWithOperation(ir.Operation{ID: "op/o", Pagination: &ir.Pagination{
+		Items: &ir.PropPath{Segments: []ir.PropID{"p/m/a"}},
+	}})
+	require.NotEmpty(t, pass.KeptPropIDs(t, doc), "the reference is kept, or nothing is settled")
+	settle := pass.PropIDRefs(t, doc)
+	require.Empty(t, settle(), "the kept reference resolves once every property is read")
+	assert.Zero(t, testing.AllocsPerRun(5, func() { _ = settle() }))
 }
 
 // danglingRefs runs checkDanglingRefs over what one walk of doc gathers, as

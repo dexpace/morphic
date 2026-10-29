@@ -146,3 +146,23 @@ func TestVerify_RequiresReadsTheEffectiveWireName(t *testing.T) {
 		})
 	}
 }
+
+// TestVerify_RequiresIsHeldModelByModel pins that a model's Requires answers to
+// its own properties and entries alone: a name another model declares or also
+// requires is no defect there. Each of the two models declares what the other
+// requires and both require one name, so whichever the check meets first, what
+// it read of that model must not linger into the other.
+func TestVerify_RequiresIsHeldModelByModel(t *testing.T) {
+	t.Parallel()
+	str := &ir.Primitive{ID: ir.PrimTypeID(ir.PrimString), Prim: ir.PrimString}
+	model := func(id ir.TypeID, own string, requires ...string) *ir.Model {
+		return &ir.Model{ID: id, Name: named(own), Requires: requires, Properties: []ir.Property{{
+			ID: ir.PropID("p" + string(id[1:]) + "/" + own), Name: named(own), WireName: own,
+			Type: ir.TypeRef{Target: str.ID},
+		}}}
+	}
+	a, b := model("t/x/A", "a", "b", "shared"), model("t/x/B", "b", "a", "shared")
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{str.ID: str, a.ID: a, b.ID: b}}
+
+	assert.Empty(t, verifyDeclared(doc))
+}

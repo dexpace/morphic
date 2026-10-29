@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
 // duplicateViolations runs the duplicate check and drops the truncation flag,
@@ -186,6 +187,85 @@ func TestCheckDuplicateIDs_CopiesDifferingOutsideTheFingerprintAreClean(t *testi
 	}}
 
 	assert.Empty(t, duplicateViolations(doc))
+}
+
+// TestCheckDuplicateIDs_EachRepeatIsHeldToTheFirstProperty pins what a later
+// property on a PropID is compared with: the first one the walk meets, and not
+// the one met just before it, nor the PropID as a whole. Each copy and each
+// difference is placed by its own path, in the walk's order of the models.
+func TestCheckDuplicateIDs_EachRepeatIsHeldToTheFirstProperty(t *testing.T) {
+	t.Parallel()
+	const dup ir.PropID = "p/x/dup"
+	alpha := ir.Property{ID: dup, Name: ir.Naming{Source: "alpha"}, WireName: "alpha", Type: ir.TypeRef{Target: "t/x/A"}}
+	beta := alpha
+	beta.WireName = "beta"
+	for _, tc := range []struct {
+		name  string
+		props []ir.Property // one per model, met in this order
+		want  []string
+	}{
+		{"a copy, then a difference", []ir.Property{alpha, alpha, beta}, []string{"doc.Types[t/x/C].Properties[0]"}},
+		{"a difference, then its copy", []ir.Property{alpha, beta, beta},
+			[]string{"doc.Types[t/x/B].Properties[0]", "doc.Types[t/x/C].Properties[0]"}},
+		{"copies only", []ir.Property{alpha, alpha, alpha}, []string{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := &ir.Document{Types: ir.TypeRegistry{}}
+			for i, prop := range tc.props {
+				id := ir.TypeID("t/x/" + string(rune('A'+i)))
+				doc.Types[id] = modelWithProp(id, prop)
+			}
+			got := duplicateViolations(doc)
+			paths := make([]string, 0, len(got))
+			for _, v := range got {
+				assert.Equal(t, "ir/duplicate-prop-id", v.Code)
+				assert.Contains(t, v.Message, "doc.Types[t/x/A].Properties[0]", "held to the first property")
+				paths = append(paths, v.Path)
+			}
+			assert.Equal(t, tc.want, paths)
+		})
+	}
+}
+
+// TestCheckDuplicateIDs_VisitingCostsNoAllocation holds the check's cost for a
+// property at nothing however often its PropID repeats, as every copy of a
+// reused component does: a fingerprint holds the property's own strings, and a
+// path is rendered only for a property whose fingerprint is not the first's.
+// It is not run in parallel: AllocsPerRun measures the process.
+func TestCheckDuplicateIDs_VisitingCostsNoAllocation(t *testing.T) {
+	header := ir.Property{ID: "p/x/Listed/headers/X-Rate", Name: ir.Naming{Source: "X-Rate"}, WireName: "X-Rate",
+		Type: ir.TypeRef{Target: "t/x/Rate"}}
+	shared := ir.Response{Name: ir.Naming{Source: "Listed"}, Headers: []ir.Property{header}}
+	doc := docWithOperations(
+		ir.Operation{ID: "op/a", Responses: []ir.Response{shared}},
+		ir.Operation{ID: "op/b", Responses: []ir.Response{shared}},
+		ir.Operation{ID: "op/c", Responses: []ir.Response{shared}},
+	)
+	doc.Types = ir.TypeRegistry{"t/x/M": &ir.Model{ID: "t/x/M", Properties: []ir.Property{
+		{ID: "p/x/M/a", Name: ir.Naming{Source: "a"}, WireName: "a", Type: ir.TypeRef{Target: "t/x/A"}},
+		{ID: "p/x/M/b", Name: ir.Naming{Source: "b"}, WireName: "b", Type: ir.TypeRef{Target: "t/x/B"}},
+	}}}
+	check := checkDuplicateIDs(doc)
+	assert.Empty(t, irtest.AllocatingVisits(doc, check))
+	assert.Empty(t, duplicateViolations(doc), "the header's copies are one property")
+}
+
+// TestPropIDs_AreDeclaredByPropertiesAlone pins what checkDuplicateIDs leans on
+// when it lets a repeated PropID through: every node declaring one is an
+// ir.Property, the one node it fingerprints. A second node declaring a PropID
+// would repeat it unfingerprinted and pass for a copy, so adding one reddens
+// this, for the check to decide what tells two of them apart.
+func TestPropIDs_AreDeclaredByPropertiesAlone(t *testing.T) {
+	t.Parallel()
+	var declaring []string
+	for _, f := range declaredFields(t) {
+		named, isNamed := types.Unalias(f.field.Type()).(*types.Named)
+		if f.field.Name() == "ID" && isNamed && named.Obj().Name() == propIDType.Name() {
+			declaring = append(declaring, f.owner)
+		}
+	}
+	assert.Equal(t, []string{propertyType.Name()}, declaring)
 }
 
 // TestVerify_ReportsDuplicateIDs pins that Verify runs the check, not just the

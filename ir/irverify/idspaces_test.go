@@ -94,6 +94,27 @@ func TestVerify_IDInAnUndeclaredNamespaceIsAViolation(t *testing.T) {
 	}
 }
 
+// TestVerify_EachIDOutsideTheDeclarationIsReportedAtItsOwnNode pins where each
+// ir/id-space-undeclared lands when several IDs miss the declaration: at the
+// node declaring that ID, not at another's. A declared ID sits between the two,
+// so a report placed by the wrong position shows too.
+func TestVerify_EachIDOutsideTheDeclarationIsReportedAtItsOwnNode(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{IRVersion: ir.IRVersion, Types: ir.TypeRegistry{}}
+	for _, id := range []ir.TypeID{"t/openapipaths/x/a", "t/openapi/x/b", "t/openapipaths/x/c"} {
+		doc.Types[id] = &ir.Model{ID: id, Name: ir.Naming{Source: "M", Canonical: "m"}}
+	}
+	declaration := map[string][]string{}
+	for _, kind := range ir.IDKinds() {
+		declaration[kind] = []string{"x"}
+	}
+	declaration[ir.IDKindType] = []string{"openapi"}
+
+	got := irverify.Verify(declaring(doc, declaration))
+	assert.Equal(t, []string{"doc.Types[t/openapipaths/x/a]", "doc.Types[t/openapipaths/x/c]"},
+		violationPaths(got, "ir/id-space-undeclared"))
+}
+
 // TestVerify_NamespaceDeclaredForAnotherKindDoesNotCount pins that the
 // declaration is per kind. A namespace some other kind declares is not one this
 // kind may use, which a flat set could not tell.

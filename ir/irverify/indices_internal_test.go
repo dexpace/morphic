@@ -207,11 +207,13 @@ var integerFields = map[string]string{
 	"flattener.index": "where a wire name sits among a flattening's own members, not a position in any IR slice",
 	"flattener.aliasOf": "where an alias scalar's chain end sits in a flattening's own aliasEnds, " +
 		"not a position in any IR slice",
-	"flattener.steps": "how much a flattening has read, not a position",
-	"frame.next":      "the next composition entry a flattening follows, counted across Base, Implements and Mixins",
-	"frame.num":       "the order a flattening met a model in, not a position in any IR slice",
-	"frame.low":       "Tarjan's low-link of a model a flattening met, not a position in any IR slice",
-	"frame.since":     "how many models a flattening had finished, a length of its own list, not a position",
+	"flattener.steps":   "how much a flattening has read, not a position",
+	"frame.next":        "the next composition entry a flattening follows, counted across Base, Implements and Mixins",
+	"frame.num":         "the order a flattening met a model in, not a position in any IR slice",
+	"frame.low":         "Tarjan's low-link of a model a flattening met, not a position in any IR slice",
+	"frame.since":       "how many models a flattening had finished, a length of its own list, not a position",
+	"loggedPath.shared": "how many steps a kept path shares with the one kept before it, not a position in any IR slice",
+	"loggedPath.end":    "where a kept path's own steps end in its log's storage, not a position in any IR slice",
 
 	// The ir package's reading of its own types, which is not IR data either.
 	"idField.index":       "the field through which a struct type declares its identity, read off the type",
