@@ -2,17 +2,18 @@
 
 How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads.
 
-## State a deliberate limitation at the code that has it
+## State a deliberate limitation at the code or rule that has it
 `limitation-stated-in-code`
 
 - **Rule.** A limit left out of scope, a library limitation relied on, a known defect whose
   reproducer is removed, or a part of an issue declined is stated in a comment at the function or
-  call that has it, naming its tracking issue, and in the PR body, in the same commit. A partly
-  addressed issue is referenced, not closed.
+  call that has it, or in the skill rule prescribing the mechanism, naming its tracking issue, and
+  in the PR body, in the same commit. A partly addressed issue is referenced, not closed.
 - **Why.** Readers reach the code first; a limitation recorded only in a PR body, commit or tracker
-  is invisible to the next person editing that function (#239, #270).
-- **Probe.** For each "out of scope", "known limit" or "tracked in #N" in the body or commits, grep
-  the diff for a matching comment at the named code.
+  is invisible to the next person editing that function (#239, #270). A skill rule named one of two
+  gaps its PR body recorded, both under one issue (#1153).
+- **Probe.** Quote the diff's sentence stating each limitation the body or commits state; an issue
+  number alone is none.
 
 ## Run the coverage gate on the final tree before claiming it
 `coverage-gate-on-final-tree`
