@@ -129,6 +129,34 @@ func TestValidate_EncodingKeysNamingRealPropertiesAreClean(t *testing.T) {
 	assert.Empty(t, validated(t, doc))
 }
 
+// TestValidate_EncodingKeyIsPlacedWhereItSits pins that an encoding key no
+// property answers to is reported at its own position past the first: the
+// second content of a request, the second response and the second error case,
+// each after one carrying no such key.
+func TestValidate_EncodingKeyIsPlacedWhereItSits(t *testing.T) {
+	t.Parallel()
+	ghost := multipartPayload(map[ir.PropID]ir.PartEncoding{"p/m/ghost": {Multi: true}})
+	twoContents := ir.Payload{Contents: append(
+		[]ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "t/m"}}}, ghost.Contents...)}
+	for _, tc := range []struct {
+		name string
+		op   ir.Operation
+		at   string
+	}{
+		{"the second content", ir.Operation{ID: "op", Request: &twoContents}, "op/request/contents/1"},
+		{"the second response", ir.Operation{ID: "op", Responses: []ir.Response{{}, {Payload: &ghost}}},
+			"op/responses/1/contents/0"},
+		{"the second error case", ir.Operation{ID: "op", Errors: []ir.ErrorCase{{}, {Payload: &ghost}}},
+			"op/errors/1/contents/0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, []string{tc.at + "/encoding/p/m/ghost"},
+				pointers(withCode(validated(t, docWithOperation(tc.op)), "ir/encoding-key-unknown-property")))
+		})
+	}
+}
+
 // TestValidate_EncodingKeyThroughServiceCommonErrors covers the second position
 // an ir.ErrorCase hangs from. The carrier table above plants into an operation's
 // own Errors, which is one of two lists of the same node: a check reaching only
