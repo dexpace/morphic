@@ -50,15 +50,15 @@ var nameOptional = map[reflect.Type]bool{
 // Naming.Aliases has rules of its own: see appendAliasViolations.
 func checkNaming(*ir.Document) walkCheck {
 	var vs []Violation
-	// Every alias list is held through this one map, emptied for each, so a
-	// list costs no map of its own however long it is.
-	seen := map[string]int{}
+	// Every alias list is read through this one, so a list costs no map of its
+	// own however long it is.
+	var aliases reusedMap[string, int]
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Kind() != reflect.Struct || v.Type() != namingType {
 				return true
 			}
-			vs = appendNamingChecks(vs, v, at, seen)
+			vs = appendNamingChecks(vs, v, at, &aliases)
 			return false // a Naming holds no Naming nested in it
 		},
 		report: reporting(&vs),
@@ -66,12 +66,12 @@ func checkNaming(*ir.Document) walkCheck {
 }
 
 // appendNamingChecks reports what is wrong with the one Naming naming, at at.
-// seen is the map appendAliasViolations holds the aliases through.
-func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, seen map[string]int) []Violation {
+// read is what appendAliasViolations reads the aliases through.
+func appendNamingChecks(vs []Violation, naming reflect.Value, at ir.WalkPath, read *reusedMap[string, int]) []Violation {
 	source, canon, hint, aliases := namingChannels(naming)
 	vs = appendAbsentViolation(vs, source, canon, hint, at)
 	vs = appendNamingViolations(vs, source, canon, hint, at)
-	return appendAliasViolations(vs, source, aliases, at, seen)
+	return appendAliasViolations(vs, source, aliases, at, read)
 }
 
 // namingChannels reads every name channel off one Naming. It reads fields
@@ -101,9 +101,9 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases r
 // Collisions with other entities' names are no rule of the list (ir-design
 // §3.2).
 func appendAliasViolations(vs []Violation, source string, aliases reflect.Value, at ir.WalkPath,
-	seen map[string]int,
+	read *reusedMap[string, int],
 ) []Violation {
-	clear(seen) // what another entity's list held collides with nothing here
+	seen := read.emptied() // what another entity's list held collides with nothing here
 	for i := range aliases.Len() {
 		alias := aliases.Index(i).String()
 		switch first, repeated := seen[alias]; {

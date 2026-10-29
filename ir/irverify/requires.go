@@ -12,19 +12,20 @@ import (
 // a repeat admits nothing more. A repeat is reported at its later entry.
 func checkRequires(doc *ir.Document) []Violation {
 	var vs []Violation
-	// Emptied for each model rather than made afresh, so a model costs no map
-	// of its own however many properties and entries it has.
-	own, first := map[string]bool{}, map[string]int{}
+	// Every model is read through these two, so a model costs no map of its
+	// own however many properties and entries it has.
+	var owned reusedMap[string, bool]
+	var listed reusedMap[string, int]
 	for id, td := range doc.Types {
 		m, isModel := td.(*ir.Model)
 		if !isModel || m == nil || len(m.Requires) == 0 {
 			continue // a nil entry is checkRegistryKeys's to report
 		}
-		clear(own)
+		own := owned.emptied()
 		for _, p := range m.Properties {
 			own[p.EffectiveWireName()] = true
 		}
-		clear(first)
+		first := listed.emptied()
 		for i, name := range m.Requires {
 			if own[name] {
 				vs = append(vs, Violation{
