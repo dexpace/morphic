@@ -26,16 +26,19 @@ const idSpacesPath = ir.DocumentPath + ".IDSpaces"
 func checkIDSpaces(doc *ir.Document) walkCheck {
 	// The declarations are all it reads, so it visits nothing itself.
 	return walkCheck{report: func(decls declarations) []Violation {
-		return idSpaceViolations(doc, decls.ids)
+		return idSpaceViolations(doc, decls)
 	}}
 }
 
 // idSpaceViolations is checkIDSpaces' finding over the identities decls.
-func idSpaceViolations(doc *ir.Document, decls []ir.IDDeclaration) []Violation {
+// Only a declaration outside every declared namespace has its path spelled.
+func idSpaceViolations(doc *ir.Document, decls declarations) []Violation {
 	vs := declarationViolations(doc.IDSpaces)
 	declared := declaredSpaces(doc.IDSpaces)
+	list := decls.list()
 	var carried int
-	for _, d := range decls {
+	var outside []int
+	for i, d := range list {
 		prefix, held := kindPrefixes[d.Class]
 		if !held {
 			continue
@@ -46,19 +49,40 @@ func idSpaceViolations(doc *ir.Document, decls []ir.IDDeclaration) []Violation {
 		}
 		carried++
 		if len(doc.IDSpaces) > 0 && !declared[prefix][space] {
-			vs = append(vs, Violation{
-				Code: "ir/id-space-undeclared",
-				Message: "id " + strconv.Quote(d.ID) + " lives in namespace " + strconv.Quote(space) +
-					", which the document does not declare for kind " + strconv.Quote(prefix),
-				Path: d.Path,
-			})
+			outside = append(outside, i)
 		}
 	}
+	vs = appendUndeclaredSpaces(vs, list, outside, decls)
 	if carried > 0 && len(doc.IDSpaces) == 0 {
 		vs = append(vs, Violation{
 			Code:    "ir/id-spaces-absent",
 			Message: "document declares no id namespaces but carries ids that need them",
 			Path:    idSpacesPath,
+		})
+	}
+	return vs
+}
+
+// appendUndeclaredSpaces reports each declaration of list at a position in
+// outside as living in a namespace its kind does not declare.
+func appendUndeclaredSpaces(vs []Violation, list []ir.IDDeclaration, outside []int, decls declarations) []Violation {
+	if len(outside) == 0 {
+		return vs
+	}
+	at := make(map[int]bool, len(outside))
+	for _, i := range outside {
+		at[i] = true
+	}
+	paths := decls.pathsAt(at)
+	for _, i := range outside {
+		d := list[i]
+		prefix := kindPrefixes[d.Class]
+		space, _ := ir.IDSpace(prefix, d.ID)
+		vs = append(vs, Violation{
+			Code: "ir/id-space-undeclared",
+			Message: "id " + strconv.Quote(d.ID) + " lives in namespace " + strconv.Quote(space) +
+				", which the document does not declare for kind " + strconv.Quote(prefix),
+			Path: paths[i],
 		})
 	}
 	return vs

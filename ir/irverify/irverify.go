@@ -28,11 +28,10 @@ type Violation struct {
 // sound document yields nil.
 //
 // A check builds a path, or any other string, only for a violation, so a value
-// with nothing wrong costs it no allocation but a step a map it keeps may grow
-// by, beyond what its readers keep: ir's path for each declaration and each
-// reference met before its target, the set
-// ir.Inferred.IsCanonical makes of a long list, and the names a jsontext
-// decoder keeps of a large object to refuse a duplicate.
+// with nothing wrong costs it no allocation but a step a map or a log it keeps
+// may grow by, beyond what its readers make: the set ir.Inferred.IsCanonical
+// makes of a long list, and the names a jsontext decoder keeps of a large
+// object to refuse a duplicate.
 func Verify(doc *ir.Document) []Violation {
 	return verify(doc, ir.WalkValues)
 }
@@ -71,8 +70,9 @@ func verify(doc *ir.Document, walk walkFunc) []Violation {
 	return vs
 }
 
-// declarations is the identities a document's nodes declare, plus whether the
-// walk that read them was cut short.
+// declarations is the identities a document's nodes declare, each with its
+// path kept unspelled for pathsAt, plus whether the walk that read them was cut
+// short.
 //
 // The walk every check shares reads them, and two checks need them once it is
 // over: checkDuplicateIDs to hold each to being declared once, and
@@ -82,8 +82,31 @@ func verify(doc *ir.Document, walk walkFunc) []Violation {
 //
 // The zero value says the document declares none and the walk ran to its end.
 type declarations struct {
-	ids       []ir.IDDeclaration
+	collected *ir.IDDeclarations
 	truncated bool
+}
+
+// list returns the declarations, in walk order.
+func (d declarations) list() []ir.IDDeclaration {
+	if d.collected == nil {
+		return nil
+	}
+	return d.collected.List()
+}
+
+// pathsAt spells the path of each declaration at a position in at, keyed by
+// that position, so a check spells only the paths it reports.
+func (d declarations) pathsAt(at map[int]bool) map[int]string {
+	if len(at) == 0 || d.collected == nil {
+		return nil
+	}
+	paths := make(map[int]string, len(at))
+	for i, path := range d.collected.Paths() {
+		if at[i] {
+			paths[i] = path.String()
+		}
+	}
+	return paths
 }
 
 // walkCheck is one check's part in the walk every check shares: visit is shown
@@ -163,22 +186,29 @@ func runWalkChecks(doc *ir.Document, walk walkFunc) []Violation {
 // reading the declarations in the same walk. It returns what they report, in
 // the order given, and whether the walk was cut short.
 func walkWith(doc *ir.Document, walk walkFunc, checks []func(*ir.Document) walkCheck) ([]Violation, bool) {
-	built := make([]walkCheck, len(checks))
-	var ids ir.IDDeclarations
-	visitors := make([]ir.Visitor, 0, 1+len(checks))
-	visitors = append(visitors, &ids)
-	for i, newCheck := range checks {
-		built[i] = newCheck(doc)
-		visitors = append(visitors, built[i])
-	}
-	decls := declarations{truncated: walk(doc, ir.DocumentPath, visitors...)}
-	decls.ids = ids.List()
+	ids, built, visitors := walkVisitors(doc, checks)
+	decls := declarations{collected: ids, truncated: walk(doc, ir.DocumentPath, visitors...)}
 
 	reports := make([][]Violation, len(built))
 	for i, c := range built {
 		reports[i] = c.report(decls)
 	}
 	return slices.Concat(reports...), decls.truncated
+}
+
+// walkVisitors builds each of checks for doc and returns them, the collector
+// of the document's declarations, and the visitors one walk carries for all of
+// them, the collector first.
+func walkVisitors(doc *ir.Document, checks []func(*ir.Document) walkCheck) (*ir.IDDeclarations, []walkCheck, []ir.Visitor) {
+	ids := &ir.IDDeclarations{}
+	built := make([]walkCheck, len(checks))
+	visitors := make([]ir.Visitor, 0, 1+len(checks))
+	visitors = append(visitors, ids)
+	for i, newCheck := range checks {
+		built[i] = newCheck(doc)
+		visitors = append(visitors, built[i])
+	}
+	return ids, built, visitors
 }
 
 // checkRegistryKeys asserts every entry of each flat, ID-keyed registry

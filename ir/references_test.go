@@ -394,3 +394,21 @@ func TestRefNoun_NamesTheReferenceClass(t *testing.T) {
 		assert.Equal(t, want, ir.RefNoun(idType))
 	}
 }
+
+// TestIDReferences_KeepingCostsNoAllocation holds a kept reference's cost at
+// nothing: one to an identity the walk has yet to declare keeps its path
+// unspelled, and spells it only if it still resolves nowhere once the walk is
+// over, where keeping its String cost a string per forward reference. It is not
+// run in parallel: AllocsPerRun measures the process.
+func TestIDReferences_KeepingCostsNoAllocation(t *testing.T) {
+	doc := declaringDoc()
+	group := &doc.Services[0].Groups[0]
+	group.Operations = append([]ir.Operation{{ID: "op/y", OverloadOf: new(ir.OpID("op/x"))}}, group.Operations...)
+	refs := ir.NewIDReferences(doc)
+
+	assert.Empty(t, irtest.AllocatingVisits(doc, refs), "a forward reference keeps no string")
+	assert.Contains(t, refIDs(refs.Kept()), "op/x", "the forward reference was kept, once per visit made")
+	assert.Empty(t, refs.Unresolved(false), "and resolved once the walk was over")
+	assert.Zero(t, testing.AllocsPerRun(5, func() { _ = refs.Unresolved(false) }),
+		"settling a kept reference that resolved spells nothing")
+}

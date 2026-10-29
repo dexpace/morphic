@@ -75,14 +75,12 @@ func TestVerify_Corpus(t *testing.T) {
 	}
 }
 
-// TestWalkChecks_ACleanValueCostsNothing holds the walking checks, together, to
-// costing nothing for a value none reports on, in a compiled document.
-// extensions-x.yaml writes an extension on every object OpenAPI admits one on,
-// so its document reaches nearly every node a compile produces, and holds none
-// of the costs Verify's doc excepts but the one left out here:
-// checkReferentialIntegrity keeps a reference to what the walk has yet to
-// declare with its path, ir.IDReferences' design, which ir pins. It is not run
-// in parallel: AllocsPerRun measures the process.
+// TestWalkChecks_ACleanValueCostsNothing holds what Verify's walk carries, the
+// declarations and every walking check, together, to costing nothing for a
+// value none reports on, in a compiled document. extensions-x.yaml writes an
+// extension on every object OpenAPI admits one on, so its document reaches
+// nearly every node a compile produces, and holds none of the costs Verify's
+// doc excepts. It is not run in parallel: AllocsPerRun measures the process.
 func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 	data, err := os.ReadFile("../../testdata/conformance/openapi/extensions-x.yaml")
 	require.NoError(t, err)
@@ -90,10 +88,7 @@ func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 	require.NotNil(t, doc)
 	require.Empty(t, irverify.Verify(doc), "the document is clean, or what is measured is a report")
 
-	checks := irverify.WalkChecks(doc)
-	require.Contains(t, checks, "checkReferentialIntegrity")
-	delete(checks, "checkReferentialIntegrity")
-	assert.Empty(t, irtest.AllocatingVisits(doc, slices.Collect(maps.Values(checks))...))
+	assert.Empty(t, irtest.AllocatingVisits(doc, irverify.WalkVisitors(doc)...))
 }
 
 // TestWalkChecks_AFirstMeetingCostsNothing holds the walking checks to costing
@@ -102,8 +97,7 @@ func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
 // PropID it meets passes the test above. A document compiled from twice the
 // components must cost the checks less than one allocation more per component
 // added, the walk's own growth taken out; a map a check keeps grows in steps,
-// far fewer. checkReferentialIntegrity is left out, as above. It is not run in
-// parallel: AllocsPerRun measures the process.
+// far fewer. It is not run in parallel: AllocsPerRun measures the process.
 func TestWalkChecks_AFirstMeetingCostsNothing(t *testing.T) {
 	const components = 100
 	few, many := scaledDocument(t, components), scaledDocument(t, 2*components)
@@ -153,14 +147,11 @@ func scaledDocument(t *testing.T, n int) *ir.Document {
 	return doc
 }
 
-// checkingAllocs returns what one walk of doc with every walking check but
-// checkReferentialIntegrity allocates, the checks built afresh, less what the
-// walk allocates visiting nothing.
+// checkingAllocs returns what one walk of doc carrying what Verify's walk does
+// allocates, built afresh, less what the walk allocates visiting nothing.
 func checkingAllocs(doc *ir.Document) float64 {
 	checking := testing.AllocsPerRun(5, func() {
-		checks := irverify.WalkChecks(doc)
-		delete(checks, "checkReferentialIntegrity")
-		ir.WalkValues(doc, ir.DocumentPath, slices.Collect(maps.Values(checks))...)
+		ir.WalkValues(doc, ir.DocumentPath, irverify.WalkVisitors(doc)...)
 	})
 	walking := testing.AllocsPerRun(5, func() {
 		ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true }))

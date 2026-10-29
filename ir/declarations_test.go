@@ -32,8 +32,8 @@ func declaringDoc() *ir.Document {
 
 // declaredBy indexes declarations by ID class name, so a case can assert on one
 // class without depending on walk order.
-func declaredBy(decls []ir.IDDeclaration) map[string][]ir.IDDeclaration {
-	out := map[string][]ir.IDDeclaration{}
+func declaredBy(decls []declaredAt) map[string][]declaredAt {
+	out := map[string][]declaredAt{}
 	for _, d := range decls {
 		out[d.Class.Name()] = append(out[d.Class.Name()], d)
 	}
@@ -53,15 +53,15 @@ func TestIDDeclarations_ReachesEveryIDBearingNodeOnce(t *testing.T) {
 	require.False(t, truncated, "a shallow document must not exhaust the walk")
 
 	byClass := declaredBy(decls)
-	want := map[string]ir.IDDeclaration{
-		"TypeID":    {ID: "t/x/M", Path: "doc.Types[t/x/M]"},
-		"PropID":    {ID: "p/x/M/f", Path: "doc.Types[t/x/M].Properties[0]"},
-		"ChannelID": {ID: "c/x", Path: "doc.Channels[c/x]"},
-		"MessageID": {ID: "m/x", Path: "doc.Messages[m/x]"},
-		"AuthID":    {ID: "auth/x", Path: "doc.Auth[auth/x]"},
-		"ServiceID": {ID: "s/x", Path: "doc.Services[0]"},
-		"GroupID":   {ID: "g/x", Path: "doc.Services[0].Groups[0]"},
-		"OpID":      {ID: "op/x", Path: "doc.Services[0].Groups[0].Operations[0]"},
+	want := map[string]declaredAt{
+		"TypeID":    {IDDeclaration: ir.IDDeclaration{ID: "t/x/M"}, Path: "doc.Types[t/x/M]"},
+		"PropID":    {IDDeclaration: ir.IDDeclaration{ID: "p/x/M/f"}, Path: "doc.Types[t/x/M].Properties[0]"},
+		"ChannelID": {IDDeclaration: ir.IDDeclaration{ID: "c/x"}, Path: "doc.Channels[c/x]"},
+		"MessageID": {IDDeclaration: ir.IDDeclaration{ID: "m/x"}, Path: "doc.Messages[m/x]"},
+		"AuthID":    {IDDeclaration: ir.IDDeclaration{ID: "auth/x"}, Path: "doc.Auth[auth/x]"},
+		"ServiceID": {IDDeclaration: ir.IDDeclaration{ID: "s/x"}, Path: "doc.Services[0]"},
+		"GroupID":   {IDDeclaration: ir.IDDeclaration{ID: "g/x"}, Path: "doc.Services[0].Groups[0]"},
+		"OpID":      {IDDeclaration: ir.IDDeclaration{ID: "op/x"}, Path: "doc.Services[0].Groups[0].Operations[0]"},
 	}
 	for class, w := range want {
 		got := byClass[class]
@@ -252,19 +252,16 @@ func TestDeclaredIDField_CostsNoAllocation(t *testing.T) {
 	}
 }
 
-// TestIDDeclarations_AllocatesOnlyForADeclaration holds a walk's per-value cost
-// for its declarations to the record a declaration adds: a value declaring
-// nothing, of a type met before, allocates nothing. Each is handed the walk's
-// own path, so rendering one for a value declaring nothing would count. It is
-// not run in parallel: AllocsPerRun measures the process.
-func TestIDDeclarations_AllocatesOnlyForADeclaration(t *testing.T) {
+// TestIDDeclarations_AllocatesNothingPerDeclaration holds a walk's per-value
+// cost for its declarations at nothing, a declaration included: each keeps its
+// path unspelled, where spelling it costs a string per declaration. Each visit
+// is handed the walk's own path, so spelling one would count. It is not run in
+// parallel: AllocsPerRun measures the process.
+func TestIDDeclarations_AllocatesNothingPerDeclaration(t *testing.T) {
 	doc := declaringDoc()
 	decls, _ := declaredIDs(doc)
-	want := make([]string, 0, len(decls))
-	for _, d := range decls {
-		want = append(want, d.Path)
-	}
+	require.NotEmpty(t, decls, "some value declares, or no declaration is measured")
 
 	var visitor ir.IDDeclarations
-	assert.Equal(t, want, irtest.AllocatingVisits(doc, &visitor))
+	assert.Empty(t, irtest.AllocatingVisits(doc, &visitor))
 }

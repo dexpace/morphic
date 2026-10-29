@@ -43,53 +43,100 @@ type fingerprint struct {
 // the defect (#280). The fingerprint is source name, wire name and TypeRef
 // target; a wider one flags every reused component.
 func checkDuplicateIDs(*ir.Document) walkCheck {
-	// The fingerprint of the first property met on each PropID, and the paths
-	// of the properties met later whose fingerprint differs from it. The walk
-	// meets properties in the order the declarations list them, so the first
-	// met is the PropID's first declaration, and only a property that differs,
-	// which is a defect, has its path rendered.
-	first := map[string]fingerprint{}
-	differs := map[string]bool{}
+	// The first property met on each PropID, and the later ones whose
+	// fingerprint differs from it, each named by its PropID and how many met on
+	// that PropID before it. The walk meets properties in the order the
+	// declarations list them, so the first met is the PropID's first
+	// declaration, and the n-th met its n-th.
+	first := map[string]firstProperty{}
+	differs := map[occurrence]bool{}
 	return walkCheck{
-		visit: func(v reflect.Value, at ir.WalkPath) bool {
+		visit: func(v reflect.Value, _ ir.WalkPath) bool {
 			if v.Kind() != reflect.Struct || v.Type() != propertyType {
 				return true
 			}
 			id, got := v.FieldByName("ID").String(), fingerprintOf(v)
-			switch met, seen := first[id]; {
-			case !seen:
-				first[id] = got
-			case met != got:
-				differs[at.String()] = true
+			met, seen := first[id]
+			if !seen {
+				first[id] = firstProperty{fingerprint: got, met: 1}
+				return true
 			}
+			if met.fingerprint != got {
+				differs[occurrence{id: id, n: met.met}] = true
+			}
+			met.met++
+			first[id] = met
 			return true
 		},
 		report: func(decls declarations) []Violation {
-			return duplicateIDs(decls.ids, differs)
+			return duplicateIDs(decls, differs)
 		},
 	}
 }
 
+// firstProperty is the first property the walk met on a PropID, by its
+// fingerprint, and how many it has met on that PropID so far.
+type firstProperty struct {
+	fingerprint fingerprint
+	met         int
+}
+
+// occurrence names one declaration of an identity: the ID, and how many
+// declarations of it came before this one.
+type occurrence struct {
+	id string
+	n  int
+}
+
+// redeclaration is a declaration of an identity declared before it, by its
+// position among the declarations and the first one's.
+type redeclaration struct {
+	at, first int
+}
+
 // duplicateIDs reports each declaration in decls of an identity declared before
-// it, unless it is a property that is the first one's copy: of the properties
-// declared again, differs holds the paths of those that are not.
-func duplicateIDs(decls []ir.IDDeclaration, differs map[string]bool) []Violation {
-	first := make(map[identity]string, len(decls))
-	var vs []Violation
-	for _, d := range decls {
+// it, unless it is a property that is the first one's copy: differs holds the
+// occurrences of the properties that are not. Only what it reports has its
+// path spelled.
+func duplicateIDs(decls declarations, differs map[occurrence]bool) []Violation {
+	list := decls.list()
+	type declared struct{ first, met int }
+	seen := make(map[identity]declared, len(list))
+	var again []redeclaration
+	for i, d := range list {
 		key := identity{class: d.Class, id: d.ID}
-		at, taken := first[key]
+		before, taken := seen[key]
 		if !taken {
-			first[key] = d.Path
+			seen[key] = declared{first: i, met: 1}
 			continue
 		}
-		if d.Class == propIDType && !differs[d.Path] {
+		seen[key] = declared{first: before.first, met: before.met + 1}
+		if d.Class == propIDType && !differs[occurrence{id: d.ID, n: before.met}] {
 			continue // one property materialized at several paths, not two properties
 		}
+		again = append(again, redeclaration{at: i, first: before.first})
+	}
+	return redeclarationViolations(list, again, decls)
+}
+
+// redeclarationViolations reports each of again, spelling the paths of the
+// declarations it names and no other.
+func redeclarationViolations(list []ir.IDDeclaration, again []redeclaration, decls declarations) []Violation {
+	if len(again) == 0 {
+		return nil
+	}
+	at := make(map[int]bool, 2*len(again))
+	for _, r := range again {
+		at[r.at], at[r.first] = true, true
+	}
+	paths := decls.pathsAt(at)
+	vs := make([]Violation, 0, len(again))
+	for _, r := range again {
+		d := list[r.at]
 		vs = append(vs, Violation{
 			Code:    "ir/duplicate-" + ir.RefNoun(d.Class) + "-id",
-			Message: "id " + strconv.Quote(d.ID) + " is declared here and at " + strconv.Quote(at),
-			Path:    d.Path,
+			Message: "id " + strconv.Quote(d.ID) + " is declared here and at " + strconv.Quote(paths[r.first]),
+			Path:    paths[r.at],
 		})
 	}
 	return vs

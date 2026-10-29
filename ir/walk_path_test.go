@@ -273,3 +273,29 @@ func TestWalkPath_EntriesAreOrderedByTheirSpelling(t *testing.T) {
 	}))
 	assert.Equal(t, []string{"doc[98]", "doc[99]"}, got)
 }
+
+// TestWalkPath_IsMapKeyIsTheKeyAlone holds IsMapKey to the step String spells
+// with MapKeySuffix: a map entry's key, and not its value, a field, an element,
+// the root or the zero path.
+func TestWalkPath_IsMapKeyIsTheKeyAlone(t *testing.T) {
+	t.Parallel()
+	doc := &ir.Document{Services: []ir.Service{{Renames: map[ir.TypeID]ir.Naming{"t/x/M": {Source: "m"}}}}}
+	got := map[string]bool{}
+	ir.WalkValues(doc, "doc", ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+		got[at.String()] = at.IsMapKey()
+		return true
+	}))
+	for path, want := range map[string]bool{
+		"doc":                                   false,
+		"doc.Services":                          false,
+		"doc.Services[0]":                       false,
+		"doc.Services[0].Renames":               false,
+		"doc.Services[0].Renames[t/x/M].key":    true,
+		"doc.Services[0].Renames[t/x/M]":        false,
+		"doc.Services[0].Renames[t/x/M].Source": false,
+	} {
+		require.Contains(t, got, path)
+		assert.Equal(t, want, got[path], path)
+	}
+	assert.False(t, ir.WalkPath{}.IsMapKey(), "the zero path ends in nothing")
+}

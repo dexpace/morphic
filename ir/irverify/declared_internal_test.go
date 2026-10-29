@@ -80,11 +80,10 @@ func TestCheckDeclaredIDs_ReachesEveryIDDeclaringNode(t *testing.T) {
 
 	keyed := ir.KeyedClasses()
 	var want []string
-	for _, d := range decls {
-		if keyed[d.Class] {
-			continue
+	for i, path := range found.Paths() {
+		if d := decls[i]; !keyed[d.Class] {
+			want = append(want, "ir/empty-"+ir.RefNoun(d.Class)+"-id "+path.String())
 		}
-		want = append(want, "ir/empty-"+ir.RefNoun(d.Class)+"-id "+d.Path)
 	}
 	require.NotEmpty(t, want, "the fixture must declare a class Document keys no map by")
 

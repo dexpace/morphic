@@ -186,6 +186,13 @@ func (p WalkPath) Field() (owner reflect.Type, name string, ok bool) {
 	return owner, steps[last].owner.Field(steps[last].index).Name, true
 }
 
+// IsMapKey reports whether the path ends in a map entry's key, which String
+// spells with [MapKeySuffix], so a caller can tell a key from the entry's value
+// without spelling the path.
+func (p WalkPath) IsMapKey() bool {
+	return p.walk != nil && p.depth > 0 && p.walk.steps[p.depth-1].kind == stepMapKey
+}
+
 // stepKind is how a value is reached from its parent.
 type stepKind uint8
 

@@ -485,12 +485,23 @@ func populatedProperty() ir.Property {
 	}
 }
 
+// declaredAt is one declaration an ir.IDDeclarations collected, with the path
+// it spells for it.
+type declaredAt struct {
+	ir.IDDeclaration
+	Path string
+}
+
 // declaredIDs walks doc with an ir.IDDeclarations and returns what it
-// collected, with whether the walk was cut short.
-func declaredIDs(doc *ir.Document) ([]ir.IDDeclaration, bool) {
+// collected, each with its path, and whether the walk was cut short.
+func declaredIDs(doc *ir.Document) ([]declaredAt, bool) {
 	var found ir.IDDeclarations
 	truncated := ir.WalkValues(doc, ir.DocumentPath, &found)
-	return found.List(), truncated
+	out := make([]declaredAt, len(found.List()))
+	for i, at := range found.Paths() {
+		out[i] = declaredAt{IDDeclaration: found.List()[i], Path: at.String()}
+	}
+	return out, truncated
 }
 
 // flatLines renders each member of f on one line: the declaration it takes as

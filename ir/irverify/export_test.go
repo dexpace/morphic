@@ -51,12 +51,10 @@ func HeldLists() map[string]bool {
 	return held
 }
 
-// WalkChecks builds every walking check for doc, keyed by its function's name,
-// as Verify's walk is shown them, for this package's external tests.
-func WalkChecks(doc *ir.Document) map[string]ir.Visitor {
-	checks := map[string]ir.Visitor{}
-	for _, newCheck := range walkChecks() {
-		checks[checkName(newCheck)] = newCheck(doc)
-	}
-	return checks
+// WalkVisitors builds every walking check for doc and returns the visitors
+// Verify's one walk carries, the declarations' collector among them, for this
+// package's external tests.
+func WalkVisitors(doc *ir.Document) []ir.Visitor {
+	_, _, visitors := walkVisitors(doc, walkChecks())
+	return visitors
 }
