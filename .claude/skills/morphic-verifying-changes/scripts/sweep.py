@@ -172,12 +172,16 @@ def parse(argv: list[str]) -> argparse.Namespace:
     if "--" in argv:
         i = argv.index("--")
         argv, flags = argv[:i], argv[i + 1:]
-    p = argparse.ArgumentParser(description="Compare two builds of cmd/morphic over a corpus.")
-    p.add_argument("-b", dest="base", default="origin/main")
-    p.add_argument("-t", dest="limit", type=int, default=60)
-    p.add_argument("-j", dest="jobs", type=int, default=max(1, (os.process_cpu_count() or 2) // 2))
-    p.add_argument("-o", dest="out")
-    p.add_argument("corpus", nargs="*")
+    # --help prints the docstring, whose usage line names the compile flags and whose prose says
+    # what each option does; argparse's own usage would leave the flags out.
+    p = argparse.ArgumentParser(usage=argparse.SUPPRESS, description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("-b", dest="base", metavar="BASE", default="origin/main")
+    p.add_argument("-t", dest="limit", metavar="SECONDS", type=int, default=60)
+    p.add_argument("-j", dest="jobs", metavar="JOBS", type=int,
+                   default=max(1, (os.process_cpu_count() or 2) // 2))
+    p.add_argument("-o", dest="out", metavar="OUTDIR")
+    p.add_argument("corpus", metavar="CORPUS", nargs="*")
     args = p.parse_args(argv)
     if args.limit < 1 or args.jobs < 1:
         p.error("-t and -j must be at least 1")

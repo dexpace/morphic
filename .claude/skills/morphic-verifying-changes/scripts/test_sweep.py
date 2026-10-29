@@ -155,6 +155,13 @@ class SweepTest(unittest.TestCase):
                     sweep.parse(argv)
                 self.assertEqual(e.exception.code, 2)
 
+    def test_help_prints_the_docstring_that_gives_each_option(self):
+        out = io.StringIO()
+        with redirect_stdout(out), self.assertRaises(SystemExit) as e:
+            sweep.parse(["--help"])
+        self.assertEqual(e.exception.code, 0)
+        self.assertIn(sweep.__doc__.strip(), out.getvalue())
+
     def test_flags_after_a_double_dash_reach_the_compile(self):
         args = sweep.parse(["-b", "x", "testdata", "--", "--opt", "a=b"])
         got = (args.base, args.corpus, args.flags)
