@@ -81,14 +81,16 @@ gives. A clock does none of that reliably; a counter does.
 ## Measure a render through a real walk, not a zero path
 `allocs-miss-a-free-render`
 
-- **Rule.** `testing.AllocsPerRun` cannot see a render the compiler turns into a no-copy map lookup,
-  nor one of the zero `ir.WalkPath`, which renders "" without allocating. Measure each visitor in a
-  call of its own to `irtest.AllocatingVisits`, which visits inside a real walk with the walk's own
-  path, so no other visitor's pruning hides a visit, and assert the exact set of allocating paths.
-  Check `go build -gcflags=-m` before trusting a count to see a render at all.
-- **Why.** An eager-render mutant survived a test indexing a map with the rendered path (#1125),
-  and four survived visit tests run on the zero path (#1133).
-- **Probe.** Plant an eager render in the visitor; the test reddens.
+- **Rule.** `testing.AllocsPerRun` sees neither a render the compiler turns into a no-copy map
+  lookup nor one of the zero `ir.WalkPath`, which renders "" without allocating. Measure visitors
+  through `irtest.AllocatingVisits`, which walks each as it would walk alone with the walk's own
+  path, and assert the exact allocating paths. It measures only a visit's repeat, so hold a first
+  meeting with a test that doubles the document. Check `go build -gcflags=-m` before trusting a
+  count.
+- **Why.** Eager-render mutants survived a test indexing a map with the rendered path (#1125) and
+  visit tests on the zero path (#1133); a path kept on each first meeting survived every visit test
+  (#1147).
+- **Probe.** Plant an eager render, and a path kept on a first meeting; each test reddens.
 
 ## Remove a process-wide confound from the measured window
 `process-counter-window`
