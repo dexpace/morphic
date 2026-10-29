@@ -49,8 +49,9 @@ These rules decide whether the answer means anything.
 `transform-differential`
 
 - **Rule.** For a fix about how a character in keys or references is read, rename every key once
-  with the suffix `+Q` and once with `_Q`, compile both, map one onto the other and compare. For "X is the whole
-  change", apply the expected rule to `main`'s output and require equality with the branch.
+  with the suffix `+Q` and once with `_Q`, compile both, map one onto the other and compare. For
+  "X is the whole change", apply the expected rule to `main`'s output and require equality with the
+  branch.
 - **Why.** The rename oracle found error text leaking a respelled form after a byte-identical corpus
   check had reached nothing (#933). A transform differential showed docs moving rather than lost
   (#728).

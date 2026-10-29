@@ -100,7 +100,8 @@ def report(results, root: Path, out: Path) -> int:
         return p.relative_to(root).as_posix() if p.is_relative_to(root) else str(p)
 
     table = out / "results.tsv"
-    rows = "".join(f"{n}\t{b}\t{h}\t{what or '-'}\t{rel(spec)}\n" for n, b, h, spec, what in results)
+    rows = "".join(f"{n}\t{b}\t{h}\t{what or '-'}\t{rel(spec)}\n"
+                   for n, b, h, spec, what in results)
     table.write_text("n\tbase\thead\tdiffers\tspec\n" + rows)
     print(f"sweep: {len(results)} specs; outputs under {out}/runs/<n>/, a row per spec in {table}")
     for side, col in (("base", 1), ("head", 2)):
