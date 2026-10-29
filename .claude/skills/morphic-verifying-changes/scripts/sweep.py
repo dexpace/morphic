@@ -5,8 +5,8 @@
 """Compile every spec in a corpus with cmd/morphic built at a base revision and at the working
 tree, and print each side's exit codes and each spec whose exit code, IR or diagnostics differ.
 
-Usage: python3.14 sweep.py [-b BASE] [-t SECONDS] [-j JOBS] [-o OUTDIR] [CORPUS...]
-                        [-- COMPILE-FLAGS...]
+Usage: python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py [-b BASE] [-t SECONDS]
+       [-j JOBS] [-o OUTDIR] [CORPUS...] [-- COMPILE-FLAGS...]
 
 BASE is the revision to compare against (default origin/main); when HEAD does not hold it, a
 warning says the differences also count what BASE gained since. A compile running past SECONDS
