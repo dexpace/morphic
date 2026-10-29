@@ -12,9 +12,9 @@ yourself. These rules are the ways that reading still lies.
   touching the stash list. Put a file back with `git -C <dir> checkout -- <file>`, and remove the
   worktree at the end. Run Python with `PYTHONDONTWRITEBYTECODE=1`.
 - **Why.** Restores in the working tree failed: a backup restored from the wrong copy (#591), one
-  backup shared by two files of one basename (#566), a full disk emptying a file mid-restore
-  (#1141, #1143), and bytecode outliving a same-size Python mutant restored within its second
-  (#1143).
+  backup shared by two files of one basename (#566), a full disk that left a mutant planted (#1141)
+  and emptied a file mid-restore (#1143), and bytecode outliving a same-size Python mutant restored
+  within its second (#1143).
 - **Probe.** `git status --short` in your own tree lists only your changes, and
   `git worktree list` no longer names the throwaway.
 

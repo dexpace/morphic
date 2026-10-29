@@ -11,10 +11,10 @@ it.
   governs, and probe each node kind it can land on. Fix each site, or state the uncovered one in
   code and in the PR body. An issue's own site list is a claim, not the scope.
 - **Why.** The pointer-collision fix left the same collision in the inline-position hoist; grids
-  built from an issue's shapes passed while a type-array variant still failed; a per-site revert
-  showed most call sites untested (#157, #101, #808, #542, #1143).
-- **Probe.** For each hit of the mechanism's grep, show the fix or plant the reproducer there and
-  watch it go red.
+  built from an issue's shapes passed while a type-array variant failed; a per-site revert showed
+  most call sites untested (#157, #101, #808, #542); a review's fix missed a second file (#1143).
+- **Probe.** For each hit of the mechanism's grep, show the fix or plant the reproducer and watch
+  it go red.
 
 ## Fix the state at the type that owns it, not where the defect surfaced
 `fix-at-the-invariants-owner`
