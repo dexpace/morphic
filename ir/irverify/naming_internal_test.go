@@ -78,9 +78,9 @@ func TestNameExempt_IsTheOptionalNodesOwnNameAlone(t *testing.T) {
 // TestCheckNaming_ExemptsAPrimitiveInAFieldNotOneEmbedded holds the exemption
 // to the field a Naming is reached through, as its path spells it: a primitive
 // held in a field of any name keeps its own Name exempt, while a struct
-// embedding one takes the primitive's promoted Name as its own, so neither that
-// Name nor the one beside it is exempt, though both share a path. An exemption
-// recorded by path silenced both there.
+// embedding one beside a Name of its own spells the primitive's Name, which
+// that Name shadows, on itself, so neither is exempt, though both share a
+// path. An exemption recorded by path silenced both there.
 func TestCheckNaming_ExemptsAPrimitiveInAFieldNotOneEmbedded(t *testing.T) {
 	t.Parallel()
 	type held struct{ Kept ir.Primitive }

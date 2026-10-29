@@ -162,10 +162,11 @@ func (p WalkPath) AppendTo(b []byte) []byte {
 
 // Field reports the struct field the path ends in, as String spells it: the
 // struct type the field is spelled on and the field's name, or false when the
-// path ends in an element, a map entry or the root. A field Go promotes through
-// an embedded struct is spelled on the embedding struct, so a Primitive's Name
-// is reported as Primitive's, and an embedded struct, which the path does not
-// spell, reports what reached the struct embedding it.
+// path ends in an element, a map entry or the root. A field reached through an
+// embedded struct, promoted or shadowed, is spelled on the outermost struct
+// embedding it, so a Primitive's Name is reported as Primitive's, and an
+// embedded struct, which the path does not spell, reports what reached the
+// struct embedding it.
 func (p WalkPath) Field() (owner reflect.Type, name string, ok bool) {
 	if p.walk == nil {
 		return nil, "", false

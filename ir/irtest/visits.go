@@ -12,12 +12,12 @@ import (
 // that must allocate, once per visitor allocating there, in walk order, a walk
 // per 64 visitors as ir.WalkValues makes. Each visitor is shown the walk it
 // would be shown alone, with the walk's own path: the zero ir.WalkPath renders
-// empty.
+// empty without allocating.
 //
 // Only a repeat of a visit is measured (fewestAllocs), so what a visitor builds
-// on first meeting a value goes uncounted: a memo, but also anything it keeps
-// per value, which a test growing the document finds. AllocsPerRun
-// measures the process, so a caller is not run in parallel.
+// on first meeting a value goes uncounted, whatever it keeps per value, which
+// a test growing the document finds. AllocsPerRun measures the process, so a
+// caller is not run in parallel.
 func AllocatingVisits(doc *ir.Document, visitors ...ir.Visitor) []string {
 	var paths []string
 	measured := make([]ir.Visitor, len(visitors))
