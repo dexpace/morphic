@@ -121,14 +121,14 @@ how to measure so the number means what the claim says.
 ## Replace a reused map past a bound: `clear` never shrinks it
 `clear-never-shrinks`
 
-- **Rule.** Clearing a non-empty map costs in proportion to the most it has held. Clear a map reused
+- **Rule.** Clearing a non-empty map costs more the more it has ever held. Clear a map reused
   across collections only while no collection has filled it past a bound, and replace it once one
   has, through a `reusedMap` and a source test refusing any other `clear`, as `ir/irverify` and
   `pass` keep. `reusedMap`'s length check can miss a collection that deletes (#1152).
 - **Why.** Checks reusing maps emptied only by `clear` passed every cost test, while one model
   listing a million names beside 200,000 listing two took `checkRequires` from 166 ms to 490 ms
   (#1147).
-- **Probe.** Time one collection past the bound, then many small ones, on `main` and the branch:
+- **Probe.** Time a million-entry collection, then many small ones, on `main` and the branch:
   put it first, or take the median of many runs where map order places it.
   `TestReusedMap_EmptiesInPlaceUpToTheLimit` pins the bound, and
   `TestReusedMaps_AreEmptiedThroughReusedMapAlone` the `clear`s.
