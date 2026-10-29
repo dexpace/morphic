@@ -1,6 +1,7 @@
 package pass_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -309,5 +310,35 @@ func TestValidate_DanglingDiscriminatorDefaultIsReportedTwice(t *testing.T) {
 			assert.Contains(t, messageForCode(t, diags, "pass/discriminator-missing-variant"),
 				"no type in the document declares")
 		})
+	}
+}
+
+// TestValidate_MappingDiagnosticsAreDeterministic pins invariant 7 for a
+// discriminator's Mapping, whose keys Go ranges in randomized order: they are
+// asked in sorted order, so the reports within one discriminator, all placed at
+// the union, follow the wire values their messages name.
+func TestValidate_MappingDiagnosticsAreDeterministic(t *testing.T) {
+	t.Parallel()
+	doc := discriminatedUnion("t/m")
+	u, ok := doc.Types["t/u"].(*ir.Union)
+	require.True(t, ok)
+	for _, key := range []string{"z", "b", "q", "c", "m"} {
+		u.Discriminator.Mapping[key] = "t/none"
+	}
+	messages := func() []string {
+		found := withCode(validated(t, doc), "pass/discriminator-missing-variant")
+		out := make([]string, 0, len(found))
+		for _, d := range found {
+			out = append(out, d.Message)
+		}
+		return out
+	}
+	want := messages()
+	require.Len(t, want, 5)
+	for i, key := range []string{"b", "c", "m", "q", "z"} {
+		assert.Contains(t, want[i], fmt.Sprintf("mapping %q", key))
+	}
+	for range 8 {
+		assert.Equal(t, want, messages())
 	}
 }
