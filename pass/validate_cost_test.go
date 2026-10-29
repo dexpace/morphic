@@ -20,7 +20,8 @@ const wide = 12
 // entities, each reaching every rule family with collections wider than a map
 // holds unallocated: a model with properties, aliases and a discriminator
 // routing to its subtypes, a union routing to its variants, an enum, a channel
-// and its messages, and an operation binding parameters, paginating, keyed by a
+// on a server with its messages, and an operation binding parameters,
+// paginating to an item property the walk meets before its model, keyed by a
 // token, with multipart request, response, error and default payloads and a
 // message binding with a reply.
 func soundDocument(n int) *ir.Document {
@@ -29,6 +30,7 @@ func soundDocument(n int) *ir.Document {
 		Types:    ir.TypeRegistry{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}},
 		Channels: map[ir.ChannelID]ir.Channel{},
 		Messages: map[ir.MessageID]ir.Message{},
+		Servers:  []ir.Server{{Name: ir.Naming{Source: "api"}, URLTemplate: "https://api.example.com"}},
 	}
 	group := ir.OperationGroup{ID: "g/x"}
 	commonErrors := make([]ir.ErrorCase, 0, n)
@@ -38,7 +40,7 @@ func soundDocument(n int) *ir.Document {
 		group.Operations = append(group.Operations, entityOperation(i, model, messages))
 		commonErrors = append(commonErrors, ir.ErrorCase{Payload: jsonPayload(model.ID)})
 	}
-	doc.Services = []ir.Service{{ID: "s/x", CommonErrors: commonErrors, Groups: []ir.OperationGroup{group}}}
+	doc.Services = []ir.Service{{ID: "s/x", Servers: []int{0}, CommonErrors: commonErrors, Groups: []ir.OperationGroup{group}}}
 	return doc
 }
 
@@ -73,7 +75,7 @@ func addEntityTypes(doc *ir.Document, i int) *ir.Model {
 // addEntityMessages adds entity i's channel and the messages it carries to doc,
 // and returns the channel's ID and the messages'.
 func addEntityMessages(doc *ir.Document, i int) entityMessages {
-	ch := ir.Channel{ID: ir.ChannelID(fmt.Sprintf("c/x/C%d", i))}
+	ch := ir.Channel{ID: ir.ChannelID(fmt.Sprintf("c/x/C%d", i)), Servers: []int{0}}
 	for j := range wide {
 		id := ir.MessageID(fmt.Sprintf("m/x/C%d/M%d", i, j))
 		doc.Messages[id] = ir.Message{ID: id, Payload: *jsonPayload("t/prim/string")}
@@ -107,7 +109,10 @@ func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operati
 		binding.ParamBindings = append(binding.ParamBindings, ir.HTTPParamBinding{Param: id, Location: ir.HTTPLocationQuery})
 	}
 	op.Bindings.HTTP = []ir.HTTPBinding{binding}
-	op.Pagination = &ir.Pagination{InputCursor: &ir.ParamPath{Param: op.Params[0].ID}, InputLimit: &ir.ParamPath{Param: op.Params[1].ID}}
+	op.Pagination = &ir.Pagination{
+		InputCursor: &ir.ParamPath{Param: op.Params[0].ID}, InputLimit: &ir.ParamPath{Param: op.Params[1].ID},
+		Items: &ir.PropPath{Segments: []ir.PropID{model.Properties[0].ID}},
+	}
 	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: op.Params[2].ID}
 	reply := messages.channel
 	op.Bindings.Message = &ir.MessageBinding{
@@ -147,6 +152,7 @@ func TestValidate_ASoundValueCostsNothing(t *testing.T) {
 	require.Empty(t, validated(t, many), "the document is sound, or what is measured is a report")
 
 	pair := soundDocument(2) // every kind of value the walk meets
+	require.NotEmpty(t, pass.KeptPropIDs(t, pair), "an item property is kept for its model to settle")
 	assert.Empty(t, irtest.AllocatingVisits(pair, pass.WalkVisitors(t, pair)...), "the walk's visits")
 	walked := pass.WalkAllocs(t, many) - pass.WalkAllocs(t, few)
 	assert.Less(t, walked, float64(entities), "the walk: %v allocations more", walked)
