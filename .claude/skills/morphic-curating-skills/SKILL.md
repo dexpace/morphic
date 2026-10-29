@@ -14,9 +14,8 @@ Take the first that fits.
 1. **A check.** If a test or a lint or archtest rule can catch it, write or file that check. A
    filed check keeps a rule naming its issue until it lands.
 2. **A script**, only to hold an invariant through a crash, count or compare exactly, or check
-   every member of a large set. It prints facts, not verdicts parsed from tool output.
-   Nothing runs a script's tests, so each is upkeep; otherwise the command goes in the rule's
-   Probe.
+   every member of a large set, printing facts, not verdicts parsed from tool output. Short of
+   that, the command goes in the rule's Probe, since nothing runs a script's tests.
 3. **A rule in a skill.** Add it to a reference file of the narrowest skill whose trigger fires
    when the lesson applies. If none does, widen a description or add a skill: a rule no trigger
    reaches is never read.
@@ -44,9 +43,9 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 
 ## Limits
 
-- A `SKILL.md` body stays within 500 words. Its description stays within 500 characters, since
-  every session loads it, starts "Use when" and says when to load the skill, never what it does:
-  an agent follows a summary instead of reading the body. Other frontmatter follows
+- A `SKILL.md` body stays within 500 words. Its description stays within 500 characters, as every
+  session loads it, and starts "Use when": it says when to load the skill, never what it does,
+  since an agent follows a summary instead of reading the body. Other frontmatter follows
   `https://agentskills.io/specification`.
 - A reference file stays within 4,000 words. A full file takes a new rule only by merging or
   removing one.

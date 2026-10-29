@@ -19,8 +19,8 @@ git worktree add --detach <dir> FETCH_HEAD && cd <dir> && git merge --no-edit or
 ```
 
 A head that conflicts with `main` is reviewed alone (`git merge --abort`); the conflict is an
-`issue:`. Load the domain skill the changed files call for, and probe only there, with
-`morphic-verifying-changes`.
+`issue:`. Probe only in that worktree, with `morphic-verifying-changes` and the domain skill the
+changed files call for.
 
 ## Passes
 
@@ -49,11 +49,11 @@ Run all; each finds what the others cannot.
 
 ## Findings
 
-Rank each `issue:`, `nit:` (a defect too small to break anything), `suggestion:` (no defect) or
-`question:`. The rank orders the work, not what may ship: every `issue:` and `nit:` is fixed or
-justified in writing before merge. Each names the rule it breaks (in `CLAUDE.md` or a skill), the
-file and line, what was run and what came back, and the smallest fix that removes the class rather
-than the instance.
+Rank each finding `issue:`, `nit:` (a defect too small to break anything), `suggestion:` (no
+defect) or `question:`. The rank orders the work, not what may ship: every `issue:` and `nit:` is
+fixed or justified in writing before merge. Each names the rule it breaks (in `CLAUDE.md` or a
+skill), the file and line, what was run and what came back, and the smallest fix that removes the
+class rather than the instance.
 
 - A defect the change introduces, exposes or makes reachable is in scope even when its root is
   older, and a stated limitation is an `issue:` when a valid input shows head worse than base.
