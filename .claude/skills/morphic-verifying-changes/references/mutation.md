@@ -18,6 +18,15 @@ yourself. These rules are the ways that reading still lies.
 - **Probe.** `git status --short` in your own tree lists only your changes, and
   `git worktree list` no longer names the throwaway.
 
+## Check the tree holds one mutant before reading its verdict
+`one-mutant-per-verdict`
+
+- **Rule.** Before reading a mutant's verdict, check that the tree holds that mutant and nothing
+  else: `git -C <dir> diff` shows its one change. A loop planting several runs the check every
+  round and reads no verdict past a failed one.
+- **Why.** A plant loop restored from a path it never wrote, so six mutants stacked, each reading
+  as a kill, and every verdict after the first was void (#1153).
+
 ## Read a kill in the output, never in the exit status
 `read-the-kill-in-the-output`
 
