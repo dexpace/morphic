@@ -28,16 +28,15 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `commit-and-pr-message-form`
 
 - **Rule.** Every commit subject and the PR title are Conventional Commits, imperative, at most 72
-  characters, the title counted with the ` (#N)` the squash appends for this PR's own number. A
-  breaking commit carries `!` and explains the break in its own body. Every commit body could stand
-  on `main`, since the default squash pastes them all. No text carries tool attribution or session
-  artifacts.
+  characters, the title counted with the ` (#N)` the squash appends. A breaking commit carries `!`
+  and explains the break in its own body. Every commit body could stand on `main`, since the
+  default squash pastes them all. No text carries tool attribution or session artifacts.
 - **Why.** Over-length subjects and prose titles land on main via squash and cannot be fixed without
   rewriting a pushed branch; a break marked only in the PR title is invisible in branch history
   (#834, #157).
 - **Probe.** The push checklist in `.claude/skills/morphic-shipping-prs/SKILL.md` prints each
-  subject off the form, the title's length and each possible artifact; a reviewer runs it on
-  the PR's tree.
+  subject, and the title as it lands, off the form or over the cap, and each possible artifact; a
+  reviewer runs it on the PR's tree.
 
 ## Keep the diff to in-scope files and keep scratch notes out of the tree
 `diff-contains-only-in-scope-files`

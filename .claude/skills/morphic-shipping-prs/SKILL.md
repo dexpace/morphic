@@ -29,9 +29,8 @@ prints. N is the PR's number, or before it exists one past
 
 ```bash
 pat='co-auth[o]red-by:.*(cl[a]ude|anthr[o]pic|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni)|gene[r]ated (with|by)[^a-z0-9]{0,3}\[?(cl[a]ude|open[a]i|chatg[p]t|cop[i]lot|cur[s]or|gem[i]ni|cod[e]x)|cl[a]ude\.(ai|com)/|(^|[^.])cl[a]ude([^./a-z]|$)|anthr[o]pic|chatg[p]t|(the|this|your) bri[e]f([^a-z]|$)|scr[a]tchpad|sub[a]gent|coordi[n]ator|/u[s]ers/|/h[o]me/[a-z]|/p[r]ivate/(tmp|var)|remedi[a]tion|audit sw[e]ep|(^|[^a-z0-9])[hm][0-9]{1,2}([^0-9a-z]|$)'
-git log --no-merges --format=%s origin/main..HEAD |
-  awk 'length > 72 || !/^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: [^ ]/ || /\.$/'
-printf '%s (#%s)' "<title>" N | wc -c
+{ git log --no-merges --format=%s origin/main..HEAD; printf '%s (#%s)\n' "<title>" N; } |
+  awk 'length > 72 || !/^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: [^ ]/ || /\.( \(#[0-9]+\))?$/'
 git status --short --untracked-files=all
 git merge-tree --write-tree origin/main HEAD >/dev/null || echo 'conflicts with origin/main'
 git log --format=%B origin/main..HEAD | grep -niE "$pat"
@@ -39,8 +38,10 @@ git diff origin/main...HEAD | grep '^+' | grep -niE "$pat"
 python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py && git push
 ```
 
-Each line prints nothing when all is well, bar the title's count, at most 72, and the lint's clean
-line: `git status` is empty because the push carries HEAD, and each artifact hit is a line to judge.
+Each line prints nothing when all is well, bar the lint's clean line. The subject check prints each
+commit subject, and the title as the squash lands it, that runs past 72 characters, breaks the form
+or ends in a period; `git status` is empty because the push carries HEAD; each artifact hit is a
+line to judge.
 Grep the PR's own text the same way (`gh pr view N --json title,body --jq '.title, .body'`). The
 lint exits 1 on a name a skill uses that this branch leaves naming nothing, so the push waits.
 
