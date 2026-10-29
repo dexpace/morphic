@@ -105,7 +105,10 @@ canary. A behaviour found that the page lacks is added there.
 - **Rule.** For any ID, label or path rule, compile by a relative path, an absolute path and from a
   working directory reached through a symlink, and compare. Build two operations that share one
   referenced body on purpose.
-- **Why.** Both shapes survived every corpus sweep (#1009).
+- **Why.** A relative spec with an absolute `$ref` gave one file two labels, which the confined
+  reader then refused, and a request body two operations shared took its name from whichever
+  operation lowered first. Both survived every corpus sweep: each invoked its specs by absolute
+  path, and no corpus spec shared a body (#1009).
 
 ## A file reference's identity is lexical
 `file-ref-lexical`

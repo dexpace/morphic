@@ -68,7 +68,10 @@ defect, keep a `main` control.
   that loses a library call is a moved reader. Probe each one with inputs the old reader never
   reached (references inside other documents, components behind chains, aliases, escapes), and
   account for every diagnostic `main` reported that head drops.
-- **Why.** Two regressions in #1016 were invisible to every corpus.
+- **Why.** Readers moved off the library in #1016 followed `$ref`s written inside another
+  document, which the library never resolved, and lent facts from them, dangling encoding keys
+  among them; and they read a component written as a string by its YAML shape, reporting a `$ref`
+  to it unresolved while the IR held its type. Every corpus missed both.
 
 ## A new route inherits the old route's open bugs
 `new-route-open-bugs`
