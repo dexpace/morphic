@@ -106,21 +106,22 @@ the rule here rather than reading it across.
 `assertion-helpers-stand`
 
 - **Rule.** Rule 6.4 bars a project helper that takes `*testing.T` and fails the test itself, test
-  double setup excepted. Here a helper that calls `t.Helper()` and asserts through testify stands,
-  since the check it names is what several tests share. One with no `t.Helper()` breaks rule 6.3
-  and is #1178's, and another assertion library stays barred.
+  double setup excepted, and rule 6.3 asks `t.Helper()` of every helper. Here a helper asserting
+  through testify stands and starts with `t.Helper()`, and one a table runs as a case's body has no
+  such call: it is the case, and its failure reports its own line (`CONTRIBUTING.md`, "A test is
+  named for what it tests"). Another assertion library stays barred.
 - **Why.** The rule's concerns are a lost caller's line and a stop at the first failure, which
   `t.Helper()` and `assert` answer, so rewriting the helpers would add no correctness (#1173).
-- **Probe.** `git grep -hE '^func (assert|require|check|expect|verify|must)[A-Za-z0-9]*\(t ' -- '*_test.go'`
-  lists the helpers; a new one opens with `t.Helper()`.
+  `thelper` reads a signature, so it reported 298 functions and none was a breach (#1178).
+- **Probe.** `go test ./internal/archtest -run TestTestHelpers`.
 
 ## Alias a type to name it at a boundary or to shorten it
 `type-aliases-that-stand`
 
 - **Rule.** Rule 5.9 keeps type aliases for migration. Three kinds stand here: a public face naming
-  a type declared beneath it, as `compilers/openapi/options.go` does; a shape `docs/ir-design.md`
-  gives, as `ir.Lifecycle`; and a package's private shorthand for a long type, as `schemaRef`. Any
-  other alias is held to the rule.
+  a type an internal package declares, which no caller outside could name otherwise, as
+  `compilers/openapi/options.go` does; a shape `docs/ir-design.md` gives, as `ir.Lifecycle`; and a
+  package's private shorthand for a long type, as `schemaRef`. Any other alias is held to the rule.
 - **Why.** A defined type in the public face would restate a vocabulary, and two declarations of one
   strategy set can drift (#1173).
 - **Probe.** `git grep -nE '^type [A-Za-z]+ = ' -- '*.go' ':!*_test.go' ':!*testdata*'`.
@@ -136,13 +137,23 @@ the rule here rather than reading it across.
 - **Probe.** `git log -30 --first-parent --format=%s origin/main | grep -cE '^[a-z]+(\([^)]*\))?!:'`
   counts the recent merges that broke the API.
 
+## Assert interface compliance for an exported pair alone
+`interface-assertions-stay-narrow`
+
+- **Rule.** Rule 5.26 asks for compliance to be asserted at compile time. Here an exported type
+  implementing an exported interface carries a `var _` beside its imports, and an unexported one
+  does not, since the call that passes it fails the build.
+- **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
+- **Probe.** `git grep -nE '^(var )?[[:space:]]*_ +[A-Za-z.*]+ += ' -- '*.go' ':!*_test.go' ':!*testdata*'`
+  lists them.
+
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`
 
-- **Rule.** The tree breaks rules 2.23 (#1175), 5.26 (#1176), 6.3 (#1178), 7.9 (#1174), 10.6 (#1036)
-  and 11.9 (#1177), and none is a departure, 5.26 reaching only an exported type that implements an
-  exported interface. A line a change adds is held to each, since surrounding code is no defence
-  (`CLAUDE.md`, "Correctness comes first"), and a line it leaves alone is that issue's. A row leaves
-  this rule when its issue's fix lands.
-- **Why.** Each was counted against the tree and ruled a breach rather than a departure (#1173).
-- **Probe.** Each issue gives the command behind its count.
+- **Rule.** `engine/reader/disk.go` falls back to `http.DefaultClient`, which rule 10.6 bars. A line
+  a change adds is held to the rule, since surrounding code is no defence (`CLAUDE.md`, "Correctness
+  comes first"), and the fallback itself is #1036's. A row leaves this rule when its issue's fix
+  lands.
+- **Why.** It is the one rule counted against the tree that the same change could not bring it to,
+  as the fix is a time bound on a network read and not a matter of style (#1036, #1173).
+- **Probe.** `git grep -n 'http.DefaultClient' -- 'engine/reader/*.go' ':!*_test.go'`.

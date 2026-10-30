@@ -367,7 +367,9 @@ departs from it, with what holds each difference.
   no `utils`/`helpers`/`common`; `doc.go` for package docs; imports in three `gci` groups
   (stdlib, external, local); no dot imports.
 - **Docs:** GoDoc on every exported symbol starting with its name, complete sentences; package
-  comment on every package; comments explain *why*, not what.
+  comment on every package, in its `doc.go` alone (`internal/archtest`); comments explain *why*, not
+  what. Every Go file opens with the license header `goheader` holds, a blank line before what
+  follows.
 - **Doc comments: 100 words at most.** The cap is strict and holds for each doc comment on its
   own — package, declaration, field or method, tests included. A word is a token with a letter
   in it: `//` markers, directives, numbers and punctuation are not counted.
