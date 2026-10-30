@@ -36,12 +36,73 @@ defect, keep a `main` control.
 
 - **Rule.** For a change to `.claude/skills` or `CLAUDE.md`, name the acts each edited rule governs
   (commit, push, merge, review, plant a mutant), grep both for the other rules governing each act,
-  and read each pair for an instruction one gives and the other forbids. A script can find the pair
-  but not tell a conflict from a restatement, so this stays a reader's.
+  and read each pair for an instruction one gives and the other forbids, keeping the best of both
+  where they do. A script finds a pair but not a conflict, so this stays a reader's.
 - **Why.** Two rules one PR edited each held against the tree, while one gated a push on reading
   what a checklist printed and the other on an exit status in the same command (#1153, #1160).
 - **Probe.** The report lists each edited rule, its acts and the rules read against it; a rule with
   none is a round still open.
+
+## Try to disprove a finding before reporting it
+`disprove-each-finding`
+
+- **Rule.** A finding rests on a rule and a fact, so attack both. Read the rule to its end for its
+  scope and exceptions, in `CLAUDE.md`, `CONTRIBUTING.md` or its chapter; look for a decision on the
+  line in `.golangci.yml`'s exclusions, a comment or the tracker; weigh the PR's stated intent, read
+  only now, after a blind first pass; and where a tool gave the count, sort its hits by what each
+  one is before calling any a defect. Report what survives.
+- **Why.** The 298 functions `thelper` reported were filed as a breach of `t.Helper`, though
+  `CONTRIBUTING.md` exempts a table's case and none was a breach (#1178), and a row said nothing
+  recorded a position `CONTRIBUTING.md` holds (#1173).
+- **Probe.** For each finding, name the text that could have excused it and what sorted the tool's
+  hits.
+
+## Rank a finding by what was shown
+`rank-by-what-was-shown`
+
+- **Rule.** Nothing left to find sets what gets fixed, not what may be claimed. An `issue:` or `nit:`
+  gives its command, on the input it depends on, or quotes the rule it breaks. What is likely but
+  unshown is a `question:`, the home of low confidence, with no score to argue over, and taste with
+  no rule to quote is a `suggestion:`. A defect the change exposes stays in scope however old; one
+  outside its mechanism is filed, not ranked.
+- **Why.** A defect that shows on one input is real here, as every corpus missed two (#1016), so a
+  bar of certain findings alone would drop it, while a tool's count reported unsorted filed 298
+  false breaches (#1178).
+- **Probe.** Each `issue:` and `nit:` in the report gives its command and input, or its quoted rule.
+
+## Fan a review out only when asked, a pass to a reader
+`fan-out-a-pass-to-a-reader`
+
+- **Rule.** A review runs its passes in one reader by default. When asked to fan out, give each
+  reader one pass and the code, with no conclusion of yours and, for pass 2, no PR body, so that
+  independent reads stay independent. What returns goes through
+  `references/review-probes.md#disprove-each-finding` before it counts.
+- **Why.** A finding comes back in the same confident register whether or not it holds, as the
+  review of #1162's twelve PRs counted false alarms in both its readers (#1162).
+- **Probe.** Each reader's brief names one pass and holds no finding of another's.
+
+## Read the reviews already standing once the passes are done
+`read-standing-reviews`
+
+- **Rule.** After the passes, not before, as a list read first sets the agenda as a PR body does,
+  read the PR's reviews and comments with the commit each was written on. Check each against the
+  head: one fixed is not reported again, one open is carried into the report, and one its author
+  declined is answered, not repeated.
+- **Why.** A review requested changes while later work went on as though the PR only awaited an
+  approval, seen only when a status check happened to print it (#1169).
+- **Probe.** `gh api repos/dexpace/morphic/pulls/<N>/reviews --jq '.[] | [.user.login, .state, .commit_id] | @tsv'`,
+  and the same path ending `comments`.
+
+## Post a finding so that acting on it is safe
+`posted-findings`
+
+- **Rule.** When asked to post, write one comment per defect, naming the rule it breaks, and link
+  code by full SHA, as a line on a moving branch drifts. Offer a committable suggestion only if it
+  fixes the defect alone, passes the checks it touches and breaks no rule governing the same act:
+  otherwise describe the fix.
+- **Why.** A suggested Probe said to delete a hit in a commit body, which a pushed branch cannot do,
+  and a suggested regex missed a generic no test row held (#1169).
+- **Probe.** Apply each suggestion in a throwaway worktree and run the checks it touches.
 
 ## Search the tracker for each construct a rule settles
 `tracker-on-what-a-rule-settles`

@@ -23,9 +23,9 @@ places (`references/departures.md`).
    gh api -H 'Accept: application/vnd.github.raw' repos/dexpace/styleguide/contents/go/<file> | grep '^### '
    ```
 
-2. Hold each line the change adds to each rule, and to the Go style section of `CLAUDE.md`, which
-   adds rules of its own. Skip what `.golangci.yml` or `internal/archtest` states, which `make gate`
-   holds.
+2. Hold each line the change adds to each rule, and to `CLAUDE.md`'s Go style section and
+   `CONTRIBUTING.md`, which add rules of their own. Skip what `.golangci.yml` or `internal/archtest`
+   states, which `make gate` holds.
 3. Where a line looks like a breach, read that rule to its **Enforcement** line: a rule's exception
    is in its body, never its heading.
 4. Look the rule up in `references/departures.md`. A departure is followed, not reported.
