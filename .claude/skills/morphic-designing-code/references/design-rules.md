@@ -7,9 +7,10 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 `functional-core`
 
 - **Rule.** A lowering, check, pass or helper is a function of its inputs (an immutable context,
-  the document, its options) that returns its value and its diagnostics. A run's accumulators are
-  locals of the function that owns the run. A method belongs on a type only when it reads or guards
-  that type's own state, and a type nearing the method cap is split by the state its methods read.
+  the document, its options) that returns its value and its diagnostics (in `irverify`, its
+  violations). A run's accumulators are locals of the function that owns the run. A method belongs
+  on a type only when it reads or guards that type's own state, and a type nearing the method cap is
+  split by the state its methods read.
 - **Why.** The OpenAPI lowerer reached 159 methods on 13 fields without one long function, and
   dissolving it into functions of an immutable context ended in #217. The cap that now holds it
   counts `compilers/` alone (#1159).
