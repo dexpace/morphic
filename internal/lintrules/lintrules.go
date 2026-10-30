@@ -32,7 +32,9 @@ func Analyzers() []*analysis.Analyzer {
 type layout struct{ root string }
 
 func (l layout) analyzers() []*analysis.Analyzer {
-	return []*analysis.Analyzer{l.registryWrites(), l.fragmentReadings(), l.nameChannels(), l.idDerivations()}
+	return []*analysis.Analyzer{
+		l.registryWrites(), l.serviceTreeWrites(), l.fragmentReadings(), l.nameChannels(), l.idDerivations(),
+	}
 }
 
 // inModule reports whether the package at path is the root or below it.
