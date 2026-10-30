@@ -49,6 +49,23 @@ covers.
   produced today's `compilers/openapi`. Both record work that has landed; read them for why the
   package boundaries fall where they do, not as a proposal or a backlog.
 
+`.claude/skills/` holds the procedures for recurring work, such as verifying a change or reviewing
+a PR, the lessons past PRs taught, and the scripts they use. A skill links to these documents
+rather than restating them; `morphic-curating-skills` says where a new lesson goes. The scripts
+need Python 3.14, run as `python3.14`.
+
+**The skills are experimental.** A rule can be wrong or stale, and a script can report what its
+input does not support. Treat what a skill says as a claim to check, not a result: before relying on
+what a script prints, confirm it with a probe of your own, and before following a rule that turns on
+a fact about the code, check that fact on `main`. A rule's Why cites the PR or issue whose work
+showed its failure, which that item's record may not describe, so a rule is checked by its Probe,
+not by its citation. After using a skill, say in your report whether it helped and where it was
+wrong, unclear or missing something the task needed, and file each flaw it showed as an issue by
+"Filing issues" below: titled `skills: <statement>`, with the `type:` label its kind calls for
+(`type:bug` for a wrong rule or script, `type:feature` for a missing one, `type:docs` for unclear
+wording), ranked by the housekeeping rule, and with the command and output that showed it. A defect
+in the code that the flaw let through is an issue of its own.
+
 ## Invariants that must not be violated
 
 These are load-bearing design decisions, not preferences. Breaking one defeats the project's core
@@ -291,7 +308,9 @@ below are the ones most likely to bite in this codebase — the full guide gover
   sections; guard clauses and early returns over nesting; no `else` after a returning `if`.
 - **Assert aggressively** (TigerBeetle discipline): validate at every public boundary; aim ≥2
   assertions (precondition/postcondition/invariant checks returning errors) per function; split
-  compound checks. Never accept garbage silently.
+  compound checks. Never accept garbage silently. An "impossible" state is asserted, not assumed
+  away: simplifying may remove only a check a second reader of the same concept already makes
+  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#redundant-guard`).
 - **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
   Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
   against a named hard cap, recovered at the public boundary through `barrier.Catch`, the one
@@ -310,6 +329,10 @@ below are the ones most likely to bite in this codebase — the full guide gover
   interfaces; `any` not `interface{}`; comma-ok on every type assertion; type switches carry a
   `default`; zero values useful or obviously invalid; copy slices/maps at API boundaries; no
   mutable globals (this repo's "pure, reentrant stages" invariant is the same rule).
+- **Design leans functional, and stays simple.** A lowering, check or pass is a function of its
+  inputs that returns its value and its diagnostics (in `irverify`, its violations); a method
+  belongs where a type guards its own state; a wrapper that only forwards, or a seam with no user,
+  is not added. The `morphic-designing-code` skill holds these rules and the history behind each.
 - **Concurrency:** prefer synchronous APIs — the caller adds concurrency; `ctx context.Context`
   first parameter, never stored in a struct; every goroutine has a documented lifetime and stop
   mechanism; `errgroup` for groups; bounded fan-out.
@@ -400,12 +423,13 @@ context-switch between repos.
   - A limitation that is deliberately out of scope must be stated in the code and in the PR body, in
     a place the next reader will actually reach — not only in a commit message or a scratch note.
   - **A line you were forced onto may already have a decision recorded.** When a change makes an
-    unrelated line fail to compile or fail a new check, search the tracker for it before choosing —
-    `gh issue list --search "<file or symbol>"`. A guard tightened in #185 made one `ir.Naming`
-    literal a violation; the fix picked one of two spellings without knowing #184 had already framed
-    that exact choice, said which way it should go, and said it wanted its own change. Correcting it
-    took a second PR. Follow the recorded reasoning or say why you are departing from it, but do not
-    settle a recorded decision as a side effect of something else.
+    unrelated line fail to compile or fail a new check, search the tracker for it, closed issues
+    included, before choosing —
+    `gh issue list --state all --limit 1000 --search "<file or symbol>"`. A guard tightened in #185
+    made one `ir.Naming` literal a violation; the fix picked one of two spellings without knowing
+    #184 had already framed that exact choice, said which way it should go, and said it wanted its
+    own change. Correcting it took a second PR. Follow the recorded reasoning or say why you are
+    departing from it, but do not settle a recorded decision as a side effect of something else.
 - **Verify by executing.** Every rule below was learned by shipping its opposite here, and they are
   all one mistake: *asking a question whose answer the thing under test already controls.* Reading
   the code, reading the test, regenerating the golden, compiling one declaration order — none of
@@ -413,6 +437,12 @@ context-switch between repos.
   the opposite order.
   - **Probe, don't read.** Reviews that read the code pronounced it clean while it was silently
     dropping data. Compile the input; inspect the emitted IR *and* the full diagnostic list.
+  - **Check a fact where it happens, not where it is configured.** A setting, a default, a document
+    or a skill says what should happen; a log, a probe or the tree says what does. Before a change,
+    a finding or a rule rests on a fact, name it and check it the second way. A review ranked a
+    pushed commit body as landing on `main` because the repository's default squash pastes branch
+    bodies, while the last 25 merges had each set their own (#1153):
+    `git log -25 --first-parent --format=%b origin/main` shows what merges set.
   - **Break what a test claims to catch.** Assertions that look correct on the page find nothing.
     Tests here have been caught asserting nothing at all, and one "safety net" permitted the exact
     addition it advertised catching. Plant the defect and watch it go red.
@@ -466,7 +496,11 @@ context-switch between repos.
   pastes, and `COMMIT_MESSAGES` pastes every branch commit's body. So write commit messages that
   could stand on `main`, and set the squash body at merge time.
 - PR description: Summary / Test plan (/ Breaking, when applicable). Keep PRs scoped to one
-  logical change; split unrelated changes into separate PRs.
+  logical change; split unrelated changes into separate PRs. Every hunk traces to the change's
+  request or to a site of its mechanism ("Scope a result narrowly, a defect widely" above); a
+  cleanup or bug the change neither needs nor exposes is filed, not folded in.
+- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it
+  and land what it finds as new commits, then rerun the passes those commits can affect.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.
@@ -479,9 +513,11 @@ the filer sets them.
 
 ### Before filing
 
-- **Search the tracker.** `gh issue list --state all --search "<symbol, file or construct>"`. A
-  duplicate gets a comment on the existing issue. A recorded decision is followed, or the new issue
-  says why it departs from it.
+- **Search the tracker.**
+  `gh issue list --state all --limit 1000 --search "<symbol, file or construct>"`. Every `gh` list
+  command here passes a limit: without one `gh` stops at a default number of results, and outside a
+  terminal it says nothing of what it left out. A duplicate gets a comment on the existing issue. A
+  recorded decision is followed, or the new issue says why it departs from it.
 - **Probe, don't read.** Reproduce the problem before writing it up: compile the spec, then quote
   the emitted IR and the full diagnostic list. The reproduction is a minimal spec, not a description
   of one. A negative claim ("X is never checked") names the probe that shows it.
@@ -494,10 +530,10 @@ the filer sets them.
 ### Title and body
 
 The title is `area: statement`. `area` is the package or document (`openapi`, `ir`, `pass`, `cli`,
-`engine`, `test`, `docs/emitter-design`); `gh issue list --state open --json title` shows the
-prefixes in use, so reuse one. After the colon: lowercase, no trailing period. A defect states what
-happens (`a nested inline allOf lowers to an empty model`), a proposal is an imperative, and an open
-question starts `decide whether`.
+`engine`, `test`, `docs/emitter-design`); `gh issue list --state open --limit 1000 --json title`
+shows the prefixes in use, so reuse one. After the colon: lowercase, no trailing period. A defect
+states what happens (`a nested inline allOf lowers to an empty model`), a proposal is an imperative,
+and an open question starts `decide whether`.
 
 ```markdown
 ## Problem
@@ -581,8 +617,9 @@ that applies sets the tier:
 
 ### Labels
 
-One `type:` label (`gh label list` gives the vocabulary and what each means), plus `performance`,
-`security` or `dependencies` when they apply. Read the body from a file so quoting cannot alter it:
+One `type:` label (`gh label list --limit 1000` gives the vocabulary and what each means), plus
+`performance`, `security` or `dependencies` when they apply. Read the body from a file so quoting
+cannot alter it:
 
 ```bash
 gh issue create --title "<title>" --body-file draft.md --label type:bug --label priority:P1

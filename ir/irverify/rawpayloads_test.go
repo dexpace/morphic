@@ -112,8 +112,8 @@ func TestVerify_UnmodeledIsCheckedBelowTheTopLevel(t *testing.T) {
 // badPayloads is every shape of ir.RawValue that is not a JSON value. Empty is
 // the one a nil guard lets through, nil is the one that marshals but does not
 // come back equal, and the duplicate-name and invalid-UTF-8 entries are the
-// two classes jsontext.Value.IsValid() catches that the byte-level json.Valid
-// it replaced did not.
+// two classes a jsontext reading refuses that the byte-level json.Valid it
+// replaced did not.
 var badPayloads = map[string]ir.RawValue{
 	"malformed":      ir.RawValue(`{not json}`),
 	"empty":          {}, // non-nil and zero length: the state a nil guard admits

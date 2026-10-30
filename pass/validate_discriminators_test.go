@@ -1,6 +1,7 @@
 package pass_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -310,4 +311,53 @@ func TestValidate_DanglingDiscriminatorDefaultIsReportedTwice(t *testing.T) {
 				"no type in the document declares")
 		})
 	}
+}
+
+// TestValidate_MappingDiagnosticsAreDeterministic pins invariant 7 for a
+// discriminator's Mapping, whose keys Go ranges in randomized order: they are
+// asked in sorted order, so the reports within one discriminator, all placed at
+// the union, follow the wire values their messages name.
+func TestValidate_MappingDiagnosticsAreDeterministic(t *testing.T) {
+	t.Parallel()
+	doc := discriminatedUnion("t/m")
+	u, ok := doc.Types["t/u"].(*ir.Union)
+	require.True(t, ok)
+	for _, key := range []string{"z", "b", "q", "c", "m"} {
+		u.Discriminator.Mapping[key] = "t/none"
+	}
+	messages := func() []string {
+		found := withCode(validated(t, doc), "pass/discriminator-missing-variant")
+		out := make([]string, 0, len(found))
+		for _, d := range found {
+			out = append(out, d.Message)
+		}
+		return out
+	}
+	want := messages()
+	require.Len(t, want, 5)
+	for i, key := range []string{"b", "c", "m", "q", "z"} {
+		assert.Contains(t, want[i], fmt.Sprintf("mapping %q", key))
+	}
+	for range 8 {
+		assert.Equal(t, want, messages())
+	}
+}
+
+// TestValidate_UnionMappingIsHeldToItsOwnVariants pins that a union's mapping
+// answers to its own variants alone. The union read just before it lists the
+// target as a variant, so a check carrying what it read of one union into the
+// next would let the mapping through.
+func TestValidate_UnionMappingIsHeldToItsOwnVariants(t *testing.T) {
+	t.Parallel()
+	doc := discriminatedUnion("t/n")
+	doc.Types["t/n"] = &ir.Model{ID: "t/n"}
+	doc.Types["t/a"] = &ir.Union{ // sorts before t/u, so it is read first
+		ID:            "t/a",
+		Variants:      []ir.Variant{{Type: ir.TypeRef{Target: "t/n"}}},
+		Discriminator: &ir.Discriminator{PropertyName: "kind", Mapping: map[string]ir.TypeID{"n": "t/n"}},
+	}
+
+	found := withCode(validated(t, doc), "pass/discriminator-missing-variant")
+	require.Len(t, found, 1, "the union listing t/n routes to it, and the other does not")
+	assert.Equal(t, `discriminator mapping "a" on t/u references "t/n", which is not a variant of it`, found[0].Message)
 }

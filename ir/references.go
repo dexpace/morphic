@@ -2,6 +2,7 @@ package ir
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -40,8 +41,10 @@ type IDReferences struct {
 	// read through ids.
 	declared map[reflect.Type]map[string]bool
 	ids      IDReader
-	// sites holds the references that may not resolve, in walk order.
+	// sites holds the references that may not resolve, in walk order, each
+	// with its path unspelled at the same position of paths.
 	sites []IDReference
+	paths PathLog
 }
 
 // NewIDReferences returns the IDReferences of a walk of doc, holding the IDs
@@ -73,8 +76,8 @@ func NewIDReferences(doc *Document) *IDReferences {
 //
 // A reference resolving as the walk reaches it, in a map-keyed registry or to
 // an identity already declared, is not kept: declarations only accumulate. Any
-// other is kept, path and all, for [IDReferences.Unresolved], since a declared
-// class's registry is complete only once the walk is over. A node's own ID is
+// other is kept for [IDReferences.Unresolved], with its path unspelled, since a
+// declared class's registry is complete only once the walk is over. A node's own ID is
 // reached just after the node declares it. An empty ID is no reference: some
 // positions spell "none" with one (Discriminator.Default).
 func (r *IDReferences) Visit(v reflect.Value, at WalkPath) bool {
@@ -125,24 +128,37 @@ func (r *IDReferences) refer(v reflect.Value, at WalkPath) {
 	if ids[id] {
 		return
 	}
-	r.sites = append(r.sites, IDReference{Class: t, ID: id, Path: at.String()})
+	r.sites = append(r.sites, IDReference{Class: t, ID: id})
+	r.paths.Record(at)
 }
 
 // Unresolved returns, in walk order, the references the walk reached that
-// resolve in no registry.
+// resolve in no registry, each with its path. Only these have their paths
+// spelled, so a kept reference that resolves once the walk is over costs none.
 //
 // A declared class's registry is complete only when the walk read every
 // declaration. A walk cut short, as truncated says, would report a reference to
 // a node past the cap as dangling, so nothing is claimed for such a class then;
 // a map-keyed registry is read off the document and still answers.
 func (r *IDReferences) Unresolved(truncated bool) []IDReference {
+	if !slices.ContainsFunc(r.sites, func(s IDReference) bool { return r.dangles(s, truncated) }) {
+		return nil
+	}
 	var out []IDReference
-	for _, s := range r.sites {
-		if _, keyed := r.keyed[s.Class]; keyed || (!truncated && !r.declared[s.Class][s.ID]) {
+	for i, at := range r.paths.All() {
+		if s := r.sites[i]; r.dangles(s, truncated) {
+			s.Path = at.String()
 			out = append(out, s)
 		}
 	}
 	return out
+}
+
+// dangles reports whether the kept reference s resolves in no registry, as
+// Unresolved says, truncated saying whether the walk was cut short.
+func (r *IDReferences) dangles(s IDReference, truncated bool) bool {
+	_, keyed := r.keyed[s.Class]
+	return keyed || (!truncated && !r.declared[s.Class][s.ID])
 }
 
 // Declares reports whether a node the walk reached declares id as its identity

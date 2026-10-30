@@ -139,6 +139,72 @@ func TestNewBigVal_CanonicalizesToJSONForm(t *testing.T) {
 	}
 }
 
+// TestNewBigVal_ReturnsAJSONSpelledLiteralAsItIs holds the shortcut that keeps
+// a literal already in JSON form to exactly the literals jsonSpelling leaves
+// unchanged, over every string of up to six runes drawn from the runes the
+// grammar treats differently: a sign, a zero, another digit, a point and an
+// exponent marker. A literal it takes wrongly would be stored un-canonicalized,
+// and one it misses only costs a string.
+func TestNewBigVal_ReturnsAJSONSpelledLiteralAsItIs(t *testing.T) {
+	t.Parallel()
+	const runes, longest = "+-01.e", 6
+	size, width := 1, 1
+	for range longest {
+		width *= len(runes)
+		size += width
+	}
+	literals, shorter := make([]string, 1, size), []string{""}
+	for range longest {
+		longer := make([]string, 0, len(runes)*len(shorter))
+		for _, s := range shorter {
+			for _, r := range runes {
+				longer = append(longer, s+string(r))
+			}
+		}
+		literals, shorter = append(literals, longer...), longer
+	}
+	var read, asIs int
+	for _, s := range literals {
+		spelling, spelled, ok := ir.JSONSpelling(s)
+		if !ok {
+			continue
+		}
+		read++
+		if spelled {
+			asIs++
+		}
+		require.Equal(t, spelling == s, spelled, "%q spells as %q", s, spelling)
+		v, err := ir.NewBigVal(s)
+		require.NoError(t, err, s)
+		require.Equal(t, spelling, v.String(), s)
+	}
+	assert.Positive(t, asIs, "some literal is in JSON form already")
+	assert.Less(t, asIs, read, "some literal is rewritten")
+}
+
+// TestNewBigVal_AllocatesOnlyToRewrite pins NewBigVal's cost: nothing for a
+// literal in JSON form, whatever its parts, and the one string a rewrite
+// builds otherwise. Reading the range joins no digits, so a literal with digits
+// either side of its point costs no more, even past the length a join could be
+// built on the stack. It is not run in parallel: AllocsPerRun measures the
+// process.
+func TestNewBigVal_AllocatesOnlyToRewrite(t *testing.T) {
+	for _, tc := range []struct {
+		in     string
+		allocs float64
+	}{
+		{"0", 0}, {"-0", 0}, {"42", 0}, {"3.14", 0}, {"-0.5", 0}, {"0.0", 0}, {"1.5e+3", 0},
+		{"2.5E-3", 0}, {"12345678901234567890.12345678901234567890", 0},
+		{"+3.14", 1}, {".5", 1}, {"5.", 1}, {"007.5", 1}, {"-00.5e3", 1},
+	} {
+		var err error
+		allocs := testing.AllocsPerRun(10, func() { _, err = ir.NewBigVal(tc.in) })
+
+		require.NoError(t, err, tc.in)
+		assert.Equal(t, tc.allocs, allocs, tc.in)
+	}
+}
+
 func TestBigVal_JSONRoundTrip(t *testing.T) {
 	t.Parallel()
 	v, err := ir.NewBigVal("123456789012345678901234567890.5")

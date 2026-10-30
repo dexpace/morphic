@@ -74,11 +74,14 @@ type Decimal struct {
 }
 
 // decimalLiteral is a numeric literal split as written: its sign, the digit
-// runs either side of the point, and the exponent with its e or E and sign, or
-// "" when it has none. It keeps what [BigVal] spells and [Decimal] normalizes.
+// runs either side of the point, whether a point was written at all, which a
+// point with no digits after it leaves no other trace of, and the exponent with
+// its e or E and sign, or "" when it has none. It keeps what [BigVal] spells and
+// [Decimal] normalizes.
 type decimalLiteral struct {
 	neg           bool
 	intPart, frac string
+	point         bool
 	exponent      string
 }
 
@@ -88,26 +91,27 @@ type decimalLiteral struct {
 // Zero is accepted at any written exponent. The result is the zero Decimal on
 // error, which reads as the number zero, so a caller must check the error.
 func ParseDecimal(s string) (Decimal, error) {
-	_, d, err := readDecimal(s)
+	l, exp, err := readDecimal(s)
 	if err != nil {
 		return Decimal{}, fmt.Errorf("decimal: %q: %w", s, err)
 	}
-	return d, nil
+	return l.decimal(exp), nil
 }
 
-// readDecimal splits and reads s, so [NewBigVal] spells the literal from the
-// split that [ParseDecimal] reads the value from. Its error is bare, for each
-// of them to name itself in.
-func readDecimal(s string) (decimalLiteral, Decimal, error) {
+// readDecimal splits s and reads the power of ten its leading digit carries, so
+// [NewBigVal] spells the literal from the split that [ParseDecimal] reads the
+// value from. The split is substrings of s, so reading it allocates nothing.
+// Its error is bare, for each of them to name itself in.
+func readDecimal(s string) (decimalLiteral, int64, error) {
 	l, ok := scanDecimal(s)
 	if !ok {
-		return decimalLiteral{}, Decimal{}, ErrNotDecimal
+		return decimalLiteral{}, 0, ErrNotDecimal
 	}
-	d, err := l.decimal()
+	exp, err := l.leadExponent()
 	if err != nil {
-		return decimalLiteral{}, Decimal{}, err
+		return decimalLiteral{}, 0, err
 	}
-	return l, d, nil
+	return l, exp, nil
 }
 
 // scanDecimal splits s by the grammar sign? (digits ("." digits*)? | "." digits)
@@ -125,7 +129,7 @@ func scanDecimal(s string) (decimalLiteral, bool) {
 	l.intPart, i = s[i:end], end
 	if i < len(s) && s[i] == '.' {
 		end = scanDigits(s, i+1)
-		l.frac, i = s[i+1:end], end
+		l.frac, l.point, i = s[i+1:end], true, end
 	}
 	if l.intPart == "" && l.frac == "" {
 		return decimalLiteral{}, false // no digit anywhere: "", "+", ".", "Inf"
@@ -188,24 +192,46 @@ func exponentValue(exponent string) int64 {
 	return e
 }
 
-// decimal reads l as a [Decimal]. Zero is accepted at any written exponent; any
-// other value must carry its leading digit's power of ten within ±[MaxDecimalExp].
+// leadExponent returns the power of ten l's leading significant digit carries,
+// or 0 for zero, which is accepted at any written exponent; any other value
+// must carry it within ±[MaxDecimalExp]. It counts the digits where they lie
+// rather than joining the two runs, so it allocates nothing.
 //
 // The sum below stays inside int64: exponentValue is at most 4·10¹⁸ in
 // magnitude and the digit term at most len(s), which is below Go's largest
 // allocation. Saturating an exponent never changes a verdict, since a saturated
 // exponent plus any string's digit count is still past the bound.
-func (l decimalLiteral) decimal() (Decimal, error) {
-	digits := l.intPart + l.frac
-	lead := strings.TrimLeft(digits, "0")
-	if lead == "" {
-		return Decimal{}, nil // zero, at any written exponent
+func (l decimalLiteral) leadExponent() (int64, error) {
+	zeros := l.leadingZeros()
+	if zeros == len(l.intPart)+len(l.frac) {
+		return 0, nil // zero, at any written exponent
 	}
-	exp := exponentValue(l.exponent) + int64(len(lead)-len(l.frac)-1)
+	exp := exponentValue(l.exponent) + int64(len(l.intPart)-zeros-1)
 	if exp > MaxDecimalExp || exp < -MaxDecimalExp {
-		return Decimal{}, &ExponentRangeError{neg: l.neg, small: exp < 0}
+		return 0, &ExponentRangeError{neg: l.neg, small: exp < 0}
 	}
-	return Decimal{neg: l.neg, digits: strings.TrimRight(lead, "0"), exp: exp}, nil
+	return exp, nil
+}
+
+// leadingZeros returns how many zeros open l's digits: the integer part's, and
+// when those are all zeros, the fraction's after them.
+func (l decimalLiteral) leadingZeros() int {
+	zeros := len(l.intPart) - len(strings.TrimLeft(l.intPart, "0"))
+	if zeros == len(l.intPart) {
+		zeros += len(l.frac) - len(strings.TrimLeft(l.frac, "0"))
+	}
+	return zeros
+}
+
+// decimal reads l, whose leading digit carries the power of ten exp, as a
+// [Decimal]. Its digits are the two runs joined, which costs an allocation when
+// both hold one, so only [ParseDecimal] asks for them.
+func (l decimalLiteral) decimal(exp int64) Decimal {
+	lead := strings.TrimLeft(l.intPart+l.frac, "0")
+	if lead == "" {
+		return Decimal{} // zero, at any written exponent
+	}
+	return Decimal{neg: l.neg, digits: strings.TrimRight(lead, "0"), exp: exp}
 }
 
 // Sign returns -1, 0 or +1 as d is negative, zero or positive. Having no digits

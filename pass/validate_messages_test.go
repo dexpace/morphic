@@ -37,6 +37,17 @@ func TestValidate_MessageNotCarriedByChannel(t *testing.T) {
 	assert.Contains(t, messageForCode(t, diags, "pass/message-not-in-channel"), "msg/b")
 }
 
+// TestValidate_MessageNotCarriedIsPlacedAtItsPosition pins that a message its
+// channel does not carry is reported at its own position in the binding's
+// list, the second here, after one the channel carries.
+func TestValidate_MessageNotCarriedIsPlacedAtItsPosition(t *testing.T) {
+	t.Parallel()
+	doc := messageBindingDoc("chan/a", []ir.MessageID{"msg/a"}, []ir.MessageID{"msg/a", "msg/b"})
+
+	assert.Equal(t, []string{"op/bindings/message/messages/1"},
+		pointers(withCode(validated(t, doc), "pass/message-not-in-channel")))
+}
+
 // TestValidate_MessagesCarriedByChannelAreClean is the silent half. A binding
 // using a subset of the channel's messages, and one naming none at all, both
 // report nothing — a check that cannot stay silent is no better than one that

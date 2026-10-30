@@ -220,8 +220,8 @@ func TestVerify_InvalidUTF8IsReported(t *testing.T) {
 // TestVerify_RawPayloadUTF8IsNotDoublyReported pins the division of labour
 // checkUTF8's own doc states: the walk skips byte sequences, so an ill-formed
 // byte inside an Unmodeled or RawConfig payload is never reached by it. It is
-// ir/invalid-raw-value's to report — jsontext.Value.IsValid already rejects
-// invalid UTF-8 inside a payload — and reported once, not twice.
+// ir/invalid-raw-value's to report — the payload's jsontext reading already
+// rejects invalid UTF-8 inside it — and reported once, not twice.
 func TestVerify_RawPayloadUTF8IsNotDoublyReported(t *testing.T) {
 	t.Parallel()
 	doc := docWithUnmodeled(ir.Unmodeled{

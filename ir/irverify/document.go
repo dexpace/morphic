@@ -42,23 +42,30 @@ func checkDocument(doc *ir.Document) []Violation {
 		})
 	}
 	for i, src := range doc.Sources {
-		at := sourcesPath + "[" + strconv.Itoa(i) + "]"
 		if !isFormat(src.Format) {
 			vs = append(vs, Violation{
 				Code:    "ir/source-format-malformed",
 				Message: "source format " + strconv.Quote(src.Format) + " is not a name@version pair",
-				Path:    at + ".Format",
+				Path:    sourcePath(i, ".Format"),
 			})
 		}
 		if !isSHA256Hex(src.Hash) {
 			vs = append(vs, Violation{
 				Code:    "ir/source-hash-malformed",
 				Message: "source hash " + strconv.Quote(src.Hash) + " is not a lowercase hex SHA-256 digest",
-				Path:    at + ".Hash",
+				Path:    sourcePath(i, ".Hash"),
 			})
 		}
 	}
 	return vs
+}
+
+// sourcePath spells where field of source i sits, for a violation to be placed
+// there. It is spelled only then, since strconv.Itoa builds the string for an
+// index of 100 or more: spelled for every source, it would cost a large source
+// table an allocation per source with nothing wrong.
+func sourcePath(i int, field string) string {
+	return sourcesPath + "[" + strconv.Itoa(i) + "]" + field
 }
 
 // isFormat reports whether format reads as name@version, each part non-empty

@@ -38,27 +38,106 @@ func TestAllocatingVisits_FindsEachVisitRenderingItsPath(t *testing.T) {
 	})), "a visitor doing nothing allocates nothing")
 }
 
-// TestAllocatingVisits_PrunesForAllWhatOnePrunes holds the walk to never
-// showing a visitor a value it pruned: what one visitor prunes, the others are
-// not shown either. It is not run in parallel: AllocsPerRun measures the
-// process.
-func TestAllocatingVisits_PrunesForAllWhatOnePrunes(t *testing.T) {
+// TestAllocatingVisits_PrunesForEachVisitorAlone holds the walk to the one each
+// visitor would be shown alone: never what it pruned, and still what another
+// pruned, so a visitor pruning at the root, as one visiting nothing does, hides
+// nothing from the others. A walk pruning for all what one prunes measured no
+// value below the root, and reported a document clean. It is not run in
+// parallel: AllocsPerRun measures the process.
+func TestAllocatingVisits_PrunesForEachVisitorAlone(t *testing.T) {
 	doc := &ir.Document{Services: []ir.Service{{ID: "s/x"}}}
+	var pruned, recorded []string
 	pruneServices := ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
+		pruned = append(pruned, at.String())
 		return at.String() != "doc.Services"
 	})
-	var seen []string
 	record := ir.VisitFunc(func(_ reflect.Value, at ir.WalkPath) bool {
-		seen = append(seen, at.String())
+		recorded = append(recorded, at.String())
 		return true
 	})
 
-	irtest.AllocatingVisits(doc, pruneServices, record)
-	assert.Contains(t, seen, "doc.Services")
-	for _, at := range seen {
-		assert.False(t, strings.HasPrefix(at, "doc.Services["), "%s lies under a pruned value", at)
+	irtest.AllocatingVisits(doc, ir.VisitFunc(nil), pruneServices, nil, record)
+	assert.Contains(t, pruned, "doc.Services")
+	for _, at := range pruned {
+		assert.False(t, strings.HasPrefix(at, "doc.Services["), "%s lies under a value this visitor pruned", at)
 	}
+	assert.Contains(t, recorded, "doc.Services[0].ID", "what other visitors prune is shown to this one")
 }
+
+// TestAllocatingVisits_ListsAValueForEachVisitorAllocating holds the report to
+// one path per allocating visit: a value two visitors allocate for is listed
+// twice, and one only a visitor that does not prune it allocates for, once.
+// It is not run in parallel: AllocsPerRun measures the process.
+func TestAllocatingVisits_ListsAValueForEachVisitorAllocating(t *testing.T) {
+	doc := &ir.Document{Services: []ir.Service{{ID: "s/x"}}}
+	var kept []string
+	rendering := func(prune bool) ir.Visitor {
+		return ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Type() == reflect.TypeFor[ir.ServiceID]() || v.Type() == reflect.TypeFor[ir.Service]() {
+				kept = append(kept[:0], at.String())
+			}
+			return !prune || v.Type() != reflect.TypeFor[ir.Service]()
+		})
+	}
+
+	assert.Equal(t, []string{"doc.Services[0]", "doc.Services[0]", "doc.Services[0].ID"},
+		irtest.AllocatingVisits(doc, rendering(false), rendering(true)))
+}
+
+// TestAllocatingVisits_MeasuresACleanVisitOnce pins what a measurement costs:
+// a visit allocating nothing is measured once, since no later measurement can
+// find fewer, and one that allocates as often as it takes to find its fewest.
+// Each measurement makes the visit twice, a warm-up and the one measured, after
+// the walk's own. It is not run in parallel: AllocsPerRun measures the process.
+func TestAllocatingVisits_MeasuresACleanVisitOnce(t *testing.T) {
+	doc := &ir.Document{Name: "api"}
+	var kept []byte
+	counting := func(allocate bool) (ir.Visitor, *int) {
+		calls := 0
+		return ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
+			if v.Kind() == reflect.String && v.String() == "api" {
+				calls++
+				if allocate {
+					kept = make([]byte, 64)
+				}
+			}
+			return true
+		}), &calls
+	}
+	clean, cleanCalls := counting(false)
+	allocating, allocatingCalls := counting(true)
+
+	assert.Empty(t, irtest.AllocatingVisits(doc, clean))
+	assert.Equal(t, []string{"doc.Name"}, irtest.AllocatingVisits(doc, allocating))
+	assert.Equal(t, 1+2, *cleanCalls, "the walk's visit, then one measurement")
+	assert.Equal(t, 1+2*irtest.VisitMeasurements, *allocatingCalls, "the walk's visit, then every measurement")
+	assert.Len(t, kept, 64, "the allocating visit kept what it made")
+}
+
+// TestAllocatingVisits_TellsACycleVisitorOfACycle holds the walk to telling a
+// visitor gathering cycles of each one, as a walk of its own would: a value
+// holding itself is met again where the walk is inside it. It is not run in
+// parallel: AllocsPerRun measures the process.
+func TestAllocatingVisits_TellsACycleVisitorOfACycle(t *testing.T) {
+	list := make([]ir.Value, 1)
+	list[0] = ir.Value{Kind: ir.ValueList, List: list}
+	doc := &ir.Document{Types: ir.TypeRegistry{"t/x/M": &ir.Model{
+		ID: "t/x/M", Examples: []ir.Example{{Value: &list[0]}},
+	}}}
+	cycles := &cycleCounter{}
+
+	irtest.AllocatingVisits(doc, cycles)
+	assert.Positive(t, cycles.met, "the self-holding list closes a cycle")
+}
+
+// cycleCounter visits everything and counts the cycles it is told of.
+type cycleCounter struct{ met int }
+
+// Visit asks for every value's children.
+func (*cycleCounter) Visit(reflect.Value, ir.WalkPath) bool { return true }
+
+// Cycle counts one cycle.
+func (c *cycleCounter) Cycle(ir.WalkPath, ir.WalkPath, reflect.Type) { c.met++ }
 
 // TestAllocatingVisits_CountsTheFewestAVisitAllocates holds the measurement to
 // what a visit must allocate, not what it happens to: a visit allocating on

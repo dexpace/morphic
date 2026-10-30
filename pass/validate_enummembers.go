@@ -12,15 +12,17 @@ import (
 // in its occurrence number, so a compiler following ir-design §4.5 never trips
 // this. A document that does has two members an emitter cannot tell apart,
 // which is what keying collision resolution by ID (emitter-design §4.12) rests
-// on not happening.
+// on not happening. Every enum is read through the same map, so none costs one
+// of its own.
 func checkDuplicateMemberIDs(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
+	var members reusedMap[ir.EnumMemberID, bool]
 	for _, id := range liveTypeIDs(doc) {
 		enum, ok := doc.Types[id].(*ir.Enum)
 		if !ok {
 			continue
 		}
-		seen := make(map[ir.EnumMemberID]bool, len(enum.Members))
+		seen := members.emptied()
 		for i, m := range enum.Members {
 			if m.ID == "" {
 				continue

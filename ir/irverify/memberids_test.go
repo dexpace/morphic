@@ -67,6 +67,7 @@ func TestVerify_MemberIDOutsideItsEnumIsAViolation(t *testing.T) {
 		{"another namespace", "e/anon/components/schemas/E/s:a"},
 		{"the enum's own path with no key", "e/openapi/components/schemas/E"},
 		{"the enum's own path with an empty key", "e/openapi/components/schemas/E/"},
+		{"the enum's path behind an empty segment", "e/openapi//components/schemas/E/s:a"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
