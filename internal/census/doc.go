@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package census counts which facts of the IR compiled documents set: each
 // member of its structs, the emptiness of a member whose empty value differs
 // from its absence, and each value of its enumerations, a sealed sum's tags

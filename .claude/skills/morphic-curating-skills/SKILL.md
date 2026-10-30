@@ -57,7 +57,7 @@ Probe asks. Cite a rule as `references/<file>.md#<key>`, from another skill by i
 ## Upkeep
 
 - Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit.
-  The gate does not run it; each push chains on it.
+  The gate does not run it; the push checklist does.
 - After changing a rule's Why, confirm each item it cites is the work its clause describes.
 - A lesson a skill holds that failed again means the skill failed: sharpen its wording or trigger,
   not add a copy.

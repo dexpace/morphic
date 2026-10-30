@@ -1,10 +1,13 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package resolve
 
 import (
 	"encoding/json/jsontext"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 )
 
 // MaxRefChain exposes the package's hop bound to its external tests.

@@ -1,5 +1,15 @@
 # Toolchain behaviour that misleads probes
 
+## Run a tree under the toolchain its go.mod names
+`toolchain-the-tree-names`
+
+- **Rule.** Bare `go test` keeps an installed toolchain newer than the `go` line of `go.mod`, while
+  the `Makefile` pins `GOTOOLCHAIN` to that line. Before blaming a change for a failure at an old
+  revision, rerun it there with `GOTOOLCHAIN=go$(go list -m -f '{{.GoVersion}}') go test ./...`.
+- **Why.** At #189's first commit four tests failed under Go 1.27 and passed under the tree's
+  go1.26.3, since the extension they treat as unserializable serializes under 1.27 (#1162).
+- **Probe.** `go version` beside `go list -m -f '{{.GoVersion}}'`, in the worktree under test.
+
 ## Coverage counts each package's own tests
 `coverage-per-package`
 

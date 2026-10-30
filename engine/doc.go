@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package engine orchestrates the Morphic pipeline: it asks the registered
 // compilers which of them recognizes the source, dispatches to that one, runs
 // its ordered list of IR passes, and judges whether the run failed. It is the

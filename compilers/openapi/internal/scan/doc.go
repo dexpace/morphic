@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package scan refuses a source document before any of it is lowered, for
 // shapes the parser library cannot decode: a YAML alias cycle or fan-out,
 // which overflows its stack or exhausts memory

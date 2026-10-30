@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it runs the
 // capability-conformance corpus (one minimal spec per ir-spec-matrix.md row)
 // through the whole compiler to keep "lossless by default" honest, so it has no

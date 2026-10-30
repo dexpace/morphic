@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package reader
 
 import (
@@ -5,6 +8,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 )
+
+var _ compilers.DocumentReader = Layered{}
 
 // Layered reads each document Held holds from it, and every other through
 // Under: a spec held in memory, such as an edited buffer, read as the file at

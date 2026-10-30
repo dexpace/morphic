@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file regression-tests GitHub #34: the allOf merge folded every other
 // redeclared property detail (required, docs, default, constraints, ...) but
 // never Visibility, so a readOnly/writeOnly declared on the allOf branch that

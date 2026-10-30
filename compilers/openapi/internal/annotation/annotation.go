@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package annotation
 
 import (
@@ -6,7 +9,7 @@ import (
 	"strconv"
 
 	"github.com/speakeasy-api/openapi/extensions"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -268,11 +271,9 @@ func Written(js *oas3.JSONSchema[oas3.Referenceable]) bool {
 type Home int
 
 // The readers below consume a Site the caller supplies rather than resolving
-// one themselves. Obtaining a referent is reference resolution — walk work —
-// and the two available resolutions are not interchangeable: Site.Referent is
-// exactly one hop, while the property path follows a $ref chain to its end.
-// Passing the wrong one silently changes default and description semantics on
-// a ref-to-ref chain.
+// one themselves, since obtaining a referent is reference resolution — walk
+// work. Site.Referent is the end of the $ref's chain, so a schema between it
+// and the use site lends nothing (GitHub #1029).
 
 // Set is everything a site's annotations yield, before any of it is
 // attached to a carrier.

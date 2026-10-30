@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package value
 
 import (
@@ -49,7 +52,9 @@ type Scalar struct {
 // Classify reads the scalar node n by its resolved tag, never by the schema
 // around it: the one classification a value lowered into the IR and a payload
 // kept verbatim both render, so the two never read one scalar as two kinds
-// (GitHub #783, #784). ShortTag resolves a node built by hand as a parse does.
+// (GitHub #783, #784). The tag is the parser's
+// (docs/parser-library.md#scalar-resolution), and ShortTag resolves a node
+// built by hand as a parse does.
 //
 // A scalar whose text its tag does not admit — `!!bool maybe`, `!!null abc`,
 // a !!binary that is not base64, `.inf` and `.nan`, which no JSON number
@@ -129,8 +134,9 @@ func decodes(n *yaml.Node, target any, what string) error {
 // NumericLiteral converts a numeric-tagged YAML scalar into the BigVal of the
 // value YAML resolved it to, which is not what its source text means in base
 // 10. YAML takes an !!int's base from its prefix and drops "_" separators, so
-// 0644 is 420 and 0x1f is 31; passing that spelling to NewBigVal — a base-10
-// decimal literal — reads 0644 back as 644 instead.
+// 0644 is 420 and 0x1f is 31 (docs/parser-library.md#scalar-resolution); passing
+// that spelling to NewBigVal — a base-10 decimal literal — reads 0644 back as
+// 644.
 //
 // Only !!int is decoded, and every !!int yaml.v3 resolves fits int64 or uint64,
 // so that decode is exact. A !!float keeps its text, because decoding one would

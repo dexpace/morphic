@@ -181,6 +181,30 @@ canary. A behaviour found that the page lacks is added there.
 - **Why.** References to a refused document each fetched it again, `io.LimitReader(r, limit+1)`
   overflowed at `MaxInt`, and a key-based skip let changed bytes through unjudged (#556).
 
+## Read a reference chain to its end, and test every hop
+`resolve-to-true-target`
+
+- **Rule.** A reader through a reference or alias follows the bounded chain to its end, stops at a
+  keyword opening a new scope (`$id`), adopts a walked pointer only if its final node is in this
+  document, and takes a key and its value from one target. What each hop lends a use site is
+  #1029.
+- **Why.** One-hop resolution hoisted a schema at a pointer addressing nothing (#108); an encoding
+  key and its body came from different hops, and an expansion looked past an `$id` (#149); a site
+  took its annotations' referent one hop away (#112).
+- **Probe.** Compile a two-hop chain giving each hop a distinct value of every annotation read
+  through it, a chain leaving the document midway, and an `$id` before an anchor; read the IR's
+  pointers and annotations.
+
+## Run a heuristic default over what the golden spec writes
+`heuristic-default-on-golden`
+
+- **Rule.** Before a heuristic ships on by default (`CLAUDE.md`, invariant 6), read the values the
+  golden spec and the corpus write at each key or name it reads, not only whether they write it. A
+  default that misreads them is a defect, whatever a caller can switch off.
+- **Why.** `x-sunset` defaulted into `Deprecation.RemovalVersion`, and every value the golden spec
+  writes there is a date (#355, #417).
+- **Probe.** `jq -c '[.. | objects | .["x-sunset"]? | select(. != null)] | group_by(type) | map({type: (.[0] | type), n: length, sample: .[0]})' openapi.json`, for each key.
+
 ## Match a library read's rules exactly when mirroring it
 `mirror-library-read-rules-exactly`
 

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it reads
 // docs/compilers/openapi.md, the compiler's specification, and holds each rule
 // to the evidence it names and each citation of a rule to a rule.

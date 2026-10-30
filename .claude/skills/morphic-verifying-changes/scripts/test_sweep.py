@@ -84,12 +84,30 @@ class SweepTest(unittest.TestCase):
             with self.subTest(data=data):
                 self.assertTrue(sweep.is_spec(data))
 
-    def test_a_yaml_document_is_judged_by_a_version_key_first_on_a_line(self):
+    def test_a_yaml_document_is_judged_by_a_version_key_anywhere_in_it(self):
         cases = {b"openapi: 3.1.0\n": True, b"swagger: '2.0'\n": True, b"'openapi': 3.0.3\n": True,
-                 b"openapi:schema: x\n": False, b"info:\n  title: openapi\n": False}
+                 b"openapi:schema: x\n": False, b"info:\n  title: openapi\n": False,
+                 b"x-openapi: 1\n": False, b'"openapi:schema": 1\n': False,
+                 b"myopenapi: 1\n": False, b"x.openapi: 1\n": False, b"openapi:": True,
+                 b'"openapi" : 3.1.0\n': True, b'{"swagger":"2.0", info: {}}\n': True,
+                 b'{openapi: 3.1.0, info: {title: t, version: "1"}, paths: {}}\n': True,
+                 b"---\n{openapi: 3.1.0, paths: {}}\n": True,
+                 b"{info: {title: t}, swagger: '2.0'}\n": True,
+                 b'{"openapi":"3.1.0", info: {}}\n': True,
+                 b"&version openapi: 3.1.0\n": True, b"!!str openapi: 3.1.0\n": True,
+                 b"? openapi\n: 3.1.0\n": True}
         for data, want in cases.items():
             with self.subTest(data=data):
                 self.assertEqual(sweep.is_spec(data), want)
+
+    def test_a_flow_mapping_of_any_length_is_a_spec(self):
+        data = b'{openapi: 3.1.0, info: {title: t, version: "1"}, paths: {}, x-pad: "%s"}\n'
+        self.assertTrue(sweep.is_spec(data % (b"a" * 70000)))
+
+    def test_json_too_deep_to_parse_is_read_as_text_rather_than_ending_the_sweep(self):
+        deep = b"[" * 200000 + b"]" * 200000
+        self.assertTrue(sweep.is_spec(b'{"openapi": "3.1.0", "x-deep": ' + deep + b"}"))
+        self.assertFalse(sweep.is_spec(b'{"x-deep": ' + deep + b"}"))
 
     def test_each_kind_of_difference_is_reported(self):
         code, results, text = self.sweep(sweep.find_specs([self.corpus]))

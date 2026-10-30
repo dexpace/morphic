@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package ir
 
 // Channel is an event/messaging endpoint: an AsyncAPI channel, a webhook, a

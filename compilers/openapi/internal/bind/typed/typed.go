@@ -1,8 +1,6 @@
-// Package typed answers what the lowering asks of a bind table about the
-// typed schemas it holds: where a schema's $ref lands, the schema written
-// there and the one its chain ends on. It knows each schema the lowering can
-// hold by the position it was read at, and builds a schema once for each
-// position a $ref reads as one though the parser's model holds none there.
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package typed
 
 import (
@@ -12,7 +10,7 @@ import (
 	"fmt"
 	"strconv"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
 	"github.com/speakeasy-api/openapi/walk"
 	yaml "go.yaml.in/yaml/v3"

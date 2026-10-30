@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file holds the conformance assertions whose subject is what the IR keeps
 // verbatim rather than what it models: a construct the compiler cannot lower must
 // survive under Unmodeled, under the reason that says which kind of gap it is,

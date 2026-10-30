@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file pins how the binder reads what a reference object resolved to:
 // at the node the parser's chain reached, in the source or another document.
 package e2e_test

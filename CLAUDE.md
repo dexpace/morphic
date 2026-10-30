@@ -66,6 +66,20 @@ wrong, unclear or missing something the task needed, and file each flaw it showe
 wording), ranked by the housekeeping rule, and with the command and output that showed it. A defect
 in the code that the flaw let through is an issue of its own.
 
+## Correctness comes first
+
+Correctness outranks every other quality of a change, whether it is code, a design or a document.
+Simplicity, scale, performance and developer experience are weighed only among options already shown
+correct: a design that scales and reads well but gives a consumer the wrong result has no value. So
+before weighing anything else, state the result a consumer should get on real input, and show that
+it does ("Verify by executing" below). A design's premises are measured, not assumed
+(`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise`), and showing
+a design is complete does not show it is right.
+
+Style concerns resolve in the styleguide's order: clarity, simplicity, concision, maintainability,
+consistency. Consistency is the last tiebreaker and never overrides the others, so matching the
+surrounding code is no defence of what is unclear or wrong there.
+
 ## Invariants that must not be violated
 
 These are load-bearing design decisions, not preferences. Breaking one defeats the project's core
@@ -282,8 +296,10 @@ assertion shapes:
   colliding lowering, which is why the pointer collisions survived the suite. The order-invariance
   oracle above is the general form of this and already runs it across the corpus under `testdata/`,
   so the usual way to cover a new construct is to add a spec the sweep reaches, not to hand-roll
-  the diff. A targeted case still earns its place when it pins one lowering, because the oracle
-  proves order-independence only for the constructs its inputs happen to contain.
+  the diff. The oracle compares only what `diffOrderInvariants` in `internal/harness/order.go`
+  names, so a fact held anywhere else, such as on an operation, passes it unread and needs its own
+  two-order diff. A targeted case still earns its place when it pins one lowering, because the
+  oracle proves order-independence only for the constructs its inputs happen to contain.
   - A fixture's own declaration order is part of the test. A golden that happens to declare things
     in the order the *correct* lowering already produced cannot see the fix at all: reverting it
     leaves the golden green, and only the two-order oracle reddens. If a single-order case is meant
@@ -302,7 +318,9 @@ All Go in this repo follows the org styleguide at
 the [Google Go Style Guide](https://google.github.io/styleguide/go/); where they conflict,
 Google wins except for the recorded deviations (function-size cap, assertion density, bounded
 recursion). Priority order: **correctness > performance > developer experience**. The rules
-below are the ones most likely to bite in this codebase — the full guide governs everything else.
+below are the ones most likely to bite in this codebase — the full guide governs everything else,
+and `morphic-checking-style` says how to check a change against it and where this repository
+departs from it, with what holds each difference.
 
 - **Functions: 70-line hard cap, aim 20–40.** One thing each; blank lines between logical
   sections; guard clauses and early returns over nesting; no `else` after a returning `if`.
@@ -349,7 +367,9 @@ below are the ones most likely to bite in this codebase — the full guide gover
   no `utils`/`helpers`/`common`; `doc.go` for package docs; imports in three `gci` groups
   (stdlib, external, local); no dot imports.
 - **Docs:** GoDoc on every exported symbol starting with its name, complete sentences; package
-  comment on every package; comments explain *why*, not what.
+  comment on every package, in its `doc.go` alone (`internal/archtest`); comments explain *why*, not
+  what. Every Go file outside `testdata` opens with the license header `goheader` holds, a blank
+  line before what follows.
 - **Doc comments: 100 words at most.** The cap is strict and holds for each doc comment on its
   own — package, declaration, field or method, tests included. A word is a token with a letter
   in it: `//` markers, directives, numbers and punctuation are not counted.

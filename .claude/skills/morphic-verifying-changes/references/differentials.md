@@ -83,6 +83,19 @@ These rules decide whether the answer means anything.
 - **Why.** Diagnostics append in walk order, which the permutation changes (#808). A types-only diff
   missed a reference that took a type already interned at its pointer (#591).
 
+## A clean order oracle says nothing of a fact it does not compare
+`order-oracle-reads-what-it-compares`
+
+- **Rule.** Read `diffOrderInvariants` in `internal/harness/order.go` before trusting a clean order
+  oracle: it is what the oracle compares. A fact outside it, such as one held on an operation or a
+  response, needs its own two-order diff, however many specs reach the sweep, and a spec is not
+  permuted at all where reversing its mappings would lift an alias above its anchor (#403).
+- **Why.** With the normalization of a slice held only on operations deleted, `morphic-harness`
+  still passed a spec whose two headers lower in opposite orders, since no comparison reads them
+  (#1166).
+- **Probe.** `grep -n 'cmp\.Diff' internal/harness/order.go` lists the comparisons; plant an order
+  dependence in the fact and see whether the oracle reddens.
+
 ## The order oracle never reaches specs with errors
 `order-oracle-errors`
 
@@ -115,6 +128,19 @@ These rules decide whether the answer means anything.
   point, row by row, and plant the nearest plausible wrong grammar.
 - **Why.** A hand-written index-grammar table agreed with an `Atoi`-bounded mutant (#834). Swapping
   a copy for the library call left wrong call sites alive (#835).
+
+## A change to the command line needs an argv differential
+`argv-differential`
+
+- **Rule.** `scripts/sweep.py` runs only `compile`, with one set of flags on both builds, so it
+  cannot see a change to argument parsing, help or another subcommand. For a change under `cmd/`,
+  run both builds over every spelling `README.md` documents and each misuse class (no operand, an
+  unknown flag, conflicting flags, a stray `--`, a one-dash long flag), and read stdout, stderr and
+  the exit code against the README's "Exit codes" section.
+- **Why.** Moving the CLI onto a framework turned `morphic -- compile <spec>`, which had compiled,
+  into help with exit 0: a success that wrote nothing, invisible to a sweep (#815).
+- **Probe.** `<bin> <args> > out 2> err; echo $?` for each invocation on each build, then `diff` the
+  two transcripts.
 
 ## A real-world corpus guards against regressions; it does not prove a fix
 `corpus-is-a-guard`

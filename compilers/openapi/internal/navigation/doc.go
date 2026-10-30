@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package navigation reads a JSON pointer through the library's parsed model
 // as jsonpointer.GetTarget's walk reads it, and says where that walk leaves
 // the model for the raw YAML an object was built from. Tests such as

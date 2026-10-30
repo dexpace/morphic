@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Command morphic-harness sweeps API specs through Morphic's bug-catching
 // oracles, which harness.Check lists in order, each spec run as
 // `morphic compile --verify` runs it, and writes a combined report to stdout.

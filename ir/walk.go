@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package ir
 
 import (
@@ -7,6 +10,8 @@ import (
 	"slices"
 	"strconv"
 )
+
+var _ Visitor = VisitFunc(nil)
 
 // MaxWalkDepth bounds a [WalkValues] traversal (the bounded-recursion rule).
 // Value trees — defaults, examples — nest deepest, and compilers cap their

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package naming names every node the OpenAPI compiler builds as a function
 // of the documents and the node's coordinate (GitHub #981), so which
 // lowering reaches a coordinate first cannot change what it is called.

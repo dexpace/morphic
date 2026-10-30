@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package ctxtest holds the context decorators the tests of cancellation
 // share, so a test anywhere in the module puts a cancel at a chosen check of a
 // context the same way. It is test infrastructure outside the compile pipeline,

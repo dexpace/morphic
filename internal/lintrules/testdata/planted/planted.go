@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package planted holds what the rules .golangci.yml configures exist to
 // refuse, one finding to a line, each line marked with the message it must
 // draw. scripts/lint-planted.sh requires exactly those findings.

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package irfacts derives what an ir.Document implies and does not state: the
 // subtypes of each model, the properties each type exposes, how each type is
 // used, and which types can hold themselves (ir-design §4.9). An [Index] builds

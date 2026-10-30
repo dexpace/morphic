@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package irverify_test holds the tests of the irverify package. The helpers
 // several files share live here.
 package irverify_test

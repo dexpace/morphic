@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package canary_test
 
 import (
@@ -30,6 +33,7 @@ func canaries() map[string]func(t *testing.T) {
 		"duplicate-key":          duplicateKey,
 		"merge-keys":             mergeKeys,
 		"non-scalar-key":         nonScalarKey,
+		"scalar-resolution":      scalarResolution,
 		"unmodeled-keywords":     unmodeledKeywords,
 		"null-schema-is-false":   nullSchemaIsFalse,
 		"overlay-alias-clone":    overlayAliasClone,

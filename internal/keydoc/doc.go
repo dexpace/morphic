@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package keydoc reads the repository's keyed documents: Markdown pages whose
 // entries are third-level headings naming a stable key, each closing with a
 // list of named fields, and the citations other files make of an entry.

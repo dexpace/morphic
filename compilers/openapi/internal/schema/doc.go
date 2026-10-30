@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package schema lowers OpenAPI schemas into IR types: the shape walk, its
 // compositions, the references between schemas, and the preservation of what
 // the IR has no field for.

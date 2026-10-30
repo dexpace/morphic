@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package budget counts the work and the size of a compile against their
 // limits. A Limit says how far a count may go, or that nothing bounds it, and
 // a Budget counts what is spent against one (GitHub #785).

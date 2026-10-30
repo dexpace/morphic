@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package operation lowers what a document says an API does: its path items,
 // webhooks and callbacks, the parameters merged onto each operation, and the
 // content of every request body, response and header.

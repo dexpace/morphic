@@ -90,6 +90,32 @@ verifier and codecs must reach.
 - **Probe.** `grep -n` the document for each field, input and step the rule names, and for their
   neighbours.
 
+## Count what a design assumes about real input before choosing it
+`measure-the-premise`
+
+- **Rule.** Before choosing a shape a consumer will use, write the job they do with it and the fact
+  about real input it rests on, then count it on the golden spec and the corpus. A program
+  running the proposed rules shows only that they are total, since it assumes that fact; a worked
+  example, chosen because it fits, shows nothing.
+- **Why.** A design kept one error type per body, as a worked example had it, and a run placed every
+  failure. Most operations with several error bodies used one type for all, so status told failures
+  apart, which nobody counted until a reviewer's question led there (#1167).
+- **Probe.** For each decision in the PR body, name its premise and the command that could
+  have falsified it. A decision with neither is unproved.
+
+## Weigh designs that differ in what they rest on, not only in how they spell it
+`weigh-the-framing`
+
+- **Rule.** Include a design the issue's framing leaves out, and make the designs differ in the fact
+  they key on. Call a choice forced only after naming what the comparison held fixed and changing
+  it, and give each rejected option's failing input, not only its cost.
+- **Why.** Comparing a leaf per body with client and server branches held fixed that the exception
+  is the failure, and concluded only one fact could be a class. A wrapper lay outside the comparison
+  until a reviewer asked, and the count that followed showed a status tree nesting inside fault
+  (#1167).
+- **Probe.** For each option rejected as impossible, compile or cite the constraint, then restate it
+  without what the options shared and check that it still holds.
+
 ## Give every field a check that rejects its zero and malformed values
 `verifier-rejects-every-degenerate-value`
 
@@ -119,11 +145,14 @@ verifier and codecs must reach.
 
 - **Rule.** A predicate over text (cased, blank, invisible) must be tested against the producer's
   exact transformation and with one witness per Unicode class it claims (Cc, Cf, default-ignorable,
-  Zs, caseless letters), not a hand-picked sample.
+  Zs, caseless letters), not a hand-picked sample. A change that redefines one rechecks it at each
+  call site, since two rules sharing it can ask different questions.
 - **Why.** unicode.IsUpper flagged neutral caseless runes as cased, and TrimSpace let zero-width and
-  filler-only aliases pass as non-blank (#361).
+  filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one
+  case-boundary rule was applied to both, and the second went unverified until a mutation sweep
+  (#189).
 - **Probe.** Generate one witness per class and per producer output and assert the predicate's
-  verdict on each.
+  verdict on each, at each call site.
 
 ## Make every custom JSON decoder reach a fixed point on null, whitespace and empty forms
 `json-decoder-fixed-point`
