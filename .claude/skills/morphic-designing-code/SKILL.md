@@ -21,6 +21,7 @@ cost a later refactor or performance change paid.
 | code in `engine`, `compilers`, `compilers/compile`, `ir` or `pass` | `references/design-rules.md#second-user` |
 | a wrapper, interface or option | `references/design-rules.md#no-forwarding-layer` |
 | a limit | `references/design-rules.md#bound-the-product` |
+| a shape a caller or another consumer will use | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise` |
 | a rule another package already implements | `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree` |
 | a reading the parser library already makes | `.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#reuse-library-readings` |
 

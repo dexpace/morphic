@@ -5,8 +5,8 @@ description: Use when asked to review a pull request, branch or commit range in 
 
 # Reviewing morphic pull requests
 
-The bar is `CLAUDE.md`'s: a PR is ready when there is nothing left to find, and the first round
-finds all of it. A finding counts only with the command that showed it. Post nothing to the PR
+The bar is `CLAUDE.md`'s: nothing left to find, and the first round finds it all. A finding counts
+only with the command that showed it. Post nothing to the PR
 unless asked.
 
 ## Setup
@@ -24,7 +24,7 @@ changed files call for.
 
 ## Passes
 
-Run all; each finds what the others cannot.
+Run all.
 
 1. **Gate.** `make gate` in the worktree, unless the head already contains `origin/main` and CI
    passed on it, which ran this tree. Never re-check by eye what the gate enforces.
@@ -36,7 +36,8 @@ Run all; each finds what the others cannot.
 3. **Written rules.** Check each invariant in `CLAUDE.md` the diff could touch, and the Go style
    rules there that no linter enforces.
 4. **Behaviour against main.** For each output the change alters, compile a minimal spec on
-   `origin/main` and in the worktree. "As on main" never excuses a defect inside the change's
+   `origin/main` and in the worktree; a normative document has none, so take
+   `references/review-probes.md#review-design-rules`. "As on main" never excuses a defect inside the change's
    mechanism.
 5. **Claims, every class in full.** Check every member of each class of claim, never a sample
    (`references/review-probes.md#sweep-each-claim-class`). Counts are derived

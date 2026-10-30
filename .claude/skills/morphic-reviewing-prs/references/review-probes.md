@@ -29,6 +29,20 @@ defect, keep a `main` control.
 - **Probe.** The report gives each class with the count of members checked; a count below the
   class's size is a round still open.
 
+## Give a normative document's rules something that can disagree with them
+`review-design-rules`
+
+- **Rule.** A document describing code that does not exist has no output to compare. So read each
+  rule it states against the cases of every other, and against a format or protocol it was not
+  written for; run the rules as a program over compiled specs, a planted defect showing the run
+  reacts; check each premise
+  (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise`); and run
+  each sample as printed under the document's own checks.
+- **Why.** Names and citations were clean while a fallback overrode a gRPC stream's framing and a
+  union of event shapes was misread, and `go vet` refused a sample that compiled (#1167, #1168).
+- **Probe.** The report lists each rule with what could have disagreed with it; a rule with nothing
+  is unreviewed.
+
 ## A fix the review makes is reviewed before it is pushed
 `review-own-fixes`
 

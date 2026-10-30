@@ -90,6 +90,31 @@ verifier and codecs must reach.
 - **Probe.** `grep -n` the document for each field, input and step the rule names, and for their
   neighbours.
 
+## Count what a design assumes about real input before choosing it
+`measure-the-premise`
+
+- **Rule.** Before choosing a shape a consumer will use, write the job they do with it and the fact
+  about real input it rests on, then count it on the golden spec and the corpus. A program
+  running the proposed rules shows only that they are total, since it assumes that fact; a worked
+  example, chosen because it fits, shows nothing.
+- **Why.** A design kept one error type per body, as a worked example had it, and a run placed every
+  failure. Most operations with several error bodies used one type for all, so status told failures
+  apart, which a caller's question found, not the run (#1167).
+- **Probe.** For each decision in the PR body, name its premise and the command that could
+  have falsified it. A decision with neither is unproved.
+
+## Weigh designs that differ in what they rest on, not only in how they spell it
+`weigh-the-framing`
+
+- **Rule.** Include a design the issue's framing leaves out, and make the designs differ in the fact
+  they key on. Call a choice forced only after naming what the comparison held fixed and changing
+  it, and give each rejected option's failing input, not only its cost.
+- **Why.** Comparing a leaf per body with client and server branches held fixed that the exception
+  is the failure, and concluded only one fact could be a class. A wrapper, and a status tree nesting
+  inside fault, lay outside the comparison, and a caller proposed them (#1167).
+- **Probe.** For each option rejected as impossible, compile or cite the constraint, then restate it
+  without what the options shared and check that it still holds.
+
 ## Give every field a check that rejects its zero and malformed values
 `verifier-rejects-every-degenerate-value`
 
