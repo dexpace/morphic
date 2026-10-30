@@ -141,27 +141,56 @@ func TestEditor_WritesTheEditedRegistryAndNotTheDocument(t *testing.T) {
 	}
 }
 
-// TestEditor_FinishSharesWhatTheEditLeft pins Finish's document: new, so a
-// caller may set its fields, sharing every field but the registry with the
-// document edited, and the registry itself until a write.
+// containers returns the address of each container of doc an edit copies at
+// its first write into it, keyed by field.
+func containers(doc *ir.Document) map[string]uintptr {
+	out := map[string]uintptr{}
+	for _, field := range keyedFields {
+		out[field] = reflect.ValueOf(doc).Elem().FieldByName(field).Pointer()
+	}
+	return out
+}
+
+// TestEditor_FinishReadsNoTypeUnlessTheEditWroteOne pins that Finish holds the
+// types an edit took to their keys only when it took one: an edit of the rest of
+// a document pays nothing for how many types it holds. It is not run in
+// parallel: AllocsPerRun measures the process.
+func TestEditor_FinishReadsNoTypeUnlessTheEditWroteOne(t *testing.T) {
+	allocs := func(types int) float64 {
+		doc := &ir.Document{Types: ir.TypeRegistry{}}
+		for i := range types {
+			id := ir.TypeID(fmt.Sprint("t/", i))
+			doc.Types[id] = &ir.Any{ID: id}
+		}
+		return testing.AllocsPerRun(10, func() { _, _ = ir.NewEditor(doc).Finish() })
+	}
+	assert.Equal(t, allocs(1), allocs(1024))
+}
+
+// TestEditor_FinishSharesWhatTheEditLeft pins Finish's document: a new one,
+// sharing with the document edited every container the edit wrote nothing
+// into, and only those, and every node it did not write.
 func TestEditor_FinishSharesWhatTheEditLeft(t *testing.T) {
 	t.Parallel()
-	doc := editedDoc()
-	doc.Services = []ir.Service{{ID: "s/x"}}
+	doc := filledDoc(t)
 
 	untouched, _ := ir.NewEditor(doc).Finish()
 	e := ir.NewEditor(doc)
-	e.RemoveType("t/scalar")
-	edited, _ := e.Finish()
-	edited.Name = "renamed"
+	e.RemoveType("t/a")
+	e.RemoveOperation("o/a1")
+	e.UpdateDocument(func(d *ir.Document) { d.Name = "renamed" })
+	edited, diags := e.Finish()
+	require.Empty(t, diags)
 
 	require.NotSame(t, doc, untouched)
-	assert.Equal(t, reflect.ValueOf(doc.Types).Pointer(), reflect.ValueOf(untouched.Types).Pointer(),
-		"an edit that writes nothing copies no registry")
-	assert.NotEqual(t, reflect.ValueOf(doc.Types).Pointer(), reflect.ValueOf(edited.Types).Pointer())
-	assert.Same(t, &doc.Services[0], &edited.Services[0], "a field the edit does not write is shared")
-	assert.Same(t, doc.Types["t/model"], edited.Types["t/model"], "a node the edit does not write is shared")
-	assert.Equal(t, "edited", doc.Name, "setting a field of Finish's document set the edited one's")
+	assert.Equal(t, containers(doc), containers(untouched), "an edit that writes nothing copies nothing")
+	written := containers(edited)
+	for field, addr := range containers(doc) {
+		assert.Equal(t, field != "Types" && field != "Services", addr == written[field], "%s shared", field)
+	}
+	assert.Same(t, &doc.Services[1].Groups[0], &edited.Services[1].Groups[0], "a node the edit does not write is shared")
+	assert.Equal(t, "renamed", edited.Name)
+	assert.NotEqual(t, "renamed", doc.Name)
 }
 
 // TestEditor_TypeReadsTheEdit pins that Type answers with what the edit holds:
@@ -235,7 +264,7 @@ func TestEditor_RefusesWritesOnlyABugMakes(t *testing.T) {
 				td.Common().ID = "t/moved"
 				td.Common().Docs.Summary = "moved"
 			})
-		}, `update rejected: the change moved "t/model" to "t/moved"; a type keeps its ID`},
+		}, `update rejected: the change moved "t/model" to "t/moved"; a node keeps its ID`},
 		{"update emptying the ID", nil, func(e *ir.Editor, _ *ir.Document) {
 			e.UpdateType("t/model", func(td ir.TypeDef) { *td.Common() = ir.TypeCommon{} })
 		}, `update rejected: the change moved "t/model" to ""`},
@@ -257,7 +286,7 @@ func TestEditor_RefusesWritesOnlyABugMakes(t *testing.T) {
 			require.Empty(t, ctrl, "a write before the refused one was refused as well, so the case tests the wrong write")
 			got := refusals(t, diags)
 			require.Len(t, got, 1, "one refused write, one refusal: %v", got)
-			assert.Contains(t, got[0], "internal: type edit: "+tt.want)
+			assert.Contains(t, got[0], "internal: edit: "+tt.want)
 			assert.Equal(t, irtest.Encoded(t, want), irtest.Encoded(t, out), "the refused write changed the edit")
 			assert.Equal(t, irtest.Encoded(t, editedDoc()), irtest.Encoded(t, doc), "the edited document changed")
 		})
@@ -310,13 +339,117 @@ func TestEditor_UpdateRefusesAChangeWritingOrEndingTheEdit(t *testing.T) {
 			got := refusals(t, diags)
 			require.Len(t, got, 3, "the refusal before the change, the call and the update: %v", got)
 			assert.Contains(t, got[0], `remove rejected: no type "t/absent"`)
-			assert.Contains(t, got[1], "internal: type edit: "+tt.want)
-			assert.Equal(t, `internal: type edit: update rejected: the change of "t/model" wrote to the edit `+
+			assert.Contains(t, got[1], "internal: edit: "+tt.want)
+			assert.Equal(t, `internal: edit: update rejected: the change of "t/model" wrote to the edit `+
 				`or ended it; a change alters its node alone`, got[2])
 			assert.Equal(t, irtest.Encoded(t, want), irtest.Encoded(t, out), "the change or a call it made changed the edit")
 			assert.Equal(t, irtest.Encoded(t, editedDoc()), irtest.Encoded(t, doc), "the edited document changed")
 		})
 	}
+}
+
+// editCall is one call an edit takes, with the node it names spelled as its
+// refusals spell it.
+type editCall struct {
+	verb, at string
+	call     func(*ir.Editor)
+}
+
+// writes returns a call of every write an edit takes, each at a node
+// filledDoc holds and updates do not touch, and Finish.
+func writes() []editCall {
+	return []editCall{
+		{"remove", `"t/a"`, func(e *ir.Editor) { e.RemoveType("t/a") }},
+		{"update", `"t/a"`, func(e *ir.Editor) { e.UpdateType("t/a", func(ir.TypeDef) {}) }},
+		{"replace", `"t/a"`, func(e *ir.Editor) { e.ReplaceType(&ir.Any{ID: "t/a"}) }},
+		{"remove", `"s/b"`, func(e *ir.Editor) { e.RemoveService("s/b") }},
+		{"update", `"s/b"`, func(e *ir.Editor) { e.UpdateService("s/b", func(*ir.Service) {}) }},
+		{"remove", `"g/b"`, func(e *ir.Editor) { e.RemoveGroup("g/b") }},
+		{"update", `"g/b"`, func(e *ir.Editor) { e.UpdateGroup("g/b", func(*ir.OperationGroup) {}) }},
+		{"remove", `"o/b"`, func(e *ir.Editor) { e.RemoveOperation("o/b") }},
+		{"update", `"o/b"`, func(e *ir.Editor) { e.UpdateOperation("o/b", func(*ir.Operation) {}) }},
+		{"remove", `"v/b"`, func(e *ir.Editor) { e.RemoveServer("v/b") }},
+		{"update", `"v/b"`, func(e *ir.Editor) { e.UpdateServer("v/b", func(*ir.Server) {}) }},
+		{"remove", `"c/b"`, func(e *ir.Editor) { e.RemoveChannel("c/b") }},
+		{"update", `"c/b"`, func(e *ir.Editor) { e.UpdateChannel("c/b", func(*ir.Channel) {}) }},
+		{"remove", `"m/b"`, func(e *ir.Editor) { e.RemoveMessage("m/b") }},
+		{"update", `"m/b"`, func(e *ir.Editor) { e.UpdateMessage("m/b", func(*ir.Message) {}) }},
+		{"remove", `"a/b"`, func(e *ir.Editor) { e.RemoveAuthScheme("a/b") }},
+		{"update", `"a/b"`, func(e *ir.Editor) { e.UpdateAuthScheme("a/b", func(*ir.AuthScheme) {}) }},
+		{"update", "the document", func(e *ir.Editor) { e.UpdateDocument(func(*ir.Document) {}) }},
+		{"finish", "", func(e *ir.Editor) { e.Finish() }},
+	}
+}
+
+// updates returns an update of each kind of node, at a node filledDoc holds
+// that the calls of writes do not name, running inner from its change.
+func updates(inner func()) []editCall {
+	return []editCall{
+		{"UpdateType", `"t/a"`, func(e *ir.Editor) { e.UpdateType("t/a", func(ir.TypeDef) { inner() }) }},
+		{"UpdateService", `"s/a"`, func(e *ir.Editor) { e.UpdateService("s/a", func(*ir.Service) { inner() }) }},
+		{"UpdateGroup", `"g/a"`, func(e *ir.Editor) { e.UpdateGroup("g/a", func(*ir.OperationGroup) { inner() }) }},
+		{"UpdateOperation", `"o/a1"`, func(e *ir.Editor) { e.UpdateOperation("o/a1", func(*ir.Operation) { inner() }) }},
+		{"UpdateServer", `"v/a"`, func(e *ir.Editor) { e.UpdateServer("v/a", func(*ir.Server) { inner() }) }},
+		{"UpdateChannel", `"c/a"`, func(e *ir.Editor) { e.UpdateChannel("c/a", func(*ir.Channel) { inner() }) }},
+		{"UpdateMessage", `"m/a"`, func(e *ir.Editor) { e.UpdateMessage("m/a", func(*ir.Message) { inner() }) }},
+		{"UpdateAuthScheme", `"a/a"`, func(e *ir.Editor) { e.UpdateAuthScheme("a/a", func(*ir.AuthScheme) { inner() }) }},
+		{"UpdateDocument", "the document", func(e *ir.Editor) { e.UpdateDocument(func(*ir.Document) { inner() }) }},
+	}
+}
+
+// TestEditor_EveryUpdateRefusesAChangeWritingOrEndingTheEdit pins, for an
+// update of every kind of node and a call of every write and of Finish from
+// its change, that the call is refused naming the update, the update is
+// refused with it, and the edit ends as one making neither does.
+func TestEditor_EveryUpdateRefusesAChangeWritingOrEndingTheEdit(t *testing.T) {
+	t.Parallel()
+	for i := range updates(nil) {
+		for j, inner := range writes() {
+			var e *ir.Editor
+			outer := updates(func() { inner.call(e) })[i]
+			t.Run(outer.verb+"/"+inner.verb+" "+inner.at, func(t *testing.T) {
+				t.Parallel()
+				doc := filledDoc(t)
+				e = ir.NewEditor(doc)
+				outer.call(e)
+				out, diags := e.Finish()
+
+				want := inner.verb + " rejected: called from inside an " + outer.verb + " change (" + inner.at + ")"
+				if j == len(writes())-1 {
+					want = "finish rejected: called from inside an " + outer.verb + " change"
+				}
+				assert.Equal(t, []string{
+					"internal: edit: " + want + "; a change alters its node alone",
+					"internal: edit: update rejected: the change of " + outer.at + " wrote to the edit or ended it; " +
+						"a change alters its node alone",
+				}, refusals(t, diags))
+				assert.Equal(t, irtest.Encoded(t, doc), irtest.Encoded(t, out), "the change or a call it made changed the edit")
+			})
+		}
+	}
+}
+
+// TestEditor_RefusesEveryWriteAfterFinish pins that Finish ends the edit for
+// every write: each is refused, and the document Finish returned is unchanged.
+func TestEditor_RefusesEveryWriteAfterFinish(t *testing.T) {
+	t.Parallel()
+	e := ir.NewEditor(filledDoc(t))
+	out, diags := e.Finish()
+	require.Empty(t, diags)
+	before := irtest.Encoded(t, out)
+	calls := writes()
+	calls = calls[:len(calls)-1]
+	want := make([]string, 0, len(calls))
+	for _, c := range calls {
+		c.call(e)
+		want = append(want, "internal: edit: "+c.verb+" rejected: the edit is finished ("+c.at+")")
+	}
+
+	again, diags := e.Finish()
+
+	assert.Equal(t, want, refusals(t, diags))
+	assert.Same(t, out, again)
+	assert.Equal(t, before, irtest.Encoded(t, again), "a write after Finish changed its document")
 }
 
 // TestEditor_FinishInsideAChangeEndsNothing pins what Finish returns from
@@ -338,10 +471,10 @@ func TestEditor_FinishInsideAChangeEndsNothing(t *testing.T) {
 	out, diags := e.Finish()
 
 	const (
-		absent = `internal: type edit: remove rejected: no type "t/absent" to remove; an edit adds no type`
-		finish = `internal: type edit: finish rejected: called from inside an UpdateType change; ` +
+		absent = `internal: edit: remove rejected: no type "t/absent" to remove; an edit adds no type`
+		finish = `internal: edit: finish rejected: called from inside an UpdateType change; ` +
 			`a change alters its node alone`
-		update = `internal: type edit: update rejected: the change of "t/model" wrote to the edit or ended it; ` +
+		update = `internal: edit: update rejected: the change of "t/model" wrote to the edit or ended it; ` +
 			`a change alters its node alone`
 	)
 	assert.Equal(t, []string{absent, finish}, refusals(t, innerDiags))
@@ -389,8 +522,8 @@ func TestEditor_NilEntryIsReplacedNotUpdated(t *testing.T) {
 	out, diags := e.Finish()
 
 	assert.Equal(t, []string{
-		`internal: type edit: update rejected: "t/a" holds a nil type definition, which has nothing to change`,
-		`internal: type edit: update rejected: "t/b" holds a nil type definition, which has nothing to change`,
+		`internal: edit: update rejected: "t/a" holds a nil type definition, which has nothing to change`,
+		`internal: edit: update rejected: "t/b" holds a nil type definition, which has nothing to change`,
 	}, refusals(t, diags))
 	assert.Equal(t, ir.TypeRegistry{"t/a": replacement}, out.Types)
 	assert.Len(t, doc.Types, 2)
@@ -409,7 +542,7 @@ func TestEditor_UpdateRefusesANodeAtAnotherIDsKey(t *testing.T) {
 	e.RemoveType("t/c")
 	_, diags := e.Finish()
 
-	assert.Equal(t, []string{`internal: type edit: update rejected: ` +
+	assert.Equal(t, []string{`internal: edit: update rejected: ` +
 		`"t/a" holds the node of "t/b", which belongs at its own ID`}, refusals(t, diags))
 }
 
@@ -451,7 +584,7 @@ func TestEditor_FinishRefusesANodeMovedAfterTheEditTookIt(t *testing.T) {
 
 			got := refusals(t, diags)
 			require.Len(t, got, 1, "one moved node, one refusal: %v", got)
-			assert.Contains(t, got[0], "internal: type edit: "+tt.want)
+			assert.Contains(t, got[0], "internal: edit: "+tt.want)
 			assert.Empty(t, again, "a moved node is reported once")
 			assert.Same(t, doc.Types[tt.moved], out.Types[tt.moved], "the moved node stayed in the edit's document")
 			for id, td := range out.Types {
@@ -502,12 +635,12 @@ func TestEditor_FinishReportsEachRefusalOnce(t *testing.T) {
 	second, secondDiags := e.Finish()
 	third, thirdDiags := e.Finish()
 
-	assert.Equal(t, []string{`internal: type edit: remove rejected: ` +
+	assert.Equal(t, []string{`internal: edit: remove rejected: ` +
 		`no type "t/absent" to remove; an edit adds no type`}, refusals(t, firstDiags))
 	assert.Equal(t, []string{
-		`internal: type edit: remove rejected: the edit is finished ("t/scalar")`,
-		`internal: type edit: replace rejected: the edit is finished ("t/list")`,
-		`internal: type edit: update rejected: the edit is finished ("t/model")`,
+		`internal: edit: remove rejected: the edit is finished ("t/scalar")`,
+		`internal: edit: replace rejected: the edit is finished ("t/list")`,
+		`internal: edit: update rejected: the edit is finished ("t/model")`,
 	}, refusals(t, secondDiags))
 	assert.Empty(t, thirdDiags)
 	assert.Same(t, first, second)
@@ -516,20 +649,34 @@ func TestEditor_FinishReportsEachRefusalOnce(t *testing.T) {
 }
 
 // TestNewEditor_NilDocumentIsRefused pins that an edit of no document still
-// ends in one, an empty one, beside the refusal saying why.
+// ends in one, an empty one, beside the refusal saying why, and holds no node
+// of any kind.
 func TestNewEditor_NilDocumentIsRefused(t *testing.T) {
 	t.Parallel()
 	e := ir.NewEditor(nil)
 	e.RemoveType("t/x")
+	e.RemoveOperation("o/x")
+	e.UpdateChannel("c/x", func(*ir.Channel) {})
+	_, typeHeld := e.Type("t/x")
+	_, svcHeld := e.Service("s/x")
+	_, groupHeld := e.Group("g/x")
+	_, opHeld := e.Operation("o/x")
+	_, serverHeld := e.Server("v/x")
+	_, chHeld := e.Channel("c/x")
+	_, msgHeld := e.Message("m/x")
+	_, authHeld := e.AuthScheme("a/x")
 
 	out, diags := e.Finish()
 
 	require.NotNil(t, out)
 	assert.Empty(t, cmp.Diff(&ir.Document{}, out))
 	assert.Equal(t, []string{
-		"internal: type edit: edit rejected: no document to edit",
-		`internal: type edit: remove rejected: no type "t/x" to remove; an edit adds no type`,
+		"internal: edit: edit rejected: no document to edit",
+		`internal: edit: remove rejected: no type "t/x" to remove; an edit adds no type`,
+		`internal: edit: remove rejected: no operation "o/x" to remove; an edit adds no operation`,
+		`internal: edit: update rejected: no channel "c/x" to update; an edit adds no channel`,
 	}, refusals(t, diags))
+	assert.False(t, typeHeld || svcHeld || groupHeld || opHeld || serverHeld || chHeld || msgHeld || authHeld)
 }
 
 // references returns the address of every pointer, non-empty slice and map v
@@ -593,18 +740,21 @@ func TestEditor_UpdateCopiesEveryKindWhole(t *testing.T) {
 	}
 }
 
-// TestEditor_CopiesEveryIRTypeWhole holds every type a TypeDef reaches to what
-// the copy UpdateType makes can copy: no kind it would share (an interface, an
-// array, a channel, a function), and no unexported field, which reflection
-// cannot set and the copy would leave shared.
+// TestEditor_CopiesEveryIRTypeWhole holds every type a node an update copies
+// reaches, a TypeDef of any kind or a Document's own fields, to what the copy
+// can copy: no kind it would share (an interface, an array, a channel, a
+// function), and no unexported field, which reflection cannot set and the copy
+// would leave shared. A Document's Types are left out of its copy, holding the
+// one interface the IR declares, which the edit copies node by node.
 func TestEditor_CopiesEveryIRTypeWhole(t *testing.T) {
 	t.Parallel()
-	queue := make([]reflect.Type, 0, len(allKinds))
+	queue := make([]reflect.Type, 0, len(allKinds)+1)
 	for _, k := range allKinds {
 		td, ok := ir.NewTypeDef(k)
 		require.True(t, ok)
 		queue = append(queue, reflect.TypeOf(td))
 	}
+	queue = append(queue, reflect.TypeFor[ir.Document]())
 	seen := map[reflect.Type]bool{}
 	for len(queue) > 0 {
 		typ := queue[len(queue)-1]
@@ -623,14 +773,125 @@ func TestEditor_CopiesEveryIRTypeWhole(t *testing.T) {
 		case reflect.Struct:
 			for f := range typ.Fields() {
 				assert.True(t, f.IsExported(), "%s.%s is unexported", typ, f.Name)
-				queue = append(queue, f.Type)
+				if typ != reflect.TypeFor[ir.Document]() || f.Name != "Types" {
+					queue = append(queue, f.Type)
+				}
 			}
 		case reflect.Interface, reflect.Array, reflect.Chan, reflect.Func, reflect.UnsafePointer:
 			t.Errorf("%s is a %s, which the copy would share", typ, typ.Kind())
 		default: // a scalar is its own copy
 		}
 	}
+	for _, node := range []reflect.Type{reflect.TypeFor[ir.Service](), reflect.TypeFor[ir.OperationGroup](),
+		reflect.TypeFor[ir.Operation](), reflect.TypeFor[ir.Server](), reflect.TypeFor[ir.Channel](),
+		reflect.TypeFor[ir.Message](), reflect.TypeFor[ir.AuthScheme]()} {
+		assert.True(t, seen[node], "the walk must reach %s", node)
+	}
 	assert.Greater(t, len(seen), len(allKinds), "the walk must reach past the kinds themselves")
+}
+
+// TestEditor_UpdateCopiesEveryNodeWhole holds the copy an update of every kind
+// of node but a type hands its change, every field filled, to equalling the
+// node with the fields the edit keys apart left out, and sharing no reference
+// with it.
+func TestEditor_UpdateCopiesEveryNodeWhole(t *testing.T) {
+	t.Parallel()
+	raw := ir.Unmodeled{"x-raw": {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`{"a":1}`)}}
+	tests := []struct {
+		name   string
+		update func(e *ir.Editor, handed func(node any))
+		node   func(doc *ir.Document) any
+	}{
+		{"service", func(e *ir.Editor, h func(any)) { e.UpdateService("s/a", func(s *ir.Service) { h(*s) }) },
+			func(doc *ir.Document) any { s := doc.Services[0]; s.Groups = nil; return s }},
+		{"group", func(e *ir.Editor, h func(any)) {
+			e.UpdateGroup("g/a", func(g *ir.OperationGroup) { h(*g) })
+		}, func(doc *ir.Document) any {
+			g := doc.Services[0].Groups[0]
+			g.Groups, g.Operations = nil, nil
+			return g
+		}},
+		{"operation", func(e *ir.Editor, h func(any)) {
+			e.UpdateOperation("o/a", func(op *ir.Operation) { h(*op) })
+		}, func(doc *ir.Document) any { return doc.Services[0].Groups[0].Operations[0] }},
+		{"server", func(e *ir.Editor, h func(any)) { e.UpdateServer("v/a", func(s *ir.Server) { h(*s) }) },
+			func(doc *ir.Document) any { return doc.Servers["v/a"] }},
+		{"channel", func(e *ir.Editor, h func(any)) { e.UpdateChannel("c/a", func(c *ir.Channel) { h(*c) }) },
+			func(doc *ir.Document) any { return doc.Channels["c/a"] }},
+		{"message", func(e *ir.Editor, h func(any)) { e.UpdateMessage("m/a", func(m *ir.Message) { h(*m) }) },
+			func(doc *ir.Document) any { return doc.Messages["m/a"] }},
+		{"auth scheme", func(e *ir.Editor, h func(any)) {
+			e.UpdateAuthScheme("a/a", func(a *ir.AuthScheme) { h(*a) })
+		}, func(doc *ir.Document) any { return doc.Auth["a/a"] }},
+		{"document", func(e *ir.Editor, h func(any)) { e.UpdateDocument(func(d *ir.Document) { h(*d) }) },
+			func(doc *ir.Document) any {
+				own := *doc
+				own.Services, own.Types, own.Servers, own.Channels, own.Messages, own.Auth = nil, nil, nil, nil, nil, nil
+				return own
+			}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			doc := wholeDoc(t, raw)
+			var (
+				copied   any
+				original = references(tt.node(doc))
+			)
+			e := ir.NewEditor(doc)
+			tt.update(e, func(node any) {
+				copied = node
+				require.NotEmpty(t, original)
+				for addr, path := range references(node) {
+					if at, shared := original[addr]; shared {
+						t.Errorf("the copy's %s is the node's %s", path, at)
+					}
+				}
+			})
+			_, diags := e.Finish()
+
+			require.Empty(t, diags)
+			assert.Empty(t, cmp.Diff(tt.node(doc), copied), "the copy differs from the node")
+		})
+	}
+}
+
+// wholeDoc returns a document with every field of each node filled, the nodes
+// at the IDs TestEditor_UpdateCopiesEveryNodeWhole updates, each node holding
+// raw as what it leaves unmodeled.
+func wholeDoc(t *testing.T, raw ir.Unmodeled) *ir.Document {
+	t.Helper()
+	doc := &ir.Document{}
+	irtest.Fill(t, doc)
+	doc.Unmodeled = raw
+	svc := &doc.Services[0]
+	svc.ID, svc.Unmodeled = "s/a", raw
+	group := &svc.Groups[0]
+	group.ID, group.Unmodeled, group.Groups = "g/a", raw, nil
+	op := &group.Operations[0]
+	op.ID, op.Unmodeled = "o/a", raw
+	op.Examples = append(op.Examples, ir.Example{Value: &ir.Value{Kind: ir.ValueBytes, Bytes: []byte("raw")}})
+	for k, s := range doc.Servers {
+		delete(doc.Servers, k)
+		s.ID, s.Unmodeled = "v/a", raw
+		doc.Servers["v/a"] = s
+	}
+	for k, c := range doc.Channels {
+		delete(doc.Channels, k)
+		c.ID, c.Unmodeled = "c/a", raw
+		doc.Channels["c/a"] = c
+	}
+	for k, m := range doc.Messages {
+		delete(doc.Messages, k)
+		m.ID, m.Unmodeled = "m/a", raw
+		doc.Messages["m/a"] = m
+	}
+	for k, a := range doc.Auth {
+		delete(doc.Auth, k)
+		a.ID, a.Unmodeled = "a/a", raw
+		doc.Auth["a/a"] = a
+	}
+	return doc
 }
 
 // TestEditor_UpdateKeepsAliasingAndEndsACycle pins that the copy shares one
@@ -711,7 +972,7 @@ func TestEditor_UpdateRefusesANodeTooDeepToCopy(t *testing.T) {
 				assert.Equal(t, "internal", out.Types["t/deep"].Common().Access)
 				return
 			}
-			assert.Equal(t, []string{fmt.Sprintf(`internal: type edit: update rejected: `+
+			assert.Equal(t, []string{fmt.Sprintf(`internal: edit: update rejected: `+
 				`"t/deep" nests deeper than %d levels, past what an edit copies`, ir.MaxWalkDepth)},
 				refusals(t, diags))
 			assert.Same(t, node, out.Types["t/deep"])

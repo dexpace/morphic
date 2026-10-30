@@ -38,5 +38,6 @@ func TestMain_HandsGoVetTheRules(t *testing.T) {
 	for _, f := range flags {
 		names = append(names, f.Name)
 	}
-	assert.Subset(t, names, []string{"fragmentreadings", "idderivations", "namechannels", "registrywrites"})
+	assert.Subset(t, names,
+		[]string{"fragmentreadings", "idderivations", "namechannels", "registrywrites", "servicetreewrites"})
 }
