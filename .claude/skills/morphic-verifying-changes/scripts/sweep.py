@@ -35,10 +35,11 @@ from collections import Counter
 from pathlib import Path
 
 # A version key, wherever it is written: YAML can put one after a "{" or a ",", an anchor or a tag,
-# or a "? ". A plain one is ended by a colon a space follows, so "openapi:schema" is another key,
-# while a quoted one, as JSON writes it, needs no space.
+# or a "? ". A plain one is ended by a colon a space or the end of the file follows, so
+# "openapi:schema" is another key, while a quoted one, as JSON writes it, needs no space. A key
+# spelled through an escape or a folded line is still missed, as only a YAML reader would see it.
 SPEC = re.compile(
-    rb"""(?<![\w.-])(?:(?:openapi|swagger)\s*:(?:\s|$)|["'](?:openapi|swagger)["']\s*:)""", re.M)
+    rb"""(?<![\w.-])(?:(?:openapi|swagger)\s*:(?:\s|$)|["'](?:openapi|swagger)["']\s*:)""")
 # The exit recorded for a compile killed at the time limit, as a shell reports a SIGKILL.
 KILLED = 137
 

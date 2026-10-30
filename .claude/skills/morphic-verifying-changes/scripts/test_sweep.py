@@ -88,6 +88,8 @@ class SweepTest(unittest.TestCase):
         cases = {b"openapi: 3.1.0\n": True, b"swagger: '2.0'\n": True, b"'openapi': 3.0.3\n": True,
                  b"openapi:schema: x\n": False, b"info:\n  title: openapi\n": False,
                  b"x-openapi: 1\n": False, b'"openapi:schema": 1\n': False,
+                 b"myopenapi: 1\n": False, b"x.openapi: 1\n": False, b"openapi:": True,
+                 b'"openapi" : 3.1.0\n': True, b'{"swagger":"2.0", info: {}}\n': True,
                  b'{openapi: 3.1.0, info: {title: t, version: "1"}, paths: {}}\n': True,
                  b"---\n{openapi: 3.1.0, paths: {}}\n": True,
                  b"{info: {title: t}, swagger: '2.0'}\n": True,
@@ -98,7 +100,7 @@ class SweepTest(unittest.TestCase):
             with self.subTest(data=data):
                 self.assertEqual(sweep.is_spec(data), want)
 
-    def test_a_flow_mapping_past_the_compilers_sniff_of_a_prefix_is_a_spec(self):
+    def test_a_flow_mapping_of_any_length_is_a_spec(self):
         data = b'{openapi: 3.1.0, info: {title: t, version: "1"}, paths: {}, x-pad: "%s"}\n'
         self.assertTrue(sweep.is_spec(data % (b"a" * 70000)))
 

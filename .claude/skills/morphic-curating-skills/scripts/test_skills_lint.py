@@ -206,15 +206,16 @@ class LintTest(unittest.TestCase):
         skill = ".claude/skills/good-skill/SKILL.md"
         src = Path(self.dir.name) / "goroot" / "src"
         write(src, "internal/runtime/maps/map.go", "package maps\n")
-        named = ("See `\"ir/a.go\"`, `'ir/a.go'`, `\"tool.py\"`, `'morphic-harness'`,\n"
-                 "`\"$GOROOT\"/src/internal/runtime/maps/map.go` and "
+        named = ("See `\"ir/a.go\"`, `'ir/a.go'`, `\"tool.py\"`, `'morphic-harness'`, `ir/a.go,`,\n"
+                 "`cat ir/a.go; true`, `\"$GOROOT\"/src/internal/runtime/maps/map.go` and "
                  "`\"$GOROOT/src/internal/runtime/maps/map.go\"`.\n")
         lost = "Not `\"ir/gone.go\"`, `'ir/lost.go'`, `\"gone.py\"` or `'morphic-gone'`.\n"
         write(self.root, skill, GOOD_SKILL + named + lost)
         n = GOOD_SKILL.count("\n") + 3
-        want = [f"{skill}:{n}: ir/gone.go does not exist", f"{skill}:{n}: ir/lost.go does not exist",
-                f"{skill}:{n}: no file named gone.py", f"{skill}:{n}: no skill or command named "
-                "morphic-gone"]
+        want = [f"{skill}:{n}: ir/gone.go does not exist",
+                f"{skill}:{n}: ir/lost.go does not exist",
+                f"{skill}:{n}: no file named gone.py",
+                f"{skill}:{n}: no skill or command named morphic-gone"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(want))
 
     def test_a_path_git_ignores_is_held_as_no_clone_has_it(self):

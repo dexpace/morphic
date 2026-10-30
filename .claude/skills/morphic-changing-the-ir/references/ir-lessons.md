@@ -148,8 +148,9 @@ verifier and codecs must reach.
   Zs, caseless letters), not a hand-picked sample. A change that redefines one rechecks it at each
   call site, since two rules sharing it can ask different questions.
 - **Why.** unicode.IsUpper flagged neutral caseless runes as cased, and TrimSpace let zero-width and
-  filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one case-boundary
-  rule was applied to both, and the second went unverified until a mutation sweep (#189).
+  filler-only aliases pass as non-blank (#361). A definition of "upper" settled for one
+  case-boundary rule was applied to both, and the second went unverified until a mutation sweep
+  (#189).
 - **Probe.** Generate one witness per class and per producer output and assert the predicate's
   verdict on each, at each call site.
 

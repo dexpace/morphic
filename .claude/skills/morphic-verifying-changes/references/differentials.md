@@ -90,8 +90,9 @@ These rules decide whether the answer means anything.
   oracle: it is what the oracle compares. A fact outside it, such as one held on an operation or a
   response, needs its own two-order diff, however many specs reach the sweep, and a spec using YAML
   anchors is not permuted at all (#403).
-- **Why.** With the normalization of a slice held only on operations deleted, `morphic-harness` still
-  passed a spec whose two headers lower in opposite orders, since no comparison reads them (#1166).
+- **Why.** With the normalization of a slice held only on operations deleted, `morphic-harness`
+  still passed a spec whose two headers lower in opposite orders, since no comparison reads them
+  (#1166).
 - **Probe.** `grep -n 'cmp\.Diff' internal/harness/order.go` lists the comparisons; plant an order
   dependence in the fact and see whether the oracle reddens.
 

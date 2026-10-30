@@ -101,8 +101,8 @@ and every diagnostic is true, located, and decided from what actually happened.
 - **Rule.** `encoding/json/v2` decodes `null` into a non-pointer as its zero value with a nil error,
   so a guard asking "is this text" answers yes to `null`. Decode into a pointer and read nil as a
   value of the wrong kind, and give each such guard a `null` row.
-- **Why.** A promotion guard took `x-deprecated-reason: null` for an empty string at #355's first
-  commit, until #463 read a `*string` (#355, #463).
+- **Why.** A promotion guard took `x-deprecated-reason: null` for an empty string from #355 until
+  #463 read a `*string`.
 - **Probe.** Compile the key with the value `null`, and read the field and the diagnostics.
 
 ## Own every refusal and bound; never borrow one from a dependency
