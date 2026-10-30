@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package ir_test holds the per-source serialization-contract tests for the ir
 // package. Shared fixtures live here so no single test file has to reconstruct
 // a fully populated Docs, Naming, or Provenance from scratch, and so do the

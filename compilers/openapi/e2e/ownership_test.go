@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it holds the
 // rule that a coordinate is built by the lowering that owns it whichever path
 // reaches it first (docs/micro-compiler-design.md §6.2) to every shape that

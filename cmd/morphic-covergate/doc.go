@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Command morphic-covergate judges a coverage profile against the gate's rule
 // that every statement runs. make coverage runs the suite and hands it the
 // profile.

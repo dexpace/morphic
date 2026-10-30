@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package detect recognizes an OpenAPI or Swagger document from its bytes: the
 // discriminating key it writes and the version beside it, read off the parse
 // the compile goes on to lower.

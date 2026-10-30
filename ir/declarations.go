@@ -1,9 +1,14 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package ir
 
 import (
 	"iter"
 	"reflect"
 )
+
+var _ Visitor = (*IDDeclarations)(nil)
 
 // idFieldName is the field through which a node declares its own identity. It is
 // spelled once here because [IDReader.DeclaredIDOf] reaches it by name, which

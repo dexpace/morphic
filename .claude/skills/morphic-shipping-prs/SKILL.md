@@ -34,7 +34,7 @@ pat='co-auth[o]red-by:.*(cl[a]ude|anthr[o]pic|open[a]i|chatg[p]t|cop[i]lot|cur[s
 git status --short --untracked-files=all
 git merge-tree --write-tree origin/main HEAD >/dev/null || echo 'conflicts with origin/main'
 git log --format=%B origin/main..HEAD | grep -niE "$pat"
-git diff origin/main...HEAD | grep '^+' | grep -niE "$pat"
+git diff origin/main...HEAD -- ':!go.sum' | grep '^+' | grep -niE "$pat"
 python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 ```
 
@@ -42,7 +42,7 @@ Push separately once every hit is fixed or justified
 (`references/commits-and-prs.md#gate-by-exit-status`). The subject check prints each commit
 subject, and the title as the squash lands it, that runs past 72 characters, breaks the form or
 ends in a period; `git status` is empty because the push carries HEAD; each artifact hit is a line
-to judge.
+to judge, and `go.sum` stays out, as every `h1:` hash would be one.
 Grep the PR's own text the same way (`gh pr view N --json title,body --jq '.title, .body'`). The
 lint exits 1 on a name a skill uses that this branch leaves naming nothing.
 

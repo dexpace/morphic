@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package compile holds what every spec compiler shares: the type registry and
 // its source-coordinate map (invariant 3), diagnostic accumulation, naming on
 // ir's canonical grammar (invariant 4) with the name minted for an unnamed

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package openapi
 
 import (
@@ -23,6 +26,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
+
+var _ compilers.Compiler = (*Compiler)(nil)
 
 // rootSrcIndex is the index of the only source milestone 1 compiles.
 //

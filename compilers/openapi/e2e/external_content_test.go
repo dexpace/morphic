@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it pins how
 // the lowering reads what references bring in from another document, across
 // every kind of object the operation walk follows.

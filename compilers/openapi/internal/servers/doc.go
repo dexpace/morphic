@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package servers lowers the servers a document declares, whichever object
 // declares them, into one registry keyed by ID, and names the ones a scope uses
 // (docs/compilers/openapi.md#servers, docs/compilers/openapi.md#path-item-servers).

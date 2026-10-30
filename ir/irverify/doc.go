@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package irverify checks a compiled ir.Document against the structural
 // invariants every compiler must uphold: stable IDs, no two nodes claiming one
 // identity, no dangling references, neutral naming, routable Unmodeled entries,

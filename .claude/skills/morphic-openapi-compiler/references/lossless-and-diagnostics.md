@@ -86,12 +86,24 @@ and every diagnostic is true, located, and decided from what actually happened.
 - **Rule.** A conflict detector, refusal or structural guard must flag only what it can prove wrong:
   test satisfiable narrowings, opaque types, every valid spelling a spec version allows,
   indirections the compiler unwraps, and file kinds it never reads, and run it over the corpus
-  before merge.
+  before merge. A shortcut reader (a prefix, an index, a sniff) that cannot decide falls back to the
+  full read.
 - **Why.** New checks rejected legal multipart bodies and valid 3.0 boolean bounds, and warned on
-  allOf narrowings that are satisfiable (#149, #92).
+  allOf narrowings that are satisfiable (#149, #92). A sniff of a bounded prefix refused a longer
+  flow-style spec (#341).
 - **Probe.** For each check write a must-fire and a must-stay-silent fixture, including alias/$ref
-  indirection and every valid spec-version spelling, then run morphic-harness over testdata and
-  require no new diagnostics.
+  indirection, every valid spec-version spelling and a valid input past each shortcut's bound, then
+  run morphic-harness over testdata and require no new diagnostics.
+
+## Decode into a pointer when a guard must tell null from a value
+`null-decodes-to-zero`
+
+- **Rule.** `encoding/json/v2` decodes `null` into a non-pointer as its zero value with a nil error,
+  so a guard asking "is this text" answers yes to `null`. Decode into a pointer and read nil as a
+  value of the wrong kind, and give each such guard a `null` row.
+- **Why.** A promotion guard took `x-deprecated-reason: null` for an empty string from #355 until
+  #463 read a `*string`.
+- **Probe.** Compile the key with the value `null`, and read the field and the diagnostics.
 
 ## Own every refusal and bound; never borrow one from a dependency
 `explicit-guard-not-incidental`
@@ -144,9 +156,11 @@ and every diagnostic is true, located, and decided from what actually happened.
 
 - **Rule.** When a function's diagnostics must survive every return path or every caller, add a test
   per path and caller that fails when that report is removed; before deleting a diagnostic as
-  redundant, show the other stage reaches every case including early exits and panics.
+  redundant, show the other stage reaches every case including early exits and panics. A diagnostic
+  a memo returns only from the call that builds it makes every caller of that call load-bearing.
 - **Why.** A refusal path omitted the stream-drop report and callers could drop the
-  operation-extension warning with no test failing (#480, #565).
+  operation-extension warning with no test failing (#480, #565). An anchor index returned its
+  warning only from its first call, so a caller dropping the result lost it for good (#212).
 - **Probe.** Delete the report on each return path and each caller in turn and confirm a test
   reddens.
 

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package irverify
 
 // reuseLimit is how many entries a reusedMap may have held for it to be

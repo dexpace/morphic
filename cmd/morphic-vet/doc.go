@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Command morphic-vet runs the repository's own lint rules, internal/lintrules,
 // as a go vet tool. make vet builds it and runs
 //

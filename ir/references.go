@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package ir
 
 import (
@@ -5,6 +8,8 @@ import (
 	"slices"
 	"strings"
 )
+
+var _ Visitor = (*IDReferences)(nil)
 
 // propIDType is the reflect.Type of [PropID], the one class of ID no registry
 // resolves; see [IDReferences] for why.

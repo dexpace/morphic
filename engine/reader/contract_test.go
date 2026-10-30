@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package reader_test
 
 import (
@@ -11,12 +14,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine/reader"
-)
-
-var (
-	_ compilers.DocumentReader = reader.Disk{}
-	_ compilers.DocumentReader = (*reader.Memory)(nil)
-	_ compilers.DocumentReader = reader.Layered{}
 )
 
 // TestReaders_AnswerAlikeThroughTheContract pins what Memory promises, that

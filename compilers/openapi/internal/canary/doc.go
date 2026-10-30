@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package canary pins the parser library behaviours docs/parser-library.md
 // records, one test for each entry. Each test asserts what the library does
 // today, defects included, so a library change that alters a behaviour the

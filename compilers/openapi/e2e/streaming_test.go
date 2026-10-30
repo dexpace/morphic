@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file holds the corpus rows for media-type streaming and the public
 // option surface that switches it, which no single source file owns: the policy
 // lives on the compiler's options, the media types are read where content is

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package lintrules holds the lint rules this repository writes for itself:
 // go/analysis analyzers for what no off-the-shelf linter expresses, each about
 // which package may build or spell a part of the IR. cmd/morphic-vet runs them

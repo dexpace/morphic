@@ -1,4 +1,21 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package ir
+
+var (
+	_ TypeDef = (*Primitive)(nil)
+	_ TypeDef = (*Scalar)(nil)
+	_ TypeDef = (*Model)(nil)
+	_ TypeDef = (*Union)(nil)
+	_ TypeDef = (*Enum)(nil)
+	_ TypeDef = (*List)(nil)
+	_ TypeDef = (*MapT)(nil)
+	_ TypeDef = (*Tuple)(nil)
+	_ TypeDef = (*Literal)(nil)
+	_ TypeDef = (*External)(nil)
+	_ TypeDef = (*Any)(nil)
+)
 
 // PrimKind names a built-in primitive scalar (ir-design §4.1). The set is the
 // union of TypeSpec's intrinsic scalars, JSON Schema's types, and Protobuf's

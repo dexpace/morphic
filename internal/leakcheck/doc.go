@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package leakcheck fails a test binary whose tests leave a goroutine behind.
 //
 // A package whose tests start a goroutine gives it a TestMain that calls Main

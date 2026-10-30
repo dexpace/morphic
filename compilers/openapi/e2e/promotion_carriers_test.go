@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file holds promotionCarriers (promotion_test.go) to the IR. That map is
 // the sweep over every node the compiler promotes a deprecation into, and it is
 // hand-written: a carrier the IR gains, and the compiler starts building without

@@ -16,8 +16,12 @@ take, and architecture §2.5 says how a change lands.
    (`gh issue list --state all --limit 1000 --search "<field or type>"`).
 2. Name each `CLAUDE.md` invariant the change touches, and check the shape against every format
    `docs/ir-spec-matrix.md` covers, not only OpenAPI.
-3. Weigh two designs, and write the loser's reason in ir-design beside the winner.
-4. Name the check that will hold it: an `irverify` rule, a codec test or a lint rule.
+3. Name the job a consumer does with the shape and the fact about real input it rests on, and
+   count that fact (`references/ir-lessons.md#measure-the-premise`).
+4. Weigh designs that differ in that fact, one of them outside the issue's framing
+   (`references/ir-lessons.md#weigh-the-framing`), and write each loser's reason in ir-design beside
+   the winner.
+5. Name the check that will hold it: an `irverify` rule, a codec test or a lint rule.
 
 Passes follow architecture §2.2: where validate runs, how a pass takes settings, and which passes
 cannot be turned off.

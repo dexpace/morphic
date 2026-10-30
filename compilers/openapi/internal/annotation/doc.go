@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package annotation reads the documentation-adjacent facts a schema or a
 // carrier declares — descriptions, deprecation, redaction, visibility, XML
 // hints, extensions — and the validation-only JSON Schema keywords the IR keeps

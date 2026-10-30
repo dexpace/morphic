@@ -75,6 +75,17 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Probe.** Each new function does more than call another, each new interface has two
   implementations or a test seam, and `go test ./internal/archtest` passes.
 
+## Count on `barrier.Catch` only for what it reaches
+`catch-reaches-one-goroutine`
+
+- **Rule.** Before relying on `barrier.Catch` to contain code it runs, read what `barrier/doc.go`
+  says it cannot catch and, for the parser library, `docs/parser-library.md#goroutine-per-node`.
+  What it cannot reach is refused before the call, or run in a child process.
+- **Why.** A `$ref` cycle overflowed the stack, a fatal error no recovery traps, so it had to be
+  prevented before the parser ran (#19).
+- **Probe.** Plant the failure on a goroutine the called code starts, in a child process as
+  `TestLibraryBehaviour` does, and read how the process ended.
+
 ## Bound the quantity the work grows with
 `bound-the-product`
 

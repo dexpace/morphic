@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package jsonshape describes the JSON shape of the types one Go type reaches,
 // as text for the IRVersion pin and as data for the census and the tests that
 // read the IR's types.

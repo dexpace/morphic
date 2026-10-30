@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is the OpenAPI half of annotation retention: one case per
 // annotation per kind of position, plus an assertion that no combination is
 // silently uncovered. It complements conformance_test.go, which covers

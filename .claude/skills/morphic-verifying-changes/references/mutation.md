@@ -81,7 +81,9 @@ yourself. These rules are the ways that reading still lies.
 `split-guard-per-site`
 
 - **Rule.** When a refactor moves a check from a choke point to its callers, keep a choke point, or
-  plant the dropped check at every caller and add a test wherever one survives.
+  plant the dropped check at every caller and add a test wherever one survives. An effect turned
+  into a return value is the same move
+  (`.claude/skills/morphic-openapi-compiler/references/lossless-and-diagnostics.md#every-return-path-delivers-diagnostics`).
 - **Why.** Two of six copied `ok` checks survived every test; the shared guard had been tested
   through one site (#1088, #1140).
 

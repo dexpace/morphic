@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Command morphic-census compiles API specs and reports which facts of the IR
 // the resulting documents set, as internal/census counts them, with the count
 // of documents and instances for each. Every fact is listed, so what no spec

@@ -690,10 +690,12 @@ document, and keeps its own name where that names nothing. `Aliases` is never se
 ### `values`
 
 A default, `const`, enum member or example lowers to an `ir.Value` read off the YAML node by its
-resolved tag alone, never by the type the schema declares (§6): `null`, `bool`, `string`, `list` and
-`object` (members as the parser reads them, `<<` merge keys merged in its order
-([`merge-keys`](../parser-library.md#merge-keys)), each keyed by its text and a key that is no
-scalar by the empty string, an alias followed), a `!!binary` to `bytes`, decoded, and a YAML
+resolved tag alone, as the parser resolves it
+([`scalar-resolution`](../parser-library.md#scalar-resolution)), never by the type the schema
+declares (§6): `null`, `bool`, `string`, `list` and `object` (members as the parser reads them,
+`<<` merge keys merged in its order ([`merge-keys`](../parser-library.md#merge-keys)), each keyed by
+its text and a key that is no scalar by the empty string, an alias followed), a `!!binary` to
+`bytes`, decoded, and a YAML
 timestamp to `string` in the spelling written (`2021-1-1` stays `2021-1-1`, never RFC 3339). A
 number is the literal's exact decimal text in `Num`, never a `float64`: a magnitude past float64 or
 int64 keeps every digit, `.5`, `+5` and `09` take their JSON spellings (`0.5`, `5`, `9`), `_`

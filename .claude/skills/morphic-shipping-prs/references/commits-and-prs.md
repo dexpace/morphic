@@ -43,13 +43,21 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `diff-contains-only-in-scope-files`
 
 - **Rule.** Every changed path must belong to the PR's stated scope; session planning docs and
-  working notes must be ignored before the first commit that would add them, and an ignore rule may
-  be removed only after confirming local tools no longer generate those paths.
-- **Why.** Design-only PRs carried go.mod changes, plans and temporary rewrite notes were committed
-  toward main, and a removed .claude/ ignore entry had to be restored (#5, #119).
+  working notes must be ignored before the first commit that would add them.
+- **Why.** Plans and temporary rewrite notes were committed toward main (#5, #119).
 - **Probe.** `git diff --stat origin/main...HEAD` and match each path to the PR title;
-  `git ls-files docs | grep -iE 'plan|notes|rewrite|superpowers'`; for a removed `.gitignore` line,
-  `git status --ignored` before and after.
+  `git ls-files docs | grep -iE 'plan|notes|rewrite|superpowers'`.
+
+## Probe a change to an ignore rule at base and head
+`ignore-rule-both-ways`
+
+- **Rule.** Remove an ignore rule only after confirming local tools no longer generate those paths,
+  and add one only after confirming it hides nothing meant to be committed.
+- **Why.** A removed `.claude/` ignore entry had to be restored (#324), and an added one had to
+  become `.claude/*` with an exception before the skills could be committed (#97, #1143).
+- **Probe.** For a removed `.gitignore` line, `git status --ignored` before and after. For an added
+  one, `git add -A --dry-run` and `git check-ignore -v <path>` at base and head over planted paths,
+  one a tool documents as committable among them.
 
 ## Close only the issues the PR finishes, one keyword each
 `closing-keywords`

@@ -392,8 +392,8 @@ a site is a position, and annotations are what a position carries.
 Those four were not the whole of it. `facets.go` and `schema.go` were mutually dependent, so the
 readers `schema.go` declared — the raw-node and JSON-object helpers, the docs, flag, XML and
 extension readers, and the keyword combinations kept verbatim — had to move as well, along with the
-site-home constants and the one-hop reference resolution the site model is built on. What is left in
-`resolve.go` is the methods; to see the split as it stands rather than trust this sentence:
+site-home constants and the one-hop reference resolution the site model was then built on. What is
+left in `resolve.go` is the methods; to see the split as it stands rather than trust this sentence:
 
 ```bash
 grep -cE '^func ' compilers/openapi/resolve.go compilers/openapi/internal/annotation/annotation.go

@@ -8,12 +8,14 @@ two together both ways.
 
 - **Rule.** A comment or doc states no count of fields, cases, packages or rules, and no issue's
   open or closed state, unless a command beside it derives the number or a revision pins it. Name
-  the members or the mechanism instead, and never put a count beside the list it counts. For a set
-  code defines, state the rule that decides membership, not a copy of the set.
+  the members or the mechanism instead, and put no count beside the list it counts. For a set code
+  defines, state what decides membership, not a copy of it.
 - **Why.** Each such count went stale silently ("thirteen" internal packages when there were
   fourteen, "one of the two" policies after a third merged), and no test reads prose (#301, #119).
 - **Probe.** `git diff origin/main...HEAD | grep -nE '^\+.*\b(one|two|three|four|five|six|seven|eight|nine|ten|[0-9]+)\b'`
-  over comments and docs; derive or delete each hit.
+  over comments and docs; derive or delete each hit. That pattern over
+  `git log --format=%B origin/main..HEAD` reads what a default squash pastes: fix a false count
+  there in the squash body at merge (#1162).
 
 ## Derive a list that mirrors code, or hold it to the code both ways
 `derive-lists-from-their-source`

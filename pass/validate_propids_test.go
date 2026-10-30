@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file covers the PropID reference class, whose two checks make different
 // claims about the same kind of identity: membership anywhere in the document,
 // and — where the root is written down — membership in the type that names it.

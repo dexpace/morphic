@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file covers one property: a key the OpenAPI model names no field for
 // reaches the IR rather than vanishing between the parser and the lowering. It
 // is separate from annotations_test.go because the subject is the complement of

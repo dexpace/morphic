@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package reader
 
 import (
@@ -9,6 +12,8 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 )
+
+var _ compilers.DocumentReader = (*Memory)(nil)
 
 // Memory reads documents from sources held in memory, and nothing else: what
 // Disk would read were each source a file at its Path. A file path or file URI

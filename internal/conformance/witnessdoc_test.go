@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it reads the
 // witness document each format keeps beside its corpus,
 // testdata/conformance/<format>/matrix.md, and holds it to the matrix column

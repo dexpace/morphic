@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it snapshot-
 // compares the whole compiler's IR output against a byte-exact golden file, so
 // it has no single source file to pair with.

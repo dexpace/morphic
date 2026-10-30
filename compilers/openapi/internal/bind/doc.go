@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package bind resolves the schema $refs of an OpenAPI source into an
 // immutable table, over the decoded YAML trees and never through the parser's
 // resolver: for each reference, where its own $ref lands and where its chain

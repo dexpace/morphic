@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it plants,
 // in a small matrix and a witness document written as text, each defect the
 // checks of matrix_test.go and witnessdoc_test.go exist to report, and

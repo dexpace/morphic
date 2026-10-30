@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package barrier runs code its caller does not own and turns a panic in it
 // into an error; Line quotes what that code says on one bounded line. A
 // compiler or a pass that panics breaks its contract; Catch reports the breach

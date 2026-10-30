@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package load turns one source document into a parsed, reference-resolved
 // OpenAPI document plus the identity metadata the rest of the compiler stamps
 // into the IR.

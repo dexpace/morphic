@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package harness runs specs through the engine as `morphic compile --verify`
 // does, the default passes included, and applies the bug-catching oracles (no
 // panic, irverify invariants, no error diagnostic, JSON round-trip,

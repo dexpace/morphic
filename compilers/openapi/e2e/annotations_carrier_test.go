@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is the carrier half of annotation retention. A carrier is a
 // position whose annotations land on an ir.Property or an ir.Parameter rather
 // than on a type node, and until the matrix grew an axis for it the grid could

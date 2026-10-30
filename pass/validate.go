@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package pass
 
 import (
@@ -6,6 +9,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irfacts"
 )
+
+var _ Pass = Validator{}
 
 // ValidateName is the stable name of the [Validator] pass.
 const ValidateName = "validate"

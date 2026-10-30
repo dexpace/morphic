@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package detect
 
 // DeclaresBlockKey is declaresBlockKey, for the external tests.

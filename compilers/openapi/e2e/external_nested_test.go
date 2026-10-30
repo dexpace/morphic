@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite: it pins how the compile reads the
 // reference objects another document writes in what a reference brings in
 // from it (GitHub #751).
