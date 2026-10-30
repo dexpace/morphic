@@ -1,4 +1,4 @@
-# Runtime and SDK policy
+# Runtime/SDK policy — a separate input
 
 `emitters/policy` (INV10; architecture.md §2.4). The behavioral configuration of generated
 SDKs is an emitter input alongside the IR, **never a field on `ir.Document`** — the divergence from
