@@ -645,16 +645,18 @@ reading compares with `Return` (§8.9):
    and the same `Element` for a `stream`. `AsReturn` is set, and the method returns it as it returns
    the primary.
 2. **It has no body, beside a `Return` that has one**: a `204` or a `304` beside a `200`. The method
-   has nothing to return, so its return takes the target's nullable form (§4.7), and the caller gets
-   no value and no error. A pager or a poller returns no one response's value and has no such form,
-   so there this takes the next path.
+   has nothing to return, so the caller gets no value and no error: a return takes the target's
+   nullable form (§4.7), and a pager or a stream ends, as an empty one does.
 3. **It has a body the method cannot return**: a `202` of another type beside a `201`, or any body
    beside a `void` `Return`. It is read whole, as a failure is, so a content that streams is `raw`,
    and it reaches the caller as the runtime's `OtherResponse`, apart from every failure. Nothing
    decodes it as `Return.Type`.
 
+A stream method reads `Recv` in `Return`'s place, and a poller takes each response of its start as
+its `LROPlan` says (§8.7).
+
 **Errors.** `Errors` holds every failure the operation declares: its `ErrorCase`s, then its
-service's `CommonErrors`, then its `Default` where that is not the primary response (§3.5), whose
+service's `CommonErrors`, then its `Default` where the policy takes it as a failure (§3.5), whose
 condition is the catch-all. Entries that agree on everything but `Conditions` collapse into one.
 `Response` follows the rules above with one exception: a failure is read whole, so a content that
 streams is `raw`. `Type` may be of any kind, since an error body may be a union, a list or a
@@ -1038,7 +1040,7 @@ snapshot pins the whole lowering deterministically.
 | `LowerStreaming` | `plan.StreamPlan` (direction; each side's content, framing and element) | a method per shape the operation offers; `Stream[T]` with `Recv()`/`Send()` over an element of any kind; a `bytes` side lowered as a file; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
 | `LowerErrors` | `plan.PlannedError` | no error type: each entry's conditions, body decoder and declared facts in the operation's response decoder, which fills the runtime's failure value (§8.5) | §7.2 |
-| `LowerOtherResponses` | `OpPlan.Others` | each entry's conditions in the operation's response decoder: `AsReturn` read as `Return`, no body a nullable return, any other a body decoder filling the runtime's `OtherResponse` (§8.9) | §7.2 |
+| `LowerOtherResponses` | `OpPlan.Others` | each entry's conditions in the operation's response decoder: `AsReturn` read as `Return`, no body a nullable return or an ended pager or stream, any other a body decoder filling the runtime's `OtherResponse` (§8.9) | §7.2 |
 | `PlaceDeclarations` | `Provenance.Source`, `TypePlan.Reach`, the target's placement options | the output unit each declaration lands in: one package unless a partition or a group split moves it (§4.17) | §13 |
 | `ComputeImports` | what each file's declarations reference: another unit's declarations, a type-table row's `Imports`, the runtime | per-file import sets, each import by its path; the name a file gives it is settled with every other name (§4.12) | — |
 | `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none named by its characters) + the options' naming tables | cased identifiers, the units' among them — the ONLY place names get cased (§4.12) | §3.2; INV4 |
@@ -1839,7 +1841,7 @@ type Policy struct {
     Retry       Retry        // retryable status codes, max attempts, Backoff{initial, multiplier, max, jitter}
     Timeout     Timeout      // default seconds + env override
     Errors      ErrorTax     // status→logical exception-kind and fault, doc-URL template, the bound
-                             // on a buffered error body (§8.5)
+                             // on a buffered body (§8.5, §8.9)
     Telemetry   Telemetry    // request-ID header, client-telemetry header
     Logging     Logging      // enabled + a CLOSED lifecycle-event list
     UserAgent   UserAgent    // identifier template, app-info enrichment, ai-agent env vars
@@ -2176,6 +2178,10 @@ inline fun <reified B> ApiException.body(): B? = failure.body as? B
 inline fun <reified H> ApiException.headers(): H? = failure.headers as? H
 ```
 
+`e.body<T>()` checks a class, and Kotlin erases a generic type's arguments even when `T` is reified,
+so `e.body<List<A>>()` also matches a `List<B>` and fails when an element is read: a caller reads a
+list or a map body by status. Go's assertion is exact.
+
 A kind nests under its fault because a status states its class, so `catch (e: NotFoundException)`
 and `catch (e: ClientException)` both work; a body type could not nest, since one body can arrive
 under either fault. `Fault` is an enum there, with `Unknown` for what Go leaves empty, so a `when`
@@ -2387,32 +2393,37 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
   to `Operation.Default`, classed neither way (ir-design §7.2), and the default `PrimaryResponse`
   takes it for the primary response, marked `Inferred` (§3.5), so `Shape` reads it as any other:
   `value` with its body, `void` without one. **refine.** As the line for the body it carries.
-- **Declared headers** (`GET /zone` → `200` with an `ETag`). **plan.** `Return.Headers` lists them.
-  **refine.** The plain method is unchanged: Go `GetZone` returns `*Zone` whatever the response
-  declares. A result type that appeared with the first declared header would change that signature
-  for every caller, and one on every method would put a field in front of every call for the few
-  operations that declare any. So a response that declares headers adds a method, as a stream does
-  (§8.4): Go `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone, GetZoneHeaders], error)`,
-  Kotlin `suspend fun getZoneWithResponse(): Response<Zone, GetZoneHeaders>`. The runtime's
-  `Response` reads as `APIError` does (§8.5): `StatusCode`, `RawHeader`, `Body`, what the plain
-  method returns, or `struct{}` and `Unit` for `void`, and `Headers`, a struct with a field per
-  declared header. A spec's first header adds a method and its next a field, each additive, as §4.13
-  asks of an input. A field is found by its wire name, ignoring case as HTTP does, read by its type,
-  `Style` and `Explode`, and optional whatever `Required` says. A value that does not parse leaves
-  it unset: a response that delivered its body succeeded, and `RawHeader` still holds the value. A
-  type no header reader lowers, such as a model, is a coded degrade to its text. A pager or a poller
-  has no one response to return, so a paginated or long-running operation has no such method, and
-  its plan says which headers it reads. A header the document does not declare reaches a caller
-  through the transport (§5.4), which a caller may wrap.
+- **Declared headers** (`GET /zone` → `200` with an `ETag`). **plan.** `Return.Headers` lists them,
+  and each entry of `Others` holds its own. **refine.** The plain method is unchanged: Go `GetZone`
+  returns `*Zone` whatever the response declares. A result type that appeared with the first
+  declared header would change that signature for every caller, and one on every method would put a
+  field in front of every call for the few operations that declare any. So a response that declares
+  headers adds a method, as a stream does (§8.4): Go
+  `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone, GetZoneHeaders], error)`, Kotlin
+  `suspend fun getZoneWithResponse(): Response<Zone, GetZoneHeaders>`. The runtime's `Response`
+  reads as `APIError` does (§8.5): `StatusCode`, `RawHeader`, `Body`, what the plain method returns,
+  or `struct{}` and `Unit` for `void`, and `Headers`, a struct with a field per header of the
+  primary response and of each entry of `Others` that reaches no `OtherResponse` (§3.1), the
+  primary's declaration first, or `struct{}` and `Unit` where they declare none. An `OtherResponse`
+  holds its own headers, and they add no method. A spec's first header adds a method and its next a
+  field, each additive, as §4.13 asks of an input. A field is found by its wire name, ignoring case
+  as HTTP does, read by its type, `Style` and `Explode`, and optional whatever `Required` says. A
+  value that does not parse leaves it unset: a response that delivered its body succeeded, and
+  `RawHeader` still holds the value. A type no header reader lowers, such as a model, is a coded
+  degrade to its text. A pager or a poller has no one response to return, so a paginated or
+  long-running operation has no such method, and its plan says which headers it reads. A header the
+  document does not declare reaches a caller through the transport (§5.4), which a caller may wrap.
 - **Another declared response** (`POST /rules` → `201` `Rule` or `202` `ApprovalPending`;
   `DELETE /methods/{id}` → `200` `Deleted` or `204`; `GET /object` → `200` or `304`). **plan.**
   `Others` holds the second response (§3.1). **refine.** One that reads as `Return` is returned as
   the primary is. One with no body leaves nothing to return: Go `DeleteMethod` returns a nil
   `*Deleted` and a nil error, Kotlin `suspend fun deleteMethod(): Deleted?`, and any return with no
-  absent state of its own takes the target's nullable form (§4.7). Which status came is then all
-  the caller lacks, so such an operation has a `WithResponse` method whatever its headers. A first
-  such response changes a Kotlin return, and a Go return of no nullable type, a break the surface
-  differ reports (§12) and rightly: a call that always had a value may now have none.
+  absent state of its own takes the target's nullable form (§4.7). A pager or a stream ends, a
+  stream's `Recv` returning `io.EOF`, so an empty list is no error. Which status came is then all
+  the caller lacks, so such an operation, a paginated one aside, has a `WithResponse` method
+  whatever its headers. A first such response changes a Kotlin return, and a Go return of no
+  nullable type, a break the surface differ reports (§12) and rightly: a call that always had a
+  value may now have none.
 
   A body the method cannot return is a value of the runtime, and no signature changes for one:
 
@@ -2434,8 +2445,9 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
 
   It takes Go's `error` path because the method's result has no place for it, and it is no
   `*APIError`, so `errors.Is` answers neither fault, no retry reads it, and
-  `errors.AsType[*sdk.OtherResponse](err)` finds it. Kotlin throws an exception that carries the
-  same value, outside the tree of §8.5, so `catch (e: ApiException)` still takes failures alone:
+  `errors.AsType[*sdk.OtherResponse](err)` finds it. Its `Headers` struct is named as a failure's is
+  (§8.5), `CreateRule202Headers`. Kotlin throws an exception that carries the same value, outside
+  the tree of §8.5, so `catch (e: ApiException)` still takes failures alone:
 
   ```kotlin
   class OtherResponse(val statusCode: Int, val rawHeaders: Headers, val rawBody: ByteArray,
@@ -2535,7 +2547,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `OneWay` | fire-and-forget method, no response binding | `suspend` function returning `Unit`, no response binding | — |
 | `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) | the same, over `Flow` | address/correlation paths |
 | `ErrorCase{Fault, Retryable}` | one runtime `*APIError` holding the status, fault, kind, raw body and typed `Body` and `Headers`; `errors.Is` by fault and kind, `sdk.Body[T]` for the body (§8.5); declared facts win over policy | `ApiException` carrying an `ApiFailure`, a runtime tree by fault then kind (`ClientException` → `NotFoundException`), `e.body<T>()` for the body; declared facts win over policy | status→kind map; an error's raw body |
-| `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → a nullable return; another body → `*OtherResponse` on the `error` path, with no fault and no retry (§8.9) | one read as `Return` returned as the primary; no body → `T?`; another body → `OtherResponseException`, outside `ApiException` | the status; the body as it arrived |
+| `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → a nullable return, or a pager or stream that ends; another body → `*OtherResponse` on the `error` path, with no fault and no retry (§8.9) | one read as `Return` returned as the primary; no body → `T?`, or a `Flow` that ends; another body → `OtherResponseException`, outside `ApiException` | the status; the body as it arrived |
 | `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | `Authenticator` + per-scheme configuration; priority order | — |
 | `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly; a `Default` documented, never written onto a request (§4.10) | literals built from the decimal text, never a `Double` literal; `Ctor` → call; `symbol` → string explicitly; a `Default` documented, never sent | — |
 | `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters, and one that would begin with a digit led by its role's word (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, characters named and leading digits led the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
@@ -2755,13 +2767,15 @@ throughout this document.
     arrived; and a paginated operation gets no such method (§3.1, §8.9).
 27. **T-27 · Other responses** — on every target, an operation declaring a second response of the
     primary's type returns it as the primary; one with no body, and a `304`, give the nullable
-    return and no error, with `WithResponse` stating the status; one of another type, and a body
-    beside a `void` primary, reach the caller as `OtherResponse` with its typed `Body`, `Headers`
-    and raw bytes, and a body that does not decode as `BodyErr`, and neither fault, kind nor retry
-    answers it. An exact `200` is primary over a `2XX` written first; an exact `202` beats a
-    `default` catch-all; a `4XX` beside a primary `Default` is a failure; a pager raises a response
-    with no body; an RPC operation's one response is its primary, leaving `Others` empty; and no
-    golden operation's declared status is left to no entry (§3.1, §8.9).
+    return and no error, with `WithResponse` stating the status, and a pager and a stream end at one
+    with no error; a header only such a response declares is a field of `WithResponse`'s `Headers`;
+    one of another type, and a body beside a `void` primary, reach the caller as `OtherResponse`
+    with its typed `Body`, `Headers` and raw bytes, a body that does not decode as `BodyErr` and one
+    past the bound stopped there, and neither fault, kind nor retry answers it. An exact `200` is
+    primary over a `2XX` written first; an exact `202` beats a `default` catch-all; a `4XX` beside a
+    primary `Default` is a failure; a poller's start reads each response by its `LROPlan`; an RPC
+    operation's one response is its primary, leaving `Others` empty; and no golden operation's
+    declared status is left to no entry (§3.1, §8.9).
 
 ### 13.1 The behavior server (T-14)
 
