@@ -62,7 +62,9 @@ Read the documents for your layer, and skip the rest until you need them.
   the construct or of the entry point it runs through. A function that asserts on a test's behalf
   calls `t.Helper`, except one a table runs as a case's body, as the conformance corpus's assertions
   and the canaries are: it is the case, so its failure reports the line in it that fails.
-  *Fails if missed:* nothing checks a test's name or its `t.Helper`.
+  *Fails if missed:* nothing checks a test's name. `TestTestHelpers_StartWithHelper` holds a function
+  a test calls directly to `t.Helper`, by that use and not by its signature, which is all `thelper`
+  could read.
 - **A helper is written once.** One that several test files of a package share sits in one of
   them or, when it is new, in the package's `helpers_test.go`, or `helpers_internal_test.go` inside
   the package. One that several packages share is in `compilers/openapi/internal/openapitest` or
