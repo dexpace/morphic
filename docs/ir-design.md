@@ -1941,9 +1941,8 @@ HTTP the streaming content's `MediaType` states it, another binding frames its o
 the plan derives which (emitter-design §3.1). `Content.Item` declares what one item is; a compiler
 that reads a stream from a media type alone names the content's `Type` as `Events`, a reading
 `Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
-it is one. Smithy **waiters**
-(`smithy.waiters#waitable`) are *not* folded into `LongRunning` — acceptor lists and JMESPath
-matchers are preserved verbatim in `Operation.Unmodeled` (§15).
+it is one. Smithy **waiters** (`smithy.waiters#waitable`) are *not* folded into `LongRunning` —
+acceptor lists and JMESPath matchers are preserved verbatim in `Operation.Unmodeled` (§15).
 
 ---
 
