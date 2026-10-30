@@ -37,8 +37,8 @@ defect, keep a `main` control.
   `gh issue list --state all --limit 1000 --search "<construct>"`. Each open issue on it is closed
   by the change, cited as left open, or answered with why the change departs from it.
 - **Why.** A stream rule keyed on a content having no `Item` while #601 expects `Item` on each
-  content classified as a stream, an element rule left #630 unnamed, and neither issue appeared in
-  the PR (#1167, #1170).
+  content classified as a stream, and an element rule left #630 unnamed. The PR named neither until
+  a later revision, and no pass would have looked for them (#1167, #1170).
 - **Probe.** The report lists each construct, the issues its search returned, and what the change
   does about each.
 

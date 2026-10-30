@@ -10,10 +10,10 @@ Usage: python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 Prints one "path:line: problem" per finding, the line left out for one about a whole file, then a
 summary line. Exit 0 when clean, 1 on a finding, 2 when it cannot run or finds no skill to check.
 Each rule in a reference is held to the format morphic-curating-skills gives. Scripts are executable
-Python 3.14, declared in
-their first line and a PEP 723 script block, with the standard library only and a test_<name>.py
-beside each. A path the tree lacks may name the Go toolchain's sources, which `go env GOROOT`
-locates; where go cannot say, every path is held to the tree.
+Python 3.14, declared in their first line and a PEP 723 script block, with the standard library only
+and a test_<name>.py beside each. A path the tree lacks may name the Go toolchain's sources, which
+`go env GOROOT` locates; where go cannot say, every path is held to the tree. A Go name spelled
+`Name` in `path/to/file.go` on one line is held to what that file declares.
 """
 
 import argparse

@@ -576,7 +576,6 @@ class MainTest(unittest.TestCase):
             outside.mkdir()
             self.assertEqual(self.run_lint(outside)[0], 2, "a directory outside any repository")
 
-
     def test_a_tree_with_no_skill_is_no_pass(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
