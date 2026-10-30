@@ -437,8 +437,8 @@ context-switch between repos.
     or a skill says what should happen; a log, a probe or the tree says what does. Before a change,
     a finding or a rule rests on a fact, name it and check it the second way. A review ranked a
     pushed commit body as landing on `main` because the repository's default squash pastes branch
-    bodies, while every merge sets its own (#1153):
-    `git log --first-parent --format=%b origin/main` shows it.
+    bodies, while the last 25 merges had each set their own (#1153):
+    `git log -25 --first-parent --format=%b origin/main` shows what merges set.
   - **Break what a test claims to catch.** Assertions that look correct on the page find nothing.
     Tests here have been caught asserting nothing at all, and one "safety net" permitted the exact
     addition it advertised catching. Plant the defect and watch it go red.
