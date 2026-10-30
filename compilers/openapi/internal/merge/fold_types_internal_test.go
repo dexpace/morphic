@@ -94,7 +94,7 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
 		"t/A":   &ir.Model{ID: "t/A"},
-		"t/B":   &ir.Model{ID: "t/B"},
+		"t/map": &ir.MapT{ID: "t/map"},
 		"t/any": &ir.Any{ID: "t/any"},
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 		"t/opq": &ir.Scalar{ID: "t/opq"},
@@ -103,7 +103,7 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 		name                 string
 		dstTarget, srcTarget ir.TypeID
 	}{
-		{"two models of one kind", "t/A", "t/B"},
+		{"a model and a map", "t/A", "t/map"},
 		{"an opaque scalar keeps the position", "t/opq", "t/str"},
 	}
 	for _, tc := range cases {
@@ -134,20 +134,20 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 // TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged is
 // TestFold_AConflictingTypeTakesNothingWithIt for the drops
 // the judgment declines to classify. The skip was keyed on the conflict
-// diagnostic rather than on the drop, so two Models — never called a conflict —
-// still folded the loser's default and constraints onto a winner whose type
-// could not hold them, beside an entry saying that type was dropped: the
+// diagnostic rather than on the drop, so a pair never called a conflict still
+// folded the loser's default and constraints onto a winner whose type could
+// not hold them, beside an entry saying that type was dropped: the
 // contradiction the skip exists to prevent, on the one path it did not cover.
 func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/A": &ir.Model{ID: "t/A"},
-		"t/B": &ir.Model{ID: "t/B"},
+		"t/A":   &ir.Model{ID: "t/A"},
+		"t/map": &ir.MapT{ID: "t/map"},
 	})
 	dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}}
 	src := ir.Property{
 		WireName:    "x",
-		Type:        ir.TypeRef{Target: "t/B"},
+		Type:        ir.TypeRef{Target: "t/map"},
 		Default:     &ir.Value{Kind: ir.ValueObject},
 		Constraints: &ir.Constraints{MinProps: new(int64(1))},
 		Examples:    []ir.Example{{Value: &ir.Value{Kind: ir.ValueObject}}},
@@ -157,7 +157,7 @@ func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	dst = foldTwo(g, dst, src, written(`{"type":"object","default":{},"minProperties":1}`))
 
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "two models of one kind are still not called a conflict")
+	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code, "a model and a map are still not called a conflict")
 	assert.Nil(t, dst.Default, "the default describes the shape that was dropped")
 	assert.Nil(t, dst.Constraints, "so does minProperties")
 	assert.Empty(t, dst.Examples, "and so do the examples")

@@ -1080,10 +1080,12 @@ more widely than the other and the other holds no constraint, encoding, document
 containers admit the empty one. Two alike in every member and in that detail are judged as two
 equal enums are: one type where both were written inline, the one declared elsewhere winning over
 an inline copy in either order, and two declared elsewhere overlapping. Any other pair is judged by
-what the two types hold: disjoint where their kinds share no value, or a value type meets a
-structure, or two kinds of structure meet; an overlap where their kinds share values or a `const`
-meets anything that holds values; and unrelated where nothing says what they share, as between two
-models, a model and a map, or an opaque scalar and a kind. A pair gets the same verdict as a field's
+what the two types hold, an alias as the type it stands for and a `const` object or array as a
+structure of that instance type: disjoint where their kinds share no value, or a value type meets a
+structure, or two structures of different instance types meet; an overlap where their kinds share
+values or a `const` meets a type that ends in a kind or another `const`; and unrelated where nothing
+says what they share, as between two models, a model and a map, a list and a tuple, an opaque scalar
+and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
 types and as two containers' members.
 
 The field takes the type of the declaration whose type is the same as, or narrower than, the most
@@ -1092,6 +1094,21 @@ it is the intersection, and it wins whatever the order. Each declaration whose t
 the same as or narrower than folds into the field, which adopts its shape detail; every other one is
 dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in every order,
 while `int32` and `uint32` alone keep the first declared and report the other.
+
+Two models are the exception, since an instance satisfying both is a value of a type neither names.
+Where the declarations whose types no other declaration holds are two or more models, each named
+directly or through an alias, the field's type is a `Model` the merge mints: anonymous, holding no
+property of its own, and composing each of those types once as a written `allOf` of them composes
+([`allof-classification`](#allof-classification)). The one written as the only `$ref`, or else the
+first `$ref` whose model carries a discriminator, is its `Base`, and the rest are `Mixins` in
+declaration order. So a field declared as `Meeting` and as an inline object names one type holding
+both, whichever branch comes first, rather than flattening them into one property list. A `{}` adds
+no conjunct, and any other type beside the models (a map, a kind, a degraded node) leaves the choice
+to the rule above. Every declaration then folds into the field, so none is dropped for its type, and
+each conjunct keeps the node its own pointer denotes. The minted model's ID is in the `composed`
+namespace (§3.1, §4.3), derived from the first declaration's pointer, which its provenance records,
+so no `$ref` reaches it. The variants of a distributed union fold the same declarations, so they
+share that one node.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
 silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its
@@ -1111,12 +1128,14 @@ broader declaration gives is taken only where the winning type admits it, judged
 or nothing. The winning type admits a value by its kind and by the constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
 `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Constraints
-written on the property rather than the node are not judged. A value the field does not take is
-reported in an info `openapi/degraded-construct` at each declaration that wrote it, which is kept
-verbatim beside the field. Of the values it takes, the first written is kept, and a declaration
-giving another is reported and kept; two values are one where they are one JSON value, a number by
-its magnitude and an object by its members in any order. Values are refused before one is kept, so a
-value the field takes is never lost to a refused one written before it. Constraint keywords merge
+written on the property rather than the node are not judged. Nothing judges a value against a model,
+and no declaration's type is a composed field's own, so a composed field takes no value but a null
+it admits. A value the field does not take is reported in an info `openapi/degraded-construct` at
+each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
+first written is kept, and a declaration giving another is reported and kept; two values are one
+where they are one JSON value, a number by its magnitude and an object by its members in any order.
+Values are refused before one is kept, so a value the field takes is never lost to a refused one
+written before it. Constraint keywords merge
 over the declarations folded into the field, the first to set a keyword keeping it; the title,
 description, external links, deprecation, XML hints and each `Unmodeled` key over every declaration,
 the first to give one keeping it, and a declaration giving one differently is reported and kept. The
@@ -1142,15 +1161,16 @@ warning. Each diagnostic sits at the declaration that lost and names the one who
 kept. A dropped declaration is reported against the winner as an `openapi/conflicting-redeclaration`
 warning where their types are incompatible — disjoint primitive kinds (`string` against `integer`,
 `uuid` against `date-time`), an enum none of whose members the other kind admits, a scalar against a
-structure, two different kinds of structure, or two lists or maps whose members share no value where
-one is never empty. Types that share values but that the merge does not narrow to one (`int32`
-against `uint32`, an enum of `integer` against an `int32` that admits one of its members, two enums
-of one kind, each with members, a `const` against a kind with no judge or against any other
-value-holding node, or two lists or maps whose members share only null or share nothing while both
-admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types the
-judgment does not compare (two models, a model and a map, an opaque scalar or a node a degraded
-lowering minted), since which of them the field keeps then follows declaration order. No declaration
-is dropped without a diagnostic. A dropped declaration's `default`, constraints and examples go with
+structure, two structures of different instance types, or two lists or maps whose members share no
+value where one is never empty. Types that share values but that the merge does not narrow to one
+(`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
+two enums of one kind, each with members, a `const` against a kind with no judge or against any
+other value-holding node, or two lists or maps whose members share only null or share nothing while
+both admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types
+the judgment does not compare (a model and a map, a list and a tuple, a union, an opaque scalar, a
+node a degraded lowering minted, or two models beside a type that keeps them from composing), since
+which of them the field keeps then follows declaration order. No declaration is dropped without a
+diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
 would leave one field asserting two contradictory things, with nothing downstream comparing a
 value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
@@ -1168,7 +1188,7 @@ a form part's flags read the merged field. A fold judges every pair of declarati
 field's first 64 at most; each later one is kept verbatim, unjudged, under an
 `openapi/budget-exceeded` error at the first of them.
 
-- Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`
+- Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
 - Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
@@ -1177,6 +1197,18 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_ANarrowingIntersectsNullability`,
   `merge.TestFold_ADroppedTargetKeepsTheFirstNullAdmission`,
   `merge.TestFold_TheJudgmentsVerdictIsWhatIsReported`,
+  `merge.TestFold_RedeclaredModelsCompose`,
+  `merge.TestFold_OnlyTwoOrMoreModelsCompose`,
+  `merge.TestFold_AComposedFieldIntersectsNull`,
+  `merge.TestFold_AComposedFieldKeepsEveryDeclarationsDetail`,
+  `merge.TestFold_AComposedFieldAdoptsOnlyANull`,
+  `merge.TestFold_ComposesOnlyTheDeclarationsItJudges`,
+  `merge.TestSelectBase_ChoosesAsTheRuleSays`,
+  `schema.TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem`,
+  `schema.TestAllOf_AComposedFieldKeepsADiscriminatedBase`,
+  `schema.TestAllOf_EveryDistributedVariantSharesOneComposedField`,
+  `schema.TestAllOf_RelatedStructuresAreNotCalledAConflict`,
+  `e2e.TestExternalContent_AComposedFieldIsNamedInItsDocument`,
   `merge.TestFold_ANarrowingIsNoDrop`,
   `merge.TestFold_ANarrowingCarriesTheNullMarkers`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
@@ -1236,10 +1268,11 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), and a list or map whose
   broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
-  (#1042); two models, or a model and a map, are reported as types the merge does not compare, even
-  where they are alike in every property (#1083); a property redeclared as a list and as a tuple is
-  reported as a conflict (#899). Open: intersecting the redeclared bounds and defaults rather than
-  keeping one, and judging an adopted value against the constraints written on the property (#10).
+  (#1042); two models alike in every property compose rather than collapse to one type, and a model
+  and a map are reported as types the merge does not compare (#1083); two lists or maps whose
+  members are different models are reported the same way rather than composed (#1180). Open:
+  intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted
+  value against the constraints written on the property (#10).
 
 ### `allof-required`
 

@@ -371,6 +371,68 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", overlapPtr), "and are no conflict")
 }
 
+// assertAllOfRedeclaredModels pins that a field declared as several models names
+// one minted model composing each declaration, in either branch order, with
+// nothing kept but the one value no declaration's own type can answer for. The
+// composition sits at the first declaration's pointer in the composed space, and
+// the conjuncts stay the nodes the source wrote.
+func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const schemas = "/components/schemas/"
+	meeting, recording := ir.TypeID("t/openapi"+schemas+"Meeting"), ir.TypeID("t/openapi"+schemas+"Recording")
+	anon := func(model, branch string) ir.TypeID {
+		return ir.TypeID("t/anon" + schemas + model + "/allOf/" + branch + "/properties/data")
+	}
+	for _, tc := range []struct {
+		model, field string
+		base         ir.TypeID
+		mixins       []ir.TypeID
+		nullable     bool
+	}{
+		{model: "RefFirst", field: "data", base: meeting, mixins: []ir.TypeID{anon("RefFirst", "1")}},
+		{model: "InlineFirst", field: "data", base: meeting, mixins: []ir.TypeID{anon("InlineFirst", "0")}},
+		{model: "TwoInline", field: "data", mixins: []ir.TypeID{anon("TwoInline", "0"), anon("TwoInline", "2")}},
+		{model: "TwoComponents", field: "data", mixins: []ir.TypeID{meeting, recording}, nullable: true},
+		{model: "DiscriminatedBase", field: "pet", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
+		{model: "KeptDefault", field: "data", mixins: []ir.TypeID{meeting, recording}},
+	} {
+		owner, ok := doc.Types[ir.TypeID("t/openapi"+schemas+tc.model)].(*ir.Model)
+		require.True(t, ok, tc.model)
+		require.Len(t, owner.Properties, 1, tc.model)
+		p := owner.Properties[0]
+		assert.Equal(t, tc.field, p.WireName, tc.model)
+		assert.Equal(t, tc.nullable, p.Type.Nullable, tc.model)
+		want := ir.TypeID("t/composed" + schemas + tc.model + "/allOf/0/properties/" + tc.field)
+		require.Equal(t, want, p.Type.Target, tc.model)
+		m, ok := doc.Types[want].(*ir.Model)
+		require.True(t, ok, tc.model)
+		assert.True(t, m.Anonymous, tc.model)
+		assert.Empty(t, m.Properties, "%s: the composition stays in source form", tc.model)
+		if tc.base == "" {
+			assert.Nil(t, m.Base, tc.model)
+		} else if assert.NotNil(t, m.Base, tc.model) {
+			assert.Equal(t, tc.base, m.Base.Target, tc.model)
+		}
+		mixins := make([]ir.TypeID, 0, len(m.Mixins))
+		for _, r := range m.Mixins {
+			assert.False(t, r.Nullable, "%s: a conjunct carries no null bit", tc.model)
+			mixins = append(mixins, r.Target)
+		}
+		assert.Equal(t, tc.mixins, mixins, tc.model)
+		if tc.model != "KeptDefault" {
+			assert.Empty(t, p.Unmodeled, "%s: nothing is kept", tc.model)
+		}
+	}
+
+	owner, ok := doc.Types[componentID("KeptDefault")].(*ir.Model)
+	require.True(t, ok)
+	kept, ok := propByWire(owner, "data")
+	require.True(t, ok)
+	assert.Nil(t, kept.Default, "a value is not adopted as the composition's")
+	assert.Contains(t, kept.Unmodeled, "openapi:conflicting-redeclaration"+schemas+"KeptDefault/allOf/0/properties/data")
+	require.Len(t, diags, 1, "only the kept default is reported")
+	assert.Equal(t, schemas+"KeptDefault/allOf/0/properties/data", string(diags[0].Provenance.Pointer))
+}
+
 // assertAllOfNarrowingRedeclaration pins that a redeclaration narrowing a bare
 // primitive is lossless (GitHub #598, #446): each pair, in both branch orders,
 // merges to the narrower target with no diagnostic and nothing kept under

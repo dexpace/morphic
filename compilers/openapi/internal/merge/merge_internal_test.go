@@ -47,12 +47,21 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
 	g := &Merger{
 		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
+		Mint: func(pointer jsontext.Pointer, m *ir.Model) ir.TypeID {
+			m.ID = composedAt(pointer)
+			reg[m.ID] = m
+			return m.ID
+		},
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
 	}
 	return g, recorded
 }
+
+// composedAt is the ID stubMerger mints a composition under, for a field first
+// declared at pointer.
+func composedAt(pointer jsontext.Pointer) ir.TypeID { return "t/composed" + ir.TypeID(pointer) }
 
 // foldTwo folds src, rendered by source, into dst, a first declaration with
 // no source recorded: the pair the walk hands over for one redeclared field.
@@ -68,7 +77,7 @@ func indexOver(m *ir.Model, reg map[ir.TypeID]ir.TypeDef, g *Merger) (idx *PropI
 	idx = NewPropIndex(m, func(s Settle) { queued = append(queued, s) })
 	return idx, func() {
 		for _, s := range queued {
-			s(reg, g.Report)
+			s(reg, g.Mint, g.Report)
 		}
 		queued = nil
 	}
@@ -103,7 +112,7 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	reg["t/uri"] = &ir.Primitive{ID: "t/uri", Prim: ir.PrimURL}
 	reg["t/bool"] = &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool}
 	var settled []ir.Diagnostic
-	queued[0](reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+	queued[0](reg, nil, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 		settled = append(settled, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 	})
 

@@ -389,7 +389,7 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 		}
 		assert.Nil(t, got.Examples, "%s: refused whole", tc.name)
 		require.Len(t, *recorded, 1, tc.name)
-		assert.Contains(t, (*recorded)[0].Message, "does not admit the examples", tc.name)
+		assert.Contains(t, (*recorded)[0].Message, "admits the examples this declaration gives", tc.name)
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/b", "%s: the writer is kept", tc.name)
 	}
 }

@@ -36,6 +36,9 @@ type Types struct {
 	promised  map[string]bool
 	promises  map[string]func() []ir.Diagnostic
 	fulfilled bool
+	// minted counts the nodes Register added, so settle can tell them from a
+	// node a settlement wrote past it.
+	minted int
 	// completing and pending hold the settlements Complete and Defer queued
 	// for Finish, and settled records that Finish has taken them. See
 	// Settlement.
@@ -170,18 +173,15 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 	return id
 }
 
-// Register records td under id without associating it with any source
-// coordinate.
+// Register records td under id, a node a lowering or a Settlement mints rather
+// than finds, without associating it with any source coordinate. A composed
+// union variant is one: its coordinate denotes the branch schema it was built
+// from, so interning it there would race for one pointer.
 //
-// It exists for nodes a lowering mints rather than finds, such as a composed
-// union variant: its coordinate already denotes the branch schema it was built
-// from, so interning it there would race for one pointer. Such nodes take a
-// synthetic ID and no coordinate entry.
-//
-// Prefer Intern for a node that has a source coordinate: it enforces one node
-// per coordinate and terminates recursion. Register overwrites a colliding ID,
-// since a synthetic collision is a minting bug, not a revisit. claimSpace
-// checks the namespace.
+// Prefer Intern for a node with a source coordinate: it enforces one node per
+// coordinate and terminates recursion. Register overwrites a colliding ID, a
+// minting bug or one node minted alike twice, as a distributed union's variants
+// mint a composed field. claimSpace checks the namespace.
 func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
 	if id == "" {
 		t.refuse("register rejected: empty type id")
@@ -195,6 +195,9 @@ func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
 	// cause, and dropping the node would add dangling references on top of it —
 	// a second symptom of the same bug, further from its source.
 	t.claimSpace(id, true)
+	if _, held := t.reg[id]; !held {
+		t.minted++
+	}
 	t.reg[id] = td
 }
 

@@ -19,9 +19,14 @@ type Reporter func(sev ir.Severity, code string, pointer jsontext.Pointer, forma
 // keep.
 type Source func() (ir.RawValue, error)
 
+// Mint registers m, which composes the declarations of one field, the first of
+// them written at pointer, and returns the ID m is registered under. It fills
+// m's TypeCommon, since what names a node is the lowering's to derive.
+type Mint func(pointer jsontext.Pointer, m *ir.Model) ir.TypeID
+
 // Settle folds what a PropIndex queued against reg, the registry every
-// lowering left, reporting through report.
-type Settle func(reg ir.TypeRegistry, report Reporter)
+// lowering left, minting through mint and reporting through report.
+type Settle func(reg ir.TypeRegistry, mint Mint, report Reporter)
 
 // WireNameIndex maps each property's wire name to its position in props, so a
 // lookup by name is one map read rather than a rescan of a wide model.
@@ -92,10 +97,12 @@ func (idx *PropIndex) MergeProperty(p ir.Property, source Source) {
 // settle folds each field declared more than once against reg, in the order of
 // its first redeclaration. A field's first declaration is read off the model as
 // the walk left it, required flag included. A fold reads only nodes the walk
-// built and writes only its own field, so no fold reads another's result.
-func (idx *PropIndex) settle(reg ir.TypeRegistry, report Reporter) {
+// built and writes only its own field, so no fold reads another's result: a
+// node one mints is named only by the field it writes.
+func (idx *PropIndex) settle(reg ir.TypeRegistry, mint Mint, report Reporter) {
 	g := Merger{
 		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
+		Mint:    mint,
 		Report:  report,
 	}
 	for _, f := range idx.redeclared {

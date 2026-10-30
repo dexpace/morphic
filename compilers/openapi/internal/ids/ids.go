@@ -54,12 +54,14 @@ const (
 	OpenAPISpace compile.Space = "openapi"
 	AnonSpace    compile.Space = "anon"
 	// ComposedSpace holds the Models synthesized for distributed union variants
-	// (§4.3) — nodes no schema in the source occupies. The branch pointer denotes
-	// the branch schema, so a $ref naming it must keep resolving to the branch,
-	// and the variant must not be reachable by any pointer a $ref can spell.
-	// ForPointer yields only the openapi and anon spaces, so
-	// resolveSchemaRef can never hand a composed ID to a reference; compile.Types
-	// rejects the mistake of minting into a space that addresses coordinates.
+	// (§4.3) and for a field redeclared as several models
+	// (docs/compilers/openapi.md#allof-redeclared-property) — nodes no schema in
+	// the source occupies. The pointer denotes what is written there, so a $ref
+	// naming it must keep resolving to that. One path ends in oneOf or anyOf and
+	// an index and the other in properties and a name, so the two never meet.
+	// ForPointer yields only the openapi and anon spaces, so resolveSchemaRef can
+	// never hand a composed ID to a reference; compile.Types rejects the mistake
+	// of minting into a space that addresses coordinates.
 	ComposedSpace compile.Space = "composed"
 )
 
@@ -175,10 +177,11 @@ func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(AnonSpace), string(pointer))
 }
 
-// ComposedType returns the stable ID of the Model synthesized for the
-// distributed union variant at a branch pointer in d (§4.3).
-func (d Document) ComposedType(branchPointer jsontext.Pointer) ir.TypeID {
-	return compile.TypeID(d.space(ComposedSpace), string(branchPointer))
+// ComposedType returns the stable ID of the Model synthesized at pointer in d:
+// a distributed union variant's branch (§4.3), or the first declaration of a
+// field redeclared as several models.
+func (d Document) ComposedType(pointer jsontext.Pointer) ir.TypeID {
+	return compile.TypeID(d.space(ComposedSpace), string(pointer))
 }
 
 // Op returns the stable ID of the operation at pointer.

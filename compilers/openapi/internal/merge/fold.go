@@ -17,13 +17,16 @@ import (
 )
 
 // Merger folds the declarations of one field into the property they make
-// together. It reads the registry through Resolve and reports through Report,
-// so a fold can be driven against a map and a recorder rather than a document.
+// together. It reads the registry through Resolve, adds to it through Mint and
+// reports through Report, so a fold can be driven against a map and a recorder
+// rather than a document.
 // PropIndex runs it once every node exists.
 type Merger struct {
 	// Resolve looks a type up in the registry. The judgment compares what two
 	// references point at, not the references themselves.
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
+	// Mint registers the model a field's declarations compose to.
+	Mint Mint
 	// Report records one diagnostic a fold draws.
 	Report Reporter
 }
@@ -97,6 +100,10 @@ type folding struct {
 	// field's type holds every one of them, so it adopts their shape detail.
 	winner int
 	cone   []bool
+	// parts lists the declarations whose models the field composes, which puts
+	// every declaration in the cone, or nothing where the winner's type is the
+	// field's (composition).
+	parts  []int
 	merged ir.Property
 	// notes holds what the fold reports at each declaration, in order, and
 	// lost marks each declaration something of which the field does not carry.
@@ -111,8 +118,9 @@ type note struct {
 	msg  string
 }
 
-// newFolding judges every pair of decls once, picks the winner (widestCone),
-// and starts the field from the first declaration, whose identity it keeps.
+// newFolding judges every pair of decls once, picks the winner (widestCone) or
+// the models to compose (composition), and starts the field from the first
+// declaration, whose identity it keeps.
 func newFolding(g *Merger, decls []declaration) *folding {
 	n := len(decls)
 	f := &folding{
@@ -131,8 +139,9 @@ func newFolding(g *Merger, decls []declaration) *folding {
 		}
 	}
 	f.winner = f.widestCone()
+	f.parts = f.composition()
 	for i := range n {
-		f.cone[i] = f.holds(f.winner, i)
+		f.cone[i] = len(f.parts) > 0 || f.holds(f.winner, i)
 	}
 	return f
 }
@@ -163,11 +172,12 @@ func (f *folding) widestCone() int {
 	return best
 }
 
-// foldType settles the field's type: the winner's target, admitting null only
-// where every declaration in its cone does (intersectNull), as foldNullVerdicts
-// states for a single schema. The top type admits null whatever its bit says,
-// so a cone member that is the top type below a winner that is not says nothing
-// of null. Every declaration outside the cone loses its type (drop).
+// foldType settles the field's type: the winner's target or the model that
+// composes parts, admitting null only where every declaration in the cone does
+// (intersectNull), as foldNullVerdicts states for a single schema. The top type
+// admits null whatever its bit says, so a cone member that is the top type below
+// a winner that is not says nothing of null. Every declaration outside the cone
+// loses its type (drop).
 func (f *folding) foldType() {
 	var merged ir.TypeRef
 	seeded := false
@@ -183,6 +193,9 @@ func (f *folding) foldType() {
 		}
 	}
 	merged.Target = f.decls[f.winner].prop.Type.Target
+	if len(f.parts) > 0 {
+		merged.Target = f.compose()
+	}
 	f.merged.Type = merged
 }
 
@@ -296,8 +309,8 @@ func (f *folding) foldValues() {
 		if len(refused) > 0 {
 			f.lost[i] = true
 			f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
-				"the type the declarations of field %q merge it to does not admit the %s this declaration "+
-					"gives; not adopted, with this declaration verbatim under Unmodeled",
+				"the merge cannot show that the type the declarations of field %q merge to admits the %s this "+
+					"declaration gives; not adopted, with this declaration verbatim under Unmodeled",
 				f.merged.WireName, strings.Join(refused, " and "))
 		}
 	}
@@ -326,12 +339,13 @@ func sameExamples(a, b []ir.Example) bool {
 // the field admits null, which the top type always does (nullable), and any
 // other value where decls[i]'s own type is the field's or the field's type
 // admits it. A value a declaration writes against its own type is that
-// declaration's to answer for, not the fold's.
+// declaration's to answer for, not the fold's, and a composed field has no
+// declaration whose type it is.
 func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if v.Kind == ir.ValueNull {
 		return nullable
 	}
-	if f.rel[f.winner][i] == relSame {
+	if len(f.parts) == 0 && f.rel[f.winner][i] == relSame {
 		return true
 	}
 	ref := f.merged.Type

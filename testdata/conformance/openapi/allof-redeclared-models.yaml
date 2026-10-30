@@ -1,0 +1,102 @@
+openapi: 3.1.0
+info:
+  title: allOf redeclared models
+  version: '1'
+paths: {}
+components:
+  schemas:
+    Meeting:
+      type: object
+      properties:
+        id: {type: string}
+    Recording:
+      type: object
+      properties:
+        url: {type: string}
+    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+    # A component, then an inline object: the component is the Base, as the sole
+    # $ref of a written allOf is, and the inline object a Mixin.
+    RefFirst:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                ai: {type: string}
+    # The same declarations in the other order compose the same way.
+    InlineFirst:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                ai: {type: string}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+    # Two inline objects and a bare {}: the {} adds no conjunct, and with no
+    # $ref among them both objects are Mixins, in declaration order.
+    TwoInline:
+      allOf:
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                first: {type: string}
+        - type: object
+          properties:
+            data: {}
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                second: {type: string}
+    # Two components, neither discriminated: both are Mixins, and the field
+    # admits null only because every declaration does.
+    TwoComponents:
+      allOf:
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - {$ref: '#/components/schemas/Meeting'}
+                - {type: 'null'}
+        - type: object
+          properties:
+            data:
+              oneOf:
+                - {$ref: '#/components/schemas/Recording'}
+                - {type: 'null'}
+    # Among several $refs the discriminated one is the Base, wherever it sits.
+    DiscriminatedBase:
+      allOf:
+        - type: object
+          properties:
+            pet: {$ref: '#/components/schemas/Recording'}
+        - type: object
+          properties:
+            pet: {$ref: '#/components/schemas/Pet'}
+    # A value says nothing of the whole composition, so it is kept, not adopted.
+    KeptDefault:
+      allOf:
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Meeting'
+              default: {id: a}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Recording'}

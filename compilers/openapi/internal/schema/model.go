@@ -65,7 +65,7 @@ func objectNode(m *ir.Model) ir.TypeDef {
 // (merge.PropIndex), as a completion (compile.Types.Complete): a settlement
 // that reads the merged field, such as a form part's flags, finds it folded.
 func propIndex(c lowering.Ctx, ts *compile.Types, m *ir.Model) *merge.PropIndex {
-	return merge.NewPropIndex(m, func(fold merge.Settle) { ts.Complete(settledMerge{c: c, fold: fold}) })
+	return merge.NewPropIndex(m, func(fold merge.Settle) { ts.Complete(settledMerge{c: c, ts: ts, fold: fold}) })
 }
 
 // settledMerge is the folds of one model's redeclared fields, taken once every
@@ -73,18 +73,31 @@ func propIndex(c lowering.Ctx, ts *compile.Types, m *ir.Model) *merge.PropIndex 
 // name, so mid-walk it would follow the order they lower in (GitHub #898).
 type settledMerge struct {
 	c    lowering.Ctx
+	ts   *compile.Types
 	fold merge.Settle
 }
 
 // Settle takes the fold against reg and returns what it reports. The fold
-// rewrites the model's property and interns nothing, so the registry keeps its
-// node count.
+// rewrites the model's property, and adds a node only through mint.
 func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	s.fold(reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+	s.fold(reg, s.mint, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 		diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
 	})
 	return diags
+}
+
+// mint registers m, the composition of a field's declarations, the first of
+// them written at pointer. That pointer denotes the declaration's own schema,
+// so m takes the ID of a node no schema occupies (ids.ComposedType) and points
+// back at it, as a distributed variant points at its branch. The variants of
+// one distributed union fold the same declarations, so each mints this one
+// node, alike, as each carries the field's one PropID.
+func (s settledMerge) mint(pointer jsontext.Pointer, m *ir.Model) ir.TypeID {
+	id := s.c.IDs().ComposedType(pointer)
+	m.TypeCommon = commonFor(s.c, id, pointer)
+	s.ts.Register(id, m)
+	return id
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with

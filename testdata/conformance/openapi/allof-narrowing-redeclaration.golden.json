@@ -1742,7 +1742,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
@@ -1751,7 +1751,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p"
@@ -1760,7 +1760,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultFirst/allOf/2/properties/p"
@@ -1769,7 +1769,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultMiddle/allOf/2/properties/p"
@@ -1778,7 +1778,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultLast/allOf/1/properties/p"

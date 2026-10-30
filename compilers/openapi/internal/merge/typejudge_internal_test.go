@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -246,23 +247,72 @@ func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 }
 
 // TestClassify_ComparesResolvedKinds pins the last-resort comparison classify
-// makes when neither side ends in a primitive kind. Two composites of the same
-// kind are not provably contradictory; two of different kinds are disjoint.
+// makes when neither side ends in a primitive kind. Two structures of one
+// instance type are not provably contradictory, and neither is anything against
+// a union or an opaque scalar, which say nothing of their values: only two
+// structures of different instance types are disjoint. A list and a tuple are
+// one instance type, as a model and a map are, a literal holding an object or a
+// list is that instance type, and an alias is judged as the type it stands for.
 func TestClassify_ComparesResolvedKinds(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/model":  &ir.Model{ID: "t/model"},
-		"t/other":  &ir.Model{ID: "t/other"},
-		"t/union":  &ir.Union{ID: "t/union"},
-		"t/opaque": &ir.Scalar{ID: "t/opaque"},
+		"t/model":       &ir.Model{ID: "t/model"},
+		"t/other":       &ir.Model{ID: "t/other"},
+		"t/map":         &ir.MapT{ID: "t/map"},
+		"t/list":        &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/other"}},
+		"t/tuple":       &ir.Tuple{ID: "t/tuple"},
+		"t/union":       &ir.Union{ID: "t/union"},
+		"t/external":    &ir.External{ID: "t/external"},
+		"t/opaque":      &ir.Scalar{ID: "t/opaque"},
+		"t/literal":     &ir.Literal{ID: "t/literal", Value: ir.Value{Kind: ir.ValueString, Str: "a"}},
+		"t/lit-object":  &ir.Literal{ID: "t/lit-object", Value: ir.Value{Kind: ir.ValueObject}},
+		"t/lit-list":    &ir.Literal{ID: "t/lit-list", Value: ir.Value{Kind: ir.ValueList}},
+		"t/alias-model": &ir.Scalar{ID: "t/alias-model", Base: &ir.TypeRef{Target: "t/model"}},
+		"t/alias-chain": &ir.Scalar{ID: "t/alias-chain", Base: &ir.TypeRef{Target: "t/alias-model"}},
+		"t/alias-list":  &ir.Scalar{ID: "t/alias-list", Base: &ir.TypeRef{Target: "t/list"}},
+		"t/alias-gone":  &ir.Scalar{ID: "t/alias-gone", Base: &ir.TypeRef{Target: "t/absent"}},
+		"t/alias-loop":  &ir.Scalar{ID: "t/alias-loop", Base: &ir.TypeRef{Target: "t/alias-loop"}},
+		"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString},
 	})
+	for _, tc := range []struct {
+		name string
+		a, b ir.TypeID
+		want relation
+	}{
+		{"two models", "t/model", "t/other", relUnrelated},
+		{"a model and a map are one instance type", "t/model", "t/map", relUnrelated},
+		{"a list and a tuple are one instance type", "t/list", "t/tuple", relUnrelated},
+		{"a model and a list", "t/model", "t/list", relDisjoint},
+		{"a map and a tuple", "t/map", "t/tuple", relDisjoint},
+		{"a model and a union that may hold it", "t/model", "t/union", relUnrelated},
+		{"a list and a union", "t/list", "t/union", relUnrelated},
+		{"a model and an external", "t/model", "t/external", relUnrelated},
+		{"a model and an opaque scalar", "t/model", "t/opaque", relUnrelated},
+		{"an opaque scalar and a union", "t/opaque", "t/union", relUnrelated},
+		{"a literal and a union that may hold it", "t/literal", "t/union", relUnrelated},
+		{"a literal and a structure", "t/literal", "t/model", relDisjoint},
+		{"an object literal and a model", "t/lit-object", "t/model", relUnrelated},
+		{"an object literal and a map", "t/lit-object", "t/map", relUnrelated},
+		{"an object literal and a list", "t/lit-object", "t/list", relDisjoint},
+		{"a list literal and a tuple", "t/lit-list", "t/tuple", relUnrelated},
+		{"a list literal and a list", "t/lit-list", "t/list", relUnrelated},
+		{"a list literal and a model", "t/lit-list", "t/model", relDisjoint},
+		{"a model and an alias of another", "t/other", "t/alias-model", relUnrelated},
+		{"a model and an alias of itself", "t/model", "t/alias-model", relUnrelated},
+		{"a model and an alias of a list", "t/model", "t/alias-list", relDisjoint},
+		{"an alias chain is read to its end", "t/list", "t/alias-chain", relDisjoint},
+		{"an alias of a model against a kind", "t/alias-model", "t/prim/string", relDisjoint},
+		{"an alias with nothing at its end stays opaque", "t/list", "t/alias-gone", relUnrelated},
+		{"a cyclic alias stays opaque", "t/list", "t/alias-loop", relUnrelated},
+	} {
+		got := judge(g).relate(ir.TypeRef{Target: tc.a}, ir.TypeRef{Target: tc.b})
+		assert.Equal(t, tc.want, got, tc.name)
+		assert.Equal(t, tc.want.flipped(), judge(g).relate(ir.TypeRef{Target: tc.b}, ir.TypeRef{Target: tc.a}), "%s, flipped", tc.name)
+	}
 
-	assert.Equal(t, relUnrelated, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/other"}),
-		"two models are the same kind, so not provably contradictory")
-	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/model"}, ir.TypeRef{Target: "t/union"}),
-		"a model and a union are different kinds")
-	assert.Equal(t, relDisjoint, judge(g).relate(ir.TypeRef{Target: "t/opaque"}, ir.TypeRef{Target: "t/union"}),
-		"and the comparison is reached when neither side is a primitive")
+	gone, ok := g.Resolve("t/alias-gone")
+	require.True(t, ok)
+	assert.Equal(t, gone, judge(g).unaliased(gone), "an alias with nothing at its end stands for itself, never for no type")
 }
 
 // TestTypeJudge_UnrelatedPrimitivesAreDisjoint pins the pairs the relation

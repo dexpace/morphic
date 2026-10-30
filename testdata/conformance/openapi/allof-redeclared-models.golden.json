@@ -1,0 +1,902 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "allOf redeclared models",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "allOf redeclared models",
+        "canonical": "all_of_redeclared_models"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/InlineFirst/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/InlineFirst/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InlineFirst/allOf/0/properties/data"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai",
+          "name": {
+            "source": "ai",
+            "canonical": "ai"
+          },
+          "wireName": "ai",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InlineFirst/allOf/0/properties/data/properties/ai"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/RefFirst/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/RefFirst/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefFirst/allOf/1/properties/data"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RefFirst/allOf/1/properties/data/properties/ai",
+          "name": {
+            "source": "ai",
+            "canonical": "ai"
+          },
+          "wireName": "ai",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefFirst/allOf/1/properties/data/properties/ai"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/TwoInline/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/TwoInline/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoInline/allOf/0/properties/data"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoInline/allOf/0/properties/data/properties/first",
+          "name": {
+            "source": "first",
+            "canonical": "first"
+          },
+          "wireName": "first",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoInline/allOf/0/properties/data/properties/first"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/TwoInline/allOf/2/properties/data": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/TwoInline/allOf/2/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoInline/allOf/2/properties/data"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoInline/allOf/2/properties/data/properties/second",
+          "name": {
+            "source": "second",
+            "canonical": "second"
+          },
+          "wireName": "second",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoInline/allOf/2/properties/data/properties/second"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/DiscriminatedBase/allOf/0/properties/pet": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/DiscriminatedBase/allOf/0/properties/pet",
+      "name": {
+        "hint": "pet"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DiscriminatedBase/allOf/0/properties/pet"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/InlineFirst/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/InlineFirst/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InlineFirst/allOf/0/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/InlineFirst/allOf/0/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/KeptDefault/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/KeptDefault/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/KeptDefault/allOf/0/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/RefFirst/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/RefFirst/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefFirst/allOf/0/properties/data"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/RefFirst/allOf/1/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/TwoComponents/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TwoComponents/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoComponents/allOf/0/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/TwoInline/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TwoInline/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoInline/allOf/0/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/anon/components/schemas/TwoInline/allOf/0/properties/data",
+          "nullable": false
+        },
+        {
+          "target": "t/anon/components/schemas/TwoInline/allOf/2/properties/data",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/DiscriminatedBase": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/DiscriminatedBase",
+      "name": {
+        "source": "DiscriminatedBase",
+        "canonical": "discriminated_base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DiscriminatedBase"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/DiscriminatedBase/allOf/0/properties/pet",
+          "name": {
+            "source": "pet",
+            "canonical": "pet"
+          },
+          "wireName": "pet",
+          "type": {
+            "target": "t/composed/components/schemas/DiscriminatedBase/allOf/0/properties/pet",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DiscriminatedBase/allOf/0/properties/pet"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/InlineFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/InlineFirst",
+      "name": {
+        "source": "InlineFirst",
+        "canonical": "inline_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/InlineFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/InlineFirst/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/InlineFirst/allOf/0/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/InlineFirst/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/KeptDefault": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/KeptDefault",
+      "name": {
+        "source": "KeptDefault",
+        "canonical": "kept_default"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/KeptDefault"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/KeptDefault/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/KeptDefault/allOf/0/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/KeptDefault/allOf/0/properties/data": {
+              "reason": "degraded_lowering",
+              "value": {
+                "$ref": "#/components/schemas/Meeting",
+                "default": {
+                  "id": "a"
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/KeptDefault/allOf/0/properties/data"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/KeptDefault/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Meeting": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Meeting",
+      "name": {
+        "source": "Meeting",
+        "canonical": "meeting"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Meeting"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Meeting/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Meeting/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Pet": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Pet",
+      "name": {
+        "source": "Pet",
+        "canonical": "pet"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Pet"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Pet/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": true,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Pet/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "discriminator": {
+        "property": "p/openapi/components/schemas/Pet/properties/kind",
+        "inferred": false
+      },
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Recording": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Recording",
+      "name": {
+        "source": "Recording",
+        "canonical": "recording"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Recording"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Recording/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Recording/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RefFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RefFirst",
+      "name": {
+        "source": "RefFirst",
+        "canonical": "ref_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RefFirst/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/RefFirst/allOf/0/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefFirst/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/TwoComponents": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TwoComponents",
+      "name": {
+        "source": "TwoComponents",
+        "canonical": "two_components"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoComponents"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoComponents/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/TwoComponents/allOf/0/properties/data",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoComponents/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/TwoInline": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TwoInline",
+      "name": {
+        "source": "TwoInline",
+        "canonical": "two_inline"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoInline"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/TwoInline/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/composed/components/schemas/TwoInline/allOf/0/properties/data",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/TwoInline/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the merge cannot show that the type the declarations of field \"data\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/KeptDefault/allOf/0/properties/data"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-redeclared-models.yaml",
+      "hash": "7c93dd0badff28a8017b57a1a3531d663d278bd44d29a261da1b352ae8b8f819"
+    }
+  ]
+}
