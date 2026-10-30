@@ -610,7 +610,7 @@ type TypeRef struct {
 ```
 
 `Target` is never empty. A position that admits no type — a model with no base, a stream with no
-event union — holds a `nil *TypeRef` (§4.1), so a `TypeRef` naming nothing is one a lowering left
+element type — holds a `nil *TypeRef` (§4.1), so a `TypeRef` naming nothing is one a lowering left
 unfilled, and `irverify` reports it (`ir/type-ref-no-target`).
 
 Nullability lives on the reference, not the target type, because the same type is nullable in one
@@ -1791,7 +1791,7 @@ type ResponseConditions struct {
 type ErrorCase struct {          // a response too: Name/Conditions/Payload/Headers as on Response
     Name       Naming             // for formats with named errors; Hint elsewhere (the status key, neutralized)
     Conditions ResponseConditions
-    Payload    *Payload           // nil = no body; the error-flagged models are its contents' types
+    Payload    *Payload           // nil = no body; its contents' types may be of any kind
     Headers    []Property         // error metadata fields (Retry-After, rate-limit family)
     Fault      string             // "" | "client" | "server" — protocol-neutral fault classification
                                   // (Smithy @error; OpenAPI 4XX/5XX is its HTTP lowering). Drives
@@ -1813,9 +1813,9 @@ Design notes:
   per-protocol view.
 - **All responses and all content types survive** (oagen's "primary response" collapse is the
   counterexample). The plan layer picks a primary for SDK ergonomics; the IR doesn't.
-- **Errors reference error models**, which `irfacts.Index.Usage` marks `UsageError` (§4.9), with
-  status conditions and range collapsing exactly as Kiota's error mappings (`404`, `4XX`,
-  catch-all).
+- **An error's body is of any kind**, a model or a union, a list or a primitive, and
+  `irfacts.Index.Usage` marks what it reaches `UsageError` (§4.9), with status conditions and range
+  collapsing exactly as Kiota's error mappings (`404`, `4XX`, catch-all).
 - **A status's class is the protocol's; a catch-all's is no one's.** An HTTP status code states its
   own class (RFC 9110 §15): a status below 400 lowers to a `Response`, and one from 400 to an
   `ErrorCase` whose `Fault` is `client` for 4xx and `server` for 5xx, since that is what the code
@@ -1877,11 +1877,12 @@ type LongRunning struct {
 type StreamingMode string      // "none" | "client" | "server" | "bidi"
 
 type StreamDetail struct {
-    Events  *TypeRef   // stream element type when it differs from the payload content type —
-                       // for event streams this is a WireTagged Union of event models; within an
-                       // event model, Property.EventHeader marks frame-header members and
+    Events  *TypeRef   // stream element type, of any kind; nil where the contents that stream
+                       // name different elements, which stay on the payload. For a format with
+                       // event streams it is a WireTagged Union of event models: within an event
+                       // model, Property.EventHeader marks frame-header members and
                        // Property.EventPayload marks a raw-payload member (Smithy
-                       // @eventHeader/@eventPayload); per-event content types and terminal
+                       // @eventHeader/@eventPayload), and per-event content types and terminal
                        // events live on Variant.Event
     Initial *TypeRef   // initial-request / initial-response message preceding the stream
                        // (Smithy event stream initial messages); nil = none
@@ -1891,8 +1892,15 @@ type StreamDetail struct {
 ```
 
 Streaming mode is on the operation core because it is protocol-independent (gRPC streams, SSE,
-WebSocket, Smithy event streams all project onto it); the wire mechanism (SSE vs chunked vs
-WS frames vs length-prefixed events) lives in the binding. Smithy **waiters**
+WebSocket, Smithy event streams all project onto it). `Streaming` summarizes an operation, and a
+stream belongs to one content of its payload, so an OpenAPI operation can offer `application/json`
+beside `application/x-ndjson`, and the plan elects among them (emitter-design §3.1). The wire
+mechanism (SSE vs JSON Lines vs WS frames vs length-prefixed events) has no field of its own: over
+HTTP the streaming content's `MediaType` states it, another binding frames its own messages, and
+the plan derives which (emitter-design §3.1). `Content.Item` declares what one item is; a compiler
+that reads a stream from a media type alone names the content's `Type` as `Events`, a reading
+`Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
+it is one. Smithy **waiters**
 (`smithy.waiters#waitable`) are *not* folded into `LongRunning` — acceptor lists and JMESPath
 matchers are preserved verbatim in `Operation.Unmodeled` (§15).
 
@@ -2793,9 +2801,9 @@ the IR and preserve nothing.
    `ir.Decimal` without materializing it (§6).
 2. **Dedup aliasing mechanics** — alias table on Document vs ID rewriting with a redirect map;
    leaning alias table (IDs immutable, always).
-3. **Content negotiation in the plan layer** — the IR keeps all media types; the default
-   primary-selection policy (json > form > multipart > binary?) belongs to emitters but should be
-   shared as a standard plan helper.
+3. **Content negotiation in the plan layer** — settled: the IR keeps all media types, and one
+   shared plan helper elects among them for a success, a failure and a stream alike, by a ranking
+   the plan's policy holds (emitter-design §3.1).
 4. **Whether `UsageFlags` is stored or always recomputed** — settled: derived by `ir/irfacts`,
    not stored (§4.9). On the golden spec (`cloudflare/api-schemas` at `843eae2f`) deriving usage
    for every type, the subtype index and the type graph included, takes about 50 ms of a compile

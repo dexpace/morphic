@@ -122,7 +122,7 @@ func streamCandidates(c lowering.Ctx, payload *ir.Payload) []streamCandidate {
 		case content.Item != nil:
 			out = append(out, streamCandidate{events: *content.Item, declared: true})
 		case c.MediaTypeStreams(content.MediaType):
-			// For a frame format the schema under the media type describes one
+			// For a frame format the schema under the media type is read as one
 			// frame, not the whole body — the opposite of how an ordinary content
 			// is read — so it is the element type as well as the content type.
 			out = append(out, streamCandidate{events: content.Type})

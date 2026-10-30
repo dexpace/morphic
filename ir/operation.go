@@ -267,8 +267,9 @@ type ErrorCase struct {
 	Name Naming `json:"name"`
 	// Conditions are the status codes/ranges this error maps to.
 	Conditions ResponseConditions `json:"conditions"`
-	// Payload is the error body, one Content per media type; nil = no body. The
-	// error-flagged models an error case references are its contents' types.
+	// Payload is the error body, one Content per media type; nil = no body. Its
+	// contents' types may be of any kind, and irfacts marks what they reach
+	// UsageError.
 	Payload *Payload `json:"payload,omitzero"`
 	// Headers are the error response's metadata fields — Retry-After and the
 	// rate-limit family live here.
@@ -308,11 +309,12 @@ const (
 
 // StreamDetail describes one direction of a streaming Operation (ir-design §7.3).
 type StreamDetail struct {
-	// Events is the stream element type when it differs from the payload content
-	// type — for event streams a WireTagged Union of event models; within an
-	// event model, Property.EventHeader marks frame-header members and
+	// Events is the stream element type, of any kind; nil where the contents
+	// that stream name different elements, which stay on the payload. For a
+	// format with event streams it is a WireTagged Union of event models: within
+	// an event model, Property.EventHeader marks frame-header members and
 	// Property.EventPayload marks a raw-payload member (Smithy @eventHeader/
-	// @eventPayload). Per-event content types and terminal events live on
+	// @eventPayload), and per-event content types and terminal events live on
 	// Variant.Event.
 	Events *TypeRef `json:"events,omitzero"`
 	// Initial is the initial-request/initial-response message preceding the

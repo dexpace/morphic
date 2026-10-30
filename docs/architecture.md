@@ -422,7 +422,7 @@ IR document can drive SDKs, docs, and mock servers without dragging SDK opinions
 The canonical policy-input vocabulary, taken from oagen's production `SdkBehavior` (the best
 real-world enumeration available): **retry** (retryable status codes, max attempts, full backoff
 strategy with jitter), **timeouts** (defaults + env override), **error taxonomy** (status →
-logical exception-kind map, client/server catch-alls, doc-URL template), **telemetry** (request-
+logical exception-kind and fault, doc-URL template), **telemetry** (request-
 ID and client-telemetry headers), **logging** (a closed lifecycle-event list), **user-agent**
 construction (identifier template, app-info enrichment), **idempotency injection** (header name,
 auto-generate rules), **pagination pacing** (auto-page delay), and **request guards** (option
