@@ -67,6 +67,15 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   rather than its own (#1034, #1009, #1038).
 - **Probe.** `git diff <merge-base> origin/main -- <file>` for each conflicted file.
 
+## Reread what the branch says about a PR the merge brought in
+`reread-what-cites-a-merged-pr`
+
+- **Rule.** After a merge, reread each sentence the branch adds that cites a PR the merge brought
+  in, against that PR as it landed: the sentence was written against the PR as it then stood.
+- **Why.** A Why said two issues never appeared in #1167, true of the revision #1170 quotes and
+  false of the merge, which named both (#1169).
+- **Probe.** `git diff origin/main...HEAD | grep -n '^+.*#<N>'` for each PR the merge brought in.
+
 ## Confirm a merge commit has both parents
 `merge-commit-has-two-parents`
 
