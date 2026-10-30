@@ -322,7 +322,8 @@ Per-target heuristics live here too, beside the target's other choices, rather t
 parameter-passing shape (§4.13), the type-table rows that give an unbounded number a width (§2.6),
 and the naming tables (§4.12) — the acronyms, the character names that give words to a name with
 none, and the leading words an identifier that would begin with a digit takes. The target-AST nodes
-a default shapes carry `Inferred` provenance (§4.3), as INV6 requires.
+a default shapes carry `Inferred` provenance (§4.3), as INV6 requires. How a failure reaches its
+caller is a setting here as well (§8.5).
 
 ### 2.6 The type table
 
@@ -989,11 +990,11 @@ snapshot pins the whole lowering deterministically.
 | `MapExternalTypes` | `External{Identity, Package, MinVersion}`, `Ctx.Types` | the type table's row for the identity (§2.6): imported library type + dependency-manifest entry; no row → opaque strategy + diagnostic | §4.6 |
 | `MaterializeValues` | `Value{Kind, Num BigVal, Ref, Ctor}` | literals; `Num` → bignum/decimal, never float64; `Ctor` → call; `symbol` → string explicitly; a default documented, never written onto a request (§4.10) | §6 |
 | `BuildRequestShaping` | `plan.BindingView`, `RequestContent`, the target's parameter shape (§4.13) | request builders, per-protocol param binding, each operation's request type | §8 |
-| `LowerHeaders` | `ResponsePlan.Headers` | a struct with a field per declared header, each optional, read from the raw headers by wire name; a `WithResponse` method on a success (§8.9), a field of the leaf on a failure (§8.5) | §7.2 |
+| `LowerHeaders` | `ResponsePlan.Headers` | a struct with a field per declared header, each optional, read from the raw headers by wire name; a `WithResponse` method on a success (§8.9), the failure value's `Headers` (§8.5) | §7.2 |
 | `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
 | `LowerStreaming` | `plan.StreamPlan` (direction; each side's content, framing and element) | a method per shape the operation offers; `Stream[T]` with `Recv()`/`Send()` over an element of any kind; a `bytes` side lowered as a file; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
-| `LowerErrors` | `plan.PlannedError` | the root error type + a leaf per distinct body type, which holds the body; each entry's conditions and declared facts in the operation's response decoder (§8.5) | §7.2 |
+| `LowerErrors` | `plan.PlannedError` | no error type: each entry's conditions, body decoder and declared facts in the operation's response decoder, which fills the runtime's failure value (§8.5) | §7.2 |
 | `PlaceDeclarations` | `Provenance.Source`, `TypePlan.Reach`, the target's placement options | the output unit each declaration lands in: one package unless a partition or a group split moves it (§4.17) | §13 |
 | `ComputeImports` | what each file's declarations reference: another unit's declarations, a type-table row's `Imports`, the runtime | per-file import sets, each import by its path; the name a file gives it is settled with every other name (§4.12) | — |
 | `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none named by its characters) + the options' naming tables | cased identifiers, the units' among them — the ONLY place names get cased (§4.12) | §3.2; INV4 |
@@ -1037,7 +1038,6 @@ type Field struct {
 }
 type InterfaceType struct { Common; Methods []MethodSig; Marker string } // union base / abstract model
 type Method struct { Common; Name Ident; Params []*Param; Returns Expr; Kind MethodKind }
-type ErrorType struct { Common; Body, Headers Expr }     // a leaf: what one kind of body is (§8.5)
 
 type Common struct {
     origin emitter.EntityID   // ← the IR ID this node came from (manifest / surface / prune; INV3)
@@ -1411,14 +1411,13 @@ into it binds as well, and the units' scope what a unit cannot be named:
   import, `testdata`, which `./...` skips, and `vendor`, which the `go` command reads at a module's
   root as vendored dependencies.
 - **A unit**: the names the target declares at its top level beside the spec's — Go's `Client`, its
-  option type and their constructors, a group unit's sub-client, and any runtime type it declares
-  there (`APIError`, `Response`, `Stream`).
+  option type and their constructors, a group unit's sub-client, and any runtime name it declares
+  there (`APIError`, `Body`, `Response`, `Stream`).
 - **A type**: the members the target gives every model — Go's `MarshalJSONTo`, `UnmarshalJSONFrom`,
   `Validate` and a redacting `String`, and the field holding the catch-all (§8.1); Kotlin's
   `equals`, `hashCode`, `toString`, `Builder` and `Companion`. The struct Go gives a union declares
-  those codecs, `Validate` and `Value` (§4.4), a wrapper `Value`, and an error's leaf `Body` and
-  `Headers` beside its embedded root (§8.5). No spec name lands in any of these, so none yields
-  there.
+  those codecs, `Validate` and `Value` (§4.4), and a wrapper `Value`. No spec name lands in either,
+  so none yields there.
 - **A union's variants**: `Unknown`, the fallback's name (§4.4), which a variant the spec names so
   yields to.
 - **A function**: its receiver, its context and request parameters, every local its body binds, and
@@ -1634,12 +1633,11 @@ their own (§4.12): a group named `shared`, or `internal` in Go, meets a reserve
 groups whose names render alike — tags `Webhooks` and `webhooks`, both the Go package `webhooks` —
 collide, and are told apart by group ID as any collision is. A name the options give a unit never
 yields. A declaration a target derives from another lands in that one's unit — a visibility shape
-(§4.6) in its type's, a union's interface, wrappers and fallback in the union's, an error's leaf in
-its body type's, an operation's request and headers types in the operation's — and a unit is a
-namespace of its own, so two declarations collide only within one (§4.12). A wrapper imports a
-variant another unit holds, which is how a union reaches into the shared unit. A primitive is
-declared in no unit, so a leaf over one lands where `TypePlan.Reach` puts a type. T-18 holds
-placement to these rules.
+(§4.6) in its type's, a union's interface, wrappers and fallback in the union's, an operation's
+request and headers types in the operation's — and a unit is a namespace of its own, so two
+declarations collide only within one (§4.12). A wrapper imports a variant another unit holds, which
+is how a union reaches into the shared unit. A service-wide error's headers type lands where a type
+all its groups reach does. T-18 holds placement to these rules.
 
 **The size check.** Each target states a limit on the declarations one unit holds, a default of its
 options version (§2.5), and reports each unit over it once, as a warning
@@ -1680,7 +1678,7 @@ parsed" is a lookup.
 | Content | Representation | Why |
 |---|---|---|
 | Models, enums, unions, discriminators, operations, clients, error types, serializers | **Typed AST nodes** | Spec-derived *structure*; correctness must be compiler-checked; must be uniform across languages |
-| Runtime core: HTTP transport, retry loop, backoff+jitter, pagination iterator runtime, a stream reader per framing, auth injectors, logging hooks | **Templates**, one small file each, parameterised by `Policy` | Policy-driven *boilerplate* whose shape does not vary with the spec |
+| Runtime core: HTTP transport, retry loop, backoff+jitter, pagination iterator runtime, a stream reader per framing, the error types, auth injectors, logging hooks | **Templates**, one small file each, parameterised by `Policy` | Policy-driven *boilerplate* whose shape does not vary with the spec |
 | Package docs, README, per-op usage examples | **Docs emitter** (`docast`, §10) | Prose with holes |
 
 A retry loop is the same code for every API; only numbers and header names vary. A typed AST there
@@ -2055,7 +2053,8 @@ Retryable:&true, Throttling:&true }`; policy default maps `429 → "TooManyReque
   Content:application/json, Type:RateLimited, Headers:[Retry-After]}, Fault:"client",
   Retryable:true, Throttling:true }]` — declared IR facts, carried as such, the content elected as a
   success's is (§3.1).
-- **refine.** `LowerErrors` builds a root and one leaf per distinct body type:
+- **refine.** `LowerErrors` generates no error type. A failure is one value of a runtime type, which
+  the operation's response decoder fills from the entry a response takes:
 
   ```go
   type APIError struct {         // the runtime's: what one failed response said
@@ -2064,65 +2063,104 @@ Retryable:&true, Throttling:&true }`; policy default maps `429 → "TooManyReque
       RawBody    []byte          // the body as it arrived, up to Policy.Errors' bound
       BodyErr    error           // why the body did not decode; nil when it did, or had none
       Fault      Fault           // the entry's, else the status's class
-      Kind       string          // the taxonomy's logical kind for the status
+      Kind       Kind            // the taxonomy's logical kind for the status; "" = none
+      Body       any             // the body as its Type lowers, of any kind; nil = none decoded
+      Headers    any             // the entry's declared headers, a struct; nil = none declared
       retry      retryFacts      // the entry's Retryable and Throttling, behind IsRetryable()
   }
 
   func (e *APIError) Unwrap() error { return e.BodyErr }
 
-  type RateLimitedError struct { // generated: what one kind of body is
-      APIError
-      Body    RateLimited
-      Headers RateLimitedHeaders // what the entries naming this body declare; none = no field
+  func Body[B any](err error) (B, bool) { // err's failure's body, where it is a B
+      var zero B
+      e, ok := errors.AsType[*APIError](err)
+      if !ok {
+          return zero, false
+      }
+      b, ok := e.Body.(B)
+      return b, ok
   }
-
-  func (e *RateLimitedError) Unwrap() error { return &e.APIError }
   ```
 
-  The root is embedded by value, so only `*RateLimitedError` is an error: embedded through a
-  pointer, `Error()` would promote onto the value too, and `go vet` refuses `%w` over the pointer.
-  The retry wiring reads `Retryable`/`Throttling` **from the IR fact** and falls back to
-  `Policy.Retry` only where the spec is silent (§6.3); throttling selects the throttling backoff
-  class. A leaf is named by its body type, then the suffix `naming.Policy` gives an error (`Error`
-  on Go, `Exception` on Kotlin): an anonymous body by its hint, as any anonymous type is (§4.12),
-  and a primitive by its `PrimKind`. So cases sharing a body share a leaf, and adding a case renames
-  none.
-- **emit.** Printer emits the leaf and registers each entry in the operation's response decoder:
-  `429 → *RateLimitedError`, with its fault and retry facts, which the retry runtime consults
-  through `IsRetryable()`/`IsThrottling()`.
+  `Headers[H]` reads the same way, and `(*APIError).Is` answers `errors.Is` for `sdk.ErrClient`,
+  `sdk.ErrServer` and a sentinel per kind (`sdk.ErrNotFound`). The retry wiring reads
+  `Retryable`/`Throttling` **from the IR fact** and falls back to `Policy.Retry` only where the spec
+  is silent (§6.3); throttling selects the throttling backoff class.
+- **emit.** Printer emits the decoder, registering each entry: `429 → RateLimited`, with its headers
+  struct, fault and retry facts, which the retry runtime consults through
+  `IsRetryable()`/`IsThrottling()`. The error types are runtime boilerplate (§5.2): their kinds come
+  from `Policy.Errors`, so a template renders them and no spec changes them.
 
-**The body is a field of the error, whatever its kind.** A model cannot be the error itself.
-`Error()` on a model with a member `error` does not compile in Go (`field and method with the same
-name`); a Kotlin model would become a `Throwable`, whose `message` and `cause` a spec member of
-either name would meet; and a model that is a success body elsewhere would be an error there too. A
-primitive has no methods to give it at all. So every kind takes one rule. A generic `APIError[T]`
-would spare Go a declaration per body, but Kotlin refuses a generic subclass of `Throwable`, and one
-rule serves all three targets.
+A caller branches on what happened, and reads the body when it needs it:
 
-**The root holds what a response says; the leaf what a body is.** A response's status, its raw
-headers and bytes, its fault and retry facts belong to the value, because one body type can arrive
-with any of them. So the tree has no client and server level between the two: a body shared by a 4XX
-and a 5XX would need a leaf under each, and a `default` body would need one under each class of
-status it can answer. `Fault` is a value on the root, and a caller asks it, on Kotlin as on Go.
+```go
+switch {
+case errors.Is(err, sdk.ErrNotFound): // …
+case errors.Is(err, sdk.ErrClient):
+    if p, ok := sdk.Body[sdk.Problem](err); ok { show(p) }
+}
+```
 
-**Every failure has one place**, which the entry a response takes decides (§3.1):
+**The status tells failures apart.** A body type rarely does: most specs name one error model for
+every status, or no body at all. On the golden spec at `ef1d30e8`, 453 of the 746 operations
+declaring several error bodies use one type for all of them; across 1,859 corpus documents, 145 of
+the 205 with an error body use a single type, and 8,538 of 13,106 failures have none. So the design
+keys on the status and carries the body as a value. Three designs lost to it. A generated type per
+body distinguishes what a spec rarely does, and gives a spec with one model one type for every
+failure; nor can a model be the error itself, since `Error()` beside a member `error` does not
+compile in Go. A client and a server exception wrapping a value per body leaves a 404 to a check.
+And fixed classes with an untyped body give up what the spec declares.
 
-- a `value` body raises its leaf, whatever `Type`'s kind, and the leaf embeds the root;
-- a `void` or `raw` body raises the root, whose `RawBody` holds whatever arrived;
-- a `Default` reads as any entry, and with no declared `Fault` takes the class of the status that
-  arrived, which is what `Policy.Errors` classifies by default: 4xx `client`, 5xx `server`, any
-  other none (§6.3). So does a status no entry answers, which raises the root;
-- a body that does not decode never hides the failure: the response raises the root with the bytes
-  it read and the decode error in `BodyErr`, since the status is what the caller must learn.
+**How a failure reaches its caller is the target's** (§2.5). Go needs no setting, since an `error`
+is already a value. Kotlin carries it in an exception, the default of `errorStyle` and the only
+style M3 builds:
+
+```kotlin
+class ApiFailure(val statusCode: Int, val rawHeaders: Headers, val rawBody: ByteArray,
+                 val bodyError: Throwable?, val fault: Fault, val kind: Kind?,
+                 val body: Any?, val headers: Any?)
+
+open class ApiException(val failure: ApiFailure) : Exception()
+open class ClientException(failure: ApiFailure) : ApiException(failure)
+open class ServerException(failure: ApiFailure) : ApiException(failure)
+class NotFoundException(failure: ApiFailure) : ClientException(failure)   // one per kind
+
+inline fun <reified B> ApiException.body(): B? = failure.body as? B
+inline fun <reified H> ApiException.headers(): H? = failure.headers as? H
+```
+
+A kind nests under its fault because a status states its class, so `catch (e: NotFoundException)`
+and `catch (e: ClientException)` both work; a body type could not nest, since one body can arrive
+under either fault. `Fault` is an enum there, with `Unknown` for what Go leaves empty, so a `when`
+over it is exhaustive. An entry whose declared `Fault` contradicts its status takes that fault's
+class, and `fault` and `kind` still state each. `ApiFailure` is no `Throwable`, so a later style,
+such as a `Result` return, or exceptions typed per body for a spec whose errors are named, is one
+more value of `errorStyle`: a template and a signature over the same value, with no plan or IR
+change.
+
+**The kinds are the taxonomy's.** `Policy.Errors`' default table names `BadRequest` 400,
+`Unauthorized` 401, `Forbidden` 403, `NotFound` 404, `Conflict` 409, `UnprocessableEntity` 422,
+`TooManyRequests` 429, `InternalServer` 500 and `ServiceUnavailable` 503. A configuration adds rows,
+and a protocol with statuses of its own has rows of its own. A range such as `4XX` is no obstacle:
+the status that arrives is exact.
+
+**Every failure has one place**, which the status and the entry it takes decide (§3.1):
+
+- its class, or on Go its sentinels, are its kind's, else its fault's, else the root's;
+- `Fault` is the entry's, else the class the status states: 4xx `client`, 5xx `server`, any other
+  none, which is what `Policy.Errors` classifies by default (§6.3). A `default` reads this way, and
+  so does a status no entry answers;
+- a `value` body decodes into `Body`, whatever `Type`'s kind, and a `void` or `raw` one leaves it
+  nil, with `RawBody` holding whatever arrived;
+- a body that does not decode never hides the failure: `Body` stays nil and `BodyErr` holds the
+  decode error, since the status is what the caller must learn.
 
 A body is buffered up to `Policy.Errors`' bound and no further, so an endless one cannot exhaust the
 caller; `RawBody` holds what was read, and a body cut there is one that does not decode. A union
 body is its struct (§4.4), and being read it is `Open`, so a new variant in an error reaches the
-caller as one rather than as a decode failure.
-
-A leaf's `Headers` are the headers its entries declare, a field per name, read as a success's are
-(§8.9), and a name two entries type differently is typed `string`, its wire form. A case with no
-body has no leaf, so what it declares stays in `RawHeader`, by wire name.
+caller as one rather than as a decode failure. `Headers` holds a struct of what the entry declares,
+named by its operation and case (`GetZone429Headers`) and read as a success's are (§8.9), so two
+cases sharing a body may declare different headers.
 
 ### 8.6 Auth (OR-of-ANDs, service default with an op override)
 
@@ -2241,8 +2279,8 @@ A required property the spec adds changes the builder's constructor, as it chang
   through a builder rather than a constructor with defaults.
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
   `suspend` function with no `@Throws` propagates cancellation alone. So every operation carries
-  `@Throws(ApiException::class, CancellationException::class)`, which the one root covers for every
-  leaf (§8.5), and a Swift caller receives an `NSError` holding the exception, with its `fault`.
+  `@Throws(ApiException::class, CancellationException::class)`, which covers every class of the tree
+  (§8.5), and a Swift caller receives an `NSError` holding the exception, and reads its `failure`.
 
 **Formatting.** Go formats in process with `go/format` (§5.1). Go can call no Kotlin formatter, and
 `Generate` does no I/O, so the Kotlin printer lays out canonical code itself, and the Kotlin
@@ -2307,16 +2345,16 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
   operations that declare any. So a response that declares headers adds a method, as a stream does
   (§8.4): Go `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone, GetZoneHeaders], error)`,
   Kotlin `suspend fun getZoneWithResponse(): Response<Zone, GetZoneHeaders>`. The runtime's
-  `Response` holds `StatusCode`, `RawHeader`, `Body`, what the plain method returns, or `struct{}`
-  and `Unit` for `void`, and `Headers`, a struct with a field per declared header. A spec's first
-  header adds a method and its next a field, each additive, as §4.13 asks of an input. A field is
-  found by its wire name, ignoring case as HTTP does, read by its type, `Style` and `Explode`, and
-  optional whatever `Required` says. A value that does not parse leaves it
-  unset: a response that delivered its body succeeded, and `RawHeader` still holds the value. A type
-  no header reader lowers, such as a model, is a coded degrade to its text. A pager or a poller has
-  no one response to return, so a paginated or long-running operation has no such method, and its
-  plan says which headers it reads. A header the document does not declare reaches a caller through
-  the transport (§5.4), which a caller may wrap.
+  `Response` reads as `APIError` does (§8.5): `StatusCode`, `RawHeader`, `Body`, what the plain
+  method returns, or `struct{}` and `Unit` for `void`, and `Headers`, a struct with a field per
+  declared header. A spec's first header adds a method and its next a field, each additive, as §4.13
+  asks of an input. A field is found by its wire name, ignoring case as HTTP does, read by its type,
+  `Style` and `Explode`, and optional whatever `Required` says. A value that does not parse leaves
+  it unset: a response that delivered its body succeeded, and `RawHeader` still holds the value. A
+  type no header reader lowers, such as a model, is a coded degrade to its text. A pager or a poller
+  has no one response to return, so a paginated or long-running operation has no such method, and
+  its plan says which headers it reads. A header the document does not declare reaches a caller
+  through the transport (§5.4), which a caller may wrap.
 - **No success response** (`POST /purge` declaring only `4XX`). **plan.** `Shape` `void`: the method
   returns only an error, and a status no declared response or error case matches is the error
   taxonomy's to classify (§8.5).
@@ -2405,7 +2443,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy | poller with `suspend` `poll()`/`pollUntilDone()`; the same sources | monitor/final-state channel |
 | `OneWay` | fire-and-forget method, no response binding | `suspend` function returning `Unit`, no response binding | — |
 | `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) | the same, over `Flow` | address/correlation paths |
-| `ErrorCase{Fault, Retryable}` | `APIError` root + a leaf per distinct body type, holding the body (§8.5); no body → the root; `Fault` a value; declared facts win over policy | `ApiException` root + a subclass per distinct body type, holding the body; no body → the root; `fault` a property; declared facts win over policy | status→error map; an error's raw body |
+| `ErrorCase{Fault, Retryable}` | one runtime `*APIError` holding the status, fault, kind, raw body and typed `Body` and `Headers`; `errors.Is` by fault and kind, `sdk.Body[T]` for the body (§8.5); declared facts win over policy | `ApiException` carrying an `ApiFailure`, a runtime tree by fault then kind (`ClientException` → `NotFoundException`), `e.body<T>()` for the body; declared facts win over policy | status→kind map; an error's raw body |
 | `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | `Authenticator` + per-scheme configuration; priority order | — |
 | `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly; a `Default` documented, never written onto a request (§4.10) | literals built from the decimal text, never a `Double` literal; `Ctor` → call; `symbol` → string explicitly; a `Default` documented, never sent | — |
 | `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters, and one that would begin with a digit led by its role's word (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, characters named and leading digits led the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
@@ -2453,14 +2491,13 @@ Post-milestone (architecture.md §2.3), but the contract is designed so it bolts
 change** (INV9). The `manifest.Manifest` and `Artifact` fields returned from `Generate` are the
 seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
 
-- **Generation manifest keyed by IR stable IDs.** Records spec/plan/emitter/config **hashes**,
-  a **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
-  `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the biggest
-  win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's structural
-  rename-inference machinery. A declaration derived from an entity keys under it, as
-  `User.ID#create` does (§8.1), a union's wrappers and fallback and an error's leaf among them, so
-  no two symbols share a key. Write/integrate and surface verification (architecture.md §2.3) both
-  rest on it.
+- **Generation manifest keyed by IR stable IDs.** Records spec/plan/emitter/config **hashes**, a
+  **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
+  `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the
+  biggest win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's
+  structural rename-inference machinery. A declaration derived from an entity keys under it, as
+  `User.ID#create` does (§8.1), a union's wrappers and fallback among them, so no two symbols share
+  a key. Write/integrate and surface verification (architecture.md §2.3) both rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
   pruning, writes a baseline, emits a notice.
@@ -2585,13 +2622,14 @@ throughout this document.
     it with a coded error, and a known tag over a body that does not match is an error on both;
     turning `OpenUnions` off closes every union and removes its `Inferred` mark, and a declared
     answer, once the IR has one, wins (§3.5, §4.4).
-23. **T-23 · Errors** — a fixture whose failures have as bodies a model with a member named `error`,
-    a union, a list and a primitive, beside a case with no body, a body two faults share and a
-    `default` beside a success, generates code that compiles on every target and passes `go vet`.
-    Each response raises the leaf its body names, or the root, with the `Fault` of its entry or its
-    status; a body that does not decode raises the root with the bytes read and the decode error; a
-    body past the bound stops there; a leaf's `Headers` hold what its entries declare; and cases
-    whose contents disagree elect one content on every target (§3.1, §8.5).
+23. **T-23 · Errors** — a fixture whose failures have as bodies one model across several statuses, a
+    model with a member named `error`, a union, a list and a primitive, beside a case with no body,
+    a `4XX` range and a `default` beside a success, generates no error type and code that compiles
+    on every target and passes `go vet`. Each response raises the class or sentinels of its status's
+    kind and fault, a status outside the table its fault's, with its typed `Body` and `Headers`
+    reachable through the accessors; a body that does not decode raises it with the bytes read and
+    the decode error; a body past the bound stops there; and cases whose contents disagree elect one
+    content on every target (§3.1, §8.5).
 24. **T-24 · Streams** — each framing, under an `Item` and by media type where the framing admits
     both, with an element of each kind, decodes on every target. An operation offering a value and a
     stream gets a method for each, each sending its own `Accept`; a line under an element with no
