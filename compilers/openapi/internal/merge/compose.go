@@ -14,7 +14,8 @@ type conjunct struct {
 	model *ir.Model
 }
 
-// composition returns the models the field composes: those of the declarations
+// composition returns the models the field composes
+// (docs/compilers/openapi.md#allof-redeclared-property): those of the declarations
 // no other declaration's type holds, each type once, in declaration order. Two
 // models say nothing of what they share, but an instance satisfies both, so
 // the field's type is the composition of them all. It returns nothing where

@@ -1268,9 +1268,9 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), and a list or map whose
   broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
-  (#1042); two models alike in every property compose rather than collapse to one type, and a model
-  and a map are reported as types the merge does not compare (#1083); two lists or maps whose
-  members are different models are reported the same way rather than composed (#1180). Open:
+  (#1042); two models alike in every property compose rather than collapse to one type (#1083); a
+  model and a map or a union are reported as types the merge does not compare (#1182), and so are two
+  lists, tuples or maps whose members are different models (#1180). Open:
   intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted
   value against the constraints written on the property (#10).
 
