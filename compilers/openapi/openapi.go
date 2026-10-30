@@ -24,6 +24,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+var _ compilers.Compiler = (*Compiler)(nil)
+
 // rootSrcIndex is the index of the only source milestone 1 compiles.
 //
 // Every place that stamps it has to agree: the loader records it in the

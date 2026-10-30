@@ -8,6 +8,8 @@ import (
 	"strconv"
 )
 
+var _ Visitor = VisitFunc(nil)
+
 // MaxWalkDepth bounds a [WalkValues] traversal (the bounded-recursion rule).
 // Value trees — defaults, examples — nest deepest, and compilers cap their
 // nesting far below this (the OpenAPI compiler at 128), so reaching the cap

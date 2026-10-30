@@ -6,6 +6,8 @@ import (
 	"github.com/dexpace/morphic/compilers"
 )
 
+var _ compilers.DocumentReader = Layered{}
+
 // Layered reads each document Held holds from it, and every other through
 // Under: a spec held in memory, such as an edited buffer, read as the file at
 // its path while the documents beside it stay on disk.

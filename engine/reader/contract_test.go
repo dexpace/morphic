@@ -13,12 +13,6 @@ import (
 	"github.com/dexpace/morphic/engine/reader"
 )
 
-var (
-	_ compilers.DocumentReader = reader.Disk{}
-	_ compilers.DocumentReader = (*reader.Memory)(nil)
-	_ compilers.DocumentReader = reader.Layered{}
-)
-
 // TestReaders_AnswerAlikeThroughTheContract pins what Memory promises, that
 // it reads as Disk would were each source a file at its Path: the same
 // requests, made through compilers.DocumentReader, get the same bytes or the

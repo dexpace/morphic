@@ -7,6 +7,8 @@ import (
 	"github.com/dexpace/morphic/ir/irfacts"
 )
 
+var _ Pass = Validator{}
+
 // ValidateName is the stable name of the [Validator] pass.
 const ValidateName = "validate"
 

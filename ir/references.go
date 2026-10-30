@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+var _ Visitor = (*IDReferences)(nil)
+
 // propIDType is the reflect.Type of [PropID], the one class of ID no registry
 // resolves; see [IDReferences] for why.
 var propIDType = reflect.TypeFor[PropID]()

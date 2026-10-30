@@ -13,6 +13,8 @@ import (
 	"github.com/dexpace/morphic/compilers"
 )
 
+var _ compilers.DocumentReader = Disk{}
+
 // Disk reads documents from the local file system and over http(s). The zero
 // value is ready to use and safe for concurrent reads.
 //
