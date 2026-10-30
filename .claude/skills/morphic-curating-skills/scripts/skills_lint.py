@@ -60,6 +60,8 @@ PROSE_PATH = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.*-]+)+")
 LINK = re.compile(r"\]\(([^)#]+)")
 LINK_TARGET = re.compile(r"\]\([^)]*\)")
 TEST = re.compile(r"(?:^|[^A-Za-z0-9_])(Test[A-Z][A-Za-z0-9_]*)")
+# A Go name placed in a file: `Name` in `path/to/file.go`.
+NAME_IN_FILE = re.compile(r"`([A-Za-z_]\w*)` in `([^`\s]+\.go)`")
 SECTION = re.compile(r"(ir-design|emitter-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
 # A § after the name of a document it can be in, a line break between them allowed: one of the
 # design documents SECTION holds to the tree, or an RFC. Any other names no document.
@@ -153,6 +155,13 @@ def path_word(word: str) -> str:
     stands, so "$(go env GOROOT)"/src/... names the toolchain's src; a single quote and a shell's
     punctuation around the word are none either."""
     return word.replace('"', "").strip("'$();,")
+
+
+def declares(source: str, name: str) -> bool:
+    """Report whether Go source declares name: a function or method, a type, a constant or a
+    variable, or a member of a group or struct, which a tab opens."""
+    pattern = rf"^(?:func (?:\([^)]*\) )?|type |const |var |\t){re.escape(name)}\b"
+    return re.search(pattern, source, re.M) is not None
 
 
 def names_a_path(tok: str) -> bool:
@@ -364,9 +373,9 @@ class Linter:
                 inside = not inside
 
     def check_names(self, d: Path, f: Path) -> None:
-        """Hold every path, link, skill, test, section, keyed entry and rule a file names to the
-        tree, and record each bare span that may be a rule key, which run judges once every key
-        is known."""
+        """Hold every path, link, skill, test, Go name, section, keyed entry and rule a file names
+        to the tree, and record each bare span that may be a rule key, which run judges once every
+        key is known."""
         text = f.read_text()
         named = {m.end() - 1 for m in NAMED_SECTION.finditer(text)}
         for m in re.finditer("§", text):
@@ -404,6 +413,10 @@ class Linter:
             for name in TEST.findall(line):
                 if name not in self.tests:
                     self.report(f, i, f"no test named {name}")
+            for name, path in NAME_IN_FILE.findall(line):
+                held = self.root / path
+                if held.is_file() and not declares(held.read_text(errors="replace"), name):
+                    self.report(f, i, f"{path} declares no {name}")
             # A section citation wraps at its spaces, so read on into the next line.
             joined = line + " " + (lines[i].lstrip() if i < len(lines) else "")
             for m in SECTION.finditer(joined):

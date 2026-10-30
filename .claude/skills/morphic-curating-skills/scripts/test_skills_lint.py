@@ -218,6 +218,26 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n}: no skill or command named morphic-gone"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(want))
 
+    def test_a_go_name_placed_in_a_file_is_held_to_its_declarations(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, "ir/b.go", "package ir\n\n// Mentioned is named, as is type Buried.\n"
+                                    "func Free() {}\n\n"
+                                    "func (s *S) Method() {}\n\ntype T int\n\nconst Solo = 1\n\n"
+                                    "var Plain = 1\n\nconst (\n\tGrouped = 1\n)\n")
+        named = "`Free` in `ir/b.go`, `Method` in `ir/b.go`, `T` in `ir/b.go`.\n"
+        also = ("`Solo` in `ir/b.go`, `Plain` in `ir/b.go`, `Grouped` in `ir/b.go`, `a` in a "
+                "sentence and `Heading` in `docs/parser-library.md`.\n")
+        lost = ("`Mentioned` in `ir/b.go`, `Buried` in `ir/b.go`, `Gone` in `ir/b.go`, `Fre` in "
+                "`ir/b.go` and `Lost` in `ir/gone.go`.\n")
+        write(self.root, skill, GOOD_SKILL + named + also + lost)
+        n = GOOD_SKILL.count("\n") + 3
+        want = [f"{skill}:{n}: ir/b.go declares no Mentioned",
+                f"{skill}:{n}: ir/b.go declares no Buried",
+                f"{skill}:{n}: ir/b.go declares no Gone",
+                f"{skill}:{n}: ir/b.go declares no Fre",
+                f"{skill}:{n}: ir/gone.go does not exist"]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
     def test_a_path_git_ignores_is_held_as_no_clone_has_it(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         local = ("# L\n\nRules kept on one machine.\n\n## Local\n`local-rule`\n\n"
