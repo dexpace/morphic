@@ -444,7 +444,7 @@ class Linter:
     def in_toolchain(self, rel: str) -> bool:
         """Report whether rel names a file or directory of the Go toolchain's sources, by its
         import path or its path below $GOROOT/src, never one beside or above them. A path gone
-        from the tree therefore passes where the toolchain holds the same one, as cmd/vet would."""
+        from the tree therefore passes where the toolchain holds the same one, such as cmd/vet."""
         if self.toolchain is None:
             return False
         rel = GOROOT_SRC.sub("", rel)

@@ -469,6 +469,10 @@ class GoSourcesTest(unittest.TestCase):
         def run(*args, **kwargs):
             # Asked elsewhere, go may name the toolchain of another module, or of none.
             self.assertEqual(kwargs.get("cwd"), root, "go is asked at the root")
+            # A failing go is trusted for nothing it printed, and a GOROOT that is not UTF-8 still
+            # decodes rather than crashing the run.
+            self.assertTrue(kwargs.get("check"), "a failing go raises")
+            self.assertEqual(kwargs.get("errors"), "replace", "undecodable bytes are replaced")
             if fail:
                 raise fail
             return subprocess.CompletedProcess(args, 0, stdout=stdout)
