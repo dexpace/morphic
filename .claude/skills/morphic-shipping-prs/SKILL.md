@@ -35,15 +35,15 @@ git status --short --untracked-files=all
 git merge-tree --write-tree origin/main HEAD >/dev/null || echo 'conflicts with origin/main'
 git log --format=%B origin/main..HEAD | grep -niE "$pat"
 git diff origin/main...HEAD | grep '^+' | grep -niE "$pat"
-python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py && git push
+python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 ```
 
-Each line prints nothing when all is well, bar the lint's clean line. The subject check prints each
-commit subject, and the title as the squash lands it, that runs past 72 characters, breaks the form
-or ends in a period; `git status` is empty because the push carries HEAD; each artifact hit is a
-line to judge.
+Run `git push` only once each line printed nothing, bar the lint's clean line. The subject check
+prints each commit subject, and the title as the squash lands it, that runs past 72 characters,
+breaks the form or ends in a period; `git status` is empty because the push carries HEAD; each
+artifact hit is a line to judge.
 Grep the PR's own text the same way (`gh pr view N --json title,body --jq '.title, .body'`). The
-lint exits 1 on a name a skill uses that this branch leaves naming nothing, so the push waits.
+lint exits 1 on a name a skill uses that this branch leaves naming nothing.
 
 ## Merging main in
 
