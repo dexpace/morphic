@@ -13,8 +13,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 - **Why.** The OpenAPI lowerer reached 159 methods on 13 fields without one long function, and
   dissolving it into functions of an immutable context ended in #217. The cap that now holds it
   counts `compilers/` alone (#1159).
-- **Probe.** `grep -hE '^func \([a-z]+ \*?<Type>\)' <files> | wc -l` for a type outside
-  `compilers/`, against the cap of 20 `TestMethodsPerType_StayUnderTheCap` holds there.
+- **Probe.** For a type outside `compilers/`, against `maxMethodsPerType`:
+  `git grep -hE '^func \(([[:alnum:]_]+ )?\*?<Type>(\[[^]]*\])?\) ' -- ':(glob)<dir>/*.go' ':!*_test.go' | wc -l`.
 
 ## Read a document once per run, through a shared walk or index
 `read-once-per-run`
