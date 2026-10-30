@@ -1053,6 +1053,49 @@ func TestAllOf_EveryDistributedVariantSharesOneComposedField(t *testing.T) {
 	assert.Equal(t, componentID("B"), body.Mixins[1].Target)
 }
 
+// TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor pins the judgment through an alias
+// component, in either order: an alias of a model composes as that model does,
+// and against a kind it is the conflict that model would be.
+func TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor(t *testing.T) {
+	t.Parallel()
+	alias, other, kind := "{$ref: '#/components/schemas/Z'}", "{$ref: '#/components/schemas/B'}", "{type: string}"
+	for _, tc := range []struct {
+		first, second string
+		mixins        []ir.TypeID // nil where the pair conflicts
+	}{
+		{first: alias, second: other, mixins: []ir.TypeID{componentID("Z"), componentID("B")}},
+		{first: other, second: alias, mixins: []ir.TypeID{componentID("B"), componentID("Z")}},
+		{first: alias, second: kind},
+		{first: kind, second: alias},
+	} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(`    A:
+      type: object
+      properties:
+        a: {type: string}
+    B:
+      type: object
+      properties:
+        b: {type: string}
+    Z:
+      $ref: '#/components/schemas/A'
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`, tc.first, tc.second)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		name := tc.first + " then " + tc.second
+		if tc.mixins == nil {
+			assert.Len(t, conflictDiags(diags), 1, name)
+			continue
+		}
+		assert.Empty(t, diags, name)
+		m := composedField(t, doc, "T", "v", "/allOf/0/properties/v")
+		require.Len(t, m.Mixins, 2, name)
+		assert.Equal(t, tc.mixins, []ir.TypeID{m.Mixins[0].Target, m.Mixins[1].Target}, name)
+	}
+}
+
 // TestAllOf_RelatedStructuresAreNotCalledAConflict pins the warning to pairs
 // that cannot both hold (GitHub #899). `["a"]` satisfies a list and a tuple, a
 // union may hold the very model it meets, and a `const` object may be a value of

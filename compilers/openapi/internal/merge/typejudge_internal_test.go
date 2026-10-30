@@ -4,6 +4,7 @@
 package merge
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -313,6 +314,34 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 	gone, ok := g.Resolve("t/alias-gone")
 	require.True(t, ok)
 	assert.Equal(t, gone, judge(g).unaliased(gone), "an alias with nothing at its end stands for itself, never for no type")
+}
+
+// TestUnaliased_ReadsAChainUpToItsBound pins maxTypeResolveDepth on an alias
+// chain: that many aliases are read to the type they stand for, and one more
+// stops at an alias, so a chain too long to read is judged as an opaque scalar.
+func TestUnaliased_ReadsAChainUpToItsBound(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		aliases   int
+		wantModel bool
+	}{
+		{"at the bound", maxTypeResolveDepth, true},
+		{"past the bound", maxTypeResolveDepth + 1, false},
+	} {
+		reg := map[ir.TypeID]ir.TypeDef{"t/end": &ir.Model{ID: "t/end"}}
+		next := ir.TypeID("t/end")
+		for i := range tc.aliases {
+			id := ir.TypeID(fmt.Sprintf("t/alias-%d", i))
+			reg[id] = &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: next}}
+			next = id
+		}
+		g, _ := stubMerger(reg)
+
+		_, isModel := judge(g).unaliased(reg[next]).(*ir.Model)
+
+		assert.Equal(t, tc.wantModel, isModel, tc.name)
+	}
 }
 
 // TestTypeJudge_UnrelatedPrimitivesAreDisjoint pins the pairs the relation
