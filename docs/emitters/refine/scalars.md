@@ -3,9 +3,8 @@
 - **Containers**: `List`/`MapT`/`Tuple` are real IR nodes with IDs, so `List<Map<K,List<T>>>`
   composes cleanly; constrained lists and maps keep their bounds; `List.Encoding` (packed/expanded)
   reaches the serializer; a nil `MapT.Key` is a string key, and a non-string one is handled or
-  diagnosed; tuples become positional structs
-  whose positions past `Constraints.MinItems` are optional and whose `Rest`, when present, is a
-  trailing slice.
+  diagnosed; tuples take a positional form whose positions past `Constraints.MinItems` are optional
+  and whose `Rest`, when present, trails them.
 - **Scalars**: the plan walks `Base` transitively once (`TypePlan.Scalar`), merging `Constraints`
   and settling `Encoding`, so the SDK, its docs and its mock read one chain; `ResolveScalarChains`
   lowers what it found, the root typed by the type table ([type table](../contract/type-table.md)).
@@ -23,9 +22,10 @@
   row names ([type table](../contract/type-table.md)) to have some. An enum is outside this line: it
   declares its own codec ([enums](enums.md)), which reads and writes its value type through that
   type's row, so it is a defined type whatever its value type maps to.
-- **External** (R4 §2.8): `External{Identity, Package, MinVersion}` becomes the type its type-table
-  row names for `Identity` ([type table](../contract/type-table.md)), imported with the row's
-  `Imports` and required at its `Dependency` — imported, not generated. `Package` and `MinVersion`
-  name what the source format imports, which a built-in row may follow; they cannot name a target's
-  type, so a row is what maps an identity. An identity with no row (`erlang:pid`, `erlang:fun`) gets
-  the passthrough/opaque strategy and a `warning` diagnostic, never a silent `any`.
+- **External** (ir-design §4.6): `External{Identity, Package, MinVersion}` becomes the type its
+  type-table row names for `Identity` ([type table](../contract/type-table.md)), imported with the
+  row's `Imports` and required at its `Dependency` — imported, not generated. `Package` and
+  `MinVersion` name what the source format imports, which a built-in row may follow; they cannot
+  name a target's type, so a row is what maps an identity. An identity with no row (`erlang:pid`,
+  `erlang:fun`) gets the passthrough/opaque strategy and a `warning` diagnostic, never a silent
+  `any`.

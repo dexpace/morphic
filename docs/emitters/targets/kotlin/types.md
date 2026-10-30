@@ -18,9 +18,9 @@ A Kotlin type codes through its row's `Codec`, a `KSerializer` the row names unl
 
 ## A declaration over a root
 
-Kotlin draws the same line at its own types: a value class over `Boolean`, a number, `String` or
-`ByteArray`, and a `typealias` over any other root, which leaves the root's type, and its
-serializer, in every signature.
+Kotlin draws the [shared line](../../refine/scalars.md) at its own types: a value class over
+`Boolean`, a number, `String` or `ByteArray`, and a `typealias` over any other root, which leaves
+the root's type, and its serializer, in every signature.
 
 ## Enums
 

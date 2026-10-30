@@ -26,7 +26,7 @@ list or a map body by status. Go's assertion is exact.
 
 A kind nests under its fault because a status states its class, so `catch (e: NotFoundException)`
 and `catch (e: ClientException)` both work; a body type could not nest, since one body can arrive
-under either fault. `Fault` is an enum there, with `Unknown` for what Go leaves empty, so a `when`
+under either fault. `Fault` is an enum, with `Unknown` for what Go leaves empty, so a `when`
 over it is exhaustive. An entry whose declared `Fault` contradicts its status takes that fault's
 class, and `fault` and `kind` still state each. `ApiFailure` is no `Throwable`, so a later style,
 such as a `Result` return, or exceptions typed per body for a spec whose errors are named, is one
@@ -35,4 +35,5 @@ change.
 
 ## A failure's place
 
-Its class is its kind's where the kind nests under its `Fault`, else its fault's, else the root's.
+A failure's class is its kind's where the kind nests under its `Fault`, else its fault's, else the
+root's.

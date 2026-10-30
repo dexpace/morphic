@@ -12,8 +12,8 @@ How each [return shape](../../operations/returns.md) lowers in Kotlin.
 
 ## `OtherResponse`
 
-Kotlin throws an exception that carries the same value, outside [the tree of failures](errors.md),
-so `catch (e: ApiException)` still takes failures alone:
+Kotlin throws an exception that carries an `OtherResponse`, outside [the tree of
+failures](errors.md), so `catch (e: ApiException)` still takes failures alone:
 
 ```kotlin
 class OtherResponse(val statusCode: Int, val rawHeaders: Headers, val rawBody: ByteArray,

@@ -66,7 +66,7 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
 - **A status the document does not list, and a body that does not decode** (`GET /zone` → `201`, or
   a `200` holding a proxy's HTML). **plan.** No field: [the
   plan](../plan/responses.md#which-entry-answers) says which entry answers. **refine.** The response
-  decoder reads a 2xx no entry answers as `Return`, so `GetZone` returns the `*Zone` a `201`
+  decoder reads a 2xx no entry answers as `Return`, so `GetZone` returns the `Zone` a `201`
   carries. A body that then does not decode, an empty one under a `value` among them, is the
   `OtherResponse` above with `BodyErr` set, never an `APIError`: the server answered and may have
   acted, so nothing retries it, and the caller still has the status and the bytes read.
@@ -77,5 +77,5 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
 - **An anonymous decorator** (`200 → {allOf: [{$ref: Zone}], description: …}`). **plan.** `Shape`
   `value`, `Type` the decorator, as the content names it, whose `TypePlan.Alias` is `Zone`
   ([decorators](../refine/decorators.md)). **refine.** `CollapseAliases` lowers the reference to
-  `Zone`, so the method returns `*Zone`; the description, which no return position holds, stays in
+  `Zone`, so the method returns `Zone`; the description, which no return position holds, stays in
   the IR for the docs emitter and is reported once ([decorators](../refine/decorators.md)).
