@@ -23,7 +23,7 @@ tag-mode matrix (each a distinct serializer) is normative (`ir-design.md §4.4`)
 
 A reference to a model with a `Discriminator`, or an `Abstract` one (ir-design §4.9), holds any of
 its subtypes, so it lowers as a union of them, and `Discrim` routes it as a union's. The base's own
-shape, unless it is `Abstract`, is a variant too, a struct of its flattened properties.
+shape, unless it is `Abstract`, is a variant too, a declaration of its flattened properties.
 
 ## Variant identity and recognition
 

@@ -29,7 +29,7 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
   the few operations that declare any. So a response that declares headers adds a method, as a
   stream does ([streaming](streaming.md)). The runtime's `Response` reads as `APIError` does
   ([failures](errors.md)): `StatusCode`, `RawHeader`, `Body`, what the plain method returns, or the
-  target's empty value for `void`, and `Headers`, a struct with a field per header of the primary
+  target's empty value for `void`, and `Headers`, a type with a field per header of the primary
   response and of each entry of `Others` that reaches no `OtherResponse` ([other
   responses](../plan/responses.md#other-responses)), the primary's declaration first, or the
   target's empty value where they declare none. An `OtherResponse` holds its own headers, and they
@@ -59,7 +59,7 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
   changes for one. It holds the status, every header as it arrived, the body as it arrived up to
   `Policy.Errors`' bound, why the body did not decode, the body as its `Type` lowers and the entry's
   declared headers. It is no failure, so no fault or kind answers it and no retry reads it. Its
-  `Headers` struct is named as a failure's is ([failures](errors.md)), `CreateRule202Headers`.
+  `Headers` type is named as a failure's is ([failures](errors.md)), `CreateRule202Headers`.
 
   A zero value would not do here: Kotlin's `Rule` has none, a pager has no value to zero, and a nil
   `*Rule` beside a nil error reads as a created rule until the caller's next line dereferences it.
