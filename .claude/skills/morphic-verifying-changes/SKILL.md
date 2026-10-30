@@ -22,7 +22,7 @@ goes to the type that owns the broken state
 | test T catches defect D | plant D in a throwaway worktree (`references/mutation.md#plant-in-a-throwaway-worktree`); the output names T failing, the mutant compiled, and the clean tree passes |
 | this guard or branch matters | force each side (`cond \|\| true`, `cond && false`); a test reddens for each. Coverage cannot see a side that holds no statement |
 | order-independent | swap the declaration order; diff the documents, and the diagnostics as a sorted multiset |
-| no regression against main | `scripts/sweep.py`; each new probe fails on `main`, and a build with the fix broken differs |
+| no regression against main | `scripts/sweep.py`, or `references/differentials.md#argv-differential` for a change under `cmd/`; each new probe fails on `main`, and a build with the fix broken differs |
 | the fixture reaches the check | confirm where it lands: `harness.Check` stops at the first error diagnostic |
 | a bound of N holds | lower it by one at each site; a test at N and at N+1 notices |
 | lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic |
@@ -43,7 +43,7 @@ goes to the type that owns the broken state
 `python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py`, run from the repository
 root, compiles a corpus at a base and at the working tree, then prints each side's exit codes and
 each spec whose exit code or output differs. It judges nothing: `references/differentials.md` says
-what the codes mean, and the script's `--help` gives the options.
+what the codes mean, and its `--help` gives the options.
 
 ## References
 
@@ -55,5 +55,5 @@ what the codes mean, and the script's `--help` gives the options.
 - `references/checkers.md`: scanners, lint and archtest rules that reach what they claim.
 - `references/mutation.md`: planting defects without fooling yourself.
 - `references/differentials.md`: controls, corpus sweeps and generated inputs.
-- `references/toolchain.md`: Go caching, coverage, test output and port behaviour that misleads
-  probes.
+- `references/toolchain.md`: Go versions, caching, coverage, test output and port behaviour that
+  mislead probes.

@@ -6,8 +6,7 @@ description: Use when asked to review a pull request, branch or commit range in 
 # Reviewing morphic pull requests
 
 The bar is `CLAUDE.md`'s: nothing left to find, and the first round finds it all. A finding counts
-only with the command that showed it. Post nothing to the PR
-unless asked.
+only with the command that showed it. Post nothing to the PR unless asked.
 
 ## Setup
 
@@ -37,8 +36,8 @@ Run all.
    rules there that no linter enforces.
 4. **Behaviour against main.** For each output the change alters, compile a minimal spec on
    `origin/main` and in the worktree; a normative document has none, so take
-   `references/review-probes.md#review-design-rules`. "As on main" never excuses a defect inside the change's
-   mechanism.
+   `references/review-probes.md#review-design-rules`. "As on main" never excuses a defect inside the
+   change's mechanism.
 5. **Claims, every class in full.** Check every member of each class of claim, never a sample
    (`references/review-probes.md#sweep-each-claim-class`). Counts are derived
    (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`).

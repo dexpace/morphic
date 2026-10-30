@@ -8,10 +8,10 @@ description: Use when writing or restructuring production Go code in this reposi
 Correct comes first: a design that scales and reads well but gives a wrong result has no value
 (`CLAUDE.md`, "Correctness comes first"). Among correct options, code here should scale with the
 document, take the next format and emitter without a rewrite, and stay simple to read and extend.
-Lean functional, not strictly: data in plain values, behaviour in
-functions of explicit inputs that return their results and diagnostics, and a method only where a
-type guards its own state. `CLAUDE.md`'s invariants and Go style come first; each rule here is a
-cost a later refactor or performance change paid.
+Lean functional, not strictly: data in plain values, behaviour in functions of explicit inputs that
+return their results and diagnostics, and a method only where a type guards its own state.
+`CLAUDE.md`'s invariants and Go style outrank what follows; each rule here is a cost a later
+refactor or performance change paid.
 
 ## Before writing
 
@@ -23,6 +23,7 @@ cost a later refactor or performance change paid.
 | code in `engine`, `compilers`, `compilers/compile`, `ir` or `pass` | `references/design-rules.md#second-user` |
 | a wrapper, interface or option | `references/design-rules.md#no-forwarding-layer` |
 | a limit | `references/design-rules.md#bound-the-product` |
+| a call into code the package does not own | `references/design-rules.md#catch-reaches-one-goroutine` |
 | a shape a caller or another consumer will use | `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise` |
 | a rule another package already implements | `.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#parallel-implementations-agree` |
 | a reading the parser library already makes | `.claude/skills/morphic-openapi-compiler/references/openapi-lessons.md#reuse-library-readings` |

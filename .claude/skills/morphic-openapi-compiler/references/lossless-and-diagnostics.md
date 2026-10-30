@@ -86,12 +86,24 @@ and every diagnostic is true, located, and decided from what actually happened.
 - **Rule.** A conflict detector, refusal or structural guard must flag only what it can prove wrong:
   test satisfiable narrowings, opaque types, every valid spelling a spec version allows,
   indirections the compiler unwraps, and file kinds it never reads, and run it over the corpus
-  before merge.
+  before merge. A shortcut reader (a prefix, an index, a sniff) that cannot decide falls back to the
+  full read.
 - **Why.** New checks rejected legal multipart bodies and valid 3.0 boolean bounds, and warned on
-  allOf narrowings that are satisfiable (#149, #92).
+  allOf narrowings that are satisfiable (#149, #92). A sniff of a bounded prefix refused a longer
+  flow-style spec (#341).
 - **Probe.** For each check write a must-fire and a must-stay-silent fixture, including alias/$ref
-  indirection and every valid spec-version spelling, then run morphic-harness over testdata and
-  require no new diagnostics.
+  indirection, every valid spec-version spelling and a valid input past each shortcut's bound, then
+  run morphic-harness over testdata and require no new diagnostics.
+
+## Decode into a pointer when a guard must tell null from a value
+`null-decodes-to-zero`
+
+- **Rule.** `encoding/json/v2` decodes `null` into a non-pointer as its zero value with a nil error,
+  so a guard asking "is this text" answers yes to `null`. Decode into a pointer and read nil as a
+  value of the wrong kind, and give each such guard a `null` row.
+- **Why.** A promotion guard took `x-deprecated-reason: null` for an empty string at #355's first
+  commit, until #463 read a `*string` (#355, #463).
+- **Probe.** Compile the key with the value `null`, and read the field and the diagnostics.
 
 ## Own every refusal and bound; never borrow one from a dependency
 `explicit-guard-not-incidental`

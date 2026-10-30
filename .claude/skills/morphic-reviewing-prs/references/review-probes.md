@@ -21,13 +21,26 @@ defect, keep a `main` control.
 - **Rule.** Before the first finding, list the change's classes of claim and check every member:
   each name against the tree, citation against the item it cites, statement about code on `main`,
   statement about a library against its `docs/parser-library.md` entry, quoted command run from
-  the root, script in each context it runs in (a subdirectory, each platform branch), and body
-  sentence on the final tree. A class checked by sample is reported unreviewed, never clean.
-- **Why.** Before this rule, a review of #1143 took nine rounds, each sampling a class or trying
-  one angle: citations were read for 58 of 203 rules before all 383, and a misattribution sat in
-  the rest.
-- **Probe.** The report gives each class with the count of members checked; a count below the
-  class's size is a round still open.
+  the root, script in each context it runs in (a subdirectory, each platform branch), body sentence
+  on the final tree, and each construct a rule settles
+  (`references/review-probes.md#tracker-on-what-a-rule-settles`). A class checked by sample is
+  reported unreviewed, never clean.
+- **Why.** A review of #1143 took nine rounds, each sampling a class or trying one angle: citations
+  were read for 58 of 203 rules before all 383, and a misattribution sat in the rest.
+- **Probe.** The report gives each class and the members checked; fewer than its size is a round
+  still open.
+
+## Search the tracker for each construct a rule settles
+`tracker-on-what-a-rule-settles`
+
+- **Rule.** For each construct a change's rule decides, run
+  `gh issue list --state all --limit 1000 --search "<construct>"`. Each open issue on it is closed by
+  the change, cited as left open, or answered with why the change departs from it.
+- **Why.** A stream rule keyed on a content having no `Item` while #601 expects `Item` on each content
+  classified as a stream, an element rule left #630 unnamed, and neither issue appeared in the PR
+  (#1167, #1170).
+- **Probe.** The report lists each construct, the issues its search returned, and what the change
+  does about each.
 
 ## Give a normative document's rules something that can disagree with them
 `review-design-rules`

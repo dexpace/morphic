@@ -28,7 +28,31 @@ how to measure so the number means what the claim says.
 - **Probe.** Build `./cmd/morphic` with `go build -o <bin>` in a worktree of the merge base and at
   the head, run the two alternately under `/usr/bin/time -l` on macOS or
   `perf stat -e instructions:u` on Linux, and compare each side's median and range. A run that
-  exits non-zero measured a failure.
+  exits non-zero measured a failure. With neither tool, take
+  `references/finding-cost.md#cpu-time-without-a-counter`.
+
+## Without an instruction counter, compare CPU time and say so
+`cpu-time-without-a-counter`
+
+- **Rule.** On a host with neither `/usr/bin/time -l` nor `perf`, run base and head alternately and
+  compare the user plus sys seconds of `bash -c 'time -p <bin> compile <spec>'`, saying that is what
+  was measured. A benchmark is no stand-in: `go test -bench` reports wall clock, which load skews,
+  and each one reads the fixtures it names, never the golden spec.
+- **Why.** A Linux host with no `perf` left a review of a cost claim no instrument (#1162).
+- **Probe.** `command -v perf`, then each side's range from the alternated runs against the gap.
+
+## Price a stage after the compile from a saved document
+`cost-of-a-later-stage`
+
+- **Rule.** A count over a whole compile cannot see a stage the compile dwarfs, such as an
+  `ir.Editor` write or a pass, since the compile's own spread is larger. Save the compiled document
+  once, have a throwaway program decode it and run the stage, raise the repetitions until the stage
+  dominates, and subtract a run that only decodes. Compare each side's range with the gap before
+  quoting it.
+- **Why.** On the golden spec, reading an operation came to -11.2k instructions a call over a
+  compile, whose range spanned 2.09G, and 3.4k over a decode (#1165).
+- **Probe.** Run the program with no stage at least three times: a range wider than the gap claimed,
+  or a negative cost, means the run measured noise.
 
 ## Measure against a base the branch holds
 `check-the-base-build`

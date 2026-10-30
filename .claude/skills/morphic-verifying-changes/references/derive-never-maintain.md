@@ -13,7 +13,8 @@ two together both ways.
 - **Why.** Each such count went stale silently ("thirteen" internal packages when there were
   fourteen, "one of the two" policies after a third merged), and no test reads prose (#301, #119).
 - **Probe.** `git diff origin/main...HEAD | grep -nE '^\+.*\b(one|two|three|four|five|six|seven|eight|nine|ten|[0-9]+)\b'`
-  over comments and docs; derive or delete each hit.
+  over comments and docs; derive or delete each hit. A branch's commit bodies stay out of it, as a
+  merge sets its own (#1162).
 
 ## Derive a list that mirrors code, or hold it to the code both ways
 `derive-lists-from-their-source`
