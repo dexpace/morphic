@@ -186,7 +186,7 @@ class LintTest(unittest.TestCase):
         write(self.root, skill, GOOD_SKILL + named + lost)
         n = GOOD_SKILL.count("\n") + 1
         gone = [f"{skill}:{n + 4}: internal/runtime/gone does not exist",
-                f"{skill}:{n + 4}: $GOROOT/src/internal/gone.go does not exist",
+                f"{skill}:{n + 4}: GOROOT/src/internal/gone.go does not exist",
                 f"{skill}:{n + 4}: internal/../../secret.txt does not exist",
                 f"{skill}:{n + 5}: GOROOT/src/gone.go does not exist",
                 f"{skill}:{n + 5}: GOROOT/src/lost.go does not exist"]
@@ -194,13 +194,28 @@ class LintTest(unittest.TestCase):
         # Where go cannot say, the toolchain's paths are held to the tree, as any other.
         held = [f"{skill}:{n}: internal/runtime/maps does not exist",
                 f"{skill}:{n}: internal/runtime/maps/map.go does not exist",
-                f"{skill}:{n + 1}: $GOROOT/src/internal/runtime/maps/map.go does not exist",
+                f"{skill}:{n + 1}: GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 1}: cmd/compile/internal/walk/range.go does not exist",
                 f"{skill}:{n + 2}: GOROOT/src/internal/runtime/maps/map.go does not exist",
-                f"{skill}:{n + 2}: $GOROOT/src does not exist",
+                f"{skill}:{n + 2}: GOROOT/src does not exist",
                 f"{skill}:{n + 3}: GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 3}: internal/runtime/maps does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(held + gone))
+
+    def test_a_quoted_one_word_span_is_read_as_a_commands_word_is(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        src = Path(self.dir.name) / "goroot" / "src"
+        write(src, "internal/runtime/maps/map.go", "package maps\n")
+        named = ("See `\"ir/a.go\"`, `'ir/a.go'`, `\"tool.py\"`, `'morphic-harness'`,\n"
+                 "`\"$GOROOT\"/src/internal/runtime/maps/map.go` and "
+                 "`\"$GOROOT/src/internal/runtime/maps/map.go\"`.\n")
+        lost = "Not `\"ir/gone.go\"`, `'ir/lost.go'`, `\"gone.py\"` or `'morphic-gone'`.\n"
+        write(self.root, skill, GOOD_SKILL + named + lost)
+        n = GOOD_SKILL.count("\n") + 3
+        want = [f"{skill}:{n}: ir/gone.go does not exist", f"{skill}:{n}: ir/lost.go does not exist",
+                f"{skill}:{n}: no file named gone.py", f"{skill}:{n}: no skill or command named "
+                "morphic-gone"]
+        self.assertEqual(sorted(self.lint(src)[1]), sorted(want))
 
     def test_a_path_git_ignores_is_held_as_no_clone_has_it(self):
         skill = ".claude/skills/good-skill/SKILL.md"
@@ -539,6 +554,22 @@ class MainTest(unittest.TestCase):
             outside = Path(d) / "outside"
             outside.mkdir()
             self.assertEqual(self.run_lint(outside)[0], 2, "a directory outside any repository")
+
+
+    def test_a_tree_with_no_skill_is_no_pass(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            skills = root / ".claude/skills"
+            for state in ("no skills directory", "an empty one", "one holding only a file"):
+                with self.subTest(state=state):
+                    code, out = self.run_lint(root)
+                    self.assertEqual(code, 2, out)
+                    self.assertIn("found no skill", out)
+                    self.assertNotIn("clean", out)
+                skills.mkdir(parents=True, exist_ok=True)
+                if state == "an empty one":
+                    (skills / "README.md").write_text("x\n")
 
 
 class UnexpectedErrorTest(unittest.TestCase):

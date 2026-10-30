@@ -8,8 +8,9 @@ describe.
 Usage: python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 
 Prints one "path:line: problem" per finding, the line left out for one about a whole file, then a
-summary line. Exit 0 when clean, 1 on a finding, 2 when it cannot run. Each rule in a reference is
-held to the format morphic-curating-skills gives. Scripts are executable Python 3.14, declared in
+summary line. Exit 0 when clean, 1 on a finding, 2 when it cannot run or finds no skill to check.
+Each rule in a reference is held to the format morphic-curating-skills gives. Scripts are executable
+Python 3.14, declared in
 their first line and a PEP 723 script block, with the standard library only and a test_<name>.py
 beside each. A path the tree lacks may name the Go toolchain's sources, which `go env GOROOT`
 locates; where go cannot say, every path is held to the tree.
@@ -98,10 +99,9 @@ ELSEWHERE = {
 }
 # A file named without its directory, such as `sweep.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
-# A path below the toolchain's src, as a span writes it, or as a command's word reads once
-# GO_ENV_GOROOT is folded into $GOROOT, the word's double quotes dropped and its leading $
-# stripped.
-GOROOT_SRC = re.compile(r"^\$?GOROOT/src(?:/|$)")
+# A path below the toolchain's src, as path_word leaves one, with GO_ENV_GOROOT folded into $GOROOT
+# before it reads a command's words.
+GOROOT_SRC = re.compile(r"^GOROOT/src(?:/|$)")
 GO_ENV_GOROOT = "$(go env GOROOT)"
 
 
@@ -145,6 +145,14 @@ def go_sources(root: Path) -> Path | None:
     # An empty answer reads as ".", so a relative one is refused before it can name the cwd.
     src = Path(done.stdout.strip()) / "src"
     return src if src.is_absolute() and src.is_dir() else None
+
+
+def path_word(word: str) -> str:
+    """Return what a word of a code span spells, for the checks a one-word span and a command's
+    words share. A double quote, which leaves $GOROOT to expand, is no part of a path wherever it
+    stands, so "$(go env GOROOT)"/src/... names the toolchain's src; a single quote and a shell's
+    punctuation around the word are none either."""
+    return word.replace('"', "").strip("'$();,")
 
 
 def names_a_path(tok: str) -> bool:
@@ -378,9 +386,7 @@ class Linter:
                     self.report(f, i, why or f"{path} holds no rule {key}")
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").replace(GO_ENV_GOROOT, "$GOROOT").split():
-                    # A double quote, which leaves $GOROOT to expand, is no part of the path
-                    # wherever it stands: "$(go env GOROOT)"/src/... names the toolchain's src.
-                    word = word.replace('"', "").strip("'$();,")
+                    word = path_word(word)
                     if names_a_path(word) and (why := self.missing(d, word)):
                         self.report(f, i, why)
             # Prose joins words with a slash (I/O, kept/dropped), so a path there is held only
@@ -411,6 +417,7 @@ class Linter:
                     self.report(f, i, f"docs/{doc}.md has no entry {key}")
 
     def check_span(self, d: Path, f: Path, line: int, tok: str) -> None:
+        tok = path_word(tok)
         if RULE_CITE.fullmatch(tok):
             return  # check_names holds a rule citation to its file, and reports it once
         if tok.startswith("morphic-") and "/" not in tok:
@@ -517,9 +524,10 @@ class Linter:
 
 def findings(root: Path) -> tuple[int, list[str]]:
     """Lint the skills of the repository at root; return how many skills there are and every
-    finding. A tree with no skills has neither."""
-    if not (root / ".claude" / "skills").is_dir():
-        return 0, []
+    finding. A tree with no skill is an error, since a pass over nothing would print clean."""
+    skills = root / ".claude" / "skills"
+    if not skills.is_dir() or not any(d.is_dir() for d in skills.iterdir()):
+        raise RuntimeError(f"found no skill under {skills}, so nothing was checked")
     top_level, tests, known = load_tree(root)
     files = [root / f for f in sorted(known) if f.startswith(".claude/skills/")]
     lint = Linter(root, top_level, tests, known, files, go_sources(root))
