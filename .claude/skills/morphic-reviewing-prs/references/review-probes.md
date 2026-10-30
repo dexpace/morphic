@@ -8,10 +8,12 @@ defect, keep a `main` control.
 `code-before-claims`
 
 - **Rule.** In the first round, before any corpus run: diff old against new semantics at every named
-  bound, re-plant every mutation the PR lists, ask which input class the corpus cannot contain (deep
-  nesting, oversized documents, aliasing), and grep for mutable globals and layering breaks.
+  bound, re-plant every mutation the PR lists and plant your own at each new branch, call or
+  argument it skips, ask which input class the corpus cannot contain (deep nesting, oversized
+  documents, aliasing), and grep for mutable globals and layering breaks.
 - **Why.** Three rounds that took their agenda from the PR body found only body defects. A fourth
-  that read the new file found two code defects in it (#340).
+  that read the new file found two code defects in it (#340). Each mutant #1153 listed reddened a
+  test, while dropping an argument its new code passed reddened none.
 
 ## Check every class of claim in full, in the first round
 `sweep-each-claim-class`
