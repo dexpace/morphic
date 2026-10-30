@@ -472,6 +472,7 @@ demonstrably needed:
 type OpPlan struct {
     PrimaryResponse *ir.Response     // SDK-ergonomic pick; IR keeps ALL responses
     Return          ResponsePlan     // how the primary response is read
+    RequestContent  *ir.Content      // the request content elected; nil = no body
     Errors          []PlannedError   // every failure the operation declares, ranges collapsed
                                      // (404/4XX/catch-all)
     Page            *PagePlan        // nil = not paginated
@@ -547,10 +548,11 @@ type BodyShape string                 // "value" | "void" | "raw" | "stream"
 ```
 
 **One election.** A payload may offer several contents, and `plan.Policy.ContentRanking` (§3.5)
-elects the one a `ResponsePlan` or a `StreamSide` reads. A success, a failure and each side of a
-stream share that helper, so two targets cannot read one 429 as different media types. A media type
-no entry ranks comes after every one that is ranked, and a tie goes to the smaller media type by
-bytes, since a format's map of media types has no order to honour.
+elects the one a `ResponsePlan` or a `StreamSide` reads and the one `RequestContent` sends. A
+success, a failure, a request and each side of a stream share that helper, so two targets cannot
+read one 429 as different media types, or send one request as them. A media type no entry ranks
+comes after every one that is ranked, and a tie goes to the smaller media type by bytes, since a
+format's map of media types has no order to honour.
 
 **Body shapes.** `Shape` says how a body is read, not what it holds: what it holds is `Type`, and
 every type kind already has a lowering (§4.2), so a shape per kind would repeat the type in a second
@@ -586,30 +588,32 @@ its body (§8.5, §8.9).
 contents: an operation may offer `application/json` beside `application/x-ndjson`. A content
 *streams* when it declares an `Item`, or when its direction has a `StreamDetail` and
 `plan.Policy.Framings` names its media type. `Send` elects among the request's contents that stream,
-and `Recv` among those of the operation's responses, a primary `Default` included. Where `Return`
-elects a value and `Recv` a stream, the operation offers both, and a target generates a method for
-each (§8.4). A primary `Default` that streams, which `Streaming` does not summarize, has `Direction`
-`server`. A `StreamSide` holds:
+and `Recv` among those of the operation's responses, a primary `Default` included; a direction with
+a `StreamDetail` and none that streams elects among all its contents. Where `Recv` holds another
+content than `Return`, or `Send` another than `RequestContent`, the operation offers both, and a
+target generates a method for each (§8.4). A primary `Default` that streams, which `Streaming` does
+not summarize, has `Direction` `server`. A `StreamSide` holds:
 
 - **`Framing`**, the first that applies: `protocol` under a primary binding other than HTTP, which
-  frames its own messages; `bytes` for a file, which has no frames; and what `plan.Policy.Framings`
-  maps the media type to. A direction with a `StreamDetail` and no content that streams, as when a
-  compiler option names a media type the table does not, elects among all its contents and takes
-  `bytes`, as does an `Item` on a media type the table does not name, and each is reported once as a
-  warning `emitters/plan/unframed-stream`.
+  frames its own messages; `bytes` for a file, which has no frames; what `plan.Policy.Framings` maps
+  the media type to; and otherwise `bytes`, reported once as a warning
+  `emitters/plan/unframed-stream`, for an `Item` on a media type the table does not name or a media
+  type only a compiler option names.
 - **`Element`**: `Content.Item` where the content declares one, else `StreamDetail.Events`, else the
-  content's `Type`, of any kind. A `bytes` side has none. Nor does a side with no `Item` whose
-  element's root (§3.2) is `string` or `bytes`: OpenAPI applies `schema` to the complete content
-  (OpenAPI 3.2 §4.14.3), so such a schema says the body is text and declares no item, and decoding
-  each line as a JSON string would fail on every line that is not one. Each frame reaches the caller
-  as its text, an SSE frame as its `data`. The compiler names that type as `Events` all the same
-  ([`streaming-media`](./compilers/openapi.md#streaming-media)), and keeps it, since what it means
-  is the plan's to read. `Variant.Event` applies where `Element`, read through `Alias`, is a union.
-- **`FrameMembers`**, on an `sse` side whose `Element` is a model. An item of `text/event-stream` is
-  the event itself, its `data`, `event`, `id` and `retry` (OpenAPI 3.2 §4.14.4), so a declared
-  `Item` sets it. Below 3.2 a schema may be the event or only what `data` holds, and
-  `plan.Policy.FrameMembers` reads it as the event where its members are among those four and
-  include `data`, marked `Inferred`. Unset, the frame's `data` decodes into `Element`.
+  content's `Type`, of any kind. A `bytes` side has none. Nor does a side framed by its media type,
+  with no `Item`, whose element's root (§3.2) is `string` or `bytes`: OpenAPI applies `schema` to
+  the complete content (OpenAPI 3.2 §4.14.3), so such a schema says the body is text and declares no
+  item, and decoding each line as a JSON string would fail on every line that is not one. Each frame
+  reaches the caller as its text, an SSE frame as its `data`. The compiler names that type as
+  `Events` all the same ([`streaming-media`](./compilers/openapi.md#streaming-media)), and keeps it,
+  since what it means is the plan's to read. `Variant.Event` applies where `Element`, read through
+  `Alias`, is a union.
+- **`FrameMembers`**, on an `sse` side with an `Element`. An item of `text/event-stream` is the
+  event itself, its `data`, `event`, `id` and `retry` (OpenAPI 3.2 §4.14.4), so a declared `Item`
+  sets it, whatever its kind. Below 3.2 a schema may be the event or only what `data` holds, and
+  `plan.Policy.FrameMembers` reads it as the event where a model's members, or those of every
+  variant of a union, are among those four and include `data`, marked `Inferred`. Unset, the frame's
+  `data` decodes into `Element`.
 
 **Errors.** `Errors` holds every failure the operation declares: its `ErrorCase`s, then its
 service's `CommonErrors`, then its `Default` where that is not the primary response (§3.5), whose
@@ -799,7 +803,7 @@ type Policy struct {
     PrimaryResponse func(*ir.Operation) *ir.Response  // default: lowest 2xx, else the Default
     EnvelopeDetect  EnvelopePolicy                    // off unless explicitly enabled
     Framings        map[string]Framing                // media type → how it frames a stream (§3.1)
-    FrameMembers    bool                              // default on: an SSE model naming only frame
+    FrameMembers    bool                              // default on: an SSE schema naming only frame
                                                       // fields describes the frame (§3.1)
     OpenUnions      bool                              // default on: a union a client reads keeps a
                                                       // variant it does not know (below)
@@ -861,17 +865,18 @@ the IR, and a copy would be a second home for it. A record the plan derives as a
 copy, though it holds declared facts: a `PagePlan` the policy may infer has no IR field to read
 instead, `Errors` collapse several cases into one entry, and the stream and long-running plans
 gather facts spread over more than one node — a stream's content and framing, the poll operation's
-monitor type —
-so each reads the same however its facet was written. What the test removes is a field or record
-that derives nothing. Any other fact that fails it shapes only the code of the artifact that uses it
+monitor type — so each reads the same however its facet was written. What the test removes is a
+field or record that derives nothing. Any other fact that fails it shapes only the code of the
+artifact that uses it
 — how an untagged union's variant is recognized on decode (§4.4), which symbols a file imports — and
 is a shared refine helper in `emitters/refine` when more than one target needs it: reused code, not
 a plan field.
 
 The procedure decided every existing field:
 
-1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, the content each `ResponsePlan` elects,
-   the unwrap behind `Return.Type`, `Open`, and `PagePlan`, an inferred one included.
+1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `RequestContent` and the content each
+   `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open`, and `PagePlan`, an inferred one
+   included.
 2. **Derivations several artifacts expose** stay: `Return`, `Errors`, `Auth`, `Bindings`, `Stream`
    and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
    `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared` and `Unflattened` are read
@@ -980,7 +985,7 @@ snapshot pins the whole lowering deterministically.
 | `ExtractInterfaces` | `Model.Abstract`, `Implements`, union membership | Go interfaces / client interfaces for testability | §4.3 |
 | `MapExternalTypes` | `External{Identity, Package, MinVersion}`, `Ctx.Types` | the type table's row for the identity (§2.6): imported library type + dependency-manifest entry; no row → opaque strategy + diagnostic | §4.6 |
 | `MaterializeValues` | `Value{Kind, Num BigVal, Ref, Ctor}` | literals; `Num` → bignum/decimal, never float64; `Ctor` → call; `symbol` → string explicitly; a default documented, never written onto a request (§4.10) | §6 |
-| `BuildRequestShaping` | `plan.BindingView`, the target's parameter shape (§4.13) | request builders, per-protocol param binding, each operation's request type | §8 |
+| `BuildRequestShaping` | `plan.BindingView`, `RequestContent`, the target's parameter shape (§4.13) | request builders, per-protocol param binding, each operation's request type | §8 |
 | `LowerHeaders` | `ResponsePlan.Headers` | a struct with a field per declared header, each optional, read from the raw headers by wire name; a `WithResponse` method on a success (§8.9), a field of the leaf on a failure (§8.5) | §7.2 |
 | `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
 | `LowerStreaming` | `plan.StreamPlan` (direction; each side's content, framing and element) | a method per shape the operation offers; `Stream[T]` with `Recv()`/`Send()` over an element of any kind; a `bytes` side lowered as a file; terminal ends | §7.3 |
@@ -1403,7 +1408,8 @@ into it binds as well, and the units' scope what a unit cannot be named:
   import, `testdata`, which `./...` skips, and `vendor`, which the `go` command reads at a module's
   root as vendored dependencies.
 - **A unit**: the names the target declares at its top level beside the spec's — Go's `Client`, its
-  option type and their constructors, and a group unit's sub-client.
+  option type and their constructors, a group unit's sub-client, and any runtime type it declares
+  there (`APIError`, `Response`, `Stream`).
 - **A type**: the members the target gives every model — Go's `MarshalJSONTo`, `UnmarshalJSONFrom`,
   `Validate` and a redacting `String`, and the field holding the catch-all (§8.1); Kotlin's
   `equals`, `hashCode`, `toString`, `Builder` and `Companion`. The struct Go gives a union declares
@@ -2015,13 +2021,13 @@ Responses:[200 → {application/json → MetricsPage, text/event-stream → Metr
   `func (c *Client) TailMetrics(ctx) (*MetricsPage, error)` and
   `func (c *Client) TailMetricsStream(ctx) (*Stream[Metrics], error)` — no request type, since the
   operation has no input (§4.13). An operation whose elected content streams has the one method,
-  under its own name. `Stream[T]` is the runtime's, and `Recv() (T, error)` returns each element and
-  then `io.EOF`. What `T` is follows from `Recv`:
+  under its own name. `Stream[T]` is the runtime's: `Recv() (T, error)` returns each element and
+  then `io.EOF`, and `Close` releases the response, which a caller that stops early must do. What
+  `T` is follows from `Recv`:
   - an `Element` lowers as a field of its type does (§9), whatever its kind. A union's is its struct
     (§8.2), and `Recv` returns `io.EOF` after a variant whose `Variant.Event.Terminal` is true, so
-    an event union needs nothing of its own beyond §8.2. Under `FrameMembers` the reader fills the
-    element's `data`, `event`, `id` and `retry` from the frame; otherwise it decodes the frame's
-    `data`.
+    an event union needs nothing of its own beyond §8.2. Under `FrameMembers` the element decodes
+    from the frame's `data`, `event`, `id` and `retry`, and otherwise from its `data`.
   - no `Element` is `Stream[string]`, each frame's text, unread.
   - a `bytes` side has no frames and no `Stream`: `Recv` lowers as a file does, to `*RawBody`
     (§8.9), and `Send` to an `io.Reader` field of the request type.
@@ -2439,7 +2445,9 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   a **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
   `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the biggest
   win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's structural
-  rename-inference machinery. Write/integrate and surface verification (architecture.md §2.3) both
+  rename-inference machinery. A declaration derived from an entity keys under it, as
+  `User.ID#create` does (§8.1), a union's wrappers and fallback and an error's leaf among them, so
+  no two symbols share a key. Write/integrate and surface verification (architecture.md §2.3) both
   rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
@@ -2515,8 +2523,8 @@ throughout this document.
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in §7.
 12. **T-12 · Wire-conformance (milestone 3)** — expected request shapes derived from `Doc + Plan`
-    alone, diffed against the generated SDK under HTTP interception; request-side mismatches block,
-    response-side inform.
+    alone, the elected media type among them, diffed against the generated SDK under HTTP
+    interception; request-side mismatches block, response-side inform.
 13. **T-13 · Runtime determinism** — the retry, backoff and timeout templates run inside a
     `testing/synctest` bubble against `httptest.NewTestServer`, whose in-memory network works within
     the bubble: a backoff schedule is asserted exactly under the fake clock and completes instantly,
@@ -2544,8 +2552,9 @@ throughout this document.
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
     group reach; under `SplitByGroup` the units' imports form no cycle, and groups whose names
-    render alike, or as a name the units' scope reserves, get distinct units; and every partition
-    error and warning of §4.17 has a fixture that draws it.
+    render alike, or as a name the units' scope reserves, get distinct units; a union with a variant
+    in another unit compiles; and every partition error and warning of §4.17 has a fixture that
+    draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
     members and union variants after every name each scope of §4.12 reserves, after characters alone
     and after names that begin with a digit, and its groups after the standard-library packages its
@@ -2575,9 +2584,10 @@ throughout this document.
     both, with an element of each kind, decodes on every target. An operation offering a value and a
     stream gets a method for each, each sending its own `Accept`; a line under an element with no
     `Item` and a `string` root reaches the caller as text, where a declared `string` `Item` decodes
-    as JSON; an SSE element reads the frame's fields under `FrameMembers` and the frame's `data`
-    otherwise; a `bytes` side lowers as a file; and each operation of the golden spec that streams
-    gets a `StreamPlan` (§3.1, §8.4).
+    as JSON; an SSE element, a union of event shapes among them, reads the frame's fields under
+    `FrameMembers` and the frame's `data` otherwise; a stream under a binding other than HTTP draws
+    no `unframed-stream`; a `bytes` side lowers as a file; and each operation of the golden spec
+    that streams gets a `StreamPlan` (§3.1, §8.4).
 25. **T-25 · Emit-layer rules** — one check per rule of §5.6. A template's context type holds no
     pointer, map, function or method, by reflection. A golden whose enum value, description and
     example hold `{{ .X }}`, a `$x` and a `*/` keeps each verbatim and compiles. Each function map
