@@ -97,8 +97,8 @@ func (idx *PropIndex) MergeProperty(p ir.Property, source Source) {
 // settle folds each field declared more than once against reg, in the order of
 // its first redeclaration. A field's first declaration is read off the model as
 // the walk left it, required flag included. A fold reads only nodes the walk
-// built and writes only its own field, so no fold reads another's result: a
-// node one mints is named only by the field it writes.
+// built and the one it mints, and writes only its own field, so no fold reads
+// another's result: a node one mints is named only by the field it writes.
 func (idx *PropIndex) settle(reg ir.TypeRegistry, mint Mint, report Reporter) {
 	g := Merger{
 		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },

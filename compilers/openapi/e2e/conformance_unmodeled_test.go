@@ -393,6 +393,7 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 		{model: "TwoInline", field: "data", mixins: []ir.TypeID{anon("TwoInline", "0"), anon("TwoInline", "2")}},
 		{model: "TwoComponents", field: "data", mixins: []ir.TypeID{meeting, recording}, nullable: true},
 		{model: "DiscriminatedBase", field: "pet", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
+		{model: "DiscriminatedFirst", field: "pet", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
 		{model: "KeptDefault", field: "data", mixins: []ir.TypeID{meeting, recording}},
 	} {
 		owner, ok := doc.Types[ir.TypeID("t/openapi"+schemas+tc.model)].(*ir.Model)

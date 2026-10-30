@@ -100,11 +100,11 @@ type folding struct {
 	// field's type holds every one of them, so it adopts their shape detail.
 	winner int
 	cone   []bool
-	// parts lists the declarations whose models the field composes, which puts
-	// every declaration in the cone, or nothing where the winner's type is the
-	// field's (composition).
-	parts  []int
-	merged ir.Property
+	// conjuncts lists the models the field composes, which puts every
+	// declaration in the cone, or nothing where the winner's type is the field's
+	// (composition).
+	conjuncts []conjunct
+	merged    ir.Property
 	// notes holds what the fold reports at each declaration, in order, and
 	// lost marks each declaration something of which the field does not carry.
 	notes [][]note
@@ -139,9 +139,9 @@ func newFolding(g *Merger, decls []declaration) *folding {
 		}
 	}
 	f.winner = f.widestCone()
-	f.parts = f.composition()
+	f.conjuncts = f.composition()
 	for i := range n {
-		f.cone[i] = len(f.parts) > 0 || f.holds(f.winner, i)
+		f.cone[i] = len(f.conjuncts) > 0 || f.holds(f.winner, i)
 	}
 	return f
 }
@@ -172,8 +172,8 @@ func (f *folding) widestCone() int {
 	return best
 }
 
-// foldType settles the field's type: the winner's target or the model that
-// composes parts, admitting null only where every declaration in the cone does
+// foldType settles the field's type: the winner's target or the model composing
+// the conjuncts, admitting null only where every declaration in the cone does
 // (intersectNull), as foldNullVerdicts states for a single schema. The top type
 // admits null whatever its bit says, so a cone member that is the top type below
 // a winner that is not says nothing of null. Every declaration outside the cone
@@ -193,7 +193,7 @@ func (f *folding) foldType() {
 		}
 	}
 	merged.Target = f.decls[f.winner].prop.Type.Target
-	if len(f.parts) > 0 {
+	if len(f.conjuncts) > 0 {
 		merged.Target = f.compose()
 	}
 	f.merged.Type = merged
@@ -345,7 +345,7 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if v.Kind == ir.ValueNull {
 		return nullable
 	}
-	if len(f.parts) == 0 && f.rel[f.winner][i] == relSame {
+	if len(f.conjuncts) == 0 && f.rel[f.winner][i] == relSame {
 		return true
 	}
 	ref := f.merged.Type

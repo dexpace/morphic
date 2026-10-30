@@ -7,28 +7,36 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// composition returns the declarations whose models the field composes: those
+// conjunct is one model a field composes: the index of the declaration naming
+// it, and the model that declaration's type stands for.
+type conjunct struct {
+	decl  int
+	model *ir.Model
+}
+
+// composition returns the models the field composes: those of the declarations
 // no other declaration's type holds, each type once, in declaration order. Two
 // models say nothing of what they share, but an instance satisfies both, so
 // the field's type is the composition of them all. It returns nothing where
 // fewer than two remain, since one type then holds every other, or where one
 // that remains is no model, which leaves the type to the winner.
-func (f *folding) composition() []int {
+func (f *folding) composition() []conjunct {
 	judge := typeJudge{Resolve: f.g.Resolve}
-	var parts []int
+	var conjuncts []conjunct
 	for i, d := range f.decls {
 		if f.heldByAnother(i) {
 			continue
 		}
-		if _, ok := judge.model(d.prop.Type); !ok {
+		m, ok := judge.model(d.prop.Type)
+		if !ok {
 			return nil
 		}
-		parts = append(parts, i)
+		conjuncts = append(conjuncts, conjunct{decl: i, model: m})
 	}
-	if len(parts) < 2 {
+	if len(conjuncts) < 2 {
 		return nil
 	}
-	return parts
+	return conjuncts
 }
 
 // heldByAnother reports whether some other declaration's type already says all
@@ -42,26 +50,22 @@ func (f *folding) heldByAnother(i int) bool {
 	return false
 }
 
-// compose mints the model that composes parts, as a written allOf of them
+// compose mints the model that composes f.conjuncts, as a written allOf of them
 // composes: SelectBase picks its Base among those written as a $ref, and the
 // rest are Mixins in declaration order. Only the target is carried. A conjunct
 // says nothing of null, which is the field's reference's to say (foldType).
 func (f *folding) compose() ir.TypeID {
-	judge := typeJudge{Resolve: f.g.Resolve}
-	models := make(map[int]*ir.Model, len(f.parts))
 	var refs []int
-	for _, i := range f.parts {
-		m, _ := judge.model(f.decls[i].prop.Type)
-		models[i] = m
-		if !hoistedAt(m, f.decls[i].prop.Provenance) {
-			refs = append(refs, i)
+	for k, c := range f.conjuncts {
+		if !hoistedAt(c.model, f.decls[c.decl].prop.Provenance) {
+			refs = append(refs, k)
 		}
 	}
-	base, hasBase := SelectBase(refs, func(i int) bool { return models[i].Discriminator != nil })
+	base, hasBase := SelectBase(refs, func(k int) bool { return f.conjuncts[k].model.Discriminator != nil })
 	composed := &ir.Model{}
-	for _, i := range f.parts {
-		ref := ir.TypeRef{Target: f.decls[i].prop.Type.Target}
-		if hasBase && i == base {
+	for k, c := range f.conjuncts {
+		ref := ir.TypeRef{Target: f.decls[c.decl].prop.Type.Target}
+		if hasBase && k == base {
 			composed.Base = &ref
 			continue
 		}

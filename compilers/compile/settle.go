@@ -52,10 +52,10 @@ func (t *Types) queue(q *[]Settlement, verb string, s Settlement) {
 // queued, each kind in the order queued, and returns their diagnostics; Finish
 // calls it once every promised node is built. It checks ctx before each
 // settlement and stops once it is done, leaving a registry the caller must not
-// assemble. A settlement that changes how many nodes the registry holds by
-// more than it registered is refused and left standing, a compiler bug rather
-// than a recovery. A swap of one node for another keeps the count, so the
-// references it leaves dangling are left to pass.Validate and irverify.
+// assemble. A settlement leaving the registry any size but the one its Register
+// calls account for is refused and left standing, a compiler bug, not a
+// recovery. A swap of one node for another keeps the count, so the references
+// it leaves dangling are left to pass.Validate and irverify.
 func (t *Types) settle(ctx context.Context) []ir.Diagnostic {
 	t.settled = true
 	pending := slices.Concat(t.completing, t.pending)

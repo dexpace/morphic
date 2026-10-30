@@ -266,6 +266,33 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/composed/components/schemas/DiscriminatedFirst/allOf/0/properties/pet": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/DiscriminatedFirst/allOf/0/properties/pet",
+      "name": {
+        "hint": "pet"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DiscriminatedFirst/allOf/0/properties/pet"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/composed/components/schemas/InlineFirst/allOf/0/properties/data": {
       "kind": "model",
       "id": "t/composed/components/schemas/InlineFirst/allOf/0/properties/data",
@@ -441,6 +468,53 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/DiscriminatedBase/allOf/0/properties/pet"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/DiscriminatedFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/DiscriminatedFirst",
+      "name": {
+        "source": "DiscriminatedFirst",
+        "canonical": "discriminated_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DiscriminatedFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/DiscriminatedFirst/allOf/0/properties/pet",
+          "name": {
+            "source": "pet",
+            "canonical": "pet"
+          },
+          "wireName": "pet",
+          "type": {
+            "target": "t/composed/components/schemas/DiscriminatedFirst/allOf/0/properties/pet",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DiscriminatedFirst/allOf/0/properties/pet"
           }
         }
       ],
@@ -896,7 +970,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "7c93dd0badff28a8017b57a1a3531d663d278bd44d29a261da1b352ae8b8f819"
+      "hash": "ab55463477447fd591392b86967f813215af4404b6982f734774e94a17ad3d48"
     }
   ]
 }

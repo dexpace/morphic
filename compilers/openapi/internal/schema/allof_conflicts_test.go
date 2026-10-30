@@ -930,9 +930,9 @@ const redeclaredModelsSpec = `    Meeting:
         - {type: object, properties: {data: {$ref: '#/components/schemas/Meeting'}}}
 `
 
-// composedField returns the model the field wire of the component name
-// composes to, its ID in the composed space at its first declaration, and
-// asserts the component and the inline declaration each keep their own node.
+// composedField returns the model the field wire of the component name composes
+// to, and asserts its ID is first, the field's first declaration, in the
+// composed space, and that it is anonymous and points back at that declaration.
 func composedField(t *testing.T, doc *ir.Document, name, wire, first string) *ir.Model {
 	t.Helper()
 	p := propertyOf(t, doc, name, wire)

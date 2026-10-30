@@ -89,6 +89,15 @@ components:
         - type: object
           properties:
             pet: {$ref: '#/components/schemas/Pet'}
+    # The same declarations in the other order keep that Base.
+    DiscriminatedFirst:
+      allOf:
+        - type: object
+          properties:
+            pet: {$ref: '#/components/schemas/Pet'}
+        - type: object
+          properties:
+            pet: {$ref: '#/components/schemas/Recording'}
     # A value says nothing of the whole composition, so it is kept, not adopted.
     KeptDefault:
       allOf:
