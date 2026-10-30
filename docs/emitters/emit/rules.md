@@ -1,8 +1,9 @@
 # Rules the emit layer holds to
 
-§5.3 guards what a template may contain. These rules hold for the emit layer as a whole, the printer
-and the engine's write included, because each is easy to lose once code exists and none shows in a
-single run's output. T-25 gives each a test.
+The [template guards](templates.md#two-guards-on-the-boilerplate-templates) say what a template may
+contain. These rules hold for the emit layer as a whole, the printer and the engine's write
+included, because each is easy to lose once code exists and none shows in a single run's output.
+T-25 gives each a test.
 
 - **No mutable model.** A template receives a value built for it: scalars, and lists and structs of
   scalars, with no pointer, map, function or method anywhere in it. `text/template` calls a method
@@ -26,13 +27,14 @@ single run's output. T-25 gives each a test.
   path, as an error `engine/duplicate-artifact-path` naming both `Origins`, before it writes any.
   Paths are compared case-folded, since a file system that ignores case keeps only one of `Foo.go`
   and `foo.go`.
-- **Formatter failures.** A formatter that fails is the located, hard diagnostic of §5.3, and its
-  artifact is not written: `Format` has no path that returns its input. No artifact reads the build
-  that made it — a timestamp, a VCS stamp, an absolute path — so a build's flags change no byte.
-  What a build can change is `go/format`, which is compiled into Morphic and which a Go release may
-  revise, so moving the toolchain a release is built with is a change to the output, which T-6's
-  goldens show. Kotlin's formatter runs outside `Generate`, and its printer lays out what it checks
-  (§8.8).
+- **Formatter failures.** A formatter that fails is the located, hard diagnostic of the [format
+  pass](templates.md#two-guards-on-the-boilerplate-templates), and its artifact is not written:
+  `Format` has no path that returns its input. No artifact reads the build that made it — a
+  timestamp, a VCS stamp, an absolute path — so a build's flags change no byte. What a build can
+  change is `go/format`, which is compiled into Morphic and which a Go release may revise, so moving
+  the toolchain a release is built with is a change to the output, which T-6's goldens show.
+  Kotlin's formatter runs outside `Generate`, and its printer lays out what it checks ([Kotlin
+  formatting](../targets/kotlin/overview.md#formatting)).
 - **Nothing written, something said.** A target that returns no artifact reports why, as a warning
   `emitters/<target>/no-artifacts` naming the cause, such as a `Scope` that matches nothing or a
   document with no type or operation, so an empty directory never reads as success.

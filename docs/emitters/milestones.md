@@ -3,11 +3,11 @@
 Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
 
 1. **M3a — plan layer + the three first targets' skeletons.** `emitters/plan` with its
-   language-independent golden corpus; `emitters/golang` and both Kotlin targets
-   (`emitters/kotlin`) emitting models, enums, and one service client end-to-end. Proves the
-   plan/refine/emit boundary and that the IR retains what a refiner needs (architecture.md §6 M3).
-   Three targets at once make the plan's neutrality a test from the first model: a plan field only
-   one of them can use fails §3.6 at M3a, not when a later language lands.
+   language-independent golden corpus; `emitters/golang` and both Kotlin targets (`emitters/kotlin`)
+   emitting models, enums, and one service client end-to-end. Proves the plan/refine/emit boundary
+   and that the IR retains what a refiner needs (architecture.md §6 M3). Three targets at once make
+   the plan's neutrality a test from the first model: a plan field only one of them can use fails
+   the [plan-or-refine test](plan/plan-or-refine.md) at M3a, not when a later language lands.
 2. **M3b — the hard axes.** Unions (all four wire shapes), discriminators, visibility projections,
    the four optionality states, containers, external types, values, on each first target. Each is a
    refine step tied to a specific un-lowered IR fact — the acceptance test cashed.

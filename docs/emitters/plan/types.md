@@ -10,18 +10,18 @@ type TypePlan struct {
                                     // in order: members only the catch-all governs
     Unflattened []ir.TypeID         // the composition entries naming no model, which Flattened
                                     // cannot hold: each lowered beside the properties, or degraded
-    Union      UnionShape           // a union's wire shape, one of four (§4.4); "" = not a union
+    Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Open       bool                 // a union or polymorphic base keeps a value no variant
-                                    // recognizes rather than refusing it (§3.5, §4.4)
+                                    // recognizes rather than refusing it (policy.md, ../refine/unions.md)
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
-    Shapes     map[ir.Lifecycle]ModelShape // the wire shapes the document exercises (§3.3)
+    Shapes     map[ir.Lifecycle]ModelShape // the wire shapes the document exercises (below)
     Alias      ir.TypeID            // the type every reference to this one is emitted as, this
-                                    // one emitting nothing: a decorator's end (§4.15), or a dedup
+                                    // one emitting nothing: a decorator's end (../refine/decorators.md), or a dedup
                                     // alias's target once that pass (architecture.md §2.2) and its
                                     // record (ir-design §16, question 2) exist; "" = itself
     Reach      []ir.GroupID         // the top-level operation groups whose operations reach this
-                                    // type, sorted; empty = none does (§4.17)
+                                    // type, sorted; empty = none does (../refine/output-units.md)
     Inferred   map[string]ir.Provenance
 }
 
@@ -29,10 +29,10 @@ type TypePlan struct {
 // Discriminator together (ir-design §4.4's tag-mode conventions).
 type UnionShape string              // "one_of" | "any_of" | "discriminated" | "key_tagged"
 
-type ScalarChain struct {           // a Scalar's Base chain walked to its root (§4.9)
+type ScalarChain struct {           // a Scalar's Base chain walked to its root (../refine/scalars.md)
     Root        ir.TypeID           // the chain's first node that is not a Scalar: a primitive, or
                                     // what an alias stands over (ir-design §4.2); "" = opaque
-    Constraints *ir.Constraints     // merged along the chain, decimal throughout (§4.11)
+    Constraints *ir.Constraints     // merged along the chain, decimal throughout (../refine/constraints.md)
     Encoding    *ir.Encoding        // the encoding declared nearest this scalar; nil = the root's
 }
 
@@ -50,10 +50,11 @@ type DiscrimLocator string          // "property" | "property_name" | "index"
 
 Note what `TypePlan` does *not* do: it does not choose Go's sealed interface vs a native union, does
 not case anything, does not resolve reserved words, and does not copy a fact the IR states outright
-(§3.6). `Flattened` is the *computed* flattening; the IR keeps `Base`, `Implements` and `Mixins`
-distinct beside it, so a class-based target can map `Base→extends` / `Implements→interfaces` /
-`Mixins→inline` where the three first targets flatten (§8.8). The plan does not decide which — that
-is per-language (§4).
+([plan or refine](plan-or-refine.md)). `Flattened` is the *computed* flattening; the IR keeps
+`Base`, `Implements` and `Mixins` distinct beside it, so a class-based target can map `Base→extends`
+/ `Implements→interfaces` / `Mixins→inline` where the three first targets flatten
+([inheritance](../refine/models.md#inheritance)). The plan does not decide which — that is
+per-language ([refine](../refine/pipeline.md)).
 
 `Flattened`, `Required`, `Undeclared` and `Unflattened` are one `ir.FlattenedProperties` walk, by
 the rules ir-design §4.3 states: its order, which declaration of a redeclared member is taken, and
@@ -85,24 +86,24 @@ type ModelShape struct {
 }
 ```
 
-`Props` are drawn from `TypePlan.Flattened` (§3.2), so a composed model's shapes hold what it
-inherits and mixes in, each member visible as the declaration it takes says (ir-design §4.3).
+`Props` are drawn from `TypePlan.Flattened`, so a composed model's shapes hold what it inherits and
+mixes in, each member visible as the declaration it takes says (ir-design §4.3).
 `readOnly → Only:[read, delete, query]`; `writeOnly → Only:[create, update]` (ir-design §5.2);
 `Visibility.None` → excluded from every projection (distinct from the zero value); PATCH flips
 properties optional unless `HTTPBinding.PatchImplicitOptionality` points at `false` (nil is the
 protocol default, which flips them), and a patch shape never carries a property's default onto the
-wire (§4.10); operation-level `ParameterVisibility` /
-`ReturnTypeVisibility` override which filter applies. Unknown visibility classes are opaque
-filters evaluated per class (`ir-design.md §5.2`).
+wire ([values](../refine/values.md)); operation-level `ParameterVisibility` / `ReturnTypeVisibility`
+override which filter applies. Unknown visibility classes are opaque filters evaluated per class
+(`ir-design.md §5.2`).
 
 ## A model with lifecycle visibility
 
 IR: `Model{ Properties:[id (readOnly), name (required), email, password (writeOnly, Secret)],
 Additional:"closed" }`.
 
-`ModelShape(User, read)` = {id,name,email}; `ModelShape(User, create)` =
-{name,email,password}. `Flattened` walks `Base`, `Implements` and `Mixins` (none here). That
-`User` is both written and read is the derived-fact index's, `Facts.Usage(User)` = Input|Output,
-which no plan field copies (§3.6).
+`ModelShape(User, read)` = {id,name,email}; `ModelShape(User, create)` = {name,email,password}.
+`Flattened` walks `Base`, `Implements` and `Mixins` (none here). That `User` is both written and
+read is the derived-fact index's, `Facts.Usage(User)` = Input|Output, which no plan field copies
+([plan or refine](plan-or-refine.md)).
 
 What refine and emit build from it: [Go](../targets/go/models.md#user-in-go).

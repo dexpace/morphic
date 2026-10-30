@@ -12,20 +12,21 @@ never modified — an emitter imports `ir` and reads it.
 
 ## How the documents divide
 
-A shared document says what every target must do; a target's document says how that target does
-it. So a rule that holds for every target has one home, under the stage or the domain it belongs to,
-and a document under `targets/` states what its language decides and restates no shared rule. A
-shared document may name a language to illustrate a rule, or for a fact about it that explains the
-rule, and it spells a runtime type as Go does; every choice a target makes is in that target's
-documents.
+A shared document says what every target must do; a target's document says how that target does it.
+So a rule that holds for every target has one home, under the stage or the domain it belongs to, and
+a document under `targets/` states what its language decides and restates no shared rule. A shared
+document may name a language to illustrate a rule, or for a fact about it that explains the rule,
+and it spells a runtime type as Go does; every choice a target makes is in that target's documents.
 
 A trace of one construct divides where the pipeline does. Its IR and its plan are the same for every
 target, so they sit in the shared document, and what refine and emit build from them sits in the
 target's.
 
-A new target adds a directory under `targets/` holding the documents the others hold, and answers
-every construct of the [lowering table](refine/lowering-table.md). `INV<n>` names an invariant of
-`CLAUDE.md`, and `T-<n>` a test of the [mandatory tests](testing/mandatory-tests.md).
+A new target adds a directory under `targets/` holding the documents every target has (`overview`,
+`lowering`, `types`, `models`, `unions`, `naming`, `operations`, `returns` and `errors`) and any of
+its own, and answers every construct of the [lowering table](refine/lowering-table.md). `INV<n>`
+names an invariant of `CLAUDE.md`, and `T-<n>` a test of the [mandatory
+tests](testing/mandatory-tests.md).
 
 ## The documents
 
@@ -51,51 +52,51 @@ every construct of the [lowering table](refine/lowering-table.md). `INV<n>` name
 
 **Refine: what every target's lowering does**
 
-- [The refine layer](refine/pipeline.md), its [step list](refine/steps.md), the
-  [target AST](refine/target-ast.md) and the [lowering table](refine/lowering-table.md).
+- [The refine layer](refine/pipeline.md), its [step list](refine/steps.md), the [target
+  AST](refine/target-ast.md) and the [lowering table](refine/lowering-table.md).
 - Types: [models](refine/models.md), [unions and discriminators](refine/unions.md),
   [enums](refine/enums.md), [containers, scalars and external types](refine/scalars.md),
   [decorators](refine/decorators.md).
-- Values: [values](refine/values.md), [constraints](refine/constraints.md),
-  [unmodeled entries](refine/unmodeled.md).
-- Names and place: [naming](refine/naming.md), [reserved names](refine/reserved-names.md),
-  [output units](refine/output-units.md).
+- Values: [values](refine/values.md), [constraints](refine/constraints.md), [unmodeled
+  entries](refine/unmodeled.md).
+- Names and place: [naming](refine/naming.md), [reserved names](refine/reserved-names.md), [output
+  units](refine/output-units.md).
 - [Interface extraction and request shaping](refine/requests.md).
 
 **Operations: how a call reaches its caller on every target**
 
 - [Return shapes](operations/returns.md), [failures](operations/errors.md),
-  [pagination](operations/pagination.md), [streaming](operations/streaming.md),
-  [long-running and one-way operations](operations/long-running.md), [auth](operations/auth.md),
-  [the client and its base URL](operations/client.md).
+  [pagination](operations/pagination.md), [streaming](operations/streaming.md), [long-running and
+  one-way operations](operations/long-running.md), [auth](operations/auth.md), [the client and its
+  base URL](operations/client.md).
 
 **Emit**
 
-- [The emit layer](emit/printing.md), [structure and boilerplate](emit/templates.md) and
-  [its rules](emit/rules.md).
+- [The emit layer](emit/printing.md), [structure and boilerplate](emit/templates.md) and [its
+  rules](emit/rules.md).
 
 **Each target**
 
-- Go: [overview](targets/go/overview.md), [target AST and printer](targets/go/emit.md),
-  [lowering table](targets/go/lowering.md), [types](targets/go/types.md),
-  [models](targets/go/models.md), [unions](targets/go/unions.md), [naming](targets/go/naming.md),
+- Go: [overview](targets/go/overview.md), [target AST and printer](targets/go/emit.md), [lowering
+  table](targets/go/lowering.md), [types](targets/go/types.md), [models](targets/go/models.md),
+  [unions](targets/go/unions.md), [naming](targets/go/naming.md),
   [operations](targets/go/operations.md), [return shapes](targets/go/returns.md),
   [failures](targets/go/errors.md).
-- Kotlin/JVM and Kotlin Multiplatform: [overview](targets/kotlin/overview.md),
-  [lowering table](targets/kotlin/lowering.md), [types](targets/kotlin/types.md),
+- Kotlin/JVM and Kotlin Multiplatform: [overview](targets/kotlin/overview.md), [lowering
+  table](targets/kotlin/lowering.md), [types](targets/kotlin/types.md),
   [models](targets/kotlin/models.md), [unions](targets/kotlin/unions.md),
-  [naming](targets/kotlin/naming.md), [operations](targets/kotlin/operations.md),
-  [return shapes](targets/kotlin/returns.md), [failures](targets/kotlin/errors.md),
-  [Multiplatform common code](targets/kotlin/multiplatform.md), [Swift](targets/kotlin/swift.md),
+  [naming](targets/kotlin/naming.md), [operations](targets/kotlin/operations.md), [return
+  shapes](targets/kotlin/returns.md), [failures](targets/kotlin/errors.md), [Multiplatform common
+  code](targets/kotlin/multiplatform.md), [Swift](targets/kotlin/swift.md),
   [scale](targets/kotlin/scale.md).
 
 **Other artifacts, and how the work is held**
 
 - [Docs and mock-server emitters](docs-and-mock.md), [write / integrate](write-integrate.md),
   [surface verification](surface-verification.md).
-- [Package layout](packages.md), [mandatory tests](testing/mandatory-tests.md), the
-  [behavior server](testing/behavior-server.md), the [milestone plan](milestones.md) and the
-  [open questions](open-questions.md).
+- [Package layout](packages.md), [mandatory tests](testing/mandatory-tests.md), the [behavior
+  server](testing/behavior-server.md), the [milestone plan](milestones.md) and the [open
+  questions](open-questions.md).
 
 ## Where the emitter sits
 
@@ -175,11 +176,12 @@ The definitive design is a **strict three-stage pipeline** with these decisions:
 
 The trade this accepts, honestly: a new language costs a target-AST node set + a printer + a refine
 pipeline before it emits a line — heavier than dropping in a template pack. The payoff (compiler-
-enforced correctness, a free surface model, cross-language uniformity, identity-based merge) is
-real but back-loaded onto the first targets, which is precisely milestone 3's charter. §5.5 and §14
-address the velocity cost directly, and the `Emit` seam is per-emitter, so a future target that
-genuinely wants templates for structure can implement `Emit` differently while reusing the same
-`plan` and refine step library.
+enforced correctness, a free surface model, cross-language uniformity, identity-based merge) is real
+but back-loaded onto the first targets, which is precisely milestone 3's charter.
+[Determinism](emit/printing.md#determinism-and-the-velocity-answer) and the
+[milestones](milestones.md) address the velocity cost directly, and the `Emit` seam is per-emitter,
+so a future target that genuinely wants templates for structure can implement `Emit` differently
+while reusing the same `plan` and refine step library.
 
 ## Emitter design rules (in addition to the ten CLAUDE.md invariants)
 
@@ -190,7 +192,8 @@ genuinely wants templates for structure can implement `Emit` differently while r
    the IR is a design bug.
 3. **The un-lowered IR is the acceptance test.** If a refine step cannot make its decision from
    `IR + Plan + Options`, either the IR is under-designed (file a bug against `ir-design.md`) or the
-   fact is runtime policy (§6) — never a compiler change (INV2, INV9).
+   fact is runtime policy ([runtime policy](contract/runtime-policy.md)) — never a compiler change
+   (INV2, INV9).
 4. **Wire truth is a separate channel from identifiers.** Serialization always reads `WireName` /
    `WireID` / `WireNameByFormat`; it never reads a rendered identifier (INV4).
 5. **Nothing heuristic is silent, nothing un-lowerable is silent.** Inferred outputs are marked
@@ -214,7 +217,7 @@ The Kotlin targets read the same plan and lower the same facts as Go.
   lint and a format pass. All structure is typed AST. A template that inspects the IR is a bug.
 - **Runtime SDK policy in the IR.** Retry/timeout/telemetry/error-taxonomy/user-agent/idempotency-
   injection/pagination-pacing/request-guards are a separate `policy.Policy` tree; declared IR facts
-  win over its defaults (§6).
+  win over its defaults ([runtime policy](contract/runtime-policy.md)).
 - **Generator plan artifacts in the IR.** Request builders, executor/generator method pairs,
   per-visibility model variants, primary-response/primary-content selection — all computed views in
   the plan/refine layers, never stored.
@@ -226,13 +229,13 @@ The Kotlin targets read the same plan and lower the same facts as Go.
 
 | INV | Where satisfied |
 |---|---|
-| 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir`, `ir/irfacts` + shared contract, never `compiler`/`engine`/a sibling target (§2, §7) |
-| 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test (§4, §8) |
-| 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity; a name with no words is named from its own characters alone, and placement reads no count, so neither moves when something else changes (§3, §4.12, §4.17, §11) |
-| 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel (§4.12, §5) |
-| 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality (§2, §2.4) |
-| 6 Heuristics are policy | `plan.Policy`, each target's versioned options (its type table and naming tables among them), `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows, the acronyms, the character names and the leading words are defaults a configuration replaces; inferred outputs marked `Inferred` (§2.5, §2.6, §3.5, §4.12, §6.4, §12) |
-| 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable, and `Facts` is rebuilt from the document; maps walked sorted, slices source order; identical input ⇒ identical bytes (§2.2, §3, §5.5, §13) |
-| 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed (§4.7) |
-| 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade (§4.2, §9); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change (§10, §14 M5) |
-| 10 Runtime policy separate | `policy.Policy` tree in `EmitterInput.Policy`, never on `ir.Document`; it parameterises only boilerplate; declared IR facts win over its defaults (§6) |
+| 1 IR is the ABI | `EmitterInput.Doc` is the only structural input; `emitters/*` imports `ir`, `ir/irfacts` + shared contract, never `compiler`/`engine`/a sibling target ([the contract](contract/emitter.md), [package layout](packages.md)) |
+| 2 Lossless, lowered late | all lowering is in `refine` steps building a fresh target AST; the IR is never mutated; unions/enums/discriminators/visibility/pagination/streaming/LRO arrive un-lowered and the step list is the acceptance test ([refine](refine/pipeline.md), [operations](operations/returns.md)) |
+| 3 Stable IDs, names presentation | plan, AST `Origin`, manifest, surface, hints, and the collision table are all keyed by IR stable ID; renames are lookups; collisions never touch identity; a name with no words is named from its own characters alone, and placement reads no count, so neither moves when something else changes ([the plan](plan/overview.md), [naming](refine/naming.md), [output units](refine/output-units.md), [write / integrate](write-integrate.md)) |
+| 4 Names neutral, emitter cases | `Ident` starts as the `Naming.Canonical` word sequence, the source spelling beside each word for its letter case only; `RenderCasing`/`EscapeReservedWords` are the only casing steps; struct tags come from `WireName`/`WireID`, a separate channel ([naming](refine/naming.md), [emit](emit/printing.md)) |
+| 5 Pure, typed diagnostics | `Generate` is pure/reentrant/no-stderr/no-I/O; every un-lowerable construct → coded `ir.Diagnostic`; the engine decides fatality ([the contract](contract/emitter.md), [contract rules](contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)) |
+| 6 Heuristics are policy | `plan.Policy`, each target's versioned options (its type table and naming tables among them), `verify.Severity`, method-name derivation, and shaping hints are injectable and disable-able; the type table's width-picking rows, the acronyms, the character names and the leading words are defaults a configuration replaces; inferred outputs marked `Inferred` ([target options](contract/options.md), [type table](contract/type-table.md), [plan policy](plan/policy.md), [naming](refine/naming.md), [shaping hints](contract/shaping-hints.md), [surface verification](surface-verification.md)) |
+| 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable, and `Facts` is rebuilt from the document; maps walked sorted, slices source order; identical input ⇒ identical bytes ([who computes the plan](contract/emitter.md#who-computes-the-plan), [the plan](plan/overview.md), [determinism](emit/printing.md#determinism-and-the-velocity-answer), [mandatory tests](testing/mandatory-tests.md)) |
+| 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed ([optionality](refine/models.md#optionality--nullability--presence-inv8)) |
+| 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade ([step list](refine/steps.md), [lowering table](refine/lowering-table.md)); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change ([docs and mocks](docs-and-mock.md), [M5](milestones.md)) |
+| 10 Runtime policy separate | `policy.Policy` tree in `EmitterInput.Policy`, never on `ir.Document`; it parameterises only boilerplate; declared IR facts win over its defaults ([runtime policy](contract/runtime-policy.md)) |

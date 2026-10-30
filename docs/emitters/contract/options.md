@@ -34,12 +34,15 @@ type TargetOptions interface {
   version, so no migration can carry the wrong ones forward.
 - **The upgrade report.** Decoding a configuration behind the current version reports, as info
   diagnostics coded `emitters/<target>/options-behind`, each setting it leaves unset whose default
-  differs between its version and the current one, so an owner sees exactly what moving changes.
-  The manifest (§11) records the stated version, `OptionsVersion()`.
+  differs between its version and the current one, so an owner sees exactly what moving changes. The
+  manifest ([write / integrate](../write-integrate.md)) records the stated version,
+  `OptionsVersion()`.
 
 Per-target heuristics live here too, beside the target's other choices, rather than in the plan: the
-parameter-passing shape (§4.13), the type-table rows that give an unbounded number a width (§2.6),
-and the naming tables (§4.12) — the acronyms, the character names that give words to a name with
+parameter-passing shape ([request shaping](../refine/requests.md)), the type-table rows that give an
+unbounded number a width ([type table](type-table.md)), and the naming tables
+([naming](../refine/naming.md)) — the acronyms, the character names that give words to a name with
 none, and the leading words an identifier that would begin with a digit takes. The target-AST nodes
-a default shapes carry `Inferred` provenance (§4.3), as INV6 requires. How a failure reaches its
-caller is a setting here as well (§8.5).
+a default shapes carry `Inferred` provenance ([target AST](../refine/target-ast.md)), as INV6
+requires. How a failure reaches its caller is a setting here as well
+([failures](../operations/errors.md#how-a-failure-reaches-its-caller)).

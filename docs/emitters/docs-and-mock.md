@@ -22,7 +22,7 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
   constraints). Because the same plan feeds SDK and mock, the two are **wire-consistent by
   construction** — the mock can *be* the interception target the SDK's wire-conformance harness
-  (§13) is diffed against.
+  ([mandatory tests](testing/mandatory-tests.md)) is diffed against.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key

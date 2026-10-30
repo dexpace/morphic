@@ -3,9 +3,9 @@
 The complete emitter acceptance surface is `ir-design.md §4–§9`; this table is its condensed
 normative list: every construct a target answers, and the wire truth each lowering must preserve.
 Each target's table gives its lowering of every row under the same first column
-([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)), which `TestEmitterDocs_EveryTargetAnswersEveryConstruct` holds. Every row
-must have an emit path or a diagnosed degrade on each target; a missing row is an IR bug (INV9), not
-a compiler change.
+([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)), which
+`TestEmitterDocs_EveryTargetAnswersEveryConstruct` holds. Every row must have an emit path or a
+diagnosed degrade on each target; a missing row is an IR bug (INV9), not a compiler change.
 
 | IR construct | Wire truth preserved |
 |---|---|
@@ -19,10 +19,10 @@ a compiler change.
 | nil `*TypeRef` | — |
 | `Scalar{Base}` chain | encoding triple; the root's codec |
 | `Model` (Base/Implements/Mixins) | `WireID` order |
-| anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations (§4.15) | — |
+| anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations ([decorators](decorators.md)) | — |
 | `Model` whose `Base` is no model, not a decorator | — |
 | `AdditionalProps` / `Additional` | pattern channel |
-| `Union` (four wire shapes, §4.4) | `WireName`/`WireID` per variant; an unknown variant's value |
+| `Union` (four wire shapes, [unions](unions.md)) | `WireName`/`WireID` per variant; an unknown variant's value |
 | `Enum` open/closed/flags | member `WireName` |
 | `List`/`MapT`/`Tuple` | packed/expanded |
 | `Literal` | — |

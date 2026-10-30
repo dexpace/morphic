@@ -13,5 +13,6 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
   `suspend` function with no `@Throws` propagates cancellation alone. So every operation carries
   `@Throws(ApiException::class, OtherResponseException::class, CancellationException::class)`, which
-  covers every class of the tree (§8.5) and a response its method cannot return (§8.9), and a Swift
-  caller receives an `NSError` holding the exception, and reads its `failure` or `response`.
+  covers every class of the tree ([failures](errors.md)) and a response its method cannot return
+  ([return shapes](returns.md)), and a Swift caller receives an `NSError` holding the exception, and
+  reads its `failure` or `response`.

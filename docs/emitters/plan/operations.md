@@ -14,7 +14,7 @@ type OpPlan struct {
     Page            *PagePlan         // nil = not paginated
     Stream          *StreamPlan       // nil = neither direction streams (ir-design.md §7.3)
     LRO             *LROPlan          // nil = not long-running
-    Auth            []AuthOption      // OR-of-ANDs, priority-ordered (§8.6)
+    Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
     Bindings        BindingView       // per-protocol param/request/response view from OpBindings
     Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6)
 }
@@ -45,7 +45,8 @@ type AuthOption struct {              // one option in the OR-of-ANDs; slice ord
 }
 ```
 
-How `Return`, `Others` and `Errors` read a response is in [responses](responses.md), and `StreamPlan` is in [streams](streams.md).
+How `Return`, `Others` and `Errors` read a response is in [responses](responses.md), and
+`StreamPlan` is in [streams](streams.md).
 
 `PrimaryResponse` and the contents a `ResponsePlan` elects are the *one legitimate home* for the
 collapse oagen performs destructively in its compiler and Morphic forbids there (INV2): the IR keeps
@@ -53,11 +54,11 @@ every response and content type whole; "pick a primary for the ergonomic method"
 lowered late. The content ranking (`json > form > multipart > binary`) is a shared, overridable plan
 helper (resolves `ir-design.md` open Q3).
 
-Some facts oagen's plan carries are not here, by §3.6. Whether there is a body, whether the
-operation is one-way and its idempotency are stated by the IR, so a refiner reads them there:
-`Operation.Request`, `Operation.OneWay` and `Operation.Idempotency`, the last of which also names
-the idempotency-token parameter. And whether an operation's inputs are passed positionally or
-inside an options object differs by language, so it is each target's (§4.13); the neutral facts it
-is decided from are already here — `BindingView` says where each input binds, and
-`Parameter.Required` and `Payload.Required` which are required — so moving the decision out added
-no field.
+Some facts oagen's plan carries are not here, by the [plan-or-refine test](plan-or-refine.md).
+Whether there is a body, whether the operation is one-way and its idempotency are stated by the IR,
+so a refiner reads them there: `Operation.Request`, `Operation.OneWay` and `Operation.Idempotency`,
+the last of which also names the idempotency-token parameter. And whether an operation's inputs are
+passed positionally or inside an options object differs by language, so it is each target's
+([request shaping](../refine/requests.md)); the neutral facts it is decided from are already here —
+`BindingView` says where each input binds, and `Parameter.Required` and `Payload.Required` which are
+required — so moving the decision out added no field.

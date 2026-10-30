@@ -8,7 +8,8 @@ Go needs no setting, since an `error` is already a value.
 
 The IR and the plan are in [failures](../../operations/errors.md#an-error-taxonomy).
 
-The runtime type is `APIError`, which the operation's response decoder fills from the entry a response takes:
+The runtime type is `APIError`, which the operation's response decoder fills from the entry a
+response takes:
 
 ```go
 type APIError struct {         // the runtime's: what one failed response said
@@ -40,9 +41,8 @@ func Body[B any](err error) (B, bool) { // err's failure's body, where it is a B
 `Headers[H]` reads the same way, and `(*APIError).Is` answers `errors.Is` for `sdk.ErrClient`,
 `sdk.ErrServer` and a sentinel per kind (`sdk.ErrNotFound`).
 
-Printer emits the decoder, registering each entry: `429 → RateLimited`, with its headers
-struct, fault and retry facts, which the retry runtime consults through
-`IsRetryable()`/`IsThrottling()`.
+Printer emits the decoder, registering each entry: `429 → RateLimited`, with its headers struct,
+fault and retry facts, which the retry runtime consults through `IsRetryable()`/`IsThrottling()`.
 
 A caller branches on what happened, and reads the body when it needs it:
 

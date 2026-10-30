@@ -3,14 +3,15 @@
 How each [return shape](../../operations/returns.md) lowers in Go.
 
 - **A scalar, a list, a map or a union.** `func (c *Client) Count(ctx) (int64, error)`, `Labels`
-  returning `map[string]string`, `GetPet` returning the struct `Pet` (§4.4).
-- **A file.** `func (c *Client) Download(ctx) (*RawBody, error)`, where the runtime's `RawBody` holds
-  the response's `io.ReadCloser` and the media type it arrived as, and the caller closes it.
+  returning `map[string]string`, `GetPet` returning the struct `Pet` ([unions](unions.md)).
+- **A file.** `func (c *Client) Download(ctx) (*RawBody, error)`, where the runtime's `RawBody`
+  holds the response's `io.ReadCloser` and the media type it arrived as, and the caller closes it.
 - **No body.** The method returns `error` alone.
 - **Declared headers.** `GetZone` returns `*Zone` whatever the response declares, and a response
-  that declares headers adds `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone,
-  GetZoneHeaders], error)`. The `Response`'s `Body` is `struct{}` for `void`, and its `Headers` is
-  `struct{}` where they declare none.
+  that declares headers adds
+  `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone, GetZoneHeaders], error)`. The
+  `Response`'s `Body` is `struct{}` for `void`, and its `Headers` is `struct{}` where they declare
+  none.
 - **Another declared response.** With no body, `DeleteMethod` returns a nil `*Deleted` and a nil
   error, and a stream's `Recv` returns `io.EOF`.
 

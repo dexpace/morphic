@@ -10,16 +10,16 @@ table holds for both Kotlin targets, and "KMP:" marks where Multiplatform differ
 | unbounded `Primitive` (`integer`, `number`, `float`) | `Long`, `Double` by the same rows; exact where a row maps them so: JVM `BigInteger`/`BigDecimal`, KMP the runtime `Decimal` |
 | `decimal`, `decimal128` | JVM `BigDecimal`; KMP the runtime `Decimal` |
 | `bool`, `string`, `bytes`, `url` | `Boolean`, `String`, `ByteArray` through the runtime's base64 serializer, `String` |
-| `uuid` | the standard library's `kotlin.uuid.Uuid` on both (§8.8) |
-| `date`, `time`, `datetime`, `datetime_offset`, `duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx-datetime`'s `LocalDate`, `LocalTime`, `LocalDateTime`, the runtime `OffsetDateTime` (§8.8); a runtime ISO 8601 `Duration` on both |
+| `uuid` | the standard library's `kotlin.uuid.Uuid` on both ([the language floor](overview.md#the-language-floor)) |
+| `date`, `time`, `datetime`, `datetime_offset`, `duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx-datetime`'s `LocalDate`, `LocalTime`, `LocalDateTime`, the runtime `OffsetDateTime` ([Multiplatform](multiplatform.md)); a runtime ISO 8601 `Duration` on both |
 | `any`, `Any` | `JsonElement` |
 | nil `*TypeRef` | `Unit` |
-| `Scalar{Base}` chain | `@JvmInline value class` over a `Boolean`, number, `String` or `ByteArray` root, a `typealias` over any other (§4.9); nil base → value class over the wire form |
-| `Model` (Base/Implements/Mixins) | final class with `Base` and `Mixins` flattened in, built through a builder, never a `data class` (§8.8); `Implements` → interface; discriminated or abstract base → sealed interface |
-| anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations (§4.15) | the same |
+| `Scalar{Base}` chain | `@JvmInline value class` over a `Boolean`, number, `String` or `ByteArray` root, a `typealias` over any other ([declarations over a root](types.md#a-declaration-over-a-root)); nil base → value class over the wire form |
+| `Model` (Base/Implements/Mixins) | final class with `Base` and `Mixins` flattened in, built through a builder, never a `data class` ([models](models.md)); `Implements` → interface; discriminated or abstract base → sealed interface |
+| anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations ([decorators](../../refine/decorators.md)) | the same |
 | `Model` whose `Base` is no model, not a decorator | the same |
-| `AdditionalProps` / `Additional` | catch-all `Map` filled by a serializer that reads the whole object (§8.8); strict `Json`, `@JsonIgnoreUnknownKeys` on each other open model |
-| `Union` (four wire shapes, §4.4) | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; `Open` → an `Unknown` fallback; KMP: not exhaustive in Swift |
+| `AdditionalProps` / `Additional` | catch-all `Map` filled by a serializer that reads the whole object ([unknown members](models.md#unknown-members)); strict `Json`, `@JsonIgnoreUnknownKeys` on each other open model |
+| `Union` (four wire shapes, [unions](../../refine/unions.md#the-wire-shapes)) | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; `Open` → an `Unknown` fallback; KMP: not exhaustive in Swift |
 | `Enum` open/closed/flags | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer |
 | `List`/`MapT`/`Tuple` | `List<T>`/`Map<K, V>`/a class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) |
 | `Literal` | `const val`, or an `object` for a non-primitive value |

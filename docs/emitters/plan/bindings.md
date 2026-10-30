@@ -54,5 +54,5 @@ does *not* model — a directive applied to a GraphQL entry-point field, say —
 purposes.
 
 Sub-clients and fluent navigation are built from the `OperationGroup` tree itself — its nesting,
-names, operations and Smithy `Resource` — which the IR states, so the plan mirrors none of it
-(§3.6).
+names, operations and Smithy `Resource` — which the IR states, so the plan mirrors none of it ([plan
+or refine](plan-or-refine.md)).

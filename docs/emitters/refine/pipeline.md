@@ -26,14 +26,14 @@ type Step interface {
 
 type Ctx struct {
     Doc     *ir.Document        // read-only source of un-lowered facts
-    Facts   *irfacts.Index      // read-only derived facts, the engine's one index (§2.2)
+    Facts   *irfacts.Index      // read-only derived facts, the engine's one index (../contract/emitter.md)
     Plan    *plan.Plan          // read-only shared decisions
-    Types   typemap.Table       // the merged type table (§2.6), built from Options
-    Policy  policy.Policy        // read-only SDK runtime policy (§6)
+    Types   typemap.Table       // the merged type table (../contract/type-table.md), built from Options
+    Policy  policy.Policy        // read-only SDK runtime policy (../contract/runtime-policy.md)
     Naming  naming.Policy        // the target's casing engine over its options' naming tables
-                                 // (INV4; §4.12)
+                                 // (INV4; naming.md)
     Hints   map[emitter.EntityID]emitter.ShapeHint
-    Options emitter.TargetOptions // decoded options (§2.5); a step asserts its own target's type
+    Options emitter.TargetOptions // decoded options (../contract/options.md); a step asserts its own target's type
     Out     TargetAST            // the per-language AST being built (e.g. *goast.Module)
     Syms    *SymbolTable         // ID-keyed; collision resolution never touches IR identity
 }
@@ -46,13 +46,13 @@ func Run(r Refiner, c *Ctx) []ir.Diagnostic  // runs Steps in order
 type TargetAST interface{ targetAST() }
 ```
 
-**This ordered, named step list IS the IR acceptance test.** Each step of [the list](steps.md) is only implementable
-because a specific un-lowered IR fact reached it; a missing IR capability shows up as an
-unimplementable step, not a silent degrade. Ordering is asserted by a golden *step-trace* test:
-collapsing aliases runs first, since every other step lowers references through it; placement
+**This ordered, named step list IS the IR acceptance test.** Each step of [the list](steps.md) is
+only implementable because a specific un-lowered IR fact reached it; a missing IR capability shows
+up as an unimplementable step, not a silent degrade. Ordering is asserted by a golden *step-trace*
+test: collapsing aliases runs first, since every other step lowers references through it; placement
 follows every structural lowering, and import computation follows placement, since a file imports
-what its declarations reference from wherever those landed; the naming steps run last — casing,
-then reserved-word escaping, whose scopes reserve what a file imports (§4.12), then collision
-resolution — so every name, a unit's and an import's among them, is settled once, after everything
-that names it exists. Because each step is idempotent and reads only its `Ctx`, a step-trace
-snapshot pins the whole lowering deterministically.
+what its declarations reference from wherever those landed; the naming steps run last — casing, then
+reserved-word escaping, whose scopes reserve what a file imports ([reserved
+names](reserved-names.md)), then collision resolution — so every name, a unit's and an import's
+among them, is settled once, after everything that names it exists. Because each step is idempotent
+and reads only its `Ctx`, a step-trace snapshot pins the whole lowering deterministically.

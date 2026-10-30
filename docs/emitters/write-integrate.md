@@ -9,8 +9,9 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the
   biggest win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's
   structural rename-inference machinery. A declaration derived from an entity keys under it, as
-  `User.ID#create` does (§8.1), a union's wrappers and fallback among them, so no two symbols share
-  a key. Write/integrate and surface verification (architecture.md §2.3) both rest on it.
+  `User.ID#create` does ([`User`](targets/go/models.md#user-in-go)), a union's wrappers and fallback
+  among them, so no two symbols share a key. Write/integrate and surface verification
+  (architecture.md §2.3) both rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
   pruning, writes a baseline, emits a notice.

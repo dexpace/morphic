@@ -10,10 +10,10 @@ AuthRequirement{Schemes:[apiKey]} ]` (priority order); auth schemes in `Document
   default). An empty option inside a non-empty list = "no auth is one acceptable choice"; an empty
   `Operation.Auth` slice would mean "explicitly public".
 - **refine.** Auth *schemes* are structural IR, so refine emits an `Authenticator` interface, a
-  per-scheme option type, and the request-time application
-  code that satisfies the AND-within-option / OR-across-options-by-priority contract. Scope sets from
-  `oauth2` flows reach the option types. What refine does **not** emit is any credential value or
-  token-refresh behavior — the actual secrets and token acquisition are runtime configuration, not
-  IR. SASL/x509/user_password schemes (Kafka/AMQP) lower the same way for a messaging target.
+  per-scheme option type, and the request-time application code that satisfies the AND-within-option
+  / OR-across-options-by-priority contract. Scope sets from `oauth2` flows reach the option types.
+  What refine does **not** emit is any credential value or token-refresh behavior — the actual
+  secrets and token acquisition are runtime configuration, not IR. SASL/x509/user_password schemes
+  (Kafka/AMQP) lower the same way for a messaging target.
 - **emit.** Printer emits the `Authenticator` interface, the option constructors, and the per-request
   auth selector.

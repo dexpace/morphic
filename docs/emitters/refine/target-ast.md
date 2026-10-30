@@ -13,4 +13,5 @@ Two properties make this the right substrate: **illegal code is unrepresentable*
 an `Expr`, not a string; a union variant that forgot its wire tag is a missing struct-literal field
 the Go compiler flags inside Morphic — the antidote to the Mustache `oneOf`/`allOf` failure class),
 and **every node carries its `Origin`**, so the manifest, import graph, and surface model are one
-walk (§11, §12).
+walk ([write / integrate](../write-integrate.md), [surface
+verification](../surface-verification.md)).

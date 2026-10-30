@@ -28,12 +28,12 @@ once for every target rather than once by each.
 The plan **classifies; it does not pick target types and it never cases anything.** It records what
 it derives from the IR ("this union is discriminated, and its tag values select the variants with
 IDs X/Y/Z") so every refiner chooses a strategy from the same derivation, and it leaves what the IR
-states outright to be read from the IR (§3.6). It contains no casing, no reserved-word handling, no
-target types, and no runtime or target policy.
+states outright to be read from the IR ([plan or refine](plan-or-refine.md)). It contains no casing,
+no reserved-word handling, no target types, and no runtime or target policy.
 
 A reference the plan records — `Return.Type`, a page's item type, an error's type, a stream's
 element, a variant a discriminator maps a tag to — names the type the IR names there. Where a
 derivation reads a type's contents, such as the property a page's items are found under, it reads
-them through `TypePlan.Alias` (§4.15), and every consumer lowers a reference it reads through
-`Alias`, the plan's as the IR's, so no field holds a reference already lowered beside others that
-are not.
+them through `TypePlan.Alias` ([decorators](../refine/decorators.md)), and every consumer lowers a
+reference it reads through `Alias`, the plan's as the IR's, so no field holds a reference already
+lowered beside others that are not.

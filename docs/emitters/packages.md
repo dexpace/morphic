@@ -12,16 +12,16 @@ emitters/
 ├── naming/            # SHARED naming engine: acronym/compound tables, the character-name table,
 │                      #   reserved-word set type, ID-keyed collision resolver. Casing FUNCTIONS are
 │                      #   per-target (naming.Policy impl)
-├── typemap/           # SHARED type table: Table, Row, lookup, merge, strict decoding (§2.6)
+├── typemap/           # SHARED type table: Table, Row, lookup, merge, strict decoding (contract/type-table.md)
 ├── refine/            # SHARED refiner contract + code-shaping helpers more than one target uses
 │                      #   (untagged-union recognition, the decorator fold, import-set harness);
 │                      #   never a plan fact
-├── manifest/          # generation manifest (ID-keyed), header provenance, additive-merge driver (§11)
-├── verify/            # neutral Surface projection, differ, injectable per-language severity (§12)
+├── manifest/          # generation manifest (ID-keyed), header provenance, additive-merge driver (write-integrate.md)
+├── verify/            # neutral Surface projection, differ, injectable per-language severity (surface-verification.md)
 ├── golang/            # ◀ FIRST TARGET (TargetKey "go")
 │   ├── emitter.go     #   New() returns the target the engine registers; plan→refine→emit
 │   ├── goast/         #   typed target AST (sealed sum) + printer
-│   ├── refine/        #   IR+Plan → goast — the ordered lowering pipeline (§4)
+│   ├── refine/        #   IR+Plan → goast — the ordered lowering pipeline (refine/pipeline.md)
 │   ├── emit/          #   goast → []byte via printer + go/format; templates/ (boilerplate only)
 │   ├── naming/        #   Go reserved words + default acronym table (naming.Policy impl)
 │   └── mergeadapter.go#   go/ast additive-merge adapter (registers into manifest driver)
@@ -29,18 +29,19 @@ emitters/
 │   ├── emitter.go     #   NewJVM() and NewMultiplatform(): one pipeline, two Platform profiles
 │   ├── platform.go    #   Platform: the built-in type table, identifier rules, transport
 │   ├── ktast/         #   typed Kotlin AST (sealed sum) + printer
-│   ├── refine/        #   IR+Plan+Platform → ktast — the ordered lowering pipeline (§4)
+│   ├── refine/        #   IR+Plan+Platform → ktast — the ordered lowering pipeline (refine/pipeline.md)
 │   ├── emit/          #   ktast → []byte via a printer laying out canonical code; templates/
 │   └── naming/        #   Kotlin hard keywords, the Objective-C/Swift export rules (Multiplatform)
-├── docs/              # docs emitter: reuses plan + refine step library; docast + Markdown/HTML printer (§10)
-└── mock/              # mock-server emitter: reuses plan; server-routing AST + printer (§10)
+├── docs/              # docs emitter: reuses plan + refine step library; docast + Markdown/HTML printer (docs-and-mock.md)
+└── mock/              # mock-server emitter: reuses plan; server-routing AST + printer (docs-and-mock.md)
 ```
 
 `goast` lives *under* `emitters/golang`, not in the shared contract, because a target AST is
 per-language by definition. `plan`, `policy`, `naming`, `typemap`, `refine` (the contract + shared
 helpers), `manifest`, and `verify` are shared because they are language-neutral: `typemap` holds a
 table's shape and rules, and each target its rows. This section lays out Morphic's own packages; how
-a generated SDK divides into packages of its own, by source document or by group, is §4.17's.
+a generated SDK divides into packages of its own, by source document or by group, is in [output
+units](refine/output-units.md).
 
 **Architecture test.** The import-graph rule is in place before the first emitter package:
 `internal/archtest` rules `emitters`, and names it in `unbuilt` until the package exists, so the

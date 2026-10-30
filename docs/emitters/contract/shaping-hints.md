@@ -10,7 +10,7 @@ type ShapeHint struct {
     Rename         string      // presentation rename for the entity's symbol; "" = none
     Remount        *ir.GroupID // move an operation under a different sub-client; nil = keep
     SplitUnionBody bool        // flatten a request-body union into typed wrapper methods — OPT-IN,
-                               // the one sanctioned union→arguments collapse (§4.4); default off
+                               // the one sanctioned union→arguments collapse (../refine/unions.md); default off
     URLBuilder     bool        // expose a URL-builder variant of the operation
     Extra          map[string]ir.RawValue // free-form, forward-compatible per-target ergonomics
 }
