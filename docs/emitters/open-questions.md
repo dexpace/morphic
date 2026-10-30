@@ -1,4 +1,4 @@
-## 16. Open questions (tracked for implementation)
+# Open questions (tracked for implementation)
 
 1. **Plan-fact vs refine-fact boundary.** Settled in §3.6, before the plan layer is built, since
    three first targets test it from M3a. It moved the parameter-passing shape out of the plan and
@@ -13,7 +13,7 @@
    Leaning: an override on `plan.Policy`, since the choice is document-neutral.
 4. **Protocol-view neutrality.** The `BindingView` and target-AST `MethodKind` must be designed
    against the full binding matrix (HTTP/RPC/message/GraphQL/OTP) from day one, or they ossify around
-   HTTP the way Kiota's model did. The Go-first walkthrough is HTTP-heavy; the RPC/messaging targets
+   HTTP the way Kiota's model did. The first targets' traces are HTTP-heavy; the RPC/messaging targets
    are the real test. Revisit when the second-protocol emitter lands (tracks `ir-design.md` Q6).
 5. **Manifest granularity for merge.** Whether the entity→symbol map keys at property level (not just
    type/op level) to support field-level additive merge, or leaves sub-type merge to the `go/ast`

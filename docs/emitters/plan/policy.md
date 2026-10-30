@@ -1,4 +1,4 @@
-### 3.5 plan.Policy — the plan's injectable heuristics
+# plan.Policy — the plan's injectable heuristics
 
 Everything the plan *infers* rather than reads is a knob here; every inferred output is marked
 `Inferred` (INV6):
@@ -20,7 +20,9 @@ type Policy struct {
 A test asserts that disabling a heuristic removes the corresponding `Inferred` plan field — the
 guard against a heuristic silently defaulting on and quietly making the plan non-neutral.
 
-**The default response is classed here.** The IR states an operation's `Default` — OpenAPI's
+## The default response is classed here
+
+The IR states an operation's `Default` — OpenAPI's
 `default` — as neither a success nor a failure, since it answers every status the others do not name
 (ir-design §7.2). `PrimaryResponse` reads the whole operation for that reason, and its default takes
 the lowest 2xx `Response`, an exact status before a range that starts there, else one with no
@@ -33,7 +35,9 @@ leaves an operation with no success response `void` (§3.1) and its `Default` in
 `StreamDetail` covers a `Default`, and a primary one streams only where a content of it declares an
 `Item` (§3.1).
 
-**A union a client reads is open.** An API that adds a variant must not break every SDK already
+## A union a client reads is open
+
+An API that adds a variant must not break every SDK already
 deployed on the first response carrying it, so under `OpenUnions` a union or polymorphic base is
 `Open` wherever `Facts.Usage` marks it `Output`, marked `Inferred`. A value no variant recognizes is
 then kept rather than refused (§4.4). That covers a type read and written alike: a response can
@@ -42,7 +46,9 @@ type only ever written stays closed, and no SDK decodes one. Turning the policy 
 union. The IR has no field saying a union is open or closed (#664); once it does, a declared answer
 wins, as §6.3 has it. The plan records the choice so that docs and a mock agree with the SDK (§10).
 
-**Framings state what a media type means**, not a guess about an API, so the table marks nothing
+## Framings
+
+Framings state what a media type means, not a guess about an API, so the table marks nothing
 `Inferred`: whether a content streams is the source's to declare or the compiler's to infer, and the
 table says only how it divides. Its default holds the sequential media types OpenAPI 3.2 names:
 `text/event-stream` is `sse`; `application/jsonl` and `application/x-ndjson` are `json_lines`;

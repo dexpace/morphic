@@ -1,9 +1,8 @@
-### 4.17 Output units
+# Output units
 
 Every declaration a target emits lands in one output unit, and a reference across units is an import
-`ComputeImports` adds. A Go unit is a package; a Kotlin unit is a package, and also a Gradle module
-of its own unless it is the root, since kotlinc compiles a module whole and a Multiplatform
-framework exports what its modules declare (§8.8). `PlaceDeclarations` decides each declaration's
+`ComputeImports` adds. What a unit is in a target's build is the target's
+([Go](../targets/go/overview.md#output-units), [Kotlin](../targets/kotlin/overview.md#output-units)). `PlaceDeclarations` decides each declaration's
 unit as a function of the document and the target's options alone, never of how many declarations
 there are: moving a declaration to another unit renames it for every caller, so a document that
 grows must move none. Placement reads the whole document, so a scoped run places each declaration
@@ -54,12 +53,10 @@ declarations collide only within one (§4.12). A wrapper imports a variant anoth
 is how a union reaches into the shared unit. A service-wide error's headers type lands where a type
 all its groups reach does. T-18 holds placement to these rules.
 
-**The size check.** Each target states a limit on the declarations one unit holds, a default of its
+## The size check
+
+Each target states a limit on the declarations one unit holds, a default of its
 options version (§2.5), and reports each unit over it once, as a warning
 `emitters/<target>/unit-over-limit` naming the unit, its count and the limit, and `SplitByGroup`
 while it is off. The limit decides nothing: a count that moved declarations when it crossed a
-threshold would move them as a document grew, the instability placement exists to prevent. Go's
-default is 10,000 declarations. A synthetic package of that many models, each with its codec and a
-`Validate`, peaked at about 1.6 GB of memory to build with Go 1.27.2 on darwin/arm64, and one of
-30,000 at about 4.6 GB. Kotlin's limit counts a Gradle module's declarations, and its default is set
-when the Kotlin targets are first measured (§16).
+threshold would move them as a document grew, the instability placement exists to prevent. Each target's limit is in its document ([Go](../targets/go/overview.md#output-units), [Kotlin](../targets/kotlin/overview.md#output-units)).

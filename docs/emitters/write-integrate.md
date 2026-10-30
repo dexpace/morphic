@@ -1,4 +1,4 @@
-## 11. Write / integrate
+# Write / integrate
 
 Post-milestone (architecture.md §2.3), but the contract is designed so it bolts on with **no IR
 change** (INV9). The `manifest.Manifest` and `Artifact` fields returned from `Generate` are the
@@ -16,14 +16,10 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   pruning, writes a baseline, emits a notice.
 - **Ignore regions & additive-only merge.** Two provenance markers — whole-file
   (`@morphic:ignore-file`) and region (`@morphic:keep`/`:end`) — with append-only merge. The
-  structural merge is **language-parameterised** by an adapter registered into the manifest driver;
-  the Go adapter (`emitters/golang/mergeadapter.go`) uses `go/ast` to parse existing files and append
-  only new top-level symbols, never delete. No adapter ⇒ skip, never clobber. Case-only renames go
-  via a temp name (APFS/NTFS hazard). The parser Kotlin's own tools rely on is the compiler's front
-  end, which runs on the JVM, so the Kotlin targets' adapter is a JVM helper the engine runs, since
-  the engine owns all I/O. Until it exists the Kotlin targets merge nothing and report
-  `Capabilities.WriteIntegrate` false: pruning stays header-gated and no hand-written file is
-  touched.
+  structural merge is **language-parameterised** by an adapter registered into the manifest driver
+  ([Go](targets/go/overview.md#merging-and-surface-extraction),
+  [Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)). No adapter ⇒ skip, never
+  clobber. Case-only renames go via a temp name (APFS/NTFS hazard).
 - **Staleness check.** `(prior-manifest entities − current entities) ∩ files-on-disk` surfaces
   dead code additive writers cannot prune — cheap because both manifests are ID-keyed and the prior
   IR/plan snapshot is serializable (INV7).

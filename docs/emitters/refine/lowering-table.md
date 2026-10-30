@@ -1,41 +1,43 @@
-## 9. The lowering table (normative, per first target)
+# The lowering table
 
-The complete emitter acceptance surface is `ir-design.md §4–§9`; this table is the condensed
-normative mapping for the three first targets. Every row must have an emit path or a diagnosed
-degrade on each; a missing row is an IR bug (INV9), not a compiler change. The Kotlin column holds
-for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the JVM (§8.8).
+The complete emitter acceptance surface is `ir-design.md §4–§9`; this table is its condensed
+normative list: every construct a target answers, and the wire truth each lowering must preserve.
+Each target's table gives its lowering of every row under the same first column
+([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)), which `TestEmitterDocs_EveryTargetAnswersEveryConstruct` holds. Every row
+must have an emit path or a diagnosed degrade on each target; a missing row is an IR bug (INV9), not
+a compiler change.
 
-| IR construct | Go | Kotlin (JVM and KMP) | Wire truth preserved |
-|---|---|---|---|
-| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | the same-named Go type | `Byte`…`Long`, `UByte`…`ULong`, `Float`, `Double` | — |
-| unbounded `Primitive` (`integer`, `number`, `float`) | `int64`, `float64` by the built-in type-table rows (§2.6), marked `Inferred`; exact where a row maps them so: `*big.Int`, the runtime decimal | `Long`, `Double` by the same rows; exact where a row maps them so: JVM `BigInteger`/`BigDecimal`, KMP the runtime `Decimal` | every digit, when exact |
-| `decimal`, `decimal128` | the runtime decimal type, over `math/big` | JVM `BigDecimal`; KMP the runtime `Decimal` | every digit |
-| `bool`, `string`, `bytes`, `url` | `bool`, `string`, `[]byte`, which json/v2 writes as base64, `string` | `Boolean`, `String`, `ByteArray` through the runtime's base64 serializer, `String` | bytes as base64 text, where `kotlinx.serialization`'s own `ByteArray` serializer writes an array of numbers; a URL's text, never re-serialized from a parsed form |
-| `uuid` | the standard library's `uuid.UUID` | the standard library's `kotlin.uuid.Uuid` on both (§8.8) | canonical text |
-| `date`, `time`, `datetime`, `datetime_offset`, `duration` | runtime `Date`, `TimeOfDay`, `DateTime`; `time.Time`; a runtime ISO 8601 `Duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx-datetime`'s `LocalDate`, `LocalTime`, `LocalDateTime`, the runtime `OffsetDateTime` (§8.8); a runtime ISO 8601 `Duration` on both | the offset a timestamp was written with; a duration's years and months, which neither language's own duration holds |
-| `any`, `Any` | `jsontext.Value`, which keeps the bytes, distinct from a diagnosed unknown | `JsonElement` | the value, its members in order and each number's text; decoding into Go's `any` would turn each number into a `float64` |
-| nil `*TypeRef` | void | `Unit` | — |
-| `Scalar{Base}` chain | over the chain's root (`TypePlan.Scalar`), typed by the type table's row for the root and the chain's encoding (§2.6): a defined type with a `Validate` for merged constraints where the root's type has no methods (a predeclared type, a slice, a map), an alias (`type X = Root`) over any other, its constraints checked where it is used (§4.9); nil base → newtype | `@JvmInline value class` over a `Boolean`, number, `String` or `ByteArray` root, a `typealias` over any other (§4.9); nil base → value class over the wire form | encoding triple; the root's codec |
-| `Model` (Base/Implements/Mixins) | struct with `Base` and `Mixins` flattened in; `Implements` → interfaces; a discriminated or `Abstract` base → a struct holding a sealed interface of its subtypes (§4.4); `Positional` → index-ordered struct | final class with `Base` and `Mixins` flattened in, built through a builder, never a `data class` (§8.8); `Implements` → interface; discriminated or abstract base → sealed interface | `WireID` order |
-| anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations (§4.15) | no declaration: each reference lowered as one to the first type along its `Base` that is not a decorator, its docs, deprecation and examples folded onto the carrier | the same | — |
-| `Model` whose `Base` is no model, not a decorator | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position (ir-design §4.2); a union base beside properties distributed over the variants as ir-design §4.3 distributes a union co-declared with a composition; anything else a diagnosed degrade | the same | — |
-| `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | catch-all `Map` filled by a serializer that reads the whole object (§8.8); strict `Json`, `@JsonIgnoreUnknownKeys` on each other open model | pattern channel |
-| `Union` (four wire shapes, §4.4) | a struct holding a sealed interface + marker + a wrapper per variant + a tag-dispatch (de)serializer on the struct; `Open` → an `Unknown` fallback | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; `Open` → an `Unknown` fallback; KMP: not exhaustive in Swift | `WireName`/`WireID` per variant; an unknown variant's value |
-| `Enum` open/closed/flags | consts named by enum then member (`StatusActive`, §4.5): closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
-| `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | `List<T>`/`Map<K, V>`/a class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) | packed/expanded |
-| `Literal` | typed constant (incl. `symbol`) | `const val`, or an `object` for a non-primitive value | — |
-| `External` | the type-table row for its `Identity` (§2.6): imported library type + dep-manifest; no row → opaque handle, passthrough + diagnostic | the type-table row for its `Identity`, each platform's own; no row → diagnostic | — |
-| `Visibility` sets | N structs from `ModelShape`; PATCH → optional | N classes from `ModelShape`; PATCH → optional | — |
-| `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic; a reference on a cycle of references held by value `*T`, or `Opt[*T]` when optional and nullable (§4.16) | `T` / `T?`, left out when null / `T?`, written as null / runtime `Optional<T?>`, absent or null or a value; collapse → diagnostic | — |
-| `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic | a generated `validate()`, never an `init` check, which would refuse a response; unrepresentable regex → diagnostic | numeric bounds as decimal |
-| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct + factories | tag-dispatch `KSerializer` that reads the wire key first | discriminator wire key |
-| `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy | `Flow<T>`; item unwrap from plan; pacing from policy | path-based item/cursor read |
-| `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T].Recv()`/`Send()` over an element of any kind, `string` where frames go unread; a `bytes` side as a file; terminal ends; direction from core, framing from plan | a method per shape offered; `Flow` of elements received, a send channel for a client stream; the same sources | frame boundaries; per-event content-type |
-| `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy | poller with `suspend` `poll()`/`pollUntilDone()`; the same sources | monitor/final-state channel |
-| `OneWay` | fire-and-forget method, no response binding | `suspend` function returning `Unit`, no response binding | — |
-| `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) | the same, over `Flow` | address/correlation paths |
-| `ErrorCase{Fault, Retryable}` | one runtime `*APIError` holding the status, fault, kind, raw body and typed `Body` and `Headers`; `errors.Is` by fault and kind, `sdk.Body[T]` for the body (§8.5); declared facts win over policy | `ApiException` carrying an `ApiFailure`, a runtime tree by fault then kind (`ClientException` → `NotFoundException`), `e.body<T>()` for the body; declared facts win over policy | status→kind map; an error's raw body |
-| `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → a nullable return, or a pager or stream that ends; another body, or a body that does not decode → `*OtherResponse` on the `error` path, with no fault and no retry; a 2xx the document does not list read as `Return` (§8.9) | one read as `Return` returned as the primary; no body → `T?`, or a `Flow` that ends; another body, or a body that does not decode → `OtherResponseException`, outside `ApiException`; a 2xx the document does not list read as `Return` | the status; the body as it arrived |
-| `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | `Authenticator` + per-scheme configuration; priority order | — |
-| `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly; a `Default` documented, never written onto a request (§4.10) | literals built from the decimal text, never a `Double` literal; `Ctor` → call; `symbol` → string explicitly; a `Default` documented, never sent | — |
-| `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters, and one that would begin with a digit led by its role's word (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, characters named and leading digits led the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
+| IR construct | Wire truth preserved |
+|---|---|
+| fixed-width `Primitive` (`int8`…`uint64`, `float32`, `float64`) | — |
+| unbounded `Primitive` (`integer`, `number`, `float`) | every digit, when exact |
+| `decimal`, `decimal128` | every digit |
+| `bool`, `string`, `bytes`, `url` | bytes as base64 text, where `kotlinx.serialization`'s own `ByteArray` serializer writes an array of numbers; a URL's text, never re-serialized from a parsed form |
+| `uuid` | canonical text |
+| `date`, `time`, `datetime`, `datetime_offset`, `duration` | the offset a timestamp was written with; a duration's years and months, which neither language's own duration holds |
+| `any`, `Any` | the value, its members in order and each number's text; decoding into Go's `any` would turn each number into a `float64` |
+| nil `*TypeRef` | — |
+| `Scalar{Base}` chain | encoding triple; the root's codec |
+| `Model` (Base/Implements/Mixins) | `WireID` order |
+| anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations (§4.15) | — |
+| `Model` whose `Base` is no model, not a decorator | — |
+| `AdditionalProps` / `Additional` | pattern channel |
+| `Union` (four wire shapes, §4.4) | `WireName`/`WireID` per variant; an unknown variant's value |
+| `Enum` open/closed/flags | member `WireName` |
+| `List`/`MapT`/`Tuple` | packed/expanded |
+| `Literal` | — |
+| `External` | — |
+| `Visibility` sets | — |
+| `Required` ⊥ `Nullable` ⊥ `Presence` | — |
+| `Constraints` | numeric bounds as decimal |
+| `Discriminator{Mapping→ID}` | discriminator wire key |
+| `Pagination` (PropPaths) | path-based item/cursor read |
+| `Streaming` + `StreamDetail` | frame boundaries; per-event content-type |
+| `LongRunning` | monitor/final-state channel |
+| `OneWay` | — |
+| `Channel`/`Message`/`MessageBinding` | address/correlation paths |
+| `ErrorCase{Fault, Retryable}` | status→kind map; an error's raw body |
+| `Response` beside the primary (`OpPlan.Others`) | the status; the body as it arrived |
+| `Auth` OR-of-ANDs | — |
+| `Value{Num BigVal, Ctor, Ref, symbol}` | — |
+| `Naming{Canonical}` | `WireName`/`WireID` never cased |

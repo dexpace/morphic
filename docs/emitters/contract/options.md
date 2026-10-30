@@ -1,4 +1,4 @@
-### 2.5 Target options
+# Target options
 
 A target's options are a typed Go struct of its own, read by its `DecodeOptions` before `Generate`
 runs, so a mistake in a configuration is reported before anything is generated rather than

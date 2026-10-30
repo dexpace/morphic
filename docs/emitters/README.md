@@ -1,20 +1,103 @@
-# Morphic Emitter — Emitter Design
+# Emitter design
 
 The emitter is the second half of the Morphic pipeline: it turns an `ir.Document` (plus its own
-options) into generated SDK source, docs, mock servers, and other artifacts. This document is the
+options) into generated SDK source, docs, mock servers, and other artifacts. This directory is the
 normative contract for that half, the way `docs/ir-design.md` is normative for the IR. It extends
 the emitter sketch in `docs/architecture.md §2.3`–`§2.4`; where the two disagree, `architecture.md`
-wins on stage boundaries and this document wins on the shapes inside an emitter.
+wins on stage boundaries and these documents win on the shapes inside an emitter.
 
 Type sketches are written as Go because the implementation is Go. As in `ir-design.md`, field names
 and struct shapes here are the contract; receiver methods and helpers are not. The IR is consumed,
 never modified — an emitter imports `ir` and reads it.
 
----
+## How the documents divide
 
-## 1. Purpose, pipeline relationship, and the chosen architecture
+A shared document says what every target must do; a target's document says how that target does
+it. So a rule that holds for every target has one home, under the stage or the domain it belongs to,
+and a document under `targets/` states what its language decides and restates no shared rule. A
+shared document may name a language to illustrate a rule, or for a fact about it that explains the
+rule, and it spells a runtime type as Go does; every choice a target makes is in that target's
+documents.
 
-### 1.1 Where the emitter sits
+A trace of one construct divides where the pipeline does. Its IR and its plan are the same for every
+target, so they sit in the shared document, and what refine and emit build from them sits in the
+target's.
+
+A new target adds a directory under `targets/` holding the documents the others hold, and answers
+every construct of the [lowering table](refine/lowering-table.md). `INV<n>` names an invariant of
+`CLAUDE.md`, and `T-<n>` a test of the [mandatory tests](testing/mandatory-tests.md).
+
+## The documents
+
+**What an emitter is given and returns**
+
+- [The emitter contract](contract/emitter.md): `Emitter`, its input and output, who computes the
+  plan, and the rules the contract holds to.
+- [The registry and capabilities](contract/registry.md): how targets are composed and what the
+  engine knows of one without running it.
+- [Target options](contract/options.md): strict, versioned, each default belonging to a version.
+- [The type table](contract/type-table.md): which target type each IR leaf type becomes.
+- [Runtime policy](contract/runtime-policy.md) and [shaping hints](contract/shaping-hints.md): the
+  two inputs that are not the IR.
+
+**The plan: language-neutral decisions, computed once**
+
+- [The plan layer](plan/overview.md), and [plan fact or refine fact](plan/plan-or-refine.md), the
+  test a candidate field must pass.
+- [OpPlan](plan/operations.md), [responses](plan/responses.md), [streams](plan/streams.md) and
+  [bindings](plan/bindings.md): what is decided per operation.
+- [TypePlan](plan/types.md): what is decided per type.
+- [plan.Policy](plan/policy.md): the plan's injectable heuristics.
+
+**Refine: what every target's lowering does**
+
+- [The refine layer](refine/pipeline.md), its [step list](refine/steps.md), the
+  [target AST](refine/target-ast.md) and the [lowering table](refine/lowering-table.md).
+- Types: [models](refine/models.md), [unions and discriminators](refine/unions.md),
+  [enums](refine/enums.md), [containers, scalars and external types](refine/scalars.md),
+  [decorators](refine/decorators.md).
+- Values: [values](refine/values.md), [constraints](refine/constraints.md),
+  [unmodeled entries](refine/unmodeled.md).
+- Names and place: [naming](refine/naming.md), [reserved names](refine/reserved-names.md),
+  [output units](refine/output-units.md).
+- [Interface extraction and request shaping](refine/requests.md).
+
+**Operations: how a call reaches its caller on every target**
+
+- [Return shapes](operations/returns.md), [failures](operations/errors.md),
+  [pagination](operations/pagination.md), [streaming](operations/streaming.md),
+  [long-running and one-way operations](operations/long-running.md), [auth](operations/auth.md),
+  [the client and its base URL](operations/client.md).
+
+**Emit**
+
+- [The emit layer](emit/printing.md), [structure and boilerplate](emit/templates.md) and
+  [its rules](emit/rules.md).
+
+**Each target**
+
+- Go: [overview](targets/go/overview.md), [target AST and printer](targets/go/emit.md),
+  [lowering table](targets/go/lowering.md), [types](targets/go/types.md),
+  [models](targets/go/models.md), [unions](targets/go/unions.md), [naming](targets/go/naming.md),
+  [operations](targets/go/operations.md), [return shapes](targets/go/returns.md),
+  [failures](targets/go/errors.md).
+- Kotlin/JVM and Kotlin Multiplatform: [overview](targets/kotlin/overview.md),
+  [lowering table](targets/kotlin/lowering.md), [types](targets/kotlin/types.md),
+  [models](targets/kotlin/models.md), [unions](targets/kotlin/unions.md),
+  [naming](targets/kotlin/naming.md), [operations](targets/kotlin/operations.md),
+  [return shapes](targets/kotlin/returns.md), [failures](targets/kotlin/errors.md),
+  [Multiplatform common code](targets/kotlin/multiplatform.md), [Swift](targets/kotlin/swift.md),
+  [scale](targets/kotlin/scale.md).
+
+**Other artifacts, and how the work is held**
+
+- [Docs and mock-server emitters](docs-and-mock.md), [write / integrate](write-integrate.md),
+  [surface verification](surface-verification.md).
+- [Package layout](packages.md), [mandatory tests](testing/mandatory-tests.md), the
+  [behavior server](testing/behavior-server.md), the [milestone plan](milestones.md) and the
+  [open questions](open-questions.md).
+
+## Where the emitter sits
 
 ```
 compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
@@ -37,7 +120,7 @@ engine (INV1). Its only structural input is an `ir.Document`; everything else it
 derived from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime
 policy, shaping hints, the target's own options).
 
-### 1.2 The architecture, and why this synthesis
+## The architecture, and why this synthesis
 
 The industry spans a spectrum, from logic-in-templates (OpenAPI Generator) through a mutable
 shared CodeDOM with per-language refiners (Kiota) to a typed-AST-plus-pretty-printer (Stainless).
@@ -98,7 +181,7 @@ address the velocity cost directly, and the `Emit` seam is per-emitter, so a fut
 genuinely wants templates for structure can implement `Emit` differently while reusing the same
 `plan` and refine step library.
 
-### 1.3 Emitter design rules (in addition to the ten CLAUDE.md invariants)
+## Emitter design rules (in addition to the ten CLAUDE.md invariants)
 
 1. **The IR is read-only.** No stage of an emitter mutates the `ir.Document`. Lowering lands on the
    target AST, which is freshly built per (target × document).
@@ -114,9 +197,14 @@ genuinely wants templates for structure can implement `Emit` differently while r
    `Inferred`; un-lowerable constructs emit a coded `Diagnostic`, never a fabricated `any` and never
    a panic (INV5, INV6).
 
----
+## The first targets
 
-## 15. Deliberate exclusions
+The first milestone ships three targets from one plan: Go (`"go"`), Kotlin/JVM (`"kotlin-jvm"`) and
+Kotlin Multiplatform (`"kotlin-multiplatform"`: JVM, Native/iOS and JS/Wasm from common code).
+
+The Kotlin targets read the same plan and lower the same facts as Go.
+
+## Deliberate exclusions
 
 - **A separate neutral code model.** Rejected in favor of per-language target ASTs. A shared
   neutral CodeDOM would add a second sealed sum parallel to the IR, duplicate the plan's traversal,
@@ -134,9 +222,7 @@ genuinely wants templates for structure can implement `Emit` differently while r
   behavior are runtime configuration.
 - **Name-keyed manifests or `"METHOD /path"` keys.** Everything cross-run correlates by IR stable ID.
 
----
-
-## 17. Invariant compliance
+## Invariant compliance
 
 | INV | Where satisfied |
 |---|---|

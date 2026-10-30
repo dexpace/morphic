@@ -1,14 +1,12 @@
-## 8. The first targets — a Go walkthrough, and what the Kotlin targets change
+# The Go target
 
-The first milestone ships three targets from one plan: Go (`"go"`), Kotlin/JVM (`"kotlin-jvm"`) and
-Kotlin Multiplatform (`"kotlin-multiplatform"`: JVM, Native/iOS and JS/Wasm from common code).
-§8.1–§8.7 trace IR constructs through `plan → refine → emit` for Go, one per subsection, with IR
-field names per `ir-design.md`. The Kotlin targets read the same plan and lower the same facts;
-§8.8 gives what they decide differently, §8.9 and §8.10 trace return shapes and the client's base
-URL through all three, and §9 every construct per target.
+The Go target (`"go"`) lives in `emitters/golang`. These documents state what Go decides; each
+links the shared rule the decision answers, and restates none.
 
-**Generated SDKs require Go 1.27 or newer.** Their `go.mod` declares `go 1.27`, and the lowerings
-below use what that release provides:
+## The language floor
+
+**Generated SDKs require Go 1.27 or newer.** Their `go.mod` declares `go 1.27`, and this target's
+lowerings use what that release provides:
 
 - **JSON is `encoding/json/v2` and `encoding/json/jsontext`.** Go 1.27 builds them by default; Go
   1.26 builds them only under `GOEXPERIMENT=jsonv2`, a setting of the importing program's build
@@ -23,3 +21,21 @@ below use what that release provides:
 
 The cost is the SDK users still on Go 1.26. Go supports each major release until two newer ones
 exist, so 1.26 leaves support when 1.28 ships; from then on every supported release meets the floor.
+
+## Output units
+
+A Go unit (§4.17) is a package. Go's default is 10,000 declarations. A synthetic package of that many models, each with its codec and a
+`Validate`, peaked at about 1.6 GB of memory to build with Go 1.27.2 on darwin/arm64, and one of
+30,000 at about 4.6 GB.
+
+Go has no cap on a method or a class, as the JVM has, but one package of tens of thousands
+of types builds slowly and in gigabytes of memory, which §4.17's size check reports and its split by
+group bounds.
+
+## Merging and surface extraction
+
+The Go adapter (§11) (`emitters/golang/mergeadapter.go`) uses `go/ast` to parse existing files and append
+  only new top-level symbols, never delete.
+
+Go's extractor (§12) reads the existing package's exported API, as
+  `apidiff` does.

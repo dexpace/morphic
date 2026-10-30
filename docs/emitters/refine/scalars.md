@@ -1,4 +1,4 @@
-### 4.9 Containers, scalars, external types
+# Containers, scalars, external types
 
 - **Containers**: `List`/`MapT`/`Tuple` are real IR nodes with IDs, so `List<Map<K,List<T>>>`
   composes cleanly; constrained lists and maps keep their bounds; `List.Encoding` (packed/expanded)
@@ -13,20 +13,14 @@
   chain.
 - **A declaration over a root keeps the root's codec.** A named scalar, an anonymous one that is no
   decorator (§4.15), and a `Model` whose `Base` is no model (§9) each declare a type standing over
-  their chain's root. Go defines a new type, `type Name string`, only where the root's type has no
-  methods of its own — a predeclared type, a slice, a map — so the new type codes as the root does
-  and can carry a `Validate` of its own. Over any other root it declares an alias,
-  `type Created = time.Time` or `type Owner = User`. A defined type has none of its root's methods:
-  json/v2 refuses `type Created time.Time` outright, writes `type Key uuid.UUID` and
-  `type Blob jsontext.Value` as base64, and never runs a closed model's strict decoder or an open
-  enum's keeper of unknown values for one. An alias declares no method, so its constraints are
-  checked where it is used, as a field's are (§4.11), and a projection of it (§4.6) is its root's.
-  The target knows which of its built-in types have methods, and takes a type only a user's row
-  names (§2.6) to have some. Kotlin draws the same line at its own types: a value class over
-  `Boolean`, a number, `String` or `ByteArray`, and a `typealias` over any other root, which leaves
-  the root's type, and its serializer, in every signature. An enum is outside this line: it
-  declares its own codec (§4.5), which reads and writes its value type through that type's row, so
-  it is a defined type whatever its value type maps to.
+  their chain's root, and it must code as the root does. So a target defines a new type only over a
+  root whose type has no methods to lose, and declares an alias over any other
+  ([Go](../targets/go/types.md#a-declaration-over-a-root), [Kotlin](../targets/kotlin/types.md#a-declaration-over-a-root)). An alias declares no method, so its constraints
+  are checked where it is used, as a field's are (§4.11), and a projection of it (§4.6) is its
+  root's. The target knows which of its built-in types have methods, and takes a type only a user's
+  row names (§2.6) to have some. An enum is outside this line: it declares its own codec (§4.5),
+  which reads and writes its value type through that type's row, so it is a defined type whatever
+  its value type maps to.
 - **External** (R4 §2.8): `External{Identity, Package, MinVersion}` becomes the type its type-table
   row names for `Identity` (§2.6), imported with the row's `Imports` and required at its
   `Dependency` — imported, not generated. `Package` and `MinVersion` name what the source format

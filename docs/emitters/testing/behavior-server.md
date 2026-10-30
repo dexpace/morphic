@@ -1,4 +1,4 @@
-### 13.1 The behavior server (T-14)
+# The behavior server (T-14)
 
 T-12 checks the requests an SDK builds and T-13 the timing of its runtime, both inside the process.
 Much of what an SDK does shows only against a live server: honoring `Retry-After`, an event stream

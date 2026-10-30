@@ -1,4 +1,4 @@
-### 6.4 SDK-shaping hints — a third, ID-keyed input
+# SDK-shaping hints
 
 oagen's `OperationHint` / rename / remount / split-union-body / url-builder machinery is *SDK
 ergonomics, not API semantics* — the same category as runtime policy. It lives in

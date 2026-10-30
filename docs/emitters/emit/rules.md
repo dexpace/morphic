@@ -1,4 +1,4 @@
-### 5.6 Rules the emit layer holds to
+# Rules the emit layer holds to
 
 §5.3 guards what a template may contain. These rules hold for the emit layer as a whole, the printer
 and the engine's write included, because each is easy to lose once code exists and none shows in a

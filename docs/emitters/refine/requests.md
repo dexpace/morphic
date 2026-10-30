@@ -1,4 +1,4 @@
-### 4.13 Interface extraction & request shaping
+# Interface extraction & request shaping
 
 `ExtractInterfaces` derives per-language interfaces from `Implements`, plus client interfaces for
 testability from the `OperationGroup` structure; a union's and a polymorphic base's interface is
@@ -13,9 +13,7 @@ through the target's options (§2.5). The three first targets share one default:
 positional, in the order the primary binding's URI template names them (`HTTPBinding.URITemplate`),
 never in the order `Operation.Params` holds them, which follows the source's declarations rather
 than the URL; and every other input — query, header and cookie parameters and the body — is a field
-of one request type for the operation, which it takes when it has any such input. Go's request type
-is a `<Operation>Params` struct; Kotlin's is a class built like a model (§8.8). Two properties
-decide the rule:
+of one request type for the operation, which it takes when it has any such input. Each target declares that type its own way ([Go](../targets/go/operations.md#the-request-type), [Kotlin](../targets/kotlin/operations.md#the-request-type)). Two properties decide the rule:
 
 1. **Only the wire may fix an order.** A path template orders its parameters and a parameter list
    does not: two required strings the spec lists the other way round would swap at every positional

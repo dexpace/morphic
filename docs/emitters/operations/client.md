@@ -1,4 +1,4 @@
-### 8.10 The client and its base URL
+# The client and its base URL
 
 IR: `Document.Servers = {"server/openapi/servers/0":
 {URLTemplate:"https://{region}.api.example.com/v1", Variables:[{Name:region, Default:"us",
@@ -13,9 +13,8 @@ operation whose `Servers` names a server of its own.
   use, the default unless the caller names another; a value for each of that server's variables, its
   `Default` unless the caller gives one, and one of its `Enum` when it has one, each value of which
   is a constant the caller can name; and a base URL, which replaces the server's URL entirely, for a
-  proxy, a test server or a deployment the document does not list. Go's are functional options —
-  `NewClient(WithRegion(RegionEU))`, `WithServer(…)`, `WithBaseURL(u)` — and Kotlin's are setters on
-  the client's builder. A value outside a variable's `Enum` is refused when the client is built,
+  proxy, a test server or a deployment the document does not list
+  ([Go](../targets/go/operations.md#the-client), [Kotlin](../targets/kotlin/operations.md#the-client)). A value outside a variable's `Enum` is refused when the client is built,
   never sent. An empty `Default` substitutes nothing, the one reading OpenAPI admits, since it
   requires a default; telling an empty default from none, which AsyncAPI allows, is #883's.
 - **A server a client cannot reach.** A server whose URL, its variables at their defaults, has no

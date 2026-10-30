@@ -1,4 +1,4 @@
-## 12. Surface verification / compat
+# Surface verification / compat
 
 Post-milestone. `EmitterOutput.Surface` is the neutral API-surface projection — classes, interfaces,
 enums, methods, fields as neutral records — built by the **same walk** over `Origin`-tagged AST nodes
@@ -12,13 +12,9 @@ that emit performs.
 - **Injectable per-language severity.** The differ emits **neutral change records**; a
   per-target `verify.Severity` function decides breaking/additive (parameter names are public API in
   PHP, arity in Go, ~nothing in JS) — heuristics-as-policy (INV6).
-- **Extractors for the first targets.** Go's reads the existing package's exported API, as
-  `apidiff` does. The Kotlin targets read the ABI dumps the Kotlin Gradle plugin's ABI validation
-  writes: the JVM's class-file signatures, and for Multiplatform the KLib ABI plus the generated
-  Objective-C header, since a change Swift sees can break callers the Kotlin ABI does not show.
-  Kotlin's severity differs from Go's in two places: a parameter added with a default leaves
-  Kotlin callers compiling but changes the JVM signature, which is binary-breaking, and on
-  Multiplatform a rename only the Swift header shows still breaks Swift callers.
+- **An extractor per target.** Each first target's extractor and where its severity differs are in
+  its document ([Go](targets/go/overview.md#merging-and-surface-extraction),
+  [Kotlin](targets/kotlin/overview.md#merging-and-surface-extraction)).
 - **Behavioral channel separate from structural.** A default-value change is behavioral,
   tracked in a distinct channel from a signature change — detectable without re-parsing because the
   plan already carries defaults as typed `Value`s. Every finding carries drift provenance (which

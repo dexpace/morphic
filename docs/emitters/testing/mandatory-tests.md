@@ -1,7 +1,7 @@
-## 13. Mandatory emitter tests
+# Mandatory emitter tests
 
 Built as the code lands, extending the testing strategy in `architecture.md §5`. Cited as `T-N`
-throughout this document.
+throughout these documents.
 
 1. **T-1 · TypeKind switch-completeness** — a test over every `ir.TypeKind` and every target-AST
    `NodeKind`, its kind lists held to what the packages declare; adding a kind fails every dispatch

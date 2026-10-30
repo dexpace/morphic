@@ -1,4 +1,4 @@
-### 3.4 BindingView — the per-protocol request/response projection
+# BindingView — the per-protocol request/response projection
 
 `Parameter`s carry no protocol location (`ir-design.md §7.2`). The plan derives, from `OpBindings`,
 a neutral per-protocol view a refiner turns into a request builder: which params are path/query/
@@ -38,7 +38,7 @@ type ParamBind struct {
 type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir.Reply; Messages []ir.MessageID }
 ```
 
-The Go-first walkthrough (§8) exercises `Protocol == "http"`; the RPC/message/OTP arms exist in the
+The traces in these documents exercise `Protocol == "http"`; the RPC/message/OTP arms exist in the
 type so the second-protocol emitter (open Q4) does not force a plan schema change (INV9). Channels
 and messages (`ir-design.md §8.3`) reach an emitter through `MsgView`; a messaging target consumes
 them the same way an HTTP target consumes `HTTP`.

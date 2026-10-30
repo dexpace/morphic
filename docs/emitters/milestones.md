@@ -1,4 +1,4 @@
-## 14. Per-target milestone plan
+# Per-target milestone plan
 
 Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
 
@@ -23,7 +23,7 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    reusing the shared plan and step contract, forcing **no** IR or plan change. The shared plan
    first pays back at M3, where three targets read it.
 
-### 14.1 What M3 lowers
+## What M3 lowers
 
 M3a to M3c lower the IR facts the compilers produce, and degrade the rest with a code. This scopes
 what the first emitters implement, not what the IR models, which stays as designed (INV9). The

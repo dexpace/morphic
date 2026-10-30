@@ -1,4 +1,4 @@
-### 4.15 Decorators collapse into their references
+# Decorators collapse into their references
 
 OpenAPI 3.0 admits nothing beside a `$ref`, so a document annotates one use of a shared schema by
 wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. The compiler keeps
@@ -18,7 +18,7 @@ since an entry that kept a node from collapsing would change the artifacts. The 
 through that function, so the compiler, which names a union variant holding one by it, and the plan
 cannot disagree about which nodes collapse. Anything else a node sets — a property, a required
 member, a constraint, `Sensitive`, an XML name, a media-type hint — says something about values at
-its position, and the node lowers as it would without this section. A named type is never a
+its position, and the node lowers as it would otherwise. A named type is never a
 decorator: its name is public surface, lowered by §9's rows.
 
 **What the plan records.** A decorator's `TypePlan.Alias` is the first type along its `Base` chain

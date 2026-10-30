@@ -1,4 +1,4 @@
-### 4.14 Unmodeled entries
+# Unmodeled entries
 
 An `Unmodeled` entry is a construct the IR keeps verbatim rather than modeling it (ir-design §12).
 An SDK emitter acts on an entry's `Reason`, never on its key, and reports none of them:

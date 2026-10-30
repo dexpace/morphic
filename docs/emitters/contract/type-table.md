@@ -1,4 +1,4 @@
-### 2.6 The type table
+# The type table
 
 Which target type a primitive becomes is the setting a generator's users override most, and every
 row of it carries an import and a dependency beside the type, which drift apart wherever they are
@@ -17,7 +17,7 @@ type Table struct {
 type Row struct {
     Type       string            // the type as the target spells it in a file
     Codec      string            // Kotlin: the KSerializer that reads and writes it, "" = the
-                                 // type's own; Go: always "", a type codes itself (below)
+                                 // type's own; Go: always "", a type codes itself (../targets/go/types.md)
     Imports    map[string]string // each imported name Type and Codec spell — a Go package's, a
                                  // Kotlin class's — → what the file imports for it; empty = none
     Dependency *Dependency       // what the SDK's build requires for it; nil = the standard library
@@ -65,32 +65,21 @@ type Dependency struct {
   for the same reason (§4.12).
 - **What a mapped type must do.** A type some built-in row names is one the target knows: it writes
   that type's literals, checks its constraints and knows whether it has methods. Any other type is
-  known only through its row. A Go type codes itself, through whichever of the pairs json/v2 calls
-  it declares — `MarshalJSONTo`/`UnmarshalJSONFrom`, `MarshalJSON`/`UnmarshalJSON` or
-  `MarshalText`/`UnmarshalText` — because json/v2 calls a type's methods wherever its value sits, a
-  caller's own `json.Marshal` included, where a codec passed as an option reaches only the values
-  encoded under it. So a Go row's `Codec` is an options error, and a type without those methods is
-  mapped through a type the user declares with them. A Kotlin type codes through its row's `Codec`,
-  a `KSerializer` the row names unless the type is `@Serializable`. A literal of a mapped type (a
-  default, a constant, an enum value) is built by decoding the value's wire form through its codec,
-  and a constraint on it is not checked by the SDK, which the server still checks, reported once
-  per key as an info `emitters/<target>/unchecked-constraint`. A row's codec goes with its type, so
-  a declaration standing over the type keeps it by naming that type again rather than defining a
-  new one (§4.9), and a type only a user's row names is taken to have methods.
+  known only through its row, and how it codes is the target's ([Go](../targets/go/types.md), [Kotlin](../targets/kotlin/types.md)). A
+  literal of a mapped type (a default, a constant, an enum value) is built by decoding the value's
+  wire form through its codec, and a constraint on it is not checked by the SDK, which the server
+  still checks, reported once per key as an info `emitters/<target>/unchecked-constraint`. A row's
+  codec goes with its type, so a declaration standing over the type keeps it by naming that type
+  again rather than defining a new one (§4.9), and a type only a user's row names is taken to have
+  methods.
 - **Imports and dependencies.** `ComputeImports` adds a row's `Imports` to every file that spells
   its type, and the dependency-manifest artifact requires each `Dependency.Module` a row in use
   names, at the highest `MinVersion` those rows name, compared as the target's build tool compares
   versions.
 
-`Type`, `Codec` and `Imports` are written as the target writes them in a file. A Go row is
-`{Type: "decimal.Decimal", Imports: {"decimal": "github.com/shopspring/decimal"}}`, keyed by the
-name `Type` gives the package, so a package whose name is not its path's last element
-(`go.yaml.in/yaml/v3` is `yaml`) is bound as surely as one whose name is. A Kotlin row is
-`{Type: "BigDecimal", Codec: "BigDecimalSerializer", Imports: {"BigDecimal": "java.math.BigDecimal",
-"BigDecimalSerializer": "com.example.BigDecimalSerializer"}}`. Decoding parses `Type` and `Codec`
-into the target's AST with each imported name bound through `Imports`, so a node holds what it
-imports and never the name a row spelled it by, and what a file calls each import is settled with
-every other name (§4.12): two rows that spell `decimal` for two packages, or a row's package and a
-unit of the SDK's own, can meet in one file. A built-in row may name a type of the SDK's runtime,
-which the target imports from wherever it puts the runtime. Each Kotlin target's built-in table is
-its `Platform`'s (§7), which is where the JVM and Multiplatform differ.
+`Type`, `Codec` and `Imports` are written as the target writes them in a file ([Go](../targets/go/types.md), [Kotlin](../targets/kotlin/types.md)).
+Decoding parses `Type` and `Codec` into the target's AST with each imported name bound through
+`Imports`, so a node holds what it imports and never the name a row spelled it by, and what a file
+calls each import is settled with every other name (§4.12): two rows that spell `decimal` for two
+packages, or a row's package and a unit of the SDK's own, can meet in one file. A built-in row may
+name a type of the SDK's runtime, which the target imports from wherever it puts the runtime.

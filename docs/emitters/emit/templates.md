@@ -1,4 +1,6 @@
-### 5.2 The structure-vs-boilerplate line (the honest boundary)
+# Structure and boilerplate
+
+## The structure-vs-boilerplate line (the honest boundary)
 
 | Content | Representation | Why |
 |---|---|---|
@@ -13,12 +15,7 @@ contain **no policy branching and no structural branching**: all decisions were 
 the template only interpolates scalar policy values (retry count, header name). So templates cannot
 diverge across languages the way Mustache *structure* templates do.
 
-The Go templates lean on the standard library wherever Go 1.27 does the work (§8). In particular the
-transport template does not drain an unread response body by hand so that its connection can be
-reused: `net/http` does that itself on `Close`, up to a bound it sets, and past the bound closes the
-connection rather than read an arbitrarily large body.
-
-### 5.3 Two guards on the boilerplate templates
+## Two guards on the boilerplate templates
 
 Grafted from the template-first stance, applied only to the narrow boilerplate surface:
 
@@ -34,7 +31,7 @@ Grafted from the template-first stance, applied only to the narrow boilerplate s
   formatter's message), never shipped. Because typed-AST structure is already syntactically valid by
   construction, in practice the format pass only ever catches boilerplate-template mistakes.
 
-### 5.4 Serialization behind a runtime abstraction
+## Serialization behind a runtime abstraction
 
 The generated *typed veneer* references a `Transport` / `Serializer` interface (Kiota's
 `IParseNode`/`ISerializationWriter` seam); the concrete transport is a runtime-policy-configured

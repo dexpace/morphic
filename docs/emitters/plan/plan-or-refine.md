@@ -1,4 +1,4 @@
-### 3.6 Plan fact or refine fact
+# Plan fact or refine fact
 
 The plan classifies and refine decides (§3), and three first targets (§14) test that line from the
 first model. A candidate field belongs in the plan only when all three of these hold:

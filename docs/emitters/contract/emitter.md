@@ -1,4 +1,4 @@
-## 2. The emitter contract
+# The emitter contract
 
 Package `emitters` is the Layer-2 contract, as package `compilers` is the compilers'. It imports
 **only** `ir` and `ir/irfacts` (Layer 0) plus its own shared sub-packages (`plan`, `policy`,
@@ -75,7 +75,7 @@ The engine asks it after `Generate` returns, and a run whose context is done by 
 context's error, whatever `Generate` returned: an emitter cut short may have stopped anywhere, and
 no artifact of it is written.
 
-### 2.2 Who computes the plan
+## Who computes the plan
 
 `plan.Build(doc, facts, planPolicy)` is a pure function (§3). For a multi-target run the **engine
 computes it once** and passes the same `*plan.Plan` into every `Generate` call. This is what makes
@@ -93,7 +93,7 @@ reference (§4.16) are found once per document, not once per target. An index is
 use, so targets running side by side share it. It is not serialized: a consumer outside the process
 rebuilds it from the document, which determines it.
 
-### 2.4 Contract rules the type system and tests enforce
+## Contract rules the type system and tests enforce
 
 - **Purity / determinism.** No I/O, clock, randomness, or stderr inside `Generate`. Same
   `(Doc, Plan, Policy, Hints, Scope, Options)`, under a context that stays live, ⇒ byte-identical

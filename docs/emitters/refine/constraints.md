@@ -1,4 +1,4 @@
-### 4.11 Constraints and validation
+# Constraints and validation
 
 `LowerConstraints` reads `Constraints` on properties, scalars, and lists (§5.3 of `ir-design.md`)
 and does two things: it stamps field-level validation metadata (a `validate:"…"` struct tag or an

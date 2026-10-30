@@ -1,4 +1,4 @@
-## 3. The plan layer
+# The plan layer
 
 `emitters/plan` (Layer 2, imports `ir` and `ir/irfacts` only). `Build` is pure, deterministic, and JSON-serializable
 (INV7) so it can be cached, shared out-of-process, and golden-tested independently of any language.

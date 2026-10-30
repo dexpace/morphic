@@ -1,4 +1,4 @@
-## 7. Package layout & layering
+# Package layout & layering
 
 Consistent with architecture.md §3 (`emitters/*` is Layer 2: imports `ir`, `ir/irfacts` + the emitter contract,
 never `compiler`, never `engine`, never a sibling target):
@@ -41,15 +41,6 @@ per-language by definition. `plan`, `policy`, `naming`, `typemap`, `refine` (the
 helpers), `manifest`, and `verify` are shared because they are language-neutral: `typemap` holds a
 table's shape and rules, and each target its rows. This section lays out Morphic's own packages; how
 a generated SDK divides into packages of its own, by source document or by group, is §4.17's.
-
-Kotlin/JVM and Kotlin Multiplatform are two targets and one package. They share a language, so
-one AST, printer and refine pipeline serve both; they differ in a runtime, and that difference is
-data: a `Platform` value carrying its built-in type table (§2.6), whose rows for the
-runtime-dependent primitives differ between the two, the identifier rules the Objective-C/Swift
-export adds on Multiplatform, and the HTTP engine each platform's transport defaults to. A lowering
-that branches on the platform reads that value, never the target key. They are two targets rather
-than one with an option because their artifacts, surfaces and toolchains differ: a JVM SDK exposes
-`java.time` and `BigDecimal`, which Multiplatform common code does not have (§8.8).
 
 **Architecture test.** The import-graph rule is in place before the first emitter package:
 `internal/archtest` rules `emitters`, and names it in `unbuilt` until the package exists, so the

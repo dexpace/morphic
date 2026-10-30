@@ -1,4 +1,4 @@
-## 10. Docs and mock-server emitters reuse the contract
+# Docs and mock-server emitters reuse the contract
 
 Both are `Emitter` implementations consuming the **same `Doc + Plan`** — the payoff of computing the
 plan once: docs and mocks agree with the SDK by construction, not by re-derivation.

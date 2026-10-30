@@ -1,11 +1,11 @@
-## 4. The refine layer
+# The refine layer
 
 `emitters/<target>/refine`. This is where the "lossless, lowered late" bet is cashed (INV2) and
 the **only** place names get cased (INV4). It reads the immutable IR and the shared Plan and
 **constructs typed nodes of a per-language target AST**. It never mutates the IR and never mutates a
 shared cross-language tree.
 
-### 4.1 The refiner contract — an ordered pipeline of pure lowerings
+## The refiner contract — an ordered pipeline of pure lowerings
 
 Following Kiota's concrete contract — an ordered list of small, named, idempotent steps, each valid
 only because the un-lowered fact it needs is still present (prior-art.md §2) — but each step
@@ -46,7 +46,7 @@ func Run(r Refiner, c *Ctx) []ir.Diagnostic  // runs Steps in order
 type TargetAST interface{ targetAST() }
 ```
 
-**This ordered, named step list IS the IR acceptance test.** Each step below is only implementable
+**This ordered, named step list IS the IR acceptance test.** Each step of [the list](steps.md) is only implementable
 because a specific un-lowered IR fact reached it; a missing IR capability shows up as an
 unimplementable step, not a silent degrade. Ordering is asserted by a golden *step-trace* test:
 collapsing aliases runs first, since every other step lowers references through it; placement

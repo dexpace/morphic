@@ -1,4 +1,4 @@
-### 3.2 TypePlan — per-type projections computed once
+# TypePlan — per-type projections computed once
 
 ```go
 type TypePlan struct {
@@ -68,7 +68,7 @@ to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref:
 `Tags` is a list, is in `Unflattened` as the entry names it: the struct over `Flattened` does not
 hold what it admits, so each refiner lowers it or degrades with a code of its own.
 
-### 3.3 ModelShape — visibility projection
+## ModelShape — visibility projection
 
 One logical model produces N wire shapes across the lifecycle. `ModelShape(model, lifecycle)` is a
 **computed traversal in the plan layer**; the IR stores only the single logical model plus visibility
@@ -94,3 +94,15 @@ protocol default, which flips them), and a patch shape never carries a property'
 wire (§4.10); operation-level `ParameterVisibility` /
 `ReturnTypeVisibility` override which filter applies. Unknown visibility classes are opaque
 filters evaluated per class (`ir-design.md §5.2`).
+
+## A model with lifecycle visibility
+
+IR: `Model{ Properties:[id (readOnly), name (required), email, password (writeOnly, Secret)],
+Additional:"closed" }`.
+
+`ModelShape(User, read)` = {id,name,email}; `ModelShape(User, create)` =
+{name,email,password}. `Flattened` walks `Base`, `Implements` and `Mixins` (none here). That
+`User` is both written and read is the derived-fact index's, `Facts.Usage(User)` = Input|Output,
+which no plan field copies (§3.6).
+
+What refine and emit build from it: [Go](../targets/go/models.md#user-in-go).

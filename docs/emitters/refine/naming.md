@@ -1,4 +1,4 @@
-### 4.12 Naming, casing, reserved words, collisions (INV4)
+# Naming and casing
 
 Identifier rendering is owned **exclusively** by refine, through a `naming.Policy` each target
 builds from its options. Its casing functions are the target's code. The tables they read — the
@@ -44,7 +44,9 @@ presented in a service without changing its `TypeID` or its own `Naming`. Enum m
 `EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
 alike are two entries to disambiguate, and reordering members of distinct values renames none.
 
-**The source spelling, for letter case only.** `Case` receives each canonical word beside the
+## The source spelling, for letter case only
+
+`Case` receives each canonical word beside the
 spelling the source gave it. ir-design §3.2 derives `Canonical` from `Source` by one grammar, which
 lives in `ir` (`ir.CanonicalWords`), and `irverify` holds every `Naming` that has a `Source` to it
 (`ir/naming-not-derived`). `naming.Words` takes the spellings from that same grammar. `ir` has one
@@ -61,7 +63,9 @@ would have to capitalize `os` and `fa` in every name. It never reads one to find
 words are fixed before any spelling is read — so the rule against re-splitting a cased string holds.
 Ignoring the spellings is conforming, and the acronym table applies either way.
 
-**A name with no words takes its characters' names.** A `Source` with no letter or digit in it — an
+## A name with no words takes its characters' names
+
+A `Source` with no letter or digit in it — an
 enum value `>=`, an `operationId` `***`, a property `<` — has neither `Canonical` nor `Hint`
 (ir-design §3.2), and still needs an identifier, wherever it is written. `RenderCasing` names it:
 from each position, the longest sequence the character-name table holds becomes that entry's words,
@@ -89,7 +93,9 @@ $   dollar                  ?   question_mark           .   period          ,   
 {   left_brace              }   right_brace             U+0020   space
 ```
 
-**An identifier that would begin with a digit takes a leading word.** Canonical words may begin with
+## An identifier that would begin with a digit takes a leading word
+
+Canonical words may begin with
 a digit — a property `1000`, a schema `10_gbps_to_100_gbps`, an enum value `10002` — and no first
 target accepts an identifier that does. Go takes one only from a letter, and exports one only from
 an upper-case letter, so `1000` cannot be a field at all; Kotlin takes one only in backticks, which

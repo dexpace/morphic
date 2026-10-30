@@ -1,4 +1,6 @@
-### 2.1 The registry
+# The registry and capabilities
+
+## The registry
 
 Keyed by `TargetKey`, and composed by the engine exactly as the compiler registry is
 (`compilers.Registry`, architecture.md §2.1): a plain value, with no package-level default and no
@@ -25,7 +27,7 @@ atomic replace in `engine/internal/atomicfile`. Writing artifacts and pruning la
 architecture.md §4): at the default threshold a document carrying an error diagnostic reaches no
 emitter, and a caller that wants one built from it anyway says so with the `none` threshold.
 
-### 2.3 Capabilities
+## Capabilities
 
 `Capabilities()` lets the engine reason about an emitter without running it — which IR `TypeKind`s
 it lowers, whether it supports write/integrate, whether it produces a surface for compat. It is

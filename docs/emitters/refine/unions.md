@@ -1,4 +1,8 @@
-### 4.4 Unions (the hardest axis)
+# Unions and discriminators
+
+How a target spells a union is its own ([Go](../targets/go/unions.md), [Kotlin](../targets/kotlin/unions.md)); what follows holds for every target.
+
+## The wire shapes
 
 `LowerUnions` reads the plan's wire shape (`TypePlan.Union`) and the target's capability. The
 tag-mode matrix (each a distinct serializer) is normative (`ir-design.md §4.4`):
@@ -14,45 +18,19 @@ tag-mode matrix (each a distinct serializer) is normative (`ir-design.md §4.4`)
 - `WireTagged=true` + nil `Discriminator` → key-tagged: a single-key object keyed by the variant's
   wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf`).
 
-Go has no sum type, so the Go refiner pairs a struct with a sealed interface, the closed-sum idiom
-the IR itself mandates, with a generated switch-completeness test over the variant set:
+## A polymorphic base
 
-```go
-type Payment struct{ Value PaymentVariant }           // what a reference names; declares the codec
+A reference to a model with a `Discriminator`, or an `Abstract` one (ir-design §4.9), holds any
+of its subtypes, so it lowers as a union of them, and `Discrim` routes it as a union's. The base's
+own shape, unless it is `Abstract`, is a variant too, a struct of its flattened properties.
 
-type PaymentVariant interface{ isPaymentVariant() }   // the closed set
-type PaymentCard struct{ Value Card }                 // one wrapper per variant
-type PaymentBankTransfer struct{ Value BankTransfer }
-```
-
-- **The struct declares the codec.** Go refuses a method whose receiver is an interface type, and
-  json/v2 refuses to decode into a sealed one: `cannot derive concrete type for nil interface with
-  finite type set`. On the struct, the pair travels with the type, so a caller's own
-  `json.Unmarshal` decodes a `Payment` and any type of the caller's that holds one, as §2.6 asks of
-  every Go type an SDK names. The struct's `Value` is the price at each use. Decoding in each
-  holder's codec and the client would leave a caller's own call failing, and a registered
-  `json.WithUnmarshalers` would reach only values decoded under the SDK's options, which is why a Go
-  row of the type table has no codec of its own (§2.6). The struct encodes through its variant, and
-  one whose `Value` is nil refuses to encode, never writing `null`, and fails `Validate`.
-- **A wrapper for every variant.** The marker is an unexported method, which only a type declared
-  in the interface's package can implement. So a variant in another output unit (§4.17) cannot, nor
-  can one a target spells as `string`, `[]T` or a map, which declares no method, and a type many
-  unions name would carry a marker for each. A wrapper in the union's unit takes any variant, and
-  keeps apart two variants that lower to one Go type. A wrapper declares the codec pair too,
-  delegating to its `Value`, so it codes as its variant does when a caller's own call meets it
-  alone. Kotlin's variant classes are the same wrapper, for the same reason (§9).
-- **A polymorphic base lowers the same way.** A reference to a model with a `Discriminator`, or an
-  `Abstract` one (ir-design §4.9), holds any of its subtypes, so `Pet` is a struct holding
-  `PetVariant`, with a wrapper per subtype, and `Discrim` routes it as a union's. The base's own
-  shape, unless it is `Abstract`, is a variant too, a struct of its flattened properties.
+## Variant identity and recognition
 
 Variant identity (`Variant.Name`) survives for named accessors / constructors; `WireName`/`WireID`
 survive for (de)serialization. **Unions never degrade to optional-field merges** — flattening a
 *body* union into method arguments is an opt-in `ShapeHint` (§6.4), never a silent loss (the oagen
 counterexample, prior-art §1). A future TS/Python target lowers the *same* facts to a native
-`A | B | C`; the decision differs, the fact base is identical. Kotlin declares its `KSerializer` on
-the sealed interface itself, which a Kotlin interface allows, so it needs no struct. What `Value`
-holds when a value satisfies several variants of an `anyOf` is #959's.
+`A | B | C`; the decision differs, the fact base is identical. What a union holds when a value satisfies several variants of an `anyOf` is #959's.
 
 Within the untagged case, choosing *how* a variant is recognized on decode is refine's job, and
 ogen's `schema_gen_sum.go` is the battle-tested enumeration to lift: try, in order, explicit
@@ -60,42 +38,45 @@ discriminator → implicit discriminator (variant const/name) → JSON-type disc
 distinguishable by JSON kind) → unique-field discrimination → value-based. The decisive divergence:
 ogen computes this *while building the Go model*, so a union it cannot discriminate aborts the whole
 generation. Because Morphic keeps `Union` lossless in the IR and only an emitter picks a strategy, a
-Go refiner that finds no strategy emits a coded diagnostic and decodes every value into the fallback
+refiner that finds no strategy emits a coded diagnostic and decodes every value into the fallback
 below, which keeps its bytes as they arrived — a degrade, never a whole-document failure (§13 test
 T-7). That graceful-degradation margin is exactly what the ABI seam buys and the fused-pipeline
-generator cannot have. Whatever the strategy, the codec is a `MarshalJSONTo`/`UnmarshalJSONFrom`
-pair, for the reason §4.8 gives.
+generator cannot have.
 
-**A value no variant recognizes.** All four wire shapes decode in one order: the variant the tag or
+## A value no variant recognizes
+
+All four wire shapes decode in one order: the variant the tag or
 the key names, or the one recognition finds; then `Discriminator.Default`, for a tag it does not
 name or no tag at all; then, on an `Open` union (§3.5), the fallback; and otherwise a coded decode
 error. A tag that names a variant whose body fails to decode is an error either way: the variant is
-known, and the value does not match it. The fallback is one more variant, `PaymentUnknown` on Go,
-holding the value as `jsontext.Value`, and `Payment.Unknown` on Kotlin, holding a `JsonElement`. It
-re-encodes as the same JSON value, its members in order and each number's text intact, though
-json/v2 normalizes whitespace and string escapes as it writes. It has no factory, since only a
+known, and the value does not match it. The fallback is one more variant, holding the value as the target's untyped
+JSON value ([Go](../targets/go/unions.md#the-fallback), [Kotlin](../targets/kotlin/unions.md#the-fallback)). It re-encodes as the same JSON value, its members in
+order and each number's text intact. It has no factory, since only a
 response produces one, and one a caller sends back goes out as it came. A closed union declares
 none.
 
-### 4.8 Discriminators
+## Discriminators
 
 `LowerDiscriminator` reads a `Discriminator` whose `Mapping` points at **TypeIDs, not names**, so a
-presentation rename never breaks the wiring. It emits a tag-dispatched `UnmarshalJSONFrom` that
-peeks the discriminator **wire** key (never the Go field name), typed factory functions, and a
-`MarshalJSONTo` that writes the tag. `Property` vs `PropertyName` vs `Index` (positional),
+presentation rename never breaks the wiring. It emits a tag-dispatched decoder that
+peeks the discriminator **wire** key (never a rendered field name), typed factory functions, and an
+encoder that writes the tag. `Property` vs `PropertyName` vs `Index` (positional),
 `Envelope` vs inline, and the `Default` variant on an absent/unrecognized tag all survive
-un-lowered; the choice of factory vs native vs wrapper is the refiner's. Go declares the pair on
-the union's struct (§4.4), and a tag that selects no variant takes §4.4's order.
+un-lowered; the choice of factory vs native vs wrapper is the refiner's. A tag that selects
+no variant takes the order above.
 
-The pair is `encoding/json/v2`'s `MarshalerTo`/`UnmarshalerFrom`, not v1's `MarshalJSON`/
-`UnmarshalJSON`, because only the v2 methods see the caller's encoder and decoder. `MarshalJSONTo`
-writes the variant straight to the caller's `jsontext.Encoder`. A tag may sit anywhere in its
-object, so `UnmarshalJSONFrom` buffers the one value it dispatches (`dec.ReadValue()`), scans it
-for the tag without decoding the rest, and decodes the variant from that buffer under
-`dec.Options()`: the options the caller decoded under reach the variant's body. A v1
-`UnmarshalJSON` receives only bytes, so it decodes the variant under options of its own choosing,
-never the caller's, and a type-specific decoder the caller registered with `json.WithUnmarshalers`
-stops applying at the first union. The one option a model sets over its caller's is
-`RejectUnknownMembers`, which each model pins for itself (§8.1). `ir/json.go` is the worked
-example: `(*TypeRegistry).UnmarshalJSONFrom` buffers each entry, `stringMember` finds the `kind`
-tag by token scan, and `decodeTypeDef` decodes the concrete kind under the decoder's options.
+A discriminator's tag is the wire string the mapping names, a numeric-looking one included
+(`"10016"`): a target compares it as a string and never parses it as a number.
+
+## A discriminated union
+
+`Payment = Card | BankTransfer`, tag `type`.
+
+IR: `Union{ Variants:[Card, BankTransfer], Exclusive:true, WireTagged:true,
+Discriminator{PropertyName:"type", Mapping:{"card":Card.ID, "bank":BankTransfer.ID}} }`.
+
+`TypePlan.Union` = `discriminated`, `Discrim` maps `card` and `bank` to the two
+variants' IDs, and `Open` says whether a value no variant recognizes is kept (§3.5). No
+primary-variant collapse — the union stays whole (INV2).
+
+What refine and emit build from it: [Go](../targets/go/unions.md#payment-in-go).
