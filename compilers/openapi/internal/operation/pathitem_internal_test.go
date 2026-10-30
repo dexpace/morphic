@@ -19,20 +19,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-func TestApplyPathServers_WithoutRootNode(t *testing.T) {
-	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
-	op := &ir.Operation{}
-	diags := applyPathServers(l.ctx, onOperation(op),
-		&soa.PathItem{Servers: []*soa.Server{{URL: "https://x"}}}, "/paths/~1a", owners{}.cedes(0))
-	assert.Nil(t, op.Unmodeled, "servers with no raw node are not preserved")
-	assert.Empty(t, diags)
-}
-
-// TestApplyPathItemDocs_WithoutRootNode is the documentation counterpart of
-// TestApplyPathServers_WithoutRootNode and
-// TestApplyOperationServers_WithoutRootNode: a declared pair whose source node
-// cannot be read keeps nothing, and announces nothing it did not keep.
+// TestApplyPathItemDocs_WithoutRootNode pins that a declared pair whose source
+// node cannot be read keeps nothing, and announces nothing it did not keep.
 //
 // The input is synthetic, but the branch is not hypothetical: a pair merged in
 // through a `<<` chain deeper than nodeview.MergeDepthLimit is one the model

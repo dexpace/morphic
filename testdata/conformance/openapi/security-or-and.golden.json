@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -117,6 +121,9 @@
         },
         {}
       ],
+      "servers": [
+        "server/default"
+      ],
       "provenance": {
         "source": 0
       }
@@ -165,15 +172,19 @@
       }
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.1",

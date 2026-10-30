@@ -307,7 +307,8 @@ Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discri
 Object, draw the warning as any other construct does. A keyword a later minor's JSON Schema dialect
 added is read by the schema lowering as it finds it, so the table leaves it alone. The same table
 judges a Parameter Object's `allowReserved` against where the declared minor applies it
-([`allow-reserved-locations`](#allow-reserved-locations)).
+([`allow-reserved-locations`](#allow-reserved-locations)), and its `allowEmptyValue` against the
+style it is written under ([`allow-empty-value`](#allow-empty-value)).
 
 - Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`
 - Codes: `openapi/later-version-construct`
@@ -2017,24 +2018,30 @@ to this one.
 
 ### `path-item-servers`
 
-A path item's `servers`, under `paths`, `webhooks` and a callback expression alike, are kept
-verbatim on each operation it mounts, under `openapi:servers` (`no_ir_home`), since §10 scopes
-servers by an index list at service and channel and an operation has no such list yet; an
-operation's own `servers`, which OpenAPI says override the path item's, are kept beside them under
-`openapi:operationServers`, the one key here not named for the keyword it holds, since two
-declarations at two pointers cannot share one map key without the survivor depending on lowering
-order. Each is reported as an info `openapi/degraded-construct` at the operation. A path item that
-mounts no operation keeps its `servers` and `x-*` names on the service instead, or on the declaring
-operation's HTTP binding for a callback expression, under `openapi:pathItem/<item pointer>/<key>`,
-the item's pointer in the key since one carrier holds every such item, reported as one
-`openapi/degraded-construct` warning at the mount.
+A path item's `servers`, under `paths`, `webhooks` and a callback expression alike, and an
+operation's own, lower as the document's do ([`servers`](#servers)): each server into
+`Document.Servers`, registered once at the pointer of its Server Object in the document declaring
+it, however many mounts reach it. An operation names its own servers on `Operation.Servers` and its
+path item's where it declares none, since OpenAPI says the operation's override the path item's; one
+that neither declares names none, and its service's apply (ir-design §10). A path item's list is
+registered even where every one of its operations overrides it. Two lists are not: one a nearer
+layer of a mount overrides, which [`path-item-ref-fields`](#path-item-ref-fields) reports rather
+than lowers, and one written by a component path item no reference reaches, kept whole with that
+component ([`unreferenced-components`](#unreferenced-components)). A path item that mounts no
+operation registers its servers too, named by nothing, and keeps its `x-*` names on the service
+instead, or on the declaring operation's HTTP binding for a callback expression, under
+`openapi:pathItem/<item pointer>/<key>`, the item's pointer in the key since one carrier holds every
+such item; it is reported as one `openapi/degraded-construct` warning at the mount.
 
 - Cases: `webhooks`, `callbacks`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
-- Tests: `operation.TestOperations_PathItemServersKeptOnEveryRoute`,
-  `operation.TestOperations_OwnServersKeptBesideThePathItems`,
-  `operation.TestOperations_ServersKeysAreIndependent`
-- Status: open: whether an operation gets a field for the servers a path item declares (#285).
+- Tests: `operation.TestOperations_PathItemServersNamedOnEveryRoute`,
+  `operation.TestOperations_OwnServersOverrideThePathItems`,
+  `operation.TestOperations_ServersEachLevelAlone`,
+  `servers.TestRegistry_DeclaredOneDeclarationLowersOnce`,
+  `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`
+- Status: open: an explicitly empty list declares nothing to name, as an absent one does, and
+  whether it should override the list above it is undecided (#1081).
 
 ### `path-item-docs`
 
@@ -2173,14 +2180,20 @@ is kept under `degraded_lowering` with an `openapi/degraded-construct` warning. 
 
 ### `allow-empty-value`
 
-A parameter's `allowEmptyValue` is kept verbatim in its `Unmodeled` under `openapi:allowEmptyValue`
-(`no_ir_home`), reported as an info `openapi/degraded-construct` at the keyword: `HTTPParamBinding`
-holds its neighbours but not this one.
+A parameter's `allowEmptyValue` lowers to its binding's `AllowEmptyValue`, `false` where it declares
+none, as `allowReserved` lowers to `AllowReserved`. Written under a `style` whose empty value
+OpenAPI's style table leaves _n/a_ — `spaceDelimited`, `pipeDelimited` or `deepObject` — where it
+says the field SHALL be ignored, it still lowers as declared and is reported as an
+`openapi/inapplicable-location-keyword` warning at the keyword, as an `allowReserved` its version
+gives no effect is ([`allow-reserved-locations`](#allow-reserved-locations)). Written at any
+location but `query`, which OpenAPI forbids, it is an `openapi/validation` error of the class
+`validation-forbidden-field` ([`validation`](#validation)).
 
 - Cases: `param-styles`
-- Codes: `openapi/degraded-construct`
-- Tests: `operation.TestParams_AllowEmptyValueKept`
-- Status: open: whether the HTTP binding gets a field for it (#285).
+- Codes: `openapi/inapplicable-location-keyword`
+- Tests: `operation.TestParams_AllowEmptyValueLowers`,
+  `operation.TestParams_AllowEmptyValueUnderAStyleThatCannotWriteOneIsReported`,
+  `oas.TestCheck_AllowEmptyValueWarnsUnderAStyleThatCannotWriteIt`
 
 ### `reserved-header-names`
 
@@ -2409,17 +2422,16 @@ any case.
 
 ### `encoding-allow-reserved`
 
-An Encoding Object's `allowReserved` is kept verbatim in the content's `Unmodeled`, under
-`openapi:encoding/<part>/allowReserved` or `openapi:itemEncoding/allowReserved` (`no_ir_home`),
-reported as an info `openapi/degraded-construct` at the keyword, since `ir.PartEncoding` holds
-`style` and `explode` beside it but no field for this one. It is read before the entry's emptiness
-is judged, so an entry declaring nothing else is not dropped with the empty `PartEncoding` it lowers
-to.
+An Encoding Object's `allowReserved` lowers to its `PartEncoding.AllowReserved`, on the part's entry
+or on the content's `ItemEncoding`, `false` where it declares none, as a parameter's lowers onto its
+binding. A part declaring it and nothing else keeps its `PartEncoding`, which a part declaring no
+field of one leaves out of `Content.Encoding`.
 
 - Cases: `multipart-encoding`
-- Codes: `openapi/degraded-construct`
-- Tests: `operation.TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding`,
-  `operation.TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey`
+- Tests: `operation.TestEncoding_AllowReservedAndExtensionsReachTheIR`,
+  `operation.TestEncoding_OnlyUnhomedFieldsOutliveTheEmptyPartEncoding`,
+  `operation.TestEncoding_ItemEncodingKeepsItsOwnUnderItsOwnKey`,
+  `operation.TestPartEncodingEmpty_ReadsEveryField`
 
 ## 11. Responses and errors
 
@@ -2489,20 +2501,24 @@ warning at it; and one merged in through `<<` is not read, reported as an
 
 ### `header-style`
 
-A header of a response or an encoding lowers to a `Property` of its headers, and its `style` and
-`explode` are kept verbatim in the property's `Unmodeled` (`no_ir_home`), reported as an info
-`openapi/degraded-construct` at the keyword, since `ir.Property` has neither field. A `Content-Type`
-entry in either headers map, which OpenAPI says SHALL be ignored, lowers as declared and is reported
-as an `openapi/reserved-header-name` warning at the entry, as a parameter is
-([`reserved-header-names`](#reserved-header-names)).
+A header of a response or an encoding lowers to a `Header` of its headers, and its `style` and
+`explode` to that header's `Style` and `Explode` (ir-design §7.2), read from its declaration and
+each left unset where the header writes none. A `style` other than `simple`, the one OpenAPI allows
+a header, is an `openapi/validation` error of the class `validation-allowed-values`
+([`validation`](#validation)). A `Content-Type` entry in either headers map, which OpenAPI says
+SHALL be ignored, lowers as declared and is reported as an `openapi/reserved-header-name` warning at
+the entry, as a parameter is ([`reserved-header-names`](#reserved-header-names)).
 
 - Cases: `header-content-schema`
-- Codes: `openapi/degraded-construct`, `openapi/reserved-header-name`
-- Tests: `operation.TestHeaders_SerializationKeywordsKept`,
+- Codes: `openapi/reserved-header-name`
+- Tests: `operation.TestHeaders_SerializationKeywordsLower`,
+  `operation.TestHeaders_SerializationKeywordsAbsentRecordNothing`,
+  `operation.TestHeaders_SerializationKeywordsFollowTheDeclaration`,
   `operation.TestHeaders_ReservedContentTypeEntryIsReported`,
   `operation.TestHeaders_ReservedContentTypeInEncodingIsReported`
 - Status: partly built: response headers whose names differ only in case are two headers, unreported
-  (#635). Open: whether a header gets fields for `style` and `explode` (#285).
+  (#635); and a `style` or `explode` beside a header's `content`, where they have no effect, lowers
+  in silence, as a parameter's does (#887).
 
 ### `links`
 
@@ -2605,24 +2621,27 @@ field, and never lowered into a field the flow lacks.
 
 ### `servers`
 
-The document's `servers` lower to `Document.Servers`, in order: `url` to `URLTemplate` as written,
-`description` to its docs, 3.2's `name` to its `Name` ([`naming`](#naming)), and each entry of
-`variables` to a variable with its `default`, `enum` and `description`. A document writing no
-`servers` lowers to the one server OpenAPI implies, at `/`. A name one servers list repeats — the
-document's, a path item's or an operation's, compared as written at every version, since the parser
-reads `name` on each — is kept as declared on both entries, the document's in `Servers` and the
-others in the lists [`path-item-servers`](#path-item-servers) keeps, and reported as an
-`openapi/duplicate-server-name` warning at the repeat's name, naming the first.
+The document's `servers` lower to `Document.Servers`, each server registered at the pointer of its
+Server Object, as its ID's path and its provenance (ir-design §10), and the service names them, in
+order, on `Service.Servers`: `url` to `URLTemplate` as written, `description` to its docs, 3.2's
+`name` to its `Name` ([`naming`](#naming)), each entry of `variables`, in the order written, to a
+variable with its `default`, `enum` and `description`, and the server's `x-*` and undeclared keys to
+its own `Unmodeled`. A document whose `servers` is absent or empty is served at the one server
+OpenAPI supplies, at `/`, minted as `server/default` and recording no pointer, since nothing in the
+document writes it. A name one servers list repeats — the document's, a path item's or an
+operation's, compared as written at every version, since the parser reads `name` on each — is kept
+as declared on both entries and reported as an `openapi/duplicate-server-name` warning at the
+repeat's name, naming the first.
 
 - Cases: `servers-variables`
 - Codes: `openapi/duplicate-server-name`
-- Tests: `document.TestDuplicateServerName_BothServersLower`,
+- Tests: `servers.TestDuplicateServerName_BothServersLower`,
+  `servers.TestRegistry_RootServesADocumentWithNoServersAtTheRoot`,
+  `servers.TestRegistry_RootNamesTheDeclaredServersInSourceOrder`,
   `load.TestServerRepeats_ReportsEveryListTheSourceWrites`,
   `load.TestServerRepeats_ReportsOnlyANameOneListRepeatsExactly`
-- Status: partly built: the default server the parser injects for a document writing none is lowered
-  as if declared, and a server has no provenance (#672); a variable's `default` cannot tell an empty
-  default from none (#883); and a servers list only a `$ref` reaches is never checked for a repeated
-  name (#880).
+- Status: partly built: a variable's `default` cannot tell an empty default from none (#883); and a
+  servers list only a `$ref` reaches is never checked for a repeated name (#880).
 
 ## 15. Vendor extensions and policy
 

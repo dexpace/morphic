@@ -212,9 +212,9 @@ func walkVisitors(doc *ir.Document, checks []func(*ir.Document) walkCheck) (*ir.
 }
 
 // checkRegistryKeys asserts every entry of each flat, ID-keyed registry
-// (Types, Channels, Messages, Auth) is keyed by its own node ID and that the key
-// is non-empty (invariant #3). Each registry contributes symmetric empty-*-id and
-// *-id-mismatch violations.
+// (Types, Channels, Messages, Auth, Servers) is keyed by its own node ID and
+// that the key is non-empty (invariant #3). Each registry contributes
+// symmetric empty-*-id and *-id-mismatch violations.
 //
 // A nil type definition is reported rather than dereferenced — Common() panics
 // on one — which is what keeps Verify a report-only oracle that never crashes on
@@ -240,6 +240,9 @@ func checkRegistryKeys(doc *ir.Document) []Violation {
 	}
 	for id, scheme := range doc.Auth {
 		vs = registryKey(vs, "auth", "auth", string(id), string(scheme.ID))
+	}
+	for id, server := range doc.Servers {
+		vs = registryKey(vs, "server", "servers", string(id), string(server.ID))
 	}
 	return vs
 }

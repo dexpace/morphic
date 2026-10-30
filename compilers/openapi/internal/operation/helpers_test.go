@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -69,7 +70,7 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(t.Context(), c, types))
 
-	svc, _, svcDiags := operation.LowerService(t.Context(), c, types)
+	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, servers.NewRegistry())
 	acc.AppendAll(svcDiags)
 	_, finished := types.Finish(t.Context())
 	acc.AppendAll(finished)

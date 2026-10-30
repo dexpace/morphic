@@ -444,6 +444,11 @@ func outOfOrderProtocolBindings() map[string]ir.RawConfig {
 // test above asserts its marshaled fixture contains.
 const sortedProtocolBindingsJSON = `"bindings":{"a-proto":{"k":3},"b-proto":{"k":5},"m-proto":{"k":2},"q-proto":{"k":4},"z-proto":{"k":1}}`
 
+// populatedHeader returns a Header with every field non-zero.
+func populatedHeader() ir.Header {
+	return ir.Header{Property: populatedProperty(), Style: "simple", Explode: new(true)}
+}
+
 // populatedProperty returns a Property with every field non-zero, matching
 // the shape ir-design §5.1 describes and the zero-value list in the test
 // specification.

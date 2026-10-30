@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -332,6 +333,26 @@ func mountedOperations(layers []layer) []layerOp {
 		take(seg)
 	}
 	return out
+}
+
+// itemServers registers the servers list a mount keeps and returns their IDs, or
+// nil when no layer declares one. It runs once a mount, however many operations
+// that mounts, and an operation naming servers of its own takes none of these,
+// which are registered all the same: its override loses no declaration. A list
+// a nearer layer overrides is not registered, as with every construct two
+// layers declare (docs/compilers/openapi.md#path-item-ref-fields).
+func itemServers(reg *servers.Registry, layers []layer, owner owners) ([]ir.ServerID, []ir.Diagnostic) {
+	var named []ir.ServerID
+	var diags []ir.Diagnostic
+	for i, l := range layers {
+		if owner.cedes(i)(constructOf(constructServers, "")) {
+			continue
+		}
+		declared, listDiags := reg.Declared(l.in, l.item.GetServers(), l.decl)
+		named = append(named, declared...)
+		diags = append(diags, listDiags...)
+	}
+	return named, diags
 }
 
 // applyLayers keeps on into what every layer declares and keeps at the mount,

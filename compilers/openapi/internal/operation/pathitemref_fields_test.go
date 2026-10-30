@@ -67,9 +67,8 @@ func TestPathItemRefSiblings_AChainCarriesTheFieldsBesideEachRef(t *testing.T) {
 		summary, ok := op.Unmodeled["openapi:pathItemSummary"]
 		require.True(t, ok)
 		assert.JSONEq(t, `"from a"`, string(summary.Value))
-		servers, ok := op.Unmodeled["openapi:servers"]
-		require.True(t, ok, "%s at /a carries the servers beside /b's $ref", method)
-		assert.JSONEq(t, `[{"url":"https://b.example"}]`, string(servers.Value))
+		assert.Equal(t, []string{"https://b.example"}, serversNamed(t, doc, op.Servers),
+			"%s at /a is sent to the servers beside /b's $ref", method)
 	}
 	var collided []string
 	for _, d := range diags {

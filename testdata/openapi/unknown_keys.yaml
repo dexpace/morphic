@@ -54,10 +54,12 @@ tags:
 paths:
   /widgets:
     GET: {responses: {"200": {description: PATHITEM}}}
+    servers: [{url: 'https://widgets.example', host: PATHITEMSERVER}]
     get:
       operationId: listWidgets
       tags: [t1]
       operationid: OPERATION
+      servers: [{url: 'https://list.example', host: OPERATIONSERVER}]
       externalDocs: {url: 'https://o.example', title: OPERATIONEXTERNALDOCS}
       parameters:
         - name: shape

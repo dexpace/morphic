@@ -85,6 +85,12 @@ const (
 	WebhookGroupSpace compile.Space = "webhooks"
 )
 
+// DefaultServerSpace names the one server OpenAPI supplies, at "/", for a
+// document that declares none. No position in the source writes it, so it is
+// minted rather than found, in a space of its own (ir-design §3.1), apart from
+// OpenAPISpace, where a declared server is addressed by its pointer.
+const DefaultServerSpace compile.Space = "default"
+
 // TagGroup returns the stable ID of the group of operations whose first tag is
 // name. It is keyed by the name, not by a Tag Object's position, so declaring
 // the tag, reordering the tag list or repeating a declaration leaves it alone.
@@ -119,11 +125,13 @@ func Namespaces(others ...Document) compile.Namespaces {
 		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
 		ir.IDKindParam:      {OpenAPISpace},
 		ir.IDKindEnumMember: {OpenAPISpace, AnonSpace},
+		ir.IDKindServer:     {OpenAPISpace, DefaultServerSpace},
 	}
 	for _, d := range others {
 		ns[ir.IDKindType] = append(ns[ir.IDKindType], d.space(OpenAPISpace), d.space(AnonSpace), d.space(ComposedSpace))
 		ns[ir.IDKindProp] = append(ns[ir.IDKindProp], d.space(OpenAPISpace))
 		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonSpace))
+		ns[ir.IDKindServer] = append(ns[ir.IDKindServer], d.space(OpenAPISpace))
 	}
 	return ns
 }
@@ -133,7 +141,8 @@ func Namespaces(others ...Document) compile.Namespaces {
 // named by its label (In), which qualifies each space (compile.Space.Qualified),
 // so one pointer in two documents derives two IDs, each still the pointer it
 // records. Operations, parameters, security schemes and services are named by
-// where the source mounts or names them, so they take no Document.
+// where the source mounts or names them, so they take no Document; a server is
+// named where it is declared, so it does.
 type Document struct {
 	label string
 }
@@ -222,6 +231,17 @@ func numbered(path jsontext.Pointer, occurrence int) jsontext.Pointer {
 	}
 	return path + Ptr(strconv.Itoa(occurrence))
 }
+
+// Server returns the stable ID of the server at pointer in d: the position of
+// its Server Object in the list that declares it. A path item mounted twice
+// declares its servers once, so both mounts name the same IDs.
+func (d Document) Server(pointer jsontext.Pointer) ir.ServerID {
+	return compile.ServerID(d.space(OpenAPISpace), string(pointer))
+}
+
+// DefaultServer returns the stable ID of the server OpenAPI supplies for a
+// document that declares none.
+func DefaultServer() ir.ServerID { return compile.ServerID(DefaultServerSpace, "") }
 
 // Auth returns the stable ID of the named security scheme.
 func Auth(name string) ir.AuthID {

@@ -170,7 +170,9 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 } {
 	cfg := map[string]ir.RawConfig{"kafka": {"clientId": payload}}
 	server := validDoc()
-	server.Servers = []ir.Server{{Name: named("a"), URLTemplate: "https://x", Bindings: cfg}}
+	server.Servers = map[ir.ServerID]ir.Server{
+		"server/x/a": {ID: "server/x/a", Name: named("a"), URLTemplate: "https://x", Bindings: cfg},
+	}
 	channel := validDoc()
 	channel.Channels = map[ir.ChannelID]ir.Channel{
 		"chan/a": {ID: "chan/a", Name: named("a"), Bindings: cfg},
@@ -204,7 +206,7 @@ func rawConfigCarriers(payload ir.RawValue) map[string]struct {
 		doc  *ir.Document
 		path string
 	}{
-		"Server.Bindings":         {server, "doc.Servers[0].Bindings[kafka][clientId]"},
+		"Server.Bindings":         {server, "doc.Servers[server/x/a].Bindings[kafka][clientId]"},
 		"Channel.Bindings":        {channel, "doc.Channels[chan/a].Bindings[kafka][clientId]"},
 		"Message.Bindings":        {message, "doc.Messages[msg/a].Bindings[kafka][clientId]"},
 		"MessageBinding.Bindings": {operation, "doc.Services[0].Groups[0].Operations[0].Bindings.Message.Bindings[kafka][clientId]"},
@@ -234,13 +236,15 @@ func TestVerify_InvalidRawConfigValueIsAViolation(t *testing.T) {
 // empty key is a defect of its own.
 func TestVerify_RawConfigEntryWithAnEmptyKeyIsSpelledAsTheWalkSpellsIt(t *testing.T) {
 	doc := validDoc()
-	doc.Servers = []ir.Server{{Name: named("a"), URLTemplate: "https://x", Bindings: map[string]ir.RawConfig{
-		"kafka": {"": ir.RawValue(`{`)},
-	}}}
+	doc.Servers = map[ir.ServerID]ir.Server{"server/x/a": {
+		ID: "server/x/a", Name: named("a"), URLTemplate: "https://x", Bindings: map[string]ir.RawConfig{
+			"kafka": {"": ir.RawValue(`{`)},
+		},
+	}}
 	got := verifyDeclared(doc)
 	require.Len(t, got, 1)
 	assert.Equal(t, "ir/invalid-raw-value", got[0].Code)
-	assert.Equal(t, "doc.Servers[0].Bindings[kafka][]", got[0].Path)
+	assert.Equal(t, "doc.Servers[server/x/a].Bindings[kafka][]", got[0].Path)
 }
 
 // TestVerify_ValidRawConfigIsClean pins the negative half at every carrier: a

@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -670,7 +674,8 @@
                         "wireName": "pathMatrixExplode",
                         "style": "matrix",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathMatrixNoExplode/path",
@@ -678,7 +683,8 @@
                         "wireName": "pathMatrixNoExplode",
                         "style": "matrix",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathMatrixDefaultExplode/path",
@@ -686,7 +692,8 @@
                         "wireName": "pathMatrixDefaultExplode",
                         "style": "matrix",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathLabelExplode/path",
@@ -694,7 +701,8 @@
                         "wireName": "pathLabelExplode",
                         "style": "label",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathLabelNoExplode/path",
@@ -702,7 +710,8 @@
                         "wireName": "pathLabelNoExplode",
                         "style": "label",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathLabelDefaultExplode/path",
@@ -710,7 +719,8 @@
                         "wireName": "pathLabelDefaultExplode",
                         "style": "label",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathSimpleExplode/path",
@@ -718,7 +728,8 @@
                         "wireName": "pathSimpleExplode",
                         "style": "simple",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathSimpleNoExplode/path",
@@ -726,7 +737,8 @@
                         "wireName": "pathSimpleNoExplode",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathSimpleDefaultExplode/path",
@@ -734,7 +746,8 @@
                         "wireName": "pathSimpleDefaultExplode",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/pathDefaulted/path",
@@ -742,7 +755,8 @@
                         "wireName": "pathDefaulted",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryFormExplode/query",
@@ -750,7 +764,8 @@
                         "wireName": "queryFormExplode",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryFormNoExplode/query",
@@ -758,7 +773,8 @@
                         "wireName": "queryFormNoExplode",
                         "style": "form",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryFormDefaultExplode/query",
@@ -766,7 +782,8 @@
                         "wireName": "queryFormDefaultExplode",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/querySpaceDelimitedExplode/query",
@@ -774,7 +791,8 @@
                         "wireName": "querySpaceDelimitedExplode",
                         "style": "spaceDelimited",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/querySpaceDelimitedNoExplode/query",
@@ -782,7 +800,8 @@
                         "wireName": "querySpaceDelimitedNoExplode",
                         "style": "spaceDelimited",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/querySpaceDelimitedDefaultExplode/query",
@@ -790,7 +809,8 @@
                         "wireName": "querySpaceDelimitedDefaultExplode",
                         "style": "spaceDelimited",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryPipeDelimitedExplode/query",
@@ -798,7 +818,8 @@
                         "wireName": "queryPipeDelimitedExplode",
                         "style": "pipeDelimited",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryPipeDelimitedNoExplode/query",
@@ -806,7 +827,8 @@
                         "wireName": "queryPipeDelimitedNoExplode",
                         "style": "pipeDelimited",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryPipeDelimitedDefaultExplode/query",
@@ -814,7 +836,8 @@
                         "wireName": "queryPipeDelimitedDefaultExplode",
                         "style": "pipeDelimited",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryDeepObjectExplode/query",
@@ -822,7 +845,8 @@
                         "wireName": "queryDeepObjectExplode",
                         "style": "deepObject",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryDeepObjectNoExplode/query",
@@ -830,7 +854,8 @@
                         "wireName": "queryDeepObjectNoExplode",
                         "style": "deepObject",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryDeepObjectDefaultExplode/query",
@@ -838,7 +863,8 @@
                         "wireName": "queryDeepObjectDefaultExplode",
                         "style": "deepObject",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/queryDefaulted/query",
@@ -846,7 +872,8 @@
                         "wireName": "queryDefaulted",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/headerSimpleExplode/header",
@@ -854,7 +881,8 @@
                         "wireName": "headerSimpleExplode",
                         "style": "simple",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/headerSimpleNoExplode/header",
@@ -862,7 +890,8 @@
                         "wireName": "headerSimpleNoExplode",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/headerSimpleDefaultExplode/header",
@@ -870,7 +899,8 @@
                         "wireName": "headerSimpleDefaultExplode",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/headerDefaulted/header",
@@ -878,7 +908,8 @@
                         "wireName": "headerDefaulted",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieFormExplode/cookie",
@@ -886,7 +917,8 @@
                         "wireName": "cookieFormExplode",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieFormNoExplode/cookie",
@@ -894,7 +926,8 @@
                         "wireName": "cookieFormNoExplode",
                         "style": "form",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieFormDefaultExplode/cookie",
@@ -902,7 +935,8 @@
                         "wireName": "cookieFormDefaultExplode",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieExplode/cookie",
@@ -910,7 +944,8 @@
                         "wireName": "cookieCookieExplode",
                         "style": "cookie",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieNoExplode/cookie",
@@ -918,7 +953,8 @@
                         "wireName": "cookieCookieNoExplode",
                         "style": "cookie",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieCookieDefaultExplode/cookie",
@@ -926,7 +962,8 @@
                         "wireName": "cookieCookieDefaultExplode",
                         "style": "cookie",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1matrix~1{pathMatrixExplode}~1{pathMatrixNoExplode}~1{pathMatrixDefaultExplode}~1{pathLabelExplode}~1{pathLabelNoExplode}~1{pathLabelDefaultExplode}~1{pathSimpleExplode}~1{pathSimpleNoExplode}~1{pathSimpleDefaultExplode}~1{pathDefaulted}/get/parameters/cookieDefaulted/cookie",
@@ -934,7 +971,8 @@
                         "wireName": "cookieDefaulted",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -1005,6 +1043,7 @@
                         "location": "querystring",
                         "wireName": "querystringWhole",
                         "allowReserved": false,
+                        "allowEmptyValue": false,
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
@@ -1020,6 +1059,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -1519,15 +1561,19 @@
       "prim": "string"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.2",

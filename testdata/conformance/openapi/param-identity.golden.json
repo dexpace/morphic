@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -108,7 +112,8 @@
                         "wireName": "limit",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -179,7 +184,8 @@
                         "wireName": "limit",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -285,7 +291,8 @@
                         "wireName": "id",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1items~1{id}/get/parameters/a~1b/query",
@@ -293,7 +300,8 @@
                         "wireName": "a/b",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1items~1{id}/get/parameters/id/path",
@@ -301,7 +309,8 @@
                         "wireName": "id",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -373,7 +382,8 @@
                         "wireName": "id",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -388,6 +398,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -420,15 +433,19 @@
       "prim": "string"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.1",

@@ -104,50 +104,45 @@ webhooks:
       responses: {"200": {description: ok}}
 `
 
-// TestOperations_PathItemServersKeptOnEveryRoute pins that a path item's servers
-// survive whichever of the three routes reaches the path item.
+// TestOperations_PathItemServersNamedOnEveryRoute pins that a path item's
+// servers reach its operations whichever of the three routes reaches the path
+// item.
 //
-// A path item is one object with three parents, and only the `paths` walk called
-// the preserve-plus-diagnostic path: a webhook or callback that overrode its
-// delivery host lost the override with nothing said, while the identical
-// declaration under `paths` was both kept and reported. Each route is asserted
-// with its own URL, so a fix that preserved the wrong path item's list — or the
-// enclosing one's — fails rather than passing on the shape alone.
-func TestOperations_PathItemServersKeptOnEveryRoute(t *testing.T) {
+// A path item is one object with three parents, and only the `paths` walk once
+// read its servers: a webhook or callback that overrode its delivery host lost
+// the override with nothing said. Each route is asserted with its own URL, so a
+// fix that named the wrong path item's list — or the enclosing one's — fails
+// rather than passing on the shape alone.
+func TestOperations_PathItemServersNamedOnEveryRoute(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemServersSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	// kept is where the preserved list is recorded (the servers keyword);
-	// reported is where the diagnostic is stamped (the operation itself).
-	for _, tc := range []struct{ op, url, kept, reported string }{
-		{"postP", "https://path.example", "/paths/~1p/servers", "/paths/~1p/post"},
-		{"onHook", "https://webhook.example", "/webhooks/hooked/servers", "/webhooks/hooked/post"},
+	for _, tc := range []struct{ op, url, at string }{
+		{"postP", "https://path.example", "/paths/~1p/servers/0"},
+		{"onHook", "https://webhook.example", "/webhooks/hooked/servers/0"},
 		{"onEvent", "https://callback.example",
-			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/servers",
-			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/post"},
+			"/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/servers/0"},
 	} {
-		entry, ok := openapitest.FindOp(t, doc, tc.op).Unmodeled["openapi:servers"]
-		require.True(t, ok, "%s keeps its path item's servers", tc.op)
-		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-		assert.JSONEq(t, `[{"url":"`+tc.url+`"}]`, string(entry.Value),
-			"%s keeps the list its own path item declared", tc.op)
-		assert.Equal(t, jsontext.Pointer(tc.kept), entry.Provenance.Pointer)
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
-			"%s reports the degradation as the paths route already did", tc.op)
+		op := openapitest.FindOp(t, doc, tc.op)
+		assert.Equal(t, []string{tc.url}, serversNamed(t, doc, op.Servers),
+			"%s is sent to the list its own path item declared", tc.op)
+		assert.Equal(t, ir.ServerID("server/openapi"+tc.at), op.Servers[0],
+			"%s names the server its path item declares, by the pointer it is declared at", tc.op)
+		assert.Equal(t, jsontext.Pointer(tc.at), doc.Servers[op.Servers[0]].Provenance.Pointer)
 	}
+	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "nothing is degraded: %+v", diags)
 }
 
-// TestPathItem_KeptFindingsAreNotInferred pins that the findings reporting a
-// path item's servers and documentation, kept on each operation it mounts, name
-// no heuristic. Path-prefix grouping marks the operation, and both findings used
-// to take that marker from the operation's provenance although the path item
-// declares what they report.
+// TestPathItem_KeptFindingsAreNotInferred pins that the finding reporting a
+// path item's documentation, kept on each operation it mounts, names no
+// heuristic. Path-prefix grouping marks the operation, and the finding used to
+// take that marker from the operation's provenance although the path item
+// declares what it reports.
 func TestPathItem_KeptFindingsAreNotInferred(t *testing.T) {
 	t.Parallel()
 	svc, diags := serviceWithGrouping(t, openapitest.PathsSpec(`  /x:
     summary: path summary
-    servers: [{url: 'https://path.example'}]
     get:
       operationId: getX
       responses: {"200": {description: ok}}
@@ -157,19 +152,17 @@ func TestPathItem_KeptFindingsAreNotInferred(t *testing.T) {
 	require.Len(t, svc.Groups[0].Operations, 1)
 	op := svc.Groups[0].Operations[0]
 	require.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred,
-		"the operation is marked, so the findings had a marker to take")
+		"the operation is marked, so the finding had a marker to take")
 
-	for _, prefix := range []string{"path-item servers kept", "path-item documentation kept"} {
-		var found []ir.Diagnostic
-		for _, d := range diags {
-			if d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, prefix) {
-				found = append(found, d)
-			}
+	var found []ir.Diagnostic
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, "path-item documentation kept") {
+			found = append(found, d)
 		}
-		require.Len(t, found, 1, prefix)
-		assert.Empty(t, found[0].Provenance.Inferred, "%s: the path item declares it", prefix)
-		assert.Equal(t, op.Provenance.Pointer, found[0].Provenance.Pointer, "%s: reported at the operation", prefix)
 	}
+	require.Len(t, found, 1)
+	assert.Empty(t, found[0].Provenance.Inferred, "the path item declares it")
+	assert.Equal(t, op.Provenance.Pointer, found[0].Provenance.Pointer, "reported at the operation")
 }
 
 // pathItemUnknownKeySpec writes one key the Path Item Object does not define on
@@ -472,12 +465,13 @@ paths:
 //
 // applyPathItem runs once per operation an item produces, so an item producing
 // none lost its servers, its extensions and its undeclared keys whole, with no
-// diagnostic naming the loss. The service is where they go now — the same node
-// the Paths Object's own extensions go to, and for the same reason: a path item
-// lowers to no node of its own.
+// diagnostic naming the loss. Its extensions go on the service now — the same
+// node the Paths Object's own extensions go to, and for the same reason: a path
+// item lowers to no node of its own. Its servers go into the registry, where
+// every declared server is, named by no scope.
 func TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService(t *testing.T) {
 	t.Parallel()
-	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
+	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /mounted:
@@ -488,18 +482,18 @@ paths:
 webhooks:
   hook:
     x-hook-kept: {b: 2}
-`, lowering.GroupByTags)
-
+`)
+	svc := doc.Services[0]
 	require.Contains(t, svc.Unmodeled, "openapi:pathItem/paths/~1unmounted/x-kept")
-	require.Contains(t, svc.Unmodeled, "openapi:pathItem/paths/~1unmounted/servers")
 	require.Contains(t, svc.Unmodeled, "openapi:pathItem/webhooks/hook/x-hook-kept")
-	assert.Equal(t, ir.ReasonNoIRHome, svc.Unmodeled["openapi:pathItem/paths/~1unmounted/servers"].Reason)
+	assert.NotContains(t, svc.Unmodeled, "openapi:pathItem/paths/~1unmounted/servers",
+		"the servers have a home, so nothing of them is kept verbatim")
 
-	// The key carries the item's own pointer because one service holds every such
-	// item: two of them under a bare prefix would collide, and the survivor would
-	// be whichever the walk reached last.
-	assert.NotContains(t, svc.Unmodeled, "openapi:servers",
-		"the unqualified servers key is the one an operation uses")
+	const unmounted = ir.ServerID("server/openapi/paths/~1unmounted/servers/0")
+	require.Contains(t, doc.Servers, unmounted, "the item's servers are registered")
+	assert.Equal(t, "https://a.example", doc.Servers[unmounted].URLTemplate)
+	assert.NotContains(t, svc.Servers, unmounted, "and the service does not take them for its own")
+	assert.Nil(t, openapitest.FindOp(t, doc, "getX").Servers, "nor does another item's operation")
 
 	var announced int
 	for _, d := range diags {
@@ -530,42 +524,77 @@ paths:
 
 	var at []string
 	for _, d := range diags {
-		if strings.Contains(d.Message, "path-item servers kept under Unmodeled") {
+		if strings.Contains(d.Message, "declares no operation this compiler lowers") {
 			at = append(at, string(d.Provenance.Pointer))
 		}
 	}
 	assert.Equal(t, []string{"/paths/~1a", "/paths/~1b"}, at,
-		"each kept list is announced at the item that wrote it")
+		"each item is announced at its own pointer")
 }
 
 // TestPathItem_UnmountedAnnouncementFollowsWhatWasKept pins the announcement to
 // what landed rather than to what the source model reports.
 //
-// Servers merged in through `<<` are read as written ones are, kept and
+// An undeclared key merged in through `<<` is read as a written one is, kept and
 // announced (GitHub #384). Merged in from past nodeview.MergeDepthLimit, the
-// model reads them and the compiler's raw read does not, so a predicate over
-// the model would say they were "kept beside it" while nothing was kept: a
-// diagnostic asserting a preservation that did not happen.
+// model reads it and the compiler's raw read does not, so a predicate over the
+// model would say it was "kept beside it" while nothing was kept: a diagnostic
+// asserting a preservation that did not happen. Servers are lowered from the
+// model, so they land, and are announced, either way.
 func TestPathItem_UnmountedAnnouncementFollowsWhatWasKept(t *testing.T) {
 	t.Parallel()
+	const undeclared = "{bogus: 1}"
 	const servers = "{servers: [{url: 'https://m.example'}]}"
 	for _, tc := range []struct {
 		name, item string
 		kept       bool
 	}{
-		{"merged in", "{<<: " + servers + "}", true},
-		{"merged in past the bound", openapitest.NestedMerges(nodeview.MergeDepthLimit+1, servers), false},
+		{"undeclared key merged in", "{<<: " + undeclared + "}", true},
+		{"undeclared key merged in past the bound", openapitest.NestedMerges(nodeview.MergeDepthLimit+1, undeclared), false},
+		{"servers merged in", "{<<: " + servers + "}", true},
+		{"servers merged in past the bound", openapitest.NestedMerges(nodeview.MergeDepthLimit+1, servers), true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			svc, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
+			_, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
 				"paths:\n  /unmounted: "+tc.item+"\n", lowering.GroupByTags)
-
-			assert.Equal(t, tc.kept, len(svc.Unmodeled) == 1, "%v", svc.Unmodeled)
 			announced := slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
 				return strings.Contains(d.Message, "declares no operation this compiler lowers")
 			})
-			assert.Equal(t, tc.kept, announced, "the announcement follows what landed")
+			assert.Equal(t, tc.kept, announced, "the announcement follows what landed: %+v", diags)
+		})
+	}
+}
+
+// TestPathItem_UnmountedAnnouncementSaysWhatLanded pins the announcement's
+// claims to what an item that mounts no operation wrote: its servers are
+// mentioned only where it declares some, and what it keeps beside it only where
+// it keeps something, so no reader is told of a list the item never wrote.
+func TestPathItem_UnmountedAnnouncementSaysWhatLanded(t *testing.T) {
+	t.Parallel()
+	const servers = "its servers are registered, named by no operation"
+	const kept = "what else it writes is kept beside it, having no operation to hold it"
+	for _, tc := range []struct {
+		name, item string
+		want       []string
+	}{
+		{"servers alone", "{servers: [{url: 'https://a.example'}]}", []string{servers}},
+		{"an extension alone", "{x-a: 1}", []string{kept}},
+		{"both", "{servers: [{url: 'https://a.example'}], x-a: 1}", []string{servers, kept}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := serviceWithGrouping(t, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+
+				"paths:\n  /unmounted: "+tc.item+"\n", lowering.GroupByTags)
+			var found []string
+			for _, d := range diags {
+				if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "declares no operation") {
+					found = append(found, d.Message)
+				}
+			}
+			require.Len(t, found, 1)
+			assert.Equal(t, "path item declares no operation this compiler lowers; "+strings.Join(tc.want, ", and "),
+				found[0])
 		})
 	}
 }
@@ -578,10 +607,10 @@ func TestPathItem_UnmountedAnnouncementFollowsWhatWasKept(t *testing.T) {
 //
 // The parent's HTTP binding is the carrier: a callback lowers to no node holding
 // an Unmodeled map, and the binding is where the Callback Object's own
-// extensions already go.
+// extensions already go. The item's servers go into the registry.
 func TestPathItem_CallbackWithNoOperationKeepsWhatItWrote(t *testing.T) {
 	t.Parallel()
-	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
+	doc, diags := parseFull(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /p:
@@ -593,14 +622,18 @@ paths:
           '{$request.body#/url}':
             servers: [{url: 'https://cb.example'}]
             x-cb-kept: {a: 1}
-`, lowering.GroupByTags)
+`)
 
-	op := openapitest.FirstOp(t, svc)
+	op := openapitest.FindOp(t, doc, "postP")
 	require.Len(t, op.Bindings.HTTP, 1)
 	kept := op.Bindings.HTTP[0].Unmodeled
 	base := "openapi:pathItem/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}"
-	require.Contains(t, kept, base+"/servers")
 	require.Contains(t, kept, base+"/x-cb-kept")
+	assert.NotContains(t, kept, base+"/servers", "the servers have a home, so nothing of them is kept verbatim")
+	const registered = ir.ServerID("server/openapi/paths/~1p/post/callbacks/onEvent/{$request.body#~1url}/servers/0")
+	require.Contains(t, doc.Servers, registered)
+	assert.Equal(t, "https://cb.example", doc.Servers[registered].URLTemplate)
+	assert.Nil(t, op.Servers, "the parent operation does not take its callback item's servers")
 
 	var announced int
 	for _, d := range diags {

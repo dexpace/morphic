@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -249,7 +253,8 @@
                         "wireName": "shape",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -416,7 +421,8 @@
                           "text/plain"
                         ],
                         "multi": false,
-                        "filename": false
+                        "filename": false,
+                        "allowReserved": true
                       }
                     },
                     "examples": [
@@ -439,14 +445,6 @@
                       }
                     ],
                     "unmodeled": {
-                      "openapi:encoding/f/allowReserved": {
-                        "reason": "no_ir_home",
-                        "value": true,
-                        "provenance": {
-                          "source": 0,
-                          "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"
-                        }
-                      },
                       "openapi:encoding/f/x-mark": {
                         "reason": "vendor_extension",
                         "value": "XENCODING",
@@ -511,7 +509,8 @@
                         "wireName": "shape",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "requestContentTypes": [
@@ -539,6 +538,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/openapi/servers/0"
       ],
       "unmodeled": {
         "openapi:paths/x-mark": {
@@ -884,8 +886,9 @@
       }
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/openapi/servers/0": {
+      "id": "server/openapi/servers/0",
       "name": {
         "hint": "https_e_example_v"
       },
@@ -917,9 +920,13 @@
             "pointer": "/servers/0/x-mark"
           }
         }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/0"
       }
     }
-  ],
+  },
   "tagDefs": [
     {
       "name": "t1",
@@ -998,17 +1005,6 @@
       }
     }
   },
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1widgets/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"
-      }
-    }
-  ],
   "sources": [
     {
       "format": "openapi@3.1",

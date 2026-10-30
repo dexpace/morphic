@@ -489,7 +489,7 @@ type ResponsePlan struct {
     Shape   BodyShape     // value | void | raw | stream
     Content *ir.Content   // the content elected from the payload; nil = nothing to read
     Type    *ir.TypeRef   // what a value body decodes into, of any kind; nil unless Shape is value
-    Headers []ir.Property // the headers the response declares, each whole (below)
+    Headers []ir.Header   // the headers the response declares, each whole (below)
 }
 
 type PagePlan struct {                // item-type unwrap is a PLAN decision
@@ -578,8 +578,8 @@ has none for is a coded degrade of that target's that reads the body as `raw`. E
 document takes one of the four, since the rules end in a default; §8.9 traces each through the first
 targets.
 
-**Headers.** `Headers` are what the response declares, each whole as the IR holds it, so its name,
-its type and whatever it states about its serialization reach the reader. `Return`'s are the primary
+**Headers.** `Headers` are what the response declares, each whole, so its name, its type and the
+`Style` and `Explode` it is read by reach the reader. `Return`'s are the primary
 response's, and those of an operation's other responses stay in the IR with their bodies. A success
 and a failure then read alike: the raw headers are on the value, and the declared ones typed beside
 its body (§8.5, §8.9).
@@ -740,11 +740,12 @@ filters evaluated per class (`ir-design.md §5.2`).
 
 `Parameter`s carry no protocol location (`ir-design.md §7.2`). The plan derives, from `OpBindings`,
 a neutral per-protocol view a refiner turns into a request builder: which params are path/query/
-header/cookie/body, their style/explode/prefix, RPC message folding, message channel + reply, the
-GraphQL entry point, the OTP call/cast shape. One operation may carry several bindings (gRPC
-transcoding `additional_bindings`, HTTP+RPC); all are represented, primary first. This resolves
-`ir-design.md` open Q6 on the emitter side: status conditions and `StatusCodeProp` are read through
-the HTTP `BindingView`, so RPC/OTP single-response ops with empty conditions are handled uniformly.
+header/cookie/body, their style/explode/prefix, escaping, empty value and media type, RPC message
+folding, message channel + reply, the GraphQL entry point, the OTP call/cast shape. One operation
+may carry several bindings (gRPC transcoding `additional_bindings`, HTTP+RPC); all are represented,
+primary first. This resolves `ir-design.md` open Q6 on the emitter side: status conditions and
+`StatusCodeProp` are read through the HTTP `BindingView`, so RPC/OTP single-response ops with empty
+conditions are handled uniformly.
 
 ```go
 type BindingView struct {
@@ -768,6 +769,8 @@ type ParamBind struct {
                              // body_property | host
     WireName string          // never a rendered identifier (INV4)
     Style    string; Explode *bool; Prefix string   // form/label/matrix/deepObject serialization
+    AllowReserved, AllowEmptyValue bool             // the binding's escaping and empty-value facts
+    ContentType string       // a content-style param's media type; "" = serialized by Style
     BodyPath []ir.PropID     // body_property: where in the body model the param lands
 }
 type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir.Reply; Messages []ir.MessageID }
@@ -2307,8 +2310,8 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
   `Response` holds `StatusCode`, `RawHeader`, `Body`, what the plain method returns, or `struct{}`
   and `Unit` for `void`, and `Headers`, a struct with a field per declared header. A spec's first
   header adds a method and its next a field, each additive, as §4.13 asks of an input. A field is
-  found by its wire name, ignoring case as HTTP does, read by its type and whatever the IR states of
-  its serialization, and optional whatever `Required` says. A value that does not parse leaves it
+  found by its wire name, ignoring case as HTTP does, read by its type, `Style` and `Explode`, and
+  optional whatever `Required` says. A value that does not parse leaves it
   unset: a response that delivered its body succeeded, and `RawHeader` still holds the value. A type
   no header reader lowers, such as a model, is a coded degrade to its text. A pager or a poller has
   no one response to return, so a paginated or long-running operation has no such method, and its
@@ -2325,12 +2328,15 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
 
 ### 8.10 The client and its base URL
 
-IR: `Document.Servers = [ {URLTemplate:"https://{region}.api.example.com/v1",
-Variables:[{Name:region, Default:"us", Enum:[us, eu]}]} ]`, and a service whose `Servers` is empty.
+IR: `Document.Servers = {"server/openapi/servers/0":
+{URLTemplate:"https://{region}.api.example.com/v1", Variables:[{Name:region, Default:"us",
+Enum:[us, eu]}]}, …}`, a service whose `Servers` is `["server/openapi/servers/0"]`, and an
+operation whose `Servers` names a server of its own.
 
-- **Which servers.** A service's servers are those its `Servers` indexes, or, where it indexes
-  none, every server in `Document.Servers`, in order (ir-design §10). The client's default is the
-  first of them a client can reach (below). The IR states both, so the plan copies neither (§3.6).
+- **Which servers.** A service's servers are those its `Servers` names, in order; one naming none
+  has no declared server, and its client takes a base URL from its caller (ir-design §10). The
+  client's default is the first of them a client can reach (below). The IR states both, so the plan
+  copies neither (§3.6).
 - **refine.** The client takes three settings beside its runtime policy: which declared server to
   use, the default unless the caller names another; a value for each of that server's variables, its
   `Default` unless the caller gives one, and one of its `Enum` when it has one, each value of which
@@ -2341,18 +2347,20 @@ Variables:[{Name:region, Default:"us", Enum:[us, eu]}]} ]`, and a service whose 
   never sent. An empty `Default` substitutes nothing, the one reading OpenAPI admits, since it
   requires a default; telling an empty default from none, which AsyncAPI allows, is #883's.
 - **A server a client cannot reach.** A server whose URL, its variables at their defaults, has no
-  scheme and host — the `/` the compiler lowers for a document that declares no server (#672)
-  among them — cannot be the default: the document's location, which OpenAPI resolves a relative
-  URL against, is not something an SDK knows. The default is the first server that has both, so a
-  relative server listed first passes the default to the next. A client refuses to be built while
-  the server it would use has neither and no base URL replaces it, as when a caller names a
-  relative server, and refine reports a client none of whose servers has both once, as an info
-  `emitters/<target>/no-default-server`.
-- **An operation's own servers.** OpenAPI lets a path item or an operation name servers of its own,
-  which the IR keeps under `no_ir_home` until an operation gets a field for them (#285), so an SDK
-  reads none of them (§4.14) and sends those operations to the client's base URL; the compiler
-  reports each. Once the field exists, an operation's servers replace its service's for that
-  operation, by the same rules.
+  scheme and host — the `/` OpenAPI supplies for a document that declares no server, which records
+  no pointer (ir-design §10), among them — cannot be the default: the document's location, which
+  OpenAPI resolves a relative URL against, is not something an SDK knows. The default is the first
+  server that has both, so a relative server listed first passes the default to the next. A client
+  refuses to be built while the server it would use has neither and no base URL replaces it, as when
+  a caller names a relative server, and refine reports a client none of whose servers has both once,
+  as an info `emitters/<target>/no-default-server`.
+- **An operation's own servers.** An operation whose `Servers` names any is sent to those in place
+  of its service's, by the same rules: to the first of them a client can reach, each variable at its
+  `Default`. The caller's choice of server and of variable values is a choice among the service's
+  servers, so it does not reach them; a base URL the caller gives replaces every server's URL, an
+  operation's own included, since a proxy or a test server stands in for the whole API. An operation
+  none of whose servers a client can reach refuses to be called unless a base URL replaces them, and
+  refine reports it once as an info `emitters/<target>/no-default-server`, naming the operation.
 - **Auth.** An HTTP target authenticates as §8.6 says, from the operation and the service.
   `Server.Auth` is the placement the messaging formats use, where a broker connection authenticates
   per server, and a messaging target reads it.

@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -131,11 +135,13 @@
                           }
                         ],
                         "multi": false,
-                        "filename": true
+                        "filename": true,
+                        "allowReserved": false
                       },
                       "p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/tags": {
                         "multi": true,
-                        "filename": false
+                        "filename": false,
+                        "allowReserved": false
                       }
                     }
                   }
@@ -202,18 +208,21 @@
                           "image/png"
                         ],
                         "multi": false,
-                        "filename": true
+                        "filename": true,
+                        "allowReserved": false
                       },
                       "p/openapi/components/schemas/UploadForm/properties/tags": {
                         "multi": true,
-                        "filename": false
+                        "filename": false,
+                        "allowReserved": false
                       },
                       "p/openapi/paths/~1upload-composed/post/requestBody/content/multipart~1form-data/schema/allOf/1/properties/note": {
                         "contentTypes": [
                           "text/plain"
                         ],
                         "multi": false,
-                        "filename": false
+                        "filename": false,
+                        "allowReserved": false
                       }
                     }
                   }
@@ -280,11 +289,13 @@
                           "image/png"
                         ],
                         "multi": true,
-                        "filename": false
+                        "filename": false,
+                        "allowReserved": false
                       },
                       "p/openapi/components/schemas/UploadForm/properties/tags": {
                         "multi": true,
-                        "filename": false
+                        "filename": false,
+                        "allowReserved": false
                       }
                     }
                   }
@@ -350,17 +361,8 @@
                         "multi": true,
                         "filename": false,
                         "style": "form",
-                        "explode": true
-                      }
-                    },
-                    "unmodeled": {
-                      "openapi:encoding/ids/allowReserved": {
-                        "reason": "no_ir_home",
-                        "value": true,
-                        "provenance": {
-                          "source": 0,
-                          "pointer": "/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/encoding/ids/allowReserved"
-                        }
+                        "explode": true,
+                        "allowReserved": true
                       }
                     }
                   }
@@ -408,6 +410,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -864,31 +869,24 @@
       "prim": "uuid"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
-    }
-  ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "encoding allowReserved has no ir.PartEncoding home; kept verbatim under Unmodeled",
+      "description": {},
       "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/encoding/ids/allowReserved"
+        "source": 0
       }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "multipart-encoding.yaml",
-      "hash": "b3dadf3bdee5abb8a298d91398b395a3fb6a6875b12e97c46d071e8d4d3e76b8"
+      "hash": "d186b442623e6c6e532e5515457244670c62f091291f277d5a5bcb2bca5c299f"
     }
   ]
 }

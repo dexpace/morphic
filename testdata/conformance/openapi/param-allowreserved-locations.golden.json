@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -160,7 +164,8 @@
                         "wireName": "id",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": true
+                        "allowReserved": true,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1reports~1{id}/get/parameters/X-Trace/header",
@@ -168,7 +173,8 @@
                         "wireName": "X-Trace",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": true
+                        "allowReserved": true,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1reports~1{id}/get/parameters/session/cookie",
@@ -176,7 +182,8 @@
                         "wireName": "session",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1reports~1{id}/get/parameters/q/query",
@@ -184,7 +191,8 @@
                         "wireName": "q",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": true
+                        "allowReserved": true,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -199,6 +207,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -219,15 +230,19 @@
       "prim": "string"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
     }
-  ],
+  },
   "diagnostics": [
     {
       "severity": "warning",

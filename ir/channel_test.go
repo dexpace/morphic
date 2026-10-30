@@ -13,7 +13,7 @@ import (
 // possibly-empty docs object, and provenance, while Address is a nilable
 // pointer (nil = unknown/runtime-assigned address) and every other field is
 // optional — and that a fully populated Channel — a concrete address, params,
-// messages, server indices, protocol bindings — round-trips.
+// messages, servers, protocol bindings — round-trips.
 func TestChannel_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Channel{}, `{"name":{},"docs":{},"provenance":{"source":0}}`,
@@ -28,7 +28,7 @@ func TestChannel_JSONContract(t *testing.T) {
 				{Name: ir.Naming{Source: "region"}, Type: populatedTypeRef(), Required: false},
 			},
 			Messages: []ir.MessageID{"m/UserSignedUp", "m/UserSignupFailed"},
-			Servers:  []int{0, 2},
+			Servers:  []ir.ServerID{"server/asyncapi/servers/production", "server/asyncapi/servers/staging"},
 			Bindings: map[string]ir.RawConfig{
 				"kafka": {"partitions": ir.RawValue(`3`)},
 				"amqp":  {"exchange": ir.RawValue(`"events"`)},

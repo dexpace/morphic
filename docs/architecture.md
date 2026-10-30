@@ -495,7 +495,8 @@ morphic/
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
 │   │       ├── operation/  #             path items, webhooks, callbacks, params, content
-│   │       ├── document/   #             info, servers, and what the document keeps verbatim
+│   │       ├── servers/    #             the servers a document declares, one registry
+│   │       ├── document/   #             info, and what the document keeps verbatim
 │   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).

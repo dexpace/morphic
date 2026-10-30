@@ -12,20 +12,21 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
-// LowerService lowers one document into a single Service: its identity and docs,
-// the declared tag registry, and every path, webhook, and callback operation
-// placed into groups per the configured grouping strategy (ir-design §7.1).
+// LowerService lowers one document into a single Service: its identity, docs
+// and servers, the declared tag registry, and every path, webhook, and callback
+// operation placed into groups per the configured grouping strategy (ir-design
+// §7.1), registering every server it meets in reg.
 //
 // ctx bounds the walk in time, for the reason LowerComponentSchemas takes one:
 // a document mounts as many paths and webhooks as it likes. Cancellation stops
 // the two loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *servers.Registry) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -37,6 +38,9 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types) (ir.Se
 	}
 	svcAuth, diags := auth.LowerSecurityRequirements(c, c.Doc.GetSecurity(), "")
 	svc.Auth = svcAuth
+	svcServers, serverDiags := reg.Root(c)
+	svc.Servers = svcServers
+	diags = append(diags, serverDiags...)
 	// The Paths Object admits x-* of its own, distinct from any path item's, and
 	// lowers to no node — its entries become operations. The service is the
 	// nearest node holding an Unmodeled map, so they are kept there under the
@@ -45,14 +49,25 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types) (ir.Se
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups(c.Doc.GetTags())
-	claims := newOperationIDClaims()
-	diags = append(diags, lowerPaths(ctx, c, ts, claims, groups, &svc)...)
-	diags = append(diags, lowerWebhooks(ctx, c, ts, claims, groups, &svc)...)
+	w := walk{types: ts, claims: newOperationIDClaims(), servers: reg}
+	diags = append(diags, lowerPaths(ctx, c, w, groups, &svc)...)
+	diags = append(diags, lowerWebhooks(ctx, c, w, groups, &svc)...)
 	// After both walks: whether an operationId is unique is a question about
 	// every operation the service mounts, callbacks included.
-	diags = append(diags, claims.report(c)...)
+	diags = append(diags, w.claims.report(c)...)
 	svc.Groups = groups.finalize()
 	return svc, lowerTagDefs(c), diags
+}
+
+// walk is what lowering a service's operations accumulates across all of them,
+// whichever route mounts each: the type registry, the operationId claims judged
+// once every operation has lowered, and the server registry a path item's and
+// an operation's servers go into. One is built per service and handed down by
+// value, since each field is the shared accumulator itself.
+type walk struct {
+	types   *compile.Types
+	claims  *operationIDClaims
+	servers *servers.Registry
 }
 
 // opPointers pairs the two pointers every operation lowering needs. mount is
@@ -104,7 +119,7 @@ func (o opContext) keyFields() (uriTemplate, webhookName string) {
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
 // binding. It returns the operation and any callback operations that must be
 // registered alongside it in the same group (ir-design §7.2, §8.1).
-func lowerOperation(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
+func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
 	// heuristic marker is filled in below, once every lowering that can add one
@@ -128,10 +143,10 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims
 	if src.GetDeprecated() {
 		op.Deprecation = &ir.Deprecation{}
 	}
-	params, bindings, paramDiags := lowerParameters(c, ts, mount, opCtx.params)
+	params, bindings, paramDiags := lowerParameters(c, w.types, mount, opCtx.params)
 	diags = append(diags, paramDiags...)
 	op.Params = params
-	diags = append(diags, lowerResponses(c, ts, &op, src, decl)...)
+	diags = append(diags, lowerResponses(c, w.types, &op, src, decl)...)
 	if opCtx.method == "" {
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.InvalidMethodKey, decl,
 			"additionalOperations key names no method; the operation lowers with an empty "+
@@ -145,7 +160,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims
 		IsWebhook:     opCtx.isWebhook,
 		ParamBindings: bindings,
 	}
-	diags = append(diags, lowerRequestBody(c, ts, &op, &hb, src, decl)...)
+	diags = append(diags, lowerRequestBody(c, w.types, &op, &hb, src, decl)...)
 	// After both payload lowerings, which are what it reads.
 	streaming, streamDiags := applyStreaming(c, &op, decl)
 	diags = append(diags, streamDiags...)
@@ -154,7 +169,7 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims
 	if opCtx.withCallbacks {
 		var cbExt ir.Unmodeled
 		var cbDiags []ir.Diagnostic
-		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, ts, claims, src, opCtx.ptrs, opCtx.inferred)
+		hb.Callbacks, extra, cbExt, cbDiags = lowerCallbacks(c, w, src, opCtx.ptrs, opCtx.inferred)
 		hb.Unmodeled = annotation.MergeUnmodeled(hb.Unmodeled, cbExt)
 		diags = append(diags, cbDiags...)
 	}
@@ -162,8 +177,12 @@ func lowerOperation(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims
 	diags = append(diags, applyOperationAnnotations(c, &op, src, decl)...)
 	// After the extensions are on the map, since that is what it reads.
 	diags = append(diags, c.PromoteDeprecation(op.Unmodeled, op.Deprecation, &op.Provenance)...)
-	diags = append(diags, applyOperationServers(c, &op, src, decl)...)
-	claims.add(src, opCtx.ptrs)
+	// mountPathItem names the path item's servers only where these name none,
+	// since an operation's own override them.
+	own, serverDiags := w.servers.Declared(c, src.GetServers(), decl)
+	op.Servers = own
+	diags = append(diags, serverDiags...)
+	w.claims.add(src, opCtx.ptrs)
 	return op, extra, diags
 }
 
@@ -188,32 +207,6 @@ func applyOperationAnnotations(c lowering.Ctx, op *ir.Operation, src *soa.Operat
 	diags = append(diags, annotation.UnknownKeysIn(&op.Unmodeled, src, c.ProvenanceAt, decl)...)
 	return append(diags, annotation.UnknownKeysUnder(&op.Unmodeled,
 		src.GetExternalDocs(), c.ProvenanceAt, docsPtr, "externalDocs")...)
-}
-
-// applyOperationServers preserves an operation's own `servers` verbatim under
-// Unmodeled with an info diagnostic, for the reason applyPathServers does for
-// the path item's: ir.Operation has no server-scope list.
-//
-// It is the overriding half of the pair: an Operation Object's servers override
-// the Path Item Object's, so keeping only the superseded list would route an
-// emitter to the wrong host (GitHub #39). The two sit under separate keys
-// because one key cannot hold both without the survivor depending on lowering
-// order; the path item's keeps `openapi:servers`.
-//
-// Unlike applyPathServers, it is called from lowerOperation, so no route can
-// forget it.
-func applyOperationServers(c lowering.Ctx, op *ir.Operation, src *soa.Operation, declPtr jsontext.Pointer) []ir.Diagnostic {
-	if len(src.GetServers()) == 0 {
-		return nil
-	}
-	kept, diags := annotation.PreserveNodeInto(&op.Unmodeled, "openapi:operationServers",
-		nodeview.Child(src.GetRootNode(), "servers"), ir.ReasonNoIRHome, c.ProvenanceAt(declPtr+ids.Ptr("servers")))
-	if !kept {
-		return diags
-	}
-	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, withoutInferred(op.Provenance),
-		"operation servers kept under Unmodeled; an operation has no server-scope list to bind "+
-			"them to, and these override any path-item servers kept beside them"))
 }
 
 // withoutInferred returns p with no Inferred marker, for a finding about what an

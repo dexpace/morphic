@@ -181,6 +181,10 @@ witnessing it.
 
 - Witnesses: `servers-variables`
 
+### `per-op-servers`
+
+- Witnesses: `webhooks`, `callbacks`, `path-item-ref-siblings`, `yaml-merge-keys`
+
 ### `deprecation`
 
 - Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`

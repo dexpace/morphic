@@ -58,12 +58,14 @@ func TestCompile_EndToEnd(t *testing.T) {
 	require.Len(t, doc.Sources, 1)
 	assert.Len(t, doc.Sources[0].Hash, 64)
 
-	// One server with a templated variable survived.
+	// One server with a templated variable survived, and the service names it.
 	require.Len(t, doc.Servers, 1)
-	assert.Equal(t, "https://{env}.example.com/v1", doc.Servers[0].URLTemplate)
-	require.Len(t, doc.Servers[0].Variables, 1)
-	assert.Equal(t, "env", doc.Servers[0].Variables[0].Name)
-	assert.Equal(t, []string{"api", "staging"}, doc.Servers[0].Variables[0].Enum)
+	require.Equal(t, []ir.ServerID{"server/openapi/servers/0"}, doc.Services[0].Servers)
+	server := doc.Servers["server/openapi/servers/0"]
+	assert.Equal(t, "https://{env}.example.com/v1", server.URLTemplate)
+	require.Len(t, server.Variables, 1)
+	assert.Equal(t, "env", server.Variables[0].Name)
+	assert.Equal(t, []string{"api", "staging"}, server.Variables[0].Enum)
 
 	// Document-level security lowered to the service default (OR-of-ANDs).
 	require.Len(t, doc.Services[0].Auth, 1)

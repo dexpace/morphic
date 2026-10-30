@@ -39,6 +39,7 @@ func TestPopulatedFixtures_LeaveNoFieldZero(t *testing.T) {
 		{"XMLHints", populatedXMLHints(), nil},
 		{"TypeRef", populatedTypeRef(), nil},
 		{"TypeCommon", populatedTypeCommon("t/openapi/components/schemas/User"), nil},
+		{"Header", populatedHeader(), nil},
 		{"Property", populatedProperty(), map[string]string{
 			"EventPayload": "mutually exclusive with EventHeader, which the fixture sets; " +
 				"neither field carries omitempty, so both serialize either way",
