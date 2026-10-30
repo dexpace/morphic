@@ -318,7 +318,9 @@ All Go in this repo follows the org styleguide at
 the [Google Go Style Guide](https://google.github.io/styleguide/go/); where they conflict,
 Google wins except for the recorded deviations (function-size cap, assertion density, bounded
 recursion). Priority order: **correctness > performance > developer experience**. The rules
-below are the ones most likely to bite in this codebase — the full guide governs everything else.
+below are the ones most likely to bite in this codebase — the full guide governs everything else,
+and `morphic-checking-style` says how to check a change against it and where this repository
+departs from it, with what holds each difference.
 
 - **Functions: 70-line hard cap, aim 20–40.** One thing each; blank lines between logical
   sections; guard clauses and early returns over nesting; no `else` after a returning `if`.
