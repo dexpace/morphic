@@ -4,11 +4,11 @@ The emitter is the second half of the Morphic pipeline: it turns an `ir.Document
 options) into generated SDK source, docs, mock servers, and other artifacts. This document is the
 normative contract for that half, the way `docs/ir-design.md` is normative for the IR. It extends
 the emitter sketch in `docs/architecture.md §2.3`–`§2.4`; where the two disagree, `architecture.md`
-wins on stage boundaries and this document wins on the shapes inside a emitter.
+wins on stage boundaries and this document wins on the shapes inside an emitter.
 
 Type sketches are written as Go because the implementation is Go. As in `ir-design.md`, field names
 and struct shapes here are the contract; receiver methods and helpers are not. The IR is consumed,
-never modified — a emitter imports `ir` and reads it.
+never modified — an emitter imports `ir` and reads it.
 
 ---
 
@@ -100,7 +100,7 @@ genuinely wants templates for structure can implement `Emit` differently while r
 
 ### 1.3 Emitter design rules (in addition to the ten CLAUDE.md invariants)
 
-1. **The IR is read-only.** No stage of a emitter mutates the `ir.Document`. Lowering lands on the
+1. **The IR is read-only.** No stage of an emitter mutates the `ir.Document`. Lowering lands on the
    target AST, which is freshly built per (target × document).
 2. **Decisions live in Go, never in templates.** Any branch that depends on an IR fact or a policy
    value is resolved in plan or refine and reaches emit as a decided node. A template that inspects
@@ -126,7 +126,7 @@ target package (INV1; architecture.md §3). Enforced by the import-graph test (�
 ```go
 package emitters
 
-// TargetKey identifies a emitter in the registry: "go", "kotlin-jvm", "kotlin-multiplatform",
+// TargetKey identifies an emitter in the registry: "go", "kotlin-jvm", "kotlin-multiplatform",
 // "docs", "mock/go", …
 type TargetKey string
 
@@ -180,7 +180,7 @@ type Artifact struct {
 }
 ```
 
-`error` is not part of the `Generate` signature: a emitter has no failure mode that is not either a
+`error` is not part of the `Generate` signature: an emitter has no failure mode that is not either a
 `Diagnostic` (something about the input it cannot lower) or a programmer bug: a `TypeKind` with no
 dispatch, caught by the switch-completeness test in the suite (§13) rather than at runtime, or an
 options value of another target's type, reported as an error diagnostic (§2.5). This keeps the
@@ -240,7 +240,7 @@ rebuilds it from the document, which determines it.
 
 ### 2.3 Capabilities
 
-`Capabilities()` lets the engine reason about a emitter without running it — which IR `TypeKind`s
+`Capabilities()` lets the engine reason about an emitter without running it — which IR `TypeKind`s
 it lowers, whether it supports write/integrate, whether it produces a surface for compat. It is
 advisory metadata, not a second decision channel; it never changes what `Generate` emits.
 
@@ -771,7 +771,7 @@ type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir
 
 The Go-first walkthrough (§8) exercises `Protocol == "http"`; the RPC/message/OTP arms exist in the
 type so the second-protocol emitter (open Q4) does not force a plan schema change (INV9). Channels
-and messages (`ir-design.md §8.3`) reach a emitter through `MsgView`; a messaging target consumes
+and messages (`ir-design.md §8.3`) reach an emitter through `MsgView`; a messaging target consumes
 them the same way an HTTP target consumes `HTTP`.
 
 `Raw` is `ir.RawConfig`, not `ir.Unmodeled`, and the distinction is not cosmetic. It carries
@@ -1111,7 +1111,7 @@ ogen's `schema_gen_sum.go` is the battle-tested enumeration to lift: try, in ord
 discriminator → implicit discriminator (variant const/name) → JSON-type discrimination (variants
 distinguishable by JSON kind) → unique-field discrimination → value-based. The decisive divergence:
 ogen computes this *while building the Go model*, so a union it cannot discriminate aborts the whole
-generation. Because Morphic keeps `Union` lossless in the IR and only a emitter picks a strategy, a
+generation. Because Morphic keeps `Union` lossless in the IR and only an emitter picks a strategy, a
 Go refiner that finds no strategy emits a coded diagnostic and decodes every value into the fallback
 below, which keeps its bytes as they arrived — a degrade, never a whole-document failure (§13 test
 T-7). That graceful-degradation margin is exactly what the ABI seam buys and the fused-pipeline
@@ -1771,7 +1771,7 @@ single run's output. T-25 gives each a test.
 ## 6. Runtime/SDK policy — a separate input
 
 `emitters/policy` (INV10; architecture.md §2.4). The behavioral configuration of generated
-SDKs is a emitter input alongside the IR, **never a field on `ir.Document`** — the divergence from
+SDKs is an emitter input alongside the IR, **never a field on `ir.Document`** — the divergence from
 oagen, which attaches `SdkBehavior` to its spec root. Keeping the trees separate lets one IR drive
 SDKs, docs, and mock servers without dragging SDK opinions along.
 
@@ -1839,7 +1839,7 @@ configuration inside the IR* (`ir-design.md §12`), and a hint is neither — it
 authored alongside the SDK, and the IR never sees it.
 
 Method-name *derivation* is itself an injectable policy marked `Inferred`, disable-able and
-overridable. Per-target naming/compat overlays are the same shape: a emitter input keyed by IR ID,
+overridable. Per-target naming/compat overlays are the same shape: an emitter input keyed by IR ID,
 so one IR document drives different compat baselines per language.
 
 ---

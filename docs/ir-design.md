@@ -503,7 +503,7 @@ type Naming struct {
 policy, and reserved-word escaping. An emitter may read `Source` to recover the letter case of the
 words `Canonical` fixes (`iOS` in `iOSVersion`), segmenting it with this section's grammar rather
 than one of its own, and never to find where a word ends (emitter-design §4.12). Anonymous
-(hoisted) types have empty `Source` and a `Hint`; whether a emitter inlines them or names them is
+(hoisted) types have empty `Source` and a `Hint`; whether an emitter inlines them or names them is
 its choice.
 
 **`Hint` is the same word sequence in the same grammar.** It is not a presentation affordance
@@ -2108,7 +2108,7 @@ member's `Provenance` at its defining occurrence; the occurrence list goes to
 `Unmodeled["graphql:extends"]` when SDL round-trip fidelity is wanted.
 
 Arbitrary client-composed selection sets are out of scope by design: Morphic generates SDK
-surface, and the full type graph — including per-field arguments — is retained so a emitter can
+surface, and the full type graph — including per-field arguments — is retained so an emitter can
 still offer query builders.
 
 ### 8.5 Erlang/OTP

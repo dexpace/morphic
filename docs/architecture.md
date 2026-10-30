@@ -31,7 +31,7 @@ between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
 ## 1. Design principles
 
 1. **The IR is the ABI.** Compilers and emitters never see each other. A compiler's only output
-   is an IR document plus diagnostics; a emitter's only input is an IR document plus its own
+   is an IR document plus diagnostics; an emitter's only input is an IR document plus its own
    options. Everything either side needs must round-trip through the IR (learned from oagen's
    layering and Kiota's refiner contract — see `prior-art.md`).
 2. **Lossless by default, lowered late.** The IR is designed against the *union* of all source
@@ -356,7 +356,7 @@ Designed, not yet built:
   marker) so automated overlay-generation loops stay auditable. Two related hooks live
   deliberately elsewhere: *source-document* patching (e.g. the OpenAPI Overlay spec) is a
   compiler option applied before lowering — some fixes must land before naming/hoisting
-  heuristics consume the broken shape — and *per-target-language* naming/compat overlays are a
+  heuristics consume the broken shape — and *per-target-language* naming/compat overlays are an
   emitter input keyed by IR ID, so one IR document drives different compat baselines per
   language.
 
@@ -415,7 +415,7 @@ though both are post-milestone scope:
 ### 2.4 Runtime/SDK policy is a separate input
 
 Retry, timeout, telemetry, error-class taxonomy, user-agent — the *behavioral* configuration of
-generated SDKs — is a emitter input alongside the IR, not part of it. The IR describes the API;
+generated SDKs — is an emitter input alongside the IR, not part of it. The IR describes the API;
 policy describes the SDK. (oagen embeds both in one root; we keep the trees separate so the same
 IR document can drive SDKs, docs, and mock servers without dragging SDK opinions along.)
 

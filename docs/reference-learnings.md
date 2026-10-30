@@ -50,7 +50,7 @@ Every template-based repo computes imports by **mutation or text-grep**, and eve
 import-bug class: openapi-generator's `addImport` mutates `model.imports` during lowering (dead +
 missing imports recurring); fastapi greps the rendered string with `IDENTIFIER_PATTERN` to drop
 unused imports; openapi-python-client threads mutable import sets via `object.__setattr__`.
-**CONFIRMS** that import computation is a emitter concern, and **challenges** any accumulator design.
+**CONFIRMS** that import computation is an emitter concern, and **challenges** any accumulator design.
 **Recommendation:** Morphic's flat ID-keyed registry (invariant #3) makes the import set a *pure
 reachability walk* over `TypeRef` targets per output file — compute it as a derived function in
 refine, and **track symbol references structurally** as you emit each reference (oagen/TypeSpec do
@@ -243,7 +243,7 @@ lacks (the strongest validation the oagen audit produced).
   cautionary middle ground. **Ship Morphic's per-kind-struct + generated switch-completeness test in
   milestone 1** — ogen's panics are exactly the runtime failure the test prevents. Also ship
   `walkTypeRef`/`mapTypeRef` generic-traversal helpers (oagen leans on them constantly).
-- **Recursion is a emitter problem, solved at emit.** Morphic's ID-referenced registry makes the IR
+- **Recursion is an emitter problem, solved at emit.** Morphic's ID-referenced registry makes the IR
   cycle-free (invariant #3) — vindicated against ogen's whole recursion module (`reflect.DeepEqual`
   cycle finder + hard errors on required recursive fields), datamodel's SCC cross-module relocation,
   and openapi-python's two-phase fixpoint. But the Go **emitter still must break emitted-output cycles
@@ -295,7 +295,7 @@ discriminator-participant → `Base`; other $refs → `Mixins`; inline → `Prop
 **never merge**; keep `FlattenedProperties()` computed, never stored (openapi-generator's
 `allVars`-beside-`vars` is the storage smell). TypeSpec independently validates the split with distinct
 `sourceModels[].usage: "is"|"spread"|"intersection"` provenance — **consider a `MixinKind`/provenance
-tag on each `Mixins` entry** so a emitter can tell structural-copy (`is`/spread) from compose-by-
+tag on each `Mixins` entry** so an emitter can tell structural-copy (`is`/spread) from compose-by-
 reference. Harvest the merge algorithms as **emitter-refiner** material (below). Any convenience
 simplification lives in `pass/` (composable, order-explicit, default OFF, provenance-recording), never
 a default compiler mutation.
