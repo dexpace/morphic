@@ -22,13 +22,26 @@ defect, keep a `main` control.
   each name against the tree, citation against the item it cites, statement about code on `main`,
   statement about a library against its `docs/parser-library.md` entry, quoted command run from
   the root, script in each context it runs in (a subdirectory, each platform branch), body sentence
-  on the final tree, and each construct a rule settles
-  (`references/review-probes.md#tracker-on-what-a-rule-settles`). A class checked by sample is
+  on the final tree, each construct a rule settles
+  (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
+  (`references/review-probes.md#edited-rule-against-its-neighbours`). A class checked by sample is
   reported unreviewed, never clean.
-- **Why.** A review of #1143 took nine rounds, each sampling a class or trying one angle: citations
-  were read for 58 of 203 rules before all 383, and a misattribution sat in the rest.
+- **Why.** A review of #1143 took nine rounds, each sampling a class: citations were read for 58 of
+  203 rules before all 383, and a misattribution sat in the rest.
 - **Probe.** The report gives each class and the members checked; fewer than its size is a round
   still open.
+
+## Read an edited rule against the rules governing the same act
+`edited-rule-against-its-neighbours`
+
+- **Rule.** For a change to `.claude/skills` or `CLAUDE.md`, name the acts each edited rule governs
+  (commit, push, merge, review, plant a mutant), grep both for the other rules governing each act,
+  and read each pair for an instruction one gives and the other forbids. A script can find the pair
+  but not tell a conflict from a restatement, so this stays a reader's.
+- **Why.** Two rules one PR edited each held against the tree, while one gated a push on reading
+  what a checklist printed and the other on an exit status in the same command (#1153, #1160).
+- **Probe.** The report lists each edited rule, its acts and the rules read against it; a rule with
+  none is a round still open.
 
 ## Search the tracker for each construct a rule settles
 `tracker-on-what-a-rule-settles`
