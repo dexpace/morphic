@@ -57,7 +57,7 @@ has rows of its own. A range such as `4XX` is no obstacle: the status that arriv
 Every failure has one place, which the status and the entry it takes decide ([which entry
 answers](../plan/responses.md#which-entry-answers)):
 
-- its place in the target's error tree follows from its kind and its `Fault`
+- what a caller matches it by follows from its kind and its `Fault`
   ([Go](../targets/go/errors.md#a-failures-place),
   [Kotlin](../targets/kotlin/errors.md#a-failures-place));
 - `Fault` is the entry's, else the class the status states: 4xx `client`, 5xx `server`, any other

@@ -1,5 +1,7 @@
 # Failures in Kotlin
 
+What holds on every target is in [failures](../../operations/errors.md).
+
 ## How a failure reaches its caller
 
 Kotlin carries a failure in an exception, the default of `errorStyle` and the only style M3 builds:

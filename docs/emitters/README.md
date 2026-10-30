@@ -14,9 +14,10 @@ never modified — an emitter imports `ir` and reads it.
 
 A shared document says what every target must do; a target's document says how that target does it.
 So a rule that holds for every target has one home, under the stage or the domain it belongs to, and
-a document under `targets/` states what its language decides and restates no shared rule. A shared
-document may name a language to illustrate a rule, or for a fact about it that explains the rule,
-and it spells a runtime type as Go does; every choice a target makes is in that target's documents.
+a document under `targets/` states what its language decides and links the shared rule each decision
+answers. A shared document may name a language to illustrate a rule, or for a fact about it that
+explains the rule, and it spells a runtime type as Go does; what a target chooses belongs in that
+target's documents.
 
 A trace of one construct divides where the pipeline does. Its IR and its plan are the same for every
 target, so they sit in the shared document, and what refine and emit build from them sits in the

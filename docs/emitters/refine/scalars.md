@@ -14,9 +14,8 @@
 - **A declaration over a root keeps the root's codec.** A named scalar, an anonymous one that is no
   decorator ([decorators](decorators.md)), and a `Model` whose `Base` is no model ([lowering
   table](lowering-table.md)) each declare a type standing over their chain's root, and it must code
-  as the root does. So a target defines a new type only over a root whose type has no methods to
-  lose, and declares an alias over any other
-  ([Go](../targets/go/types.md#a-declaration-over-a-root),
+  as the root does. So a target defines a new type only over a root whose codec that type keeps, and
+  declares an alias over any other ([Go](../targets/go/types.md#a-declaration-over-a-root),
   [Kotlin](../targets/kotlin/types.md#a-declaration-over-a-root)). An alias declares no method, so
   its constraints are checked where it is used, as a field's are ([constraints](constraints.md)),
   and a projection of it ([visibility](models.md#visibility-projections--n-wire-shapes)) is its

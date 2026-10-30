@@ -10,7 +10,7 @@
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | one declaration per shape, such as `User` / `UserCreate` / `UserPatch` | 5.2 |
 | `LowerOptionality` | `TypePlan.Required` (a member's wire presence, [TypePlan](../plan/types.md)) ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states in the target's forms; a reference on a cycle the target holds by value broken as its type system requires ([recursive references](models.md#recursive-references)) | 5.1; INV8 |
 | `LowerConstraints` | `Constraints` on properties/scalars/lists/maps | field-level validation metadata + a refine-built validation method structure | 5.3 |
-| `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}`, a polymorphic base's `Discriminator` or `Abstract` with `Facts.Subtypes`, `TypePlan.Union`, `TypePlan.Open` | the target's closed sum, with a variant per variant or subtype + a fallback on an open one | 4.4; INV2 |
+| `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}`, a polymorphic base's `Discriminator` or `Abstract` with `Facts.Subtypes`, `TypePlan.Union`, `TypePlan.Open` | the target's closed sum, one member per variant or subtype + a fallback on an open one | 4.4; INV2 |
 | `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | a tag-dispatched decoder + typed factories | 4.3–4.4 |
 | `LowerOpenEnums` | `Enum.Closed`, `ValueType`, `Members`, `Flags`, `FallbackMember` | the target's closed, open and flags forms; an open one keeps an unknown value | 4.5 |
 | `ExtractInterfaces` | `Implements`, `OperationGroup` | interfaces / client interfaces for testability | 4.3 |

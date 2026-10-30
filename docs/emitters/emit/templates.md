@@ -25,8 +25,8 @@ Grafted from the template-first stance, applied only to the narrow boilerplate s
   decision" from a discipline problem into a failing test. A template that renders into a scope
   where spec names live also declares the names it binds there ([reserved
   names](../refine/reserved-names.md)), and the lint renders it and holds that declaration to what
-  the rendering binds — for Go, as `go/parser` reads it — so a local added to a template cannot
-  shadow a parameter the declaration left out.
+  the rendering binds, so a local added to a template cannot shadow a parameter the declaration left
+  out.
 - **A mandatory format pass** (`Formatter.Format(path, src)`), run on *all* emitted files. Any
   syntactic slip a template produces is caught here as a located, hard `Diagnostic` (file + the
   formatter's message), never shipped. Because typed-AST structure is already syntactically valid by

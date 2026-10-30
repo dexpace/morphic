@@ -1,5 +1,8 @@
 # Types in Go
 
+What Go decides for the [type table](../../contract/type-table.md), a [declaration over a
+root](../../refine/scalars.md) and an [enum](../../refine/enums.md).
+
 ## Type-table rows
 
 A Go row is `{Type: "decimal.Decimal", Imports: {"decimal": "github.com/shopspring/decimal"}}`,

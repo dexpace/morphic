@@ -1,5 +1,8 @@
 # Types in Kotlin
 
+What Kotlin decides for the [type table](../../contract/type-table.md), a [declaration over a
+root](../../refine/scalars.md) and an [enum](../../refine/enums.md).
+
 ## Type-table rows
 
 A Kotlin row is `{Type: "BigDecimal", Codec: "BigDecimalSerializer", Imports: {"BigDecimal":

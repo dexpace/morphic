@@ -53,4 +53,4 @@ The Go templates lean on the standard library wherever Go 1.27 does the work ([t
 floor](overview.md#the-language-floor)). In particular the transport template does not drain an
 unread response body by hand so that its connection can be reused: `net/http` does that itself on
 `Close`, up to a bound it sets, and past the bound closes the connection rather than read an
-arbitrarily large body.
+arbitrarily large body. The template lint reads what a rendering binds as `go/parser` reads it.

@@ -1,5 +1,8 @@
 # Scale
 
+What a Kotlin target must stay inside, beside the [size
+check](../../refine/output-units.md#the-size-check).
+
 The JVM caps a method at 255 parameter slots and 64 KiB of bytecode, and a class at 65,535
 constant-pool entries. A refiner checks each declaration against its target's limits and lowers past
 them to a shape that stays inside, or diagnoses what it cannot: the decoder of a model with hundreds

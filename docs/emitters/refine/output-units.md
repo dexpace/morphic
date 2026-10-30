@@ -43,18 +43,18 @@ applies decides.
    reaching it changes, which takes a change to the operations that reach it.
 
 The root unit's name is the options'. A group's unit is the group's name rendered for a package
-under the root (`<root>/<group>` in Go, `<root>.<group>` in Kotlin), the shared unit is `shared`
-under the root, and a partition's unit is the name its key maps to. The units' names are a scope of
-their own ([reserved names](reserved-names.md)): a group named `shared`, or `internal` in Go, meets
-a reserved name, and two groups whose names render alike — tags `Webhooks` and `webhooks`, both the
-Go package `webhooks` — collide, and are told apart by group ID as any collision is. A name the
-options give a unit never yields. A declaration a target derives from another lands in that one's
-unit — a visibility shape ([visibility](models.md#visibility-projections--n-wire-shapes)) in its
-type's, a union's interface, wrappers and fallback in the union's, an operation's request and
-headers types in the operation's — and a unit is a namespace of its own, so two declarations collide
-only within one ([reserved names](reserved-names.md)). A wrapper imports a variant another unit
-holds, which is how a union reaches into the shared unit. A service-wide error's headers type lands
-where a type all its groups reach does. T-18 holds placement to these rules.
+under the root, the shared unit is `shared` under the root, and a partition's unit is the name its
+key maps to. The units' names are a scope of their own ([reserved names](reserved-names.md)): a
+group named `shared`, or `internal` in Go, meets a reserved name, and two groups whose names render
+alike — tags `Webhooks` and `webhooks`, both the Go package `webhooks` — collide, and are told apart
+by group ID as any collision is. A name the options give a unit never yields. A declaration a target
+derives from another lands in that one's unit — a visibility shape
+([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a union's interface,
+wrappers and fallback in the union's, an operation's request and headers types in the operation's —
+and a unit is a namespace of its own, so two declarations collide only within one ([reserved
+names](reserved-names.md)). A wrapper imports a variant another unit holds, which is how a union
+reaches into the shared unit. A service-wide error's headers type lands where a type all its groups
+reach does. T-18 holds placement to these rules.
 
 ## The size check
 
