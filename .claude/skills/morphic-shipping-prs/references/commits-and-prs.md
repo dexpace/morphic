@@ -94,10 +94,10 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** A check meant to stop a commit or push gates it by its exit status, in the same
   command: `check > log 2>&1 && git commit ...`. Never pipe a gating check into `tail` or `grep`,
-  chain it with `;`, or print a length and commit on the same line: a pipeline's status is its last
-  stage's, and a printed number gates nothing.
+  chain it with `;` or a newline, or print a length and commit on the same line: a pipeline's status
+  is its last stage's, and a printed number or finding gates nothing.
 - **Why.** Over-cap subjects and lint and archtest failures were committed past checks that printed
-  them (#1007, #1005, #1046, #1141, #1147).
+  them (#1007, #1005, #1046, #1141, #1147, #1153).
 - **Probe.** Plant a failure the check must catch and run `<check> && echo pushed`: nothing
   prints.
 
