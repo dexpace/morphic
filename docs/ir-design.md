@@ -358,9 +358,10 @@ it sees. Changes made together in one bump are listed together under it.
     lowered the `/` OpenAPI supplies for a document declaring none as if declared. A consumer
     pinned to 0.21.0 cannot read the registry, and sends every operation to the document's servers.
   - `HTTPParamBinding` gained `AllowEmptyValue`, `PartEncoding` gained `AllowReserved`, and
-    `Property` gained `Style` and `Explode`, which only a header carries (§5.1). The compiler had
-    kept each verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to 0.21.0 that
-    reads those entries no longer finds them.
+    `Response`, `ErrorCase` and `PartEncoding` hold `Headers` as `[]Header`, a `Property` with
+    `Style` and `Explode` beside its members, which encode flat (§7.2). The compiler had kept each
+    verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to 0.21.0 that reads those
+    entries no longer finds them.
 
 ---
 
@@ -1414,9 +1415,6 @@ type Property struct {
     Default    *Value
     Constraints *Constraints
     Encoding   *Encoding
-    Style      string              // a header's: how it writes the value into its field, in
-                                   // HTTPParamBinding.Style's vocabulary; "" = simple
-    Explode    *bool               // a header's explode; nil = the style's default
     Args       []Parameter         // parameterized fields: GraphQL field arguments on any property,
                                    // at any depth — not just operation entry points. Empty elsewhere.
     Flatten    bool                // property's fields hoisted into parent on the wire (Smithy/TCGC
@@ -1451,16 +1449,6 @@ type PresenceKind string
 GraphQL binding (the only format with per-field arguments); the validate pass rejects them
 elsewhere. This keeps ordinary models pure data shapes — a model without `Args` anywhere in its
 graph serializes conventionally in every emitter.
-
-**Scope rule for `Style` and `Explode`:** they say how a header writes its value into its field, so
-only a header carries them — an entry of `Response.Headers`, `ErrorCase.Headers` or
-`PartEncoding.Headers`. The validate pass rejects them on a model's or a resource's property
-(`ir/header-serialization-outside-header`). They are fields of the property rather than of a binding
-because a response header has no binding: it is a `Property` of the response, as a part's header is
-of the part. Each holds what the source declares, so an emitter can tell a declared `explode: false`
-from none. OpenAPI allows a header the simple style alone and lets `explode` join an object value
-two ways, as TypeSpec's `@header` option does; Swagger 2.0's response-header `collectionFormat` also
-writes a space- or pipe-delimited list, which is why `Style` is a field and not a constant.
 
 ### 5.2 Visibility — lifecycle sets, not booleans
 
@@ -1787,7 +1775,7 @@ type Content struct {
 
 type PartEncoding struct {
     ContentTypes []string          // media type(s) of this part
-    Headers      []Property        // per-part headers
+    Headers      []Header          // per-part headers
     Multi        bool              // part repeats (array member → repeated parts)
     Filename     bool              // part carries a filename (file part)
     Style        string            // form-style serialization for non-file parts
@@ -1811,12 +1799,19 @@ type Response struct {
     Name       Naming             // for formats with named outputs; Hint elsewhere
     Conditions ResponseConditions // HTTP status codes/ranges; empty for RPC single-response
     Payload    *Payload           // nil = no body
-    Headers    []Property         // response metadata fields
+    Headers    []Header           // response metadata fields
     StatusCodeProp *PropPath      // output member populated from the runtime HTTP status line
                                   // (Smithy @httpResponseCode, TypeSpec non-literal @statusCode);
                                   // the member is suppressed from the body
     Docs       Docs
     Unmodeled  Unmodeled
+}
+
+type Header struct {             // one entry of a Headers list; encodes flat
+    Property                      // what the header is: name, type, presence, docs
+    Style      string             // how the value is written into the field, in
+                                  // HTTPParamBinding.Style's vocabulary, as declared; "" = simple
+    Explode    *bool              // as declared; nil = the style's default
 }
 
 type ResponseConditions struct {
@@ -1827,7 +1822,7 @@ type ErrorCase struct {          // a response too: Name/Conditions/Payload/Head
     Name       Naming             // for formats with named errors; Hint elsewhere (the status key, neutralized)
     Conditions ResponseConditions
     Payload    *Payload           // nil = no body; the error-flagged models are its contents' types
-    Headers    []Property         // error metadata fields (Retry-After, rate-limit family)
+    Headers    []Header           // error metadata fields (Retry-After, rate-limit family)
     Fault      string             // "" | "client" | "server" — protocol-neutral fault classification
                                   // (Smithy @error; OpenAPI 4XX/5XX is its HTTP lowering). Drives
                                   // exception hierarchies and default status synthesis
@@ -1864,6 +1859,17 @@ Design notes:
   `ErrorCase` with the catch-all condition instead. `pass/validate` holds `Default.Conditions` to
   the catch-all alone (`ir/default-response-conditions`), and a `OneWay` operation to having no
   `Default` either.
+- **A header is a `Property` with how it is written.** A response header has no binding to state
+  its serialization, as a parameter's `HTTPParamBinding` does, so `Header` holds it. Two fields on
+  `Property` were the alternative, rejected because they would mean nothing on a model's or a
+  resource's property, and a check over a hand-named list of positions would have to keep them off
+  those. `Property.Args` takes that route because a field argument can sit at any depth of a model;
+  a header is a list of its own, so the type states the rule and no check has to. `Header` embeds
+  `Property`, so the two encode flat as one object and a header reads as a property does. Each of
+  its fields holds what the source declares, so an emitter can tell a declared `explode: false`
+  from none. OpenAPI allows a header the simple style alone and lets `explode` join an object value
+  two ways, as TypeSpec's `@header` option does; Swagger 2.0's response-header `collectionFormat`
+  also writes a space- or pipe-delimited list, which is why `Style` is a field and not a constant.
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is
   wrong regardless of transport. The AsyncAPI compiler sets it for send-operations without a

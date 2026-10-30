@@ -16,33 +16,21 @@ const MaxGroupDepth = 128
 // groups share is walked from each, so aliasing costs the unfolded size
 // (#859); one that contains itself is not walked again from inside itself.
 func ForEachOperation(doc *Document, fn func(Operation)) (truncated bool) {
-	return ForEachGroup(doc, func(g *OperationGroup) {
-		for _, op := range g.Operations {
-			fn(op)
-		}
-	})
-}
-
-// ForEachGroup calls the non-nil fn for every operation group in doc, each
-// before the groups nested in it, in declaration order, under the bound and the
-// aliasing rule [ForEachOperation] states, and reports likewise whether the
-// bound skipped any. fn is handed the group in doc, which it must not change.
-func ForEachGroup(doc *Document, fn func(*OperationGroup)) (truncated bool) {
 	if doc == nil {
 		return false
 	}
 	var path descent
-	for i := range doc.Services {
-		if forEachGroup(doc.Services[i].Groups, 0, &path, fn) {
+	for _, svc := range doc.Services {
+		if forEachGroupOperation(svc.Groups, 0, &path, fn) {
 			truncated = true
 		}
 	}
 	return truncated
 }
 
-// forEachGroup walks groups depth-first, calling fn per group, and reports
-// whether the bound cut the descent short.
-func forEachGroup(groups []OperationGroup, depth int, path *descent, fn func(*OperationGroup)) bool {
+// forEachGroupOperation walks groups depth-first, calling fn per operation, and
+// reports whether the bound cut the descent short.
+func forEachGroupOperation(groups []OperationGroup, depth int, path *descent, fn func(Operation)) bool {
 	// Every leaf recurses once into its own empty Groups, which has nothing to
 	// skip. Checking for it first keeps the cap from claiming truncation for a
 	// walk that reached everything.
@@ -56,9 +44,11 @@ func forEachGroup(groups []OperationGroup, depth int, path *descent, fn func(*Op
 		return false
 	}
 	truncated := false
-	for i := range groups {
-		fn(&groups[i])
-		if forEachGroup(groups[i].Groups, depth+1, path, fn) {
+	for _, g := range groups {
+		for _, op := range g.Operations {
+			fn(op)
+		}
+		if forEachGroupOperation(g.Groups, depth+1, path, fn) {
 			truncated = true
 		}
 	}

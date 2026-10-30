@@ -278,10 +278,10 @@ func operationsOf(doc *ir.Document) []ir.Operation {
 	return out
 }
 
-// headersOf collects an operation's header Properties from both places they
-// live: response headers, and the per-part headers of a multipart encoding.
-func headersOf(op ir.Operation) []ir.Property {
-	var out []ir.Property
+// headersOf collects an operation's Headers from both places they live:
+// response headers, and the per-part headers of a multipart encoding.
+func headersOf(op ir.Operation) []ir.Header {
+	var out []ir.Header
 	for _, resp := range op.Responses {
 		out = append(out, resp.Headers...)
 	}

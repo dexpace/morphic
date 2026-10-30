@@ -2501,8 +2501,8 @@ warning at it; and one merged in through `<<` is not read, reported as an
 
 ### `header-style`
 
-A header of a response or an encoding lowers to a `Property` of its headers, and its `style` and
-`explode` to that property's `Style` and `Explode` (ir-design §5.1), read from its declaration and
+A header of a response or an encoding lowers to a `Header` of its headers, and its `style` and
+`explode` to that header's `Style` and `Explode` (ir-design §7.2), read from its declaration and
 each left unset where the header writes none. A `style` other than `simple`, the one OpenAPI allows
 a header, is an `openapi/validation` error of the class `validation-allowed-values`
 ([`validation`](#validation)). A `Content-Type` entry in either headers map, which OpenAPI says

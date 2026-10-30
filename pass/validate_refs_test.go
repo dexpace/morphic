@@ -72,7 +72,7 @@ func payloadAndVersioningSites() []refSite {
 		{"multipart part encoding headers", ".Encoding[", func(d *ir.Document, t ir.TypeID) {
 			// The key names t/m's own property, so only the header target dangles:
 			// an unknown key is its own defect (checkEncodingKeys).
-			requestContent(d).Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Headers: []ir.Property{{
+			requestContent(d).Encoding = map[ir.PropID]ir.PartEncoding{"p/m/a": {Headers: []ir.Header{{
 				ID: "p/hdr", Name: ir.Naming{Source: "X-Meta"}, Type: ir.TypeRef{Target: t},
 			}}}}
 		}, "t/ghost/part-header"},
@@ -440,7 +440,7 @@ func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 		}}},
 		Responses: []ir.Response{{
 			Payload: &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{Target: "t/prim/string"}}}},
-			Headers: []ir.Property{{
+			Headers: []ir.Header{{
 				ID: "p/h", Name: ir.Naming{Source: "X-Trace"}, WireName: "X-Trace",
 				Type: ir.TypeRef{Target: "t/ghost-hdr"},
 			}},
@@ -450,7 +450,7 @@ func TestValidate_OperationHeadersAndItemWalked(t *testing.T) {
 			// The error side's headers, which nothing reached until now: skipping
 			// ErrorCase.Headers in the reflection walk left the suite green, where
 			// skipping the Response.Headers above reddens this test.
-			Headers: []ir.Property{{
+			Headers: []ir.Header{{
 				ID: "p/eh", Name: ir.Naming{Source: "X-Retry"}, WireName: "X-Retry",
 				Type: ir.TypeRef{Target: "t/ghost-err-hdr"},
 			}},

@@ -97,14 +97,6 @@ type Property struct {
 	Constraints *Constraints `json:"constraints,omitzero"`
 	// Encoding overrides the property's wire encoding.
 	Encoding *Encoding `json:"encoding,omitzero"`
-	// Style is how a header writes the value into its field, in
-	// HTTPParamBinding.Style's vocabulary; "" = the header default, simple. Only
-	// a header carries it: an entry of Response, ErrorCase or PartEncoding
-	// Headers (ir-design §5.1).
-	Style string `json:"style,omitempty"`
-	// Explode is a header's explode, as HTTPParamBinding.Explode is a
-	// parameter's; nil = the style's default. Only a header carries it.
-	Explode *bool `json:"explode,omitzero"`
 	// Args are field arguments for parameterized fields: GraphQL field arguments
 	// on any property at any depth; empty elsewhere.
 	Args []Parameter `json:"args,omitempty"`
@@ -146,4 +138,19 @@ func (p *Property) EffectiveWireName() string {
 		return p.WireName
 	}
 	return p.Name.Source
+}
+
+// Header is one entry of a Response's, an ErrorCase's or a PartEncoding's
+// Headers: a Property, which names and types the value, and how it is written
+// into its field, which a property elsewhere has no use for. A response header
+// has no binding to hold that, as a parameter's HTTPParamBinding does
+// (ir-design §7.2).
+type Header struct {
+	Property
+	// Style is how the value is written into the field, in
+	// HTTPParamBinding.Style's vocabulary, as declared; "" = none, so simple.
+	Style string `json:"style,omitempty"`
+	// Explode is the header's explode, as declared, which
+	// HTTPParamBinding.Explode is a parameter's; nil = the style's default.
+	Explode *bool `json:"explode,omitzero"`
 }

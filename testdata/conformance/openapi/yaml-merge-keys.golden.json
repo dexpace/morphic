@@ -122,7 +122,6 @@
                       "visibility": {
                         "none": false
                       },
-                      "style": "simple",
                       "flatten": false,
                       "eventHeader": false,
                       "eventPayload": false,
@@ -131,7 +130,8 @@
                       "provenance": {
                         "source": 0,
                         "pointer": "/paths/~1merged/get/responses/200/headers/X-Rate"
-                      }
+                      },
+                      "style": "simple"
                     }
                   ],
                   "docs": {

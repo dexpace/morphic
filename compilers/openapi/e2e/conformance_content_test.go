@@ -32,7 +32,7 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	enc := op.Request.Contents[0].Encoding
 	require.NotEmpty(t, enc, "multipart parts carry PartEncoding keyed by PropID")
 	var sawFile, sawMulti bool
-	var fileHeaders []ir.Property
+	var fileHeaders []ir.Header
 	for _, pe := range enc {
 		if pe.Filename {
 			sawFile = true
@@ -184,10 +184,10 @@ func assertMediaTypeSpelling(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 // $ref through components/headers — and requires each target to be in the
 // registry, which is what gives the referential-closure walker something to
 // check here.
-func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Property) {
+func assertPartHeaders(t *testing.T, doc *ir.Document, headers []ir.Header) {
 	t.Helper()
 	require.Len(t, headers, 2, "the file part declares two per-part headers")
-	byWire := make(map[string]ir.Property, len(headers))
+	byWire := make(map[string]ir.Header, len(headers))
 	for _, h := range headers {
 		byWire[h.WireName] = h
 	}

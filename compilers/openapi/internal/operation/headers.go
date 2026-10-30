@@ -17,29 +17,29 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// lowerHeaders lowers a header map into Properties in source order. Each
+// lowerHeaders lowers a header map into Headers in source order. Each
 // entry's own pointer stays its ID and Provenance (two keys $ref'ing the same
 // header must not collide), but its schema — and the name hint that schema is
 // hoisted under — follow the ref target's declaration instead (issue #107).
-func lowerHeaders(c lowering.Ctx, ts *compile.Types, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr jsontext.Pointer) ([]ir.Property, []ir.Diagnostic) {
+func lowerHeaders(c lowering.Ctx, ts *compile.Types, headers *sequencedmap.Map[string, *soa.ReferencedHeader], basePtr jsontext.Pointer) ([]ir.Header, []ir.Diagnostic) {
 	if headers == nil || headers.Len() == 0 {
 		return nil, nil
 	}
 	var diags []ir.Diagnostic
-	out := make([]ir.Property, 0, headers.Len())
+	out := make([]ir.Header, 0, headers.Len())
 	for name, rh := range headers.All() {
 		hptr := basePtr + ids.Ptr("headers", name)
 		h, dc, hdecl := lowering.Declared[soa.Header](c, rh, hptr)
 		if h == nil {
 			continue
 		}
-		p, headerDiags := lowerHeader(c, dc, ts, h, name, hptr, hdecl)
+		lowered, headerDiags := lowerHeader(c, dc, ts, h, name, hptr, hdecl)
 		diags = append(diags, headerDiags...)
 		diags = append(diags, reservedHeaderEntryDiag(c, name, hptr)...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this header rather than the declaration it names (GitHub #610).
-		p.Docs = resolve.UseDocs[soa.Header](rh, p.Docs)
-		out = append(out, p)
+		lowered.Docs = resolve.UseDocs[soa.Header](rh, lowered.Docs)
+		out = append(out, lowered)
 	}
 	return out, diags
 }
@@ -65,15 +65,15 @@ func reservedHeaderEntryDiag(c lowering.Ctx, name string, hptr jsontext.Pointer)
 			"ignored, so it is lowered as declared and left for the emitter to suppress", name)}
 }
 
-// lowerHeader lowers one header entry into a Property. Its schema goes through
+// lowerHeader lowers one header entry into a Header. Its schema goes through
 // schema.FillPropertyDetail like a model property's: a header schema declares
 // docs, constraints, xml, examples and validation-only keywords the same way,
 // and ir.Property has a field for each, so the header path had no reason to drop
-// them (GitHub #116). Its style and explode are what Property.Style and Explode
+// them (GitHub #116). Its style and explode are what Header.Style and Explode
 // hold, as declared: undeclared, each stays unset rather than being written as
 // the default. Written beside content, where they have no effect, they lower
 // unreported, as a parameter's do (GitHub #887).
-func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Property, []ir.Diagnostic) {
+func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name string, hptr, hdecl jsontext.Pointer) (ir.Header, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(dc, h.GetSchema(), h.GetContent(), h.GetRootNode(), hdecl,
 		"header", "ir.Property")
 	// The schema is named after the key the header is declared under, never
@@ -98,12 +98,13 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name stri
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
-	if h.Style != nil {
-		p.Style = string(*h.Style)
-	}
-	p.Explode = h.Explode
 	diags = append(diags, schema.FillPropertyDetail(dc, ts, &p, elected.js, elected.pointer)...)
-	return p, append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
+	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
+	lowered := ir.Header{Property: p, Explode: h.Explode}
+	if h.Style != nil {
+		lowered.Style = string(*h.Style)
+	}
+	return lowered, diags
 }
 
 // applyHeaderAnnotations overlays the annotations the header object writes on

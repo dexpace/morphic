@@ -205,7 +205,7 @@ type ErrorCase struct
 	"conditions" ResponseConditions
 	"docs" Docs
 	"fault" string omitempty
-	"headers" []Property omitempty
+	"headers" []Header omitempty
 	"name" Naming
 	"payload" *Payload omitzero
 	"retryable" *bool omitzero
@@ -299,6 +299,11 @@ type HTTPParamBinding struct
 	"prefix" string omitempty
 	"style" string omitempty
 	"wireName" string omitempty
+
+type Header struct
+	embed Property
+	"explode" *bool omitzero
+	"style" string omitempty
 
 type Idempotency struct
 	"kind" IdempotencyKind omitempty
@@ -520,7 +525,7 @@ type PartEncoding struct
 	"contentTypes" []string omitempty
 	"explode" *bool omitzero
 	"filename" bool
-	"headers" []Property omitempty
+	"headers" []Header omitempty
 	"multi" bool
 	"style" string omitempty
 
@@ -598,7 +603,6 @@ type Property struct
 	"eventHeader" bool
 	"eventPayload" bool
 	"examples" []Example omitempty
-	"explode" *bool omitzero
 	"extensionOf" string omitempty
 	"flatten" bool
 	"id" PropID
@@ -607,7 +611,6 @@ type Property struct
 	"provenance" Provenance
 	"required" bool
 	"secret" bool
-	"style" string omitempty
 	"type" TypeRef
 	"unmodeled" Unmodeled omitempty
 	"visibility" Visibility
@@ -657,7 +660,7 @@ type ResourceInfo struct
 type Response struct
 	"conditions" ResponseConditions
 	"docs" Docs
-	"headers" []Property omitempty
+	"headers" []Header omitempty
 	"name" Naming
 	"payload" *Payload omitzero
 	"statusCodeProp" *PropPath omitzero

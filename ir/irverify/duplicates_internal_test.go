@@ -113,8 +113,8 @@ func TestCheckDuplicateIDs_DistinctIDsAreClean(t *testing.T) {
 // derives. The copies are the same property, and reporting them would fail every
 // document that reuses a component (see checkDuplicateIDs).
 func TestCheckDuplicateIDs_RepeatedPropIDIsClean(t *testing.T) {
-	header := ir.Property{ID: "p/x/Listed/headers/X-Rate", Name: ir.Naming{Source: "X-Rate"}}
-	shared := ir.Response{Name: ir.Naming{Source: "Listed"}, Headers: []ir.Property{header}}
+	header := ir.Header{ID: "p/x/Listed/headers/X-Rate", Name: ir.Naming{Source: "X-Rate"}}
+	shared := ir.Response{Name: ir.Naming{Source: "Listed"}, Headers: []ir.Header{header}}
 	doc := docWithOperations(
 		ir.Operation{ID: "op/a", Responses: []ir.Response{shared}},
 		ir.Operation{ID: "op/b", Responses: []ir.Response{shared}},
@@ -234,9 +234,9 @@ func TestCheckDuplicateIDs_EachRepeatIsHeldToTheFirstProperty(t *testing.T) {
 // path is rendered only for a property whose fingerprint is not the first's.
 // It is not run in parallel: AllocsPerRun measures the process.
 func TestCheckDuplicateIDs_VisitingCostsNoAllocation(t *testing.T) {
-	header := ir.Property{ID: "p/x/Listed/headers/X-Rate", Name: ir.Naming{Source: "X-Rate"}, WireName: "X-Rate",
+	header := ir.Header{ID: "p/x/Listed/headers/X-Rate", Name: ir.Naming{Source: "X-Rate"}, WireName: "X-Rate",
 		Type: ir.TypeRef{Target: "t/x/Rate"}}
-	shared := ir.Response{Name: ir.Naming{Source: "Listed"}, Headers: []ir.Property{header}}
+	shared := ir.Response{Name: ir.Naming{Source: "Listed"}, Headers: []ir.Header{header}}
 	doc := docWithOperations(
 		ir.Operation{ID: "op/a", Responses: []ir.Response{shared}},
 		ir.Operation{ID: "op/b", Responses: []ir.Response{shared}},

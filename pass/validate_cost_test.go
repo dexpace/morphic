@@ -97,6 +97,7 @@ type entityMessages struct {
 func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operation {
 	op := ir.Operation{
 		ID:        ir.OpID(fmt.Sprintf("op/x/O%d", i)),
+		Servers:   []ir.ServerID{"server/x/a"},
 		Request:   multipartBody(model),
 		Responses: []ir.Response{{Payload: jsonPayload(model.ID)}},
 		Errors:    []ir.ErrorCase{{Payload: jsonPayload(model.ID)}},

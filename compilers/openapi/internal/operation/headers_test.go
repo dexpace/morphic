@@ -41,7 +41,7 @@ func TestContent_HeaderMapEntriesSharingComponentGetDistinctIDs(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FindOp(t, doc, "getA")
 	require.Len(t, op.Responses[0].Headers, 2)
-	byWire := openapitest.IndexBy(op.Responses[0].Headers, func(p ir.Property) string { return p.WireName })
+	byWire := openapitest.IndexBy(op.Responses[0].Headers, func(p ir.Header) string { return p.WireName })
 
 	rate, limit := byWire["X-Rate"], byWire["X-Limit"]
 	assert.NotEqual(t, rate.ID, limit.ID, "distinct map keys keep distinct PropIDs")
@@ -65,7 +65,7 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 	enc := op.Request.Contents[0].Encoding
 	require.Len(t, enc, 1)
 
-	var headers []ir.Property
+	var headers []ir.Header
 	for _, pe := range enc {
 		headers = pe.Headers
 	}
@@ -162,14 +162,14 @@ func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
 }
 
 // TestHeaders_SerializationKeywordsLower covers the two keywords a header object
-// writes about its serialization, which lower onto ir.Property's Style and
+// writes about its serialization, which lower onto ir.Header's Style and
 // Explode. explode decides how an object-valued header is joined on the wire,
 // so dropping it left the IR unable to say how the header serializes — and it
 // was once dropped in silence, at both of lowerHeaders' callers.
 //
 // Both callers are exercised, because the reading belongs to the shared
 // lowering rather than to the response position it was noticed at: a multipart
-// part's per-encoding headers build the same ir.Property from the same function.
+// part's per-encoding headers build the same ir.Header from the same function.
 func TestHeaders_SerializationKeywordsLower(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, spec, at string }{
@@ -446,7 +446,7 @@ components:
 
 // headerAt returns the one header a serialization fixture declares, whichever
 // of the two positions carries it.
-func headerAt(t *testing.T, op ir.Operation) ir.Property {
+func headerAt(t *testing.T, op ir.Operation) ir.Header {
 	t.Helper()
 	if len(op.Responses) > 0 && len(op.Responses[0].Headers) > 0 {
 		return op.Responses[0].Headers[0]
@@ -458,12 +458,12 @@ func headerAt(t *testing.T, op ir.Operation) ir.Property {
 		return pe.Headers[0]
 	}
 	t.Fatal("no header at either position")
-	return ir.Property{}
+	return ir.Header{}
 }
 
 // assertHeaderSerialization requires both keywords to have lowered onto the
 // header declared at `at`, neither kept verbatim nor announced.
-func assertHeaderSerialization(t *testing.T, h ir.Property, diags []ir.Diagnostic, at string) {
+func assertHeaderSerialization(t *testing.T, h ir.Header, diags []ir.Diagnostic, at string) {
 	t.Helper()
 	assert.Equal(t, jsontext.Pointer(at), h.Provenance.Pointer)
 	assert.Equal(t, "simple", h.Style)

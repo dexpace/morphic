@@ -495,9 +495,9 @@ func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagno
 // assertHeaderStyleAndExplodeLower covers the header keywords that say how its
 // value goes on the wire. A header's explode decides how an object value is
 // joined, so dropping it left the IR unable to say how the header serializes —
-// and it was dropped without a word (GitHub #39). They lower onto the header's
-// Property.Style and Explode, as declared.
-func assertHeaderStyleAndExplodeLower(t *testing.T, headers []ir.Property) {
+// and it was dropped without a word (GitHub #39). They lower onto Header.Style
+// and Explode, as declared.
+func assertHeaderStyleAndExplodeLower(t *testing.T, headers []ir.Header) {
 	t.Helper()
 	list, ok := headerByWire(headers, "X-Report-List")
 	require.True(t, ok)

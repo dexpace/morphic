@@ -187,7 +187,7 @@ type PartEncoding struct {
 	// ContentTypes are the media type(s) of this part.
 	ContentTypes []string `json:"contentTypes,omitempty"`
 	// Headers are the per-part headers.
-	Headers []Property `json:"headers,omitempty"`
+	Headers []Header `json:"headers,omitempty"`
 	// Multi reports that the part repeats (array member → repeated parts).
 	Multi bool `json:"multi"`
 	// Filename reports that the part carries a filename (file part).
@@ -230,7 +230,7 @@ type Response struct {
 	// Payload is the response body; nil = no body.
 	Payload *Payload `json:"payload,omitzero"`
 	// Headers are the response metadata fields.
-	Headers []Property `json:"headers,omitempty"`
+	Headers []Header `json:"headers,omitempty"`
 	// StatusCodeProp is the output member populated from the runtime HTTP status
 	// line (Smithy @httpResponseCode, TypeSpec non-literal @statusCode); the
 	// member is suppressed from the body.
@@ -280,7 +280,7 @@ type ErrorCase struct {
 	Payload *Payload `json:"payload,omitzero"`
 	// Headers are the error response's metadata fields — Retry-After and the
 	// rate-limit family live here.
-	Headers []Property `json:"headers,omitempty"`
+	Headers []Header `json:"headers,omitempty"`
 	// Fault is "" | "client" | "server" — protocol-neutral fault classification
 	// (Smithy @error; OpenAPI 4XX/5XX is its HTTP lowering). Drives exception
 	// hierarchies and default status synthesis.
