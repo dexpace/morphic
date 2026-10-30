@@ -42,8 +42,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   three locator kinds in one string the CLI misprinted (#549), a marker list stored malformed and
   unverified (#1142), and "no bound" spelled four ways beside `-1` for none, two of whose
   disagreements were bugs (#1140).
-- **Probe.** `git diff origin/main -- '*.go' | grep -nE '^\+.*(-1\b|strings\.(Split|Join)\()'`
-  lists what to type or justify.
+- **Probe.** This lists what to type or justify:
+  `git diff origin/main -- '*.go' ':!*_test.go' | grep -nE '^\+.*((return|[=!]=|:?=) -1\b|strings\.(Split|Join)\()'`.
 
 ## Place shared code by its second user
 `second-user`
