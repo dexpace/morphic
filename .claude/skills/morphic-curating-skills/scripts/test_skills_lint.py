@@ -186,7 +186,7 @@ class LintTest(unittest.TestCase):
         write(self.root, skill, GOOD_SKILL + named + lost)
         n = GOOD_SKILL.count("\n") + 1
         gone = [f"{skill}:{n + 4}: internal/runtime/gone does not exist",
-                f"{skill}:{n + 4}: GOROOT/src/internal/gone.go does not exist",
+                f"{skill}:{n + 4}: $GOROOT/src/internal/gone.go does not exist",
                 f"{skill}:{n + 4}: internal/../../secret.txt does not exist",
                 f"{skill}:{n + 5}: GOROOT/src/gone.go does not exist",
                 f"{skill}:{n + 5}: GOROOT/src/lost.go does not exist"]
@@ -194,10 +194,10 @@ class LintTest(unittest.TestCase):
         # Where go cannot say, the toolchain's paths are held to the tree, as any other.
         held = [f"{skill}:{n}: internal/runtime/maps does not exist",
                 f"{skill}:{n}: internal/runtime/maps/map.go does not exist",
-                f"{skill}:{n + 1}: GOROOT/src/internal/runtime/maps/map.go does not exist",
+                f"{skill}:{n + 1}: $GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 1}: cmd/compile/internal/walk/range.go does not exist",
                 f"{skill}:{n + 2}: GOROOT/src/internal/runtime/maps/map.go does not exist",
-                f"{skill}:{n + 2}: GOROOT/src does not exist",
+                f"{skill}:{n + 2}: $GOROOT/src does not exist",
                 f"{skill}:{n + 3}: GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 3}: internal/runtime/maps does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(held + gone))
@@ -212,8 +212,8 @@ class LintTest(unittest.TestCase):
         lost = "Not `\"ir/gone.go\"`, `'ir/lost.go'`, `\"gone.py\"` or `'morphic-gone'`.\n"
         write(self.root, skill, GOOD_SKILL + named + lost)
         n = GOOD_SKILL.count("\n") + 3
-        want = [f"{skill}:{n}: ir/gone.go does not exist",
-                f"{skill}:{n}: ir/lost.go does not exist",
+        want = [f"{skill}:{n}: \"ir/gone.go\" does not exist",
+                f"{skill}:{n}: 'ir/lost.go' does not exist",
                 f"{skill}:{n}: no file named gone.py",
                 f"{skill}:{n}: no skill or command named morphic-gone"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(want))
@@ -221,21 +221,36 @@ class LintTest(unittest.TestCase):
     def test_a_go_name_placed_in_a_file_is_held_to_its_declarations(self):
         skill = ".claude/skills/good-skill/SKILL.md"
         write(self.root, "ir/b.go", "package ir\n\n// Mentioned is named, as is type Buried.\n"
-                                    "func Free() {}\n\n"
+                                    "func Free() {\n\tCalled()\n\tLocal := 1\n\t_ = Local\n}\n\n"
                                     "func (s *S) Method() {}\n\ntype T int\n\nconst Solo = 1\n\n"
-                                    "var Plain = 1\n\nconst (\n\tGrouped = 1\n)\n")
+                                    "var Plain = 1\n\nconst (\n\tGrouped = 1\n)\n\n"
+                                    "func Between() {\n\tInside()\n}\n\n"
+                                    "var (\n\tVarred = 1\n)\n\ntype (\n\tAliased = T\n)\n\n"
+                                    "type R struct {\n\tField int\n}\n\n"
+                                    "type I interface {\n\tAsked()\n}\n\n"
+                                    "type G[K ~[]byte] struct {\n\tItem K\n}\n\n"
+                                    "func After() {\n\tLater()\n}\n")
         named = "`Free` in `ir/b.go`, `Method` in `ir/b.go`, `T` in `ir/b.go`.\n"
         also = ("`Solo` in `ir/b.go`, `Plain` in `ir/b.go`, `Grouped` in `ir/b.go`, `a` in a "
-                "sentence and `Heading` in `docs/parser-library.md`.\n")
+                "sentence and `Heading` in `docs/parser-library.md`.\n"
+                "`Varred` in `ir/b.go`, `Aliased` in `ir/b.go`, `Field` in `ir/b.go`, `Asked` in "
+                "`ir/b.go` and `Item` in `ir/b.go`.\n")
         lost = ("`Mentioned` in `ir/b.go`, `Buried` in `ir/b.go`, `Gone` in `ir/b.go`, `Fre` in "
-                "`ir/b.go` and `Lost` in `ir/gone.go`.\n")
+                "`ir/b.go` and `Lost` in `ir/gone.go`.\n"
+                "`Called` in `ir/b.go`, `Local` in `ir/b.go`, `Inside` in `ir/b.go`, `Later` in "
+                "`ir/b.go` and `Fiel` in `ir/b.go`.\n")
         write(self.root, skill, GOOD_SKILL + named + also + lost)
-        n = GOOD_SKILL.count("\n") + 3
+        n = GOOD_SKILL.count("\n") + 4
         want = [f"{skill}:{n}: ir/b.go declares no Mentioned",
                 f"{skill}:{n}: ir/b.go declares no Buried",
                 f"{skill}:{n}: ir/b.go declares no Gone",
                 f"{skill}:{n}: ir/b.go declares no Fre",
-                f"{skill}:{n}: ir/gone.go does not exist"]
+                f"{skill}:{n}: ir/gone.go does not exist",
+                f"{skill}:{n + 1}: ir/b.go declares no Called",
+                f"{skill}:{n + 1}: ir/b.go declares no Local",
+                f"{skill}:{n + 1}: ir/b.go declares no Inside",
+                f"{skill}:{n + 1}: ir/b.go declares no Later",
+                f"{skill}:{n + 1}: ir/b.go declares no Fiel"]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
     def test_a_path_git_ignores_is_held_as_no_clone_has_it(self):

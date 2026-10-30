@@ -62,6 +62,10 @@ LINK_TARGET = re.compile(r"\]\([^)]*\)")
 TEST = re.compile(r"(?:^|[^A-Za-z0-9_])(Test[A-Z][A-Za-z0-9_]*)")
 # A Go name placed in a file: `Name` in `path/to/file.go`.
 NAME_IN_FILE = re.compile(r"`([A-Za-z_]\w*)` in `([^`\s]+\.go)`")
+# A const, var or type group, or a struct or interface type, up to what closes it, which gofmt
+# puts first on its line and indents nothing it nests to match.
+GO_BLOCK = re.compile(r"^(?:(?:const|var|type) \(|type [^\n]* (?:struct|interface) \{)\n"
+                      r"(.*?)^[)}]$", re.M | re.S)
 SECTION = re.compile(r"(ir-design|emitter-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
 # A § after the name of a document it can be in, a line break between them allowed: one of the
 # design documents SECTION holds to the tree, or an RFC. Any other names no document.
@@ -159,9 +163,12 @@ def path_word(word: str) -> str:
 
 def declares(source: str, name: str) -> bool:
     """Report whether Go source declares name: a function or method, a type, a constant or a
-    variable, or a member of a group or struct, which a tab opens."""
-    pattern = rf"^(?:func (?:\([^)]*\) )?|type |const |var |\t){re.escape(name)}\b"
-    return re.search(pattern, source, re.M) is not None
+    variable, or a member of a group, struct or interface. A tab opens a statement in a function
+    too, so a member is looked for inside its block, or a name a file only calls would pass."""
+    n = re.escape(name)
+    if re.search(rf"^(?:func (?:\([^)]*\) )?|type |const |var ){n}\b", source, re.M):
+        return True
+    return any(re.search(rf"^\t{n}\b", body, re.M) for body in GO_BLOCK.findall(source))
 
 
 def names_a_path(tok: str) -> bool:
@@ -430,7 +437,7 @@ class Linter:
                     self.report(f, i, f"docs/{doc}.md has no entry {key}")
 
     def check_span(self, d: Path, f: Path, line: int, tok: str) -> None:
-        tok = path_word(tok)
+        shown, tok = tok, path_word(tok)
         if RULE_CITE.fullmatch(tok):
             return  # check_names holds a rule citation to its file, and reports it once
         if tok.startswith("morphic-") and "/" not in tok:
@@ -439,18 +446,19 @@ class Linter:
         elif BARE_FILE.fullmatch(tok):
             if tok not in self.names:
                 self.report(f, line, f"no file named {tok}")
-        elif names_a_path(tok) and (why := self.missing(d, tok)):
+        elif names_a_path(tok) and (why := self.missing(d, tok, shown)):
             self.report(f, line, why)
 
     def first_is_tracked(self, p: str) -> bool:
         first = p.removeprefix("./").split("/", 1)[0]
         return first in self.top_level or first in ("references", "scripts")
 
-    def missing(self, d: Path, p: str) -> str | None:
+    def missing(self, d: Path, p: str, shown: str = "") -> str | None:
         """Say why a path a skill names is not in the tree, or None when it is: relative to the
         skill for its own references/ and scripts/, to the repository otherwise. A path is held
         up to a #entry, a :line or its first wildcard, and ./... names the module's packages. One
-        the tree lacks is None too when it names the Go toolchain's sources."""
+        the tree lacks is None too when it names the Go toolchain's sources. The reason names
+        shown, the path as a span wrote it, where p has been read out of that spelling."""
         rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
         rel = "" if rel == "..." else rel.removesuffix("/...").rstrip("/")
         if not rel:
@@ -458,7 +466,7 @@ class Linter:
         if rel.split("/", 1)[0] in ("references", "scripts"):
             rel = (d / rel).relative_to(self.root).as_posix()
         rel = os.path.normpath(rel)
-        why = self.absent(p, rel)
+        why = self.absent(shown or p, rel)
         return None if why and self.in_toolchain(rel) else why
 
     def in_toolchain(self, rel: str) -> bool:

@@ -186,8 +186,8 @@ canary. A behaviour found that the page lacks is added there.
 
 - **Rule.** A reader through a reference or alias follows the bounded chain to its end, stops at a
   keyword opening a new scope (`$id`), adopts a walked pointer only if its final node is in this
-  document, and takes a key and its value from one target. #1029 is open on what each hop lends a
-  use site.
+  document, and takes a key and its value from one target. What each hop lends a use site is
+  #1029.
 - **Why.** One-hop resolution hoisted a schema at a pointer addressing nothing (#108); an encoding
   key and its body came from different hops, and an expansion looked past an `$id` (#149); a site
   took its annotations' referent one hop away (#112).
