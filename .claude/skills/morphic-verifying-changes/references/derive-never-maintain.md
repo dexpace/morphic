@@ -50,7 +50,8 @@ two together both ways.
   shared helper, or run both over a shared edge-case table and assert identical results. When the
   writer starts refusing an input, the checker refuses it in the same change.
 - **Why.** A lone `/` read as a token by one walk and as the root by another, and `irverify`
-  accepted strings the encoder refuses (#362, #508).
+  accepted strings the encoder refuses (#362, #508). `irverify` and `pass` each kept a copy of the
+  reference visitor, in step by hand (#1133).
 - **Probe.** Run both over empty, lone-separator, missing-leading-separator and length-bound inputs
   and diff; feed the writer's refused inputs to the checker.
 

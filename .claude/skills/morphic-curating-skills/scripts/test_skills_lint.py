@@ -79,11 +79,13 @@ class LintTest(unittest.TestCase):
     def tearDown(self):
         self.dir.cleanup()
 
-    def lint(self):
+    def lint(self, toolchain: Path | None = None):
         files = [p for p in (self.root / ".claude" / "skills").rglob("*") if p.is_file()]
-        top_level, tests = {"docs", "ir", "cmd", ".claude"}, {"TestKnown", "TestKnown_Case"}
+        top_level = {"docs", "ir", "cmd", "internal", ".claude"}
+        tests = {"TestKnown", "TestKnown_Case"}
         on_disk = {p.relative_to(self.root).as_posix() for p in self.root.rglob("*") if p.is_file()}
-        lint = skills_lint.Linter(self.root, top_level, tests, on_disk - self.ignored, files)
+        lint = skills_lint.Linter(self.root, top_level, tests, on_disk - self.ignored, files,
+                                  toolchain)
         return lint.run(), lint.findings
 
     def test_a_clean_skill_has_no_finding(self):
@@ -164,6 +166,41 @@ class LintTest(unittest.TestCase):
         n = GOOD_SKILL.count("\n") + 2
         want = [f"{skill}:{n}: {p} does not exist" for p in ("gone/a.go", "./gone/b", "./gone/...")]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_path_the_tree_lacks_may_name_the_go_toolchains_sources(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        src = Path(self.dir.name) / "goroot" / "src"
+        write(src, "internal/runtime/maps/map.go", "package maps\n")
+        write(src, "cmd/compile/internal/walk/range.go", "package walk\n")
+        # Beside src, so only a path climbing out of it reaches the file.
+        write(src.parent, "secret.txt", "x\n")
+        named = ("See `internal/runtime/maps`, prose internal/runtime/maps/map.go,\n"
+                 "`$GOROOT/src/internal/runtime/maps/map.go`, `cmd/compile/internal/walk/range.go`"
+                 "\nand `sed -n 1p $(go env GOROOT)/src/internal/runtime/maps/map.go` in "
+                 "`$GOROOT/src`,\n"
+                 "quoted `cat \"$(go env GOROOT)\"/src/internal/runtime/maps/map.go` or "
+                 "`ls 'internal/runtime/maps'`.\n")
+        lost = ("Not `internal/runtime/gone`, `$GOROOT/src/internal/gone.go`, "
+                "`internal/../../secret.txt`\nor `cat $(go env GOROOT)/src/gone.go` or "
+                "`cat \"$GOROOT\"/src/lost.go`.\n")
+        write(self.root, skill, GOOD_SKILL + named + lost)
+        n = GOOD_SKILL.count("\n") + 1
+        gone = [f"{skill}:{n + 4}: internal/runtime/gone does not exist",
+                f"{skill}:{n + 4}: $GOROOT/src/internal/gone.go does not exist",
+                f"{skill}:{n + 4}: internal/../../secret.txt does not exist",
+                f"{skill}:{n + 5}: GOROOT/src/gone.go does not exist",
+                f"{skill}:{n + 5}: GOROOT/src/lost.go does not exist"]
+        self.assertEqual(sorted(self.lint(src)[1]), sorted(gone))
+        # Where go cannot say, the toolchain's paths are held to the tree, as any other.
+        held = [f"{skill}:{n}: internal/runtime/maps does not exist",
+                f"{skill}:{n}: internal/runtime/maps/map.go does not exist",
+                f"{skill}:{n + 1}: $GOROOT/src/internal/runtime/maps/map.go does not exist",
+                f"{skill}:{n + 1}: cmd/compile/internal/walk/range.go does not exist",
+                f"{skill}:{n + 2}: GOROOT/src/internal/runtime/maps/map.go does not exist",
+                f"{skill}:{n + 2}: $GOROOT/src does not exist",
+                f"{skill}:{n + 3}: GOROOT/src/internal/runtime/maps/map.go does not exist",
+                f"{skill}:{n + 3}: internal/runtime/maps does not exist"]
+        self.assertEqual(sorted(self.lint()[1]), sorted(held + gone))
 
     def test_a_path_git_ignores_is_held_as_no_clone_has_it(self):
         skill = ".claude/skills/good-skill/SKILL.md"
@@ -423,6 +460,56 @@ class LoadTreeTest(unittest.TestCase):
         self.assertEqual(known, {".gitignore", "ir/a_test.go", "données/b_test.go",
                                  "scripts/new.py", "notes/café.md"},
                          "untracked files count, and ignored or deleted ones do not")
+
+
+class GoSourcesTest(unittest.TestCase):
+    def go_env(self, stdout: str = "", fail: Exception | None = None) -> Path | None:
+        root = Path("module")
+
+        def run(*args, **kwargs):
+            # Asked elsewhere, go may name the toolchain of another module, or of none.
+            self.assertEqual(kwargs.get("cwd"), root, "go is asked at the root")
+            # A failing go is trusted for nothing it printed, and a GOROOT that is not UTF-8 still
+            # decodes rather than crashing the run.
+            self.assertTrue(kwargs.get("check"), "a failing go raises")
+            self.assertEqual(kwargs.get("errors"), "replace", "undecodable bytes are replaced")
+            if fail:
+                raise fail
+            return subprocess.CompletedProcess(args, 0, stdout=stdout)
+        with mock.patch.object(skills_lint.subprocess, "run", run):
+            return skills_lint.go_sources(root)
+
+    def test_the_toolchain_src_is_found_or_none_is_trusted(self):
+        with tempfile.TemporaryDirectory() as d, contextlib.chdir(d):
+            # A src below the cwd, which a relative or empty answer would otherwise reach.
+            (Path(d) / "src").mkdir()
+            (Path(d) / "goroot" / "src").mkdir(parents=True)
+            self.assertEqual(self.go_env(d + "/goroot\n"), Path(d) / "goroot" / "src")
+            self.assertIsNone(self.go_env(d + "/absent\n"), "a GOROOT with no src")
+            self.assertIsNone(self.go_env("\n"), "an empty answer")
+            self.assertIsNone(self.go_env("goroot\n"), "a relative answer")
+        self.assertIsNone(self.go_env(fail=FileNotFoundError("go")), "no go on the PATH")
+        self.assertIsNone(self.go_env(fail=subprocess.CalledProcessError(1, "go")), "go failing")
+
+    def test_a_run_lints_with_the_toolchain_go_names_at_the_root(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "repo"
+            fixture(root)
+            write(root, "ir/a_test.go", "package ir\n\nfunc TestKnown_Case(t *testing.T) {}\n")
+            skill = ".claude/skills/good-skill/SKILL.md"
+            write(root, skill, GOOD_SKILL + "Read `internal/runtime/maps`.\n")
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            src = Path(d) / "goroot" / "src"
+            write(src, "internal/runtime/maps/map.go", "package maps\n")
+            asked = []
+            with mock.patch.object(skills_lint, "go_sources", lambda at: asked.append(at) or src):
+                self.assertEqual(skills_lint.findings(root), (1, []))
+            self.assertEqual(asked, [root], "go is asked once, at the root")
+            n = GOOD_SKILL.count("\n") + 1
+            with mock.patch.object(skills_lint, "go_sources", lambda at: None):
+                self.assertEqual(skills_lint.findings(root),
+                                 (1, [f"{skill}:{n}: internal/runtime/maps does not exist"]))
 
 
 class MainTest(unittest.TestCase):

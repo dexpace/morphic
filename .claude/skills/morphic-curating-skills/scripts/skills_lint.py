@@ -11,7 +11,8 @@ Prints one "path:line: problem" per finding, the line left out for one about a w
 summary line. Exit 0 when clean, 1 on a finding, 2 when it cannot run. Each rule in a reference is
 held to the format morphic-curating-skills gives. Scripts are executable Python 3.14, declared in
 their first line and a PEP 723 script block, with the standard library only and a test_<name>.py
-beside each.
+beside each. A path the tree lacks may name the Go toolchain's sources, which `go env GOROOT`
+locates; where go cannot say, every path is held to the tree.
 """
 
 import argparse
@@ -85,7 +86,8 @@ LINE_SUFFIX = re.compile(r":[0-9]+$")
 # (://), or a placeholder (<spec>, {owner}).
 NOT_A_PATH = re.compile(r"^(?:/|-|:\(|\+)|://|[\[<>{}]")
 # The first segments of what a span names outside the tree. Any other first segment is held to
-# the tree, so a misspelt or renamed directory is reported rather than passed.
+# the tree, then to the Go toolchain's sources, so a misspelt or renamed directory is reported
+# rather than passed.
 ELSEWHERE = {
     ".git": "git's own files, which no listing holds and a worktree keeps elsewhere",
     "origin": "a remote's branch",
@@ -96,6 +98,11 @@ ELSEWHERE = {
 }
 # A file named without its directory, such as `sweep.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
+# A path below the toolchain's src, as a span writes it, or as a command's word reads once
+# GO_ENV_GOROOT is folded into $GOROOT, the word's double quotes dropped and its leading $
+# stripped.
+GOROOT_SRC = re.compile(r"^\$?GOROOT/src(?:/|$)")
+GO_ENV_GOROOT = "$(go env GOROOT)"
 
 
 def git(root: Path, *args: str) -> str:
@@ -125,6 +132,19 @@ def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
         raise RuntimeError("found no declared test, so a test name cannot be checked")
     listed = listing(root, "--cached", "--others", "--exclude-standard")
     return top_level, tests, {f for f in listed if (root / f).is_file()}
+
+
+def go_sources(root: Path) -> Path | None:
+    """Return the src directory of the Go toolchain that builds the module at root, or None where
+    go cannot say, when every path is held to the tree alone."""
+    try:
+        done = subprocess.run(["go", "env", "GOROOT"], cwd=root, check=True, capture_output=True,
+                              text=True, errors="replace")
+    except (OSError, subprocess.CalledProcessError):
+        return None
+    # An empty answer reads as ".", so a relative one is refused before it can name the cwd.
+    src = Path(done.stdout.strip()) / "src"
+    return src if src.is_absolute() and src.is_dir() else None
 
 
 def names_a_path(tok: str) -> bool:
@@ -173,8 +193,11 @@ def rule_bullets(block: list[str]) -> tuple[list[list[str]], list[int]]:
 
 class Linter:
     def __init__(self, root: Path, top_level: set[str], tests: set[str], known: set[str],
-                 files: list[Path]):
+                 files: list[Path], toolchain: Path | None = None):
         self.root, self.top_level, self.tests, self.files = root, top_level, tests, files
+        # The Go toolchain's src, which a path the tree lacks may name, or None to hold every
+        # path to the tree.
+        self.toolchain = toolchain
         # The tree a clone holds, as load_tree lists it, with each directory above a file: a path
         # on disk that git ignores, such as a local plan or a built binary, is in no clone.
         self.names = {f.rsplit("/", 1)[-1] for f in known}
@@ -354,8 +377,10 @@ class Linter:
                 if why or f"\n`{key}`\n" not in "\n" + held.read_text():
                     self.report(f, i, why or f"{path} holds no rule {key}")
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
-                for word in command.strip("`").split():
-                    word = word.strip("'\"$();,")
+                for word in command.strip("`").replace(GO_ENV_GOROOT, "$GOROOT").split():
+                    # A double quote, which leaves $GOROOT to expand, is no part of the path
+                    # wherever it stands: "$(go env GOROOT)"/src/... names the toolchain's src.
+                    word = word.replace('"', "").strip("'$();,")
                     if names_a_path(word) and (why := self.missing(d, word)):
                         self.report(f, i, why)
             # Prose joins words with a slash (I/O, kept/dropped), so a path there is held only
@@ -404,14 +429,26 @@ class Linter:
     def missing(self, d: Path, p: str) -> str | None:
         """Say why a path a skill names is not in the tree, or None when it is: relative to the
         skill for its own references/ and scripts/, to the repository otherwise. A path is held
-        up to a #entry, a :line or its first wildcard, and ./... names the module's packages."""
+        up to a #entry, a :line or its first wildcard, and ./... names the module's packages. One
+        the tree lacks is None too when it names the Go toolchain's sources."""
         rel = LINE_SUFFIX.sub("", p.removeprefix("./").split("#", 1)[0]).split("*", 1)[0]
         rel = "" if rel == "..." else rel.removesuffix("/...").rstrip("/")
         if not rel:
             return None
         if rel.split("/", 1)[0] in ("references", "scripts"):
             rel = (d / rel).relative_to(self.root).as_posix()
-        return self.absent(p, os.path.normpath(rel))
+        rel = os.path.normpath(rel)
+        why = self.absent(p, rel)
+        return None if why and self.in_toolchain(rel) else why
+
+    def in_toolchain(self, rel: str) -> bool:
+        """Report whether rel names a file or directory of the Go toolchain's sources, by its
+        import path or its path below $GOROOT/src, never one beside or above them. A path gone
+        from the tree therefore passes where the toolchain holds the same one, such as cmd/vet."""
+        if self.toolchain is None:
+            return False
+        rel = GOROOT_SRC.sub("", rel)
+        return ".." not in rel.split("/") and (self.toolchain / rel).exists()
 
     def absent(self, shown: str, rel: str) -> str | None:
         """Say why rel, a path from the repository root, is not in the tree a clone holds, naming
@@ -485,7 +522,7 @@ def findings(root: Path) -> tuple[int, list[str]]:
         return 0, []
     top_level, tests, known = load_tree(root)
     files = [root / f for f in sorted(known) if f.startswith(".claude/skills/")]
-    lint = Linter(root, top_level, tests, known, files)
+    lint = Linter(root, top_level, tests, known, files, go_sources(root))
     return lint.run(), lint.findings
 
 

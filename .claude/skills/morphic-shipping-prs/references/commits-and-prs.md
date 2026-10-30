@@ -2,17 +2,18 @@
 
 How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads.
 
-## State a deliberate limitation at the code that has it
-`limitation-stated-in-code`
+## State a deliberate limitation at the code or rule that has it
+`limitation-stated-where-it-lives`
 
 - **Rule.** A limit left out of scope, a library limitation relied on, a known defect whose
   reproducer is removed, or a part of an issue declined is stated in a comment at the function or
-  call that has it, naming its tracking issue, and in the PR body, in the same commit. A partly
-  addressed issue is referenced, not closed.
+  call that has it, or in the skill rule prescribing the mechanism, naming its tracking issue, and
+  in the PR body, in the same commit. A partly addressed issue is referenced, not closed.
 - **Why.** Readers reach the code first; a limitation recorded only in a PR body, commit or tracker
-  is invisible to the next person editing that function (#239, #270).
-- **Probe.** For each "out of scope", "known limit" or "tracked in #N" in the body or commits, grep
-  the diff for a matching comment at the named code.
+  is invisible to the next person editing that function (#239, #270). A skill rule named one of two
+  gaps its PR body recorded (#1153).
+- **Probe.** Quote, from where the Rule places it, the sentence stating each limitation the body or
+  commits state; an issue number alone is none.
 
 ## Run the coverage gate on the final tree before claiming it
 `coverage-gate-on-final-tree`
@@ -93,10 +94,12 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** A check meant to stop a commit or push gates it by its exit status, in the same
   command: `check > log 2>&1 && git commit ...`. Never pipe a gating check into `tail` or `grep`,
-  chain it with `;`, or print a length and commit on the same line: a pipeline's status is its last
-  stage's, and a printed number gates nothing.
+  chain it with `;` or a newline, or print a length and commit on the same line: a pipeline's status
+  is its last stage's, and a printed number or finding gates nothing. A checklist with hits to
+  justify rather than fix, such as a pushed subject the squash replaces, is read in full instead,
+  and the push is its own command.
 - **Why.** Over-cap subjects and lint and archtest failures were committed past checks that printed
-  them (#1007, #1005, #1046, #1141, #1147).
+  them (#1007, #1005, #1046, #1141, #1147, #1153).
 - **Probe.** Plant a failure the check must catch and run `<check> && echo pushed`: nothing
   prints.
 

@@ -1,6 +1,6 @@
 ---
 name: morphic-reviewing-prs
-description: Use when asked to review a pull request, branch or commit range in this repository, including a re-review of a PR's final state after new commits or a merge of main.
+description: Use when asked to review a pull request, branch or commit range in this repository, right after opening a pull request here, or for a re-review of a PR's final state after new commits or a merge of main.
 ---
 
 # Reviewing morphic pull requests
@@ -11,7 +11,7 @@ unless asked.
 
 ## Setup
 
-Review the tree as it will land, in a worktree you remove afterwards:
+Review the tree as it will land, in a throwaway worktree:
 
 ```bash
 git fetch origin main && git fetch origin "pull/<N>/head"
@@ -31,8 +31,8 @@ Run all; each finds what the others cannot.
 2. **Code, before the claims.** Read the diff without the PR body. For each changed mechanism,
    diff old against new semantics at every bound, sweep every site of it
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-every-site-of-the-mechanism`),
-   re-plant every mutation the PR lists, and ask which input class the corpus cannot contain
-   (`references/review-probes.md`).
+   re-plant the PR's mutants, plant your own, and ask which input class the corpus cannot contain
+   (`references/review-probes.md#code-before-claims`).
 3. **Written rules.** Check each invariant in `CLAUDE.md` the diff could touch, and the Go style
    rules there that no linter enforces.
 4. **Behaviour against main.** For each output the change alters, compile a minimal spec on

@@ -308,7 +308,9 @@ below are the ones most likely to bite in this codebase — the full guide gover
   sections; guard clauses and early returns over nesting; no `else` after a returning `if`.
 - **Assert aggressively** (TigerBeetle discipline): validate at every public boundary; aim ≥2
   assertions (precondition/postcondition/invariant checks returning errors) per function; split
-  compound checks. Never accept garbage silently.
+  compound checks. Never accept garbage silently. An "impossible" state is asserted, not assumed
+  away: simplifying may remove only a check a second reader of the same concept already makes
+  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#redundant-guard`).
 - **Bounded everything.** Every loop, queue, retry, buffer, and timeout has an explicit limit.
   Recursion is permitted **only** with a provably bounded depth: an explicit counter checked
   against a named hard cap, recovered at the public boundary through `barrier.Catch`, the one
@@ -327,6 +329,10 @@ below are the ones most likely to bite in this codebase — the full guide gover
   interfaces; `any` not `interface{}`; comma-ok on every type assertion; type switches carry a
   `default`; zero values useful or obviously invalid; copy slices/maps at API boundaries; no
   mutable globals (this repo's "pure, reentrant stages" invariant is the same rule).
+- **Design leans functional, and stays simple.** A lowering, check or pass is a function of its
+  inputs that returns its value and its diagnostics (in `irverify`, its violations); a method
+  belongs where a type guards its own state; a wrapper that only forwards, or a seam with no user,
+  is not added. The `morphic-designing-code` skill holds these rules and the history behind each.
 - **Concurrency:** prefer synchronous APIs — the caller adds concurrency; `ctx context.Context`
   first parameter, never stored in a struct; every goroutine has a documented lifetime and stop
   mechanism; `errgroup` for groups; bounded fan-out.
@@ -431,6 +437,12 @@ context-switch between repos.
   the opposite order.
   - **Probe, don't read.** Reviews that read the code pronounced it clean while it was silently
     dropping data. Compile the input; inspect the emitted IR *and* the full diagnostic list.
+  - **Check a fact where it happens, not where it is configured.** A setting, a default, a document
+    or a skill says what should happen; a log, a probe or the tree says what does. Before a change,
+    a finding or a rule rests on a fact, name it and check it the second way. A review ranked a
+    pushed commit body as landing on `main` because the repository's default squash pastes branch
+    bodies, while the last 25 merges had each set their own (#1153):
+    `git log -25 --first-parent --format=%b origin/main` shows what merges set.
   - **Break what a test claims to catch.** Assertions that look correct on the page find nothing.
     Tests here have been caught asserting nothing at all, and one "safety net" permitted the exact
     addition it advertised catching. Plant the defect and watch it go red.
@@ -484,7 +496,11 @@ context-switch between repos.
   pastes, and `COMMIT_MESSAGES` pastes every branch commit's body. So write commit messages that
   could stand on `main`, and set the squash body at merge time.
 - PR description: Summary / Test plan (/ Breaking, when applicable). Keep PRs scoped to one
-  logical change; split unrelated changes into separate PRs.
+  logical change; split unrelated changes into separate PRs. Every hunk traces to the change's
+  request or to a site of its mechanism ("Scope a result narrowly, a defect widely" above); a
+  cleanup or bug the change neither needs nor exposes is filed, not folded in.
+- **Review a PR as soon as it opens.** Right after creating one, run `morphic-reviewing-prs` on it
+  and land what it finds as new commits, then rerun the passes those commits can affect.
 - Write self-contained, human-framed titles/descriptions. No LLM/session artifacts, no internal
   audit/finding IDs, no "remediation"/"audit sweep" framing. State problem, change, and rationale
   on their own terms.

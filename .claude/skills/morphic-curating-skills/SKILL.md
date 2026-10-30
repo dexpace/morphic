@@ -11,19 +11,18 @@ Keep each lesson once, in its strongest form, where the next person will be when
 
 Take the first that fits.
 
-1. **A check.** If a test or a lint or archtest rule can catch it, write or file that check. A
-   filed check keeps a rule naming its issue until it lands.
+1. **A check.** If a test, lint or archtest rule can catch it, write or file that check. A filed
+   check keeps a rule naming its issue until it lands.
 2. **A script**, only to hold an invariant through a crash, count or compare exactly, or check
    every member of a large set, printing facts, not verdicts parsed from tool output. Short of
    that, the command goes in the rule's Probe, since nothing runs a script's tests.
-3. **A rule in a skill.** Add it to a reference file of the narrowest skill whose trigger fires
-   when the lesson applies. If none does, widen a description or add a skill: a rule no trigger
+3. **A rule in a skill.** Add it to a reference of the narrowest skill whose trigger fires when
+   the lesson applies. If none does, widen a description or add a skill: a rule no trigger
    reaches is never read.
 4. **Not in the repository.** A fact about one machine, shell or person stays out of
    `.claude/skills`.
 
-List the skills with `grep -h '^description:' .claude/skills/*/SKILL.md` rather than a hand
-list.
+List the skills with `grep -h '^description:' .claude/skills/*/SKILL.md`, not a hand list.
 
 ## Rule format
 
@@ -38,8 +37,8 @@ list.
 ```
 
 A rule stays within 150 words, or becomes two. No narrative, dates or first person, and no count a
-command beside it does not derive, bar a Why's evidence, which its citation pins. Cite a rule as
-`references/<file>.md#<key>`, from another skill by its full path.
+command beside it does not derive, bar a Why's evidence, which its citation pins, measured as the
+Probe asks. Cite a rule as `references/<file>.md#<key>`, from another skill by its full path.
 
 ## Limits
 
@@ -50,7 +49,7 @@ command beside it does not derive, bar a Why's evidence, which its citation pins
 - A reference file stays within 4,000 words. A full file takes a new rule only by merging or
   removing one.
 - Everything works from a fresh clone and names no machine. Paths start at the repository root,
-  bar those inside the skill's own folder, and commands run from the root. Write paths in code
+  bar those inside the skill's folder, and commands run from the root. Write paths in code
   spans, where the lint holds each to the tree.
 - Scripts are executable Python 3.14, standard library only, each with a `test_<name>.py` beside it.
   Run a skill's tests with `python3.14 -m unittest discover -s .claude/skills/<skill>/scripts`.
