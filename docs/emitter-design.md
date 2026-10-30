@@ -571,9 +571,10 @@ the smaller key by bytes, since a format's map of media types has no order to ho
 every type kind already has a lowering (§4.2), so a shape per kind would repeat the type in a second
 channel. The first rule that applies decides:
 
-1. **`void`** — nothing is read: the operation has no primary response (§3.5), or the response
-   carries no content. An operation with no primary response returns only an error, and which
-   statuses fail it is the error taxonomy's (`Errors`, §8.5).
+1. **`void`** — nothing is read: the operation has no primary response (§3.5), the response carries
+   no content, or the binding's method is `HEAD`, whose response has no body (RFC 9110 §9.3.2). An
+   operation with no primary response returns only an error, and "Which entry answers" below says
+   which statuses raise one.
 2. **`raw`** — the elected content is a file (`Content.File`, ir-design §7.2): the body reaches the
    caller unread, a byte stream beside the media type it arrived as, and nothing decodes it.
 3. **`stream`** — the elected content streams (below): frames are read one at a time, as `Stream`
@@ -655,6 +656,12 @@ reading compares with `Return` (§8.9):
 A stream method reads `Recv` in `Return`'s place, and a poller takes each response of its start as
 its `LROPlan` says (§8.7).
 
+**A body that does not decode.** A method that cannot decode a body it reads, the primary's among
+them, has nothing to return, and the server answered, so this is no failure either. It reaches the
+caller as an `OtherResponse` whose `BodyErr` says why, so the status and the bytes survive and
+nothing retries a call that may have acted. A stream frame that does not decode ends the stream the
+same way. A failure's body keeps its own form (§8.5).
+
 **Errors.** `Errors` holds every failure the operation declares: its `ErrorCase`s, then its
 service's `CommonErrors`, then its `Default` where the policy takes it as a failure (§3.5), whose
 condition is the catch-all. Entries that agree on everything but `Conditions` collapse into one.
@@ -665,8 +672,10 @@ primitive as well as a model, and where each lands in the SDK is §8.5's.
 **Which entry answers.** A response takes, across the primary response, `Others` and `Errors`, the
 entry with the most specific condition that holds — an exact status, then a range, then the
 catch-all — and the first such entry where several tie, so a declared `202` never reaches a
-catch-all. A primary `Default` holds only below 400, since a status of 400 or above states a failure
-(ir-design §7.2) whatever else the `Default` says: such a response is one no entry answers (§8.5).
+catch-all. A status's class bounds a catch-all (ir-design §7.2): a primary `Default` holds only
+below 400, and the catch-all of `Errors` for no 2xx. A 2xx no entry answers is a success the
+document does not list, so it reads as `Return` does: a server that starts sending a `201` must not
+turn a call that worked into a failure. Any other status no entry answers is a failure (§8.5).
 
 `PrimaryResponse` and the contents a `ResponsePlan` elects are the *one legitimate home* for the
 collapse oagen performs destructively in its compiler and Morphic forbids there (INV2): the IR keeps
@@ -1040,7 +1049,7 @@ snapshot pins the whole lowering deterministically.
 | `LowerStreaming` | `plan.StreamPlan` (direction; each side's content, framing and element) | a method per shape the operation offers; `Stream[T]` with `Recv()`/`Send()` over an element of any kind; a `bytes` side lowered as a file; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
 | `LowerErrors` | `plan.PlannedError` | no error type: each entry's conditions, body decoder and declared facts in the operation's response decoder, which fills the runtime's failure value (§8.5) | §7.2 |
-| `LowerOtherResponses` | `OpPlan.Others` | each entry's conditions in the operation's response decoder: `AsReturn` read as `Return`, no body a nullable return or an ended pager or stream, any other a body decoder filling the runtime's `OtherResponse` (§8.9) | §7.2 |
+| `LowerOtherResponses` | `OpPlan.Others` | each entry's conditions in the operation's response decoder: `AsReturn` and a 2xx no entry answers read as `Return`, no body a nullable return or an ended pager or stream, any other a body decoder filling the runtime's `OtherResponse`, as a body that does not decode does (§8.9) | §7.2 |
 | `PlaceDeclarations` | `Provenance.Source`, `TypePlan.Reach`, the target's placement options | the output unit each declaration lands in: one package unless a partition or a group split moves it (§4.17) | §13 |
 | `ComputeImports` | what each file's declarations reference: another unit's declarations, a type-table row's `Imports`, the runtime | per-file import sets, each import by its path; the name a file gives it is settled with every other name (§4.12) | — |
 | `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none named by its characters) + the options' naming tables | cased identifiers, the units' among them — the ONLY place names get cased (§4.12) | §3.2; INV4 |
@@ -2071,7 +2080,8 @@ Responses:[200 → {application/json → MetricsPage, text/event-stream → Metr
   `func (c *Client) TailMetricsStream(ctx) (*Stream[Metrics], error)` — no request type, since the
   operation has no input (§4.13). An operation whose elected content streams has the one method,
   under its own name. `Stream[T]` is the runtime's: `Recv() (T, error)` returns each element and
-  then `io.EOF`, and `Close` releases the response, which a caller that stops early must do. What
+  then `io.EOF`, and `Close` releases the response, which a caller that stops early must do. A frame
+  that does not decode ends the stream with an `OtherResponse` holding that frame (§3.1). What
   `T` is follows from `Recv`:
   - an `Element` lowers as a field of its type does (§9), whatever its kind. A union's is its struct
     (§8.2), and `Recv` returns `io.EOF` after a variant whose `Variant.Event.Terminal` is true, so
@@ -2203,7 +2213,7 @@ the status that arrives is exact.
   root's, and Go's `errors.Is` answers its kind and its fault each;
 - `Fault` is the entry's, else the class the status states: 4xx `client`, 5xx `server`, any other
   none, which is what `Policy.Errors` classifies by default (§6.3). A `default` reads this way, and
-  so does a status no entry answers;
+  so does any status but a 2xx that no entry answers (§3.1);
 - a `value` body decodes into `Body`, whatever `Type`'s kind, and a `void` or `raw` one leaves it
   nil, with `RawBody` holding whatever arrived;
 - a body that does not decode never hides the failure: `Body` stays nil and `BodyErr` holds the
@@ -2387,8 +2397,8 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
   response's `io.ReadCloser` and the media type it arrived as, and the caller closes it; Kotlin a
   `suspend fun download(): RawBody` over the transport's byte channel. Nothing decodes or buffers
   the body, so a large download streams.
-- **No body** (`DELETE /pet/{id}` → `204`). **plan.** `Shape` `void`. **refine.** Go returns `error`
-  alone, Kotlin `Unit`.
+- **No body** (`DELETE /pet/{id}` → `204`, or any `HEAD`). **plan.** `Shape` `void`. **refine.** Go
+  returns `error` alone, Kotlin `Unit`.
 - **A lone default** (`POST /purge`, whose only response is `default`). **plan.** The IR lowers it
   to `Operation.Default`, classed neither way (ir-design §7.2), and the default `PrimaryResponse`
   takes it for the primary response, marked `Inferred` (§3.5), so `Shape` reads it as any other:
@@ -2428,7 +2438,7 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
   A body the method cannot return is a value of the runtime, and no signature changes for one:
 
   ```go
-  type OtherResponse struct {    // the runtime's: a declared response its method cannot return
+  type OtherResponse struct {    // the runtime's: a response its method cannot return
       StatusCode int
       RawHeader  http.Header     // every header as it arrived, by wire name
       RawBody    []byte          // the body as it arrived, up to Policy.Errors' bound
@@ -2438,7 +2448,7 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
   }
 
   func (r *OtherResponse) Error() string {
-      return fmt.Sprintf("declared response %d is not what this method returns", r.StatusCode)
+      return fmt.Sprintf("response %d is not what this method returns", r.StatusCode)
   }
   func (r *OtherResponse) Unwrap() error { return r.BodyErr }
   ```
@@ -2458,9 +2468,15 @@ behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds bes
 
   A zero value would not do here: Kotlin's `Rule` has none, a pager has no value to zero, and a nil
   `*Rule` beside a nil error reads as a created rule until the caller's next line dereferences it.
+- **A status the document does not list, and a body that does not decode** (`GET /zone` → `201`, or
+  a `200` holding a proxy's HTML). **plan.** No field: §3.1 says which entry answers. **refine.**
+  The response decoder reads a 2xx no entry answers as `Return`, so `GetZone` returns the `*Zone` a
+  `201` carries. A body that then does not decode, an empty one under a `value` among them, is the
+  `OtherResponse` above with `BodyErr` set, never an `APIError`: the server answered and may have
+  acted, so nothing retries it, and the caller still has the status and the bytes read.
 - **No success response** (`POST /purge` declaring only `4XX`). **plan.** `Shape` `void`: the method
-  returns only an error, and a status no declared response or error case matches is the error
-  taxonomy's to classify (§8.5).
+  returns only an error, a 2xx returning none since it reads as `Return` does, and any other status
+  no declared response or error case matches is the error taxonomy's to classify (§8.5).
 - **An anonymous decorator** (`200 → {allOf: [{$ref: Zone}], description: …}`). **plan.**
   `Shape` `value`, `Type` the decorator, as the content names it, whose `TypePlan.Alias` is
   `Zone` (§4.15). **refine.** `CollapseAliases` lowers the reference to `Zone`, so the method
@@ -2547,7 +2563,7 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `OneWay` | fire-and-forget method, no response binding | `suspend` function returning `Unit`, no response binding | — |
 | `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) | the same, over `Flow` | address/correlation paths |
 | `ErrorCase{Fault, Retryable}` | one runtime `*APIError` holding the status, fault, kind, raw body and typed `Body` and `Headers`; `errors.Is` by fault and kind, `sdk.Body[T]` for the body (§8.5); declared facts win over policy | `ApiException` carrying an `ApiFailure`, a runtime tree by fault then kind (`ClientException` → `NotFoundException`), `e.body<T>()` for the body; declared facts win over policy | status→kind map; an error's raw body |
-| `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → a nullable return, or a pager or stream that ends; another body → `*OtherResponse` on the `error` path, with no fault and no retry (§8.9) | one read as `Return` returned as the primary; no body → `T?`, or a `Flow` that ends; another body → `OtherResponseException`, outside `ApiException` | the status; the body as it arrived |
+| `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → a nullable return, or a pager or stream that ends; another body, or a body that does not decode → `*OtherResponse` on the `error` path, with no fault and no retry; a 2xx the document does not list read as `Return` (§8.9) | one read as `Return` returned as the primary; no body → `T?`, or a `Flow` that ends; another body, or a body that does not decode → `OtherResponseException`, outside `ApiException`; a 2xx the document does not list read as `Return` | the status; the body as it arrived |
 | `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | `Authenticator` + per-scheme configuration; priority order | — |
 | `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly; a `Default` documented, never written onto a request (§4.10) | literals built from the decimal text, never a `Double` literal; `Ctor` → call; `symbol` → string explicitly; a `Default` documented, never sent | — |
 | `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters, and one that would begin with a digit led by its role's word (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, characters named and leading digits led the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
@@ -2773,8 +2789,11 @@ throughout this document.
     with its typed `Body`, `Headers` and raw bytes, a body that does not decode as `BodyErr` and one
     past the bound stopped there, and neither fault, kind nor retry answers it. An exact `200` is
     primary over a `2XX` written first; an exact `202` beats a `default` catch-all; a `4XX` beside a
-    primary `Default` is a failure; a poller's start reads each response by its `LROPlan`; an RPC
-    operation's one response is its primary, leaving `Others` empty; and no golden operation's
+    primary `Default` is a failure; a `201` the document does not list reads as `Return`, beside a
+    `default` catch-all too; a `200` whose body does not decode, an unlisted `204` under a `value`
+    and a frame that does not decode reach the caller as `OtherResponse` with `BodyErr`, and nothing
+    retries them; a `HEAD` reads no body; a poller's start reads each response by its `LROPlan`; an
+    RPC operation's one response is its primary, leaving `Others` empty; and no golden operation's
     declared status is left to no entry (§3.1, §8.9).
 
 ### 13.1 The behavior server (T-14)
@@ -2782,10 +2801,11 @@ throughout this document.
 T-12 checks the requests an SDK builds and T-13 the timing of its runtime, both inside the process.
 Much of what an SDK does shows only against a live server: honoring `Retry-After`, an event stream
 split across chunk boundaries or carrying one very large event, JSON Lines framing, each pagination
-strategy, status-monitor polling, OAuth token acquisition and refresh, an error body that does not
-parse, a union variant the SDK does not know, a declared response a method cannot return, and the
-four combinations of required and nullable in a response (§4.7). Writing those tests once per target
-does not scale, and nothing would notice a target that left one out.
+strategy, status-monitor polling, OAuth token acquisition and refresh, an error body and a success
+body that do not parse, a union variant the SDK does not know, a declared response a method cannot
+return, a success status the document does not list, and the four combinations of required and
+nullable in a response (§4.7). Writing those tests once per target does not scale, and nothing would
+notice a target that left one out.
 
 - **One server, shared by every target.** It has one route per behavior and is written by hand,
   together with the OpenAPI document that describes it, from which each target generates the SDK
