@@ -40,6 +40,7 @@ idempotency	Idempotency
 auth-schemes	Auth schemes
 per-op-auth	Per-op auth override (AND/OR)
 servers	Servers / endpoints
+per-op-servers	Servers scoped to one operation
 protocol-bindings	Protocol bindings (kafka/amqp/…)
 versioning	Versioning (added/removed)
 deprecation	Deprecation w/ message

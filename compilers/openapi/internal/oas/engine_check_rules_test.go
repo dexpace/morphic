@@ -246,6 +246,38 @@ func TestCheck_AllowReservedWarnsWhereItHasNoEffect(t *testing.T) {
 	})
 }
 
+// TestCheck_AllowEmptyValueWarnsUnderAStyleThatCannotWriteIt pins the styles
+// whose empty value OpenAPI's table leaves n/a, where it says allowEmptyValue
+// SHALL be ignored, at every minor, against the styles that can write one. A
+// location other than query draws the forbidden-field error alone, so the two
+// rules never report one keyword twice.
+func TestCheck_AllowEmptyValueWarnsUnderAStyleThatCannotWriteIt(t *testing.T) {
+	param := func(style string) string {
+		return "{name: a, in: query, style: " + style + ", allowEmptyValue: true, schema: {}}"
+	}
+	scenarios := make([]scenario, 0, 15)
+	for _, minor := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		for _, style := range []string{"spaceDelimited", "pipeDelimited", "deepObject"} {
+			scenarios = append(scenarios, scenario{minor + " " + style, minor, oas.Parameter, param(style),
+				[]finding{at(noEffect, "/allowEmptyValue")}})
+		}
+		scenarios = append(scenarios,
+			scenario{minor + " form", minor, oas.Parameter, param("form"), nil},
+			scenario{minor + " no style", minor, oas.Parameter,
+				"{name: a, in: query, allowEmptyValue: false, schema: {}}", nil})
+	}
+	verify(t, scenarios)
+	verify(t, []scenario{{"a header in deepObject", "3.1.0", oas.Parameter,
+		"{name: a, in: header, style: deepObject, allowEmptyValue: true, schema: {}}",
+		[]finding{at(forbidden, "/allowEmptyValue"), at(allowed, "/style")}}})
+	diags := run(t, "3.1.0", oas.Parameter, param("deepObject"))
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Equal(t, "parameter field allowEmptyValue has no effect for in=query with style=deepObject in "+
+		"OpenAPI 3.1, which applies it only under a style that can write an empty value; lowered as declared",
+		diags[0].Message)
+}
+
 // TestCheck_DuplicatesAreFound pins the uniqueness rules the engine owns.
 func TestCheck_DuplicatesAreFound(t *testing.T) {
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents: {}\n"

@@ -41,7 +41,7 @@ func TestContent_HeaderMapEntriesSharingComponentGetDistinctIDs(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 	op := openapitest.FindOp(t, doc, "getA")
 	require.Len(t, op.Responses[0].Headers, 2)
-	byWire := openapitest.IndexBy(op.Responses[0].Headers, func(p ir.Property) string { return p.WireName })
+	byWire := openapitest.IndexBy(op.Responses[0].Headers, func(p ir.Header) string { return p.WireName })
 
 	rate, limit := byWire["X-Rate"], byWire["X-Limit"]
 	assert.NotEqual(t, rate.ID, limit.ID, "distinct map keys keep distinct PropIDs")
@@ -65,7 +65,7 @@ func TestContent_EncodingHeaderRefInternsAtDeclaration(t *testing.T) {
 	enc := op.Request.Contents[0].Encoding
 	require.Len(t, enc, 1)
 
-	var headers []ir.Property
+	var headers []ir.Header
 	for _, pe := range enc {
 		headers = pe.Headers
 	}
@@ -161,16 +161,16 @@ func TestHeaders_DeprecationUnionsWithTheSchema(t *testing.T) {
 	}
 }
 
-// TestHeaders_SerializationKeywordsKept covers the two keywords a header object
-// writes that ir.Property has no field for. explode decides whether a
-// collection-valued header goes on the wire as one repeated field or one joined
-// value, so dropping it left the IR unable to say how the header serializes —
-// and it was dropped in silence, at both of lowerHeaders' callers.
+// TestHeaders_SerializationKeywordsLower covers the two keywords a header object
+// writes about its serialization, which lower onto ir.Header's Style and
+// Explode. explode decides how an object-valued header is joined on the wire,
+// so dropping it left the IR unable to say how the header serializes — and it
+// was once dropped in silence, at both of lowerHeaders' callers.
 //
-// Both callers are exercised, because the loss belonged to the shared lowering
-// rather than to the response position it was noticed at: a multipart part's
-// per-encoding headers build the same ir.Property from the same function.
-func TestHeaders_SerializationKeywordsKept(t *testing.T) {
+// Both callers are exercised, because the reading belongs to the shared
+// lowering rather than to the response position it was noticed at: a multipart
+// part's per-encoding headers build the same ir.Header from the same function.
+func TestHeaders_SerializationKeywordsLower(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, spec, at string }{
 		{
@@ -198,15 +198,15 @@ func TestHeaders_SerializationKeywordsKept(t *testing.T) {
 			t.Parallel()
 			_, svc, diags := compileService(t, tc.spec)
 			openapitest.RequireNoErrorDiags(t, diags)
-			assertHeaderSerializationKept(t, headerAt(t, openapitest.FirstOp(t, svc)), diags, tc.at)
+			assertHeaderSerialization(t, headerAt(t, openapitest.FirstOp(t, svc)), diags, tc.at)
 		})
 	}
 }
 
 // TestHeaders_SerializationKeywordsAbsentRecordNothing is the control for the
-// test above: preservation keys off what the header declares, so a header that
-// declares neither keyword records neither — rather than recording the OpenAPI
-// defaults the accessors would hand back and calling them source facts.
+// test above: the fields hold what the header declares, so a header declaring
+// neither keyword sets neither — rather than writing the OpenAPI defaults the
+// accessors would hand back and calling them source facts.
 func TestHeaders_SerializationKeywordsAbsentRecordNothing(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := compileService(t, openapitest.PathsSpec(
@@ -216,9 +216,42 @@ func TestHeaders_SerializationKeywordsAbsentRecordNothing(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	h := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
-	assert.NotContains(t, h.Unmodeled, "openapi:style")
-	assert.NotContains(t, h.Unmodeled, "openapi:explode")
+	assert.Empty(t, h.Style, "an undeclared style is not written as the default")
+	assert.Nil(t, h.Explode, "nor an undeclared explode")
+	assert.Empty(t, h.Unmodeled)
 	assert.Empty(t, diags, "and nothing is announced about keywords the header never wrote")
+}
+
+// TestHeaders_SerializationKeywordsFollowTheDeclaration pins whose keywords a
+// header entry written as a Reference Object reads: the component's, as its
+// schema is, and a declared explode: false stays a declaration rather than
+// collapsing into the unset default.
+func TestHeaders_SerializationKeywordsFollowTheDeclaration(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := compileService(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: g
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H: {$ref: '#/components/headers/Joined'}
+components:
+  headers:
+    Joined:
+      style: simple
+      explode: false
+      schema: {type: object, properties: {r: {type: integer}}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	h := openapitest.FirstOp(t, svc).Responses[0].Headers[0]
+	assert.Equal(t, "simple", h.Style)
+	require.NotNil(t, h.Explode, "a declared false is a declaration")
+	assert.False(t, *h.Explode)
 }
 
 // TestHeaders_ReservedContentTypeEntryIsReported covers the response side of
@@ -413,7 +446,7 @@ components:
 
 // headerAt returns the one header a serialization fixture declares, whichever
 // of the two positions carries it.
-func headerAt(t *testing.T, op ir.Operation) ir.Property {
+func headerAt(t *testing.T, op ir.Operation) ir.Header {
 	t.Helper()
 	if len(op.Responses) > 0 && len(op.Responses[0].Headers) > 0 {
 		return op.Responses[0].Headers[0]
@@ -425,19 +458,18 @@ func headerAt(t *testing.T, op ir.Operation) ir.Property {
 		return pe.Headers[0]
 	}
 	t.Fatal("no header at either position")
-	return ir.Property{}
+	return ir.Header{}
 }
 
-// assertHeaderSerializationKept requires both keywords to be kept verbatim at
-// their own coordinates under the header at `at`, each announced by a diagnostic.
-func assertHeaderSerializationKept(t *testing.T, h ir.Property, diags []ir.Diagnostic, at string) {
+// assertHeaderSerialization requires both keywords to have lowered onto the
+// header declared at `at`, neither kept verbatim nor announced.
+func assertHeaderSerialization(t *testing.T, h ir.Header, diags []ir.Diagnostic, at string) {
 	t.Helper()
-	for key, want := range map[string]string{"style": `"simple"`, "explode": `true`} {
-		entry, ok := h.Unmodeled["openapi:"+key]
-		require.True(t, ok, "%s is kept", key)
-		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-		assert.JSONEq(t, want, string(entry.Value))
-		assert.Equal(t, jsontext.Pointer(at+"/"+key), entry.Provenance.Pointer)
-		openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
-	}
+	assert.Equal(t, jsontext.Pointer(at), h.Provenance.Pointer)
+	assert.Equal(t, "simple", h.Style)
+	require.NotNil(t, h.Explode)
+	assert.True(t, *h.Explode)
+	assert.NotContains(t, h.Unmodeled, "openapi:style")
+	assert.NotContains(t, h.Unmodeled, "openapi:explode")
+	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "nothing is degraded: %+v", diags)
 }

@@ -13,12 +13,16 @@ import (
 )
 
 func assertServersVariables(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.Services, 1)
+	require.Len(t, doc.Services[0].Servers, 1, "the service names the document's one server")
 	require.Len(t, doc.Servers, 1)
-	assert.Equal(t, "https://{env}.example.com/v1", doc.Servers[0].URLTemplate)
-	assert.Equal(t, "primary", doc.Servers[0].Name.Source,
+	s, ok := doc.Servers[doc.Services[0].Servers[0]]
+	require.True(t, ok, "the service's server is registered")
+	assert.Equal(t, "https://{env}.example.com/v1", s.URLTemplate)
+	assert.Equal(t, "primary", s.Name.Source,
 		"a 3.2 server name is the server's naming, not part of its description")
-	require.Len(t, doc.Servers[0].Variables, 1)
-	v := doc.Servers[0].Variables[0]
+	require.Len(t, s.Variables, 1)
+	v := s.Variables[0]
 	assert.Equal(t, "env", v.Name)
 	assert.Equal(t, "api", v.Default)
 	assert.Equal(t, []string{"api", "staging"}, v.Enum)

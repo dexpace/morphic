@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -84,7 +85,7 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	l.out.Auth = schemes
 	l.diags.AppendAll(authDiags)
 
-	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types)
+	svc, _, svcDiags := LowerService(t.Context(), l.ctx.WithAuth(schemes), l.types, servers.NewRegistry())
 	l.diags.AppendAll(svcDiags)
 	_, finished := l.types.Finish(t.Context())
 	l.diags.AppendAll(finished)

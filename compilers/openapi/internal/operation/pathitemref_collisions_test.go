@@ -85,9 +85,8 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	summary, ok := getA.Unmodeled["openapi:pathItemSummary"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"use summary"`, string(summary.Value), "the use site's summary survives")
-	servers, ok := getA.Unmodeled["openapi:servers"]
-	require.True(t, ok)
-	assert.JSONEq(t, `[{"url":"https://use.example"}]`, string(servers.Value))
+	assert.Equal(t, []string{"https://use.example"}, serversNamed(t, doc, getA.Servers),
+		"the use site's servers win the collision")
 	ext, ok := getA.Unmodeled["openapi:pathItem/x-shared"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"use"`, string(ext.Value))

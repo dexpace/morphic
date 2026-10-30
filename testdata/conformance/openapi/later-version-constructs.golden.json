@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -209,6 +213,7 @@
                             "location": "querystring",
                             "wireName": "filter",
                             "allowReserved": false,
+                            "allowEmptyValue": false,
                             "contentType": "application/x-www-form-urlencoded"
                           }
                         ],
@@ -299,7 +304,8 @@
                         "text/plain"
                       ],
                       "multi": true,
-                      "filename": false
+                      "filename": false,
+                      "allowReserved": false
                     }
                   },
                   {
@@ -335,7 +341,8 @@
                           "multipart/mixed"
                         ],
                         "multi": false,
-                        "filename": false
+                        "filename": false,
+                        "allowReserved": false
                       }
                     },
                     "unmodeled": {
@@ -542,6 +549,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/openapi/servers/0"
       ],
       "provenance": {
         "source": 0
@@ -829,16 +839,21 @@
       }
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/openapi/servers/0": {
+      "id": "server/openapi/servers/0",
       "name": {
         "source": "production",
         "canonical": "production"
       },
       "urlTemplate": "https://api.example.com",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/0"
+      }
     }
-  ],
+  },
   "tagDefs": [
     {
       "name": "books",

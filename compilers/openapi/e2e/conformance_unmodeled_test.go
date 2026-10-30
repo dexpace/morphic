@@ -1074,9 +1074,7 @@ func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 	assertKept(t, op.Unmodeled, []keptEntry{
 		{"openapi:pathItemSummary", `"Shared summary"`, "/paths/~1merged/summary"},
 		{"openapi:pathItemDescription", `"Shared description"`, "/paths/~1merged/description"},
-		{"openapi:servers", `[{"url":"https://path.example"}]`, "/paths/~1merged/servers"},
 		{"openapi:pathItem/mergedBogus", `{"responses":{"200":{"description":"MERGED"}}}`, "/paths/~1merged/mergedBogus"},
-		{"openapi:operationServers", `[{"url":"https://operation.example"}]`, "/paths/~1merged/get/servers"},
 		{"openapi:x-codes", `{"100":"Continue","200":"OK","true":"T"}`, "/paths/~1merged/get/x-codes"},
 		{"openapi:x-big", `1e400`, "/paths/~1merged/get/x-big"},
 	})
@@ -1087,6 +1085,11 @@ func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 		assert.NotEqual(t, "openapi/unknown-key-unreachable", d.Code, "every merged key is reached")
 	}
 	assertMergedReaders(t, doc, op)
+	// Both servers lists are merged in too, and each reaches the registry: the
+	// operation's own, which it names, and its path item's, which it overrides.
+	assert.Equal(t, []ir.ServerID{"server/openapi/paths/~1merged/get/servers/0"}, op.Servers)
+	assert.Equal(t, "https://operation.example", doc.Servers[op.Servers[0]].URLTemplate)
+	assert.Equal(t, "https://path.example", doc.Servers["server/openapi/paths/~1merged/servers/0"].URLTemplate)
 
 	body, ok := doc.Types["t/anon/paths/~1merged/get/responses/200/content/application~1json/schema"]
 	require.True(t, ok)
@@ -1103,29 +1106,29 @@ func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 	assert.Equal(t, []string{"a", "b"}, members, "the merged member first, as the parser reads it")
 }
 
-// assertMergedReaders pins the merged constructs kept beside the operation:
-// on its parameter, its response and that response's header, the other
+// assertMergedReaders pins the merged constructs read beside the operation: on
+// its parameter's binding, its response and that response's header, the other
 // operation's encoding, and the security scheme.
 func assertMergedReaders(t *testing.T, doc *ir.Document, op ir.Operation) {
 	t.Helper()
 	require.Len(t, op.Params, 1)
-	assertKept(t, op.Params[0].Unmodeled, []keptEntry{
-		{"openapi:allowEmptyValue", `true`, "/paths/~1merged/get/parameters/0/allowEmptyValue"},
-	})
+	require.Len(t, op.Bindings.HTTP, 1)
+	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
+	assert.True(t, op.Bindings.HTTP[0].ParamBindings[0].AllowEmptyValue, "the merged allowEmptyValue is read")
 	require.Len(t, op.Responses, 1)
 	assertKept(t, op.Responses[0].Unmodeled, []keptEntry{
 		{"openapi:links", `{"self":{"operationId":"getMerged"}}`, "/paths/~1merged/get/responses/200/links"},
 	})
 	require.Len(t, op.Responses[0].Headers, 1)
-	assertKept(t, op.Responses[0].Headers[0].Unmodeled, []keptEntry{
-		{"openapi:style", `"simple"`, "/paths/~1merged/get/responses/200/headers/X-Rate/style"},
-	})
+	assert.Equal(t, "simple", op.Responses[0].Headers[0].Style, "the merged header style is read")
 	post, ok := opByName(doc, "postMerged")
 	require.True(t, ok)
 	require.NotNil(t, post.Request)
 	require.Len(t, post.Request.Contents, 1)
-	assertKept(t, post.Request.Contents[0].Unmodeled, []keptEntry{{"openapi:encoding/f/allowReserved", `true`,
-		"/paths/~1merged/post/requestBody/content/multipart~1form-data/encoding/f/allowReserved"}})
+	require.Len(t, post.Request.Contents[0].Encoding, 1)
+	for _, pe := range post.Request.Contents[0].Encoding {
+		assert.True(t, pe.AllowReserved, "the merged encoding allowReserved is read")
+	}
 	scheme, ok := doc.Auth["auth/openapi/components/securitySchemes/key"]
 	require.True(t, ok)
 	assertKept(t, scheme.Unmodeled, []keptEntry{

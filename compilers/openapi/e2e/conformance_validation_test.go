@@ -27,9 +27,10 @@ func assertNoValidationFinding(t *testing.T, diags []ir.Diagnostic) {
 func assertEmptyRequiredValues(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assertNoValidationFinding(t, diags)
 	require.Len(t, doc.Servers, 2)
-	assert.Empty(t, doc.Servers[0].URLTemplate)
-	require.Len(t, doc.Servers[1].Variables, 2)
-	assert.Equal(t, "base", doc.Servers[1].Variables[1].Name)
+	assert.Empty(t, doc.Servers["server/openapi/servers/0"].URLTemplate)
+	second := doc.Servers["server/openapi/servers/1"]
+	require.Len(t, second.Variables, 2)
+	assert.Equal(t, "base", second.Variables[1].Name)
 
 	ops := allOperations(doc)
 	require.Len(t, ops, 1)

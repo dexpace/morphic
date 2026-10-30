@@ -20,6 +20,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/operation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
+	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -184,8 +185,10 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	// one, so no lowering above the schemes can read them as empty.
 	svcCtx := c.WithAuth(schemes)
 
-	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts)
+	srv := servers.NewRegistry()
+	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts, srv)
 	out.Services = []ir.Service{svc}
+	out.Servers = srv.Servers()
 	out.TagDefs = tagDefs
 	acc.AppendAll(svcDiags)
 	// Every lowering has returned, so the registry is finished: a coordinate a
@@ -206,9 +209,6 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
-	if len(m.Servers) > 0 {
-		out.Servers = m.Servers
-	}
 	if len(m.Unmodeled) > 0 {
 		out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
 	}

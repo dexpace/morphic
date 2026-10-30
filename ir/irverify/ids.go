@@ -37,6 +37,12 @@ func checkIDs(doc *ir.Document) []Violation {
 			vs = append(vs, v)
 		}
 	}
+	for id, server := range doc.Servers {
+		if v, bad := idDefect(ir.IDKindServer, string(id), server.Provenance); bad {
+			v.Path = "servers[" + string(id) + "]"
+			vs = append(vs, v)
+		}
+	}
 	return append(vs, checkMemberIDs(doc)...)
 }
 
@@ -52,6 +58,7 @@ var kindPrefixes = map[reflect.Type]string{
 	reflect.TypeFor[ir.PropID]():       ir.IDKindProp,
 	reflect.TypeFor[ir.ParamID]():      ir.IDKindParam,
 	reflect.TypeFor[ir.EnumMemberID](): ir.IDKindEnumMember,
+	reflect.TypeFor[ir.ServerID]():     ir.IDKindServer,
 }
 
 // pointerDerived is the classes whose ID path is the pointer the declaring
@@ -72,8 +79,8 @@ var pointerDerived = map[reflect.Type]bool{
 // grammar could not have produced or, where the class is pointer-derived, a path
 // that is not the pointer the node records.
 //
-// It is the grammar checkIDs holds a type's or a scheme's to, for the classes
-// that have no registry for checkIDs to read.
+// It is the grammar checkIDs holds a type's, a scheme's or a server's to, for the
+// classes that have no registry for checkIDs to read.
 func appendDeclaredIDViolations(vs []Violation, node reflect.Value, class reflect.Type, id string, at ir.WalkPath) []Violation {
 	if id == "" {
 		noun := ir.RefNoun(class)

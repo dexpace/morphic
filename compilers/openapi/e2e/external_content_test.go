@@ -762,7 +762,7 @@ components:
 		assert.Equal(t, "fmt", params[name].Docs.Description, "%s: a parameter's description", name)
 	}
 	require.Len(t, op("form").Responses, 1)
-	headers := map[string]ir.Property{}
+	headers := map[string]ir.Header{}
 	for _, h := range op("form").Responses[0].Headers {
 		headers[h.Name.Source] = h
 	}

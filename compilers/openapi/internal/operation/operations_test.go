@@ -127,8 +127,7 @@ func TestOperations_MethodsTagsServersRefs(t *testing.T) {
 	getA := openapitest.FindOp(t, doc, "getA")
 	assert.NotEmpty(t, getA.Unmodeled, "op x-* extension")
 	assert.NotEmpty(t, getA.Docs.ExternalDocs, "op externalDocs")
-	_, hasServers := getA.Unmodeled["openapi:servers"]
-	assert.True(t, hasServers, "path-item servers preserved")
+	assert.Len(t, getA.Servers, 1, "the path item's servers are named on its operation")
 	require.NotEmpty(t, getA.Params, "component-ref parameter resolved")
 	assert.Equal(t, "page", getA.Params[0].Name.Source)
 
@@ -279,10 +278,10 @@ func operationsOf(doc *ir.Document) []ir.Operation {
 	return out
 }
 
-// headersOf collects an operation's header Properties from both places they
-// live: response headers, and the per-part headers of a multipart encoding.
-func headersOf(op ir.Operation) []ir.Property {
-	var out []ir.Property
+// headersOf collects an operation's Headers from both places they live:
+// response headers, and the per-part headers of a multipart encoding.
+func headersOf(op ir.Operation) []ir.Header {
+	var out []ir.Header
 	for _, resp := range op.Responses {
 		out = append(out, resp.Headers...)
 	}
@@ -364,7 +363,7 @@ components:
     Err:
       description: err
       headers:
-        X-E: {schema: {type: array, items: {type: string}}, explode: true}
+        X-E: {schema: {type: string, required: [n]}}
       content:
         application/json:
           schema: {type: object}
@@ -374,9 +373,8 @@ components:
 // referenced component at its declaration reports each defect once. Both
 // operations reach the same request body, whose scalar schema carries a
 // `required` the lowered node has no field for, and the same error response,
-// whose header declares an `explode` ir.Property has no field for. Reported per
-// use site, a component shared by twenty operations would repeat each line
-// twenty times.
+// whose header's scalar schema carries one too. Reported per use site, a
+// component shared by twenty operations would repeat each line twenty times.
 //
 // The second defect sits on an error response's header on purpose, so the case
 // covers the shared-declaration rule on the path GitHub #422 added, not only on
@@ -395,8 +393,7 @@ func TestDiag_SharedDeclarationReportsEachDefectOnce(t *testing.T) {
 
 	// Every defect still surfaces — de-duplication must not silence any of them.
 	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-		"the body schema's homeless required and the error header's homeless explode are two "+
-			"distinct defects")
+		"the body schema's homeless required and the error header's are two distinct defects")
 
 	// The shared component's own `required: false` reaches both use sites, as
 	// two values rather than one aliased pointer: lowering it at its declaration
@@ -603,79 +600,133 @@ webhooks:
       responses: {"200": {description: ok}}
 `
 
-// TestOperations_OwnServersKeptBesideThePathItems pins the overriding half of
-// the servers pair, on every route that lowers an operation. An Operation
-// Object's servers override the Path Item Object's, so both lists must be kept:
-// keeping only the path item's would send an emitter to a host the operation
-// had replaced, with nothing reporting it.
+// serversNamed returns the URL of each server ids names, in order, read from
+// doc's registry, failing when one names nothing there.
+func serversNamed(t *testing.T, doc *ir.Document, ids []ir.ServerID) []string {
+	t.Helper()
+	urls := make([]string, 0, len(ids))
+	for _, id := range ids {
+		s, ok := doc.Servers[id]
+		require.True(t, ok, "%s names no registered server", id)
+		urls = append(urls, s.URLTemplate)
+	}
+	return urls
+}
+
+// TestOperations_OwnServersOverrideThePathItems pins the precedence OpenAPI
+// gives the two levels, on every route that lowers an operation: an operation
+// is sent to its own servers, which override its path item's. The path item's
+// are registered all the same, at their own pointer, so the override loses no
+// declaration; and neither level is reported, since each has its home.
 //
 // All three routes are asserted because a single-route case cannot see a fix
-// that skips the other two (GitHub #39). The two levels sit under separate keys
-// because they are two declarations at two pointers; one key would make the
-// surviving list depend on which lowering ran last.
-func TestOperations_OwnServersKeptBesideThePathItems(t *testing.T) {
+// that skips the other two (GitHub #39).
+func TestOperations_OwnServersOverrideThePathItems(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, operationServersSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "no servers list is degraded: %+v", diags)
 
-	// own/inherited are the operation's own list and its path item's; reported is
-	// where the operation's degradation is stamped (the operation itself).
-	for _, tc := range []struct{ op, own, ownAt, inherited, inheritedAt, reported string }{
+	for _, tc := range []struct{ op, own, ownAt, overridden, overriddenAt string }{
 		{"postBoth",
-			"https://operation.example", "/paths/~1both/post/servers",
-			"https://pathitem.example", "/paths/~1both/servers", "/paths/~1both/post"},
+			"https://operation.example", "/paths/~1both/post/servers/0",
+			"https://pathitem.example", "/paths/~1both/servers/0"},
 		{"onHook",
-			"https://wh-operation.example", "/webhooks/hooked/post/servers",
-			"https://wh-pathitem.example", "/webhooks/hooked/servers", "/webhooks/hooked/post"},
+			"https://wh-operation.example", "/webhooks/hooked/post/servers/0",
+			"https://wh-pathitem.example", "/webhooks/hooked/servers/0"},
 		{"onEvent",
 			"https://cb-operation.example",
-			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/post/servers",
+			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/post/servers/0",
 			"https://cb-pathitem.example",
-			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/servers",
-			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/post"},
+			"/paths/~1both/post/callbacks/onEvent/{$request.body#~1url}/servers/0"},
 	} {
 		op := openapitest.FindOp(t, doc, tc.op)
+		assert.Equal(t, []string{tc.own}, serversNamed(t, doc, op.Servers),
+			"%s is sent to its own servers, not its path item's", tc.op)
+		assert.Equal(t, jsontext.Pointer(tc.ownAt), doc.Servers[op.Servers[0]].Provenance.Pointer)
 
-		own, ok := op.Unmodeled["openapi:operationServers"]
-		require.True(t, ok, "%s keeps its operation's own servers", tc.op)
-		assert.Equal(t, ir.ReasonNoIRHome, own.Reason)
-		assert.JSONEq(t, `[{"url":"`+tc.own+`"}]`, string(own.Value),
-			"%s keeps its own list, not its path item's", tc.op)
-		assert.Equal(t, jsontext.Pointer(tc.ownAt), own.Provenance.Pointer)
-
-		inherited, ok := op.Unmodeled["openapi:servers"]
-		require.True(t, ok, "%s keeps its path item's list beside it, not replaced by it", tc.op)
-		assert.JSONEq(t, `[{"url":"`+tc.inherited+`"}]`, string(inherited.Value))
-		assert.Equal(t, jsontext.Pointer(tc.inheritedAt), inherited.Provenance.Pointer,
-			"each entry keeps the coordinate of the object that declared it")
-
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.reported),
-			"%s reports the operation's own list as the path item's already was", tc.op)
+		overridden := ir.ServerID("server/openapi" + tc.overriddenAt)
+		require.Contains(t, doc.Servers, overridden, "%s's path item list is registered though overridden", tc.op)
+		assert.Equal(t, tc.overridden, doc.Servers[overridden].URLTemplate)
+		assert.Equal(t, jsontext.Pointer(tc.overriddenAt), doc.Servers[overridden].Provenance.Pointer,
+			"each server keeps the coordinate of the object that declared it")
+		assert.NotContains(t, op.Unmodeled, "openapi:servers", "neither level is kept verbatim")
+		assert.NotContains(t, op.Unmodeled, "openapi:operationServers")
 	}
 }
 
-// TestOperations_ServersKeysAreIndependent is the control for the test above:
-// each key records only what its own object declared, so an operation declaring
-// one level records that level alone rather than both.
-func TestOperations_ServersKeysAreIndependent(t *testing.T) {
+// TestOperations_ServersEachLevelAlone is the control for the test above: an
+// operation declaring one level is sent to that level's servers, and one whose
+// path item and itself declare none names none, so its service's apply.
+func TestOperations_ServersEachLevelAlone(t *testing.T) {
 	t.Parallel()
-	doc, diags := parseFull(t, operationServersSpec)
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /operationOnly:
+    get:
+      operationId: getOperationOnly
+      servers: [{url: 'https://only.example'}]
+      responses: {"200": {description: ok}}
+  /pathItemOnly:
+    servers: [{url: 'https://pathonly.example'}]
+    get:
+      operationId: getPathItemOnly
+      responses: {"200": {description: ok}}
+  /neither:
+    get:
+      operationId: getNeither
+      responses: {"200": {description: ok}}
+`))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	opOnly := openapitest.FindOp(t, doc, "getOperationOnly")
-	assert.Contains(t, opOnly.Unmodeled, "openapi:operationServers")
-	assert.NotContains(t, opOnly.Unmodeled, "openapi:servers",
-		"an operation whose path item declares none records none for it")
+	assert.Equal(t, []string{"https://only.example"},
+		serversNamed(t, doc, openapitest.FindOp(t, doc, "getOperationOnly").Servers))
+	assert.Equal(t, []string{"https://pathonly.example"},
+		serversNamed(t, doc, openapitest.FindOp(t, doc, "getPathItemOnly").Servers),
+		"an operation declaring none of its own is sent to its path item's")
+	assert.Nil(t, openapitest.FindOp(t, doc, "getNeither").Servers,
+		"an operation neither level scopes names none, so its service's apply")
+	assert.Equal(t, []string{"/"}, serversNamed(t, doc, doc.Services[0].Servers),
+		"and the service is served at the root OpenAPI supplies for a document declaring none")
+}
 
-	pathOnly := openapitest.FindOp(t, doc, "getPathItemOnly")
-	assert.Contains(t, pathOnly.Unmodeled, "openapi:servers")
-	assert.NotContains(t, pathOnly.Unmodeled, "openapi:operationServers",
-		"and an operation declaring none of its own records none")
+// TestOperations_PathItemServersAreEachOperationsOwn pins that the operations of
+// one path item hold a list each, so a pass changing one's leaves the others'.
+func TestOperations_PathItemServersAreEachOperationsOwn(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    servers: [{url: 'https://x.example'}]
+    get: {operationId: getX, responses: {"200": {description: ok}}}
+    put: {operationId: putX, responses: {"200": {description: ok}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	get, put := openapitest.FindOp(t, doc, "getX"), openapitest.FindOp(t, doc, "putX")
+	require.Equal(t, []ir.ServerID{"server/openapi/paths/~1x/servers/0"}, put.Servers)
+	require.Equal(t, put.Servers, get.Servers, "both name the one declaration")
+
+	get.Servers[0] = "server/elsewhere"
+	assert.Equal(t, ir.ServerID("server/openapi/paths/~1x/servers/0"), put.Servers[0])
+}
+
+// TestOperations_OwnServerKeepsAndReportsAnUndeclaredKey pins that what an
+// operation's own Server Object writes outside the object lands on the server,
+// and is reported at the key, as a document's server's is.
+func TestOperations_OwnServerKeepsAndReportsAnUndeclaredKey(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      servers: [{url: 'https://x.example', stray: 1}]
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	const own = ir.ServerID("server/openapi/paths/~1x/get/servers/0")
+	assert.Contains(t, doc.Servers[own].Unmodeled, "openapi:stray")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, "/paths/~1x/get/servers/0/stray"))
 }
 
 // TestOperations_OwnServersSurviveBesideExtensions pins that an operation's own
-// servers and its extensions are both kept in op.Unmodeled, each under its own
-// key, when one operation declares both.
+// servers and its extensions both land when one operation declares both: the
+// servers on Servers, the extension in Unmodeled, neither written over.
 func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
@@ -688,41 +739,8 @@ func TestOperations_OwnServersSurviveBesideExtensions(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	op := openapitest.FindOp(t, doc, "getX")
-	servers, ok := op.Unmodeled["openapi:operationServers"]
-	require.True(t, ok, "the servers survive the extensions assignment")
-	assert.JSONEq(t, `[{"url":"https://operation.example"}]`, string(servers.Value))
-	assert.Contains(t, op.Unmodeled, "openapi:x-vendor",
-		"and the extensions survive beside them, so neither overwrote the other")
-}
-
-// TestOperations_OwnServersFindingIsNotInferred pins that the finding reporting
-// an operation's own servers names no heuristic. Path-prefix grouping marks the
-// operation, and the finding used to take that marker from the operation's
-// provenance although the servers are declared.
-func TestOperations_OwnServersFindingIsNotInferred(t *testing.T) {
-	t.Parallel()
-	svc, diags := serviceWithGrouping(t, openapitest.PathsSpec(`  /x:
-    get:
-      operationId: getX
-      servers: [{url: 'https://operation.example'}]
-      responses: {"200": {description: ok}}
-`), lowering.GroupByPathPrefix)
-	openapitest.RequireNoErrorDiags(t, diags)
-	require.Len(t, svc.Groups, 1)
-	require.Len(t, svc.Groups[0].Operations, 1)
-	op := svc.Groups[0].Operations[0]
-	require.Equal(t, ir.Inferred("group-path-prefix"), op.Provenance.Inferred,
-		"the operation is marked, so the finding had a marker to take")
-
-	var found []ir.Diagnostic
-	for _, d := range diags {
-		if d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, "operation servers kept") {
-			found = append(found, d)
-		}
-	}
-	require.Len(t, found, 1)
-	assert.Empty(t, found[0].Provenance.Inferred, "the servers are declared, not inferred")
-	assert.Equal(t, op.Provenance.Pointer, found[0].Provenance.Pointer, "and still reported at the operation")
+	assert.Equal(t, []string{"https://operation.example"}, serversNamed(t, doc, op.Servers))
+	assert.Contains(t, op.Unmodeled, "openapi:x-vendor", "and the extensions survive beside them")
 }
 
 // TestLowerService_PercentEncodedEntryRefKeepsTheDeclaredCoordinate covers the

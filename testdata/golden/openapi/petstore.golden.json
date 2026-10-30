@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -163,7 +167,8 @@
                         "wireName": "limit",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -354,7 +359,8 @@
                         "wireName": "petId",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -381,6 +387,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/openapi/servers/0"
       ],
       "provenance": {
         "source": 0
@@ -818,8 +827,9 @@
       }
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/openapi/servers/0": {
+      "id": "server/openapi/servers/0",
       "name": {
         "hint": "https_env_example_com_v_1"
       },
@@ -839,9 +849,13 @@
             "description": "Deployment environment"
           }
         }
-      ]
+      ],
+      "provenance": {
+        "source": 0,
+        "pointer": "/servers/0"
+      }
     }
-  ],
+  },
   "tagDefs": [
     {
       "name": "pets",

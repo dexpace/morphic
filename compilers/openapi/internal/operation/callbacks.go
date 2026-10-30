@@ -19,7 +19,7 @@ import (
 // parent.mount roots callback operation identity, so two parents sharing one
 // $ref'd callback keep distinct callback operations; parent.decl is the base a
 // $ref'd callback or path item resolves against (issue #107).
-func lowerCallbacks(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims, src *soa.Operation, parent opPointers, inferred ir.Inferred) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opPointers, inferred ir.Inferred) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {
 		return nil, nil, nil, nil
@@ -48,7 +48,7 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims
 			}
 			diags = append(diags, found...)
 			mount := parent.mount + ids.Ptr("callbacks", cbName, exprStr)
-			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(ts, claims, layers, mount, exprStr, inferred)
+			opIDs, cbOps, orphan, cbDiags := lowerCallbackOps(w, layers, mount, exprStr, inferred)
 			ext = annotation.MergeUnmodeled(ext, orphan)
 			diags = append(diags, cbDiags...)
 			callbacks = append(callbacks, ir.Callback{Expression: exprStr, Operations: opIDs})
@@ -68,9 +68,9 @@ func lowerCallbacks(c lowering.Ctx, ts *compile.Types, claims *operationIDClaims
 // An expression whose item mounts no operation keeps what the item wrote on the
 // returned map, which goes where the Callback Object's own extensions go, the
 // parent's HTTP binding.
-func lowerCallbackOps(ts *compile.Types, claims *operationIDClaims, layers []layer, mount jsontext.Pointer, expr string, inferred ir.Inferred) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
+func lowerCallbackOps(w walk, layers []layer, mount jsontext.Pointer, expr string, inferred ir.Inferred) ([]ir.OpID, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	var orphan ir.Unmodeled
-	mounted, diags := mountPathItem(ts, claims, layers, mount, opContext{key: expr, inferred: inferred}, &orphan)
+	mounted, diags := mountPathItem(w, layers, mount, opContext{key: expr, inferred: inferred}, &orphan)
 	opIDs := make([]ir.OpID, 0, len(mounted))
 	ops := make([]ir.Operation, 0, len(mounted))
 	for _, m := range mounted {
@@ -85,7 +85,7 @@ func lowerCallbackOps(ts *compile.Types, claims *operationIDClaims, layers []lay
 // webhooks-map key, an event's name rather than a path, as WebhookName. It
 // stops between webhooks when ctx is done, as lowerPaths does, and svc holds
 // what a webhook item mounting no operation writes.
-func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, claims *operationIDClaims, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
+func lowerWebhooks(ctx context.Context, c lowering.Ctx, w walk, groups *serviceGroups, svc *ir.Service) []ir.Diagnostic {
 	hooks := c.Doc.GetWebhooks()
 	if hooks == nil || hooks.Len() == 0 {
 		return nil
@@ -102,7 +102,7 @@ func lowerWebhooks(ctx context.Context, c lowering.Ctx, ts *compile.Types, claim
 		}
 		diags = append(diags, found...)
 		route := opContext{key: name, isWebhook: true, withCallbacks: true}
-		mounted, hookDiags := mountPathItem(ts, claims, layers, hookPtr, route, &svc.Unmodeled)
+		mounted, hookDiags := mountPathItem(w, layers, hookPtr, route, &svc.Unmodeled)
 		diags = append(diags, hookDiags...)
 		for _, m := range mounted {
 			grp := groups.group(ids.WebhookGroup(), func() ir.OperationGroup {

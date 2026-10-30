@@ -54,6 +54,19 @@ func TestProperty_JSONContract(t *testing.T) {
 		populatedProperty())
 }
 
+// TestHeader_JSONContract pins that a Header encodes flat, its fields beside its
+// Property's with no member naming the embedded Property, and that a declared
+// explode: false stays apart from none.
+func TestHeader_JSONContract(t *testing.T) {
+	t.Parallel()
+	const property = `{"id":"","name":{},"type":{"target":"","nullable":false},"required":false,` +
+		`"clientOptional":false,"defaultAdded":false,"visibility":{"none":false},` +
+		`"flatten":false,"eventHeader":false,"eventPayload":false,"secret":false,` +
+		`"docs":{},"provenance":{"source":0}`
+	assertJSONContract(t, ir.Header{}, property+`}`, populatedHeader())
+	assertZeroValueShape(t, ir.Header{Explode: new(false)}, property+`,"explode":false}`)
+}
+
 // TestProperty_WireNameByFormatDeterministic pins Class C for Property's
 // WireNameByFormat map: it must marshal with keys in sorted order and
 // identically on every run, since Documents are compared and cached as

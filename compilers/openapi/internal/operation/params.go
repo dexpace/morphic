@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
@@ -76,6 +75,9 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, id ir.ParamID, p *soa.Par
 		Style:         style,
 		Explode:       explode,
 		AllowReserved: p.GetAllowReserved(),
+		// Read whatever the location, as allowReserved is: the validator refuses
+		// it outside in: query, and warns where the style gives it no effect.
+		AllowEmptyValue: p.GetAllowEmptyValue(),
 	}
 	media, diags := fillParamType(c, ts, &param, &binding, p, pptr)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
@@ -300,30 +302,7 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
 	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.ProvenanceAt, pptr)...)
-	diags = append(diags, preserveAllowEmptyValue(c, param, p, pptr)...)
 	return append(diags, c.PromoteDeprecation(param.Unmodeled, param.Deprecation, &param.Provenance)...)
-}
-
-// preserveAllowEmptyValue keeps a parameter's allowEmptyValue flag, which says
-// a query parameter may be sent with an empty value: a wire fact about how it
-// serializes, like style, explode and allowReserved, which ir.HTTPParamBinding
-// holds. The binding has no field for this one (GitHub #39).
-//
-// ReasonNoIRHome, not a boundary, since the IR can close the gap by adding the
-// field. It is kept on ir.Parameter because that, not ir.HTTPParamBinding, is
-// the carrier here with an Unmodeled map.
-//
-// It keeps presence, not truth: allowEmptyValue: false is a declared fact too,
-// and keeping only the true spelling would decide which declarations count.
-func preserveAllowEmptyValue(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer) []ir.Diagnostic {
-	at := pptr + ids.Ptr("allowEmptyValue")
-	kept, diags := annotation.PreserveNodeInto(&param.Unmodeled, "openapi:allowEmptyValue",
-		nodeview.Child(p.GetRootNode(), "allowEmptyValue"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
-	if !kept {
-		return diags
-	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-		"parameter allowEmptyValue has no ir.HTTPParamBinding home; kept verbatim under Unmodeled"))
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style
