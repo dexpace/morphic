@@ -165,6 +165,14 @@ var integerFields = map[string]string{
 	"loggedPath.shared": "how many steps a kept path shares with the one kept before it, not a position in any IR slice",
 	"loggedPath.end":    "where a kept path's own steps end in its log's storage, not a position in any IR slice",
 
+	// An ir.Editor's own state, which is no part of a document either.
+	"serviceTree.work": "how many nodes an edit has stepped through, and elements it has built, in the service tree, a count",
+	"idCounts.fields":  "for each struct type, which of its fields an edit's ID check enters, read off the type",
+	"idCounts.entered": "how many values an edit's ID check has entered, a count",
+	"idCounts.sorted":  "how many lists an edit's ID check has sorted, a count",
+	"idCount.node":     "how many times the node an update starts from declares an ID, a count",
+	"idCount.change":   "how many times the node an update ends with declares an ID, a count",
+
 	// The ir package's reading of its own types, which is not IR data either.
 	"idField.index":       "the field through which a struct type declares its identity, read off the type",
 	"keyedRegistry.index": "the Document field that keys a registry map, read off Document's type",

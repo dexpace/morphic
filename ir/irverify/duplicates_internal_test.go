@@ -318,6 +318,7 @@ var identityClasses = map[string]string{
 	"MsgDirection":    "send/receive perspective, not an identity",
 	"UnmodeledReason": "why an Unmodeled entry was kept, not an identity",
 	"Severity":        "diagnostic severity, not an identity",
+	"treeClass":       "which kind of node of the service tree an ir.Editor holds, its own state and not an identity",
 }
 
 // TestIdentityClasses_AreAllClassified fails when ir declares a named string type

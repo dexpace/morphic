@@ -2,6 +2,8 @@ package lintrules
 
 import (
 	"fmt"
+	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -51,7 +53,9 @@ func TestAnalyzers_ReadTheModulesLayout(t *testing.T) {
 	for _, a := range analyzers {
 		names = append(names, a.Name)
 	}
-	assert.Equal(t, []string{"registrywrites", "fragmentreadings", "namechannels", "idderivations"}, names)
+	assert.Equal(t, []string{
+		"registrywrites", "servicetreewrites", "fragmentreadings", "namechannels", "idderivations",
+	}, names)
 
 	got := strings.Join(drawnFindings(t, analyzers, "./"+plantDir+"/compilers/graphql"), "\n")
 	assert.Contains(t, got, "registrywrites: ")
@@ -182,4 +186,34 @@ func listPackages(t *testing.T, patterns []string) []string {
 		}
 	}
 	return paths
+}
+
+// TestRegistryOf_TakesAMapKeyedByANamedString pins what makes a Document field
+// a registry, which no field today can show the other way: a map keyed by a
+// named integer, by a plain string, or no map at all, is none.
+func TestRegistryOf_TakesAMapKeyedByANamedString(t *testing.T) {
+	t.Parallel()
+	pkg := types.NewPackage("example.com/ir", "ir")
+	named := func(name string, under types.Type) types.Type {
+		return types.NewNamed(types.NewTypeName(token.NoPos, pkg, name, nil), under, nil)
+	}
+	elem := types.Typ[types.Int]
+	tests := []struct {
+		name string
+		typ  types.Type
+		noun string
+	}{
+		{"a named string key", types.NewMap(named("ChannelID", types.Typ[types.String]), elem), "channel"},
+		{"a named integer key", types.NewMap(named("Index", types.Typ[types.Int]), elem), ""},
+		{"a plain string key", types.NewMap(types.Typ[types.String], elem), ""},
+		{"no map", types.NewSlice(elem), ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r, ok := registryOf(tt.typ)
+			assert.Equal(t, tt.noun != "", ok)
+			assert.Equal(t, tt.noun, r.noun)
+		})
+	}
 }

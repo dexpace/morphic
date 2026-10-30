@@ -17,6 +17,14 @@ func Copy[M ~map[K]V, K comparable, V any](dst, src M) { maps.Copy(dst, src) }
 // nothing at the call.
 func Clone[M ~map[K]V, K comparable, V any](m M) M { return m }
 
+// Tree builds and writes the service tree and a channel registry, which the
+// framework owns, so it draws nothing.
+func Tree(doc *ir.Document, op ir.Operation, id ir.ChannelID) {
+	doc.Services = append(doc.Services, ir.Service{Groups: []ir.OperationGroup{{}}})
+	doc.Services[0].Groups[0].Operations = []ir.Operation{op}
+	doc.Channels = map[ir.ChannelID]ir.Channel{id: {}}
+}
+
 // Owner builds and names.
 func Owner(name string) (ir.TypeRegistry, ir.Naming) {
 	reg := ir.TypeRegistry{ir.TypeID(name): nil}

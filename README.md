@@ -238,19 +238,19 @@ morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 The same pipeline is available as a Go package. `engine.New` builds the default engine: every
 built-in compiler and the default IR passes. `engine.WithCompilers` and `engine.WithPasses` replace
 either set, so an embedder can run a pass of its own, composed with `engine.Passes`, the default
-list in order; a pass changes types through an `ir.Editor`. `Run` reads the spec, no further than a
-compiler would read it, asks the registered compilers which one recognizes it, compiles, and runs
-the passes in order, each over the document the one before it returned. `RunOptions.DisablePasses`
-turns passes off by name (`engine.ValidatePass` names the `validate` pass), and a name no pass
-carries fails the run with `engine.ErrUnknownPass`. A compiler breaking its contract, say by
-returning a document whose source table does not describe the spec, or by panicking, fails the run
-with an error wrapping `compilers.ErrContract`; a pass doing so fails it with one wrapping
-`pass.ErrContract`. A panic arrives as a `*barrier.PanicError` in the chain, which keeps the value
-and the stack beside the one-line message. A stage that ignores `ctx` holds `Run` until it returns,
-and the run then fails with the context's error, whatever the stage returned. The structural duties
-only `irverify` checks are left to the harness, unless `RunOptions.Verify` is set: it holds each
-stage's document to them, and each pass to leaving its input alone, and fails the run with an
-`*engine.VerifyError` listing what broke.
+list in order; a pass changes a document through an `ir.Editor`. `Run` reads the spec, no further
+than a compiler would read it, asks the registered compilers which one recognizes it, compiles, and
+runs the passes in order, each over the document the one before it returned.
+`RunOptions.DisablePasses` turns passes off by name (`engine.ValidatePass` names the `validate`
+pass), and a name no pass carries fails the run with `engine.ErrUnknownPass`. A compiler breaking
+its contract, say by returning a document whose source table does not describe the spec, or by
+panicking, fails the run with an error wrapping `compilers.ErrContract`; a pass doing so fails it
+with one wrapping `pass.ErrContract`. A panic arrives as a `*barrier.PanicError` in the chain, which
+keeps the value and the stack beside the one-line message. A stage that ignores `ctx` holds `Run`
+until it returns, and the run then fails with the context's error, whatever the stage returned. The
+structural duties only `irverify` checks are left to the harness, unless `RunOptions.Verify` is set:
+it holds each stage's document to them, and each pass to leaving its input alone, and fails the run
+with an `*engine.VerifyError` listing what broke.
 
 ```go
 eng, err := engine.New()

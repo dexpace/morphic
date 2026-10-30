@@ -2,25 +2,25 @@ package ir
 
 import "reflect"
 
-// cloneTypeDef returns a deep copy of td, which must not be nil, that shares no
-// pointer, slice or map with it, so changing the copy leaves td as it was. It
-// reports false for a td nesting past [MaxWalkDepth] levels, where the copy
-// stops. Map entries are read into ranging.
+// cloneNode returns a deep copy of node, a non-nil pointer to a node or a
+// TypeDef holding one, sharing no pointer, slice or map with it, or false for
+// one nesting past [MaxWalkDepth] levels, where the copy stops. Map entries are
+// read into ranging.
 //
 // The copy is by reflection, as [WalkValues] is, so a field added to the IR is
 // copied the moment it exists. Aliasing is kept: a pointer, a map, or a slice
-// of one length td reaches twice is copied once, and a cycle comes out as the
+// of one length node reaches twice is copied once, and a cycle comes out as the
 // same cycle.
-func cloneTypeDef(td TypeDef, ranging *entryStack) (TypeDef, bool) {
+func cloneNode[N any](node N, ranging *entryStack) (N, bool) {
 	c := cloner{copies: map[refKey]reflect.Value{}, ranging: ranging}
-	v := reflect.ValueOf(td)
+	v := reflect.ValueOf(node)
 	out := reflect.New(v.Type()).Elem()
 	c.fill(out, v, 0)
+	var cloned N
 	if c.truncated {
-		return nil, false
+		return cloned, false
 	}
-	var cloned TypeDef
-	reflect.ValueOf(&cloned).Elem().Set(out) // out has td's concrete type
+	reflect.ValueOf(&cloned).Elem().Set(out) // out has node's concrete type
 	return cloned, true
 }
 
@@ -41,8 +41,9 @@ type cloner struct {
 // counts them, and maps are copied in the walk's key order, so which path
 // copies a shared reference, and so whether the cap cuts a copy, is fixed.
 //
-// No interface sits below a TypeDef, which TestEditor_CopiesEveryIRTypeWhole
-// holds the IR to, so one would be shared rather than copied.
+// No interface sits below a node an edit copies, which
+// TestEditor_CopiesEveryIRTypeWhole holds the IR to, so one would be shared
+// rather than copied.
 func (c *cloner) fill(dst, v reflect.Value, depth int) {
 	if depth > MaxWalkDepth {
 		c.truncated = true
