@@ -11,10 +11,11 @@ the rule here rather than reading it across.
 - **Rule.** Rule 1.2 says to enable exactly its linters, commit its configuration verbatim and
   disable `funlen`. The set here is `.golangci.yml`, which enables `funlen` to hold the guide's own
   rule 1.5 and adds the linters that hold this repository's invariants, each with a comment saying
-  what it states. Rule 1.2's `gosec` is #1173's.
+  what it states. It leaves rule 1.2's `gosec` off.
 - **Why.** Checks written by hand or held only by review moved into linters, each where one can
-  state it, which the guide's set could not do (#1001).
-- **Probe.** `grep -n funlen .golangci.yml`.
+  state it, which the guide's set could not do (#1001). `gosec` gave 174 findings, 16 in production
+  and none of those a defect: a compiler opens the paths it is named (#1173).
+- **Probe.** `grep -n funlen .golangci.yml`, and `grep -c gosec .golangci.yml` prints 0.
 
 ## Serialize through `encoding/json/v2`, whatever chapter 09 calls
 `json-through-v2`
@@ -101,16 +102,47 @@ the rule here rather than reading it across.
   and falsified a PR body (#22, #373).
 - **Probe.** `grep -n '^gate:' Makefile`.
 
-## Report as a question a rule the tree breaks with no decision behind it
-`breaches-with-no-decision`
+## Write an assertion helper where tests share the check
+`assertion-helpers-stand`
 
-- **Rule.** Nothing records why the tree differs from rules 1.2 (`gosec`), 2.23 (import aliases),
-  5.9 (type aliases), 5.26 (compile-time assertions), 6.4 (assertion helpers), 11.5 (Example
-  functions) and 11.9 (license headers), and #1173 asks which are departures. Until it answers, a
-  line a change adds is still held to the rule, since surrounding code is no defence (`CLAUDE.md`,
-  "Correctness comes first"), and reported as a `question:` naming #1173. Rule 7.9 is on #1173 too,
-  but `CLAUDE.md` restates it, so a new package is held to `doc.go` outright. Rule 10.6's
-  `http.DefaultClient` is #1036's.
-- **Why.** Each was counted against the tree when this list was made, and none has a decision on
-  the tracker (#1172, #1173).
-- **Probe.** #1173 gives the command behind each count, and a row it settles leaves this rule.
+- **Rule.** Rule 6.4 bars a project helper that takes `*testing.T` and fails the test itself, test
+  double setup excepted. Here a helper that calls `t.Helper()` and asserts through testify stands,
+  since the check it names is what several tests share. One with no `t.Helper()` breaks rule 6.3
+  and is #1178's, and another assertion library stays barred.
+- **Why.** The rule's concerns are a lost caller's line and a stop at the first failure, which
+  `t.Helper()` and `assert` answer, so rewriting the helpers would add no correctness (#1173).
+- **Probe.** `git grep -hE '^func (assert|require|check|expect|verify|must)[A-Za-z0-9]*\(t ' -- '*_test.go'`
+  lists the helpers; a new one opens with `t.Helper()`.
+
+## Alias a type to name it at a boundary or to shorten it
+`type-aliases-that-stand`
+
+- **Rule.** Rule 5.9 keeps type aliases for migration. Three kinds stand here: a public face naming
+  a type declared beneath it, as `compilers/openapi/options.go` does; a shape `docs/ir-design.md`
+  gives, as `ir.Lifecycle`; and a package's private shorthand for a long type, as `schemaRef`. Any
+  other alias is held to the rule.
+- **Why.** A defined type in the public face would restate a vocabulary, and two declarations of one
+  strategy set can drift (#1173).
+- **Probe.** `git grep -nE '^type [A-Za-z]+ = ' -- '*.go' ':!*_test.go' ':!*testdata*'`.
+
+## Leave Example functions until the API settles
+`examples-wait-for-a-stable-api`
+
+- **Rule.** Rule 11.5 asks for a testable Example of every public function. Not yet here, while the
+  public API takes breaking changes: add one where it is the clearest documentation, and take the
+  rule up at the first stable release.
+- **Why.** An Example is one more thing each breaking change rewrites, and tests pin the behaviour
+  already (#1173).
+- **Probe.** `git log -30 --first-parent --format=%s origin/main | grep -cE '^[a-z]+(\([^)]*\))?!:'`
+  counts the recent merges that broke the API.
+
+## Hold a new line to a rule the tree still breaks
+`rules-the-tree-still-breaks`
+
+- **Rule.** The tree breaks rules 2.23 (#1175), 5.26 (#1176), 6.3 (#1178), 7.9 (#1174), 10.6 (#1036)
+  and 11.9 (#1177), and none is a departure, 5.26 reaching only an exported type that implements an
+  exported interface. A line a change adds is held to each, since surrounding code is no defence
+  (`CLAUDE.md`, "Correctness comes first"), and a line it leaves alone is that issue's. A row leaves
+  this rule when its issue's fix lands.
+- **Why.** Each was counted against the tree and ruled a breach rather than a departure (#1173).
+- **Probe.** Each issue gives the command behind its count.

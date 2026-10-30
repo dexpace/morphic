@@ -49,4 +49,4 @@ issues". A breach a tool could catch is a check to file, by `morphic-curating-sk
 ## References
 
 - `references/departures.md`: where this repository departs from the guide or the org's skill,
-  what holds each difference, and the rules the tree breaks with no decision behind them.
+  what holds each difference, and the rules the tree still breaks.
