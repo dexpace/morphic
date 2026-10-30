@@ -311,15 +311,13 @@ func TestParams_ContentStyleComponentRefInternsOnce(t *testing.T) {
 	assert.Equal(t, "application/json", getA.Bindings.HTTP[0].ParamBindings[0].ContentType)
 }
 
-// TestParams_AllowEmptyValueKept pins the last unread Parameter field. Style,
-// explode, allowReserved and a content-style media type all reach
-// ir.HTTPParamBinding; allowEmptyValue reached nothing, so a document declaring
-// it compiled to IR identical to one that did not, and said nothing about it.
-//
-// The false spelling is asserted beside the true one because presence, not
-// truth, is what is kept: a compiler recording only `true` would be deciding
-// which declarations count.
-func TestParams_AllowEmptyValueKept(t *testing.T) {
+// TestParams_AllowEmptyValueLowers pins the last Parameter field to reach the
+// binding. Style, explode, allowReserved and a content-style media type all
+// reach ir.HTTPParamBinding; allowEmptyValue reached none of its fields, so a
+// document declaring it lowered it only verbatim. Now it is the binding's
+// AllowEmptyValue, false where the parameter declares false or nothing, which
+// OpenAPI gives the same meaning, as it does allowReserved's.
+func TestParams_AllowEmptyValueLowers(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
     get:
@@ -331,23 +329,46 @@ func TestParams_AllowEmptyValueKept(t *testing.T) {
       responses: {"200": {description: ok}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	params := openapitest.IndexBy(openapitest.FindOp(t, doc, "getX").Params, func(p ir.Parameter) string { return p.Name.Source })
+	op := openapitest.FindOp(t, doc, "getX")
+	require.Len(t, op.Bindings.HTTP, 1)
+	byWire := openapitest.IndexBy(op.Bindings.HTTP[0].ParamBindings, func(b ir.HTTPParamBinding) string { return b.WireName })
 
-	for _, tc := range []struct{ name, want, index string }{
-		{"on", `true`, "0"},
-		{"off", `false`, "1"},
-	} {
-		entry, ok := params[tc.name].Unmodeled["openapi:allowEmptyValue"]
-		require.True(t, ok, "%s keeps its declared flag", tc.name)
-		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-		assert.JSONEq(t, tc.want, string(entry.Value))
-		assert.Equal(t, jsontext.Pointer("/paths/~1x/get/parameters/"+tc.index+"/allowEmptyValue"),
-			entry.Provenance.Pointer, "kept at the keyword's own coordinate")
-		openapitest.AssertInfoDiagAt(t, diags, string(entry.Provenance.Pointer))
+	assert.True(t, byWire["on"].AllowEmptyValue)
+	assert.False(t, byWire["off"].AllowEmptyValue)
+	assert.False(t, byWire["silent"].AllowEmptyValue)
+	for _, p := range op.Params {
+		assert.NotContains(t, p.Unmodeled, "openapi:allowEmptyValue", "%s keeps nothing verbatim", p.Name.Source)
 	}
+	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "nothing is degraded: %+v", diags)
+}
 
-	assert.NotContains(t, params["silent"].Unmodeled, "openapi:allowEmptyValue",
-		"a parameter that declares nothing records nothing")
+// TestParams_AllowEmptyValueUnderAStyleThatCannotWriteOneIsReported pins the
+// rule OpenAPI states for a style whose empty value is n/a in its table:
+// allowEmptyValue SHALL be ignored there. It still lowers as declared, and is
+// reported where it is written, as an allowReserved with no effect is; a style
+// that can write an empty value draws nothing.
+func TestParams_AllowEmptyValueUnderAStyleThatCannotWriteOneIsReported(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - {name: d, in: query, style: deepObject, allowEmptyValue: true, schema: {type: object}}
+        - {name: s, in: query, style: spaceDelimited, allowEmptyValue: true, schema: {type: array, items: {type: string}}}
+        - {name: p, in: query, style: pipeDelimited, allowEmptyValue: true, schema: {type: array, items: {type: string}}}
+        - {name: f, in: query, style: form, allowEmptyValue: true, schema: {type: string}}
+        - {name: u, in: query, allowEmptyValue: true, schema: {type: string}}
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, []jsontext.Pointer{
+		"/paths/~1x/get/parameters/0/allowEmptyValue",
+		"/paths/~1x/get/parameters/1/allowEmptyValue",
+		"/paths/~1x/get/parameters/2/allowEmptyValue",
+	}, openapitest.PointersOf(diags, diag.InapplicableLocationKeyword))
+	for _, b := range openapitest.FindOp(t, doc, "getX").Bindings.HTTP[0].ParamBindings {
+		assert.True(t, b.AllowEmptyValue, "%s lowers as declared", b.WireName)
+	}
 }
 
 // TestParams_ReservedHeaderNamesAreReported pins a deviation the compiler takes

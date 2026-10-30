@@ -28,7 +28,7 @@ const laterVersionCase = "later-version-constructs"
 // holds the whole document to that.
 func assertLaterVersionConstructs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	require.Len(t, doc.Servers, 1)
-	assert.Equal(t, "production", doc.Servers[0].Name.Source)
+	assert.Equal(t, "production", doc.Servers["server/openapi/servers/0"].Name.Source)
 	require.NotEmpty(t, doc.TagDefs)
 	assert.Equal(t, "catalog", doc.TagDefs[0].Parent)
 

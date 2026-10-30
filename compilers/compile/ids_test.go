@@ -40,6 +40,16 @@ func TestEnumMemberID_UsesTheEnumMemberKind(t *testing.T) {
 	assert.Equal(t, "e", ir.IDKindEnumMember)
 }
 
+// TestServerID_UsesTheServerKind pins the kind a server's ID opens with,
+// written out so it cannot agree with a change to the constant, and that a space
+// alone names one server, as a minted default is.
+func TestServerID_UsesTheServerKind(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, ir.ServerID("server/openapi/servers/0"), compile.ServerID("openapi", "/servers/0"))
+	assert.Equal(t, ir.ServerID("server/default"), compile.ServerID("default", ""))
+	assert.Equal(t, "server", ir.IDKindServer)
+}
+
 // TestIDGrammar_PathSeparatorIsSuppliedOnce pins that the framework owns the
 // boundary between the space and the path. A format whose paths carry a leading
 // separator (an RFC 6901 pointer) and one whose paths do not (a protobuf

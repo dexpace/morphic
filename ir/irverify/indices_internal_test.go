@@ -12,54 +12,11 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// docWithServers builds a document declaring one server, so index 0 addresses it
-// and every other index does not.
-func docWithServers() *ir.Document {
-	return &ir.Document{Servers: []ir.Server{{URLTemplate: "https://api.example.com"}}}
-}
-
 // indexViolations runs the index check and drops the truncation flag, which the
 // cases below assert nothing about.
 func indexViolations(doc *ir.Document) []Violation {
 	vs, _ := runCheck(checkIndices, doc)
 	return vs
-}
-
-func TestCheckIndices_ServiceServerIndexOutOfRange(t *testing.T) {
-	doc := docWithServers()
-	doc.Services = []ir.Service{{ID: "s/x", Servers: []int{-1, 1}}}
-
-	got := indexViolations(doc)
-	require.Len(t, got, 2, "both the negative index and the one past the end are reported")
-	assert.Equal(t, "ir/server-index-out-of-range", got[0].Code)
-	assert.Equal(t, "doc.Services[0].Servers[0]", got[0].Path)
-	assert.Equal(t, "doc.Services[0].Servers[1]", got[1].Path)
-}
-
-func TestCheckIndices_ChannelServerIndexOutOfRange(t *testing.T) {
-	doc := docWithServers()
-	doc.Channels = map[ir.ChannelID]ir.Channel{"c/x": {ID: "c/x", Servers: []int{2}}}
-
-	got := indexViolations(doc)
-	require.Len(t, got, 1)
-	assert.Equal(t, "ir/server-index-out-of-range", got[0].Code)
-	assert.Contains(t, got[0].Message, "none of the 1 declared servers")
-}
-
-func TestCheckIndices_ServerIndexWithNoDeclaredServers(t *testing.T) {
-	doc := &ir.Document{Services: []ir.Service{{ID: "s/x", Servers: []int{0}}}}
-
-	got := indexViolations(doc)
-	require.Len(t, got, 1, "a document declaring no servers can satisfy no index")
-	assert.Contains(t, got[0].Message, "none of the 0 declared servers")
-}
-
-func TestCheckIndices_ServerIndexInRangeIsClean(t *testing.T) {
-	doc := docWithServers()
-	doc.Services = []ir.Service{{ID: "s/x", Servers: []int{0}}}
-	doc.Channels = map[ir.ChannelID]ir.Channel{"c/x": {ID: "c/x", Servers: []int{0}}}
-
-	assert.Empty(t, indexViolations(doc))
 }
 
 // docWithSuccessStatus wraps one operation declaring a single response and one
@@ -108,15 +65,12 @@ func TestCheckIndices_ResponseIndexInRangeIsClean(t *testing.T) {
 // the test: a dangling reference carried as an index has to reach a caller that
 // only ever calls Verify.
 func TestVerify_ReportsOutOfRangeIndices(t *testing.T) {
-	doc := docWithServers()
-	doc.Services = []ir.Service{{ID: "s/x", Name: ir.Naming{Source: "svc"}, Servers: []int{4}}}
-
-	found := Verify(doc)
+	found := Verify(docWithSuccessStatus(map[int]int{4: 200}))
 	codes := make([]string, 0, len(found))
 	for _, v := range found {
 		codes = append(codes, v.Code)
 	}
-	assert.Contains(t, codes, "ir/server-index-out-of-range")
+	assert.Contains(t, codes, "ir/response-index-out-of-range")
 }
 
 // indexCarrierFields is every ir field checkIndices reaches by name through
@@ -136,8 +90,6 @@ var indexCarrierFields = []struct {
 	// reflect.Invalid where the check does not look inside.
 	inner reflect.Kind
 }{
-	{serviceType, "Servers", reflect.Slice, reflect.Int},
-	{channelType, "Servers", reflect.Slice, reflect.Int},
 	{operationType, "Responses", reflect.Slice, reflect.Invalid},
 	{operationType, "Bindings", reflect.Struct, reflect.Invalid},
 	{reflect.TypeFor[ir.OpBindings](), "HTTP", reflect.Slice, reflect.Struct},
@@ -174,8 +126,6 @@ func TestIndexCarrierFields_MatchTheIRShape(t *testing.T) {
 // recognizable from Document's own shape (ir.KeyedClasses), while an
 // index is an int like any other.
 var integerFields = map[string]string{
-	"Service.Servers":           "index into Document.Servers; bounds-checked by checkIndices",
-	"Channel.Servers":           "index into Document.Servers; bounds-checked by checkIndices",
 	"HTTPBinding.SuccessStatus": "keys index Operation.Responses; bounds-checked by checkIndices",
 	"Provenance.Source":         "index into Document.Sources; bounds-checked by checkProvenance",
 

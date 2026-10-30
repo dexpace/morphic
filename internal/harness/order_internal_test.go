@@ -257,6 +257,16 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 		assert.Contains(t, detail, "type registry depends on declaration order")
 	})
 
+	t.Run("a server that changed", func(t *testing.T) {
+		t.Parallel()
+		server := func(url string) *ir.Document {
+			return &ir.Document{Servers: map[ir.ServerID]ir.Server{"server/x/a": {ID: "server/x/a", URLTemplate: url}}}
+		}
+		detail, ok := diffOrderInvariants(server("/a"), server("/b"), nil)
+		assert.False(t, ok)
+		assert.Contains(t, detail, "server registry depends on declaration order")
+	})
+
 	t.Run("a different set of diagnostics", func(t *testing.T) {
 		t.Parallel()
 		other := &ir.Document{Types: ir.TypeRegistry{"t/x/A": model("t/x/A", "a")}}
@@ -333,27 +343,32 @@ func TestDiagnosticSet_KeepsEachLocatorApart(t *testing.T) {
 }
 
 // TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding pins the
-// order-blind comparison: properties, pattern properties and examples are held
-// in source order, so a permutation reorders them by design and must not be
-// reported.
+// order-blind comparison: properties, pattern properties, examples and a
+// server's variables are held in source order, so a permutation reorders them
+// by design and must not be reported.
 func TestDiffOrderInvariants_ReorderedCollectionsAreNotAFinding(t *testing.T) {
 	t.Parallel()
 	props := []ir.Property{{ID: "p/x/a", WireName: "a"}, {ID: "p/x/b", WireName: "b"}}
 	patterns := []ir.PatternProps{{Pattern: "^a"}, {Pattern: "^b"}}
 	examples := []ir.Example{{Name: "one"}, {Name: "two"}}
+	variables := []ir.ServerVariable{{Name: "a"}, {Name: "b"}}
 	build := func(reversed bool) *ir.Document {
-		p, pp, ex := props, patterns, examples
+		p, pp, ex, vars := props, patterns, examples, variables
 		if reversed {
 			p = []ir.Property{props[1], props[0]}
 			pp = []ir.PatternProps{patterns[1], patterns[0]}
 			ex = []ir.Example{examples[1], examples[0]}
+			vars = []ir.ServerVariable{variables[1], variables[0]}
 		}
-		return &ir.Document{Types: ir.TypeRegistry{"t/x/A": &ir.Model{
-			ID:              "t/x/A",
-			Examples:        ex,
-			Properties:      p,
-			AdditionalProps: &ir.AdditionalProps{Patterns: pp},
-		}}}
+		return &ir.Document{
+			Types: ir.TypeRegistry{"t/x/A": &ir.Model{
+				ID:              "t/x/A",
+				Examples:        ex,
+				Properties:      p,
+				AdditionalProps: &ir.AdditionalProps{Patterns: pp},
+			}},
+			Servers: map[ir.ServerID]ir.Server{"server/x/a": {ID: "server/x/a", Variables: vars}},
+		}
 	}
 	detail, ok := diffOrderInvariants(build(false), build(true), nil)
 	assert.True(t, ok, "reordering a source-ordered collection is the permutation, not a defect: %s", detail)

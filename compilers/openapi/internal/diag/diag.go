@@ -396,14 +396,14 @@ const (
 	// dropping stated content is an emitter's call (invariant 2), and what the
 	// parameter means is the content's to say, which it does.
 	InvalidLocationKeyword = "openapi/invalid-location-keyword"
-	// InapplicableLocationKeyword reports a Parameter Object's allowReserved
-	// written where its document's version gives it no effect, at the keyword.
-	// Before 3.2 that is path, header or cookie: those versions apply it to
-	// in: query alone. 3.2 applies it wherever the value is percent-encoded,
-	// which leaves out a header and a cookie in style cookie. A code of its own,
-	// apart from InvalidLocationKeyword, because no MUST is broken: the keyword
-	// simply has no effect, and a consumer may weigh that differently. A
-	// warning, and the value lowers as declared (invariant 2).
+	// InapplicableLocationKeyword reports a Parameter Object field written where
+	// it has no effect, at the keyword: an allowReserved where its document's
+	// version does not apply it — before 3.2 anywhere but in: query, in 3.2 a
+	// header or a cookie in style cookie — and an allowEmptyValue under a style
+	// that cannot write an empty value. A code of its own, apart from
+	// InvalidLocationKeyword, because no MUST is broken: the keyword simply has
+	// no effect, and a consumer may weigh that differently. A warning, and the
+	// value lowers as declared (invariant 2).
 	InapplicableLocationKeyword = "openapi/inapplicable-location-keyword"
 	// MissingArrayItems reports a schema in an OpenAPI 3.0 document that writes
 	// type array and no `items`, which 3.0 requires, at the schema's pointer. It

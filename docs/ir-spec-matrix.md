@@ -64,6 +64,7 @@ rows no spec names yet, which are the ones the next compiler will be first to bi
 | `auth-schemes` | Auth schemes | ✅ securitySchemes | ✅ | ✅ @useAuth | ✅ auth traits | — | ✅ (wide: SASL/X509/userPassword; attaches to servers) | ⚠ | — |
 | `per-op-auth` | Per-op auth override (AND/OR) | ✅ security | ✅ | ✅ | ⚠ OR only, priority-ordered | — | ✅ | — | — |
 | `servers` | Servers / endpoints | ✅ servers+vars (3.2 named) | ✅ host | ✅ @server | ⚠ @endpoint hostPrefix only | — | ✅ named servers+protocols+security | — | ⚠ nodes/registry |
+| `per-op-servers` | Servers scoped to one operation | ✅ path item + operation servers | ⚠ per-operation schemes | — | ⚠ @endpoint hostPrefix | — | ⚠ channel servers | — | — |
 | `protocol-bindings` | Protocol bindings (kafka/amqp/…) | — | — | — | — | — | ✅ bindings | — | ✅ behaviours |
 | `versioning` | Versioning (added/removed) | — | — | ✅ @added/@removed | ⚠ @since | — | — | — | — |
 | `deprecation` | Deprecation w/ message | ✅ deprecated | ✅ | ✅ #deprecated | ✅ @deprecated | ✅ @deprecated(reason) | ✅ | ✅ | ✅ -deprecated |

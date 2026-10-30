@@ -103,10 +103,10 @@ func usageRootCases() map[string]usageRoot {
 			useDoc(ir.Operation{Bindings: ir.OpBindings{RPC: &ir.RPCBinding{InputType: &ir.TypeRef{Target: "t"}}}}, useType("t")), useIn, nil,
 		},
 		"response header": {
-			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Property{useProp("t")}}}}, useType("t")), useOut, nil,
+			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Header{{Property: useProp("t")}}}}}, useType("t")), useOut, nil,
 		},
 		"response header encoding schema": {
-			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Property{
+			useDoc(ir.Operation{Responses: []ir.Response{{Headers: []ir.Header{
 				{Type: useRef("u"), Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "t"}}},
 			}}}}, useType("t"), useType("u")), useOut, []ir.TypeID{"u"},
 		},
@@ -123,11 +123,11 @@ func usageRootCases() map[string]usageRoot {
 			useDoc(ir.Operation{LongRunning: &ir.LongRunning{FinalType: &ir.TypeRef{Target: "t"}}}, useType("t")), useOut, nil,
 		},
 		"error header": {
-			useDoc(ir.Operation{Errors: []ir.ErrorCase{{Headers: []ir.Property{useProp("t")}}}}, useType("t")), useOut | useErr, nil,
+			useDoc(ir.Operation{Errors: []ir.ErrorCase{{Headers: []ir.Header{{Property: useProp("t")}}}}}, useType("t")), useOut | useErr, nil,
 		},
 		"common error header": {
 			usageDocWith(func(doc *ir.Document) {
-				doc.Services = []ir.Service{{CommonErrors: []ir.ErrorCase{{Headers: []ir.Property{useProp("t")}}}}}
+				doc.Services = []ir.Service{{CommonErrors: []ir.ErrorCase{{Headers: []ir.Header{{Property: useProp("t")}}}}}}
 			}, useType("t")), useOut | useErr, nil,
 		},
 		"channel parameter": {
@@ -155,13 +155,13 @@ func usageRootCases() map[string]usageRoot {
 // usagePayloadCases name "t" at each place a payload names a type, under each
 // root a payload has.
 func usagePayloadCases() map[string]usageRoot {
-	encoded := map[ir.PropID]ir.PartEncoding{"p": {Headers: []ir.Property{useProp("t")}}}
+	encoded := map[ir.PropID]ir.PartEncoding{"p": {Headers: []ir.Header{{Property: useProp("t")}}}}
 	contents := map[string]ir.Content{
 		"content type":  {Type: useRef("t")},
 		"content item":  {Type: useRef("u"), Item: &ir.TypeRef{Target: "t"}},
 		"file contents": {Type: useRef("u"), File: &ir.FileInfo{Contents: &ir.TypeRef{Target: "t"}}},
 		"part header":   {Type: useRef("u"), Encoding: encoded},
-		"item header":   {Type: useRef("u"), ItemEncoding: &ir.PartEncoding{Headers: []ir.Property{useProp("t")}}},
+		"item header":   {Type: useRef("u"), ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{Property: useProp("t")}}}},
 	}
 	roots := map[string]struct {
 		place func(*ir.Payload) *ir.Document
@@ -577,7 +577,7 @@ func TestIndex_UsageIgnoresPositionsThatNameNoType(t *testing.T) {
 		Request:        &ir.Payload{Contents: []ir.Content{{Type: ir.TypeRef{}, Item: &ir.TypeRef{}, File: &ir.FileInfo{}}}},
 		RequestStream:  &ir.StreamDetail{},
 		ResponseStream: &ir.StreamDetail{Events: &ir.TypeRef{}},
-		Responses:      []ir.Response{{Payload: &ir.Payload{}}, {Headers: []ir.Property{{Encoding: &ir.Encoding{}}}}},
+		Responses:      []ir.Response{{Payload: &ir.Payload{}}, {Headers: []ir.Header{{Encoding: &ir.Encoding{}}}}},
 		LongRunning:    &ir.LongRunning{},
 		Bindings:       ir.OpBindings{RPC: &ir.RPCBinding{}, Message: &ir.MessageBinding{Reply: &ir.Reply{}}},
 	}, useType("t"))
@@ -597,7 +597,7 @@ func TestUsage_ADefaultTravelsAsOutputAndNoError(t *testing.T) {
 		Default: &ir.Response{
 			Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 0, To: 0}}},
 			Payload:    useBody("application/json", "t"),
-			Headers:    []ir.Property{useProp("h")},
+			Headers:    []ir.Header{{Property: useProp("h")}},
 		},
 	}
 	defs := func() []ir.TypeDef { return []ir.TypeDef{irtest.ModelOf("t", nil), useType("h")} }

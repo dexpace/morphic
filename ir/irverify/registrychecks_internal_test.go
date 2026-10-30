@@ -89,12 +89,13 @@ func TestRegistryChecks_ACleanEntryCostsNothing(t *testing.T) {
 // more properties and Requires entries than a map holds unallocated, a union, a
 // map, an enum whose members sit beneath a path longer than a string built on
 // the stack holds, an OAuth scheme with more scopes than a map holds
-// unallocated, a declared namespace and a source.
+// unallocated, a server, a declared namespace and a source.
 func cleanRegistry(n int) *ir.Document {
 	doc := &ir.Document{
 		IRVersion: ir.IRVersion,
 		Types:     ir.TypeRegistry{},
 		Auth:      map[ir.AuthID]ir.AuthScheme{},
+		Servers:   map[ir.ServerID]ir.Server{},
 		IDSpaces:  map[string][]string{},
 		Services:  []ir.Service{{ID: "s/x"}},
 	}
@@ -125,6 +126,8 @@ func cleanRegistry(n int) *ir.Document {
 		}
 		scheme := ir.AuthID("auth/x/S" + suffix)
 		doc.Auth[scheme] = ir.AuthScheme{ID: scheme, Kind: ir.AuthKindOAuth2, Flows: []ir.OAuthFlow{flow}}
+		server := ir.ServerID("server/x/S" + suffix)
+		doc.Servers[server] = ir.Server{ID: server}
 		doc.IDSpaces[ir.IDKindType] = append(doc.IDSpaces[ir.IDKindType], "s"+suffix)
 		doc.Sources = append(doc.Sources, ir.SourceInfo{Format: "openapi@3.1", Hash: strings.Repeat("0", sha256HexLen)})
 	}

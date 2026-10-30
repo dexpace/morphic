@@ -47,7 +47,7 @@ func TestService_JSONContract(t *testing.T) {
 				"t/z": {Source: "ZRenamed"},
 				"t/a": {Source: "ARenamed"},
 			},
-			Servers:    []int{0, 1},
+			Servers:    []ir.ServerID{"server/openapi/servers/0", "server/openapi/servers/1"},
 			Unmodeled:  populatedUnmodeled(),
 			Provenance: populatedProvenance(),
 		})

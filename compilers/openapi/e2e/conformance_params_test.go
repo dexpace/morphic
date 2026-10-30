@@ -37,7 +37,7 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.InapplicableLocationKeyword, ir.SeverityWarning),
 		"a 3.1 query declaration of allowReserved stays silent")
 
-	assertAllowEmptyValueKept(t, op)
+	assertAllowEmptyValueLowers(t, op)
 
 	// The path item's shared parameter merges into both of its operations and
 	// interns its schema once, at the path item's own pointer (issue #36).
@@ -53,20 +53,21 @@ func assertParamStyles(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		"the shared schema is hoisted at the path item's own pointer, not a per-operation one")
 }
 
-// assertAllowEmptyValueKept covers the one serialization flag ir.HTTPParamBinding
-// has no field for. Style, explode, allowReserved and the content-style media
-// type all land on the binding above; allowEmptyValue used to be read nowhere at
+// assertAllowEmptyValueLowers covers the last serialization flag to reach
+// ir.HTTPParamBinding. Style, explode, allowReserved and the content-style media
+// type land on the binding above; allowEmptyValue used to be read nowhere at
 // all, so a document declaring it produced IR indistinguishable from one that
-// did not (GitHub #39). It is kept on the logical Parameter, which is the
-// carrier at this position with an Unmodeled map.
-func assertAllowEmptyValueKept(t *testing.T, op ir.Operation) {
+// did not (GitHub #39), and then only verbatim on the logical Parameter.
+func assertAllowEmptyValueLowers(t *testing.T, op ir.Operation) {
 	t.Helper()
 	bare, ok := openapitest.ParamBySource(op, "bare")
 	require.True(t, ok, "the allowEmptyValue parameter still lowers")
-	entry, ok := bare.Unmodeled["openapi:allowEmptyValue"]
-	require.True(t, ok, "and its declared flag is kept beside it")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t, `true`, string(entry.Value))
+	assert.NotContains(t, bare.Unmodeled, "openapi:allowEmptyValue", "and keeps nothing verbatim")
+	require.Len(t, op.Bindings.HTTP, 1)
+	for _, b := range op.Bindings.HTTP[0].ParamBindings {
+		assert.Equal(t, b.Param == bare.ID, b.AllowEmptyValue,
+			"%s: only the parameter declaring it allows an empty value", b.WireName)
+	}
 }
 
 // paramSlot is what OpenAPI identifies a parameter by: its name and location.
@@ -487,34 +488,29 @@ func assertHeaderContentSchema(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Equal(t, componentID("ReportID"), byRef.Type.Target,
 		"a $ref under content resolves to the named component, not to an anonymous copy")
 
-	assertHeaderStyleAndExplodeKept(t, headers)
+	assertHeaderStyleAndExplodeLower(t, headers)
 	assertNoErrorDiags(t, diags)
 }
 
-// assertHeaderStyleAndExplodeKept covers the header keywords ir.Property has no
-// field for. A header's explode decides whether a collection value is written as
-// one repeated field or one joined value, so dropping it left the IR unable to
-// say how the header goes on the wire — and it was dropped without a word
-// (GitHub #39). Kept verbatim, since the IR can close the gap by adding fields.
-func assertHeaderStyleAndExplodeKept(t *testing.T, headers []ir.Property) {
+// assertHeaderStyleAndExplodeLower covers the header keywords that say how its
+// value goes on the wire. A header's explode decides how an object value is
+// joined, so dropping it left the IR unable to say how the header serializes —
+// and it was dropped without a word (GitHub #39). They lower onto Header.Style
+// and Explode, as declared.
+func assertHeaderStyleAndExplodeLower(t *testing.T, headers []ir.Header) {
 	t.Helper()
 	list, ok := headerByWire(headers, "X-Report-List")
 	require.True(t, ok)
-
-	for key, want := range map[string]string{
-		"openapi:style":   `"simple"`,
-		"openapi:explode": `true`,
-	} {
-		entry, found := list.Unmodeled[key]
-		require.True(t, found, "%s is kept", key)
-		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-		assert.JSONEq(t, want, string(entry.Value))
-	}
+	assert.Equal(t, "simple", list.Style)
+	require.NotNil(t, list.Explode)
+	assert.True(t, *list.Explode)
+	assert.NotContains(t, list.Unmodeled, "openapi:style", "neither is kept verbatim")
+	assert.NotContains(t, list.Unmodeled, "openapi:explode")
 
 	plain, ok := headerByWire(headers, "X-Report-Schema")
 	require.True(t, ok)
-	assert.NotContains(t, plain.Unmodeled, "openapi:explode",
-		"a header that declares neither keyword records neither")
+	assert.Empty(t, plain.Style, "a header that declares neither keyword sets neither")
+	assert.Nil(t, plain.Explode)
 }
 
 // assertParamContentFields pins GitHub #611: electing a parameter's or header's

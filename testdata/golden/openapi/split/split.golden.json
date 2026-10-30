@@ -34,6 +34,13 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi",
+      "openapi@common.yaml",
+      "openapi@paths.yaml",
+      "openapi@schemas~1pet.yaml"
+    ],
     "t": [
       "anon",
       "anon@common.yaml",
@@ -199,7 +206,8 @@
                         "wireName": "limit",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -471,6 +479,9 @@
               },
               "oneWay": false,
               "idempotency": {},
+              "servers": [
+                "server/openapi@paths.yaml/paths/~1pets~1{petId}/get/servers/0"
+              ],
               "bindings": {
                 "http": [
                   {
@@ -484,7 +495,8 @@
                         "wireName": "X-Trace",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
@@ -492,7 +504,8 @@
                         "wireName": "petId",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -507,6 +520,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -898,15 +914,43 @@
       "prim": "uuid"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    },
+    "server/openapi@paths.yaml/paths/~1pets~1{petId}/get/servers/0": {
+      "id": "server/openapi@paths.yaml/paths/~1pets~1{petId}/get/servers/0",
+      "name": {
+        "hint": "https_show_pets_example_com"
+      },
+      "urlTemplate": "https://show.pets.example.com",
+      "description": {},
+      "provenance": {
+        "source": 2,
+        "pointer": "/paths/~1pets~1{petId}/get/servers/0"
+      }
+    },
+    "server/openapi@paths.yaml/paths/~1pets~1{petId}/servers/0": {
+      "id": "server/openapi@paths.yaml/paths/~1pets~1{petId}/servers/0",
+      "name": {
+        "hint": "https_pets_example_com"
+      },
+      "urlTemplate": "https://pets.example.com",
+      "description": {},
+      "provenance": {
+        "source": 2,
+        "pointer": "/paths/~1pets~1{petId}/servers/0"
+      }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.1",
@@ -921,7 +965,7 @@
     {
       "format": "openapi@3.1",
       "path": "split/paths.yaml",
-      "hash": "c67807ab32d73b7fd5843167a73930f9d3aadc409b1bc256fb3bf0166738dd9a"
+      "hash": "d0c5108d1ab2c1efd2036ae62cb22da253269af8a4442e1dea9ec451280705af"
     },
     {
       "format": "openapi@3.1",

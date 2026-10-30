@@ -44,8 +44,8 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, medi
 		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, part, encMap, mediaPtr)
 		diags = append(diags, partDiags...)
 		// Kept whether or not the part's encoding ends up empty: an entry declaring
-		// only allowReserved or only x-* lowers to an empty PartEncoding that is left
-		// out of the map, and what it did declare would go with it.
+		// only x-* lowers to an empty PartEncoding that is left out of the map, and
+		// what it did declare would go with it.
 		unmodeled = annotation.MergeUnmodeled(unmodeled, partUnmodeled)
 		keys.parts = append(keys.parts, keyedPart{name: part.name, encoding: pe})
 	}
@@ -431,8 +431,10 @@ func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], 
 }
 
 // partEncodingEmpty reports whether a PartEncoding carries no information and can
-// be omitted from the encoding map.
+// be omitted from the encoding map. It names every field, which
+// TestPartEncodingEmpty_ReadsEveryField holds it to: one it skipped would drop
+// a part declaring nothing else.
 func partEncodingEmpty(pe ir.PartEncoding) bool {
 	return len(pe.ContentTypes) == 0 && len(pe.Headers) == 0 &&
-		!pe.Multi && !pe.Filename && pe.Style == "" && pe.Explode == nil
+		!pe.Multi && !pe.Filename && pe.Style == "" && pe.Explode == nil && !pe.AllowReserved
 }

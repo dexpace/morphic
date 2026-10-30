@@ -264,13 +264,13 @@ func propByWire(m *ir.Model, wire string) (ir.Property, bool) {
 }
 
 // headerByWire returns the response header with the given wire name.
-func headerByWire(headers []ir.Property, wire string) (ir.Property, bool) {
+func headerByWire(headers []ir.Header, wire string) (ir.Header, bool) {
 	for _, h := range headers {
 		if h.WireName == wire {
 			return h, true
 		}
 	}
-	return ir.Property{}, false
+	return ir.Header{}, false
 }
 
 // firstContent returns an operation's single success-response content.

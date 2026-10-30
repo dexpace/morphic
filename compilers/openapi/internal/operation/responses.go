@@ -148,7 +148,7 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, r *soa.Response, code stri
 type responseParts struct {
 	name      ir.Naming
 	payload   *ir.Payload
-	headers   []ir.Property
+	headers   []ir.Header
 	docs      ir.Docs
 	unmodeled ir.Unmodeled
 }

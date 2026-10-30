@@ -12,8 +12,8 @@ import (
 // dangling reference at the referring site, not as the missing declaration.
 //
 // Nothing else reaches these nodes. The registry checks read a type, scheme,
-// channel or message by its key, but an Operation, OperationGroup, Service or
-// Property has none, and ir.IDDeclarations drops an empty ID before
+// server, channel or message by its key, but an Operation, OperationGroup,
+// Service or Property has none, and ir.IDDeclarations drops an empty ID before
 // checkDuplicateIDs sees it (GitHub #289). Classes with a registry are skipped.
 func checkDeclaredIDs(*ir.Document) walkCheck {
 	keyed := ir.KeyedClasses()

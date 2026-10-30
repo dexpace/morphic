@@ -25,6 +25,10 @@
     "s": [
       "openapi"
     ],
+    "server": [
+      "default",
+      "openapi"
+    ],
     "t": [
       "anon",
       "composed",
@@ -121,16 +125,6 @@
                   },
                   "required": false,
                   "docs": {},
-                  "unmodeled": {
-                    "openapi:allowEmptyValue": {
-                      "reason": "no_ir_home",
-                      "value": true,
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1search/get/parameters/3/allowEmptyValue"
-                      }
-                    }
-                  },
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1search/get/parameters/3"
@@ -204,7 +198,8 @@
                         "wireName": "q",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1search/get/parameters/filter/query",
@@ -212,7 +207,8 @@
                         "wireName": "filter",
                         "style": "deepObject",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1search/get/parameters/path/query",
@@ -220,7 +216,8 @@
                         "wireName": "path",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": true
+                        "allowReserved": true,
+                        "allowEmptyValue": false
                       },
                       {
                         "param": "param/openapi/paths/~1search/get/parameters/bare/query",
@@ -228,7 +225,8 @@
                         "wireName": "bare",
                         "style": "form",
                         "explode": true,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": true
                       },
                       {
                         "param": "param/openapi/paths/~1search/get/parameters/payload/query",
@@ -237,6 +235,7 @@
                         "style": "form",
                         "explode": true,
                         "allowReserved": false,
+                        "allowEmptyValue": false,
                         "contentType": "application/json"
                       },
                       {
@@ -245,7 +244,8 @@
                         "wireName": "requestId",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -317,7 +317,8 @@
                         "wireName": "requestId",
                         "style": "simple",
                         "explode": false,
-                        "allowReserved": false
+                        "allowReserved": false,
+                        "allowEmptyValue": false
                       }
                     ],
                     "checksumRequired": false,
@@ -332,6 +333,9 @@
             }
           ]
         }
+      ],
+      "servers": [
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -429,31 +433,24 @@
       "prim": "string"
     }
   },
-  "servers": [
-    {
+  "servers": {
+    "server/default": {
+      "id": "server/default",
       "name": {
         "hint": "server"
       },
       "urlTemplate": "/",
-      "description": {}
-    }
-  ],
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "parameter allowEmptyValue has no ir.HTTPParamBinding home; kept verbatim under Unmodeled",
+      "description": {},
       "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1search/get/parameters/3/allowEmptyValue"
+        "source": 0
       }
     }
-  ],
+  },
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "param-styles.yaml",
-      "hash": "d755ab33399018c9636fce7ec5cf4a807be8f9eb5b14ad2406d014261c7e6d46"
+      "hash": "25f72fd7e04f3bcf22463c97360193071c3954d42f5807704f6e99fa7f783b32"
     }
   ]
 }

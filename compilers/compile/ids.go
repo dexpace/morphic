@@ -53,6 +53,7 @@ const (
 	groupKind      = ir.IDKindGroup
 	paramKind      = ir.IDKindParam
 	enumMemberKind = ir.IDKindEnumMember
+	serverKind     = ir.IDKindServer
 )
 
 // TypeID returns the ID of the type at path within space.
@@ -91,6 +92,11 @@ func ParamID(space Space, path string) ir.ParamID {
 // EnumMemberID returns the ID of the enum member at path within space.
 func EnumMemberID(space Space, path string) ir.EnumMemberID {
 	return ir.EnumMemberID(idFor(enumMemberKind, space, path))
+}
+
+// ServerID returns the ID of the server at path within space.
+func ServerID(space Space, path string) ir.ServerID {
+	return ir.ServerID(idFor(serverKind, space, path))
 }
 
 // idFor joins a kind prefix, a space and a path with single separators.

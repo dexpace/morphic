@@ -125,6 +125,12 @@ type HTTPParamBinding struct {
 	Explode *bool `json:"explode,omitzero"`
 	// AllowReserved permits reserved characters unescaped in the value.
 	AllowReserved bool `json:"allowReserved"`
+	// AllowEmptyValue permits the client to send the parameter with an empty
+	// value in place of omitting it, which the server reads as the parameter
+	// unused (OpenAPI and Swagger allowEmptyValue). Under a Style that cannot
+	// write an empty value — spaceDelimited, pipeDelimited, deepObject — it has
+	// no effect.
+	AllowEmptyValue bool `json:"allowEmptyValue"`
 	// PathPattern is a multi-segment path pattern constraint for this param
 	// (gRPC transcoding {name=shelves/*/books/*}); "" = single segment. The URI
 	// template uses reserved expansion; emitters that cannot validate the pattern

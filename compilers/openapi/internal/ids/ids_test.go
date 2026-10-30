@@ -430,13 +430,14 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:      {"openapi"},
 		ir.IDKindEnumMember: {"anon", "openapi"},
+		ir.IDKindServer:     {"default", "openapi"},
 	}, ids.Namespaces().Declaration())
 }
 
 // TestNamespaces_DeclareEachOtherDocumentsSpaces pins that a compile reading
-// other documents declares, for each, the type, property and enum member
-// spaces its IDs are minted in, and no operation, parameter, security scheme
-// or service space, which the source's mounts and names alone take.
+// other documents declares, for each, the type, property, enum member and
+// server spaces its IDs are minted in, and no operation, parameter, security
+// scheme or service space, which the source's mounts and names alone take.
 func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, map[string][]string{
@@ -449,7 +450,36 @@ func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:      {"openapi"},
 		ir.IDKindEnumMember: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindServer:     {"default", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 	}, ids.Namespaces(ids.In("a.yaml"), ids.In("b/c.yaml")).Declaration())
+}
+
+// TestServer_NamedWhereDeclared pins a server's ID: the pointer of its Server
+// Object in the document declaring it, that document's qualifier included, and
+// the one server no position writes minted in a space no pointer reaches.
+func TestServer_NamedWhereDeclared(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		got  ir.ServerID
+		want ir.ServerID
+	}{
+		{name: "the document's own", got: ids.In("").Server(ids.Ptr("servers", "0")), want: "server/openapi/servers/0"},
+		{name: "a path item's", got: ids.In("").Server(ids.Ptr("paths", "/a", "servers", "1")),
+			want: "server/openapi/paths/~1a/servers/1"},
+		{name: "an operation's", got: ids.In("").Server(ids.Ptr("paths", "/a", "get", "servers", "0")),
+			want: "server/openapi/paths/~1a/get/servers/0"},
+		{name: "another document's", got: ids.In("b/c.yaml").Server(ids.Ptr("paths", "/a", "servers", "0")),
+			want: "server/openapi@b~1c.yaml/paths/~1a/servers/0"},
+		{name: "the default", got: ids.DefaultServer(), want: "server/default"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.want, tc.got)
+			assert.True(t, ir.WellFormedID(ir.IDKindServer, string(tc.got)), "%q must be a well-formed server ID", tc.got)
+		})
+	}
 }
 
 // TestParam_ScopesByOperationNameAndLocation pins the spelling of a parameter ID

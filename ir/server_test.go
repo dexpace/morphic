@@ -10,16 +10,17 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestServer_JSONContract pins that Name and Description carry no omitempty
-// (every server has both), and Auth carries omitzero rather than omitempty
-// because an empty non-nil slice ("explicitly public") must stay
-// distinguishable from nil ("no server-scoped override") — the same
+// TestServer_JSONContract pins that Name, Description and Provenance carry no
+// omitempty (every server has all three), and Auth carries omitzero rather
+// than omitempty because an empty non-nil slice ("explicitly public") must
+// stay distinguishable from nil ("no server-scoped override") — the same
 // reasoning as Operation.Auth and Service.Auth — so a nil Auth omits the key
 // entirely rather than writing null. It also pins that a fully populated
 // Server round-trips.
 func TestServer_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.Server{}, `{"name":{},"description":{}}`, ir.Server{
+	assertJSONContract(t, ir.Server{}, `{"name":{},"description":{},"provenance":{"source":0}}`, ir.Server{
+		ID:          "server/openapi/servers/0",
 		Name:        ir.Naming{Source: "production", Canonical: "production"},
 		URLTemplate: "https://{region}.example.com/v1",
 		Description: populatedDocs(),
@@ -37,7 +38,8 @@ func TestServer_JSONContract(t *testing.T) {
 			"kafka": {"groupId": ir.RawValue(`"g1"`)},
 			"amqp":  {"exchange": ir.RawValue(`"e1"`)},
 		},
-		Unmodeled: populatedUnmodeled(),
+		Unmodeled:  populatedUnmodeled(),
+		Provenance: populatedProvenance(),
 	})
 }
 

@@ -30,7 +30,7 @@ func soundDocument(n int) *ir.Document {
 		Types:    ir.TypeRegistry{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}},
 		Channels: map[ir.ChannelID]ir.Channel{},
 		Messages: map[ir.MessageID]ir.Message{},
-		Servers:  []ir.Server{{Name: ir.Naming{Source: "api"}, URLTemplate: "https://api.example.com"}},
+		Servers:  map[ir.ServerID]ir.Server{"server/x/a": {ID: "server/x/a", Name: ir.Naming{Source: "api"}, URLTemplate: "https://api.example.com"}},
 	}
 	group := ir.OperationGroup{ID: "g/x"}
 	commonErrors := make([]ir.ErrorCase, 0, n)
@@ -40,7 +40,7 @@ func soundDocument(n int) *ir.Document {
 		group.Operations = append(group.Operations, entityOperation(i, model, messages))
 		commonErrors = append(commonErrors, ir.ErrorCase{Payload: jsonPayload(model.ID)})
 	}
-	doc.Services = []ir.Service{{ID: "s/x", Servers: []int{0}, CommonErrors: commonErrors, Groups: []ir.OperationGroup{group}}}
+	doc.Services = []ir.Service{{ID: "s/x", Servers: []ir.ServerID{"server/x/a"}, CommonErrors: commonErrors, Groups: []ir.OperationGroup{group}}}
 	return doc
 }
 
@@ -75,7 +75,7 @@ func addEntityTypes(doc *ir.Document, i int) *ir.Model {
 // addEntityMessages adds entity i's channel and the messages it carries to doc,
 // and returns the channel's ID and the messages'.
 func addEntityMessages(doc *ir.Document, i int) entityMessages {
-	ch := ir.Channel{ID: ir.ChannelID(fmt.Sprintf("c/x/C%d", i)), Servers: []int{0}}
+	ch := ir.Channel{ID: ir.ChannelID(fmt.Sprintf("c/x/C%d", i)), Servers: []ir.ServerID{"server/x/a"}}
 	for j := range wide {
 		id := ir.MessageID(fmt.Sprintf("m/x/C%d/M%d", i, j))
 		doc.Messages[id] = ir.Message{ID: id, Payload: *jsonPayload("t/prim/string")}
@@ -97,6 +97,7 @@ type entityMessages struct {
 func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operation {
 	op := ir.Operation{
 		ID:        ir.OpID(fmt.Sprintf("op/x/O%d", i)),
+		Servers:   []ir.ServerID{"server/x/a"},
 		Request:   multipartBody(model),
 		Responses: []ir.Response{{Payload: jsonPayload(model.ID)}},
 		Errors:    []ir.ErrorCase{{Payload: jsonPayload(model.ID)}},

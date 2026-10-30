@@ -67,9 +67,9 @@ func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool
 }
 
 // diffOrderInvariants compares what a declaration-order permutation must leave
-// untouched: the type registry and the diagnostics.
+// untouched: the type and server registries and the diagnostics.
 //
-// The registry is ID-keyed, so a permutation alone leaves it unchanged, while
+// A registry is ID-keyed, so a permutation leaves it unchanged, while
 // every interning collision shows up as a difference in it: a node minted at
 // the wrong pointer, a hint kept from whichever lowering arrived first, a body
 // that lost what a second declaration wrote. Operations, responses and content
@@ -84,6 +84,9 @@ func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic
 	}
 	if d := cmp.Diff(first.Types, second.Types, sourceOrderedCollections()...); d != "" {
 		return "type registry depends on declaration order (-as-written +reversed):\n" + d, false
+	}
+	if d := cmp.Diff(first.Servers, second.Servers, sourceOrderedCollections()...); d != "" {
+		return "server registry depends on declaration order (-as-written +reversed):\n" + d, false
 	}
 	if d := cmp.Diff(diagnosticSet(first.Diagnostics), diagnosticSet(secondDiags)); d != "" {
 		return "diagnostics depend on declaration order (-as-written +reversed):\n" + d, false
@@ -130,6 +133,7 @@ func sourceOrderedCollections() []cmp.Option {
 		cmpopts.SortSlices(func(a, b ir.Property) bool { return a.ID < b.ID }),
 		cmpopts.SortSlices(func(a, b ir.PatternProps) bool { return a.Pattern < b.Pattern }),
 		cmpopts.SortSlices(func(a, b ir.Field) bool { return a.Name < b.Name }),
+		cmpopts.SortSlices(func(a, b ir.ServerVariable) bool { return a.Name < b.Name }),
 	}
 	return []cmp.Option{keyed, cmp.Comparer(func(a, b []ir.Example) bool { return sameExamples(a, b, keyed) })}
 }

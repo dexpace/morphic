@@ -169,9 +169,10 @@ actions:
 			}
 			assert.Equal(t, tc.want, got, "each repeat, in order, credited to its writer: %+v", diags)
 
-			names := make([]string, 0, len(doc.Servers))
-			for _, s := range doc.Servers {
-				names = append(names, s.Name.Source)
+			require.Len(t, doc.Services, 1)
+			names := make([]string, 0, len(doc.Services[0].Servers))
+			for _, id := range doc.Services[0].Servers {
+				names = append(names, doc.Servers[id].Name.Source)
 			}
 			assert.Equal(t, tc.names, names, "every server lowered, each with the name the document wrote")
 		})
@@ -933,7 +934,6 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		{"server unknown key (servers.go lowerServer)", "openapi:srvBogus", 1},
 		{"server variable extension (servers.go serverVariables)", "openapi:x-var", 1},
 		{"server variable unknown key (servers.go serverVariables)", "openapi:varBogus", 1},
-		{"unmounted path item's servers (pathitem.go applyPathServers)", "openapi:pathItem/paths/~1empty/servers", 1},
 		{"unmounted path item's own extension (pathitem.go applyPathItem)", "openapi:pathItem/paths/~1empty/x-pi", 1},
 		{"unmounted path item's undeclared key (pathitem.go applyPathItem)", "openapi:pathItem/paths/~1empty/piBogus", 1},
 	} {
@@ -994,18 +994,18 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 		}
 	})
 
-	t.Run("both diagnostics an unmounted path item draws name the overlay", func(t *testing.T) {
+	t.Run("an unmounted path item's finding and its servers name the overlay", func(t *testing.T) {
 		// Before the fix, onNearestNode stamped the mount point's carrier
 		// with the raw source index while the diagnostic beside it, built
 		// through the lowering context, correctly named the overlay — so
-		// the servers-kept note and the no-operation warning disagreed
-		// about which document drew an entirely overlay-introduced path
-		// item.
+		// what the item kept and the no-operation warning disagreed about
+		// which document drew an entirely overlay-introduced path item.
 		unmounted := byCodeAndPointer[diagKey{diag.DegradedConstruct, "/paths/~1empty"}]
-		require.Len(t, unmounted, 2)
-		for _, d := range unmounted {
-			assert.Equal(t, 1, d.Provenance.Source, "%s", d.Message)
-		}
+		require.Len(t, unmounted, 1)
+		assert.Equal(t, 1, unmounted[0].Provenance.Source, "%s", unmounted[0].Message)
+		server, ok := doc.Servers["server/openapi/paths/~1empty/servers/0"]
+		require.True(t, ok, "the item's servers are registered (servers.go Declared)")
+		assert.Equal(t, 1, server.Provenance.Source, "and credited to the overlay that wrote them")
 	})
 }
 

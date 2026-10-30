@@ -22,7 +22,7 @@ func idsDoc() *ir.Document {
 			"t/m": &ir.Model{ID: "t/m", Properties: []ir.Property{{ID: "p/a"}, {ID: "p/b"}}},
 			"t/e": &ir.Enum{ID: "t/e", Members: []ir.EnumMember{{ID: "e/a"}}},
 		},
-		Services: []ir.Service{{ID: "s/a", CommonErrors: []ir.ErrorCase{{Headers: []ir.Property{{ID: "p/h"}}}},
+		Services: []ir.Service{{ID: "s/a", CommonErrors: []ir.ErrorCase{{Headers: []ir.Header{{Property: ir.Property{ID: "p/h"}}}}},
 			Groups: []ir.OperationGroup{{ID: "g/a", Resource: &ir.ResourceInfo{Properties: []ir.Property{{ID: "p/r"}}},
 				Operations: []ir.Operation{{ID: "o/a", Params: []ir.Parameter{{ID: "q/a"}}}}}}}},
 	}
@@ -189,8 +189,8 @@ func TestEditor_ChecksIDsWhereverTheyNestAndOnlyThere(t *testing.T) {
 	doc := idsDoc()
 	op := &doc.Services[0].Groups[0].Operations[0]
 	op.Request = &ir.Payload{Contents: []ir.Content{{
-		ItemEncoding: &ir.PartEncoding{Headers: []ir.Property{{ID: "p/i", Args: []ir.Parameter{{ID: "q/i"}}}}},
-		Encoding:     map[ir.PropID]ir.PartEncoding{"p/part": {Headers: []ir.Property{{ID: "p/e"}}}},
+		ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{Property: ir.Property{ID: "p/i", Args: []ir.Parameter{{ID: "q/i"}}}}}},
+		Encoding:     map[ir.PropID]ir.PartEncoding{"p/part": {Headers: []ir.Header{{Property: ir.Property{ID: "p/e"}}}}},
 	}}}
 
 	e := ir.NewEditor(doc)
@@ -200,7 +200,7 @@ func TestEditor_ChecksIDsWhereverTheyNestAndOnlyThere(t *testing.T) {
 	})
 	e.UpdateOperation("o/a", func(op *ir.Operation) {
 		part := op.Request.Contents[0].Encoding["p/part"]
-		part.Headers = append(part.Headers, ir.Property{ID: "p/minted"})
+		part.Headers = append(part.Headers, ir.Header{Property: ir.Property{ID: "p/minted"}})
 		op.Request.Contents[0].Encoding["p/part"] = part
 	})
 	e.UpdateOperation("o/a", func(op *ir.Operation) {
