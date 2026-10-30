@@ -177,15 +177,19 @@ class LintTest(unittest.TestCase):
         named = ("See `internal/runtime/maps`, prose internal/runtime/maps/map.go,\n"
                  "`$GOROOT/src/internal/runtime/maps/map.go`, `cmd/compile/internal/walk/range.go`"
                  "\nand `sed -n 1p $(go env GOROOT)/src/internal/runtime/maps/map.go` in "
-                 "`$GOROOT/src`.\n")
+                 "`$GOROOT/src`,\n"
+                 "quoted `cat \"$(go env GOROOT)\"/src/internal/runtime/maps/map.go` or "
+                 "`ls 'internal/runtime/maps'`.\n")
         lost = ("Not `internal/runtime/gone`, `$GOROOT/src/internal/gone.go`, "
-                "`internal/../../secret.txt`\nor `cat $(go env GOROOT)/src/gone.go`.\n")
+                "`internal/../../secret.txt`\nor `cat $(go env GOROOT)/src/gone.go` or "
+                "`cat \"$GOROOT\"/src/lost.go`.\n")
         write(self.root, skill, GOOD_SKILL + named + lost)
         n = GOOD_SKILL.count("\n") + 1
-        gone = [f"{skill}:{n + 3}: internal/runtime/gone does not exist",
-                f"{skill}:{n + 3}: $GOROOT/src/internal/gone.go does not exist",
-                f"{skill}:{n + 3}: internal/../../secret.txt does not exist",
-                f"{skill}:{n + 4}: GOROOT/src/gone.go does not exist"]
+        gone = [f"{skill}:{n + 4}: internal/runtime/gone does not exist",
+                f"{skill}:{n + 4}: $GOROOT/src/internal/gone.go does not exist",
+                f"{skill}:{n + 4}: internal/../../secret.txt does not exist",
+                f"{skill}:{n + 5}: GOROOT/src/gone.go does not exist",
+                f"{skill}:{n + 5}: GOROOT/src/lost.go does not exist"]
         self.assertEqual(sorted(self.lint(src)[1]), sorted(gone))
         # Where go cannot say, the toolchain's paths are held to the tree, as any other.
         held = [f"{skill}:{n}: internal/runtime/maps does not exist",
@@ -193,7 +197,9 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n + 1}: $GOROOT/src/internal/runtime/maps/map.go does not exist",
                 f"{skill}:{n + 1}: cmd/compile/internal/walk/range.go does not exist",
                 f"{skill}:{n + 2}: GOROOT/src/internal/runtime/maps/map.go does not exist",
-                f"{skill}:{n + 2}: $GOROOT/src does not exist"]
+                f"{skill}:{n + 2}: $GOROOT/src does not exist",
+                f"{skill}:{n + 3}: GOROOT/src/internal/runtime/maps/map.go does not exist",
+                f"{skill}:{n + 3}: internal/runtime/maps does not exist"]
         self.assertEqual(sorted(self.lint()[1]), sorted(held + gone))
 
     def test_a_path_git_ignores_is_held_as_no_clone_has_it(self):

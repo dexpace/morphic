@@ -99,7 +99,8 @@ ELSEWHERE = {
 # A file named without its directory, such as `sweep.py`; a suffix such as `_test.go` is none.
 BARE_FILE = re.compile(r"[A-Za-z0-9][\w.-]*\.(go|md|py|yaml|yml|json|txt)")
 # A path below the toolchain's src, as a span writes it, or as a command's word reads once
-# GO_ENV_GOROOT is folded into $GOROOT and the word's leading $ stripped.
+# GO_ENV_GOROOT is folded into $GOROOT, the word's double quotes dropped and its leading $
+# stripped.
 GOROOT_SRC = re.compile(r"^\$?GOROOT/src(?:/|$)")
 GO_ENV_GOROOT = "$(go env GOROOT)"
 
@@ -377,7 +378,9 @@ class Linter:
                     self.report(f, i, why or f"{path} holds no rule {key}")
             for command in (s for s in ANY_SPAN.findall(line) if " " in s):
                 for word in command.strip("`").replace(GO_ENV_GOROOT, "$GOROOT").split():
-                    word = word.strip("'\"$();,")
+                    # A double quote, which leaves $GOROOT to expand, is no part of the path
+                    # wherever it stands: "$(go env GOROOT)"/src/... names the toolchain's src.
+                    word = word.replace('"', "").strip("'$();,")
                     if names_a_path(word) and (why := self.missing(d, word)):
                         self.report(f, i, why)
             # Prose joins words with a slash (I/O, kept/dropped), so a path there is held only
