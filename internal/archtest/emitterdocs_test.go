@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -24,33 +25,80 @@ const (
 	emitterDocs = "docs/emitters"
 	emitterRoot = "README.md"
 	sharedTable = "refine/lowering-table.md"
+	sharedSteps = "refine/steps.md"
 	targetsDir  = "targets"
 	targetTable = "lowering.md"
+	// constructHead and stepHead each open a kind of table, as its first cell.
+	constructHead = "IR construct"
+	stepHead      = "Step"
 	// tableHeadRows are a table's header and its rule, which hold no construct.
 	tableHeadRows = 2
 )
+
+// commonDocumentList is the root's list of the documents every target has, each
+// a span of code.
+var commonDocumentList = regexp.MustCompile(`documents every target has \(([^)]*)\)`)
 
 // TestEmitterDocs_EveryTargetAnswersEveryConstruct holds each target's lowering
 // table to the shared one. One table with a column per target kept every row
 // answered by every target at a glance; divided by target, a construct added
 // for one would leave the others silent, which is the gap the rule "a missing
-// row is an IR bug" exists to surface.
+// row is an IR bug" exists to surface. A row with an empty answer answers
+// nothing.
 func TestEmitterDocs_EveryTargetAnswersEveryConstruct(t *testing.T) {
 	t.Parallel()
 	docs := filepath.Join(irtest.RepoRoot(t), filepath.FromSlash(emitterDocs))
-	shared, err := tableConstructs(filepath.Join(docs, filepath.FromSlash(sharedTable)))
+	shared, err := tableConstructs(filepath.Join(docs, filepath.FromSlash(sharedTable)), constructHead)
 	require.NoError(t, err)
 	require.NotEmpty(t, shared, "found no construct, so this proves nothing")
-	targets, err := os.ReadDir(filepath.Join(docs, targetsDir))
-	require.NoError(t, err)
-	require.NotEmpty(t, targets, "found no target, so this proves nothing")
-	for _, target := range targets {
-		answered, err := tableConstructs(filepath.Join(docs, targetsDir, target.Name(), targetTable))
+	for _, target := range emitterTargets(t, docs) {
+		answered, err := tableConstructs(filepath.Join(docs, targetsDir, target, targetTable), constructHead)
 		require.NoError(t, err)
-		for _, p := range constructProblems(target.Name(), shared, answered) {
+		for _, p := range constructProblems(target, shared, answered) {
 			t.Error(p)
 		}
 	}
+}
+
+// TestEmitterDocs_EveryTargetHoldsTheCommonDocuments holds each target to the
+// documents the root says every target has, so that list stays what a new
+// target has to answer.
+func TestEmitterDocs_EveryTargetHoldsTheCommonDocuments(t *testing.T) {
+	t.Parallel()
+	docs := filepath.Join(irtest.RepoRoot(t), filepath.FromSlash(emitterDocs))
+	common, err := commonDocuments(filepath.Join(docs, emitterRoot))
+	require.NoError(t, err)
+	require.NotEmpty(t, common, "the root lists no document, so this proves nothing")
+	for _, target := range emitterTargets(t, docs) {
+		for _, doc := range common {
+			if _, err := os.Stat(filepath.Join(docs, targetsDir, target, doc+".md")); err != nil {
+				t.Errorf("%s lacks a document every target has: %v", target, err)
+			}
+		}
+	}
+}
+
+// TestEmitterDocs_TargetStepsAreCanonical fails on a step a target's step table
+// names and the canonical list does not, so a step renamed or removed there
+// leaves no row behind. A target's table holds only the steps it spells out.
+func TestEmitterDocs_TargetStepsAreCanonical(t *testing.T) {
+	t.Parallel()
+	docs := filepath.Join(irtest.RepoRoot(t), filepath.FromSlash(emitterDocs))
+	canonical, err := tableConstructs(filepath.Join(docs, filepath.FromSlash(sharedSteps)), stepHead)
+	require.NoError(t, err)
+	require.NotEmpty(t, canonical, "found no step, so this proves nothing")
+	spelled := 0
+	for _, target := range emitterTargets(t, docs) {
+		steps, err := tableConstructs(filepath.Join(docs, targetsDir, target, targetTable), stepHead)
+		require.NoError(t, err)
+		spelled += len(steps)
+		for _, step := range steps {
+			if !slices.Contains(canonical, step) {
+				t.Errorf("%s spells out %s, which %s lists nowhere", target, step, sharedSteps)
+			}
+		}
+	}
+	require.NotZero(t, spelled, "no target spells out a step, so this proves nothing")
 }
 
 // TestEmitterDocs_RootMapsEveryDocument fails on a document under the tree that
@@ -66,47 +114,91 @@ func TestEmitterDocs_RootMapsEveryDocument(t *testing.T) {
 	}
 }
 
-// tableConstructs returns the first column of the first table of the Markdown
-// file at path, its header and rule left out and each link read as its text: a
-// citation's path differs with the depth of the file it is written in.
-func tableConstructs(path string) ([]string, error) {
+// emitterTargets returns the name of each target under docs.
+func emitterTargets(t *testing.T, docs string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(docs, targetsDir))
+	require.NoError(t, err)
+	require.NotEmpty(t, entries, "found no target, so this proves nothing")
+	targets := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		targets = append(targets, entry.Name())
+	}
+	return targets
+}
+
+// commonDocuments returns the documents the root at path says every target has,
+// each without its extension.
+func commonDocuments(path string) ([]string, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var rows []string
-	for _, line := range proseLines(string(text)) {
-		if !strings.HasPrefix(line, "|") {
-			if len(rows) > 0 {
-				break
-			}
-			continue
-		}
-		rows = append(rows, line)
+	list := commonDocumentList.FindStringSubmatch(strings.Join(proseLines(string(text)), " "))
+	if list == nil {
+		return nil, nil
 	}
+	var documents []string
+	for _, span := range codeSpan.FindAllString(list[1], -1) {
+		documents = append(documents, strings.Trim(span, "`"))
+	}
+	return documents, nil
+}
+
+// tableConstructs returns the first column of the table opening on head in the
+// Markdown file at path, its header and rule left out and each link read as its
+// text: a citation's path differs with the depth of the file it is written in.
+// A row with nothing after its first cell is left out too, as it answers
+// nothing.
+func tableConstructs(path, head string) ([]string, error) {
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	rows := tableRows(proseLines(string(text)), head)
 	if len(rows) <= tableHeadRows {
 		return nil, nil
 	}
 	constructs := make([]string, 0, len(rows)-tableHeadRows)
 	for _, row := range rows[tableHeadRows:] {
-		constructs = append(constructs, inlineLink.ReplaceAllString(firstCell(row), "$1"))
+		cell, rest := cutCell(row)
+		if strings.Trim(rest, " |") != "" {
+			constructs = append(constructs, inlineLink.ReplaceAllString(cell, "$1"))
+		}
 	}
 	return constructs, nil
 }
 
-// firstCell returns the first cell of a table row, a pipe inside a span of code
-// being no separator.
-func firstCell(row string) string {
+// tableRows returns the rows of the first table of lines opening on head, or
+// nil when none does.
+func tableRows(lines []string, head string) []string {
+	var rows []string
+	for _, line := range slices.Concat(lines, []string{""}) {
+		switch {
+		case strings.HasPrefix(line, "|"):
+			rows = append(rows, line)
+		case len(rows) > 0 && strings.HasPrefix(rows[0], "| "+head+" |"):
+			return rows
+		default:
+			rows = nil
+		}
+	}
+	return nil
+}
+
+// cutCell returns the first cell of a table row and what follows it, a pipe
+// inside a span of code being no separator.
+func cutCell(row string) (cell, rest string) {
 	inCode := false
 	for i, r := range row[1:] {
 		switch {
 		case r == '`':
 			inCode = !inCode
 		case r == '|' && !inCode:
-			return strings.TrimSpace(row[1 : i+1])
+			return strings.TrimSpace(row[1 : i+1]), row[i+2:]
 		}
 	}
-	return strings.TrimSpace(row[1:])
+	return strings.TrimSpace(row[1:]), ""
 }
 
 // constructProblems reports each construct of the shared table target's table
@@ -162,25 +254,55 @@ func unmappedDocuments(docs string) ([]string, int, error) {
 	return unmapped, mapped, err
 }
 
-// TestTableConstructs_ReadsTheFirstTable plants a target's table the way the
+// TestTableConstructs_ReadsTheNamedTable plants a target's table the way the
 // real ones are written: a prose lead, a code span holding a pipe, a citation in
-// a cell, and a second table that is no part of the answer.
-func TestTableConstructs_ReadsTheFirstTable(t *testing.T) {
+// a cell, a row with no answer, and a second table that ends the file with no
+// newline after it. Each head reads its own table alone.
+func TestTableConstructs_ReadsTheNamedTable(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "lowering.md")
 	writeDocFile(t, path, "# Table\n\nLead.\n\n| IR construct | Go |\n|---|---|\n"+
-		"| `A \\| B` union | a |\n| plain ([see](../a.md#x)) | b \\| c |\n\n## Steps\n\n| Step | Lowers |\n|---|---|\n| `S` | x |\n")
-	got, err := tableConstructs(path)
+		"| `A \\| B` union | a |\n| plain ([see](../a.md#x)) | b \\| c |\n| silent |  |\n"+
+		"\n## Steps\n\n| Step | Lowers |\n|---|---|\n| `S` | x |")
+	got, err := tableConstructs(path, constructHead)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"`A \\| B` union", "plain (see)"}, got)
-
-	empty := filepath.Join(t.TempDir(), "empty.md")
-	writeDocFile(t, empty, "# No table\n\n| only | a header |\n|---|---|\n")
-	got, err = tableConstructs(empty)
+	got, err = tableConstructs(path, stepHead)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"`S`"}, got)
+	got, err = tableConstructs(path, "absent")
 	require.NoError(t, err)
 	assert.Empty(t, got)
 
-	_, err = tableConstructs(filepath.Join(t.TempDir(), "absent.md"))
+	empty := filepath.Join(t.TempDir(), "empty.md")
+	writeDocFile(t, empty, "# No table\n\n| IR construct | a header |\n|---|---|\n")
+	got, err = tableConstructs(empty, constructHead)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+
+	_, err = tableConstructs(filepath.Join(t.TempDir(), "absent.md"), constructHead)
+	require.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+// TestCommonDocuments_ReadsTheRootsList plants the root's list wrapped across
+// lines, a copy of its words in a fenced block, and a root that has none.
+func TestCommonDocuments_ReadsTheRootsList(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "README.md")
+	writeDocFile(t, path, "```\nthe documents every target has (`fenced`)\n```\n\n"+
+		"Each holds the documents every target has (`overview`,\n`lowering` and `errors`) and others (`not`).\n")
+	got, err := commonDocuments(path)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"overview", "lowering", "errors"}, got)
+
+	none := filepath.Join(dir, "none.md")
+	writeDocFile(t, none, "No list.\n")
+	got, err = commonDocuments(none)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+
+	_, err = commonDocuments(filepath.Join(dir, "absent.md"))
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 

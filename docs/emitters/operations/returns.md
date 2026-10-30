@@ -29,7 +29,7 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
   the few operations that declare any. So a response that declares headers adds a method, as a
   stream does ([streaming](streaming.md)). The runtime's `Response` reads as `APIError` does
   ([failures](errors.md)): `StatusCode`, `RawHeader`, `Body`, what the plain method returns, or the
-  target's empty value for `void`, and `Headers`, a struct with a field per header of the primary
+  target's empty value for `void`, and `Headers`, a type with a field per header of the primary
   response and of each entry of `Others` that reaches no `OtherResponse` ([other
   responses](../plan/responses.md#other-responses)), the primary's declaration first, or the
   target's empty value where they declare none. An `OtherResponse` holds its own headers, and they
@@ -59,14 +59,14 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
   changes for one. It holds the status, every header as it arrived, the body as it arrived up to
   `Policy.Errors`' bound, why the body did not decode, the body as its `Type` lowers and the entry's
   declared headers. It is no failure, so no fault or kind answers it and no retry reads it. Its
-  `Headers` struct is named as a failure's is ([failures](errors.md)), `CreateRule202Headers`.
+  `Headers` type is named as a failure's is ([failures](errors.md)), `CreateRule202Headers`.
 
   A zero value would not do here: Kotlin's `Rule` has none, a pager has no value to zero, and a nil
   `*Rule` beside a nil error reads as a created rule until the caller's next line dereferences it.
 - **A status the document does not list, and a body that does not decode** (`GET /zone` → `201`, or
   a `200` holding a proxy's HTML). **plan.** No field: [the
   plan](../plan/responses.md#which-entry-answers) says which entry answers. **refine.** The response
-  decoder reads a 2xx no entry answers as `Return`, so `GetZone` returns the `*Zone` a `201`
+  decoder reads a 2xx no entry answers as `Return`, so `GetZone` returns the `Zone` a `201`
   carries. A body that then does not decode, an empty one under a `value` among them, is the
   `OtherResponse` above with `BodyErr` set, never an `APIError`: the server answered and may have
   acted, so nothing retries it, and the caller still has the status and the bytes read.
@@ -77,5 +77,5 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
 - **An anonymous decorator** (`200 → {allOf: [{$ref: Zone}], description: …}`). **plan.** `Shape`
   `value`, `Type` the decorator, as the content names it, whose `TypePlan.Alias` is `Zone`
   ([decorators](../refine/decorators.md)). **refine.** `CollapseAliases` lowers the reference to
-  `Zone`, so the method returns `*Zone`; the description, which no return position holds, stays in
+  `Zone`, so the method returns `Zone`; the description, which no return position holds, stays in
   the IR for the docs emitter and is reported once ([decorators](../refine/decorators.md)).

@@ -24,7 +24,7 @@ tag-mode matrix (each a distinct serializer) is normative ([unions](../../ir/uni
 A reference to a model with a `Discriminator`, or an `Abstract` one
 ([derived-facts](../../ir/derived-facts.md)), holds any of its subtypes, so it lowers as a union of
 them, and `Discrim` routes it as a union's. The base's own shape, unless it is `Abstract`, is a
-variant too, a struct of its flattened properties.
+variant too, a declaration of its flattened properties.
 
 ## Variant identity and recognition
 

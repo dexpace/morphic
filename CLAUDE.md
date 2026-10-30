@@ -257,7 +257,8 @@ These all exist already — extend them rather than building a parallel mechanis
   the code both ways, each listed code to the rule's text, and every
   `docs/compilers/openapi.md#<key>` citation to a rule. It, `docs/parser-library.md` and each
   format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
-  repository's keyed documents, and a test a Markdown document names must exist, as must a link's file and heading (`internal/archtest`).
+  repository's keyed documents, and a test a Markdown document names must exist, as must a link's
+  file and heading (`internal/archtest`).
   `TestDocuments_LinksResolve` holds a document's links, and the citations in a Go or YAML file's
   comments and a Go string, to a file and a heading, so a section moved or renamed fails until what
   cites it follows; `skills_lint` does the same under `.claude/skills`.

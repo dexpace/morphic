@@ -72,7 +72,8 @@ answers](../plan/responses.md#which-entry-answers)):
 
 A body is buffered up to `Policy.Errors`' bound and no further, so an endless one cannot exhaust the
 caller; `RawBody` holds what was read, and a body cut there is one that does not decode. A union
-body is its struct ([unions](../refine/unions.md)), and being read it is `Open`, so a new variant in
-an error reaches the caller as one rather than as a decode failure. `Headers` holds a struct of what
-the entry declares, named by its operation and case (`GetZone429Headers`) and read as a success's
-are ([return shapes](returns.md)), so two cases sharing a body may declare different headers.
+body is the union's own type ([unions](../refine/unions.md)), and being read it is `Open`, so a new
+variant in an error reaches the caller as one rather than as a decode failure. `Headers` holds a
+value of what the entry declares, its type named by its operation and case (`GetZone429Headers`)
+and read as a success's are ([return shapes](returns.md)), so two cases sharing a body may declare
+different headers.

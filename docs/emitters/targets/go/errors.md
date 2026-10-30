@@ -56,4 +56,4 @@ case errors.Is(err, sdk.ErrClient):
 
 ## A failure's place
 
-`errors.Is` answers its kind and its fault each.
+`errors.Is` answers a failure's kind and its fault each.

@@ -10,4 +10,5 @@ of properties is split across methods, and a builder whose constructor would pas
 is a diagnostic. Since every model is built through a builder, none changes shape when a property it
 gains crosses a limit. On Multiplatform, Kotlin/Native compile time and the size of the iOS
 framework grow with every declaration the SDK exports, so the runtime's helpers are `internal`, and
-the same split, whose units are Gradle modules, bounds what one module exports.
+the [split by group](../../refine/output-units.md), whose units are Gradle modules, bounds what one
+module exports.

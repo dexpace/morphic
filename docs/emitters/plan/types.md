@@ -65,9 +65,9 @@ required on the composed model. A name `Requires` lists that no flattened proper
 `Undeclared`: a member only the catch-all governs, whose value the catch-all types —
 `AdditionalProps.Value`, or the top type where the model has no catch-all or scopes values by
 `Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
-to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when `Tags`
-is a list, is in `Unflattened` as the entry names it: the struct over `Flattened` does not hold what
-it admits, so each refiner lowers it or degrades with a code of its own.
+to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
+`Tags` is a list, is in `Unflattened` as the entry names it: the declaration over `Flattened` does
+not hold what it admits, so each refiner lowers it or degrades with a code of its own.
 
 ## ModelShape — visibility projection
 
