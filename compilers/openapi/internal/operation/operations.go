@@ -177,7 +177,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	diags = append(diags, applyOperationAnnotations(c, &op, src, decl)...)
 	// After the extensions are on the map, since that is what it reads.
 	diags = append(diags, c.PromoteDeprecation(op.Unmodeled, op.Deprecation, &op.Provenance)...)
-	// The path item's servers are named only where these name none (applyLayers),
+	// mountPathItem names the path item's servers only where these name none,
 	// since an operation's own override them.
 	own, serverDiags := w.servers.Declared(c, src.GetServers(), decl)
 	op.Servers = own

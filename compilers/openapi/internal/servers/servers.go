@@ -48,13 +48,11 @@ func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
 		return r.Declared(c, declared, "")
 	}
 	id := ids.DefaultServer()
-	if _, held := r.byID[id]; !held {
-		r.byID[id] = ir.Server{
-			ID:          id,
-			Name:        serverName(&soa.Server{URL: defaultServerURL}),
-			URLTemplate: defaultServerURL,
-			Provenance:  c.ProvenanceAt(""),
-		}
+	r.byID[id] = ir.Server{
+		ID:          id,
+		Name:        serverName(&soa.Server{URL: defaultServerURL}),
+		URLTemplate: defaultServerURL,
+		Provenance:  c.ProvenanceAt(""),
 	}
 	return []ir.ServerID{id}, nil
 }

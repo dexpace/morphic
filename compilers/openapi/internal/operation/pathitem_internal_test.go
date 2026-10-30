@@ -32,7 +32,7 @@ func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
 	summary, description := "documented", "at length"
 	op := &ir.Operation{}
 
-	diags := applyPathItemDocs(l.ctx, onOperation(op, nil),
+	diags := applyPathItemDocs(l.ctx, onOperation(op),
 		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a", owners{}.cedes(0))
 
 	assert.Nil(t, op.Unmodeled, "documentation with no raw node is not preserved")

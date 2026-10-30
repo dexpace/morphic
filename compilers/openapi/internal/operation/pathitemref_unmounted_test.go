@@ -47,6 +47,35 @@ func TestPathItemRefSiblings_UnmountedKeepsSiblings(t *testing.T) {
 		"the preservation is announced at the use site's own pointer")
 }
 
+// TestPathItemRefSiblings_UnmountedSaysEachLayerKept pins that of two layers
+// mounting no operation, each announcement says what its own layer landed: the
+// use site wrote an extension and the referent the servers, so only the
+// referent's mentions them.
+func TestPathItemRefSiblings_UnmountedSaysEachLayerKept(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    $ref: '#/paths/~1b'
+    x-beside: use
+  /b:
+    servers: [{url: https://far.example}]
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	var said []string
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && d.Provenance.Pointer == "/paths/~1a" {
+			said = append(said, strings.TrimPrefix(d.Message, "path item declares no operation this compiler lowers; "))
+		}
+	}
+	assert.ElementsMatch(t, []string{
+		"what else it writes is kept beside it, having no operation to hold it",
+		"its servers are registered, named by no operation",
+	}, said)
+}
+
 // pathItemRefUnmountedWebhookSpec mounts nothing on either side of a webhook's
 // $ref, so the use site's constructs have no operation to ride on.
 const pathItemRefUnmountedWebhookSpec = `openapi: 3.1.0

@@ -13,7 +13,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/servers"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -146,19 +145,21 @@ type mountedOp struct {
 	extra []ir.Operation
 }
 
-// mountPathItem lowers every operation a path item's layers declare, mounted
-// below mount, the one way all three routes to a path item (a path, a webhook,
-// a callback expression) lower them. Each operation is lowered from the
-// nearest layer declaring it, in that layer's context and below its
-// declaration pointer, in mountedOperations' order; it takes every layer's item
-// parameters merged into its own and what every layer keeps (applyLayers). A
-// mount lowering none keeps what its layers declare in residue instead. route
-// holds what the route sets on every operation; each brings its own method,
-// pointers and parameters.
+// mountPathItem lowers every operation the layers of one path item mount, below
+// mount, the one way a path, a webhook and a callback expression lower them.
+// Each lowers from the nearest layer declaring it, in that layer's context and
+// below its declaration pointer, in mountedOperations' order; it takes every
+// layer's item parameters merged into its own, the mount's servers where it names
+// none (itemServers), and what every layer keeps (applyLayers). A mount lowering
+// none keeps what its layers declare in residue instead. route holds what the
+// route sets on every operation; each brings its own method, pointers and
+// parameters.
 func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
 	ops := mountedOperations(layers)
 	owner, diags := precedence(layers, len(ops) > 0)
 	params := itemParams(layers)
+	named, serverDiags := itemServers(w.servers, layers, owner)
+	diags = append(diags, serverDiags...)
 	mounted := make([]mountedOp, 0, len(ops))
 	for _, lo := range ops {
 		l, po := layers[lo.layer], lo.op
@@ -168,23 +169,26 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		opCtx.params = mergeParameters(params, po.src.GetParameters(), opCtx.ptrs.decl)
 		op, extra, opDiags := lowerOperation(l.in, w, po.src, opCtx)
 		diags = append(diags, opDiags...)
-		diags = append(diags, applyLayers(layers, owner, onOperation(&op, w.servers))...)
+		if len(op.Servers) == 0 {
+			op.Servers = slices.Clone(named)
+		}
+		diags = append(diags, applyLayers(layers, owner, onOperation(&op))...)
 		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
 	}
 	if len(mounted) > 0 {
 		return mounted, diags
 	}
 	for i, l := range layers {
-		diags = append(diags, preserveUnmountedPathItem(l.in, onNearestNode(l.in, residue, mount, w.servers), l.item,
-			mount, l.decl, owner.cedes(i))...)
+		diags = append(diags, preserveUnmountedPathItem(l.in, onNearestNode(l.in, residue, mount), l.item,
+			mount, l.decl, owner.cedes(i), named)...)
 	}
 	return nil, diags
 }
 
-// applyPathItem lowers what a path item declares for every operation it
-// mounts: its servers, named where the operation names none, and its
-// documentation, x-* extensions and undeclared keys, kept on each, less what
-// cedes says a nearer layer keeps.
+// applyPathItem keeps what a path item declares that its operations have no
+// home for: its documentation, x-* extensions and undeclared keys, each written
+// onto every operation the item declares, less what cedes says a nearer layer
+// of the mount keeps.
 //
 // They share one entry point because every route that lowers a path item (a
 // path, a webhook, a callback expression) must reach each, and a second call
@@ -193,8 +197,7 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 // GetUnknownProperties is empty for this object.
 func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer, cedes func(string) bool,
 ) []ir.Diagnostic {
-	diags := applyPathServers(c, into, pi, declPtr, cedes)
-	diags = append(diags, applyPathItemDocs(c, into, pi, declPtr, cedes)...)
+	diags := applyPathItemDocs(c, into, pi, declPtr, cedes)
 	ext, extDiags := annotation.ExtensionsUnder(keptExtensions(pi.GetExtensions(), cedes), c.ProvenanceAt, declPtr, into.scope)
 	*into.unmodeled = annotation.MergeUnmodeled(*into.unmodeled, ext)
 	diags = append(diags, extDiags...)
@@ -202,11 +205,11 @@ func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsont
 		pi.GetRootNode(), c.ProvenanceAt, declPtr, into.scope)...)
 }
 
-// carrier is where a path item's own declarations go, and under what key scope.
-// A path item lowers to no node of its own, so they are held by each operation
-// it produced or, for an item that produced none, by the nearest node holding
-// an Unmodeled map (see onNearestNode), usually the service, where the Paths
-// Object's own extensions already go.
+// carrier is where a path item's own declarations are kept, and under what key
+// scope. A path item lowers to no node of its own, so they are held by each
+// operation it produced or, for an item that produced none, by the nearest node
+// holding an Unmodeled map (see onNearestNode), usually the service, where the
+// Paths Object's own extensions already go.
 //
 // scope carries the item's own pointer in the second case, because one service
 // holds every such item and a bare "pathItem" prefix would make two collide on
@@ -217,12 +220,6 @@ type carrier struct {
 	// scope prefixes the keys built from a keyword name, as the extension and
 	// undeclared-key writers do.
 	scope string
-	// registry is where the item's servers are registered, and named names them
-	// unless it already names servers, as an operation does whose own override
-	// the item's. For an item that produced no operation it is a list only its
-	// caller reads, so it can tell whether the item registered any.
-	registry *servers.Registry
-	named    *[]ir.ServerID
 	// keepsDocs says whether the item's summary and description have a home here.
 	// Only an operation does: pathItemDocFields keys them by bare keyword, which
 	// two items on one service would collide on, and what a path item's
@@ -232,15 +229,12 @@ type carrier struct {
 	keepsDocs bool
 }
 
-// onOperation carries a path item's declarations on an operation it produced,
-// registering its servers in reg.
-func onOperation(op *ir.Operation, reg *servers.Registry) carrier {
+// onOperation carries a path item's declarations on an operation it produced.
+func onOperation(op *ir.Operation) carrier {
 	return carrier{
 		unmodeled:  &op.Unmodeled,
 		provenance: withoutInferred(op.Provenance),
 		scope:      "pathItem",
-		registry:   reg,
-		named:      &op.Servers,
 		keepsDocs:  true,
 	}
 }
@@ -253,14 +247,12 @@ func onOperation(op *ir.Operation, reg *servers.Registry) carrier {
 // mountPtr is the item's own mount pointer, and keys it apart from every other
 // item kept on that node. It is the provenance too: one node holds every such
 // item, so the node's own pointer would name none of them and two items would
-// produce one indistinguishable finding. Its servers go into reg.
-func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer, reg *servers.Registry) carrier {
+// produce one indistinguishable finding.
+func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer) carrier {
 	return carrier{
 		unmodeled:  u,
 		provenance: c.ProvenanceAt(mountPtr),
 		scope:      "pathItem" + string(mountPtr),
-		registry:   reg,
-		named:      new([]ir.ServerID),
 	}
 }
 
@@ -269,20 +261,20 @@ func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer, r
 // needs to know why.
 //
 // It keeps what applyPathItem keeps on a carrier holding no docs; the summary
-// and description are dropped (GitHub #383). Its servers are registered, named
-// by no scope.
+// and description are dropped (GitHub #383). named is what itemServers
+// registered for the mount, which no scope goes on to name.
 //
 // The announcement follows what landed, not what the item wrote: a construct
 // merged in from past nodeview.MergeDepthLimit is read by the model and not by
 // nodeview.Child, so a model predicate would claim a preservation that did not
 // happen.
 func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
-	cedes func(string) bool,
+	cedes func(string) bool, named []ir.ServerID,
 ) []ir.Diagnostic {
 	before := len(*into.unmodeled)
 	diags := applyPathItem(c, into, pi, declPtr, cedes)
 	var landed []string
-	if len(*into.named) > 0 {
+	if len(named) > 0 && !cedes(constructOf(constructServers, "")) {
 		landed = append(landed, "its servers are registered, named by no operation")
 	}
 	if len(*into.unmodeled) > before {
@@ -400,26 +392,4 @@ func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr j
 	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, into.provenance,
 		"path-item documentation kept under Unmodeled; it documents the path rather than this "+
 			"operation, and ir.Docs holds the operation's own summary and description"))
-}
-
-// applyPathServers registers a path item's servers and names them on the
-// carrier, unless it already names some: an operation's own servers override
-// its path item's, and lowerOperation names those first (ir-design §10). The
-// item's are registered either way, so a list every operation overrides is
-// still in the document, named by none.
-//
-// A list a nearer layer of the mount overrides is neither, as with every
-// construct the layers both declare
-// (docs/compilers/openapi.md#path-item-ref-fields).
-func applyPathServers(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
-	cedes func(string) bool,
-) []ir.Diagnostic {
-	if cedes(constructOf(constructServers, "")) {
-		return nil
-	}
-	declared, diags := into.registry.Declared(c, pi.GetServers(), declPtr)
-	if len(*into.named) == 0 {
-		*into.named = declared
-	}
-	return diags
 }

@@ -688,6 +688,42 @@ func TestOperations_ServersEachLevelAlone(t *testing.T) {
 		"and the service is served at the root OpenAPI supplies for a document declaring none")
 }
 
+// TestOperations_PathItemServersAreEachOperationsOwn pins that the operations of
+// one path item hold a list each, so a pass changing one's leaves the others'.
+func TestOperations_PathItemServersAreEachOperationsOwn(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    servers: [{url: 'https://x.example'}]
+    get: {operationId: getX, responses: {"200": {description: ok}}}
+    put: {operationId: putX, responses: {"200": {description: ok}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	get, put := openapitest.FindOp(t, doc, "getX"), openapitest.FindOp(t, doc, "putX")
+	require.Equal(t, []ir.ServerID{"server/openapi/paths/~1x/servers/0"}, put.Servers)
+	require.Equal(t, put.Servers, get.Servers, "both name the one declaration")
+
+	get.Servers[0] = "server/elsewhere"
+	assert.Equal(t, ir.ServerID("server/openapi/paths/~1x/servers/0"), put.Servers[0])
+}
+
+// TestOperations_OwnServerKeepsAndReportsAnUndeclaredKey pins that what an
+// operation's own Server Object writes outside the object lands on the server,
+// and is reported at the key, as a document's server's is.
+func TestOperations_OwnServerKeepsAndReportsAnUndeclaredKey(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      servers: [{url: 'https://x.example', stray: 1}]
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	const own = ir.ServerID("server/openapi/paths/~1x/get/servers/0")
+	assert.Contains(t, doc.Servers[own].Unmodeled, "openapi:stray")
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnknownObjectKey, "/paths/~1x/get/servers/0/stray"))
+}
+
 // TestOperations_OwnServersSurviveBesideExtensions pins that an operation's own
 // servers and its extensions both land when one operation declares both: the
 // servers on Servers, the extension in Unmodeled, neither written over.
