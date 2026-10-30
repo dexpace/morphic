@@ -38,10 +38,11 @@ git diff origin/main...HEAD | grep '^+' | grep -niE "$pat"
 python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py
 ```
 
-Run `git push` only once each line printed nothing, bar the lint's clean line. The subject check
-prints each commit subject, and the title as the squash lands it, that runs past 72 characters,
-breaks the form or ends in a period; `git status` is empty because the push carries HEAD; each
-artifact hit is a line to judge.
+Push separately once every hit is fixed or justified
+(`references/commits-and-prs.md#gate-by-exit-status`). The subject check prints each commit
+subject, and the title as the squash lands it, that runs past 72 characters, breaks the form or
+ends in a period; `git status` is empty because the push carries HEAD; each artifact hit is a line
+to judge.
 Grep the PR's own text the same way (`gh pr view N --json title,body --jq '.title, .body'`). The
 lint exits 1 on a name a skill uses that this branch leaves naming nothing.
 
