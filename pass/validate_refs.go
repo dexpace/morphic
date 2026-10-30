@@ -50,11 +50,9 @@ func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 // a token parser, and a false positive in prose is noisier than a missing
 // check.
 func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for _, ref := range byLocation(props.sites) {
-		if refs.Declares(propIDType, ref.ID) {
-			continue
-		}
+	dangling := byLocation(props.dangling(refs))
+	diags := make([]ir.Diagnostic, 0, len(dangling))
+	for _, ref := range dangling {
 		diags = append(diags, diag(ir.SeverityError, "ir/dangling-prop-ref",
 			fmt.Sprintf("prop reference %q at %s resolves to no property declared in the document", ref.ID, ref.Path),
 			ref.Path))
@@ -84,9 +82,9 @@ func byLocation(sites []ir.IDReference) []ir.IDReference {
 var propIDType = reflect.TypeFor[ir.PropID]()
 
 // propIDSites gathers, as an ir.Visitor, the ir.PropID references a walk
-// reaches that may not resolve. One naming a property refs has already read,
-// the property's own ID among them, resolves, so it is not kept and its path
-// never rendered.
+// reaches that may not resolve, each with its path kept unspelled. One naming
+// a property refs has already read, the property's own ID among them,
+// resolves, so it is not kept.
 //
 // A PropID reached as a map key is left out. The one PropID-keyed map the IR
 // declares is Content.Encoding, and checkEncodingKeys resolves those keys
@@ -96,19 +94,35 @@ var propIDType = reflect.TypeFor[ir.PropID]()
 type propIDSites struct {
 	refs  *ir.IDReferences
 	sites []ir.IDReference
+	paths ir.PathLog
 }
 
 // Visit keeps v if it is a PropID reference that may not resolve.
 func (p *propIDSites) Visit(v reflect.Value, at ir.WalkPath) bool {
-	if v.Kind() != reflect.String || v.Type() != propIDType || v.String() == "" {
+	if v.Kind() != reflect.String || v.Type() != propIDType || v.String() == "" || at.IsMapKey() {
 		return true
 	}
 	if p.refs.Declares(propIDType, v.String()) {
 		return true
 	}
-	where := at.String()
-	if !strings.HasSuffix(where, ir.MapKeySuffix) {
-		p.sites = append(p.sites, ir.IDReference{Class: propIDType, ID: v.String(), Path: where})
-	}
+	p.sites = append(p.sites, ir.IDReference{Class: propIDType, ID: v.String()})
+	p.paths.Record(at)
 	return true
+}
+
+// dangling returns, in walk order, the references p kept that name no
+// property refs declares now the walk is over, each with its path. Only these
+// have their paths spelled.
+func (p *propIDSites) dangling(refs *ir.IDReferences) []ir.IDReference {
+	if !slices.ContainsFunc(p.sites, func(s ir.IDReference) bool { return !refs.Declares(propIDType, s.ID) }) {
+		return nil
+	}
+	var out []ir.IDReference
+	for i, at := range p.paths.All() {
+		if s := p.sites[i]; !refs.Declares(propIDType, s.ID) {
+			s.Path = at.String()
+			out = append(out, s)
+		}
+	}
+	return out
 }

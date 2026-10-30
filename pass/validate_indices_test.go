@@ -73,3 +73,17 @@ func TestValidate_ResponseIndexDiagnosticsAreDeterministic(t *testing.T) {
 		assert.Equal(t, want, pointers(withCode(validated(t, doc), "ir/response-index-out-of-range")))
 	}
 }
+
+// TestValidate_ResponseIndexOutOfRangeIsPlacedAtItsBinding pins that an index
+// out of range is reported at the binding holding it, the second here, after a
+// first whose index is in range.
+func TestValidate_ResponseIndexOutOfRangeIsPlacedAtItsBinding(t *testing.T) {
+	t.Parallel()
+	doc := opWithSuccessStatus(map[int]int{0: 200})
+	op := firstOp(doc)
+	op.Bindings.HTTP = append(op.Bindings.HTTP,
+		ir.HTTPBinding{Method: "POST", URITemplate: "/x", SuccessStatus: map[int]int{1: 202}})
+
+	assert.Equal(t, []string{"op/bindings/http/1/successStatus/1"},
+		pointers(withCode(validated(t, doc), "ir/response-index-out-of-range")))
+}

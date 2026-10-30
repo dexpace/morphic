@@ -1,10 +1,13 @@
 package irverify_test // external test package — importing across layers is legal in tests
 
 import (
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/internal/harness"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
@@ -69,6 +73,89 @@ func TestVerify_Corpus(t *testing.T) {
 			assert.Empty(t, irverify.Verify(doc), "%s", f)
 		})
 	}
+}
+
+// TestWalkChecks_ACleanValueCostsNothing holds what Verify's walk carries, the
+// declarations and every walking check, together, to costing nothing for a
+// value none reports on, in a compiled document. extensions-x.yaml writes an
+// extension on every object OpenAPI admits one on, so its document reaches
+// nearly every node a compile produces, and holds none of the costs Verify's
+// doc excepts. It is not run in parallel: AllocsPerRun measures the process.
+func TestWalkChecks_ACleanValueCostsNothing(t *testing.T) {
+	data, err := os.ReadFile("../../testdata/conformance/openapi/extensions-x.yaml")
+	require.NoError(t, err)
+	doc := compile(t, "extensions-x.yaml", data)
+	require.NotNil(t, doc)
+	require.Empty(t, irverify.Verify(doc), "the document is clean, or what is measured is a report")
+
+	assert.Empty(t, irtest.AllocatingVisits(doc, irverify.WalkVisitors(doc)...))
+}
+
+// TestVerify_ACleanComponentCostsNothing holds all Verify does to costing
+// nothing for a value it finds clean, including what irtest.AllocatingVisits
+// never measures: a check's first meeting with a value, and its report once
+// the walk is over. A check keeping a path per PropID it meets, or spelling
+// every declaration's path to report a few, passes the test above. Twice the
+// components must cost less than one allocation more per component added, the
+// walk's growth aside; a map or a log a check keeps grows in steps. It is not
+// run in parallel: AllocsPerRun measures the process.
+func TestVerify_ACleanComponentCostsNothing(t *testing.T) {
+	const components = 100
+	few, many := scaledDocument(t, components), scaledDocument(t, 2*components)
+
+	added := verifyingAllocs(many) - verifyingAllocs(few)
+	assert.Less(t, added, float64(components), "%v allocations more for %d components more", added, components)
+}
+
+// scaledDocument compiles a spec of n components, each an operation and the
+// schema it returns, which reach every walking check, and requires the
+// document to be clean.
+func scaledDocument(t *testing.T, n int) *ir.Document {
+	t.Helper()
+	var spec strings.Builder
+	spec.WriteString("openapi: 3.1.0\ninfo: {title: scaled, version: '1'}\npaths:\n")
+	for i := range n {
+		fmt.Fprintf(&spec, `  /pets%[1]d/{id}:
+    get:
+      operationId: getPet%[1]d
+      tags: [pets%[1]d]
+      x-kept: {a: [1, b]}
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+        - {name: q, in: query, schema: {type: integer, minimum: 1, maximum: 2.5e3}}
+      responses:
+        '200': {description: ok, content: {application/json: {schema: {$ref: '#/components/schemas/Pet%[1]d'}}}}
+        '404': {$ref: '#/components/responses/Missing'}
+`, i)
+	}
+	spec.WriteString("components:\n  responses:\n    Missing:\n      description: missing\n" +
+		"      headers: {X-Rate: {schema: {type: integer}}}\n  schemas:\n")
+	for i := range n {
+		fmt.Fprintf(&spec, `    Pet%d:
+      type: object
+      x-kept: {a: [1, b]}
+      required: [name]
+      properties:
+        name: {type: string, maxLength: 10, example: rex}
+        age: {type: number, minimum: 0, maximum: 1.5e3, multipleOf: 0.5}
+        kind: {type: string, enum: [cat, dog]}
+        tags: {type: array, items: {type: string}}
+`, i)
+	}
+	doc := compile(t, "scaled.yaml", []byte(spec.String()))
+	require.NotNil(t, doc)
+	require.Empty(t, irverify.Verify(doc), "the document is clean, or what is measured is a report")
+	return doc
+}
+
+// verifyingAllocs returns what one Verify of doc allocates, less what a walk of
+// doc allocates visiting nothing.
+func verifyingAllocs(doc *ir.Document) float64 {
+	verifying := testing.AllocsPerRun(5, func() { _ = irverify.Verify(doc) })
+	walking := testing.AllocsPerRun(5, func() {
+		ir.WalkValues(doc, ir.DocumentPath, ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true }))
+	})
+	return verifying - walking
 }
 
 // uncorpusedUnmodeled exercises the Unmodeled writes no committed fixture

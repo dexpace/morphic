@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irfacts"
 )
 
 // DanglingRefs is checkDanglingRefs over what one walk of doc reads, as validate
@@ -21,10 +22,10 @@ func DanglingRefs(tb testing.TB, doc *ir.Document) []ir.Diagnostic {
 // checkPropIDRefs to settle sit, in walk order, for the external tests.
 func KeptPropIDs(tb testing.TB, doc *ir.Document) []string {
 	tb.Helper()
-	sites := walkedFor(tb, doc).props.sites
-	paths := make([]string, 0, len(sites))
-	for _, s := range sites {
-		paths = append(paths, s.Path)
+	props := walkedFor(tb, doc).props
+	paths := make([]string, 0, len(props.sites))
+	for _, at := range props.paths.All() {
+		paths = append(paths, at.String())
 	}
 	return paths
 }
@@ -61,3 +62,48 @@ var ValidateWith = validate
 // Families is how many rule families Validate runs, each after an ask of its
 // context.
 func Families() int { return len(families(nil, walked{}, nil)) }
+
+// FamilyAllocs returns the allocations one run of each rule family Validate
+// runs over doc makes, in the order it runs them, as testing.AllocsPerRun
+// counts. The walk they read is taken beforehand, and so is the index they
+// ask, its hierarchy and its exposure built in full, so each family is
+// measured at its own cost and not at the index's.
+func FamilyAllocs(tb testing.TB, doc *ir.Document) []float64 {
+	tb.Helper()
+	read := walkedFor(tb, doc)
+	facts := irfacts.New(doc)
+	facts.Subtypes("") // builds the hierarchy
+	for range len(doc.Types) + 1 {
+		facts.Exposes("", "") // each takes a step, so the walks run out and the exposure is built
+	}
+	run := families(doc, read, facts)
+	costs := make([]float64, 0, len(run))
+	for _, family := range run {
+		costs = append(costs, testing.AllocsPerRun(5, func() { _ = family() }))
+	}
+	return costs
+}
+
+// WalkAllocs returns the allocations the one walk Validate takes of doc makes,
+// as testing.AllocsPerRun counts.
+func WalkAllocs(tb testing.TB, doc *ir.Document) float64 {
+	tb.Helper()
+	return testing.AllocsPerRun(5, func() { _ = walkedFor(tb, doc) })
+}
+
+// ReusedMap is reusedMap, for the external tests.
+type ReusedMap[K comparable, V any] = reusedMap[K, V]
+
+// Emptied is r.emptied, for the external tests.
+func Emptied[K comparable, V any](r *ReusedMap[K, V]) map[K]V { return r.emptied() }
+
+// ReuseLimit is reuseLimit, for the external tests.
+const ReuseLimit = reuseLimit
+
+// PropIDRefs returns checkPropIDRefs over what one walk of doc reads, as
+// validate runs it, for the external tests to measure.
+func PropIDRefs(tb testing.TB, doc *ir.Document) func() []ir.Diagnostic {
+	tb.Helper()
+	w := walkedFor(tb, doc)
+	return func() []ir.Diagnostic { return checkPropIDRefs(w.props, w.refs) }
+}

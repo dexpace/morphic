@@ -27,7 +27,7 @@ func checkIDs(doc *ir.Document) []Violation {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
 		if v, bad := idDefect(ir.IDKindType, string(id), td.Common().Provenance); bad {
-			v.Path = "types[" + string(id) + "]"
+			v.Path = typePath(id)
 			vs = append(vs, v)
 		}
 	}
@@ -135,14 +135,13 @@ func checkPrimIDs(doc *ir.Document) []Violation {
 		if ir.IsNilTypeDef(td) {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
-		path := "types[" + string(id) + "]"
 		prim, isPrim := td.(*ir.Primitive)
 		if !isPrim {
-			vs = appendReservedSpace(vs, id, td.Kind(), path)
+			vs = appendReservedSpace(vs, id, td.Kind())
 			continue
 		}
 		if want := ir.PrimTypeID(prim.Prim); id != want {
-			vs = append(vs, primIDViolation(id, prim.Prim, want, path))
+			vs = append(vs, primIDViolation(id, prim.Prim, want))
 		}
 	}
 	return vs
@@ -154,13 +153,13 @@ func checkPrimIDs(doc *ir.Document) []Violation {
 // destination. ir.PrimTypeID derives t/prim/ from it, which is not an ID at all
 // — checkIDs reports it malformed wherever it is used — so offering it as the
 // place the node belongs would send a reader to fix the wrong end.
-func primIDViolation(id ir.TypeID, kind ir.PrimKind, want ir.TypeID, path string) Violation {
+func primIDViolation(id ir.TypeID, kind ir.PrimKind, want ir.TypeID) Violation {
 	msg := "primitive of kind " + strconv.Quote(string(kind)) + " is interned at " + strconv.Quote(string(id)) +
 		" rather than the shared " + strconv.Quote(string(want))
 	if kind == "" {
 		msg = "primitive at " + strconv.Quote(string(id)) + " carries no kind, so no shared ID derives from it"
 	}
-	return Violation{Code: "ir/prim-id-not-derived", Message: msg, Path: path}
+	return Violation{Code: "ir/prim-id-not-derived", Message: msg, Path: typePath(id)}
 }
 
 // appendReservedSpace reports a type that is not a primitive addressing the
@@ -170,7 +169,7 @@ func primIDViolation(id ir.TypeID, kind ir.PrimKind, want ir.TypeID, path string
 // collides with the primitive of that kind outright, or squats a name the next
 // PrimKind takes. Both make the node reached for a kind depend on which
 // declaration lowered first, which is invariant 3's corollary.
-func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind, path string) []Violation {
+func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind) []Violation {
 	space, ok := ir.IDSpace(ir.IDKindType, string(id))
 	if !ok || space != ir.IDSpacePrim {
 		return vs
@@ -179,7 +178,7 @@ func appendReservedSpace(vs []Violation, id ir.TypeID, kind ir.TypeKind, path st
 		Code: "ir/prim-space-reserved",
 		Message: "id " + strconv.Quote(string(id)) + " addresses the reserved primitive space but names a " +
 			string(kind),
-		Path: path,
+		Path: typePath(id),
 	})
 }
 

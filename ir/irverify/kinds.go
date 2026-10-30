@@ -30,7 +30,7 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 		vs = append(vs, Violation{
 			Code:    "ir/unknown-prim-kind",
 			Message: "primitive carries undeclared kind " + strconv.Quote(string(prim.Prim)),
-			Path:    "types[" + string(id) + "]",
+			Path:    typePath(id),
 		})
 	}
 	return vs

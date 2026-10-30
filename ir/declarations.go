@@ -1,6 +1,7 @@
 package ir
 
 import (
+	"iter"
 	"reflect"
 )
 
@@ -9,37 +10,37 @@ import (
 // the Go compiler cannot check.
 const idFieldName = "ID"
 
-// IDDeclaration is one node's declaration of its own identity: the class of ID,
-// the ID itself, and the path of the node that declares it.
+// IDDeclaration is one node's declaration of its own identity: the class of ID
+// and the ID itself. Where the node sits is [IDDeclarations.Paths]'s to spell.
 type IDDeclaration struct {
 	// Class is the Go type of the ID, which names the reference class the
 	// declaration settles.
 	Class reflect.Type
 	// ID is the declared identity.
 	ID string
-	// Path locates the declaring node, as [WalkValues] spells it.
-	Path string
 }
 
 // IDDeclarations collects, as a [Visitor], the identities the values its walk
-// reaches declare, in walk order and each with its path, for a check reporting
-// where one is declared, such as twice. Reading them off the value graph covers
-// a new ID-bearing node the moment it exists. [IDReferences] reads those it
-// resolves references against, rendering no path.
+// reaches declare, in walk order, for a check reporting where one is declared,
+// such as twice, each with its path kept unspelled for the check to spell
+// only those it reports. Reading them off the value graph covers a new
+// ID-bearing node the moment it exists.
 //
 // An empty ID is skipped, since nothing can reference one and several nodes
 // carrying one are not duplicates. Reporting it is irverify.checkRegistryKeys's
 // job for a map-keyed class and irverify.checkDeclaredIDs's for the rest. The
 // zero IDDeclarations is ready to walk with.
 type IDDeclarations struct {
-	ids  IDReader
-	list []IDDeclaration
+	ids   IDReader
+	list  []IDDeclaration
+	paths PathLog
 }
 
 // Visit records the identity v declares, if any, and asks for v's children.
 func (d *IDDeclarations) Visit(v reflect.Value, at WalkPath) bool {
 	if class, id, declares := d.ids.DeclaredIDOf(v); declares && id != "" {
-		d.list = append(d.list, IDDeclaration{Class: class, ID: id, Path: at.String()})
+		d.list = appendGrowing(d.list, IDDeclaration{Class: class, ID: id})
+		d.paths.Record(at)
 	}
 	return true
 }
@@ -48,6 +49,13 @@ func (d *IDDeclarations) Visit(v reflect.Value, at WalkPath) bool {
 // d's own rather than a copy, so changing it changes what d holds.
 func (d *IDDeclarations) List() []IDDeclaration {
 	return d.list
+}
+
+// Paths yields the path of each declaration List holds, with its position
+// there, in walk order, as a WalkPath valid until the next is yielded: a check
+// keeps the String of those it reports and spells no other.
+func (d *IDDeclarations) Paths() iter.Seq2[int, WalkPath] {
+	return d.paths.All()
 }
 
 // IDReader reads the identity a value declares for itself, reading where a
