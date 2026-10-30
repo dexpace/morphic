@@ -458,12 +458,16 @@ class LoadTreeTest(unittest.TestCase):
 
 class GoSourcesTest(unittest.TestCase):
     def go_env(self, stdout: str = "", fail: Exception | None = None) -> Path | None:
+        root = Path("module")
+
         def run(*args, **kwargs):
+            # Asked elsewhere, go may name the toolchain of another module, or of none.
+            self.assertEqual(kwargs.get("cwd"), root, "go is asked at the root")
             if fail:
                 raise fail
             return subprocess.CompletedProcess(args, 0, stdout=stdout)
         with mock.patch.object(skills_lint.subprocess, "run", run):
-            return skills_lint.go_sources(Path("."))
+            return skills_lint.go_sources(root)
 
     def test_the_toolchain_src_is_found_or_none_is_trusted(self):
         with tempfile.TemporaryDirectory() as d, contextlib.chdir(d):
@@ -476,6 +480,26 @@ class GoSourcesTest(unittest.TestCase):
             self.assertIsNone(self.go_env("goroot\n"), "a relative answer")
         self.assertIsNone(self.go_env(fail=FileNotFoundError("go")), "no go on the PATH")
         self.assertIsNone(self.go_env(fail=subprocess.CalledProcessError(1, "go")), "go failing")
+
+    def test_a_run_lints_with_the_toolchain_go_names_at_the_root(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d) / "repo"
+            fixture(root)
+            write(root, "ir/a_test.go", "package ir\n\nfunc TestKnown_Case(t *testing.T) {}\n")
+            skill = ".claude/skills/good-skill/SKILL.md"
+            write(root, skill, GOOD_SKILL + "Read `internal/runtime/maps`.\n")
+            subprocess.run(["git", "-C", str(root), "init", "-q"], check=True)
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            src = Path(d) / "goroot" / "src"
+            write(src, "internal/runtime/maps/map.go", "package maps\n")
+            asked = []
+            with mock.patch.object(skills_lint, "go_sources", lambda at: asked.append(at) or src):
+                self.assertEqual(skills_lint.findings(root), (1, []))
+            self.assertEqual(asked, [root], "go is asked once, at the root")
+            n = GOOD_SKILL.count("\n") + 1
+            with mock.patch.object(skills_lint, "go_sources", lambda at: None):
+                self.assertEqual(skills_lint.findings(root),
+                                 (1, [f"{skill}:{n}: internal/runtime/maps does not exist"]))
 
 
 class MainTest(unittest.TestCase):
