@@ -193,10 +193,10 @@ A lowering rule says how one OpenAPI construct reaches the IR: the field it fill
 A pass is an IR-to-IR step the engine runs after a compile
 ([`architecture.md`](docs/architecture.md) §2.2). An analysis reports on the document it is handed;
 a transform returns a new one. A transform changes the document through an `ir.Editor`
-(`ir.NewEditor`), which reads, changes and removes a type, service, group, operation, channel,
-message or auth scheme by its ID: `UpdateType`, `UpdateOperation` and their kin hand the change a
-deep copy of the node to alter, `ReplaceType` puts a type built afresh in place of the one at its
-ID, `RemoveOperation` and its kin remove one, and `UpdateDocument` changes the document's own
+(`ir.NewEditor`), which reads, changes and removes a type, service, group, operation, server,
+channel, message or auth scheme by its ID: `UpdateType`, `UpdateOperation` and their kin hand the
+change a deep copy of the node to alter, `ReplaceType` puts a type built afresh in place of the one
+at its ID, `RemoveOperation` and its kin remove one, and `UpdateDocument` changes the document's own
 fields. `Finish` returns the new document, sharing everything the edit left alone, beside an
 `ir/edit-refused` error for each call the editor refused, such as a write at an ID the document does
 not hold or a change minting an ID. Return that document as it is: writing into it can write the

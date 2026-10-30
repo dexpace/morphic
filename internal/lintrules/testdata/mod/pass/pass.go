@@ -25,6 +25,7 @@ func Overwrite(doc *ir.Document) *ir.Document {
 	out.Types["t/a"] = nil                                                          // want "registrywrites: writes a type registry outside ir and compilers/compile; edit a document's registry through an ir.Editor"
 	out.Services[0].Groups[0].Operations[0].Docs.Summary = "changed"                // want "servicetreewrites: writes a slice of the service tree outside ir and the compilers; edit a document's services, groups and operations through an ir.Editor"
 	out.Services[0].Groups[0].Operations = out.Services[0].Groups[0].Operations[:0] // want "servicetreewrites: writes a slice of the service tree outside ir and the compilers; edit a document's services, groups and operations through an ir.Editor"
+	out.Servers["v/a"] = ir.Server{}                                                // want "registrywrites: writes a server registry outside ir and the compilers; edit a document's registry through an ir.Editor"
 	out.Auth["a/a"] = ir.AuthScheme{}                                               // want "registrywrites: writes an auth registry outside ir and the compilers; edit a document's registry through an ir.Editor"
 	out.Channels["c/a"] = ir.Channel{}                                              // want "registrywrites: writes a channel registry outside ir and the compilers; edit a document's registry through an ir.Editor"
 	delete(out.Messages, "m/a")                                                     // want "registrywrites: writes a message registry outside ir and the compilers; edit a document's registry through an ir.Editor"
@@ -46,6 +47,8 @@ func Prune(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	e.UpdateChannel("c/pass/kept", func(c *ir.Channel) { c.Bindings = nil })
 	e.RemoveMessage("m/pass/unused")
 	e.UpdateAuthScheme("a/pass/kept", func(a *ir.AuthScheme) { a.Flows = nil })
-	e.UpdateDocument(func(d *ir.Document) { d.Servers = nil })
+	e.UpdateServer("v/pass/kept", func(s *ir.Server) { s.Tags = nil })
+	e.RemoveServer("v/pass/unused")
+	e.UpdateDocument(func(d *ir.Document) { d.TagDefs = d.TagDefs[:0] })
 	return e.Finish()
 }

@@ -241,8 +241,8 @@ reads no context, and the engine asks after it too, so a run cancelled anywhere 
 
 A transform changes a document through an `ir.Editor` (`ir.NewEditor`), which is to a pass what
 `compile.Types` is to a compiler: its way into the document. It reaches every part: a type, service,
-operation group, operation, channel, message and auth scheme is read, changed and removed by its ID,
-and the document's own fields, its servers, tag definitions and versions among them, are changed
+operation group, operation, server, channel, message and auth scheme is read, changed and removed by
+its ID, and the document's own fields, its tag definitions and versions among them, are changed
 through `UpdateDocument`. A part nested in one of those, a property, a parameter, an enum member, is
 changed through its owner, so `version-slice` drops a property and a parameter by one rule, as an
 update of the type or operation holding it.

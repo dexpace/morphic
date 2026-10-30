@@ -21,14 +21,15 @@ func filledDoc(t *testing.T) *ir.Document {
 	doc.IRVersion = ir.IRVersion
 	doc.Diagnostics = []ir.Diagnostic{ir.NewDiagnostic(ir.SeverityWarning, "x/held", "held", ir.Provenance{})}
 	reg := registriesDoc()
-	doc.Services, doc.Channels, doc.Messages, doc.Auth = treeDoc().Services, reg.Channels, reg.Messages, reg.Auth
+	doc.Services, doc.Servers, doc.Channels = treeDoc().Services, reg.Servers, reg.Channels
+	doc.Messages, doc.Auth = reg.Messages, reg.Auth
 	doc.Types = ir.TypeRegistry{"t/a": &ir.Any{ID: "t/a"}}
 	return doc
 }
 
 // keyedFields are the fields of a Document holding nodes an edit changes by
 // their own IDs, which UpdateDocument leaves out of the copy it hands over.
-var keyedFields = []string{"Services", "Types", "Channels", "Messages", "Auth"}
+var keyedFields = []string{"Services", "Types", "Servers", "Channels", "Messages", "Auth"}
 
 // TestEditor_KeyedFieldsAreEveryRegistry holds keyedFields, and so what the
 // tests below hold UpdateDocument to leaving out, to the document's services
@@ -63,10 +64,10 @@ func TestEditor_UpdateDocumentChangesItsOwnFields(t *testing.T) {
 		for _, field := range keyedFields {
 			assert.True(t, reflect.ValueOf(d).Elem().FieldByName(field).IsNil(), "the copy holds %s", field)
 		}
-		require.Len(t, d.Servers, 1)
+		require.Len(t, d.TagDefs, 1)
 		require.NotNil(t, d.Contact)
 		d.Name = "renamed"
-		d.Servers = nil
+		d.TagDefs = nil
 		d.Contact.Name = "changed"
 		d.Versions = append(d.Versions, "v2")
 	})
@@ -75,7 +76,7 @@ func TestEditor_UpdateDocumentChangesItsOwnFields(t *testing.T) {
 
 	require.Empty(t, diags)
 	assert.Equal(t, "renamed", out.Name)
-	assert.Empty(t, out.Servers)
+	assert.Empty(t, out.TagDefs)
 	assert.Equal(t, "changed", out.Contact.Name)
 	assert.Equal(t, append(slices.Clip(doc.Versions), "v2"), out.Versions)
 	assert.Equal(t, "s/a[g/a(o/a2 o/a3)[g/a/n(o/n)] g/b(o/b)] s/b[g/c(o/c)]", render(out))

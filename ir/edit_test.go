@@ -368,6 +368,8 @@ func writes() []editCall {
 		{"update", `"g/b"`, func(e *ir.Editor) { e.UpdateGroup("g/b", func(*ir.OperationGroup) {}) }},
 		{"remove", `"o/b"`, func(e *ir.Editor) { e.RemoveOperation("o/b") }},
 		{"update", `"o/b"`, func(e *ir.Editor) { e.UpdateOperation("o/b", func(*ir.Operation) {}) }},
+		{"remove", `"v/b"`, func(e *ir.Editor) { e.RemoveServer("v/b") }},
+		{"update", `"v/b"`, func(e *ir.Editor) { e.UpdateServer("v/b", func(*ir.Server) {}) }},
 		{"remove", `"c/b"`, func(e *ir.Editor) { e.RemoveChannel("c/b") }},
 		{"update", `"c/b"`, func(e *ir.Editor) { e.UpdateChannel("c/b", func(*ir.Channel) {}) }},
 		{"remove", `"m/b"`, func(e *ir.Editor) { e.RemoveMessage("m/b") }},
@@ -387,6 +389,7 @@ func updates(inner func()) []editCall {
 		{"UpdateService", `"s/a"`, func(e *ir.Editor) { e.UpdateService("s/a", func(*ir.Service) { inner() }) }},
 		{"UpdateGroup", `"g/a"`, func(e *ir.Editor) { e.UpdateGroup("g/a", func(*ir.OperationGroup) { inner() }) }},
 		{"UpdateOperation", `"o/a1"`, func(e *ir.Editor) { e.UpdateOperation("o/a1", func(*ir.Operation) { inner() }) }},
+		{"UpdateServer", `"v/a"`, func(e *ir.Editor) { e.UpdateServer("v/a", func(*ir.Server) { inner() }) }},
 		{"UpdateChannel", `"c/a"`, func(e *ir.Editor) { e.UpdateChannel("c/a", func(*ir.Channel) { inner() }) }},
 		{"UpdateMessage", `"m/a"`, func(e *ir.Editor) { e.UpdateMessage("m/a", func(*ir.Message) { inner() }) }},
 		{"UpdateAuthScheme", `"a/a"`, func(e *ir.Editor) { e.UpdateAuthScheme("a/a", func(*ir.AuthScheme) { inner() }) }},
@@ -658,6 +661,7 @@ func TestNewEditor_NilDocumentIsRefused(t *testing.T) {
 	_, svcHeld := e.Service("s/x")
 	_, groupHeld := e.Group("g/x")
 	_, opHeld := e.Operation("o/x")
+	_, serverHeld := e.Server("v/x")
 	_, chHeld := e.Channel("c/x")
 	_, msgHeld := e.Message("m/x")
 	_, authHeld := e.AuthScheme("a/x")
@@ -672,7 +676,7 @@ func TestNewEditor_NilDocumentIsRefused(t *testing.T) {
 		`internal: edit: remove rejected: no operation "o/x" to remove; an edit adds no operation`,
 		`internal: edit: update rejected: no channel "c/x" to update; an edit adds no channel`,
 	}, refusals(t, diags))
-	assert.False(t, typeHeld || svcHeld || groupHeld || opHeld || chHeld || msgHeld || authHeld)
+	assert.False(t, typeHeld || svcHeld || groupHeld || opHeld || serverHeld || chHeld || msgHeld || authHeld)
 }
 
 // references returns the address of every pointer, non-empty slice and map v
@@ -779,8 +783,8 @@ func TestEditor_CopiesEveryIRTypeWhole(t *testing.T) {
 		}
 	}
 	for _, node := range []reflect.Type{reflect.TypeFor[ir.Service](), reflect.TypeFor[ir.OperationGroup](),
-		reflect.TypeFor[ir.Operation](), reflect.TypeFor[ir.Channel](), reflect.TypeFor[ir.Message](),
-		reflect.TypeFor[ir.AuthScheme]()} {
+		reflect.TypeFor[ir.Operation](), reflect.TypeFor[ir.Server](), reflect.TypeFor[ir.Channel](),
+		reflect.TypeFor[ir.Message](), reflect.TypeFor[ir.AuthScheme]()} {
 		assert.True(t, seen[node], "the walk must reach %s", node)
 	}
 	assert.Greater(t, len(seen), len(allKinds), "the walk must reach past the kinds themselves")
@@ -810,6 +814,8 @@ func TestEditor_UpdateCopiesEveryNodeWhole(t *testing.T) {
 		{"operation", func(e *ir.Editor, h func(any)) {
 			e.UpdateOperation("o/a", func(op *ir.Operation) { h(*op) })
 		}, func(doc *ir.Document) any { return doc.Services[0].Groups[0].Operations[0] }},
+		{"server", func(e *ir.Editor, h func(any)) { e.UpdateServer("v/a", func(s *ir.Server) { h(*s) }) },
+			func(doc *ir.Document) any { return doc.Servers["v/a"] }},
 		{"channel", func(e *ir.Editor, h func(any)) { e.UpdateChannel("c/a", func(c *ir.Channel) { h(*c) }) },
 			func(doc *ir.Document) any { return doc.Channels["c/a"] }},
 		{"message", func(e *ir.Editor, h func(any)) { e.UpdateMessage("m/a", func(m *ir.Message) { h(*m) }) },
@@ -820,7 +826,7 @@ func TestEditor_UpdateCopiesEveryNodeWhole(t *testing.T) {
 		{"document", func(e *ir.Editor, h func(any)) { e.UpdateDocument(func(d *ir.Document) { h(*d) }) },
 			func(doc *ir.Document) any {
 				own := *doc
-				own.Services, own.Types, own.Channels, own.Messages, own.Auth = nil, nil, nil, nil, nil
+				own.Services, own.Types, own.Servers, own.Channels, own.Messages, own.Auth = nil, nil, nil, nil, nil, nil
 				return own
 			}},
 	}
@@ -865,6 +871,11 @@ func wholeDoc(t *testing.T, raw ir.Unmodeled) *ir.Document {
 	op := &group.Operations[0]
 	op.ID, op.Unmodeled = "o/a", raw
 	op.Examples = append(op.Examples, ir.Example{Value: &ir.Value{Kind: ir.ValueBytes, Bytes: []byte("raw")}})
+	for k, s := range doc.Servers {
+		delete(doc.Servers, k)
+		s.ID, s.Unmodeled = "v/a", raw
+		doc.Servers["v/a"] = s
+	}
 	for k, c := range doc.Channels {
 		delete(doc.Channels, k)
 		c.ID, c.Unmodeled = "c/a", raw

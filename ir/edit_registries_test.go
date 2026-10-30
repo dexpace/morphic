@@ -13,12 +13,17 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// registriesDoc returns a document of two channels, two messages and two auth
-// schemes, each node's summary or description its ID, the first channel with a
-// parameter and the first scheme with a flow. Each call builds new nodes.
+// registriesDoc returns a document of two servers, two channels, two messages
+// and two auth schemes, each node's summary its ID, the first server with a
+// tag, the first channel with a parameter and the first scheme with a flow.
+// Each call builds new nodes.
 func registriesDoc() *ir.Document {
 	return &ir.Document{
 		IRVersion: ir.IRVersion,
+		Servers: map[ir.ServerID]ir.Server{
+			"v/a": {ID: "v/a", Description: ir.Docs{Summary: "v/a"}, Tags: []string{"kept"}},
+			"v/b": {ID: "v/b", Description: ir.Docs{Summary: "v/b"}},
+		},
 		Channels: map[ir.ChannelID]ir.Channel{
 			"c/a": {ID: "c/a", Docs: ir.Docs{Summary: "c/a"}, Params: []ir.Parameter{{ID: "c/a/p"}}},
 			"c/b": {ID: "c/b", Docs: ir.Docs{Summary: "c/b"}},
@@ -34,10 +39,13 @@ func registriesDoc() *ir.Document {
 	}
 }
 
-// summaries spells the summary of every channel, message and auth scheme doc
-// holds, keyed by ID.
+// summaries spells the summary of every server, channel, message and auth
+// scheme doc holds, keyed by ID.
 func summaries(doc *ir.Document) map[string]string {
 	out := map[string]string{}
+	for id, s := range doc.Servers {
+		out[string(id)] = s.Description.Summary
+	}
 	for id, c := range doc.Channels {
 		out[string(id)] = c.Docs.Summary
 	}
@@ -51,19 +59,24 @@ func summaries(doc *ir.Document) map[string]string {
 }
 
 // TestEditor_ARegistryReadIsNotChangedByWhatFollows pins that what a read of a
-// type, channel, message or auth scheme returned stays what the edit held then,
-// after an update of it and after its removal.
+// type, server, channel, message or auth scheme returned stays what the edit
+// held then, after an update of it and after its removal.
 func TestEditor_ARegistryReadIsNotChangedByWhatFollows(t *testing.T) {
 	t.Parallel()
 	doc := registriesDoc()
 	doc.Types = ir.TypeRegistry{"t/a": &ir.Any{ID: "t/a", Docs: ir.Docs{Summary: "t/a"}}}
 	e := ir.NewEditor(doc)
 	td, _ := e.Type("t/a")
+	server, _ := e.Server("v/a")
 	channel, _ := e.Channel("c/a")
 	message, _ := e.Message("m/a")
 	scheme, _ := e.AuthScheme("a/a")
 
 	e.UpdateType("t/a", func(td ir.TypeDef) { changed(&td.Common().Docs) })
+	e.UpdateServer("v/a", func(s *ir.Server) {
+		changed(&s.Description)
+		s.Tags[0] = "changed"
+	})
 	e.UpdateChannel("c/a", func(c *ir.Channel) {
 		changed(&c.Docs)
 		c.Params[0].Docs.Summary = "changed"
@@ -71,18 +84,21 @@ func TestEditor_ARegistryReadIsNotChangedByWhatFollows(t *testing.T) {
 	e.UpdateMessage("m/a", func(m *ir.Message) { changed(&m.Docs) })
 	e.UpdateAuthScheme("a/a", func(a *ir.AuthScheme) { a.Flows[0].TokenURL = "changed" })
 	e.RemoveType("t/a")
+	e.RemoveServer("v/a")
 	e.RemoveChannel("c/a")
 	_, diags := e.Finish()
 
 	require.Empty(t, diags)
 	assert.Equal(t, "t/a", td.Common().Docs.Summary)
+	assert.Equal(t, "v/a", server.Description.Summary)
+	assert.Equal(t, []string{"kept"}, server.Tags)
 	assert.Equal(t, "c/a", channel.Docs.Summary)
 	assert.Empty(t, channel.Params[0].Docs.Summary)
 	assert.Equal(t, "m/a", message.Docs.Summary)
 	assert.Equal(t, "https://a", scheme.Flows[0].TokenURL)
 }
 
-// TestEditor_WritesTheRegistriesAndNotTheDocument pins each write to a
+// TestEditor_WritesTheRegistriesAndNotTheDocument pins each write to a server,
 // channel, message or auth scheme: what the edit's document holds after it,
 // that a registry the edit does not write stays the edited document's, and
 // that the edited document still holds what it held, byte for byte.
@@ -107,6 +123,9 @@ func TestEditor_WritesTheRegistriesAndNotTheDocument(t *testing.T) {
 		want    map[string]string
 		written string
 	}{
+		{"update a server", func(e *ir.Editor) { e.UpdateServer("v/a", func(s *ir.Server) { changed(&s.Description) }) },
+			with("v/a", "changed"), "Servers"},
+		{"remove a server", func(e *ir.Editor) { e.RemoveServer("v/b") }, without("v/b"), "Servers"},
 		{"update a channel", func(e *ir.Editor) { e.UpdateChannel("c/a", func(c *ir.Channel) { changed(&c.Docs) }) },
 			with("c/a", "changed"), "Channels"},
 		{"remove a channel", func(e *ir.Editor) { e.RemoveChannel("c/b") }, without("c/b"), "Channels"},
@@ -135,7 +154,7 @@ func TestEditor_WritesTheRegistriesAndNotTheDocument(t *testing.T) {
 			assert.Empty(t, diags)
 			assert.Equal(t, tt.want, summaries(out))
 			assert.Equal(t, before, irtest.Encoded(t, doc), "the edited document changed")
-			for _, field := range []string{"Channels", "Messages", "Auth"} {
+			for _, field := range []string{"Servers", "Channels", "Messages", "Auth"} {
 				in := reflect.ValueOf(doc).Elem().FieldByName(field).Pointer()
 				got := reflect.ValueOf(out).Elem().FieldByName(field).Pointer()
 				assert.Equal(t, field != tt.written, in == got, "%s: shared %v with the edited document", field, in == got)
@@ -152,6 +171,9 @@ func TestEditor_EmptiedRegistriesAreNil(t *testing.T) {
 	doc := registriesDoc()
 	doc.Types = ir.TypeRegistry{"t/a": &ir.Any{ID: "t/a"}}
 	e := ir.NewEditor(doc)
+	for _, id := range slices.Sorted(maps.Keys(doc.Servers)) {
+		e.RemoveServer(id)
+	}
 	for _, id := range slices.Sorted(maps.Keys(doc.Channels)) {
 		e.RemoveChannel(id)
 	}
@@ -165,6 +187,7 @@ func TestEditor_EmptiedRegistriesAreNil(t *testing.T) {
 	out, diags := e.Finish()
 
 	require.Empty(t, diags)
+	assert.Nil(t, out.Servers)
 	assert.Nil(t, out.Channels)
 	assert.Nil(t, out.Messages)
 	assert.Nil(t, out.Auth)
@@ -172,23 +195,30 @@ func TestEditor_EmptiedRegistriesAreNil(t *testing.T) {
 	assert.Len(t, doc.Channels, 2, "the edited document changed")
 }
 
-// TestEditor_ReadsTheRegistriesAsTheEditHoldsThem pins that Channel, Message
-// and AuthScheme answer with what the edit holds: a node changed as written,
-// none once removed, and the edited document's otherwise.
+// TestEditor_ReadsTheRegistriesAsTheEditHoldsThem pins that Server, Channel,
+// Message and AuthScheme answer with what the edit holds: a node changed as
+// written, none once removed, and the edited document's otherwise.
 func TestEditor_ReadsTheRegistriesAsTheEditHoldsThem(t *testing.T) {
 	t.Parallel()
 	doc := registriesDoc()
 	e := ir.NewEditor(doc)
+	e.UpdateServer("v/a", func(s *ir.Server) { changed(&s.Description) })
+	e.RemoveServer("v/b")
 	e.UpdateChannel("c/a", func(c *ir.Channel) { changed(&c.Docs) })
 	e.RemoveMessage("m/a")
 	e.UpdateAuthScheme("a/b", func(a *ir.AuthScheme) { changed(&a.Docs) })
 
+	s, sHeld := e.Server("v/a")
+	_, gone := e.Server("v/b")
 	c, cHeld := e.Channel("c/a")
 	_, mHeld := e.Message("m/a")
 	m, otherHeld := e.Message("m/b")
 	a, aHeld := e.AuthScheme("a/b")
 	_, absent := e.AuthScheme("a/x")
 
+	assert.True(t, sHeld)
+	assert.Equal(t, "changed", s.Description.Summary)
+	assert.False(t, gone)
 	assert.True(t, cHeld)
 	assert.Equal(t, "changed", c.Docs.Summary)
 	assert.False(t, mHeld)
@@ -211,6 +241,14 @@ func TestEditor_RefusesRegistryWritesOnlyABugMakes(t *testing.T) {
 		refused func(*ir.Editor)
 		want    string
 	}{
+		{"update an absent server", nil, func(e *ir.Editor) { e.UpdateServer("v/x", func(*ir.Server) {}) },
+			`update rejected: no server "v/x" to update; an edit adds no server`},
+		{"remove a removed server", func(e *ir.Editor) { e.RemoveServer("v/b") },
+			func(e *ir.Editor) { e.RemoveServer("v/b") },
+			`remove rejected: no server "v/b" to remove; an edit adds no server`},
+		{"update moving a server", nil, func(e *ir.Editor) {
+			e.UpdateServer("v/a", func(s *ir.Server) { s.ID = "v/b" })
+		}, `update rejected: the change moved "v/a" to "v/b"; a node keeps its ID`},
 		{"update an absent channel", nil, func(e *ir.Editor) { e.UpdateChannel("c/x", func(*ir.Channel) {}) },
 			`update rejected: no channel "c/x" to update; an edit adds no channel`},
 		{"remove an absent message", nil, func(e *ir.Editor) { e.RemoveMessage("m/x") },
@@ -256,18 +294,21 @@ func TestEditor_RefusesRegistryWritesOnlyABugMakes(t *testing.T) {
 	}
 }
 
-// TestEditor_RefusesARegistryNodeAtAnotherIDsKey pins the update of a channel,
-// message or auth scheme whose node names another ID, which irverify reports:
-// it is refused as what it is, while a removal takes the entry as any other.
+// TestEditor_RefusesARegistryNodeAtAnotherIDsKey pins the update of a server,
+// channel, message or auth scheme whose node names another ID, which irverify
+// reports: it is refused as what it is, while a removal takes the entry as any
+// other.
 func TestEditor_RefusesARegistryNodeAtAnotherIDsKey(t *testing.T) {
 	t.Parallel()
 	doc := &ir.Document{
+		Servers:  map[ir.ServerID]ir.Server{"v/a": {ID: "v/b"}},
 		Channels: map[ir.ChannelID]ir.Channel{"c/a": {ID: "c/b"}},
 		Messages: map[ir.MessageID]ir.Message{"m/a": {ID: "m/b"}},
 		Auth:     map[ir.AuthID]ir.AuthScheme{"a/a": {ID: "a/b"}, "a/c": {ID: "a/d"}},
 	}
 
 	e := ir.NewEditor(doc)
+	e.UpdateServer("v/a", func(*ir.Server) {})
 	e.UpdateChannel("c/a", func(*ir.Channel) {})
 	e.UpdateMessage("m/a", func(*ir.Message) {})
 	e.UpdateAuthScheme("a/a", func(*ir.AuthScheme) {})
@@ -275,6 +316,7 @@ func TestEditor_RefusesARegistryNodeAtAnotherIDsKey(t *testing.T) {
 	out, diags := e.Finish()
 
 	assert.Equal(t, []string{
+		`internal: edit: update rejected: "v/a" holds the node of "v/b", which belongs at its own ID`,
 		`internal: edit: update rejected: "c/a" holds the node of "c/b", which belongs at its own ID`,
 		`internal: edit: update rejected: "m/a" holds the node of "m/b", which belongs at its own ID`,
 		`internal: edit: update rejected: "a/a" holds the node of "a/b", which belongs at its own ID`,

@@ -12,8 +12,8 @@ import (
 const EditRefused = "ir/edit-refused"
 
 // Editor is a copy-on-write edit of a [Document], the way a pass changes one.
-// It reads, changes and removes a type, service, group, operation, channel,
-// message or auth scheme by ID, and the document's own fields through
+// It reads, changes and removes a type, service, group, operation, server,
+// channel, message or auth scheme by ID, and the document's own fields through
 // [Editor.UpdateDocument].
 //
 // It never writes the document it edits, and a read stays as it was. It keeps
@@ -49,7 +49,7 @@ type Editor struct {
 // ownership records which of a document's registries an edit has copied, and
 // so may write.
 type ownership struct {
-	types, channels, messages, auth bool
+	types, servers, channels, messages, auth bool
 }
 
 // NewEditor starts an edit of doc. A nil doc is refused, and the edit then

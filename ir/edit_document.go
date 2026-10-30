@@ -1,8 +1,8 @@
 package ir
 
 // UpdateDocument hands change a deep copy of the document's own fields, the
-// version, docs, servers and tag definitions among them, and holds the copy in
-// their place. The services, types, channels, messages and auth schemes are
+// version, docs and tag definitions among them, and holds the copy in their
+// place. The services, types, servers, channels, messages and auth schemes are
 // left out of the copy, and stay as the edit holds them: the edit changes each
 // by its own ID.
 //
@@ -15,13 +15,13 @@ func (e *Editor) UpdateDocument(change func(*Document)) {
 		return
 	}
 	own := *e.out
-	own.Services, own.Types, own.Channels, own.Messages, own.Auth = nil, nil, nil, nil, nil
+	own.Services, own.Types, own.Servers, own.Channels, own.Messages, own.Auth = nil, nil, nil, nil, nil, nil
 	next, taken := updated(e, documentKind(), "", at, &own, change)
 	if !taken {
 		return
 	}
-	next.Services, next.Types, next.Channels, next.Messages, next.Auth =
-		e.out.Services, e.out.Types, e.out.Channels, e.out.Messages, e.out.Auth
+	next.Services, next.Types, next.Servers, next.Channels, next.Messages, next.Auth =
+		e.out.Services, e.out.Types, e.out.Servers, e.out.Channels, e.out.Messages, e.out.Auth
 	*e.out = *next
 }
 
@@ -43,6 +43,8 @@ func keyedDocumentField(doc *Document) string {
 		return "Services"
 	case doc.Types != nil:
 		return "Types"
+	case doc.Servers != nil:
+		return "Servers"
 	case doc.Channels != nil:
 		return "Channels"
 	case doc.Messages != nil:

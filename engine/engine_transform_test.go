@@ -193,6 +193,9 @@ func (editEveryPart) Run(_ context.Context, doc *ir.Document) (*ir.Document, []i
 			e.UpdateGroup(g.ID, func(g *ir.OperationGroup) { edited(&g.Docs) })
 		}
 	}
+	for _, id := range slices.Sorted(maps.Keys(doc.Servers)) {
+		e.UpdateServer(id, func(s *ir.Server) { edited(&s.Description) })
+	}
 	for _, id := range slices.Sorted(maps.Keys(doc.Auth)) {
 		e.UpdateAuthScheme(id, func(a *ir.AuthScheme) { edited(&a.Docs) })
 	}
@@ -201,6 +204,34 @@ func (editEveryPart) Run(_ context.Context, doc *ir.Document) (*ir.Document, []i
 	}
 	e.UpdateDocument(func(d *ir.Document) { edited(&d.Docs) })
 	return e.Finish()
+}
+
+// removeServers is a transform removing every server, whatever still names it.
+type removeServers struct{}
+
+func (removeServers) Name() string { return "remove-servers" }
+
+func (removeServers) Run(_ context.Context, doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
+	e := ir.NewEditor(doc)
+	for _, id := range slices.Sorted(maps.Keys(doc.Servers)) {
+		e.RemoveServer(id)
+	}
+	return e.Finish()
+}
+
+// TestEngine_RunLeavesAServerStillNamedToValidate pins what a removal leaves:
+// the edit takes a server the service still names, and validate reports the
+// name left dangling.
+func TestEngine_RunLeavesAServerStillNamedToValidate(t *testing.T) {
+	t.Parallel()
+	eng, err := engine.New(engine.WithCompilers(openapi.New()), engine.WithPasses(removeServers{}, pass.Validator{}))
+	require.NoError(t, err)
+
+	res, err := eng.Run(t.Context(), writeSpec(t, shopSpec), engine.RunOptions{})
+
+	require.NoError(t, err)
+	assert.True(t, res.Failed)
+	assert.Contains(t, codesOf(res), "ir/dangling-server-ref")
 }
 
 // TestEngine_RunTransformsEveryPartThroughTheEditor runs a transform editing
@@ -226,6 +257,10 @@ func TestEngine_RunTransformsEveryPartThroughTheEditor(t *testing.T) {
 	require.Len(t, doc.Services[0].Groups, 2)
 	for _, g := range doc.Services[0].Groups {
 		assert.Equal(t, "edited", g.Docs.Summary, "group %s", g.ID)
+	}
+	require.NotEmpty(t, doc.Servers)
+	for id, s := range doc.Servers {
+		assert.Equal(t, "edited", s.Description.Summary, "server %s", id)
 	}
 	require.Len(t, doc.Auth, 1)
 	for id, a := range doc.Auth {

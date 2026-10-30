@@ -16,6 +16,16 @@ func (e *Editor) types() registry[TypeID, TypeDef] {
 	return registry[TypeID, TypeDef]{held: (*map[TypeID]TypeDef)(&e.out.Types), owned: &e.owns.types, noun: "type"}
 }
 
+// servers is the edit's view of Document.Servers.
+func (e *Editor) servers() registry[ServerID, Server] {
+	return registry[ServerID, Server]{held: &e.out.Servers, owned: &e.owns.servers, noun: "server"}
+}
+
+// serverKind is what an update knows of a server.
+func serverKind() nodeKind[*Server] {
+	return nodeKind[*Server]{method: "UpdateServer", id: func(s *Server) string { return string(s.ID) }}
+}
+
 // channels is the edit's view of Document.Channels.
 func (e *Editor) channels() registry[ChannelID, Channel] {
 	return registry[ChannelID, Channel]{held: &e.out.Channels, owned: &e.owns.channels, noun: "channel"}
@@ -44,6 +54,26 @@ func (e *Editor) authSchemes() registry[AuthID, AuthScheme] {
 // authSchemeKind is what an update knows of an auth scheme.
 func authSchemeKind() nodeKind[*AuthScheme] {
 	return nodeKind[*AuthScheme]{method: "UpdateAuthScheme", id: func(a *AuthScheme) string { return string(a.ID) }}
+}
+
+// Server returns the server the edit holds at id. It is shared, so it is read
+// and never changed; UpdateServer changes a copy.
+func (e *Editor) Server(id ServerID) (Server, bool) {
+	s, held := e.out.Servers[id]
+	return s, held
+}
+
+// UpdateServer hands change a deep copy of the server at id, to alter in any
+// part but its ID, and holds the copy in its place. It refuses what UpdateType
+// refuses of an id, a node off its own key and a change.
+func (e *Editor) UpdateServer(id ServerID, change func(*Server)) {
+	updateEntry(e, e.servers(), serverKind(), id, change)
+}
+
+// RemoveServer removes the server at id, and refuses an id the edit holds none
+// at. Whatever still names id is left to validate.
+func (e *Editor) RemoveServer(id ServerID) {
+	removeEntry(e, e.servers(), id)
 }
 
 // Channel returns the channel the edit holds at id. It is shared, so it is
@@ -106,8 +136,9 @@ func (e *Editor) RemoveAuthScheme(id AuthID) {
 	removeEntry(e, e.authSchemes(), id)
 }
 
-// updateEntry is UpdateChannel, UpdateMessage and UpdateAuthScheme over r, and
-// refuses a node off its own ID's key besides what updated refuses.
+// updateEntry is UpdateServer, UpdateChannel, UpdateMessage and
+// UpdateAuthScheme over r, and refuses a node off its own ID's key besides what
+// updated refuses.
 func updateEntry[K ~string, V any](e *Editor, r registry[K, V], kind nodeKind[*V], id K, change func(*V)) {
 	current, ok := entryAt(e, r, "update", id)
 	if !ok {
