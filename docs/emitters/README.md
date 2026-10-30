@@ -30,6 +30,8 @@ tests](testing/mandatory-tests.md).
 
 ## The documents
 
+`TestEmitterDocs_RootMapsEveryDocument` holds this map to the tree.
+
 **What an emitter is given and returns**
 
 - [The emitter contract](contract/emitter.md): `Emitter`, its input and output, who computes the
