@@ -224,11 +224,11 @@ and the IR is designed against all eight; §2.5 says how it changes where a comp
 ### 2.2 IR passes (IR → IR)
 
 Small, composable, order-explicit transformations. A pass is a `pass.Pass`: a stable `Name()` and a
-`Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input.
-A transform returns a new document, which may share whatever it left unchanged; an analysis such as
+`Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input. A
+transform returns a new document, which may share whatever it left unchanged; an analysis such as
 `validate` returns its input beside its diagnostics. `Run` has no error result, for the reason an
-emitter's `Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the document
-is a diagnostic, and anything else is a bug in the pass.
+emitter's `Generate` has none ([the emitter contract](./emitters/contract/emitter.md)): whatever a
+pass cannot handle in the document is a diagnostic, and anything else is a bug in the pass.
 
 `Run` takes the run's context, though a pass works on a document already in memory, because that
 work grows with the document: `validate` alone walks the whole of it, under half a second on the
@@ -392,12 +392,12 @@ Emitters are plugins (SDK-per-language, docs, mock servers…). Out of scope for
 except for the boundary they impose on the IR; the internal shape mirrors what Kiota and oagen
 converged on independently:
 
-1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
-   (is-paginated, error taxonomy, primary-content/response selection, return-shape
-   classification (a success body read as a value / void / raw bytes / a stream), pagination
-   item-type unwrap) so templates contain no policy. This list is the decision set oagen's
-   emitters demonstrably needed, computed once and shared across all languages, less two kinds of
-   entry (emitter-design.md §3.6): what the IR already states, such as body presence and
+1. **Plan** — compute language-*neutral* per-operation and per-type decisions once (is-paginated,
+   error taxonomy, primary-content/response selection, return-shape classification (a success body
+   read as a value / void / raw bytes / a stream), pagination item-type unwrap) so templates contain
+   no policy. This list is the decision set oagen's emitters demonstrably needed, computed once and
+   shared across all languages, less two kinds of entry ([plan fact or refine
+   fact](./emitters/plan/plan-or-refine.md)): what the IR already states, such as body presence and
    idempotency, which a refiner reads there; and what varies by language, such as oagen's
    parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
@@ -671,7 +671,7 @@ something a caller asks for with `none`, never a default.
    format-version-normalization seam.
 3. **First emitters** — Go, Kotlin/JVM and Kotlin Multiplatform end-to-end from one plan; proves the
    plan/refine/emit boundary, the plan's neutrality across three targets, and that the IR retains
-   everything a refiner needs (emitter-design.md §14).
+   everything a refiner needs ([the milestone plan](./emitters/milestones.md)).
 4. **Second family compiler (TypeSpec or Smithy)** — proves the spec-agnostic claim: richer-than-
    OpenAPI concepts (interfaces, custom scalars, lifecycle visibility, declared pagination) flow
    through untouched IR code.

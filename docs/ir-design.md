@@ -431,7 +431,7 @@ any other entity. Either way the ID is unique across the whole document, nested 
 service included, because a consumer keys a group by it alone; `irverify` reports a repeat as
 `ir/duplicate-group-id` and an absent one as `ir/empty-group-id`. The group's `Naming` is never part
 of it, so two groups that render the same words stay two entities, and what an emitter does about
-that collision is a rendering decision it makes by ID (emitter-design §4.12).
+that collision is a rendering decision it makes by ID ([naming](./emitters/refine/naming.md)).
 
 A parameter is identified by the operation it belongs to, its name and its location. The OpenAPI
 compiler's are `param/openapi/<operation mount pointer>/parameters/<name>/<in>`: the mount is the
@@ -521,9 +521,9 @@ type Naming struct {
 `Canonical` is a cleaned word sequence, not a cased identifier — emitters apply casing, acronym
 policy, and reserved-word escaping. An emitter may read `Source` to recover the letter case of the
 words `Canonical` fixes (`iOS` in `iOSVersion`), segmenting it with this section's grammar rather
-than one of its own, and never to find where a word ends (emitter-design §4.12). Anonymous
-(hoisted) types have empty `Source` and a `Hint`; whether an emitter inlines them or names them is
-its choice.
+than one of its own, and never to find where a word ends ([naming](./emitters/refine/naming.md)).
+Anonymous (hoisted) types have empty `Source` and a `Hint`; whether an emitter inlines them or names
+them is its choice.
 
 **`Hint` is the same word sequence in the same grammar.** It is not a presentation affordance
 sitting outside the neutrality rule: a hoisted type has no other name, so `Hint` is exactly what an
@@ -920,10 +920,10 @@ the composition entries that name no model. Its rules:
   contributes no property, so the flattening lists the entry's target as written, once, for its
   consumer to lower (`Base` and `Mixins` name whatever the source composed with, below).
 - *What it leaves.* A catch-all, `AdditionalProps` and `Additional`, is not flattened: a consumer
-  reads the model's own (emitter-design §3.2), so a conjunct closing its property set is the
-  consumer's to weigh. A property marked `Flatten` is one member like any other, the hoisting of its
-  fields being its wire's (§5.1). Layout order is no wire order: a `Positional` model's elements
-  follow their `WireID`.
+  reads the model's own ([TypePlan](./emitters/plan/types.md)), so a conjunct closing its property
+  set is the consumer's to weigh. A property marked `Flatten` is one member like any other, the
+  hoisting of its fields being its wire's (§5.1). Layout order is no wire order: a `Positional`
+  model's elements follow their `WireID`.
 - *Addressing a member.* A `PropID` naming a model's member, an encoding key in `Content.Encoding`
   (§7.2) or a discriminator's `Property`, names the declaration the flattening of that model takes,
   the content's type for an encoding key, so a consumer finds it on the member itself. The OpenAPI
@@ -1381,8 +1381,8 @@ The rule lists what may be set rather than what may not, so a field the IR gains
 being a decorator until a change decides otherwise; `ir`'s test sets every other field in turn by
 reflection, which turns that decision into a failing test rather than a review catch. A named type
 is never a decorator: its name is public surface. An emitter collapses a decorator into the
-reference it decorates (emitter-design §4.15), and a compiler names what holds one as it names what
-holds that reference, so the two spellings of one use name it alike
+reference it decorates ([decorators](./emitters/refine/decorators.md)), and a compiler names what
+holds one as it names what holds that reference, so the two spellings of one use name it alike
 ([`union`](./compilers/openapi.md#union)).
 
 ---
@@ -1853,12 +1853,12 @@ Design notes:
   the map does not name, successes and failures alike, and is an operation's only description of
   success where the map names no success. So it lowers to `Default`, never to either list, and which
   it answers — the success response where the operation declares none, the error fallback beside a
-  success, or both — is the plan's to decide under its policy (emitter-design §3.5), where every
-  other choice of a primary response is made (invariants 2 and 6). A format whose catch-all is
-  declared an error, as TypeSpec's `@error` model with no status code is, lowers it to an
-  `ErrorCase` with the catch-all condition instead. `pass/validate` holds `Default.Conditions` to
-  the catch-all alone (`ir/default-response-conditions`), and a `OneWay` operation to having no
-  `Default` either.
+  success, or both — is the plan's to decide under its policy ([plan
+  policy](./emitters/plan/policy.md)), where every other choice of a primary response is made
+  (invariants 2 and 6). A format whose catch-all is declared an error, as TypeSpec's `@error` model
+  with no status code is, lowers it to an `ErrorCase` with the catch-all condition instead.
+  `pass/validate` holds `Default.Conditions` to the catch-all alone
+  (`ir/default-response-conditions`), and a `OneWay` operation to having no `Default` either.
 - **A header is a `Property` with how it is written.** A response header has no binding to state
   its serialization, as a parameter's `HTTPParamBinding` does, so `Header` holds it. Two fields on
   `Property` were the alternative, rejected because they would mean nothing on a model's or a
@@ -1935,11 +1935,12 @@ type StreamDetail struct {
 Streaming mode is on the operation core because it is protocol-independent (gRPC streams, SSE,
 WebSocket, Smithy event streams all project onto it). `Streaming` summarizes an operation, and a
 stream belongs to one content of its payload, so an OpenAPI operation can offer `application/json`
-beside `application/x-ndjson`, and the plan elects among them (emitter-design §3.1). The wire
-mechanism (SSE vs JSON Lines vs WS frames vs length-prefixed events) has no field of its own: over
-HTTP the streaming content's `MediaType` states it, another binding frames its own messages, and
-the plan derives which (emitter-design §3.1). `Content.Item` declares what one item is; a compiler
-that reads a stream from a media type alone names the content's `Type` as `Events`, a reading
+beside `application/x-ndjson`, and the plan elects among them
+([streams](./emitters/plan/streams.md)). The wire mechanism (SSE vs JSON Lines vs WS frames vs
+length-prefixed events) has no field of its own: over HTTP the streaming content's `MediaType`
+states it, another binding frames its own messages, and the plan derives which
+([streams](./emitters/plan/streams.md)). `Content.Item` declares what one item is; a compiler that
+reads a stream from a media type alone names the content's `Type` as `Events`, a reading
 `Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
 it is one. Smithy **waiters** (`smithy.waiters#waitable`) are *not* folded into `LongRunning` —
 acceptor lists and JMESPath matchers are preserved verbatim in `Operation.Unmodeled` (§15).
@@ -2264,9 +2265,9 @@ IANA registry RFC 8414's `token_endpoint_auth_methods_supported` draws on spells
 (`client_secret_basic`, `client_secret_post`, `private_key_jwt`, …). It is a set: the methods the
 endpoint accepts, none blank and none repeated. The registry is open, so a value outside it is kept
 as written, and an empty list means the source does not say, leaving the choice to the SDK's
-runtime policy (`emitter-design.md` §6). No format the matrix covers states it as a field; an
-OpenAPI document that does so writes a vendor extension, which stays under `Unmodeled` until a
-promotion target reads it.
+[runtime policy](./emitters/contract/runtime-policy.md). No format the matrix covers states it as a
+field; an OpenAPI document that does so writes a vendor extension, which stays under `Unmodeled`
+until a promotion target reads it.
 
 **A declared credential shape** is `Credentials`, a reference to a registered type, for a scheme —
 typically `custom` — whose credential is several fields combined into a request rather than the
@@ -2305,13 +2306,14 @@ operation's, an AsyncAPI document's name-keyed map. Where a compiler keeps an ob
 than lowering it, as the OpenAPI compiler keeps a component no reference reaches, its servers stay
 inside it. The scopes a server serves name it: `Service.Servers`, `Channel.Servers` and
 `Operation.Servers` are each a list of IDs, most preferred first, since a consumer that needs one
-server, an SDK client's default among them, takes the first it can use (emitter-design §8.10). An
-operation's non-empty list replaces its service's for that operation, as its `Auth` replaces its
-service's; an empty one leaves its service's. An empty service or channel list names no server. It
-does not mean every server, because the registry holds servers that serve one operation alone; a
-format that reads a scope naming none as served by all of them, as AsyncAPI reads a channel, lists
-them all. A server no scope names is still a declaration and stays: an OpenAPI path item's list that
-every one of its operations overrides is registered and named by none.
+server, an SDK client's default among them, takes the first it can use ([the
+client](./emitters/operations/client.md)). An operation's non-empty list replaces its service's for
+that operation, as its `Auth` replaces its service's; an empty one leaves its service's. An empty
+service or channel list names no server. It does not mean every server, because the registry holds
+servers that serve one operation alone; a format that reads a scope naming none as served by all of
+them, as AsyncAPI reads a channel, lists them all. A server no scope names is still a declaration
+and stays: an OpenAPI path item's list that every one of its operations overrides is registered and
+named by none.
 
 **Identity.** A server is identified by where it is declared, the pointer of its Server Object in
 the document declaring it (`server/openapi/paths/~1a/servers/0`), so a path item two paths mount
@@ -2489,7 +2491,7 @@ reason `Reason` is data rather than a comment.
 rather than model it, so its specification (§14) states, for every construct it keeps under a reason
 other than `vendor_extension`, the diagnostic the construct draws, or that it draws none.
 `Document.Diagnostics` carries those reports to every consumer, and an emitter acts on an entry's
-`Reason` without reporting it again (emitter-design §4.14).
+`Reason` without reporting it again ([unmodeled entries](./emitters/refine/unmodeled.md)).
 
 Sorting entries into *typed* buckets instead was considered and rejected: the defining property
 of an entry is that it is unmodeled, so anything with enough known semantics to be sorted into a
@@ -2891,7 +2893,7 @@ the IR and preserve nothing.
    leaning alias table (IDs immutable, always).
 3. **Content negotiation in the plan layer** — settled: the IR keeps all media types, and one
    shared plan helper elects among them for a success, a failure and a stream alike, by a ranking
-   the plan's policy holds (emitter-design §3.1).
+   the plan's policy holds ([one election](./emitters/plan/responses.md#one-election)).
 4. **Whether `UsageFlags` is stored or always recomputed** — settled: derived by `ir/irfacts`,
    not stored (§4.9). On the golden spec (`cloudflare/api-schemas` at `843eae2f`) deriving usage
    for every type, the subtype index and the type graph included, takes about 50 ms of a compile

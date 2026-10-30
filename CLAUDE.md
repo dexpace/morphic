@@ -20,18 +20,20 @@ Pipeline: **compilers** (spec → IR) → **IR passes** (IR → IR) → **emitte
 
 ## The documents are the spec — read them first
 
-`ls docs/*.md docs/compilers/*.md` is the set; what follows is why each one matters, not how many
-there are. A first change starts from [`CONTRIBUTING.md`](CONTRIBUTING.md), whose recipes for a
-lowering rule, a pass and a compiler say which check each step answers to, and which steps no check
-covers.
+`ls docs/*.md docs/compilers/*.md docs/emitters/README.md` is the set, the last mapping the
+emitter's; what follows is why each one matters, not how many there are. A first change starts from
+[`CONTRIBUTING.md`](CONTRIBUTING.md), whose recipes for a lowering rule, a pass and a compiler say
+which check each step answers to, and which steps no check covers.
 
 - **`docs/ir-design.md` is normative.** Field names and struct shapes in it are the contract;
   receiver methods and helpers are not. When implementing the IR, match its shapes exactly.
 - **`docs/compilers/openapi.md` is normative for the OpenAPI compiler**: its lowering rules, one
   keyed entry each, with the cases, codes and tests that pin it. Read it for work on that compiler
   only; every other layer needs ir-design and not this.
-- **`docs/emitter-design.md` is normative for the emitter half**, the way `ir-design.md` is for the
-  IR. Nothing under `emitters/` exists yet, so read it before writing the first one.
+- **`docs/emitters/` is normative for the emitter half**, the way `ir-design.md` is for the IR. Its
+  root, `docs/emitters/README.md`, maps the set: a shared document says what every target does, and
+  one under `targets/` how that target does it. Nothing under `emitters/` exists yet, so read the
+  ones a change needs before writing the first one.
 - `docs/architecture.md` — pipeline stages, package layout, layering rules, milestones.
 - `docs/ir-spec-matrix.md` — the union of source-format capabilities the IR is designed against.
 - `docs/prior-art.md` — the evidence base (oagen, Kiota, TypeSpec/TCGC) and the specific mistakes
@@ -225,7 +227,7 @@ These all exist already — extend them rather than building a parallel mechanis
   its own. What it cannot check is whether a spec that *names* a row exercises that capability —
   that claim is read by a reviewer, so weigh it like any other.
 - **IR census** (`testdata/unwitnessed.golden.txt`): every IR fact no committed spec sets, which is
-  what the first emitters degrade rather than lower (`docs/emitter-design.md` §14.1). A fact is a
+  what the first emitters degrade rather than lower (`docs/emitters/milestones.md`). A fact is a
   struct member, the emptiness of an `omitzero` collection, or an enumeration value, read off
   `internal/jsonshape` by `internal/census`; `go test ./cmd/morphic-census` holds the file to a
   census of `testdata/`. A case that sets a fact takes its line out, so its change runs `-update`.
@@ -234,8 +236,7 @@ These all exist already — extend them rather than building a parallel mechanis
   the code both ways, each listed code to the rule's text, and every
   `docs/compilers/openapi.md#<key>` citation to a rule. It, `docs/parser-library.md` and each
   format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
-  repository's keyed documents, and a test a Markdown document names must exist
-  (`internal/archtest`).
+  repository's keyed documents, and a test a Markdown document names must exist, as must a link's file and heading (`internal/archtest`).
 - **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
   its passes included and every stage's document verified, and drives it through no-panic →
   `irverify` invariants → no error diagnostic → JSON round-trip → determinism → pass idempotence →
@@ -530,7 +531,7 @@ the filer sets them.
 ### Title and body
 
 The title is `area: statement`. `area` is the package or document (`openapi`, `ir`, `pass`, `cli`,
-`engine`, `test`, `docs/emitter-design`); `gh issue list --state open --limit 1000 --json title`
+`engine`, `test`, `docs/emitters`); `gh issue list --state open --limit 1000 --json title`
 shows the prefixes in use, so reuse one. After the colon: lowercase, no trailing period. A defect
 states what happens (`a nested inline allOf lowers to an empty model`), a proposal is an imperative,
 and an open question starts `decide whether`.

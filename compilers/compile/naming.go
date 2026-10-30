@@ -13,7 +13,7 @@ import (
 // (GitHub #251).
 //
 // It is one neutral word rather than a positional index, which would say where
-// but not what; emitters resolve colliding names (emitter-design.md §4.12).
+// but not what; emitters resolve colliding names (docs/emitters/refine/naming.md).
 // Minting it is not an inference under invariant 6: Hint already carries names
 // no source wrote, like "variant_0" for a bare oneOf branch.
 const emptyNameHint = "empty"

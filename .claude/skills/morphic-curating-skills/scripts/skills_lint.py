@@ -59,10 +59,10 @@ PROSE_PATH = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.*-]+)+")
 LINK = re.compile(r"\]\(([^)#]+)")
 LINK_TARGET = re.compile(r"\]\([^)]*\)")
 TEST = re.compile(r"(?:^|[^A-Za-z0-9_])(Test[A-Z][A-Za-z0-9_]*)")
-SECTION = re.compile(r"(ir-design|emitter-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
+SECTION = re.compile(r"(ir-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
 # A § after the name of a document it can be in, a line break between them allowed: one of the
 # design documents SECTION holds to the tree, or an RFC. Any other names no document.
-NAMED_SECTION = re.compile(r"(?:(?:ir-design|emitter-design|architecture)(?:\.md)?|RFC \d+)\s?§")
+NAMED_SECTION = re.compile(r"(?:(?:ir-design|architecture)(?:\.md)?|RFC \d+)\s?§")
 KEY = re.compile(r"(parser-library|compilers/openapi)\.md#([a-z0-9-]+)")
 # A fenced block's opening or closing run, as CommonMark reads one: three or more backticks or
 # tildes, indented by at most three spaces, then the info string.

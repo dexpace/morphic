@@ -39,7 +39,7 @@ type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir
 ```
 
 The traces in these documents exercise `Protocol == "http"`; the RPC/message/OTP arms exist in the
-type so the second-protocol emitter (open Q4) does not force a plan schema change (INV9). Channels
+type so the second-protocol emitter ([open question 4](../open-questions.md)) does not force a plan schema change (INV9). Channels
 and messages (`ir-design.md §8.3`) reach an emitter through `MsgView`; a messaging target consumes
 them the same way an HTTP target consumes `HTTP`.
 

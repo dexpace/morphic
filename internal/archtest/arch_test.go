@@ -383,7 +383,7 @@ var rules = map[string][]string{
 	// The emitter contract, Layer 2, ruled before any package of it exists
 	// (unbuilt), so the first emitter is audited from its first import. It
 	// reaches ir and nothing else yet: never a compiler, the engine or another
-	// emitter (emitter-design.md §7). Each package beneath it carries its own
+	// emitter (docs/emitters/packages.md). Each package beneath it carries its own
 	// entry (ownEntryRequired), and none goes in exempt (mayBeExempt).
 	"emitters": {module + "/ir"},
 	// The orchestration. It reaches the compiler package to compose the default
