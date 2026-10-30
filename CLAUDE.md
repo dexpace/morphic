@@ -329,6 +329,10 @@ below are the ones most likely to bite in this codebase — the full guide gover
   interfaces; `any` not `interface{}`; comma-ok on every type assertion; type switches carry a
   `default`; zero values useful or obviously invalid; copy slices/maps at API boundaries; no
   mutable globals (this repo's "pure, reentrant stages" invariant is the same rule).
+- **Design leans functional, and stays simple.** A lowering, check or pass is a function of its
+  inputs that returns its value and its diagnostics; a method belongs where a type guards its own
+  state; a wrapper that only forwards, or a seam with no user, is not added. The
+  `morphic-designing-code` skill holds these rules and the history behind each.
 - **Concurrency:** prefer synchronous APIs — the caller adds concurrency; `ctx context.Context`
   first parameter, never stored in a struct; every goroutine has a documented lifetime and stop
   mechanism; `errgroup` for groups; bounded fan-out.
