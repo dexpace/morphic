@@ -76,6 +76,10 @@ it does ("Verify by executing" below). A design's premises are measured, not ass
 (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise`), and showing
 a design is complete does not show it is right.
 
+Style concerns resolve in the styleguide's order: clarity, simplicity, concision, maintainability,
+consistency. Consistency is the last tiebreaker and never overrides the others, so matching the
+surrounding code is no defence of what is unclear or wrong there.
+
 ## Invariants that must not be violated
 
 These are load-bearing design decisions, not preferences. Breaking one defeats the project's core

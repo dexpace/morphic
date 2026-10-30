@@ -33,7 +33,7 @@ Run all.
    re-plant the PR's mutants, plant your own, and ask which input class the corpus cannot contain
    (`references/review-probes.md#code-before-claims`).
 3. **Written rules.** Check each invariant in `CLAUDE.md` the diff could touch, and the Go style
-   rules there that no linter enforces.
+   rules there that no linter enforces. Question any added line nobody can explain.
 4. **Behaviour against main.** For each output the change alters, compile a minimal spec on
    `origin/main` and in the worktree; a normative document has none, so take
    `references/review-probes.md#review-design-rules`. "As on main" never excuses a defect inside the
