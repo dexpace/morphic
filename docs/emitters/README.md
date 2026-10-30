@@ -25,9 +25,9 @@ target's. A trace's IR field names are `ir-design.md`'s.
 
 A new target adds a directory under `targets/` holding the documents every target has (`overview`,
 `lowering`, `types`, `models`, `unions`, `naming`, `operations`, `returns` and `errors`) and any of
-its own, and answers every construct of the [lowering table](refine/lowering-table.md). `INV<n>`
-names an invariant of `CLAUDE.md`, and `T-<n>` a test of the [mandatory
-tests](testing/mandatory-tests.md).
+its own, and answers every construct of the [lowering table](refine/lowering-table.md).
+`TestEmitterDocs_EveryTargetHoldsTheCommonDocuments` reads that list. `INV<n>` names an invariant of
+`CLAUDE.md`, and `T-<n>` a test of the [mandatory tests](testing/mandatory-tests.md).
 
 ## The documents
 
