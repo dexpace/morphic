@@ -47,7 +47,7 @@ defect, keep a `main` control.
 `disprove-each-finding`
 
 - **Rule.** A finding rests on a rule and a fact, so attack both. Read the rule to its end for its
-  scope and exceptions, in `CLAUDE.md`, `CONTRIBUTING.md` or its chapter; look for a decision on the
+  scope and exceptions, in `CLAUDE.md`, `CONTRIBUTING.md` or the guide; look for a decision on the
   line in `.golangci.yml`'s exclusions, a comment or the tracker; weigh the PR's stated intent, read
   only now, after a blind first pass; and where a tool gave the count, sort its hits by what each
   one is before calling any a defect. Report what survives.
@@ -61,14 +61,14 @@ defect, keep a `main` control.
 `rank-by-what-was-shown`
 
 - **Rule.** Nothing left to find sets what gets fixed, not what may be claimed. An `issue:` or `nit:`
-  gives its command, on the input it depends on, or quotes the rule it breaks. What is likely but
-  unshown is a `question:`, the home of low confidence, with no score to argue over, and taste with
-  no rule to quote is a `suggestion:`. A defect the change exposes stays in scope however old; one
-  outside its mechanism is filed, not ranked.
+  gives its command, on the input it depends on, and quotes the rule it breaks. What is likely but
+  unshown is a `question:` saying what was tried, the home of low confidence with no score to argue
+  over, and taste with no rule to quote is a `suggestion:`. A defect the change exposes stays in
+  scope; one outside its mechanism is filed, not ranked.
 - **Why.** A defect that shows on one input is real here, as every corpus missed two (#1016), so a
   bar of certain findings alone would drop it, while a tool's count reported unsorted filed 298
   false breaches (#1178).
-- **Probe.** Each `issue:` and `nit:` in the report gives its command and input, or its quoted rule.
+- **Probe.** Each `issue:` and `nit:` in the report gives its command, its input and its quoted rule.
 
 ## Fan a review out only when asked, a pass to a reader
 `fan-out-a-pass-to-a-reader`

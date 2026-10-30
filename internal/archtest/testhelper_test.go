@@ -110,7 +110,7 @@ func TestTestHelperViolations_CallsCountWithinAPackage(t *testing.T) {
 
 // testHelperViolations returns a line for each function under root that breaks
 // TestTestHelpers_StartWithHelper, sorted, and how many asserting functions it
-// read. A method is left out: a call to one names no function a table could hold.
+// read. A method is left out, as a call to one is a selector this does not follow.
 func testHelperViolations(root string) ([]string, int, error) {
 	called := map[string]bool{}
 	var pending []pendingHelper
@@ -186,7 +186,7 @@ func testingParam(fn *ast.FuncDecl) (string, bool) {
 
 // asserts reports whether body fails its test by itself, through testify or a
 // failing method of param. A function literal's body is left out: a failure
-// there is placed by whatever runs it, and it holds its own Helper call.
+// there is placed by whatever runs it.
 func asserts(body *ast.BlockStmt, param string) bool {
 	found := false
 	ast.Inspect(body, func(n ast.Node) bool {

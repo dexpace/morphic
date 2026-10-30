@@ -107,8 +107,8 @@ the rule here rather than reading it across.
 
 - **Rule.** Rule 6.4 bars a project helper that takes `*testing.T` and fails the test itself, test
   double setup excepted, and rule 6.3 asks `t.Helper()` of every helper. Here a helper asserting
-  through testify stands and starts with `t.Helper()`, and one a table runs as a case's body has no
-  such call: it is the case, and its failure reports its own line (`CONTRIBUTING.md`, "A test is
+  through testify stands and starts with `t.Helper()`, and one a table runs as a case's body needs
+  no such call: it is the case, and its failure reports its own line (`CONTRIBUTING.md`, "A test is
   named for what it tests"). Another assertion library stays barred.
 - **Why.** The rule's concerns are a lost caller's line and a stop at the first failure, which
   `t.Helper()` and `assert` answer, so rewriting the helpers would add no correctness (#1173).
@@ -141,8 +141,9 @@ the rule here rather than reading it across.
 `interface-assertions-stay-narrow`
 
 - **Rule.** Rule 5.26 asks for compliance to be asserted at compile time. Here an exported type
-  implementing an exported interface carries a `var _` beside its imports, and an unexported one
-  does not, since the call that passes it fails the build.
+  implementing an interface this module exports carries a `var _` beside its imports, and an
+  unexported one does not, since the call that passes it fails the build. A standard library
+  interface such as `error` takes none.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
 - **Probe.** `git grep -nE '^(var )?[[:space:]]*_ +[A-Za-z.*]+ += ' -- '*.go' ':!*_test.go' ':!*testdata*'`
   lists them.
@@ -154,6 +155,6 @@ the rule here rather than reading it across.
   a change adds is held to the rule, since surrounding code is no defence (`CLAUDE.md`, "Correctness
   comes first"), and the fallback itself is #1036's. A row leaves this rule when its issue's fix
   lands.
-- **Why.** It is the one rule counted against the tree that the same change could not bring it to,
-  as the fix is a time bound on a network read and not a matter of style (#1036, #1173).
+- **Why.** Its fix is a time bound on a network read and no matter of style, so the sweep that
+  brought the tree to the other rules left it (#1036, #1173).
 - **Probe.** `git grep -n 'http.DefaultClient' -- 'engine/reader/*.go' ':!*_test.go'`.

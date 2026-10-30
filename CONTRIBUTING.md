@@ -264,8 +264,8 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    method of `compilers.Compiler`, and the `Options` type its `FormatOptions` holds. Before writing
    a YAML reader, a version sniff or a test of document identity of its own, read what
    [`architecture.md`](docs/architecture.md) §2.1 says stays in the OpenAPI compiler, and why.
-   *Fails if missed:* `make lint` for a package with no package comment, and the build, once step 4
-   registers the compiler, for a missing method.
+   *Fails if missed:* `TestPackages_KeepTheirCommentInDocGo` for a package with no `doc.go`, and the
+   build, once step 4 registers the compiler, for a missing method.
 2. **Rule its imports.** Add `compilers/<format>` to the `rules` map in
    `internal/archtest/arch_test.go`, allowing what it imports and nothing more: `ir`, `compilers`
    and `compilers/compile` by exact path, its own internal tree once it has one, and its format
