@@ -152,9 +152,14 @@ func declaredIDField(t reflect.Type) idField {
 // cannot see what implements it, so the concrete kinds are seeded from
 // newTypeDefByKind, already the single source of truth for kind dispatch.
 func idClasses() map[reflect.Type]bool {
+	return idClassesOf(idClassRoots())
+}
+
+// idClassesOf returns every class of ID a value of one of the types in queue
+// can declare, or hold a value declaring.
+func idClassesOf(queue []reflect.Type) map[reflect.Type]bool {
 	classes := map[reflect.Type]bool{}
 	seen := map[reflect.Type]bool{}
-	queue := idClassRoots()
 	for len(queue) > 0 {
 		t := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]

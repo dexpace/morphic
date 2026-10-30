@@ -126,14 +126,17 @@ func TestEditor_UpdateTakesAChangeAddingNoID(t *testing.T) {
 // TestEditor_ReplaceRefusesANodeAddingAnID pins that a replacement may declare
 // no ID the node it replaces does not, beside its own, which keys it: one of
 // another kind declaring fewer is taken, and so is one replacing a nil node or
-// one off its key, whose own IDs are not the key's.
+// one off its key, whose own IDs are not the key's, or one at the empty ID,
+// which declares nothing.
 func TestEditor_ReplaceRefusesANodeAddingAnID(t *testing.T) {
 	t.Parallel()
 	doc := idsDoc()
 	doc.Types["t/nil"] = nil
 	doc.Types["t/off"] = &ir.Model{ID: "t/other", Properties: []ir.Property{{ID: "p/o"}}}
+	doc.Types[""] = &ir.Model{}
 
 	e := ir.NewEditor(doc)
+	e.ReplaceType(&ir.Any{})
 	e.ReplaceType(&ir.Model{ID: "t/m", Properties: []ir.Property{{ID: "p/b"}, {ID: "p/new"}}})
 	e.ReplaceType(&ir.Model{ID: "t/e", Properties: []ir.Property{{ID: "e/a"}}})
 	e.ReplaceType(&ir.Model{ID: "t/m", Properties: []ir.Property{{ID: "p/b"}, {ID: "p/a"}}})
@@ -152,6 +155,27 @@ func TestEditor_ReplaceRefusesANodeAddingAnID(t *testing.T) {
 	assert.Equal(t, ir.KindPrimitive, out.Types["t/e"].Kind())
 	assert.Equal(t, ir.KindAny, out.Types["t/nil"].Kind())
 	assert.Equal(t, ir.TypeID("t/off"), out.Types["t/off"].Common().ID)
+}
+
+// TestEditor_HoldsEachNodeToItsOwnIDs pins that the ID check starts afresh at
+// each call: an ID the last node updated or replaced declares is one the next
+// node, which does not, still may not add.
+func TestEditor_HoldsEachNodeToItsOwnIDs(t *testing.T) {
+	t.Parallel()
+	e := ir.NewEditor(idsDoc())
+	e.UpdateType("t/m", func(ir.TypeDef) {})
+	e.UpdateGroup("g/a", func(g *ir.OperationGroup) { g.Resource.Identifiers = []ir.Property{{ID: "p/a"}} })
+	e.UpdateType("t/m", func(ir.TypeDef) {})
+	e.ReplaceType(&ir.Model{ID: "t/e", Properties: []ir.Property{{ID: "p/a"}}})
+	out, diags := e.Finish()
+
+	assert.Equal(t, []string{
+		`internal: edit: update rejected: the change of "g/a" declares the ir.PropID "p/a", ` +
+			`which the node does not; an edit adds no ID`,
+		`internal: edit: replace rejected: the node for "t/e" declares the ir.PropID "p/a", ` +
+			`which the node it replaces does not; an edit adds no ID`,
+	}, refusals(t, diags))
+	assert.Equal(t, irtest.Encoded(t, idsDoc()), irtest.Encoded(t, out))
 }
 
 // TestEditor_ChecksIDsWhereverTheyNestAndOnlyThere pins where the ID check

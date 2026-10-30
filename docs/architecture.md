@@ -247,10 +247,13 @@ through `UpdateDocument`. A part nested in one of those, a property, a parameter
 changed through its owner, so `version-slice` drops a property and a parameter by one rule, as an
 update of the type or operation holding it.
 
-The edit never writes the document it edits. It copies a container at its first write into it, and
-of the service tree only the slices on the path to what it writes, so a pass pays for what it
-changes and the rest stays shared. An update hands its change a deep copy of the node's own fields;
-the nodes the edit keys apart, a group's groups and operations, a service's groups, the document's
+The edit never writes the document it edits. It copies a registry at its first write into it, and
+holds the service tree apart from the document: a write replaces one node, and a slice of the tree
+is built anew, only where a write reached it, when a read or `Finish` needs it. So a pass pays for
+what it changes, the rest stays shared, and what a read returned stays as it was while the edit goes
+on: no slice is written once built, at the price of a read of a group or service building the slices
+changed since the last one. An update hands its change a deep copy of the node's own fields; the
+nodes the edit keys apart, a group's groups and operations, a service's groups, the document's
 services and registries, are left out of the copy and changed by their own IDs. The edit keeps each
 node at the key its own ID names and adds no ID, a nested one included, so every ID stays in a
 namespace the document already declares (invariant 3). A write that would break either, or that only

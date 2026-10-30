@@ -2,7 +2,6 @@ package ir
 
 import (
 	"fmt"
-	"reflect"
 	"strconv"
 )
 
@@ -17,18 +16,17 @@ const EditRefused = "ir/edit-refused"
 // message or auth scheme by ID, and the document's own fields through
 // [Editor.UpdateDocument].
 //
-// It never writes the document it edits, copying a container at its first
-// write. It keeps each node at its ID's key and adds no ID, nested ones
-// included, so every ID stays in a namespace the document declares (invariant
-// 3). A write breaking either, or only a bug's, is refused, and
-// [Editor.Finish] reports it. It is not safe for concurrent use.
+// It never writes the document it edits, and a read stays as it was. It keeps
+// each node at its ID's key and adds no ID, nested ones included, so every ID
+// stays in a namespace the document declares (invariant 3). A write breaking
+// either, or only a bug's, is refused, and [Editor.Finish] reports it. It is
+// not safe for concurrent use.
 type Editor struct {
 	// doc is the document edited, which nothing here writes.
 	doc *Document
 	// out is the document the edit returns, a copy of doc's fields. Each
-	// container in it is doc's own until the edit first writes into it: owns
-	// records which registries are the edit's, and tree which of the service
-	// tree's slices are.
+	// registry in it is doc's own until the edit first writes into it, as owns
+	// records, and its services are doc's until tree has built them anew.
 	out  *Document
 	owns ownership
 	tree serviceTree
@@ -67,11 +65,10 @@ func NewEditor(doc *Document) *Editor {
 }
 
 // nodeKind is what an update needs to know of one kind of node: the name of
-// its update method, the class of ID the node declares, how to read that ID,
-// and which fields hold nodes the edit keys apart.
+// its update method, how to read the node's ID, and which fields hold nodes the
+// edit keys apart.
 type nodeKind[N any] struct {
 	method string
-	class  reflect.Type
 	id     func(N) string
 	// keyed names a field of a node holding nodes the edit changes by their own
 	// IDs, which an update's copy leaves out, when a change has set one. It is
@@ -97,8 +94,7 @@ func updated[N any](e *Editor, kind nodeKind[N], id string, at subject, node N, 
 		e.refuse("update rejected: %s nests deeper than %d levels, past what an edit copies", at, MaxWalkDepth)
 		return none, false
 	}
-	e.declared.reset()
-	e.declared.tally(node, false, kind.class, id)
+	e.declared.node = e.declared.scan(e.declared.node[:0], node)
 	e.apply(kind.method, func() { change(next) })
 	moved := kind.id(next)
 	switch {
@@ -110,7 +106,7 @@ func updated[N any](e *Editor, kind nodeKind[N], id string, at subject, node N, 
 		e.refuse("update rejected: the change of %s set its %s, whose nodes the edit changes by their own IDs",
 			at, kind.keyed(next))
 	default:
-		e.declared.tally(next, true, kind.class, moved)
+		e.declared.change = e.declared.scan(e.declared.change[:0], next)
 		if added, n, ok := e.declared.excess(); ok {
 			e.refuse("update rejected: the change of %s declares %s; an edit adds no ID", at, n.clause(added, "the node"))
 			return none, false

@@ -57,8 +57,8 @@ func FlattenSteps(types TypeRegistry, root TypeID) int {
 	return f.steps
 }
 
-// TreeWork returns how many nodes e has stepped through and elements it has
-// copied or moved in the service tree's slices, which is what its writes cost.
+// TreeWork returns how many nodes e has stepped through and elements of the
+// service tree's slices it has built, which is what its writes cost.
 func TreeWork(e *Editor) int { return e.tree.work }
 
 // IDsScanned returns how many values e's ID check has entered, which is what

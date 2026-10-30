@@ -66,6 +66,8 @@ func Tree(doc *ir.Document, op ir.Operation, seq iter.Seq[ir.Operation]) *ir.Ope
 	}
 	for _, ops[0] = range ops { // want "servicetreewrites: writes a slice of the service tree outside ir and the compilers; edit a document's services, groups and operations through an ir.Editor"
 	}
+	for ops[0].Bindings.HTTP[0].SuccessStatus[0] = range ops { // want "servicetreewrites: writes a slice of the service tree outside ir and the compilers; edit a document's services, groups and operations through an ir.Editor"
+	}
 	_ = &doc.Services[0].Docs // want "servicetreewrites: takes the address of an element of the service tree outside ir and the compilers, through which it can write a document; read the element by value and edit it through an ir.Editor"
 	keepAny(ops)              // want "servicetreewrites: instantiates a generic with a slice or an element of the service tree, whose writes this rule cannot read; keep service tree writes in ir and the compilers"
 	keepAny(op)               // want "servicetreewrites: instantiates a generic with a slice or an element of the service tree, whose writes this rule cannot read; keep service tree writes in ir and the compilers"

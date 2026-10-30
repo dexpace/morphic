@@ -191,11 +191,11 @@ func TestEditor_EmptiedTreeSlicesAreNil(t *testing.T) {
 	assert.Nil(t, out.Services)
 }
 
-// TestEditor_CopiesOnlyTheTreePathItWrites pins that a write to the tree
-// copies the slices on the path to what it changes and nothing else: what an
-// update or a removal does not reach stays shared with the edited document,
-// and a refused write, or a read with no removal to settle, copies nothing.
-func TestEditor_CopiesOnlyTheTreePathItWrites(t *testing.T) {
+// TestEditor_BuildsOnlyTheTreePathItWrites pins that a write to the tree builds
+// the slices on the path to what it changes and nothing else: what an update
+// or a removal does not reach stays shared with the edited document, and a
+// refused write, or a read after none, builds nothing.
+func TestEditor_BuildsOnlyTheTreePathItWrites(t *testing.T) {
 	t.Parallel()
 	doc := treeDoc()
 	e := ir.NewEditor(doc)
@@ -204,14 +204,14 @@ func TestEditor_CopiesOnlyTheTreePathItWrites(t *testing.T) {
 	require.Empty(t, diags)
 
 	in, got := doc.Services[0].Groups, out.Services[0].Groups
-	assert.NotSame(t, &doc.Services[0], &out.Services[0], "the services on the path were not copied")
-	assert.NotSame(t, &in[0], &got[0], "the groups on the path were not copied")
-	assert.NotSame(t, &in[0].Operations[1], &got[0].Operations[1], "the operations on the path were not copied")
+	assert.NotSame(t, &doc.Services[0], &out.Services[0], "the services on the path were not built")
+	assert.NotSame(t, &in[0], &got[0], "the groups on the path were not built")
+	assert.NotSame(t, &in[0].Operations[1], &got[0].Operations[1], "the operations on the path were not built")
 	assert.NotSame(t, &in[0].Operations[1].Params[0], &got[0].Operations[1].Params[0], "the change shares the node")
-	assert.Same(t, &in[0].Operations[0].Params[0], &got[0].Operations[0].Params[0], "an unchanged operation was copied")
-	assert.Same(t, &in[0].Groups[0], &got[0].Groups[0], "a group off the path was copied")
-	assert.Same(t, &in[1].Operations[0], &got[1].Operations[0], "a sibling group's operations were copied")
-	assert.Same(t, &doc.Services[1].Groups[0], &out.Services[1].Groups[0], "another service's groups were copied")
+	assert.Same(t, &in[0].Operations[0].Params[0], &got[0].Operations[0].Params[0], "an unchanged operation was copied deep")
+	assert.Same(t, &in[0].Groups[0], &got[0].Groups[0], "a group off the path was built")
+	assert.Same(t, &in[1].Operations[0], &got[1].Operations[0], "a sibling group's operations were built")
+	assert.Same(t, &doc.Services[1].Groups[0], &out.Services[1].Groups[0], "another service's groups were built")
 
 	removed := treeDoc()
 	e = ir.NewEditor(removed)
@@ -219,8 +219,16 @@ func TestEditor_CopiesOnlyTheTreePathItWrites(t *testing.T) {
 	out, diags = e.Finish()
 	require.Empty(t, diags)
 	assert.Same(t, &removed.Services[0].Groups[0].Groups[0], &out.Services[0].Groups[0].Groups[0],
-		"a removal copied a slice it drops nothing from")
-	assert.Same(t, &removed.Services[1].Groups[0], &out.Services[1].Groups[0], "a removal copied another service")
+		"a removal built a slice it drops nothing from")
+	assert.Same(t, &removed.Services[1].Groups[0], &out.Services[1].Groups[0], "a removal built another service")
+
+	nested := treeDoc()
+	e = ir.NewEditor(nested)
+	e.RemoveGroup("g/a/n")
+	out, diags = e.Finish()
+	require.Empty(t, diags)
+	assert.Same(t, &nested.Services[0].Groups[0].Operations[0], &out.Services[0].Groups[0].Operations[0],
+		"removing a nested group built the operations beside it")
 
 	read := treeDoc()
 	e = ir.NewEditor(read)
@@ -233,7 +241,7 @@ func TestEditor_CopiesOnlyTheTreePathItWrites(t *testing.T) {
 	e.RemoveOperation("o/absent")
 	out, diags = e.Finish()
 	require.Len(t, diags, 4)
-	assert.Same(t, &read.Services[0], &out.Services[0], "a read or a refused write copied the services")
+	assert.Same(t, &read.Services[0], &out.Services[0], "a read or a refused write built the services")
 }
 
 // TestEditor_ReadsTheTreeAsTheEditHoldsIt pins that Operation, Group and
@@ -282,11 +290,81 @@ func TestEditor_ReadsTheTreeAsTheEditHoldsIt(t *testing.T) {
 	assert.Empty(t, diags)
 }
 
-// TestEditor_UpdatesItsNodeAfterAReadSettlesTheTree pins an update whose
-// change reads a group or service, which drops the nodes the edit removed and
-// so moves what follows them: the copy lands where its node now sits, and the
+// TestEditor_AReadIsNotChangedByWhatFollows pins that what a read of a group
+// or service returns stays what the edit held then, whatever the edit does
+// next, and whether or not it had written there before the read: a pass may
+// range over a read while it edits. The writes before a read differ by case,
+// since a slice the edit already built is the one it could write in place.
+func TestEditor_AReadIsNotChangedByWhatFollows(t *testing.T) {
+	t.Parallel()
+	before := map[string]func(*ir.Editor){
+		"nothing written": func(*ir.Editor) {},
+		"an operation updated": func(e *ir.Editor) {
+			e.UpdateOperation("o/a3", func(op *ir.Operation) { changed(&op.Docs) })
+		},
+		"an operation removed and read": func(e *ir.Editor) {
+			e.RemoveOperation("o/a3")
+			_, _ = e.Group("g/a")
+		},
+	}
+	after := map[string]func(*ir.Editor){
+		"an update":          func(e *ir.Editor) { e.UpdateOperation("o/a1", func(op *ir.Operation) { op.Docs.Summary = "later" }) },
+		"a removal":          func(e *ir.Editor) { e.RemoveOperation("o/a1") },
+		"a removal and read": func(e *ir.Editor) { e.RemoveOperation("o/a1"); _, _ = e.Group("g/a") },
+		"a nested removal":   func(e *ir.Editor) { e.RemoveGroup("g/a/n"); _, _ = e.Service("s/a") },
+		"the end":            func(e *ir.Editor) { e.RemoveOperation("o/a1"); _, _ = e.Finish() },
+	}
+	for first, write := range before {
+		for then, next := range after {
+			t.Run(first+", then "+then, func(t *testing.T) {
+				t.Parallel()
+				e := ir.NewEditor(treeDoc())
+				write(e)
+				group, held := e.Group("g/a")
+				require.True(t, held)
+				svc, held := e.Service("s/a")
+				require.True(t, held)
+				wantGroup := renderGroups([]ir.OperationGroup{group}, 8)
+				wantService := render(&ir.Document{Services: []ir.Service{svc}})
+
+				next(e)
+
+				assert.Equal(t, wantGroup, renderGroups([]ir.OperationGroup{group}, 8))
+				assert.Equal(t, wantService, render(&ir.Document{Services: []ir.Service{svc}}))
+			})
+		}
+	}
+}
+
+// TestEditor_RangingOverAReadSeesEveryNode pins the loop that read being kept
+// allows: removing each operation of a group read before, with a read between,
+// meets every operation once and no zero one.
+func TestEditor_RangingOverAReadSeesEveryNode(t *testing.T) {
+	t.Parallel()
+	e := ir.NewEditor(treeDoc())
+	e.UpdateOperation("o/a3", func(op *ir.Operation) { changed(&op.Docs) })
+	group, held := e.Group("g/a")
+	require.True(t, held)
+
+	seen := make([]ir.OpID, 0, len(group.Operations))
+	for _, op := range group.Operations {
+		seen = append(seen, op.ID)
+		e.RemoveOperation(op.ID)
+		_, _ = e.Group("g/a")
+	}
+	out, diags := e.Finish()
+
+	require.Empty(t, diags)
+	assert.Equal(t, []ir.OpID{"o/a1", "o/a2", "o/a3"}, seen)
+	assert.Equal(t, "s/a[g/a()[g/a/n(o/n)] g/b(o/b)] s/b[g/c(o/c)]", render(out))
+}
+
+// TestEditor_UpdatesItsNodeWhenItsChangeReadsTheTree pins an update whose
+// change reads a group or service, which builds what the edit removed out of
+// the slices holding it, the update's own node among them when the read
+// reaches it: the change lands in its node, beside what the read built, and the
 // edited document is left as it was.
-func TestEditor_UpdatesItsNodeAfterAReadSettlesTheTree(t *testing.T) {
+func TestEditor_UpdatesItsNodeWhenItsChangeReadsTheTree(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
@@ -314,6 +392,20 @@ func TestEditor_UpdatesItsNodeAfterAReadSettlesTheTree(t *testing.T) {
 				changed(&s.Docs)
 			})
 		}, "s/b=changed[g/c(o/c)]"},
+		{"a group whose own read builds what it holds", func(e *ir.Editor) {
+			e.RemoveOperation("o/a1")
+			e.UpdateGroup("g/a", func(g *ir.OperationGroup) {
+				_, _ = e.Group("g/a")
+				changed(&g.Docs)
+			})
+		}, "s/a[g/a=changed(o/a2 o/a3)[g/a/n(o/n)] g/b(o/b)] s/b[g/c(o/c)]"},
+		{"a service whose own read builds what it holds", func(e *ir.Editor) {
+			e.RemoveGroup("g/a")
+			e.UpdateService("s/a", func(s *ir.Service) {
+				_, _ = e.Service("s/a")
+				changed(&s.Docs)
+			})
+		}, "s/a=changed[g/b(o/b)] s/b[g/c(o/c)]"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -328,6 +420,30 @@ func TestEditor_UpdatesItsNodeAfterAReadSettlesTheTree(t *testing.T) {
 			assert.Equal(t, irtest.Encoded(t, treeDoc()), irtest.Encoded(t, doc), "the edited document changed")
 		})
 	}
+}
+
+// TestEditor_AChangeKeepingItsNodeMovesNothing pins what a change that kept the
+// copy it was handed can do once its update is over: writing the copy's own
+// fields reaches nothing the edit holds, so it cannot move a node off its ID.
+func TestEditor_AChangeKeepingItsNodeMovesNothing(t *testing.T) {
+	t.Parallel()
+	e := ir.NewEditor(treeDoc())
+	var (
+		op  *ir.Operation
+		grp *ir.OperationGroup
+		svc *ir.Service
+	)
+	e.UpdateOperation("o/a1", func(o *ir.Operation) { op = o })
+	e.UpdateGroup("g/b", func(g *ir.OperationGroup) { grp = g })
+	e.UpdateService("s/b", func(s *ir.Service) { svc = s })
+	op.ID, grp.ID, svc.ID = "o/moved", "g/moved", "s/moved"
+	changed(&op.Docs)
+	changed(&grp.Docs)
+	changed(&svc.Docs)
+	out, diags := e.Finish()
+
+	require.Empty(t, diags)
+	assert.Equal(t, render(treeDoc()), render(out))
 }
 
 // TestEditor_FinishInsideAChangeSettlesTheTree pins the document Finish returns
@@ -504,6 +620,11 @@ func TestEditor_ReachesTheTreeForEachOperationReaches(t *testing.T) {
 
 	assert.Equal(t, walked, held)
 	assert.Len(t, held, ir.MaxGroupDepth+1)
+	last := out.Services[0].Groups
+	for range ir.MaxGroupDepth {
+		last = last[0].Groups
+	}
+	assert.Len(t, last[0].Groups, 1, "the update on the cap dropped the group past it, which the edit never read")
 	summaries := map[ir.OpID]string{}
 	ir.ForEachOperation(out, func(op ir.Operation) { summaries[op.ID] = op.Docs.Summary })
 	assert.Equal(t, "changed", summaries[onCap], "the update on the cap did not land")
@@ -549,7 +670,7 @@ func TestEditor_EditsAGroupSliceInsideItself(t *testing.T) {
 // TestEditor_EditsAroundATreeSliceTwoGroupsShare pins the edit of operations
 // two groups share a slice of, which a compiler bug could build: an operation
 // both reach is held twice, so neither, and one only the longer slice reaches
-// is written into a copy of that slice alone.
+// is written into a new slice of that one alone.
 func TestEditor_EditsAroundATreeSliceTwoGroupsShare(t *testing.T) {
 	t.Parallel()
 	shared := []ir.Operation{treeOp("o/both"), treeOp("o/one")}
@@ -566,7 +687,33 @@ func TestEditor_EditsAroundATreeSliceTwoGroupsShare(t *testing.T) {
 		`so the edit cannot tell which to update`}, refusals(t, diags))
 	assert.Equal(t, "s/a[g/long(o/both o/one=changed) g/short(o/both)]", render(out))
 	assert.Equal(t, "o/one", shared[1].Docs.Summary, "the edited document changed")
-	assert.Same(t, &shared[0], &out.Services[0].Groups[1].Operations[0], "the shorter slice was copied")
+	assert.Same(t, &shared[0], &out.Services[0].Groups[1].Operations[0], "the shorter slice was built")
+}
+
+// TestEditor_ReadsAGroupSliceTwoGroupsShareFromEach pins the edit of a slice of
+// groups two groups share, which a compiler bug could build: it is reached from
+// each, as ForEachOperation reaches it, so what it holds is held twice and is
+// neither read nor written.
+func TestEditor_ReadsAGroupSliceTwoGroupsShareFromEach(t *testing.T) {
+	t.Parallel()
+	shared := []ir.OperationGroup{treeGroup("g/inner", []ir.Operation{treeOp("o/inner")})}
+	doc := &ir.Document{Services: []ir.Service{
+		treeService("s/a", treeGroup("g/x", nil, shared...), treeGroup("g/y", nil, shared...)),
+	}}
+	var walked []ir.OpID
+	ir.ForEachOperation(doc, func(op ir.Operation) { walked = append(walked, op.ID) })
+	require.Equal(t, []ir.OpID{"o/inner", "o/inner"}, walked)
+
+	e := ir.NewEditor(doc)
+	_, opHeld := e.Operation("o/inner")
+	_, groupHeld := e.Group("g/inner")
+	e.UpdateOperation("o/inner", func(op *ir.Operation) { changed(&op.Docs) })
+	_, diags := e.Finish()
+
+	assert.False(t, opHeld)
+	assert.False(t, groupHeld)
+	assert.Equal(t, []string{`internal: edit: update rejected: 2 operations have the ID "o/inner", ` +
+		`so the edit cannot tell which to update`}, refusals(t, diags))
 }
 
 // groupOf returns a document of one service holding groups groups of n
@@ -587,13 +734,12 @@ func groupOf(groups, n int) (*ir.Document, []ir.OpID) {
 }
 
 // TestEditor_TreeWorkIsLinear holds what writes to the tree cost, as nodes
-// stepped through and elements copied or moved, to growing linearly with how
-// many they write: going from 2n operations to 4n adds no more than two and a
-// half times what going from n to 2n adds, so the edit's fixed costs cancel. A
-// slice copied at every write, a removal shifting what follows it at once, or
-// a settle revisiting what it settled before grows quadratically. Each
-// scenario's floor, what any edit must copy or move, holds the count to
-// counting.
+// stepped through and elements built, to growing linearly with how many they
+// write: going from 2n operations to 4n adds no more than two and a half times
+// what going from n to 2n adds, so the edit's fixed costs cancel. A slice built
+// at every write, or a removal shifting what follows it at once, grows
+// quadratically. Each scenario's floor, what any edit must build, holds the
+// count to counting.
 func TestEditor_TreeWorkIsLinear(t *testing.T) {
 	t.Parallel()
 	removeEach := func(e *ir.Editor, ids []ir.OpID) {
@@ -626,11 +772,11 @@ func TestEditor_TreeWorkIsLinear(t *testing.T) {
 			}
 		}, func(n int) int { return n }},
 		{"empty many groups", func(n int) (int, int) { return n, 2 }, removeEach, func(n int) int { return 2 * n }},
-		{"empty many groups, reading after each removal", func(n int) (int, int) { return n, 2 },
+		{"empty many groups, reading each after each removal", func(n int) (int, int) { return n, 2 },
 			func(e *ir.Editor, ids []ir.OpID) {
-				for _, id := range ids {
+				for i, id := range ids {
 					e.RemoveOperation(id)
-					_, _ = e.Service("s/a")
+					_, _ = e.Group(ir.GroupID(fmt.Sprint("g/", i/2)))
 				}
 			}, func(n int) int { return 2 * n }},
 	}
@@ -644,7 +790,7 @@ func TestEditor_TreeWorkIsLinear(t *testing.T) {
 				_, diags := e.Finish()
 				require.Empty(t, diags)
 				w := ir.TreeWork(e)
-				require.GreaterOrEqual(t, w, tt.floor(n), "at %d operations the count misses what any edit copies or moves", n)
+				require.GreaterOrEqual(t, w, tt.floor(n), "at %d operations the count misses what any edit builds", n)
 				return w
 			}
 			w1, w2, w4 := work(128), work(256), work(512)
@@ -655,9 +801,9 @@ func TestEditor_TreeWorkIsLinear(t *testing.T) {
 
 // TestEditor_TreeWorkCountsEveryStep holds the count TestEditor_TreeWorkIsLinear
 // reads to every step of one removal, so no step's cost goes uncounted.
-// Removing o/a1 from treeDoc settles g/a: 2 nodes stepped through to it, the
-// services and s/a's groups copied (2 and 2), g/a's 1 group and 3 operations
-// scanned, its operations copied (3) and the 2 left moved.
+// Removing o/a1 from treeDoc steps through 3 nodes on the path to it, and
+// Finish builds the path's 3 lists: 2 services, s/a's 2 groups and g/a's 3
+// operations.
 func TestEditor_TreeWorkCountsEveryStep(t *testing.T) {
 	t.Parallel()
 	e := ir.NewEditor(treeDoc())
@@ -665,16 +811,50 @@ func TestEditor_TreeWorkCountsEveryStep(t *testing.T) {
 	_, diags := e.Finish()
 
 	require.Empty(t, diags)
-	assert.Equal(t, 2+2+2+1+3+3+2, ir.TreeWork(e))
+	assert.Equal(t, 3+2+2+3, ir.TreeWork(e))
+}
+
+// TestEditor_ARepeatedReadBuildsNothing holds a read to building only what
+// changed since the one before: a second read of a service, or of a group in
+// it, costs no work, a write steps through the path to its node and builds
+// nothing, and the read after it builds the one list it changed.
+func TestEditor_ARepeatedReadBuildsNothing(t *testing.T) {
+	t.Parallel()
+	e := ir.NewEditor(treeDoc())
+	e.RemoveOperation("o/a1")
+	_, _ = e.Service("s/a")
+	built := ir.TreeWork(e)
+	_, _ = e.Service("s/a")
+	_, _ = e.Group("g/a")
+	assert.Equal(t, built, ir.TreeWork(e), "a read built what no write had changed")
+
+	e.UpdateOperation("o/b", func(op *ir.Operation) { changed(&op.Docs) })
+	stepped := ir.TreeWork(e)
+	assert.Equal(t, built+3, stepped, "a write built a slice, or stepped past the path to its node")
+	group, _ := e.Group("g/b")
+	assert.Equal(t, "changed", group.Operations[0].Docs.Summary)
+	assert.Equal(t, stepped+1, ir.TreeWork(e), "a read built more than the list that changed")
+}
+
+// TestEditor_AReadOfWhatNoWriteReachedAllocatesNothing pins that a read of a
+// group or service no write reached copies nothing. It is not run in parallel:
+// AllocsPerRun measures the process.
+func TestEditor_AReadOfWhatNoWriteReachedAllocatesNothing(t *testing.T) {
+	e := ir.NewEditor(treeDoc())
+	e.UpdateOperation("o/c", func(op *ir.Operation) { changed(&op.Docs) })
+	_, _ = e.Group("g/a")
+	assert.Zero(t, testing.AllocsPerRun(10, func() { _, _ = e.Group("g/a") }))
+	assert.Zero(t, testing.AllocsPerRun(10, func() { _, _ = e.Service("s/a") }))
 }
 
 // TestEditor_TreeEditsAgreeWithAPlainRewrite runs random edits over random
 // trees and holds every result to the same edits applied, without an edit,
 // to a copy of the tree: what each write leaves, what every read returns
-// after each batch of edits, and the edited document left as it was. A batch
-// leaves removals unsettled for the updates after it, whose changes read a
-// node first, which can settle the tree under them; and every kind of edit
-// must be made often enough to count.
+// after each batch of edits, each such read staying as it was to the end, and
+// the edited document left as it was. A batch leaves lists stale for the
+// updates after it, whose changes read a node first, which can build them
+// under those updates; and every kind of edit must be made often enough to
+// count.
 func TestEditor_TreeEditsAgreeWithAPlainRewrite(t *testing.T) {
 	t.Parallel()
 	made := map[treeEdit]int{}
@@ -684,6 +864,7 @@ func TestEditor_TreeEditsAgreeWithAPlainRewrite(t *testing.T) {
 		before, all := render(doc), treeIDs(doc)
 		model := &ir.Document{Services: cloneServices(doc.Services)}
 		e := ir.NewEditor(doc)
+		var kept []keptRead
 		for step := range 12 {
 			var edits []treeEdit
 			for batch := range 1 + r.IntN(3) {
@@ -699,10 +880,18 @@ func TestEditor_TreeEditsAgreeWithAPlainRewrite(t *testing.T) {
 				edits = append(edits, edit)
 			}
 			requireReadsAgree(t, e, model, all, fmt.Sprintf("seed %d step %d (%v)", seed, step, edits))
+			for _, s := range model.Services {
+				if got, ok := e.Service(s.ID); ok {
+					kept = append(kept, keptRead{got, render(&ir.Document{Services: []ir.Service{got}})})
+				}
+			}
 		}
 		out, diags := e.Finish()
 		require.Empty(t, diags, "seed %d", seed)
 		require.Equal(t, render(model), render(out), "seed %d", seed)
+		for _, read := range kept {
+			require.Equal(t, read.want, render(&ir.Document{Services: []ir.Service{read.service}}), "seed %d", seed)
+		}
 		require.Equal(t, before, render(doc), "seed %d: the edited document changed", seed)
 	}
 	for _, class := range []string{"service", "group", "operation"} {
@@ -711,6 +900,12 @@ func TestEditor_TreeEditsAgreeWithAPlainRewrite(t *testing.T) {
 				"too few %s edits removing %v to tell anything", class, remove)
 		}
 	}
+}
+
+// keptRead is a service an edit returned, and how it read then.
+type keptRead struct {
+	service ir.Service
+	want    string
 }
 
 // treeEdit is one random edit: the node it picks, and whether it removes the

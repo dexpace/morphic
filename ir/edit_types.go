@@ -23,7 +23,7 @@ func (e *Editor) Type(id TypeID) (TypeDef, bool) {
 // an ID it does not; one writing to or ending the edit is refused with the
 // call it made. A refused or panicking update changes nothing.
 func (e *Editor) UpdateType(id TypeID, change func(TypeDef)) {
-	current, ok := e.typeAt("update", id)
+	current, ok := entryAt(e, e.types(), "update", id)
 	switch {
 	case !ok:
 	case IsNilTypeDef(current):
@@ -32,7 +32,7 @@ func (e *Editor) UpdateType(id TypeID, change func(TypeDef)) {
 		e.refuse("update rejected: %q holds the node of %q, which belongs at its own ID", id, current.Common().ID)
 	default:
 		if next, taken := updated(e, typeKind(), string(id), subjectAt(id), current, change); taken {
-			e.ownTypes()[id] = next
+			e.types().write()[id] = next
 		}
 	}
 }
@@ -40,8 +40,8 @@ func (e *Editor) UpdateType(id TypeID, change func(TypeDef)) {
 // typeKind is what an update knows of a type.
 func typeKind() nodeKind[TypeDef] {
 	return nodeKind[TypeDef]{
-		method: "UpdateType", class: reflect.TypeFor[TypeID](),
-		id: func(td TypeDef) string { return string(td.Common().ID) },
+		method: "UpdateType",
+		id:     func(td TypeDef) string { return string(td.Common().ID) },
 	}
 }
 
@@ -59,28 +59,29 @@ func (e *Editor) ReplaceType(td TypeDef) {
 		return
 	}
 	id := td.Common().ID
-	current, ok := e.typeAt("replace", id)
+	current, ok := entryAt(e, e.types(), "replace", id)
 	switch {
 	case !ok:
 	case e.doc.Types[id] == td:
 		e.refuse("replace rejected: %q is the edited document's own node, which an edit never changes; "+
 			"change a copy with UpdateType", id)
 	case e.replaceable(id, current, td):
-		e.ownTypes()[id] = td
+		e.types().write()[id] = td
 	}
 }
 
 // replaceable reports whether td declares no ID current, the node the edit
-// holds at id, does not, refusing a replacement that does. A nil current
-// declares nothing.
+// holds at id, does not, refusing a replacement that does. Its own ID, which
+// its key holds to it, is not among them: current may be nil or off its key.
 func (e *Editor) replaceable(id TypeID, current, td TypeDef) bool {
-	class := reflect.TypeFor[TypeID]()
-	e.declared.reset()
-	if !IsNilTypeDef(current) {
-		e.declared.tally(current, false, class, string(current.Common().ID))
+	c := &e.declared
+	c.node = c.scan(c.node[:0], current)
+	c.change = c.scan(c.change[:0], td)
+	own := declaredID{class: reflect.TypeFor[TypeID](), id: string(id)}
+	if i := slices.Index(c.change, own); i >= 0 {
+		c.change = slices.Delete(c.change, i, i+1)
 	}
-	e.declared.tally(td, true, class, string(id))
-	if added, n, found := e.declared.excess(); found {
+	if added, n, found := c.excess(); found {
 		e.refuse("replace rejected: the node for %q declares %s; an edit adds no ID",
 			id, n.clause(added, "the node it replaces"))
 		return false
@@ -92,14 +93,7 @@ func (e *Editor) replaceable(id TypeID, current, td TypeDef) bool {
 // none at. Whatever still references id is left to the passes that check
 // references, validate among them.
 func (e *Editor) RemoveType(id TypeID) {
-	if _, ok := e.typeAt("remove", id); !ok {
-		return
-	}
-	types := e.ownTypes()
-	delete(types, id)
-	if len(types) == 0 {
-		e.out.Types = nil
-	}
+	removeEntry(e, e.types(), id)
 }
 
 // refuseMoved refuses each node the edit took, by ReplaceType or UpdateType,
@@ -122,28 +116,4 @@ func (e *Editor) refuseMoved() {
 			e.out.Types[id] = e.doc.Types[id] // an edit adds no ID, so doc holds one here
 		}
 	}
-}
-
-// typeAt returns the node the edit holds at id for a write verb names, and
-// refuses one the edit does not take (open) and one at an id it holds no node
-// at: an edit adds no ID.
-func (e *Editor) typeAt(verb string, id TypeID) (TypeDef, bool) {
-	if !e.open(verb, subjectAt(id)) {
-		return nil, false
-	}
-	if td, held := e.Type(id); held {
-		return td, true
-	}
-	e.refuse("%s rejected: no type %q to %s; an edit adds no type", verb, id, verb)
-	return nil, false
-}
-
-// ownTypes returns the registry the edit owns, copying the one it holds at the
-// first write, so the edited document's is never written.
-func (e *Editor) ownTypes() TypeRegistry {
-	if !e.owns.types {
-		e.out.Types = maps.Clone(e.out.Types)
-		e.owns.types = true
-	}
-	return e.out.Types
 }

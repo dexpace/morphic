@@ -1,45 +1,49 @@
 package ir
 
-import (
-	"maps"
-	"reflect"
-)
+import "maps"
 
-// registry is an edit's view of one of a document's maps of nodes keyed by ID
-// other than the type registry: the map the edit's document holds, whether the
-// edit owns it yet, and what an update and a refusal need to know of its nodes.
+// registry is an edit's view of one of a document's maps of nodes keyed by ID:
+// the map the edit's document holds, whether the edit owns it yet, and the noun
+// a refusal names its nodes by.
 type registry[K ~string, V any] struct {
 	held  *map[K]V
 	owned *bool
-	kind  nodeKind[*V]
 	noun  string
+}
+
+// types is the edit's view of Document.Types.
+func (e *Editor) types() registry[TypeID, TypeDef] {
+	return registry[TypeID, TypeDef]{held: (*map[TypeID]TypeDef)(&e.out.Types), owned: &e.owns.types, noun: "type"}
 }
 
 // channels is the edit's view of Document.Channels.
 func (e *Editor) channels() registry[ChannelID, Channel] {
-	return registry[ChannelID, Channel]{held: &e.out.Channels, owned: &e.owns.channels, noun: "channel",
-		kind: nodeKind[*Channel]{
-			method: "UpdateChannel", class: reflect.TypeFor[ChannelID](),
-			id: func(c *Channel) string { return string(c.ID) },
-		}}
+	return registry[ChannelID, Channel]{held: &e.out.Channels, owned: &e.owns.channels, noun: "channel"}
+}
+
+// channelKind is what an update knows of a channel.
+func channelKind() nodeKind[*Channel] {
+	return nodeKind[*Channel]{method: "UpdateChannel", id: func(c *Channel) string { return string(c.ID) }}
 }
 
 // messages is the edit's view of Document.Messages.
 func (e *Editor) messages() registry[MessageID, Message] {
-	return registry[MessageID, Message]{held: &e.out.Messages, owned: &e.owns.messages, noun: "message",
-		kind: nodeKind[*Message]{
-			method: "UpdateMessage", class: reflect.TypeFor[MessageID](),
-			id: func(m *Message) string { return string(m.ID) },
-		}}
+	return registry[MessageID, Message]{held: &e.out.Messages, owned: &e.owns.messages, noun: "message"}
+}
+
+// messageKind is what an update knows of a message.
+func messageKind() nodeKind[*Message] {
+	return nodeKind[*Message]{method: "UpdateMessage", id: func(m *Message) string { return string(m.ID) }}
 }
 
 // authSchemes is the edit's view of Document.Auth.
 func (e *Editor) authSchemes() registry[AuthID, AuthScheme] {
-	return registry[AuthID, AuthScheme]{held: &e.out.Auth, owned: &e.owns.auth, noun: "auth scheme",
-		kind: nodeKind[*AuthScheme]{
-			method: "UpdateAuthScheme", class: reflect.TypeFor[AuthID](),
-			id: func(a *AuthScheme) string { return string(a.ID) },
-		}}
+	return registry[AuthID, AuthScheme]{held: &e.out.Auth, owned: &e.owns.auth, noun: "auth scheme"}
+}
+
+// authSchemeKind is what an update knows of an auth scheme.
+func authSchemeKind() nodeKind[*AuthScheme] {
+	return nodeKind[*AuthScheme]{method: "UpdateAuthScheme", id: func(a *AuthScheme) string { return string(a.ID) }}
 }
 
 // Channel returns the channel the edit holds at id. It is shared, so it is
@@ -53,7 +57,7 @@ func (e *Editor) Channel(id ChannelID) (Channel, bool) {
 // part but its ID, and holds the copy in its place. It refuses what UpdateType
 // refuses of an id, a node off its own key and a change.
 func (e *Editor) UpdateChannel(id ChannelID, change func(*Channel)) {
-	updateEntry(e, e.channels(), id, change)
+	updateEntry(e, e.channels(), channelKind(), id, change)
 }
 
 // RemoveChannel removes the channel at id, and refuses an id the edit holds
@@ -73,7 +77,7 @@ func (e *Editor) Message(id MessageID) (Message, bool) {
 // part but its ID, and holds the copy in its place. It refuses what UpdateType
 // refuses of an id, a node off its own key and a change.
 func (e *Editor) UpdateMessage(id MessageID, change func(*Message)) {
-	updateEntry(e, e.messages(), id, change)
+	updateEntry(e, e.messages(), messageKind(), id, change)
 }
 
 // RemoveMessage removes the message at id, and refuses an id the edit holds
@@ -93,7 +97,7 @@ func (e *Editor) AuthScheme(id AuthID) (AuthScheme, bool) {
 // in any part but its ID, and holds the copy in its place. It refuses what
 // UpdateType refuses of an id, a node off its own key and a change.
 func (e *Editor) UpdateAuthScheme(id AuthID, change func(*AuthScheme)) {
-	updateEntry(e, e.authSchemes(), id, change)
+	updateEntry(e, e.authSchemes(), authSchemeKind(), id, change)
 }
 
 // RemoveAuthScheme removes the auth scheme at id, and refuses an id the edit
@@ -104,21 +108,21 @@ func (e *Editor) RemoveAuthScheme(id AuthID) {
 
 // updateEntry is UpdateChannel, UpdateMessage and UpdateAuthScheme over r, and
 // refuses a node off its own ID's key besides what updated refuses.
-func updateEntry[K ~string, V any](e *Editor, r registry[K, V], id K, change func(*V)) {
+func updateEntry[K ~string, V any](e *Editor, r registry[K, V], kind nodeKind[*V], id K, change func(*V)) {
 	current, ok := entryAt(e, r, "update", id)
 	if !ok {
 		return
 	}
-	if at := r.kind.id(&current); at != string(id) {
+	if at := kind.id(&current); at != string(id) {
 		e.refuse("update rejected: %q holds the node of %q, which belongs at its own ID", id, at)
 		return
 	}
-	if next, taken := updated(e, r.kind, string(id), subjectAt(id), &current, change); taken {
+	if next, taken := updated(e, kind, string(id), subjectAt(id), &current, change); taken {
 		r.write()[id] = *next
 	}
 }
 
-// removeEntry is RemoveChannel, RemoveMessage and RemoveAuthScheme over r.
+// removeEntry removes the node the edit holds at id in r.
 func removeEntry[K ~string, V any](e *Editor, r registry[K, V], id K) {
 	if _, ok := entryAt(e, r, "remove", id); !ok {
 		return

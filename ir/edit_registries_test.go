@@ -50,6 +50,38 @@ func summaries(doc *ir.Document) map[string]string {
 	return out
 }
 
+// TestEditor_ARegistryReadIsNotChangedByWhatFollows pins that what a read of a
+// type, channel, message or auth scheme returned stays what the edit held then,
+// after an update of it and after its removal.
+func TestEditor_ARegistryReadIsNotChangedByWhatFollows(t *testing.T) {
+	t.Parallel()
+	doc := registriesDoc()
+	doc.Types = ir.TypeRegistry{"t/a": &ir.Any{ID: "t/a", Docs: ir.Docs{Summary: "t/a"}}}
+	e := ir.NewEditor(doc)
+	td, _ := e.Type("t/a")
+	channel, _ := e.Channel("c/a")
+	message, _ := e.Message("m/a")
+	scheme, _ := e.AuthScheme("a/a")
+
+	e.UpdateType("t/a", func(td ir.TypeDef) { changed(&td.Common().Docs) })
+	e.UpdateChannel("c/a", func(c *ir.Channel) {
+		changed(&c.Docs)
+		c.Params[0].Docs.Summary = "changed"
+	})
+	e.UpdateMessage("m/a", func(m *ir.Message) { changed(&m.Docs) })
+	e.UpdateAuthScheme("a/a", func(a *ir.AuthScheme) { a.Flows[0].TokenURL = "changed" })
+	e.RemoveType("t/a")
+	e.RemoveChannel("c/a")
+	_, diags := e.Finish()
+
+	require.Empty(t, diags)
+	assert.Equal(t, "t/a", td.Common().Docs.Summary)
+	assert.Equal(t, "c/a", channel.Docs.Summary)
+	assert.Empty(t, channel.Params[0].Docs.Summary)
+	assert.Equal(t, "m/a", message.Docs.Summary)
+	assert.Equal(t, "https://a", scheme.Flows[0].TokenURL)
+}
+
 // TestEditor_WritesTheRegistriesAndNotTheDocument pins each write to a
 // channel, message or auth scheme: what the edit's document holds after it,
 // that a registry the edit does not write stays the edited document's, and

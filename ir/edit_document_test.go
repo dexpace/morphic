@@ -30,6 +30,22 @@ func filledDoc(t *testing.T) *ir.Document {
 // their own IDs, which UpdateDocument leaves out of the copy it hands over.
 var keyedFields = []string{"Services", "Types", "Channels", "Messages", "Auth"}
 
+// TestEditor_KeyedFieldsAreEveryRegistry holds keyedFields, and so what the
+// tests below hold UpdateDocument to leaving out, to the document's services
+// and every registry its shape derives: a registry added to Document fails
+// here until the edit reaches it.
+func TestEditor_KeyedFieldsAreEveryRegistry(t *testing.T) {
+	t.Parallel()
+	classes := ir.KeyedClasses()
+	got := []string{"Services"}
+	for f := range reflect.TypeFor[ir.Document]().Fields() {
+		if f.Type.Kind() == reflect.Map && classes[f.Type.Key()] {
+			got = append(got, f.Name)
+		}
+	}
+	assert.ElementsMatch(t, got, keyedFields)
+}
+
 // TestEditor_UpdateDocumentChangesItsOwnFields pins UpdateDocument: the change
 // is handed every field of the document's own, the keyed parts left out, in a
 // copy sharing nothing with the edited document, and what it leaves is held
@@ -74,6 +90,24 @@ func TestEditor_UpdateDocumentChangesItsOwnFields(t *testing.T) {
 		if at, shared := original[addr]; shared {
 			t.Errorf("the copy's %s is the edited document's %s", path, at)
 		}
+	}
+}
+
+// TestEditor_UpdateDocumentKeepsWhatItLeavesOut pins that the fields an update
+// leaves out of its copy are back beside what it changed, in an edit that wrote
+// none of them, so nothing but the update rebuilds them.
+func TestEditor_UpdateDocumentKeepsWhatItLeavesOut(t *testing.T) {
+	t.Parallel()
+	doc := filledDoc(t)
+	e := ir.NewEditor(doc)
+	e.UpdateDocument(func(d *ir.Document) { d.Name = "renamed" })
+	out, diags := e.Finish()
+
+	require.Empty(t, diags)
+	assert.Equal(t, "renamed", out.Name)
+	for _, field := range keyedFields {
+		got, want := reflect.ValueOf(out).Elem().FieldByName(field), reflect.ValueOf(doc).Elem().FieldByName(field)
+		assert.Equal(t, want.Pointer(), got.Pointer(), "the update lost or copied %s", field)
 	}
 }
 

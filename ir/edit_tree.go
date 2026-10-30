@@ -1,13 +1,13 @@
 package ir
 
-import "reflect"
-
 // Service returns the service the edit holds at id, its groups as the edit
-// holds them. It is shared, so it is read and never changed; UpdateService
-// changes a copy. An ID the edit holds several services at holds none.
+// holds them, which stay so whatever the edit does next: the read builds the
+// slices in the service a write reached since the last one. It is shared, so
+// it is read and never changed; UpdateService changes a copy. An ID the edit
+// holds several services at holds none.
 func (e *Editor) Service(id ServiceID) (Service, bool) {
-	if n, held := e.settled().find(serviceNode, string(id)); held == 1 {
-		return *e.tree.locate(e.out, n, false).svc, true
+	if n, held := e.indexed().find(serviceNode, string(id)); held == 1 {
+		return e.tree.serviceOf(n), true
 	}
 	return Service{}, false
 }
@@ -22,22 +22,22 @@ func (e *Editor) UpdateService(id ServiceID, change func(*Service)) {
 	if !ok {
 		return
 	}
-	own := *e.tree.locate(e.out, n, false).svc
+	own := *n.service
 	own.Groups = nil
 	next, taken := updated(e, serviceKind(), string(id), subjectAt(id), &own, change)
 	if !taken {
 		return
 	}
-	held := e.tree.locate(e.out, n, true).svc
-	next.Groups = held.Groups
-	*held = *next
+	next.Groups = n.service.Groups
+	n.service = new(*next)
+	e.tree.touch(n)
 }
 
 // serviceKind is what an update knows of a service.
 func serviceKind() nodeKind[*Service] {
 	return nodeKind[*Service]{
-		method: "UpdateService", class: reflect.TypeFor[ServiceID](),
-		id: func(s *Service) string { return string(s.ID) },
+		method: "UpdateService",
+		id:     func(s *Service) string { return string(s.ID) },
 		keyed: func(s *Service) string {
 			if s.Groups != nil {
 				return "Groups"
@@ -56,12 +56,14 @@ func (e *Editor) RemoveService(id ServiceID) {
 }
 
 // Group returns the operation group the edit holds at id, the groups and
-// operations in it as the edit holds them. It is shared, so it is read and
-// never changed; UpdateGroup changes a copy. An ID the edit holds several
-// groups at holds none, and nor does one nested past MaxGroupDepth.
+// operations in it as the edit holds them, which stay so whatever the edit does
+// next: the read builds the slices in the group a write reached since the last
+// one. It is shared, so it is read and never changed; UpdateGroup changes a
+// copy. An ID the edit holds several groups at holds none, and nor does one
+// nested past MaxGroupDepth.
 func (e *Editor) Group(id GroupID) (OperationGroup, bool) {
-	if n, held := e.settled().find(groupNode, string(id)); held == 1 {
-		return *e.tree.locate(e.out, n, false).grp, true
+	if n, held := e.indexed().find(groupNode, string(id)); held == 1 {
+		return e.tree.groupOf(n), true
 	}
 	return OperationGroup{}, false
 }
@@ -76,22 +78,22 @@ func (e *Editor) UpdateGroup(id GroupID, change func(*OperationGroup)) {
 	if !ok {
 		return
 	}
-	own := *e.tree.locate(e.out, n, false).grp
+	own := *n.group
 	own.Groups, own.Operations = nil, nil
 	next, taken := updated(e, groupKind(), string(id), subjectAt(id), &own, change)
 	if !taken {
 		return
 	}
-	held := e.tree.locate(e.out, n, true).grp
-	next.Groups, next.Operations = held.Groups, held.Operations
-	*held = *next
+	next.Groups, next.Operations = n.group.Groups, n.group.Operations
+	n.group = new(*next)
+	e.tree.touch(n)
 }
 
 // groupKind is what an update knows of an operation group.
 func groupKind() nodeKind[*OperationGroup] {
 	return nodeKind[*OperationGroup]{
-		method: "UpdateGroup", class: reflect.TypeFor[GroupID](),
-		id: func(g *OperationGroup) string { return string(g.ID) },
+		method: "UpdateGroup",
+		id:     func(g *OperationGroup) string { return string(g.ID) },
 		keyed: func(g *OperationGroup) string {
 			switch {
 			case g.Groups != nil:
@@ -120,7 +122,7 @@ func (e *Editor) RemoveGroup(id GroupID) {
 // MaxGroupDepth.
 func (e *Editor) Operation(id OpID) (Operation, bool) {
 	if n, held := e.indexed().find(operationNode, string(id)); held == 1 {
-		return *e.tree.locate(e.out, n, false).op, true
+		return *n.operation, true
 	}
 	return Operation{}, false
 }
@@ -134,17 +136,17 @@ func (e *Editor) UpdateOperation(id OpID, change func(*Operation)) {
 	if !ok {
 		return
 	}
-	own := *e.tree.locate(e.out, n, false).op
-	if next, taken := updated(e, operationKind(), string(id), subjectAt(id), &own, change); taken {
-		*e.tree.locate(e.out, n, true).op = *next
+	if next, taken := updated(e, operationKind(), string(id), subjectAt(id), n.operation, change); taken {
+		n.operation = new(*next)
+		e.tree.touch(n)
 	}
 }
 
 // operationKind is what an update knows of an operation.
 func operationKind() nodeKind[*Operation] {
 	return nodeKind[*Operation]{
-		method: "UpdateOperation", class: reflect.TypeFor[OpID](),
-		id: func(op *Operation) string { return string(op.ID) },
+		method: "UpdateOperation",
+		id:     func(op *Operation) string { return string(op.ID) },
 	}
 }
 
@@ -188,13 +190,4 @@ func (e *Editor) indexed() *serviceTree {
 		e.tree.index(e.out.Services)
 	}
 	return &e.tree
-}
-
-// settled returns the edit's tree with the nodes it removed dropped from the
-// slices of the document it holds, for a read returning a node with what it
-// holds.
-func (e *Editor) settled() *serviceTree {
-	t := e.indexed()
-	t.settle(e.out)
-	return t
 }

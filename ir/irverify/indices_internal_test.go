@@ -216,9 +216,7 @@ var integerFields = map[string]string{
 	"loggedPath.end":    "where a kept path's own steps end in its log's storage, not a position in any IR slice",
 
 	// An ir.Editor's own state, which is no part of a document either.
-	"treeNode.at": "where a node sits among its siblings in the document an edit returns, which the edit " +
-		"moves as it drops the nodes it removed; it indexes no slice a document is handed with",
-	"serviceTree.work": "how many nodes an edit has stepped through, and elements it has copied or moved, in the service tree, a count",
+	"serviceTree.work": "how many nodes an edit has stepped through, and elements it has built, in the service tree, a count",
 	"idCounts.fields":  "for each struct type, which of its fields an edit's ID check enters, read off the type",
 	"idCounts.entered": "how many values an edit's ID check has entered, a count",
 	"idCounts.sorted":  "how many lists an edit's ID check has sorted, a count",
