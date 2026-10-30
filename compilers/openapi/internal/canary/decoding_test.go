@@ -591,6 +591,46 @@ func mergeKeys(t *testing.T) {
 		"a source's repeated key gives its first copy: %s", revisit(t, result{}))
 }
 
+// scalarResolution pins scalar-resolution: a plain scalar's tag, and the number
+// an !!int decodes to, follow neither YAML version alone.
+func scalarResolution(t *testing.T) {
+	cases := []struct {
+		literal, tag string
+		number       int64
+	}{
+		{literal: "0644", tag: "!!int", number: 420},
+		{literal: "0b101", tag: "!!int", number: 5},
+		{literal: "1_000", tag: "!!int", number: 1000},
+		{literal: "2021-01-01", tag: "!!timestamp"},
+		{literal: "0o17", tag: "!!int", number: 15},
+		{literal: "yes", tag: "!!str"},
+		{literal: "on", tag: "!!str"},
+		{literal: "1:30", tag: "!!str"},
+	}
+	var spec strings.Builder
+	spec.WriteString(head + "components:\n  schemas:\n    S:\n      properties:\n")
+	for _, tc := range cases {
+		fmt.Fprintf(&spec, "        %q: {default: %s}\n", tc.literal, tc.literal)
+	}
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(spec.String()), soa.WithSkipValidation())
+	require.NoError(t, err)
+
+	s, ok := doc.Components.Schemas.Get("S")
+	require.True(t, ok)
+	for _, tc := range cases {
+		p, ok := s.GetSchema().GetProperties().Get(tc.literal)
+		require.True(t, ok, tc.literal)
+		n := p.GetSchema().GetDefault()
+		assert.Equal(t, tc.tag, n.ShortTag(), "%s: %s", tc.literal, revisit(t, result{}))
+		if tc.tag != "!!int" {
+			continue
+		}
+		var number int64
+		require.NoError(t, n.Decode(&number), tc.literal)
+		assert.Equal(t, tc.number, number, "%s: %s", tc.literal, revisit(t, result{}))
+	}
+}
+
 // nonScalarKey pins non-scalar-key: a mapping key that is no scalar is read
 // as the empty string, with no finding.
 func nonScalarKey(t *testing.T) {

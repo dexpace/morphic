@@ -476,6 +476,33 @@ components:
   - `nodeview.KeyOf` reads such a key as the empty string.
   - `oas.CheckFormat` reports it.
 
+### `scalar-resolution`
+
+The YAML parser tags a plain scalar by neither YAML version alone, and the compiler keeps the tag it
+gives ([`values`](compilers/openapi.md#values)). As in YAML 1.1, a leading `0` is octal, `0b` is
+binary, `_` separates digits and a date is a `!!timestamp`. As in YAML 1.2, `0o` is octal and `yes`,
+`on` and the base-60 `1:30` are strings. So `0644` is 420, where 1.2's core schema reads 644, and
+`on` under `type: boolean` stays a string, where 1.1 reads true. OpenAPI recommends 1.2, and the
+compiler reports no scalar the two versions read apart.
+
+```yaml
+components:
+  schemas:
+    S:
+      properties:
+        a: {type: integer, default: 0644}        # 420
+        b: {type: integer, default: 0o17}        # 15
+        c: {type: integer, default: 1_000}       # 1000
+        d: {type: boolean, default: on}          # "on"
+        e: {type: string, default: 2021-01-01}   # a timestamp, kept as written
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/scalar-resolution`
+- Code:
+  - `value.Classify` reads a scalar by the tag the parser gave it.
+  - `value.NumericLiteral` gives an `!!int` the number its prefix means.
+
 ### `unmodeled-keywords`
 
 The schema model has no field for `$dynamicRef`, `$dynamicAnchor`, `$comment`, `$vocabulary` or
