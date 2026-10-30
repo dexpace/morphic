@@ -29,7 +29,7 @@ paths:
   # The same wire format written as a composition rather than a declaration. A
   # body whose parts arrive through allOf has no properties of its own, so the
   # parts must be enumerated across the composition and keyed by the property
-  # the IR actually holds — which §4.3 keeps on the Base, not on the composed
+  # the IR actually holds — which docs/ir/models.md#composition keeps on the Base, not on the composed
   # node.
   /upload-composed:
     post:
@@ -50,7 +50,7 @@ paths:
         "200":
           description: ok
   # A part two composed models declare is one part on the wire, keyed by the
-  # declaration the body's flattening takes (ir-design §4.3): the later
+  # declaration the body's flattening takes (docs/ir/models.md#the-flattening): the later
   # conjunct's, FileList's list of files here, whose type the flags read.
   /upload-redeclared:
     post:

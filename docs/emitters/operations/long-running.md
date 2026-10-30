@@ -25,7 +25,8 @@ finds the monitor URL (status-monitor vs `operation-location` header vs original
 parameterised by policy — the same structure/runtime line as the iterator
 ([pagination](pagination.md)) and the stream reader ([streaming](streaming.md)). Smithy waiters are
 *not* folded in here: their acceptor/JMESPath lists arrive verbatim in `Operation.Unmodeled`
-(`ir-design.md §7.3`) and a waiter-aware refiner is a separate, opt-in step.
+([interaction-patterns](../../ir/interaction-patterns.md)) and a waiter-aware refiner is a separate,
+opt-in step.
 
 `OneWay` operations take the opposite path — no poller, no response binding, a fire-and-forget
 method — read straight from `Operation.OneWay`.

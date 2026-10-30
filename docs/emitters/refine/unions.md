@@ -6,7 +6,7 @@ How a target spells a union is its own ([Go](../targets/go/unions.md),
 ## The wire shapes
 
 `LowerUnions` reads the plan's wire shape (`TypePlan.Union`) and the target's capability. The
-tag-mode matrix (each a distinct serializer) is normative (`ir-design.md §4.4`):
+tag-mode matrix (each a distinct serializer) is normative ([unions](../../ir/unions.md#tag-modes)):
 
 - `WireTagged=false` → untagged; variant inferred by validation (JSON oneOf/anyOf).
   `Exclusive=true` = exactly-one; `false` = one-or-more (anyOf). An untagged union carries
@@ -21,9 +21,10 @@ tag-mode matrix (each a distinct serializer) is normative (`ir-design.md §4.4`)
 
 ## A polymorphic base
 
-A reference to a model with a `Discriminator`, or an `Abstract` one (ir-design §4.9), holds any of
-its subtypes, so it lowers as a union of them, and `Discrim` routes it as a union's. The base's own
-shape, unless it is `Abstract`, is a variant too, a struct of its flattened properties.
+A reference to a model with a `Discriminator`, or an `Abstract` one
+([derived-facts](../../ir/derived-facts.md)), holds any of its subtypes, so it lowers as a union of
+them, and `Discrim` routes it as a union's. The base's own shape, unless it is `Abstract`, is a
+variant too, a struct of its flattened properties.
 
 ## Variant identity and recognition
 

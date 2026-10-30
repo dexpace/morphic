@@ -21,7 +21,7 @@ import (
 
 var (
 	// ErrVersionAbsent reports a document that declares no irVersion: a
-	// producer that never stamped it (ir-design §2.1).
+	// producer that never stamped it (docs/ir/ir-version.md).
 	ErrVersionAbsent = errors.New("no irVersion")
 	// ErrVersionIncompatible reports a document stamped with an irVersion
 	// CompatibleVersion rejects: another generation's document.
@@ -66,9 +66,9 @@ func canonicalOptions() json.Options {
 }
 
 // UnmarshalJSONFrom decodes a Document this build can read and refuses any
-// other before interpreting a member of it (ir-design §2.1): a missing or
-// foreign irVersion, a member the schema does not define, a duplicate name, or
-// a string that is not UTF-8. The refusals do not depend on the caller's
+// other before interpreting a member of it (docs/ir/ir-version.md): a missing
+// or foreign irVersion, a member the schema does not define, a duplicate name,
+// or a string that is not UTF-8. The refusals do not depend on the caller's
 // options, because the document is decoded again here under the IR's own.
 func (d *Document) UnmarshalJSONFrom(dec *jsontext.Decoder) error {
 	raw, err := dec.ReadValue()

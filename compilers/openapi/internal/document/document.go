@@ -28,7 +28,7 @@ type Meta struct {
 
 // Lower lowers the document-level metadata that is not part of the type or
 // service graph: info, and what the document writes that lowers to no node of
-// its own, kept verbatim (ir-design §12).
+// its own, kept verbatim (docs/ir/unmodeled.md).
 //
 // It must run after every other lowering: which components it keeps depends on
 // what they reached (lowering.Ctx.Reached).

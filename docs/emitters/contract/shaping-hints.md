@@ -17,8 +17,8 @@ type ShapeHint struct {
 ```
 
 `Extra` is a bare raw-JSON map rather than `ir.RawConfig`: `RawConfig` names *declared protocol
-configuration inside the IR* (`ir-design.md §12`), and a hint is neither — it is emitter input
-authored alongside the SDK, and the IR never sees it.
+configuration inside the IR* ([unmodeled](../../ir/unmodeled.md#rawconfig)), and a hint is neither —
+it is emitter input authored alongside the SDK, and the IR never sees it.
 
 Method-name *derivation* is itself an injectable policy marked `Inferred`, disable-able and
 overridable. Per-target naming/compat overlays are the same shape: an emitter input keyed by IR ID,

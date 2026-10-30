@@ -1031,7 +1031,8 @@ func refSiteAlias(t *testing.T, doc *ir.Document, c ir.Content) ir.TypeDef {
 // primitive a scalar aliases, or a $ref's target), has not leaked onto it.
 //
 // NotContains(node, key) rules out only that exact JSON key, not preservation
-// under another such as Unmodeled (ir-design §4.7). A knownGap case awaits a
+// under another such as Unmodeled
+// (docs/compilers/openapi.md#verbatim-preservation). A knownGap case awaits a
 // real field, and this assertion exists to catch exactly that gap.
 func marshalToMap(t *testing.T, v any) map[string]any {
 	t.Helper()

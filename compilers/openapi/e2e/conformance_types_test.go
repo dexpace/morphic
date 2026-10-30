@@ -446,9 +446,9 @@ func assertRecursive(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, componentID("Node"), next.Type.Target, "self-reference terminates on the interned ID")
 }
 
-// assertMaps pins ir-design §4.6's line between the two map shapes: an object
-// whose one member fact is its catch-all is a MapT, carrying its value type and
-// entry bounds, and a catch-all beside anything else is a Model's
+// assertMaps pins docs/ir/containers.md's line between the two map shapes: an
+// object whose one member fact is its catch-all is a MapT, carrying its value
+// type and entry bounds, and a catch-all beside anything else is a Model's
 // AdditionalProps. An explicit `true` types the catch-all as the top type in
 // either.
 func assertMaps(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

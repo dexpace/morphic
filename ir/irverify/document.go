@@ -21,8 +21,8 @@ const (
 const sha256HexLen = 64
 
 // checkDocument asserts the two tables every compiled document carries
-// (ir-design §2): at least one service, and a source table naming each input
-// with the format it was read as and the digest of its bytes.
+// (docs/ir/document.md): at least one service, and a source table naming each
+// input with the format it was read as and the digest of its bytes.
 //
 // A compile reads at least one file and lowers it to at least one service, so
 // an empty table names a producer that assembled a document from nothing. The

@@ -3,17 +3,19 @@
 OpenAPI 3.0 admits nothing beside a `$ref`, so a document annotates one use of a shared schema by
 wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. The compiler keeps
 that losslessly, as an anonymous `Model` whose `Base` is `Status` and which carries the description
-(ir-design §4.3). 3.1's spelling of the same use, `{$ref: Status, description: …}`, hoists an
-anonymous `Scalar` alias over `Status` wherever no property or parameter holds the annotations
-(ir-design §12.1), and so does an annotation alone on a non-carrier position,
-`items: {type: string, example: x}`. None of these nodes says anything about a value that its `Base`
-does not. Lowered as written, each would be a type of its own — a struct repeating a wrapped model's
-fields, or a second name for a wrapped enum ([scalars](scalars.md)), named from a hint — where every
-user expects the type it wraps.
+([models](../../ir/models.md#composition-entries)). 3.1's spelling of the same use,
+`{$ref: Status, description: …}`, hoists an anonymous `Scalar` alias over `Status` wherever no
+property or parameter holds the annotations
+([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an
+annotation alone on a non-carrier position, `items: {type: string, example: x}`. None of these nodes
+says anything about a value that its `Base` does not. Lowered as written, each would be a type of
+its own — a struct repeating a wrapped model's fields, or a second name for a wrapped enum
+([scalars](scalars.md)), named from a hint — where every user expects the type it wraps.
 
-**What a decorator is** is the IR's rule, stated by `ir.Decorated` (ir-design §4.10): an anonymous
-`Model` or `Scalar` whose `Base` is set and which sets nothing beyond its identity, the annotations
-a use site can hold, `Availability`, which no emitter interprets ([contract
+**What a decorator is** is the IR's rule, stated by `ir.Decorated`
+([annotations](../../ir/annotations.md#decorators)): an anonymous `Model` or `Scalar` whose `Base`
+is set and which sets nothing beyond its identity, the annotations a use site can hold,
+`Availability`, which no emitter interprets ([contract
 rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)), and `Unmodeled`,
 whose entries an SDK acts on by reason, none of them by changing a type ([unmodeled
 entries](unmodeled.md)) — T-15 requires as much, since an entry that kept a node from collapsing
@@ -32,16 +34,18 @@ alias, once that pass exists, is followed the same way.
 **What refine does.** `CollapseAliases` runs before every other step. An aliased type emits no
 declaration, and each reference to it — a `TypeRef`, or a `TypeID` a discriminator's mapping or
 default names — is lowered as a reference to its `Alias`, keeping the referring reference's
-`Nullable`, which answers for the whole decorator (ir-design §3.3). The decorators' annotations fold
-onto the carrier holding the reference — a property, a parameter, a header or a union variant, each
-of which has a field for all three — so the reference documents its input exactly as the 3.1 `$ref`
-it stands for does:
+`Nullable`, which answers for the whole decorator
+([type-graph](../../ir/type-graph.md#type-references)). The decorators' annotations fold onto the
+carrier holding the reference — a property, a parameter, a header or a union variant, each of which
+has a field for all three — so the reference documents its input exactly as the 3.1 `$ref` it stands
+for does:
 
 - **`Docs` and `Deprecation`**, each field from the first that sets it: the carrier's own, then each
   decorator's along the chain; a carrier is deprecated where any of them is. At a property,
-  parameter or header the annotations of the type `Alias` names come last, merged as ir-design
-  §12.2 merges a `$ref` target's onto the carrier naming it; a union variant takes none of that
-  type's, as the compiler gives a variant none.
+  parameter or header the annotations of the type `Alias` names come last, merged as
+  [annotations](../../ir/annotations.md#what-a-reference-carries-down) merges a `$ref` target's onto
+  the carrier naming it; a union variant takes none of that type's, as the compiler gives a variant
+  none.
 - **`Examples`** whole: the carrier's own if it has any, else the nearest decorator's. Those of the
   type `Alias` names stay on it, since an example beside a `$ref` describes the position and never
   the target ([`schema-examples`](../../compilers/openapi.md#schema-examples)).

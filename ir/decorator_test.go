@@ -99,7 +99,8 @@ func TestDecorated_RefusesWhatIsNoDecorator(t *testing.T) {
 // may not set, one at a time, on each kind, and requires the node to stop
 // being one. It reads the fields off the types, so a field added to Model,
 // Scalar or TypeCommon joins the sweep and fails it until Decorated refuses
-// it, or the decorator rule (ir-design §4.10) is changed to allow it.
+// it, or the decorator rule (docs/ir/annotations.md#decorators) is changed to
+// allow it.
 func TestDecorated_EveryOtherFieldMakesATypeOfItsOwn(t *testing.T) {
 	t.Parallel()
 	allowed := map[string]bool{

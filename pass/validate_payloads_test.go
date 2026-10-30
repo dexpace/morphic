@@ -180,10 +180,10 @@ func TestValidate_EncodingKeyThroughServiceCommonErrors(t *testing.T) {
 }
 
 // TestValidate_EncodingKeyThroughComposition covers the three ways a body model
-// composes a part in. An emitter renders the flat property set (§4.3), so a key
-// naming an inherited part is legal IR and the check must stay silent on it —
-// resolving against the model's own properties alone would fail every one of
-// these.
+// composes a part in. An emitter renders the flat property set
+// (docs/ir/models.md#the-flattening), so a key naming an inherited part is
+// legal IR and the check must stay silent on it — resolving against the model's
+// own properties alone would fail every one of these.
 func TestValidate_EncodingKeyThroughComposition(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

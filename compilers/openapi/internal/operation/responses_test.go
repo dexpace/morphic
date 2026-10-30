@@ -90,8 +90,9 @@ func TestResponses_ALoneDefaultIsNeitherClass(t *testing.T) {
 
 // TestResponses_NamedByStatusKey pins the only naming OpenAPI gives a response.
 // It declares no name and keys responses by status code, so Response.Name
-// carries the hint ir-design §7.2 calls for, derived from that key; without it
-// an emitter has nothing to name a per-response result type from (GitHub #259).
+// carries the hint docs/ir/responses.md calls for, derived from that key;
+// without it an emitter has nothing to name a per-response result type from
+// (GitHub #259).
 //
 // The error half of the map and the default are named the same way, by the
 // same function (GitHub #422), as "404" and "default" assert: the spelling of

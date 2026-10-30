@@ -102,8 +102,8 @@ func compareVersions(a, b string) int {
 }
 
 // nextGeneration returns the version a bump from v moves to: the next MINOR,
-// which before 1.0 is the breaking position (ir-design §2.1). A v that does not
-// parse is returned as it is.
+// which before 1.0 is the breaking position (docs/ir/ir-version.md). A v that
+// does not parse is returned as it is.
 func nextGeneration(v string) string {
 	parsed, ok := parseVersion(v)
 	if !ok {
@@ -360,7 +360,7 @@ func errorPayload() *ir.Payload {
 
 // populatedValue returns a fully populated Value of ValueKind list, itself
 // containing at least one member of every other ValueKind so a single
-// fixture exercises every payload variant (ir-design §6).
+// fixture exercises every payload variant (docs/ir/values.md).
 func populatedValue() ir.Value {
 	return ir.Value{
 		Kind: ir.ValueList,
@@ -453,7 +453,7 @@ func populatedHeader() ir.Header {
 }
 
 // populatedProperty returns a Property with every field non-zero, matching
-// the shape ir-design §5.1 describes and the zero-value list in the test
+// the shape docs/ir/properties.md describes and the zero-value list in the test
 // specification.
 func populatedProperty() ir.Property {
 	return ir.Property{

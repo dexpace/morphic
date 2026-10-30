@@ -83,9 +83,9 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 }
 
 // TestUnpreservable_SchemaKeywordSites covers the preservation sites reached
-// through a schema body rather than through an operation: the §4.7 combination
-// keywords, a union kept beside its structural siblings, and the applicators a
-// contradictory schema declares that its node has no home for.
+// through a schema body rather than through an operation: the validation-only
+// combination keywords, a union kept beside its structural siblings, and the
+// applicators a contradictory schema declares that its node has no home for.
 //
 // They are separated from the table above because they share its property but
 // not its shape — several write no diagnostic of their own when they succeed, so
@@ -163,10 +163,10 @@ func TestUnpreservable_AbsentConstructIsSilent(t *testing.T) {
 	assert.False(t, ok, "an absent construct is not an unpreservable one: %+v", diags)
 }
 
-// TestUnpreservable_CompositeFailsWhole pins the §4.7 combination entries: a
-// validation-only object that combines several keywords is presented as the
-// verbatim source, so one unconvertible member fails the entry rather than
-// silently omitting itself from an object still labelled verbatim.
+// TestUnpreservable_CompositeFailsWhole pins the validation-only combination
+// entries: a validation-only object that combines several keywords is presented
+// as the verbatim source, so one unconvertible member fails the entry rather
+// than silently omitting itself from an object still labelled verbatim.
 func TestUnpreservable_CompositeFailsWhole(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    C:\n      type: object\n" +
@@ -194,9 +194,10 @@ func typeUnmodeled(t *testing.T, doc *ir.Document, id ir.TypeID) ir.Unmodeled {
 // TestPreserve_AllReasonsReachable pins that every UnmodeledReason an OpenAPI
 // document can provoke is produced by some lowering here, so a consumer
 // switching on the enum meets no value this compiler can never emit. There is no
-// longer an exception: ReasonOutOfScope was once only ir-design §15's Smithy and
-// TypeSpec exclusions, but the JSON Schema resource and dialect keywords land
-// under it too (dialectAt, TestDialectKeywords_KeptOutOfScope), so S declares one.
+// longer an exception: ReasonOutOfScope was once only
+// docs/ir/boundaries.md#deliberate-exclusions's Smithy and TypeSpec exclusions,
+// but the JSON Schema resource and dialect keywords land under it too
+// (dialectAt, TestDialectKeywords_KeptOutOfScope), so S declares one.
 //
 // The reach is per reason, not per entry: an entry left at the zero reason is
 // invisible here, and is irverify's "ir/empty-unmodeled-reason" to catch across

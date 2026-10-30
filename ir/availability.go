@@ -3,9 +3,10 @@
 
 package ir
 
-// Availability stores the versioning timeline of an entity (ir-design §11),
-// following the TypeSpec model; the version-slice pass produces a concrete
-// snapshot document per version. Formats without versioning leave this nil.
+// Availability stores the versioning timeline of an entity
+// (docs/ir/availability.md), following the TypeSpec model; the version-slice
+// pass produces a concrete snapshot document per version. Formats without
+// versioning leave this nil.
 type Availability struct {
 	// Added lists the version labels at which the entity was added, ordered;
 	// multiple entries with Removed support add/remove/re-add cycles.
@@ -25,7 +26,8 @@ type Availability struct {
 	RequiredChanged []VersionedBool `json:"requiredChanged,omitempty"`
 }
 
-// VersionedName is a prior name effective at a version (ir-design §11).
+// VersionedName is a prior name effective at a version
+// (docs/ir/availability.md).
 type VersionedName struct {
 	// Version is the version label.
 	Version string `json:"version,omitempty"`
@@ -33,7 +35,8 @@ type VersionedName struct {
 	Name string `json:"name,omitempty"`
 }
 
-// VersionedType is a prior type effective at a version (ir-design §11).
+// VersionedType is a prior type effective at a version
+// (docs/ir/availability.md).
 type VersionedType struct {
 	// Version is the version label.
 	Version string `json:"version,omitempty"`
@@ -41,7 +44,8 @@ type VersionedType struct {
 	Type TypeRef `json:"type"`
 }
 
-// VersionedBool records the prior required state at a version (ir-design §11).
+// VersionedBool records the prior required state at a version
+// (docs/ir/availability.md).
 type VersionedBool struct {
 	// Version is the version label.
 	Version string `json:"version,omitempty"`

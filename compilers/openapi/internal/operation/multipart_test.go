@@ -325,9 +325,10 @@ components:
 
 // TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes holds a part two
 // composed models declare to the declaration the body's flattening takes
-// (ir-design §4.3): the later conjunct's, whichever the allOf lists last, with
-// the flags read off that declaration's type. The declarations differ, a file
-// and a list of files, so a key or a flag read off the other one shows.
+// (docs/ir/models.md#the-flattening): the later conjunct's, whichever the allOf
+// lists last, with the flags read off that declaration's type. The declarations
+// differ, a file and a list of files, so a key or a flag read off the other one
+// shows.
 func TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

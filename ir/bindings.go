@@ -4,8 +4,9 @@
 package ir
 
 // OpBindings holds the concrete-protocol mappings of an Operation's neutral core
-// (ir-design §8). An operation has at least one binding; more than one is legal
-// (a Smithy service exposed over both HTTP and RPC; gRPC with HTTP transcoding).
+// (docs/ir/bindings.md). An operation has at least one binding; more than one
+// is legal (a Smithy service exposed over both HTTP and RPC; gRPC with HTTP
+// transcoding).
 type OpBindings struct {
 	// HTTP holds the HTTP mappings (OpenAPI/Swagger ops, TypeSpec @route, Smithy
 	// http traits). A slice: one operation may carry several HTTP mappings — gRPC
@@ -19,11 +20,13 @@ type OpBindings struct {
 	// subscriptions bind here plus streaming fields on the core — not via
 	// MessageBinding.
 	GraphQL *GraphQLBinding `json:"graphql,omitzero"`
-	// OTP is the Erlang/OTP behaviour-operation binding (§8.5).
+	// OTP is the Erlang/OTP behaviour-operation binding
+	// (docs/ir/otp-binding.md).
 	OTP *OTPBinding `json:"otp,omitzero"`
 }
 
-// HTTPLocation is where an HTTP parameter binds on the wire (ir-design §8.1).
+// HTTPLocation is where an HTTP parameter binds on the wire
+// (docs/ir/http-binding.md).
 type HTTPLocation string
 
 // HTTP parameter locations.
@@ -48,7 +51,7 @@ const (
 )
 
 // HTTPBinding maps an Operation onto one HTTP method and path, or for a webhook
-// onto a method and the event it names (ir-design §8.1).
+// onto a method and the event it names (docs/ir/http-binding.md).
 type HTTPBinding struct {
 	// Method is the method as sent on the wire (OpenAPI 3.2 additionalOperations
 	// keys carry exact capitalization; QUERY and custom methods are legal).
@@ -99,14 +102,14 @@ type HTTPBinding struct {
 }
 
 // RequestCompression declares required request-body compression encodings
-// (ir-design §8.1).
+// (docs/ir/http-binding.md).
 type RequestCompression struct {
 	// Encodings are the priority-ordered compression encodings ("gzip", …).
 	Encodings []string `json:"encodings,omitempty"`
 }
 
 // HTTPParamBinding assigns one logical parameter its HTTP wire location
-// (ir-design §8.1).
+// (docs/ir/http-binding.md).
 type HTTPParamBinding struct {
 	// Param is the ID of the Operation.Params entry it binds.
 	Param ParamID `json:"param,omitempty"`
@@ -152,7 +155,7 @@ type HTTPParamBinding struct {
 }
 
 // Callback is an out-of-band operation set keyed by a runtime expression
-// (ir-design §8.1).
+// (docs/ir/http-binding.md).
 type Callback struct {
 	// Expression is the runtime expression that resolves the callback URL.
 	Expression string `json:"expression,omitempty"`
@@ -161,7 +164,7 @@ type Callback struct {
 	Operations []OpID `json:"operations,omitempty"`
 }
 
-// RPCBinding maps an Operation onto an RPC method (ir-design §8.2).
+// RPCBinding maps an Operation onto an RPC method (docs/ir/rpc-binding.md).
 type RPCBinding struct {
 	// System is "grpc" | "smithy-rpc" | "connect" | "jsonrpc" | ….
 	System string `json:"system,omitempty"`
@@ -181,7 +184,7 @@ type RPCBinding struct {
 }
 
 // MsgDirection is the application-perspective direction of a MessageBinding
-// (ir-design §8.3, AsyncAPI 3 semantics).
+// (docs/ir/messaging.md, AsyncAPI 3 semantics).
 type MsgDirection string
 
 // Message directions.
@@ -192,7 +195,8 @@ const (
 	MsgDirectionReceive MsgDirection = "receive"
 )
 
-// MessageBinding maps an Operation onto a messaging channel (ir-design §8.3).
+// MessageBinding maps an Operation onto a messaging channel
+// (docs/ir/messaging.md).
 type MessageBinding struct {
 	// Channel is the channel the operation acts on; never empty.
 	Channel ChannelID `json:"channel,omitempty"`
@@ -212,7 +216,8 @@ type MessageBinding struct {
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
-// Reply describes request-reply semantics of a MessageBinding (ir-design §8.3).
+// Reply describes request-reply semantics of a MessageBinding
+// (docs/ir/messaging.md).
 type Reply struct {
 	// Channel is the static reply channel; nil when the address is dynamic-only
 	// (an AsyncAPI reply channel's own address is null by spec); when set, never
@@ -230,19 +235,20 @@ type Reply struct {
 	Docs Docs `json:"docs"`
 }
 
-// GraphQLBinding maps an Operation onto a GraphQL entry point (ir-design §8.4).
+// GraphQLBinding maps an Operation onto a GraphQL entry point
+// (docs/ir/graphql-binding.md).
 type GraphQLBinding struct {
 	// Kind is "query" | "mutation" | "subscription".
 	Kind string `json:"kind,omitempty"`
 	// FieldPath is the entry-point field (nesting for namespaced schemas). It is
-	// a path: no segment is blank, and one may repeat (ir-design §4).
+	// a path: no segment is blank, and one may repeat (docs/ir/type-graph.md).
 	FieldPath []string `json:"fieldPath,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
 // OTPBinding maps an Operation onto an Erlang/OTP behaviour callback
-// (ir-design §8.5).
+// (docs/ir/otp-binding.md).
 type OTPBinding struct {
 	// Behaviour is "gen_server" | "gen_statem" | "gen_event".
 	Behaviour string `json:"behaviour,omitempty"`

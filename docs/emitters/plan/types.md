@@ -19,19 +19,19 @@ type TypePlan struct {
     Alias      ir.TypeID            // the type every reference to this one is emitted as, this
                                     // one emitting nothing: a decorator's end (../refine/decorators.md), or a dedup
                                     // alias's target once that pass (architecture.md §2.2) and its
-                                    // record (ir-design §16, question 2) exist; "" = itself
+                                    // record (docs/ir/open-questions.md, question 2) exist; "" = itself
     Reach      []ir.GroupID         // the top-level operation groups whose operations reach this
                                     // type, sorted; empty = none does (../refine/output-units.md)
     Inferred   map[string]ir.Provenance
 }
 
 // UnionShape is the wire shape a union's serializer reads, from Exclusive, WireTagged and
-// Discriminator together (ir-design §4.4's tag-mode conventions).
+// Discriminator together (docs/ir/unions.md#tag-modes).
 type UnionShape string              // "one_of" | "any_of" | "discriminated" | "key_tagged"
 
 type ScalarChain struct {           // a Scalar's Base chain walked to its root (../refine/scalars.md)
     Root        ir.TypeID           // the chain's first node that is not a Scalar: a primitive, or
-                                    // what an alias stands over (ir-design §4.2); "" = opaque
+                                    // what an alias stands over (docs/ir/scalars.md); "" = opaque
     Constraints *ir.Constraints     // merged along the chain, decimal throughout (../refine/constraints.md)
     Encoding    *ir.Encoding        // the encoding declared nearest this scalar; nil = the root's
 }
@@ -57,26 +57,26 @@ not case anything, does not resolve reserved words, and does not copy a fact the
 per-language ([refine](../refine/pipeline.md)).
 
 `Flattened`, `Required`, `Undeclared` and `Unflattened` are one `ir.FlattenedProperties` walk, by
-the rules ir-design §4.3 states: its order, which declaration of a redeclared member is taken, and
-when a member is required. A flattened property is required where any of its declarations says so,
-an overridden one included, or where this model or one it composes lists its wire name in
-`Requires`, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id` required on the
-composed model. A name `Requires` lists that no flattened property declares is
+the rules [models](../../ir/models.md#the-flattening) states: its order, which declaration of a
+redeclared member is taken, and when a member is required. A flattened property is required where
+any of its declarations says so, an overridden one included, or where this model or one it composes
+lists its wire name in `Requires`, as `allOf: [{$ref: User}, {required: [id]}]` makes `User`'s `id`
+required on the composed model. A name `Requires` lists that no flattened property declares is
 `Undeclared`: a member only the catch-all governs, whose value the catch-all types —
 `AdditionalProps.Value`, or the top type where the model has no catch-all or scopes values by
 `Patterns`, since which pattern governs a name is ECMA-262's to say and no target's matcher is held
-to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
-`Tags` is a list, is in `Unflattened` as the entry names it: the struct over `Flattened` does not
-hold what it admits, so each refiner lowers it or degrades with a code of its own.
+to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when `Tags`
+is a list, is in `Unflattened` as the entry names it: the struct over `Flattened` does not hold what
+it admits, so each refiner lowers it or degrades with a code of its own.
 
 ## ModelShape — visibility projection
 
 One logical model produces N wire shapes across the lifecycle. `ModelShape(model, lifecycle)` is a
 **computed traversal in the plan layer**; the IR stores only the single logical model plus visibility
-facts and never the projected variants (INV2; `ir-design.md §5.2`). The plan emits one `ModelShape`
-per lifecycle the document actually exercises, in the type's `TypePlan.Shapes`, so a refiner knows
-exactly which shapes to build: those keys are the projections the type needs, and nothing else
-lists them.
+facts and never the projected variants (INV2; [properties](../../ir/properties.md#visibility)). The
+plan emits one `ModelShape` per lifecycle the document actually exercises, in the type's
+`TypePlan.Shapes`, so a refiner knows exactly which shapes to build: those keys are the projections
+the type needs, and nothing else lists them.
 
 ```go
 type ModelShape struct {
@@ -87,14 +87,15 @@ type ModelShape struct {
 ```
 
 `Props` are drawn from `TypePlan.Flattened`, so a composed model's shapes hold what it inherits and
-mixes in, each member visible as the declaration it takes says (ir-design §4.3).
-`readOnly → Only:[read, delete, query]`; `writeOnly → Only:[create, update]` (ir-design §5.2);
+mixes in, each member visible as the declaration it takes says
+([models](../../ir/models.md#the-flattening)). `readOnly → Only:[read, delete, query]`;
+`writeOnly → Only:[create, update]` ([properties](../../ir/properties.md#visibility));
 `Visibility.None` → excluded from every projection (distinct from the zero value); PATCH flips
 properties optional unless `HTTPBinding.PatchImplicitOptionality` points at `false` (nil is the
 protocol default, which flips them), and a patch shape never carries a property's default onto the
 wire ([values](../refine/values.md)); operation-level `ParameterVisibility` / `ReturnTypeVisibility`
 override which filter applies. Unknown visibility classes are opaque filters evaluated per class
-(`ir-design.md §5.2`).
+([properties](../../ir/properties.md#visibility)).
 
 ## A model with lifecycle visibility
 

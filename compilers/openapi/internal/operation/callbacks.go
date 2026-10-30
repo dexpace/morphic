@@ -18,10 +18,11 @@ import (
 
 // lowerCallbacks lowers each callback expression's path-item operations as
 // Operations registered in the parent's group, and binds them to the parent via
-// HTTPBinding.Callbacks keyed by the runtime expression (ir-design §8.1).
-// parent.mount roots callback operation identity, so two parents sharing one
-// $ref'd callback keep distinct callback operations; parent.decl is the base a
-// $ref'd callback or path item resolves against (issue #107).
+// HTTPBinding.Callbacks keyed by the runtime expression
+// (docs/ir/http-binding.md). parent.mount roots callback operation identity, so
+// two parents sharing one $ref'd callback keep distinct callback operations;
+// parent.decl is the base a $ref'd callback or path item resolves against
+// (issue #107).
 func lowerCallbacks(c lowering.Ctx, w walk, src *soa.Operation, parent opPointers, inferred ir.Inferred) ([]ir.Callback, []ir.Operation, ir.Unmodeled, []ir.Diagnostic) {
 	cbMap := src.GetCallbacks()
 	if cbMap == nil || cbMap.Len() == 0 {

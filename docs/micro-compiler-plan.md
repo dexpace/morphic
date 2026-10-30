@@ -66,8 +66,8 @@ landed with it, in that order, in one pull request.
 | ~~#73~~ | **Landed.** Its text proposed `ir` for both halves and was right about both. The naming grammar went there, and `irverify` validates against it. The ID *grammar* stayed in `compilers/compile`, but `t/prim/<kind>` followed the naming half to `ir` as `ir.PrimTypeID` — a primitive has no path for a compiler to own — with `ir/prim-id-not-derived` and `ir/prim-space-reserved` holding every producer to it | — |
 
 #163 changed no output here: #161 had already fixed the segmentation in `compilers/openapi` and
-written it into `ir-design.md` §3.2, so the move was measured against a rule already in the
-contract. The graphql and protobuf copies disagree with it — each splits on a short list of
+written it into [naming](./ir/naming.md), so the move was measured against a rule already in
+the contract. The graphql and protobuf copies disagree with it — each splits on a short list of
 separators rather than on every non-word character — so their goldens move as those drafts rebase,
 each with a reddening test and a deliberate golden update.
 

@@ -4,10 +4,10 @@
 // Package ir defines Morphic's spec-agnostic intermediate representation: the
 // single contract between compilers and emitters.
 //
-// docs/ir-design.md specifies the shapes normatively; field names and struct
-// layouts must match it. Named entities live in flat registries on
-// [Document], keyed and cross-referenced by ID, and a Document round-trips
-// through JSON deterministically. Passes edit documents with an [Editor].
+// docs/ir specifies the shapes normatively; field names and struct layouts must
+// match it. Named entities live in flat registries on [Document], keyed and
+// cross-referenced by ID, and a Document round-trips through JSON
+// deterministically. Passes edit documents with an [Editor].
 //
 // It also owns shared traversals and helpers: [WalkValues], the bounded,
 // cycle-guarded, deterministic reflection walk; [IDReferences]; the typed

@@ -10,9 +10,10 @@ import (
 )
 
 // checkRequires asserts each model's Requires names a member once and names
-// none of its own properties (ir-design §4.3). A name an own property declares
-// is that property's Required, so listing it too gives one fact two homes, and
-// a repeat admits nothing more. A repeat is reported at its later entry.
+// none of its own properties (docs/ir/models.md#required-members). A name an
+// own property declares is that property's Required, so listing it too gives
+// one fact two homes, and a repeat admits nothing more. A repeat is reported at
+// its later entry.
 func checkRequires(doc *ir.Document) []Violation {
 	var vs []Violation
 	// Every model is read through these two, so a model costs no map of its

@@ -36,10 +36,10 @@ func EffectiveDeprecated(ref, tgt *oas3.Schema) bool {
 }
 
 // EffectiveVisibility maps readOnly/writeOnly to a lifecycle visibility set
-// (ir-design §5.2): readOnly is present in every response lifecycle and absent
-// only from requests; writeOnly is create+update. The bool reports both flags
-// in force, which no lifecycle satisfies. It is not a diagnostic because this
-// reader has no provenance of its own.
+// (docs/ir/properties.md#visibility): readOnly is present in every response
+// lifecycle and absent only from requests; writeOnly is create+update. The bool
+// reports both flags in force, which no lifecycle satisfies. It is not a
+// diagnostic because this reader has no provenance of its own.
 //
 // Each flag resolves on its own, use-site over referent (the uniform merge of
 // docs/compilers/openapi.md#ref-use-site).
@@ -414,8 +414,9 @@ func definedNodeType(v string) bool {
 
 // unmodeledAt collects every keyword a site declares that the IR keeps verbatim
 // instead of modelling, each under the reason that says which of those it is
-// (§12): validation logic the IR draws a boundary against (§4.7), and JSON
-// Schema resource/dialect metadata the IR excludes on purpose.
+// (docs/ir/unmodeled.md#reasons): validation logic the IR draws a boundary
+// against (docs/ir/boundaries.md#validation-only-constructs), and JSON Schema
+// resource/dialect metadata the IR excludes on purpose.
 //
 // The content vocabulary is not read here even though it is data with an IR
 // home: whether contentEncoding, contentMediaType and contentSchema reached
@@ -435,10 +436,10 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.U
 
 // DialectKeywords are the JSON Schema resource and dialect keywords the IR
 // excludes on purpose. It identifies every type by a synthetic ID derived from
-// its source pointer rather than by `$id` (ir-design §3), and describes one API
-// surface rather than a JSON Schema resource graph, so it has no dialect axis for
-// `$schema`/`$vocabulary` to land on and none is coming — ReasonOutOfScope rather
-// than ReasonNoIRHome (§12).
+// its source pointer rather than by `$id` (docs/ir/identity.md), and describes
+// one API surface rather than a JSON Schema resource graph, so it has no
+// dialect axis for `$schema`/`$vocabulary` to land on and none is coming —
+// ReasonOutOfScope rather than ReasonNoIRHome (docs/ir/unmodeled.md#reasons).
 //
 // `$id` is kept and read besides, where docs/compilers/openapi.md#references
 // reads one, as the identifier and base URI a $ref resolves against.

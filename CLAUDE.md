@@ -20,20 +20,24 @@ Pipeline: **compilers** (spec → IR) → **IR passes** (IR → IR) → **emitte
 
 ## The documents are the spec — read them first
 
-`ls docs/*.md docs/compilers/*.md docs/emitters/README.md` is the set, the last mapping the
-emitter's; what follows is why each one matters, not how many there are. A first change starts from
-[`CONTRIBUTING.md`](CONTRIBUTING.md), whose recipes for a lowering rule, a pass and a compiler say
-which check each step answers to, and which steps no check covers.
+`ls docs/*.md docs/compilers/*.md docs/ir/README.md docs/emitters/README.md` is the set, the
+last two mapping the IR's and the emitter's; what follows is why each one matters, not how many
+there are. A first change starts from [`CONTRIBUTING.md`](CONTRIBUTING.md), whose recipes for a
+lowering rule, a pass and a compiler say which check each step answers to, and which steps no check
+covers.
 
-- **`docs/ir-design.md` is normative.** Field names and struct shapes in it are the contract;
+- **`docs/ir/` is normative.** One document per domain, which its `README.md` maps: open
+  the one you need rather than all of them. Field names and struct shapes in them are the contract;
   receiver methods and helpers are not. When implementing the IR, match its shapes exactly.
+- `docs/compilers/planned-lowerings.md` — how each format without a compiler is planned to lower,
+  until its compiler brings a specification of its own.
 - **`docs/compilers/openapi.md` is normative for the OpenAPI compiler**: its lowering rules, one
   keyed entry each, with the cases, codes and tests that pin it. Read it for work on that compiler
-  only; every other layer needs ir-design and not this.
-- **`docs/emitters/` is normative for the emitter half**, the way `ir-design.md` is for the IR. Its
-  root, `docs/emitters/README.md`, maps the set: a shared document says what every target does, and
-  one under `targets/` how that target does it. Nothing under `emitters/` exists yet, so read the
-  ones a change needs before writing the first one.
+  only; every other layer needs `docs/ir/` and not this.
+- **`docs/emitters/` is normative for the emitter half**, the way `docs/ir/` is for the IR.
+  Its root, `docs/emitters/README.md`, maps the set: a shared document says what every target does,
+  and one under `targets/` how that target does it. Nothing under `emitters/` exists yet, so read
+  the ones a change needs before writing the first one.
 - `docs/architecture.md` — pipeline stages, package layout, layering rules, milestones.
 - `docs/ir-spec-matrix.md` — the union of source-format capabilities the IR is designed against.
 - `docs/prior-art.md` — the evidence base (oagen, Kiota, TypeSpec/TCGC) and the specific mistakes
@@ -95,8 +99,9 @@ in the docs.
    visibility, discriminators, encodings, streaming stay in source-semantic form. Lowering to what
    a target language can express happens only in emitter refiners. The one documented carve-out is
    validation-only JSON Schema (`not`/`if-then-else`/`dependentSchemas`), kept verbatim in
-   `Unmodeled` — see `ir-design.md §4.7`. Every `Unmodeled` entry records *why* it was kept
-   (`UnmodeledReason`) and where it came from, so a consumer can take only the subset it wants.
+   `Unmodeled` — see `docs/ir/boundaries.md#validation-only-constructs`. Every `Unmodeled` entry
+   records *why* it was kept (`UnmodeledReason`) and where it came from, so a consumer can take only
+   the subset it wants.
 3. **Stable IDs; names are presentation.** Every named entity has a synthetic ID derived from its
    source pointer (never from a display name, never rewritten by renames). Entities live in flat,
    ID-keyed registries and reference each other by ID; no node embeds another named node.
@@ -104,8 +109,8 @@ in the docs.
    at a pointer the source can *also* name must derive its ID in a separate namespace, never equal
    to the pointer's own ID. Two types on one pointer makes the IR depend on which declaration
    lowered first, and it does so silently: no diagnostic in either order, `pass/validate` clean on
-   both. `ir-design.md §4.3` records this for distributed unions; the rule is the mechanism, not
-   that one site.
+   both. `docs/ir/models.md#composition-beside-a-union` records this for distributed unions; the
+   rule is the mechanism, not that one site.
 4. **Names are neutral, never cased.** `Naming` stores source name + neutral canonical word
    sequence + wire name (+ numeric wire ID where applicable). The IR never stores camelCase /
    PascalCase — emitters own all identifier rendering, casing, and reserved-word escaping.
@@ -124,8 +129,9 @@ in the docs.
    IR, or a reasoned `Unmodeled` entry where the IR declines to model it, so a later compiler fills
    fields rather than inventing them. That is a goal, not a finished state: a compiler that meets a
    construct with no home keeps it verbatim under `no_ir_home`, and the field that homes it lands as
-   a change of the IR's shape, which bumps `IRVersion` (ir-design §2.1). Once an emitter reads a
-   field, a change to it lands together with every emitter update it forces (architecture.md §2.5).
+   a change of the IR's shape, which bumps `IRVersion` (`docs/ir/ir-version.md`). Once an emitter
+   reads a field, a change to it lands together with every emitter update it forces (architecture.md
+   §2.5).
 10. **SDK runtime policy is not IR.** Retry/timeout/telemetry/error-class taxonomy is a separate
     emitter input. The IR describes the API; policy describes the SDK.
 
@@ -231,7 +237,8 @@ These all exist already — extend them rather than building a parallel mechanis
   through `internal/jsonshape`, and holds `ir.IRVersion` to the description's hash in the
   `generations` table beside it. A shape change without a bump fails, and so does a bump without
   a shape change unless its row says what meaning changed. A bump moves the constant, appends a
-  row and adds an ir-design §2.1 history entry; `ir/testdata/shape.golden.txt` diffs the shape.
+  row and adds an entry to `docs/ir/version-history.md`; `ir/testdata/shape.golden.txt` diffs the
+  shape.
 - **Capability conformance corpus** (`testdata/conformance/`): one minimal spec per
   `ir-spec-matrix.md` row per format that can express it, asserting lossless capture. This is what
   keeps "lossless by default" honest. The row↔spec mapping is machine-read, not prose: matrix rows
@@ -251,6 +258,9 @@ These all exist already — extend them rather than building a parallel mechanis
   `docs/compilers/openapi.md#<key>` citation to a rule. It, `docs/parser-library.md` and each
   format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
   repository's keyed documents, and a test a Markdown document names must exist, as must a link's file and heading (`internal/archtest`).
+  `TestDocuments_LinksResolve` holds a document's links, and the citations in a Go or YAML file's
+  comments and a Go string, to a file and a heading, so a section moved or renamed fails until what
+  cites it follows; `skills_lint` does the same under `.claude/skills`.
 - **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
   its passes included and every stage's document verified, and drives it through no-panic →
   `irverify` invariants → no error diagnostic → JSON round-trip → determinism → pass idempotence →

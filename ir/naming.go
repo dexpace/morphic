@@ -12,7 +12,8 @@ import (
 
 // Naming carries the identity of a named entity as words, never as a cased
 // identifier: emitters apply casing, acronym policy, and reserved-word escaping
-// (ir-design §3.2). Anonymous (hoisted) types have an empty Source and a Hint.
+// (docs/ir/naming.md). Anonymous (hoisted) types have an empty Source and a
+// Hint.
 //
 // At least one of Source, Canonical and Hint is set. A Naming with all three
 // empty names the entity to nobody, and every neutrality rule is vacuously true
@@ -41,7 +42,7 @@ type Naming struct {
 	// matched against a name another schema wrote, so casing and punctuation
 	// are the value ("com.example.User"). irverify holds an entry only to what
 	// needs no grammar: something visible, valid UTF-8, no repeat of another
-	// entry or of Source (ir-design §3.2).
+	// entry or of Source (docs/ir/naming.md).
 	//
 	// A source declaring a blank or repeated entry is recorded once in a
 	// Diagnostic, not carried through. Dropping it loses no name, so it is not
@@ -52,9 +53,9 @@ type Naming struct {
 // CanonicalWords renders name as the neutral lower_snake word sequence
 // ir.Naming.Canonical promises: it splits on every non-word rune and on
 // camel-case and letter/digit boundaries, lowercases, and joins with "_"
-// (ir-design §3.2). Acronym and casing policy are the emitter's. A name with no
-// word rune ("***") canonicalizes to "", and a canonical name is returned as it
-// is, allocating nothing.
+// (docs/ir/naming.md). Acronym and casing policy are the emitter's. A name with
+// no word rune ("***") canonicalizes to "", and a canonical name is returned as
+// it is, allocating nothing.
 //
 // The grammar lives here, not in the compiler framework, because Canonical is
 // ABI. A Document from outside this repository's compilers is held by irverify
