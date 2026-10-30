@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package pass hosts Morphic's IR-to-IR passes, each a [Pass]: pure analyses
 // and transforms over an [ir.Document]. They import only ir and ir/irfacts. A
 // pass has no package-level mutable state and no I/O, and reports spec-level

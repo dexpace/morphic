@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package openapi lowers OpenAPI 3.0/3.1/3.2 documents into the Morphic IR. It
 // implements compilers.Compiler.
 //

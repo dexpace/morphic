@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package openapitest holds the test scaffolding every test package under
 // compilers/openapi would otherwise copy, since test files cannot share
 // unexported helpers.

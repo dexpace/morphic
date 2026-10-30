@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package spelling relates the primitive kinds OpenAPI spells.
 //
 // It holds the table that maps a (type, format) pair to a kind, and the

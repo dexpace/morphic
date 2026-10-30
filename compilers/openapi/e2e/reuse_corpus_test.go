@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it sweeps the
 // whole committed corpus through the compiler twice and compares the results,
 // so it has no single source file to pair with.

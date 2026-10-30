@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package ids builds the RFC 6901 pointer that names a position — a
 // jsontext.Pointer from construction on, read back through its methods, never
 // split on '/' — and derives IR identifiers and namespaces from it.

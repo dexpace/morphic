@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package fragment is the one place the compiler reads a $ref fragment as a
 // JSON pointer and spells one for the resolver (GitHub #911).
 //

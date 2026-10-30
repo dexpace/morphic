@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package overlay applies an OpenAPI Overlay document to the parsed node tree,
 // and records which positions in the result the overlay is answerable for.
 //

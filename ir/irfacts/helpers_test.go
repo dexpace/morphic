@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package irfacts_test holds the tests of the irfacts package. The helpers
 // several files share live here; the type builders they share with package ir's
 // tests are irtest's.

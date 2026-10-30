@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package ynode spells yaml.v3 nodes for tests: the constructors for the node
 // kinds a parse produces, the `<<` merge key among them, and the merge chain the
 // compiler's depth bounds are measured against.

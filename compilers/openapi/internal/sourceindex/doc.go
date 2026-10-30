@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package sourceindex answers, in one walk, the questions asked of a decoded
 // source tree before any of it is lowered: how many nodes it declares, how
 // deeply it nests, which aliases name an ancestor, and which mappings carry a

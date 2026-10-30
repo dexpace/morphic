@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package resolve answers what a $ref names: the same-document pointer it
 // addresses, the schema declared there and the type interned there, and, for
 // components that are not schemas, the concrete value and declaration site a

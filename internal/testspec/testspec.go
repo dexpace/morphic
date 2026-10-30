@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package testspec
 
 // Tiny is a minimal but non-empty OpenAPI 3.1 document with a single /ping

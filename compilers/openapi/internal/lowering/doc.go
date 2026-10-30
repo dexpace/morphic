@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package lowering holds the immutable context every OpenAPI lowering reads.
 //
 // It is the substrate the lowering packages share, not a stage: it lowers and

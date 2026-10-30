@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package document lowers what a document says about itself rather than its
 // types or operations: its info and root externalDocs, and, kept
 // verbatim, what the objects around them write that lowers to no node

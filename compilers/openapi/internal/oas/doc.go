@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package oas holds the OpenAPI Specification's rules as data, and the engine
 // that checks a source tree against them at the minor it declares.
 //

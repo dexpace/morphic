@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package ir defines Morphic's spec-agnostic intermediate representation: the
 // single contract between compilers and emitters.
 //

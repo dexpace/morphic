@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package atomicfile replaces a file's content atomically: the new content is
 // written to a temporary file beside the destination, flushed, and renamed over
 // it, so a reader sees the whole previous content or the whole new one, and a

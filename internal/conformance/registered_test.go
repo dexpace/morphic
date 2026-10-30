@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it asks
 // engine.New which formats this build compiles and holds each to its column of
 // docs/ir-spec-matrix.md, so a compiler registered tomorrow is held to its own

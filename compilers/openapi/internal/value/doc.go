@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package value classifies YAML scalars and lowers source values into
 // ir.Value, keeping numeric literals as their exact source text so nothing
 // rounds through float64.

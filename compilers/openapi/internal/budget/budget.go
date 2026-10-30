@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 package budget
 
 // Budget counts what is spent against a Limit. The zero Budget is unbounded

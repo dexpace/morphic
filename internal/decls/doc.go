@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package decls type-checks packages' production sources for tests that hold
 // the source to a hand-written list: of what it declares, such as a sealed
 // sum's kinds, or of the functions that use a name.

@@ -20,6 +20,7 @@ linters:
     - gocognit # nesting-weighted complexity: the reason the cap is 70 and not 200
     - gocritic
     - godot # a doc comment is sentences, so it ends with a period
+    - goheader # the license header the styleguide asks of every source file
     - intrange # for i := range n, where a counted loop only counts
     - makezero # no append to a slice made with a non-zero length
     - misspell
@@ -110,6 +111,15 @@ linters:
       # Raising this is how a function that should have been split stays whole,
       # so a failure is a prompt to name the inner step, not to move the number.
       min-complexity: 20
+    goheader:
+      # Worded as the org's Go SDK words it, naming the holder LICENSE names. A file
+      # keeps the year it was written, so any year passes.
+      values:
+        regexp:
+          ANY-YEAR: 20\d{2}
+      template: |-
+        Copyright (c) {{ ANY-YEAR }} dexpace.
+        Licensed under the MIT License. See LICENSE in the repository root for details.
     reassign:
       # Invariant 5 from the other side: a stage that sets another package's
       # variable shares state with everything else that reads it. Every name is

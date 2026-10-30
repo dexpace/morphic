@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it reads
 // docs/ir-spec-matrix.md and holds the document itself to the shape the
 // corpus contract reads, a unique slug key on every row and every format column

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package nodeview is the compiler's one reading of a raw YAML tree: a mapping
 // read the way the parser reads it, through aliases and `<<` merge keys, each
 // key and each key written twice settled as the parser's model settles them

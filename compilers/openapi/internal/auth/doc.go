@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package auth lowers what a document says about authentication: the security
 // schemes it declares, and the requirements that name them.
 //

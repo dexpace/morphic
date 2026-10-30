@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it pins the
 // confinement a compile gives the reader it was handed, end to end through the
 // public entry point, where the load phase's own tests hold its parts.

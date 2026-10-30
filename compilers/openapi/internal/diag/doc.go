@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package diag holds the OpenAPI compiler's diagnostic vocabulary: the stable
 // codes it reports under, the single constructor that builds a diagnostic from
 // them, and how one quotes a dependency's error or panic.

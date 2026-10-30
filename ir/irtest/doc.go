@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Package irtest provides test helpers for IR documents: golden snapshots,
 // fixtures built in one call, filled or nested to a chosen depth, a document's
 // encoding and ID namespaces, diagnostics' codes, and the repository's root.

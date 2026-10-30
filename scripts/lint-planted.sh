@@ -30,7 +30,7 @@ fi
 
 cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 testdata=internal/lintrules/testdata
-linters=bidichk,containedctx,depguard,durationcheck,errname,exhaustive,fatcontext,forbidigo,forcetypeassert,gocheckcompilerdirectives,gochecknoinits,godot,makezero,nilnesserr,predeclared,reassign,revive,tagliatelle,testifylint
+linters=bidichk,containedctx,depguard,durationcheck,errname,exhaustive,fatcontext,forbidigo,forcetypeassert,gocheckcompilerdirectives,gochecknoinits,godot,goheader,makezero,nilnesserr,predeclared,reassign,revive,tagliatelle,testifylint
 
 # --enable-only runs these linters whatever .golangci.yml enables, so the
 # configuration is asked as well: a linter it leaves off is one `make lint` and

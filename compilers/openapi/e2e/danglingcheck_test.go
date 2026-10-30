@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // This file is a package-level suite, not a per-source-file test: it runs the
 // issue-#14 dangling-ref reproducer corpus through the whole compiler, so it has
 // no single source file to pair with. This is deliberate, not a leftover from the

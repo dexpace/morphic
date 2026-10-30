@@ -1,3 +1,6 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
 // Command morphic is the Morphic CLI: it lowers an API spec into Morphic IR.
 //
 // It parses flags, runs the engine and turns the run into an exit code. What
