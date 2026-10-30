@@ -16,7 +16,8 @@ CPUs). Outputs are kept under OUTDIR (default a new temporary directory) for dif
 per spec in OUTDIR/results.tsv: its number, both exit codes, what differs and its path. The .yaml,
 .yml and .json files CORPUS names, and those under its directories (default testdata), are read
 for OpenAPI and Swagger documents: a JSON one, even one saved as .yaml or .yml, by its top-level
-keys, minified or not, and a YAML one by a version key first on a line. The sweep reports facts
+keys, minified or not, and a YAML one by a version key anywhere in it, so a file naming one in a
+comment or a nested mapping is compiled too, and fails alike on both sides. The sweep reports facts
 and judges none: specs that fail alike on both sides agree, so read the exit codes before taking
 agreement for a pass. Exit 0 when no spec differs, 1 when one does, 2 when the sweep cannot run.
 """
@@ -33,22 +34,27 @@ import traceback
 from collections import Counter
 from pathlib import Path
 
-# A version key first on a line, ended by its colon: a key such as "openapi:schema" is another.
-SPEC = re.compile(rb'^\s*["\']?(openapi|swagger)["\']?\s*:(\s|$)', re.M)
+# A version key, wherever it is written: YAML can put one after a "{" or a ",", an anchor or a tag,
+# or a "? ". A plain one is ended by a colon a space follows, so "openapi:schema" is another key,
+# while a quoted one, as JSON writes it, needs no space.
+SPEC = re.compile(
+    rb"""(?<![\w.-])(?:(?:openapi|swagger)\s*:(?:\s|$)|["'](?:openapi|swagger)["']\s*:)""", re.M)
 # The exit recorded for a compile killed at the time limit, as a shell reports a SIGKILL.
 KILLED = 137
 
 
 def is_spec(data: bytes) -> bool:
     """Report whether a document is OpenAPI or Swagger: one written as JSON, which YAML files
-    may hold too, by its top-level keys, since a minified one starts no line with its version
-    key, and any other, JSON that does not parse among it, by a version key first on a line. A
-    byte-order mark before either is read past, as the compiler reads past it."""
+    may hold too, by its top-level keys, and any other, JSON too deep or malformed to parse among
+    it, by a version key anywhere in it. A YAML reader would settle a key's depth, but the
+    standard library has none, and a file left out is a spec neither build is asked about, where
+    one let in only fails alike. A byte-order mark before either is read past, as the compiler
+    reads past it."""
     data = data.removeprefix(b"\xef\xbb\xbf")
     if data.lstrip()[:1] == b"{":
         try:
             doc = json.loads(data)
-        except ValueError:
+        except (ValueError, RecursionError):
             pass  # read as text below, as a malformed fixture still is a spec to compile
         else:
             return "openapi" in doc or "swagger" in doc
