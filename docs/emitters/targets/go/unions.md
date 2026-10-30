@@ -35,7 +35,7 @@ type PaymentBankTransfer struct{ Value BankTransfer }
 
 Whatever the [strategy that recognizes a
 variant](../../refine/unions.md#variant-identity-and-recognition), the codec is a
-`MarshalJSONTo`/`UnmarshalJSONFrom` pair, for the reason the next section gives.
+`MarshalJSONTo`/`UnmarshalJSONFrom` pair, for the reason [Discriminators](#discriminators) gives.
 
 ## The fallback
 

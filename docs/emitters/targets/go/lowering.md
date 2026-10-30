@@ -1,6 +1,6 @@
 # Go lowering table
 
-Go's lowering of each construct of the [lowering table](../../refine/lowering-table.md).
+Go's normative lowering of each construct of the [lowering table](../../refine/lowering-table.md).
 
 | IR construct | Go |
 |---|---|

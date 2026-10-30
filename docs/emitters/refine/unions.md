@@ -1,6 +1,6 @@
 # Unions and discriminators
 
-How a target spells a union is its own ([Go](../targets/go/unions.md),
+Unions are the hardest axis. How a target spells a union is its own ([Go](../targets/go/unions.md),
 [Kotlin](../targets/kotlin/unions.md)); what follows holds for every target.
 
 ## The wire shapes

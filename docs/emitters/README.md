@@ -21,7 +21,7 @@ target's documents.
 
 A trace of one construct divides where the pipeline does. Its IR and its plan are the same for every
 target, so they sit in the shared document, and what refine and emit build from them sits in the
-target's.
+target's. A trace's IR field names are `ir-design.md`'s.
 
 A new target adds a directory under `targets/` holding the documents every target has (`overview`,
 `lowering`, `types`, `models`, `unions`, `naming`, `operations`, `returns` and `errors`) and any of

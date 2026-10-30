@@ -39,8 +39,8 @@ emitters/
 `goast` lives *under* `emitters/golang`, not in the shared contract, because a target AST is
 per-language by definition. `plan`, `policy`, `naming`, `typemap`, `refine` (the contract + shared
 helpers), `manifest`, and `verify` are shared because they are language-neutral: `typemap` holds a
-table's shape and rules, and each target its rows. This section lays out Morphic's own packages; how
-a generated SDK divides into packages of its own, by source document or by group, is in [output
+table's shape and rules, and each target its rows. This document lays out Morphic's own packages;
+how a generated SDK divides into packages of its own, by source document or by group, is in [output
 units](refine/output-units.md).
 
 **Architecture test.** The import-graph rule is in place before the first emitter package:

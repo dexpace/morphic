@@ -1,8 +1,8 @@
 # Kotlin lowering table
 
-Kotlin's lowering of each construct of the [lowering table](../../refine/lowering-table.md). This
-table holds for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the JVM
-([Multiplatform common code](multiplatform.md)).
+Kotlin's normative lowering of each construct of the [lowering
+table](../../refine/lowering-table.md). This table holds for both Kotlin targets, and "KMP:" marks
+where Multiplatform differs from the JVM ([Multiplatform common code](multiplatform.md)).
 
 | IR construct | Kotlin (JVM and KMP) |
 |---|---|
