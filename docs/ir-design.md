@@ -2021,12 +2021,11 @@ type HTTPParamBinding struct {
 type Callback struct { Expression string; Operations []OpID }
 ```
 
-A binding carries every serialization fact a parameter's location leaves open — style, explode,
-`allowReserved`, `allowEmptyValue`, a content-style media type — which is the per-parameter wire
-detail `prior-art.md` records the client IR keeping on the binding. `AllowEmptyValue` is the last of
-them to land: OpenAPI calls it NOT RECOMMENDED, but a document that writes it still states it,
-Swagger 2.0 writes it too, and a request validator or a mock server needs it to accept `name=`. It
-is a plain bool beside `AllowReserved`, since a declared `false` and an absent one mean the same.
+`AllowEmptyValue` sits on the binding with a parameter's other serialization facts, the
+per-parameter wire detail `prior-art.md` records the client IR keeping there. OpenAPI calls the
+field NOT RECOMMENDED, but a document that writes it still states it, Swagger 2.0 writes it too, and
+a request validator or a mock server needs it to accept `name=`. It is a plain bool beside
+`AllowReserved`, since a declared `false` and an absent one mean the same.
 
 Every logical parameter — identified by its `ParamID`, not its name — is bound exactly once **per
 non-host location; a `host` binding is additive** — Smithy `@hostLabel` members expand into the host

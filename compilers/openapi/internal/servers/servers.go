@@ -63,7 +63,9 @@ func (r *Registry) Root(c lowering.Ctx) ([]ir.ServerID, []ir.Diagnostic) {
 // own position there, whichever mount reached it.
 //
 // A nil entry, which no valid document writes, lowers nothing and keeps the
-// index it occupies, so the next entry's ID is still its own position.
+// index it occupies, so the next entry's ID is still its own position. An empty
+// list declares nothing, as an absent one does: whether it should override the
+// list above it is undecided (GitHub #1081).
 func (r *Registry) Declared(c lowering.Ctx, list []*soa.Server, owner jsontext.Pointer) ([]ir.ServerID, []ir.Diagnostic) {
 	if len(list) == 0 {
 		return nil, nil

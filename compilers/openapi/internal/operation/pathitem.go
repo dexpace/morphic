@@ -258,16 +258,15 @@ func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer) c
 
 // preserveUnmountedPathItem keeps what an item that produced no operation
 // wrote, and says so: a reader seeing its declarations away from any operation
-// needs to know why.
+// needs to know why. It keeps what applyPathItem keeps on a carrier holding no
+// docs; the summary and description are dropped (GitHub #383). named is
+// itemServers' result.
 //
-// It keeps what applyPathItem keeps on a carrier holding no docs; the summary
-// and description are dropped (GitHub #383). named is what itemServers
-// registered for the mount, which no scope goes on to name.
-//
-// The announcement follows what landed, not what the item wrote: a construct
-// merged in from past nodeview.MergeDepthLimit is read by the model and not by
-// nodeview.Child, so a model predicate would claim a preservation that did not
-// happen.
+// The finding is sited in c's document, wrong for a layer another document
+// declares (GitHub #1164). It follows what landed, not what the item wrote: a
+// construct merged in from past nodeview.MergeDepthLimit is read by the model
+// and not by nodeview.Child, so a model predicate would claim a preservation
+// that did not happen.
 func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
 	cedes func(string) bool, named []ir.ServerID,
 ) []ir.Diagnostic {
@@ -363,7 +362,7 @@ var pathItemDocFields = []struct{ keyword, key string }{
 // They are kept, not merged into Docs: ir.Docs holds the operation's own, and
 // merging would have to rank the pair against it and attribute to an operation
 // text its author did not write (an inference; invariant 6). ReasonNoIRHome,
-// not a boundary, since the IR could grow a home (GitHub #285); the cost is the
+// not a boundary, since the IR could grow a home (GitHub #383); the cost is the
 // pair repeated on every operation.
 //
 // Dropped silently: an unmounted item's pair (carrier.keepsDocs is false;

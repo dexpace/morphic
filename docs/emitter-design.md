@@ -563,7 +563,9 @@ no field.
 destructively in its compiler and Morphic forbids there (INV2): the IR keeps every response and
 content type whole; "pick a primary for the ergonomic method" happens here, lowered late. `Content
 negotiation` default (`json > form > multipart > binary`) is a shared, overridable plan helper
-(resolves `ir-design.md` open Q3).
+(resolves `ir-design.md` open Q3). **Known gap (#1163):** nothing here takes a success response's
+`Headers` to the client's caller, so their values, and the `Style` and `Explode` they are read by,
+have no consumer yet.
 
 ### 3.2 TypePlan — per-type projections computed once
 
