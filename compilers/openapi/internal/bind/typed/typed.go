@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"strconv"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/marshaller"
 	"github.com/speakeasy-api/openapi/walk"
 	yaml "go.yaml.in/yaml/v3"

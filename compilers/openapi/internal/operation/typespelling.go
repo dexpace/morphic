@@ -4,7 +4,7 @@ import (
 	"encoding/json/jsontext"
 	"strings"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
 	yaml "go.yaml.in/yaml/v3"

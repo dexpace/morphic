@@ -125,9 +125,10 @@ linters:
         - name: import-shadowing
         # The styleguide's own rules that revive can state: the context first,
         # no else after a returning if, initialisms and receivers named alike,
-        # no dot import, any over interface{}, the error last, and no exported
-        # function returning an unexported type. Listing rules turns revive's
-        # defaults off, so each is named.
+        # no dot import, no import alias that renames nothing, any over
+        # interface{}, the error last, and no exported function returning an
+        # unexported type. Listing rules turns revive's defaults off, so each is
+        # named.
         - name: context-as-argument
         - name: indent-error-flow
         - name: superfluous-else
@@ -135,6 +136,7 @@ linters:
         - name: var-naming
         - name: receiver-naming
         - name: dot-imports
+        - name: redundant-import-alias
         - name: use-any
         - name: error-return
         - name: unexported-return

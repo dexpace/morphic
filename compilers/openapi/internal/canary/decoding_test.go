@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	oas3core "github.com/speakeasy-api/openapi/jsonschema/oas3/core"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"

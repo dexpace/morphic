@@ -4,7 +4,7 @@ import (
 	"encoding/json/jsontext"
 
 	"github.com/speakeasy-api/openapi/jsonpointer"
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 )
 
 // MaxRefChain exposes the package's hop bound to its external tests.

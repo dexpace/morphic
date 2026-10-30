@@ -2,7 +2,7 @@ package planted
 
 import (
 	"context"
-	"sync"
+	sync "sync" // want "redundant-import-alias: Import alias \"sync\" is redundant (revive)"
 )
 
 // userId spells an initialism otherwise than Go does.

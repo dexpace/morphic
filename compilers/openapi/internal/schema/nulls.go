@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strconv"
 
-	oas3 "github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/values"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
