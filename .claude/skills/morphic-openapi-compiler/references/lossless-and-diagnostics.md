@@ -156,9 +156,11 @@ and every diagnostic is true, located, and decided from what actually happened.
 
 - **Rule.** When a function's diagnostics must survive every return path or every caller, add a test
   per path and caller that fails when that report is removed; before deleting a diagnostic as
-  redundant, show the other stage reaches every case including early exits and panics.
+  redundant, show the other stage reaches every case including early exits and panics. A diagnostic
+  a memo returns only from the call that builds it makes every caller of that call load-bearing.
 - **Why.** A refusal path omitted the stream-drop report and callers could drop the
-  operation-extension warning with no test failing (#480, #565).
+  operation-extension warning with no test failing (#480, #565). An anchor index returned its
+  warning only from its first call, so a caller dropping the result lost it for good (#212).
 - **Probe.** Delete the report on each return path and each caller in turn and confirm a test
   reddens.
 

@@ -36,8 +36,8 @@ how to measure so the number means what the claim says.
 
 - **Rule.** On a host with neither `/usr/bin/time -l` nor `perf`, run base and head alternately and
   compare the user plus sys seconds of `bash -c 'time -p <bin> compile <spec>'`, saying that is what
-  was measured. A benchmark is no stand-in: `go test -bench` reports wall clock, which load skews,
-  and each one reads the fixtures it names, never the golden spec.
+  was measured. A benchmark is no stand-in for a claim about a spec: `go test -bench` reports wall
+  clock, which load skews, and each one reads the fixtures it names.
 - **Why.** A Linux host with no `perf` left a review of a cost claim no instrument (#1162).
 - **Probe.** `command -v perf`, then each side's range from the alternated runs against the gap.
 

@@ -292,9 +292,9 @@ assertion shapes:
   colliding lowering, which is why the pointer collisions survived the suite. The order-invariance
   oracle above is the general form of this and already runs it across the corpus under `testdata/`,
   so the usual way to cover a new construct is to add a spec the sweep reaches, not to hand-roll
-  the diff. It compares only what `diffOrderInvariants` in `internal/harness/order.go` names, so a
-  fact held anywhere else, such as on an operation, passes it unread and needs its own two-order
-  diff. A targeted case still earns its place when it pins one lowering, because the oracle
+  the diff. The oracle compares only what `diffOrderInvariants` in `internal/harness/order.go`
+  names, so a fact held anywhere else, such as on an operation, passes it unread and needs its own
+  two-order diff. A targeted case still earns its place when it pins one lowering, because the oracle
   proves order-independence only for the constructs its inputs happen to contain.
   - A fixture's own declaration order is part of the test. A golden that happens to declare things
     in the order the *correct* lowering already produced cannot see the fix at all: reverting it
