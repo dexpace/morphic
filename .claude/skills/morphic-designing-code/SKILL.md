@@ -5,8 +5,10 @@ description: Use when writing or restructuring production Go code in this reposi
 
 # Designing morphic code
 
-Code here should scale with the document, take the next format and emitter without a rewrite, and
-stay simple to read and extend. Lean functional, not strictly: data in plain values, behaviour in
+Correct comes first: a design that scales and reads well but gives a wrong result has no value
+(`CLAUDE.md`, "Correctness comes first"). Among correct options, code here should scale with the
+document, take the next format and emitter without a rewrite, and stay simple to read and extend.
+Lean functional, not strictly: data in plain values, behaviour in
 functions of explicit inputs that return their results and diagnostics, and a method only where a
 type guards its own state. `CLAUDE.md`'s invariants and Go style come first; each rule here is a
 cost a later refactor or performance change paid.

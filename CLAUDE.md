@@ -66,6 +66,16 @@ wrong, unclear or missing something the task needed, and file each flaw it showe
 wording), ranked by the housekeeping rule, and with the command and output that showed it. A defect
 in the code that the flaw let through is an issue of its own.
 
+## Correctness comes first
+
+Correctness outranks every other quality of a change, whether it is code, a design or a document.
+Simplicity, scale, performance and developer experience are weighed only among options already shown
+correct: a design that scales and reads well but gives a consumer the wrong result has no value. So
+before weighing anything else, state the result a consumer should get on real input, and show that
+it does ("Verify by executing" below). A design's premises are measured, not assumed
+(`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise`), and showing
+a design is complete does not show it is right.
+
 ## Invariants that must not be violated
 
 These are load-bearing design decisions, not preferences. Breaking one defeats the project's core
