@@ -16,9 +16,10 @@ import (
 // (GitHub #251).
 //
 // It is one neutral word rather than a positional index, which would say where
-// but not what; emitters resolve colliding names (docs/emitters/refine/naming.md).
-// Minting it is not an inference under invariant 6: Hint already carries names
-// no source wrote, like "variant_0" for a bare oneOf branch.
+// but not what; emitters resolve colliding names
+// (docs/emitters/refine/naming.md). Minting it is not an inference under
+// invariant 6: Hint already carries names no source wrote, like "variant_0" for
+// a bare oneOf branch.
 const emptyNameHint = "empty"
 
 // NamingFor builds the neutral Naming of a name the source declares: the

@@ -250,7 +250,8 @@ These all exist already — extend them rather than building a parallel mechanis
   the code both ways, each listed code to the rule's text, and every
   `docs/compilers/openapi.md#<key>` citation to a rule. It, `docs/parser-library.md` and each
   format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
-  repository's keyed documents, and a test a Markdown document names must exist, as must a link's file and heading (`internal/archtest`).
+  repository's keyed documents, and a test a Markdown document names must exist, as must a link's
+  file and heading (`internal/archtest`).
 - **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
   its passes included and every stage's document verified, and drives it through no-panic →
   `irverify` invariants → no error diagnostic → JSON round-trip → determinism → pass idempotence →
