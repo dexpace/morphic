@@ -4,11 +4,11 @@ The emitter is the second half of the Morphic pipeline: it turns an `ir.Document
 options) into generated SDK source, docs, mock servers, and other artifacts. This document is the
 normative contract for that half, the way `docs/ir-design.md` is normative for the IR. It extends
 the emitter sketch in `docs/architecture.md §2.3`–`§2.4`; where the two disagree, `architecture.md`
-wins on stage boundaries and this document wins on the shapes inside a emitter.
+wins on stage boundaries and this document wins on the shapes inside an emitter.
 
 Type sketches are written as Go because the implementation is Go. As in `ir-design.md`, field names
 and struct shapes here are the contract; receiver methods and helpers are not. The IR is consumed,
-never modified — a emitter imports `ir` and reads it.
+never modified — an emitter imports `ir` and reads it.
 
 ---
 
@@ -100,7 +100,7 @@ genuinely wants templates for structure can implement `Emit` differently while r
 
 ### 1.3 Emitter design rules (in addition to the ten CLAUDE.md invariants)
 
-1. **The IR is read-only.** No stage of a emitter mutates the `ir.Document`. Lowering lands on the
+1. **The IR is read-only.** No stage of an emitter mutates the `ir.Document`. Lowering lands on the
    target AST, which is freshly built per (target × document).
 2. **Decisions live in Go, never in templates.** Any branch that depends on an IR fact or a policy
    value is resolved in plan or refine and reaches emit as a decided node. A template that inspects
@@ -126,7 +126,7 @@ target package (INV1; architecture.md §3). Enforced by the import-graph test (�
 ```go
 package emitters
 
-// TargetKey identifies a emitter in the registry: "go", "kotlin-jvm", "kotlin-multiplatform",
+// TargetKey identifies an emitter in the registry: "go", "kotlin-jvm", "kotlin-multiplatform",
 // "docs", "mock/go", …
 type TargetKey string
 
@@ -168,7 +168,8 @@ type EntityID = string
 
 // Artifact is oagen's GeneratedFile shape, minus every SDK-policy-shaped field.
 type Artifact struct {
-    Path         string          // deterministic, forward-slash, relative to output root
+    Path         string          // deterministic, forward-slash, relative to the output root and
+                                 // held inside it (§5.6)
     Content      []byte
     Kind         ArtifactKind    // source | test | doc | manifest | dependency-manifest | scaffold
     Header       HeaderPlacement // where the generated-by provenance header goes (top/after-shebang/none)
@@ -179,7 +180,7 @@ type Artifact struct {
 }
 ```
 
-`error` is not part of the `Generate` signature: a emitter has no failure mode that is not either a
+`error` is not part of the `Generate` signature: an emitter has no failure mode that is not either a
 `Diagnostic` (something about the input it cannot lower) or a programmer bug: a `TypeKind` with no
 dispatch, caught by the switch-completeness test in the suite (§13) rather than at runtime, or an
 options value of another target's type, reported as an error diagnostic (§2.5). This keeps the
@@ -214,10 +215,10 @@ The engine is the only caller of `Lookup`, the only thing that runs `Generate`, 
 that touches the filesystem, prunes, and renders diagnostics. Emitters are I/O-free. Reading,
 rendering and writing the IR document have homes already: `engine/reader` reads what a run's
 references name, `engine/report` renders, and `engine/output` writes, replacing a file through the
-atomic replace in `engine/internal/atomicfile`. Writing artifacts and pruning land with §11. The
-engine runs `Generate` only for a run that has not failed (`engine.Result.Failed`, architecture.md
-§4): at the default threshold a document carrying an error diagnostic reaches no emitter, and a
-caller that wants one built from it anyway says so with the `none` threshold.
+atomic replace in `engine/internal/atomicfile`. Writing artifacts and pruning land with §11, under
+§5.6's rules. The engine runs `Generate` only for a run that has not failed (`engine.Result.Failed`,
+architecture.md §4): at the default threshold a document carrying an error diagnostic reaches no
+emitter, and a caller that wants one built from it anyway says so with the `none` threshold.
 
 ### 2.2 Who computes the plan
 
@@ -239,7 +240,7 @@ rebuilds it from the document, which determines it.
 
 ### 2.3 Capabilities
 
-`Capabilities()` lets the engine reason about a emitter without running it — which IR `TypeKind`s
+`Capabilities()` lets the engine reason about an emitter without running it — which IR `TypeKind`s
 it lowers, whether it supports write/integrate, whether it produces a surface for compat. It is
 advisory metadata, not a second decision channel; it never changes what `Generate` emits.
 
@@ -321,7 +322,8 @@ Per-target heuristics live here too, beside the target's other choices, rather t
 parameter-passing shape (§4.13), the type-table rows that give an unbounded number a width (§2.6),
 and the naming tables (§4.12) — the acronyms, the character names that give words to a name with
 none, and the leading words an identifier that would begin with a digit takes. The target-AST nodes
-a default shapes carry `Inferred` provenance (§4.3), as INV6 requires.
+a default shapes carry `Inferred` provenance (§4.3), as INV6 requires. How a failure reaches its
+caller is a setting here as well (§8.5).
 
 ### 2.6 The type table
 
@@ -455,11 +457,12 @@ IDs X/Y/Z") so every refiner chooses a strategy from the same derivation, and it
 states outright to be read from the IR (§3.6). It contains no casing, no reserved-word handling, no
 target types, and no runtime or target policy.
 
-A reference the plan records — `ReturnType`, a page's item type, an error's type, a variant a
-discriminator maps a tag to — names the type the IR names there. Where a derivation reads a type's
-contents, such as the property a page's items are found under, it reads them through
-`TypePlan.Alias` (§4.15), and every consumer lowers a reference it reads through `Alias`, the plan's
-as the IR's, so no field holds a reference already lowered beside others that are not.
+A reference the plan records — `Return.Type`, a page's item type, an error's type, a stream's
+element, a variant a discriminator maps a tag to — names the type the IR names there. Where a
+derivation reads a type's contents, such as the property a page's items are found under, it reads
+them through `TypePlan.Alias` (§4.15), and every consumer lowers a reference it reads through
+`Alias`, the plan's as the IR's, so no field holds a reference already lowered beside others that
+are not.
 
 ### 3.1 OpPlan — the fixed per-operation decision set
 
@@ -468,17 +471,27 @@ demonstrably needed:
 
 ```go
 type OpPlan struct {
-    Return          ReturnShape      // how the success body is read: value | void | raw | stream
-    ReturnType      *ir.TypeRef      // what a value body decodes into; nil unless Return is value
-    PrimaryResponse *ir.Response     // SDK-ergonomic pick; IR keeps ALL responses
-    PrimaryContent  *ir.Content      // json>form>multipart>binary — a SHARED plan helper
-    Errors          []PlannedError   // status→error, ranges collapsed (404/4XX/catch-all)
-    Page            *PagePlan        // nil = not paginated
-    Stream          *StreamPlan      // nil = not streaming (ir-design.md §7.3)
-    LRO             *LROPlan         // nil = not long-running
-    Auth            []AuthOption     // OR-of-ANDs, priority-ordered (§8.6)
-    Bindings        BindingView      // per-protocol param/request/response view from OpBindings
-    Inferred        map[string]ir.Provenance // which fields above were heuristic (INV6)
+    PrimaryResponse *ir.Response      // SDK-ergonomic pick; IR keeps ALL responses
+    Return          ResponsePlan      // how the primary response is read
+    Others          []PlannedResponse // every other response the operation declares (below)
+    RequestContent  *ir.Content       // the request content elected; nil = no body
+    Errors          []PlannedError    // every failure the operation declares, ranges collapsed
+                                      // (404/4XX/catch-all)
+    Page            *PagePlan         // nil = not paginated
+    Stream          *StreamPlan       // nil = neither direction streams (ir-design.md §7.3)
+    LRO             *LROPlan          // nil = not long-running
+    Auth            []AuthOption      // OR-of-ANDs, priority-ordered (§8.6)
+    Bindings        BindingView       // per-protocol param/request/response view from OpBindings
+    Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6)
+}
+
+// ResponsePlan is how one response reaches its reader. A success and a failure are read by the
+// same rules, so the election, the shapes, the codec and the headers have one home.
+type ResponsePlan struct {
+    Shape   BodyShape     // value | void | raw | stream
+    Content *ir.Content   // the content elected from the payload; nil = nothing to read
+    Type    *ir.TypeRef   // what a value body decodes into, of any kind; nil unless Shape is value
+    Headers []ir.Header   // the headers the response declares, each whole (below)
 }
 
 type PagePlan struct {                // item-type unwrap is a PLAN decision
@@ -490,10 +503,16 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
 
+type PlannedResponse struct {
+    Conditions ir.ResponseConditions  // the statuses it answers, ranges collapsed
+    Response   ResponsePlan           // how it is read (below)
+    AsReturn   bool                   // it reads as Return does, so a method returns it likewise
+}
+
 type PlannedError struct {
-    Conditions ir.ResponseConditions  // status ranges, collapsed
-    Type       *ir.TypeRef            // an Error-flagged model
-    Fault      string                 // "" | "client" | "server" — declared
+    Conditions ir.ResponseConditions  // the statuses it answers, ranges collapsed
+    Response   ResponsePlan           // how it is read (below); Type is of any kind
+    Fault      string                 // "" | "client" | "server" — declared; "" = by status (§8.5)
     Retryable  *bool                  // declared (nil = unknown) → wins over policy (§6.3)
     Throttling *bool                  // declared throttling class (nil = unknown)
 }
@@ -501,12 +520,23 @@ type PlannedError struct {
 // The remaining operation-facet plans. Each is nil when the facet is absent, so a refiner's
 // presence check is a nil check, and each carries only classified facts — never a target type.
 type StreamPlan struct {
-    Direction  ir.StreamingMode       // client | server | bidi (from the operation core)
-    EventUnion ir.TypeID              // the WireTagged event union (Variant.Event carries per-event
-                                      // content-type + terminal bit); resolved by ID
+    Direction  ir.StreamingMode       // client | server | bidi (below)
+    Send       *StreamSide            // what the client writes; nil = the request does not stream
+    Recv       *StreamSide            // what the client reads; nil = the response does not stream
+}
+
+type StreamSide struct {              // one direction: its StreamDetail and streaming content
+    Content    *ir.Content            // the content that streams, elected as a body's is
+    Framing    Framing                // how the wire divides into frames
+    Element    *ir.TypeRef            // what a frame decodes into, any kind; nil = none is decoded
+    FrameMembers bool                 // an SSE element's data, event, id, retry are frame fields
     Initial    *ir.TypeRef            // initial-request/response message preceding the stream; nil = none
     RequiresLength bool               // streamed content needs a known finite length up front
 }
+
+// Framing is how a stream's wire bytes divide into frames, a small closed enum:
+type Framing string                   // "sse" | "json_lines" | "json_seq" | "multipart" |
+                                      // "protocol" | "bytes"
 
 type LROPlan struct {                 // maps ir.LongRunning (ir-design.md §7.3)
     FinalStateVia string              // "operation-location" | "status-monitor" | "original-uri" | …
@@ -521,34 +551,137 @@ type AuthOption struct {              // one option in the OR-of-ANDs; slice ord
     Schemes []ir.SchemeUse            // ALL must be satisfied together; empty = "no auth is acceptable"
 }
 
-// ReturnShape is how an operation's success body reaches its caller, a small closed enum:
-type ReturnShape string              // "value" | "void" | "raw" | "stream"
+// BodyShape is how a body reaches its reader, a small closed enum:
+type BodyShape string                 // "value" | "void" | "raw" | "stream"
 ```
 
-**Return shapes.** `Return` says how the body is read, not what it holds: what it holds is
-`ReturnType`, and every type kind already has a lowering (§4.2), so a shape per kind would repeat
-the type in a second channel. The first rule that applies decides:
+**One election.** A payload may offer several contents, and `plan.Policy.ContentRanking` (§3.5)
+elects the one a `ResponsePlan` or a `StreamSide` reads and the one `RequestContent` sends. A
+success, a failure, a request and each side of a stream share that helper, so two targets cannot
+read one 429 as different media types, or send one request as them. An entry is one of four classes
+— `json` is `application/json` and any `+json` suffix, `form` is
+`application/x-www-form-urlencoded`, `multipart` any `multipart/*` and `binary`
+`application/octet-stream` — or a single media type. A media type is compared lowercased, trimmed
+and cut at its first `;`, as RFC 6838 §4.2 and the compiler's own reading
+([`media-types`](./compilers/openapi.md#media-types)) have it, since `Content.MediaType` keeps the
+key as written. A media type no entry ranks comes after every one that is ranked, and a tie goes to
+the smaller key by bytes, since a format's map of media types has no order to honour.
 
-1. **`stream`** — the operation streams its response (`Streaming` is `server` or `bidi`, or its
-   primary response is a `Default` one of whose contents declares an `Item`, §3.5): events are read
-   one at a time, as `Stream` describes (§8.4).
-2. **`void`** — nothing is read: the operation has no primary response (§3.5), or its primary
-   response carries no payload. An operation with no primary response returns only an error, and
-   which statuses fail it is the error taxonomy's (`Errors`, §8.5).
-3. **`raw`** — the primary content is a file (`Content.File`, ir-design §7.2): the body reaches the
+**Body shapes.** `Shape` says how a body is read, not what it holds: what it holds is `Type`, and
+every type kind already has a lowering (§4.2), so a shape per kind would repeat the type in a second
+channel. The first rule that applies decides:
+
+1. **`void`** — nothing is read: the operation has no primary response (§3.5), the response carries
+   no content, or the binding's method is `HEAD`, whose response has no body (RFC 9110 §9.3.2). An
+   operation with no primary response returns only an error, and "Which entry answers" below says
+   which statuses raise one.
+2. **`raw`** — the elected content is a file (`Content.File`, ir-design §7.2): the body reaches the
    caller unread, a byte stream beside the media type it arrived as, and nothing decodes it.
-4. **`value`** — otherwise: the primary content's codec decodes the body into `ReturnType`, whatever
-   its kind — a model, a list, a map, a union, an enum, a scalar, `any`. A paginated operation's
-   `ReturnType` is one page, from which `Page` takes the items.
+3. **`stream`** — the elected content streams (below): frames are read one at a time, as `Stream`
+   describes (§8.4).
+4. **`value`** — otherwise: the elected content's codec decodes the body into `Type`, whatever its
+   kind — a model, a list, a map, a union, an enum, a scalar, `any`. A paginated operation's
+   `Return.Type` is one page, from which `Page` takes the items.
 
-`ReturnType` is the primary content's type, lowered through `TypePlan.Alias` as any reference is
-(§3, §4.15), so an anonymous `allOf` decorator around a model returns the model. Its `Nullable` is
-the content's, and a nullable return takes the target's nullable form (§4.7). Unwrapping an
-envelope, which `plan.Policy` may enable (§3.5), would return a value found inside the content
-instead; what it records and where is #695's. Which codec reads a media type is the target's, and a
-media type it has none for is a coded degrade of that target's that reads the body as `raw`. Every
-operation of every document takes one of the four, since the rules end in a default; §8.9 traces
-each through the first targets.
+`Type` is the elected content's type, lowered through `TypePlan.Alias` as any reference is (§3,
+§4.15), so an anonymous `allOf` decorator around a model returns the model. Its `Nullable` is the
+content's, and a nullable return takes the target's nullable form (§4.7). Unwrapping an envelope,
+which `plan.Policy` may enable (§3.5), would return a value found inside the content instead; what
+it records and where is #695's. Which codec reads a media type is the target's, and a media type it
+has none for is a coded degrade of that target's that reads the body as `raw`. Every body of every
+document takes one of the four, since the rules end in a default; §8.9 traces each through the first
+targets.
+
+**Headers.** `Headers` are what the response declares, each whole, so its name, its type and the
+`Style` and `Explode` it is read by reach the reader. `Return`'s are the primary response's, and
+each entry of `Others` and `Errors` holds its own. A success and a failure then read alike: the raw
+headers are on the value, and the declared ones typed beside its body (§8.5, §8.9).
+
+**Streams.** `Operation.Streaming` describes an operation, and a stream belongs to one of its
+contents: an operation may offer `application/json` beside `application/x-ndjson`. A content
+*streams* when it declares an `Item`, or when its direction has a `StreamDetail` and
+`plan.Policy.Framings` names its media type. `Send` elects among the request's contents that stream,
+and `Recv` among those of the operation's responses, a primary `Default` included; a direction with
+a `StreamDetail` and none that streams elects among all its contents, and the content it elects
+then streams. Where `Recv` holds another content than `Return`, or `Send` another than
+`RequestContent`, the operation offers both, and a target generates a method for each (§8.4). The
+IR records no content's stream (#601), so the plan reads it from the media type. A compiler that
+comes to record one on `Content` must keep it apart from a declared `Item`, which `Element` and
+`FrameMembers` below read differently, and `TypeRef.Inferred` speaks only of null. `Direction` is
+`Operation.Streaming`, a primary `Default` that streams, which `Streaming` does not summarize,
+counting as a server side: `server`, or `bidi` beside a `Send`. A `StreamSide` holds:
+
+- **`Framing`**, the first that applies: `protocol` under a primary binding other than HTTP, which
+  frames its own messages; `bytes` for a file, which has no frames; what `plan.Policy.Framings` maps
+  the media type to; and otherwise `bytes`, reported once as a warning
+  `emitters/plan/unframed-stream`, for an `Item` on a media type the table does not name or a media
+  type only a compiler option names.
+- **`Element`**: `Content.Item` where the content declares one; else, on a side framed by its media
+  type, the `Elem` of a content `Type` whose root (§3.2), read through `Alias`, is a list; else
+  `StreamDetail.Events`; else the content's `Type`, of any kind. OpenAPI applies `schema` to the
+  complete content (OpenAPI 3.2 §4.14.3) and maps a sequential body to an array of its values
+  (§4.14.3.1), so a list describes the body and its `Elem` one frame. A `bytes` side has no
+  `Element`. Nor does a side framed by its media type, with no `Item`, whose content `Type`'s root
+  is `string` or `bytes`: such a schema says the body is text and declares no item, and decoding
+  each line as a JSON string would fail on every line that is not one. Each frame reaches the caller
+  as its text, an SSE frame as its `data`. The compiler names the content's `Type` as `Events` all
+  the same ([`streaming-media`](./compilers/openapi.md#streaming-media)), and keeps it, since what
+  it means is the plan's to read; #630 would name a list's `Elem` there, which this rule reads
+  already. `Variant.Event` applies where `Element`, read through `Alias`, is a union.
+- **`FrameMembers`**, on an `sse` side with an `Element`. An item of `text/event-stream` is the
+  event itself, its `data`, `event`, `id` and `retry` (OpenAPI 3.2 §4.14.4), so a declared `Item`
+  sets it, whatever its kind. Below 3.2 a schema may be the event or only what `data` holds, and
+  `plan.Policy.FrameMembers` reads it as the event where a model's members, or those of every
+  variant of a union, are among those four and include `data`, marked `Inferred`. Unset, the frame's
+  `data` decodes into `Element`, and an `Element` whose root is `string` takes it as it arrived,
+  since `data` is text.
+
+**Other responses.** `Others` holds every entry of `Operation.Responses` but the primary, and
+entries that agree on everything but `Conditions` collapse into one. A declared response is one the
+API said it may send, so it is never a failure, whatever its status: it has no `Fault`, no kind and
+no retry. Each is read by the rules above, and what a method does with it follows from how that
+reading compares with `Return` (§8.9):
+
+1. **It reads as `Return` does**: the same `Shape`, the same `Type` through `Alias` for a `value`
+   and the same `Element` for a `stream`. `AsReturn` is set, and the method returns it as it returns
+   the primary.
+2. **It has no body, beside a `Return` that has one**: a `204` or a `304` beside a `200`. The method
+   has nothing to return, so the caller gets no value and no error: a return takes the target's
+   nullable form (§4.7), and a pager or a stream ends, as an empty one does.
+3. **It has a body the method cannot return**: a `202` of another type beside a `201`, or any body
+   beside a `void` `Return`. It is read whole, as a failure is, so a content that streams is `raw`,
+   and it reaches the caller as the runtime's `OtherResponse`, apart from every failure. Nothing
+   decodes it as `Return.Type`.
+
+A stream method reads `Recv` in `Return`'s place, and a poller takes each response of its start as
+its `LROPlan` says (§8.7).
+
+**A body that does not decode.** A method that cannot decode a body it reads, the primary's among
+them, has nothing to return, and the server answered, so this is no failure either. It reaches the
+caller as an `OtherResponse` whose `BodyErr` says why, so the status and the bytes survive and
+nothing retries a call that may have acted. A stream frame that does not decode ends the stream the
+same way. A failure's body keeps its own form (§8.5).
+
+**Errors.** `Errors` holds every failure the operation declares: its `ErrorCase`s, then its
+service's `CommonErrors`, then its `Default` where the policy takes it as a failure (§3.5), whose
+condition is the catch-all. Entries that agree on everything but `Conditions` collapse into one.
+`Response` follows the rules above with one exception: a failure is read whole, so a content that
+streams is `raw`. `Type` may be of any kind, since an error body may be a union, a list or a
+primitive as well as a model, and where each lands in the SDK is §8.5's.
+
+**Which entry answers.** A response takes, across the primary response, `Others` and `Errors`, the
+entry with the most specific condition that holds — an exact status, then a range, then the
+catch-all — and the first such entry where several tie, so a declared `202` never reaches a
+catch-all. A status's class bounds a catch-all (ir-design §7.2): a primary `Default` holds only
+below 400, and the catch-all of `Errors` for no 2xx. A 2xx no entry answers is a success the
+document does not list, so it reads as `Return` does: a server that starts sending a `201` must not
+turn a call that worked into a failure. Any other status no entry answers is a failure (§8.5).
+
+`PrimaryResponse` and the contents a `ResponsePlan` elects are the *one legitimate home* for the
+collapse oagen performs destructively in its compiler and Morphic forbids there (INV2): the IR keeps
+every response and content type whole; "pick a primary for the ergonomic method" happens here,
+lowered late. The content ranking (`json > form > multipart > binary`) is a shared, overridable plan
+helper (resolves `ir-design.md` open Q3).
 
 Some facts oagen's plan carries are not here, by §3.6. Whether there is a body, whether the
 operation is one-way and its idempotency are stated by the IR, so a refiner reads them there:
@@ -558,14 +691,6 @@ inside an options object differs by language, so it is each target's (§4.13); t
 is decided from are already here — `BindingView` says where each input binds, and
 `Parameter.Required` and `Payload.Required` which are required — so moving the decision out added
 no field.
-
-`PrimaryResponse` / `PrimaryContent` are the *one legitimate home* for the collapse oagen performs
-destructively in its compiler and Morphic forbids there (INV2): the IR keeps every response and
-content type whole; "pick a primary for the ergonomic method" happens here, lowered late. `Content
-negotiation` default (`json > form > multipart > binary`) is a shared, overridable plan helper
-(resolves `ir-design.md` open Q3). **Known gap (#1163):** nothing here takes a success response's
-`Headers` to the client's caller, so their values, and the `Style` and `Explode` they are read by,
-have no consumer yet.
 
 ### 3.2 TypePlan — per-type projections computed once
 
@@ -581,6 +706,8 @@ type TypePlan struct {
                                     // cannot hold: each lowered beside the properties, or degraded
     Union      UnionShape           // a union's wire shape, one of four (§4.4); "" = not a union
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
+    Open       bool                 // a union or polymorphic base keeps a value no variant
+                                    // recognizes rather than refusing it (§3.5, §4.4)
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
     Shapes     map[ir.Lifecycle]ModelShape // the wire shapes the document exercises (§3.3)
     Alias      ir.TypeID            // the type every reference to this one is emitted as, this
@@ -704,7 +831,7 @@ type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir
 
 The Go-first walkthrough (§8) exercises `Protocol == "http"`; the RPC/message/OTP arms exist in the
 type so the second-protocol emitter (open Q4) does not force a plan schema change (INV9). Channels
-and messages (`ir-design.md §8.3`) reach a emitter through `MsgView`; a messaging target consumes
+and messages (`ir-design.md §8.3`) reach an emitter through `MsgView`; a messaging target consumes
 them the same way an HTTP target consumes `HTTP`.
 
 `Raw` is `ir.RawConfig`, not `ir.Unmodeled`, and the distinction is not cosmetic. It carries
@@ -728,9 +855,15 @@ Everything the plan *infers* rather than reads is a knob here; every inferred ou
 
 ```go
 type Policy struct {
-    ContentRanking      []string                        // default: json > form > multipart > binary
-    PrimaryResponse     func(*ir.Operation) *ir.Response // default: lowest 2xx, else the Default
-    EnvelopeDetect      EnvelopePolicy                   // off unless explicitly enabled
+    ContentRanking  []string                          // default: json > form > multipart > binary
+    PrimaryResponse func(*ir.Operation) *ir.Response  // default: lowest 2xx, else the
+                                                      // unconditional one, else the Default
+    EnvelopeDetect  EnvelopePolicy                    // off unless explicitly enabled
+    Framings        map[string]Framing                // media type → how it frames a stream (§3.1)
+    FrameMembers    bool                              // default on: an SSE schema naming only frame
+                                                      // fields describes the frame (§3.1)
+    OpenUnions      bool                              // default on: a union a client reads keeps a
+                                                      // variant it does not know (below)
 }
 ```
 
@@ -740,13 +873,33 @@ guard against a heuristic silently defaulting on and quietly making the plan non
 **The default response is classed here.** The IR states an operation's `Default` — OpenAPI's
 `default` — as neither a success nor a failure, since it answers every status the others do not name
 (ir-design §7.2). `PrimaryResponse` reads the whole operation for that reason, and its default takes
-the lowest 2xx `Response`, or the `Default` where the operation declares none, since a `default`
-answering every status is then the operation's only description of a success. A `Default` that is
-not the primary response is the catch-all of `Errors`, with its condition. Either use is marked
-`Inferred`, and a policy may take it as neither or both. Disabling the heuristic leaves an operation
-with no success response `void` (§3.1) and its `Default` in no plan field. `Streaming` summarizes
-only the streams an operation's success responses declare, so a primary `Default` streams where one
-of its contents declares an `Item` (§3.1).
+the lowest 2xx `Response`, an exact status before a range that starts there, else one with no
+condition, which is an RPC's one response, or the `Default` where the operation declares neither,
+since a `default` answering every status is then the operation's only description of a success. A
+`Default` that is not the primary response is the catch-all of `Errors`, with its condition. Either
+use is marked `Inferred`, and a policy may take it as neither or both. Disabling the heuristic
+leaves an operation with no success response `void` (§3.1) and its `Default` in no plan field.
+`Streaming` summarizes only the streams an operation's success responses declare, so no
+`StreamDetail` covers a `Default`, and a primary one streams only where a content of it declares an
+`Item` (§3.1).
+
+**A union a client reads is open.** An API that adds a variant must not break every SDK already
+deployed on the first response carrying it, so under `OpenUnions` a union or polymorphic base is
+`Open` wherever `Facts.Usage` marks it `Output`, marked `Inferred`. A value no variant recognizes is
+then kept rather than refused (§4.4). That covers a type read and written alike: a response can
+carry it whatever else the type does, and a kept value a caller sends back goes out as it came. A
+type only ever written stays closed, and no SDK decodes one. Turning the policy off closes every
+union. The IR has no field saying a union is open or closed (#664); once it does, a declared answer
+wins, as §6.3 has it. The plan records the choice so that docs and a mock agree with the SDK (§10).
+
+**Framings state what a media type means**, not a guess about an API, so the table marks nothing
+`Inferred`: whether a content streams is the source's to declare or the compiler's to infer, and the
+table says only how it divides. Its default holds the sequential media types OpenAPI 3.2 names:
+`text/event-stream` is `sse`; `application/jsonl` and `application/x-ndjson` are `json_lines`;
+`application/json-seq` and `application/geo+json-seq` are `json_seq`; and `multipart/mixed` is
+`multipart`. An entry matches a media type compared as §3.1 says, and a configuration adds one for
+a media type its compiler was told streams. A framing a target has no reader for is that target's
+coded degrade to `raw` (§3.1).
 
 ### 3.6 Plan fact or refine fact
 
@@ -769,20 +922,21 @@ first model. A candidate field belongs in the plan only when all three of these 
 A fact the IR states outright fails the third test and gets no field: every consumer reads it from
 the IR, and a copy would be a second home for it. A record the plan derives as a whole is not such a
 copy, though it holds declared facts: a `PagePlan` the policy may infer has no IR field to read
-instead, `Errors` collapse several cases into one entry, and the stream and long-running plans
-gather facts spread over more than one node — the event union, the poll operation's monitor type —
-so each reads the same however its facet was written. What the test removes is a field or record
-that derives nothing. Any other fact that fails it shapes only the code of the artifact that uses it
-— how an untagged union's variant is recognized on decode (§4.4), which symbols a file imports — and
-is a shared refine helper in `emitters/refine` when more than one target needs it: reused code, not
-a plan field.
+instead, `Others` and `Errors` collapse several cases into one entry, and the stream and
+long-running plans gather facts spread over more than one node — a stream's content and framing, the
+poll operation's monitor type — so each reads the same however its facet was written. What the test
+removes is a field or record that derives nothing. Any other fact that fails it shapes only the code
+of the artifact that uses it — how an untagged union's variant is recognized on decode (§4.4), which
+symbols a file imports — and is a shared refine helper in `emitters/refine` when more than one
+target needs it: reused code, not a plan field.
 
 The procedure decided every existing field:
 
-1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `PrimaryContent`, the unwrap behind
-   `ReturnType`, and `PagePlan`, an inferred one included.
-2. **Derivations several artifacts expose** stay: `Return`, `Errors`, `Auth`, `Bindings`, `Stream`
-   and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
+1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `RequestContent` and the content each
+   `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open`, and `PagePlan`, an inferred one
+   included.
+2. **Derivations several artifacts expose** stay: `Return`, `Others`, `Errors`, `Auth`, `Bindings`,
+   `Stream` and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
    `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared` and `Unflattened` are read
    along the flattening walk (§3.2), `Alias` classifies a decorator over several of its fields and
    resolves its chain (§4.15), and `Reach` walks every operation (§4.17); SDKs and docs that
@@ -883,17 +1037,19 @@ snapshot pins the whole lowering deterministically.
 | `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | `User` / `UserCreate` / `UserPatch` structs | §5.2 |
 | `LowerOptionality` | `TypePlan.Required` (a member's wire presence, §3.2) ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer (§4.16) | §5.1; INV8 |
 | `LowerConstraints` | `Constraints` on properties/scalars/lists/maps | field-level `validate` tags + a refine-built `Validate()` method structure | §5.3 |
-| `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}`, `TypePlan.Union` | sealed interface + marker method + concrete variants | §4.4; INV2 |
-| `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | tag-dispatched `UnmarshalJSONFrom` + typed factories | §4.3–§4.4 |
+| `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}`, a polymorphic base's `Discriminator` or `Abstract` with `Facts.Subtypes`, `TypePlan.Union`, `TypePlan.Open` | a struct holding a sealed interface + marker method + a wrapper per variant or subtype + a fallback on an open one | §4.4; INV2 |
+| `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | tag-dispatched `UnmarshalJSONFrom` on the union's struct + typed factories | §4.3–§4.4 |
 | `LowerOpenEnums` | `Enum.Closed`, `ValueType`, `Members`, `Flags`, `FallbackMember` | closed → typed consts; open → `string`+consts+`Unknown(raw)`; flags → bitset | §4.5 |
-| `ExtractInterfaces` | `Model.Abstract`, `Implements`, union membership | Go interfaces / client interfaces for testability | §4.3 |
+| `ExtractInterfaces` | `Implements`, `OperationGroup` | Go interfaces / client interfaces for testability | §4.3 |
 | `MapExternalTypes` | `External{Identity, Package, MinVersion}`, `Ctx.Types` | the type table's row for the identity (§2.6): imported library type + dependency-manifest entry; no row → opaque strategy + diagnostic | §4.6 |
 | `MaterializeValues` | `Value{Kind, Num BigVal, Ref, Ctor}` | literals; `Num` → bignum/decimal, never float64; `Ctor` → call; `symbol` → string explicitly; a default documented, never written onto a request (§4.10) | §6 |
-| `BuildRequestShaping` | `plan.BindingView`, the target's parameter shape (§4.13) | request builders, per-protocol param binding, each operation's request type | §8 |
+| `BuildRequestShaping` | `plan.BindingView`, `RequestContent`, the target's parameter shape (§4.13) | request builders, per-protocol param binding, each operation's request type | §8 |
+| `LowerHeaders` | `ResponsePlan.Headers` | a struct with a field per declared header, each optional, read from the raw headers by wire name; a `WithResponse` method on a success (§8.9), the failure value's and an `OtherResponse`'s `Headers` (§8.5, §8.9) | §7.2 |
 | `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy | §7.3 |
-| `LowerStreaming` | `plan.StreamPlan` (direction, event union) | `EventStream.Recv()`/`Send()` over the event union; terminal ends | §7.3 |
+| `LowerStreaming` | `plan.StreamPlan` (direction; each side's content, framing and element) | a method per shape the operation offers; `Stream[T]` with `Recv()`/`Send()` over an element of any kind; a `bytes` side lowered as a file; terminal ends | §7.3 |
 | `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + `Poll()/PollUntilDone()` returning the final type | §7.3 |
-| `LowerErrors` | `plan.PlannedError`, `irfacts.UsageError`, `Fault` | error type tree (`APIError` → client/server → concrete), over the types `UsageError` marks and those a `PlannedError` the policy made of a `Default` names, which no IR fact marks (§3.5) | §7.2 |
+| `LowerErrors` | `plan.PlannedError` | no error type: each entry's conditions, body decoder and declared facts in the operation's response decoder, which fills the runtime's failure value (§8.5) | §7.2 |
+| `LowerOtherResponses` | `OpPlan.Others` | each entry's conditions in the operation's response decoder: `AsReturn` and a 2xx no entry answers read as `Return`, no body a nullable return or an ended pager or stream, any other a body decoder filling the runtime's `OtherResponse`, as a body that does not decode does (§8.9) | §7.2 |
 | `PlaceDeclarations` | `Provenance.Source`, `TypePlan.Reach`, the target's placement options | the output unit each declaration lands in: one package unless a partition or a group split moves it (§4.17) | §13 |
 | `ComputeImports` | what each file's declarations reference: another unit's declarations, a type-table row's `Imports`, the runtime | per-file import sets, each import by its path; the name a file gives it is settled with every other name (§4.12) | — |
 | `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none named by its characters) + the options' naming tables | cased identifiers, the units' among them — the ONLY place names get cased (§4.12) | §3.2; INV4 |
@@ -937,7 +1093,6 @@ type Field struct {
 }
 type InterfaceType struct { Common; Methods []MethodSig; Marker string } // union base / abstract model
 type Method struct { Common; Name Ident; Params []*Param; Returns Expr; Kind MethodKind }
-type ErrorType struct { Common; Fault string; Retryable *bool; Throttling *bool }
 
 type Common struct {
     origin emitter.EntityID   // ← the IR ID this node came from (manifest / surface / prune; INV3)
@@ -965,7 +1120,7 @@ walk (§11, §12).
 tag-mode matrix (each a distinct serializer) is normative (`ir-design.md §4.4`):
 
 - `WireTagged=false` → untagged; variant inferred by validation (JSON oneOf/anyOf).
-  `Exclusive=true` = exactly-one; `false` = one-or-more (anyOf, open). An untagged union carries
+  `Exclusive=true` = exactly-one; `false` = one-or-more (anyOf). An untagged union carries
   no `Discriminator`.
 - `WireTagged=true` + `Discriminator` → the tag travels in the payload, where the discriminator
   locates it: an OpenAPI `discriminator`, GraphQL `__typename`, an Erlang tagged tuple. It sits
@@ -975,28 +1130,68 @@ tag-mode matrix (each a distinct serializer) is normative (`ir-design.md §4.4`)
 - `WireTagged=true` + nil `Discriminator` → key-tagged: a single-key object keyed by the variant's
   wire name (Smithy unions, proto3-JSON oneof, GraphQL `@oneOf`).
 
-Go has no sum type, so the Go refiner picks the **sealed-interface** strategy — the same closed-sum
-idiom the IR itself mandates: `type Payment interface { isPayment() }`, one concrete struct per
-variant with an unexported marker method, a generated switch-completeness test over the variant set.
+Go has no sum type, so the Go refiner pairs a struct with a sealed interface, the closed-sum idiom
+the IR itself mandates, with a generated switch-completeness test over the variant set:
+
+```go
+type Payment struct{ Value PaymentVariant }           // what a reference names; declares the codec
+
+type PaymentVariant interface{ isPaymentVariant() }   // the closed set
+type PaymentCard struct{ Value Card }                 // one wrapper per variant
+type PaymentBankTransfer struct{ Value BankTransfer }
+```
+
+- **The struct declares the codec.** Go refuses a method whose receiver is an interface type, and
+  json/v2 refuses to decode into a sealed one: `cannot derive concrete type for nil interface with
+  finite type set`. On the struct, the pair travels with the type, so a caller's own
+  `json.Unmarshal` decodes a `Payment` and any type of the caller's that holds one, as §2.6 asks of
+  every Go type an SDK names. The struct's `Value` is the price at each use. Decoding in each
+  holder's codec and the client would leave a caller's own call failing, and a registered
+  `json.WithUnmarshalers` would reach only values decoded under the SDK's options, which is why a Go
+  row of the type table has no codec of its own (§2.6). The struct encodes through its variant, and
+  one whose `Value` is nil refuses to encode, never writing `null`, and fails `Validate`.
+- **A wrapper for every variant.** The marker is an unexported method, which only a type declared
+  in the interface's package can implement. So a variant in another output unit (§4.17) cannot, nor
+  can one a target spells as `string`, `[]T` or a map, which declares no method, and a type many
+  unions name would carry a marker for each. A wrapper in the union's unit takes any variant, and
+  keeps apart two variants that lower to one Go type. A wrapper declares the codec pair too,
+  delegating to its `Value`, so it codes as its variant does when a caller's own call meets it
+  alone. Kotlin's variant classes are the same wrapper, for the same reason (§9).
+- **A polymorphic base lowers the same way.** A reference to a model with a `Discriminator`, or an
+  `Abstract` one (ir-design §4.9), holds any of its subtypes, so `Pet` is a struct holding
+  `PetVariant`, with a wrapper per subtype, and `Discrim` routes it as a union's. The base's own
+  shape, unless it is `Abstract`, is a variant too, a struct of its flattened properties.
+
 Variant identity (`Variant.Name`) survives for named accessors / constructors; `WireName`/`WireID`
 survive for (de)serialization. **Unions never degrade to optional-field merges** — flattening a
 *body* union into method arguments is an opt-in `ShapeHint` (§6.4), never a silent loss (the oagen
 counterexample, prior-art §1). A future TS/Python target lowers the *same* facts to a native
-`A | B | C`; the decision differs, the fact base is identical.
+`A | B | C`; the decision differs, the fact base is identical. Kotlin declares its `KSerializer` on
+the sealed interface itself, which a Kotlin interface allows, so it needs no struct. What `Value`
+holds when a value satisfies several variants of an `anyOf` is #959's.
 
 Within the untagged case, choosing *how* a variant is recognized on decode is refine's job, and
 ogen's `schema_gen_sum.go` is the battle-tested enumeration to lift: try, in order, explicit
 discriminator → implicit discriminator (variant const/name) → JSON-type discrimination (variants
 distinguishable by JSON kind) → unique-field discrimination → value-based. The decisive divergence:
 ogen computes this *while building the Go model*, so a union it cannot discriminate aborts the whole
-generation. Because Morphic keeps `Union` lossless in the IR and only a emitter picks a strategy, a
-Go refiner that finds no strategy emits a coded diagnostic and falls back to `jsontext.Value` per
-variant, which keeps the variant's bytes as they arrived — a degrade, never a whole-document failure
-(§13 test T-7). That graceful-degradation margin is exactly what the ABI seam buys and the
-fused-pipeline generator cannot have. Whatever the strategy, the union's codec is a
-`MarshalJSONTo`/`UnmarshalJSONFrom` pair, for the reason §4.8 gives. Which Go type declares the
-pair is open: an interface type cannot declare a method, so the sealed interface itself cannot
-(#1022).
+generation. Because Morphic keeps `Union` lossless in the IR and only an emitter picks a strategy, a
+Go refiner that finds no strategy emits a coded diagnostic and decodes every value into the fallback
+below, which keeps its bytes as they arrived — a degrade, never a whole-document failure (§13 test
+T-7). That graceful-degradation margin is exactly what the ABI seam buys and the fused-pipeline
+generator cannot have. Whatever the strategy, the codec is a `MarshalJSONTo`/`UnmarshalJSONFrom`
+pair, for the reason §4.8 gives.
+
+**A value no variant recognizes.** All four wire shapes decode in one order: the variant the tag or
+the key names, or the one recognition finds; then `Discriminator.Default`, for a tag it does not
+name or no tag at all; then, on an `Open` union (§3.5), the fallback; and otherwise a coded decode
+error. A tag that names a variant whose body fails to decode is an error either way: the variant is
+known, and the value does not match it. The fallback is one more variant, `PaymentUnknown` on Go,
+holding the value as `jsontext.Value`, and `Payment.Unknown` on Kotlin, holding a `JsonElement`. It
+re-encodes as the same JSON value, its members in order and each number's text intact, though
+json/v2 normalizes whitespace and string escapes as it writes. It has no factory, since only a
+response produces one, and one a caller sends back goes out as it came. A closed union declares
+none.
 
 ### 4.5 Open enums
 
@@ -1066,7 +1261,8 @@ presentation rename never breaks the wiring. It emits a tag-dispatched `Unmarsha
 peeks the discriminator **wire** key (never the Go field name), typed factory functions, and a
 `MarshalJSONTo` that writes the tag. `Property` vs `PropertyName` vs `Index` (positional),
 `Envelope` vs inline, and the `Default` variant on an absent/unrecognized tag all survive
-un-lowered; the choice of factory vs native vs wrapper is the refiner's.
+un-lowered; the choice of factory vs native vs wrapper is the refiner's. Go declares the pair on
+the union's struct (§4.4), and a tag that selects no variant takes §4.4's order.
 
 The pair is `encoding/json/v2`'s `MarshalerTo`/`UnmarshalerFrom`, not v1's `MarshalJSON`/
 `UnmarshalJSON`, because only the v2 methods see the caller's encoder and decoder. `MarshalJSONTo`
@@ -1271,10 +1467,15 @@ into it binds as well, and the units' scope what a unit cannot be named:
   import, `testdata`, which `./...` skips, and `vendor`, which the `go` command reads at a module's
   root as vendored dependencies.
 - **A unit**: the names the target declares at its top level beside the spec's — Go's `Client`, its
-  option type and their constructors, and a group unit's sub-client.
+  option type and their constructors, a group unit's sub-client, and any runtime name it declares
+  there (`APIError`, `Body`, `OtherResponse`, `Response`, `Stream`).
 - **A type**: the members the target gives every model — Go's `MarshalJSONTo`, `UnmarshalJSONFrom`,
   `Validate` and a redacting `String`, and the field holding the catch-all (§8.1); Kotlin's
-  `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
+  `equals`, `hashCode`, `toString`, `Builder` and `Companion`. The struct Go gives a union declares
+  those codecs, `Validate` and `Value` (§4.4), and a wrapper those codecs and `Value`. No spec name
+  lands in either, so none yields there.
+- **A union's variants**: `Unknown`, the fallback's name (§4.4), which a variant the spec names so
+  yields to.
 - **A function**: its receiver, its context and request parameters, every local its body binds, and
   the package names its file imports. Whatever builds a body declares the names it binds beside it —
   the refine step that builds it as typed nodes, or the template that renders it, whose declaration
@@ -1295,8 +1496,9 @@ words and the names that begin with a digit to code that compiles.
 
 ### 4.13 Interface extraction & request shaping
 
-`ExtractInterfaces` derives per-language interfaces from `Abstract` / `Implements` / union
-membership, plus client interfaces for testability from the `OperationGroup` structure.
+`ExtractInterfaces` derives per-language interfaces from `Implements`, plus client interfaces for
+testability from the `OperationGroup` structure; a union's and a polymorphic base's interface is
+`LowerUnions`' (§4.4).
 `BuildRequestShaping` turns the plan's `BindingView` into request builders, and passes an
 operation's inputs positionally or inside an options object — RequestBuilder-style constructs are
 generator-side, out of the IR (prior-art §2). `OperationGroup` nesting becomes sub-clients / fluent
@@ -1420,14 +1622,14 @@ property of its type system (§3.6).
 
 - **Go** holds a struct field by value, so a cycle of struct fields is an invalid recursive type. A
   slice, a map, a pointer and an interface each break a cycle, so a list, a map, a union and a
-  polymorphic base — the last two sealed interfaces (§4.4, §8.8) — already do; a model, a tuple's
-  positional struct and the boxes of §4.7 hold their contents by value, and do not. So a reference
-  is held through a pointer when it lies on a cycle of references Go holds by value, read after
-  `Base` and `Mixins` are flattened into the declarations they land in. Such a cycle lies within one
-  of `Facts.Component`'s components, and a shared refine helper finds the cycles a target's
-  by-value references close within each. The pointer stands for a box's state where it can (§4.7):
-  a required reference is `*T`, which `Validate` reports when nil; an optional or a nullable one is
-  `*T`, nil meaning absent or null; and an optional nullable one is `Opt[*T]`.
+  polymorphic base — the last two a struct holding a sealed interface (§4.4) — already do; a model,
+  a tuple's positional struct and the boxes of §4.7 hold their contents by value, and do not. So a
+  reference is held through a pointer when it lies on a cycle of references Go holds by value, read
+  after `Base` and `Mixins` are flattened into the declarations they land in. Such a cycle lies
+  within one of `Facts.Component`'s components, and a shared refine helper finds the cycles a
+  target's by-value references close within each. The pointer stands for a box's state where it can
+  (§4.7): a required reference is `*T`, which `Validate` reports when nil; an optional or a nullable
+  one is `*T`, nil meaning absent or null; and an optional nullable one is `Opt[*T]`.
 - **Kotlin** holds every class by reference, so a cycle asks nothing of either Kotlin target.
 
 Go breaks every reference on such a cycle rather than the fewest that would do. The fewest depend
@@ -1488,9 +1690,11 @@ their own (§4.12): a group named `shared`, or `internal` in Go, meets a reserve
 groups whose names render alike — tags `Webhooks` and `webhooks`, both the Go package `webhooks` —
 collide, and are told apart by group ID as any collision is. A name the options give a unit never
 yields. A declaration a target derives from another lands in that one's unit — a visibility shape
-(§4.6) or a Kotlin variant class in its type's, an operation's request type in the operation's —
-and a unit is a namespace of its own, so two declarations collide only within one (§4.12). T-18
-holds placement to these rules.
+(§4.6) in its type's, a union's interface, wrappers and fallback in the union's, an operation's
+request and headers types in the operation's — and a unit is a namespace of its own, so two
+declarations collide only within one (§4.12). A wrapper imports a variant another unit holds, which
+is how a union reaches into the shared unit. A service-wide error's headers type lands where a type
+all its groups reach does. T-18 holds placement to these rules.
 
 **The size check.** Each target states a limit on the declarations one unit holds, a default of its
 options version (§2.5), and reports each unit over it once, as a warning
@@ -1530,8 +1734,8 @@ parsed" is a lookup.
 
 | Content | Representation | Why |
 |---|---|---|
-| Models, enums, unions, discriminators, operations, clients, error types, serializers | **Typed AST nodes** | Spec-derived *structure*; correctness must be compiler-checked; must be uniform across languages |
-| Runtime core: HTTP transport, retry loop, backoff+jitter, pagination iterator runtime, auth injectors, logging hooks | **Templates**, one small file each, parameterised by `Policy` | Policy-driven *boilerplate* whose shape does not vary with the spec |
+| Models, enums, unions, discriminators, operations, clients, serializers | **Typed AST nodes** | Spec-derived *structure*; correctness must be compiler-checked; must be uniform across languages |
+| Runtime core: HTTP transport, retry loop, backoff+jitter, pagination iterator runtime, a stream reader per framing, the error and response types, auth injectors, logging hooks | **Templates**, one small file each, parameterised by `Policy` | Policy-driven *boilerplate* whose shape does not vary with the spec |
 | Package docs, README, per-op usage examples | **Docs emitter** (`docast`, §10) | Prose with holes |
 
 A retry loop is the same code for every API; only numbers and header names vary. A typed AST there
@@ -1581,12 +1785,57 @@ surface model, and identity-based merge that a template pack cannot. The `Emit` 
 per-emitter means a target may opt into templates-for-structure if it ever needs to — the design
 does not mandate typed-AST emit, it defaults to it.
 
+### 5.6 Rules the emit layer holds to
+
+§5.3 guards what a template may contain. These rules hold for the emit layer as a whole, the printer
+and the engine's write included, because each is easy to lose once code exists and none shows in a
+single run's output. T-25 gives each a test.
+
+- **No mutable model.** A template receives a value built for it: scalars, and lists and structs of
+  scalars, with no pointer, map, function or method anywhere in it. `text/template` calls a method
+  of its data, and one with a pointer receiver writes through it, so read-only has to be the value's
+  shape rather than a convention. A render can therefore change neither the IR, the plan, the target
+  AST nor another artifact.
+- **No re-rendering.** Rendered output is never parsed as a template again, so a value from the
+  document that looks like template syntax comes out verbatim. The printer escapes a value for what
+  it writes into, since a target's own syntax re-reads text as a template does: a Kotlin `$` in a
+  string would interpolate, and a `*/` in a description would end a KDoc comment.
+- **Hermetic functions.** A template function reads its arguments and nothing else: no environment,
+  clock, network or filesystem. The function map is a literal list, and the lint refuses `call`,
+  which would run any function a value held.
+- **Deterministic scheduling.** Emission may run in parallel, with bounded workers, over a queue
+  built in the plan's key order, each result stored at its place in that queue, so the order work
+  finishes in changes nothing. A target returns its artifacts sorted by `Path`.
+- **Locale-independent ordering.** Every sort compares bytes, which for UTF-8 is code-point order,
+  as Go's `slices.Sort` on strings does. Nothing imports a collation, and `LC_ALL` changes no
+  output.
+- **One artifact per path.** The engine refuses a run in which two artifacts of a target share a
+  path, as an error `engine/duplicate-artifact-path` naming both `Origins`, before it writes any.
+  Paths are compared case-folded, since a file system that ignores case keeps only one of `Foo.go`
+  and `foo.go`.
+- **Formatter failures.** A formatter that fails is the located, hard diagnostic of §5.3, and its
+  artifact is not written: `Format` has no path that returns its input. No artifact reads the build
+  that made it — a timestamp, a VCS stamp, an absolute path — so a build's flags change no byte.
+  What a build can change is `go/format`, which is compiled into Morphic and which a Go release may
+  revise, so moving the toolchain a release is built with is a change to the output, which T-6's
+  goldens show. Kotlin's formatter runs outside `Generate`, and its printer lays out what it checks
+  (§8.8).
+- **Nothing written, something said.** A target that returns no artifact reports why, as a warning
+  `emitters/<target>/no-artifacts` naming the cause, such as a `Scope` that matches nothing or a
+  document with no type or operation, so an empty directory never reads as success.
+- **Contained writes.** The engine checks every `Path` before the first write: forward-slashed,
+  `filepath.IsLocal` once converted, and naming a file, or the run stops with an error
+  `engine/artifact-outside-root` and writes nothing. It then writes through an `os.Root` opened at
+  the output root, which refuses what only the disk shows: a symlink in the tree that leaves it. A
+  string prefix is no check, as `out-evil` starts with `out`, and a lexical check alone passes the
+  symlink.
+
 ---
 
 ## 6. Runtime/SDK policy — a separate input
 
 `emitters/policy` (INV10; architecture.md §2.4). The behavioral configuration of generated
-SDKs is a emitter input alongside the IR, **never a field on `ir.Document`** — the divergence from
+SDKs is an emitter input alongside the IR, **never a field on `ir.Document`** — the divergence from
 oagen, which attaches `SdkBehavior` to its spec root. Keeping the trees separate lets one IR drive
 SDKs, docs, and mock servers without dragging SDK opinions along.
 
@@ -1600,7 +1849,8 @@ package policy
 type Policy struct {
     Retry       Retry        // retryable status codes, max attempts, Backoff{initial, multiplier, max, jitter}
     Timeout     Timeout      // default seconds + env override
-    Errors      ErrorTax     // status→logical exception-kind, client/server catch-all, doc-URL template
+    Errors      ErrorTax     // status→logical exception-kind and fault, doc-URL template, the bound
+                             // on a buffered body (§8.5, §8.9)
     Telemetry   Telemetry    // request-ID header, client-telemetry header
     Logging     Logging      // enabled + a CLOSED lifecycle-event list
     UserAgent   UserAgent    // identifier template, app-info enrichment, ai-agent env vars
@@ -1625,9 +1875,10 @@ loop, transport config, user-agent string, telemetry headers, pagination pacing)
 
 `ErrorCase.Retryable/Throttling/Fault` and `Operation.Idempotency` come from the spec; policy fills
 in only where the spec is silent — never the reverse. The refiner enforces this by reading the IR
-fact first and consulting policy only on `nil`. A `policy-precedence` test asserts a spec
-`Retryable:false` beats a policy that lists that status as retryable (§13 test T-9). When policy is
-overridden by a spec fact, an `Inferred`-marked diagnostic is emitted so nothing is silent.
+fact first and consulting policy only on `nil`, or for a `Fault`, on `""`. A `policy-precedence`
+test asserts a spec `Retryable:false` beats a policy that lists that status as retryable (§13 test
+T-9). When policy is overridden by a spec fact, an `Inferred`-marked diagnostic is emitted so
+nothing is silent.
 
 ### 6.4 SDK-shaping hints — a third, ID-keyed input
 
@@ -1652,7 +1903,7 @@ configuration inside the IR* (`ir-design.md §12`), and a hint is neither — it
 authored alongside the SDK, and the IR never sees it.
 
 Method-name *derivation* is itself an injectable policy marked `Inferred`, disable-able and
-overridable. Per-target naming/compat overlays are the same shape: a emitter input keyed by IR ID,
+overridable. Per-target naming/compat overlays are the same shape: an emitter input keyed by IR ID,
 so one IR document drives different compat baselines per language.
 
 ---
@@ -1772,23 +2023,25 @@ Additional:"closed" }`.
   caller would reach a model the spec leaves open. A catch-all (`AdditionalProps`) is the struct's
   one embedded fallback, a `map[string]T` tagged `json:",embed"`, which receives the undeclared
   members whatever the options say.
-- **emit.** Printer folds the two structs, prints through `go/format`. File `models/user.go`.
-  Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`.
+- **emit.** Printer folds the two structs, prints through `go/format`. File `user.go` in the root
+  unit (§4.17). Manifest records `User.ID → "User"` and `User.ID#create → "UserCreate"`.
 
 ### 8.2 A discriminated union (`Payment = Card | BankTransfer`, tag `type`)
 
 IR: `Union{ Variants:[Card, BankTransfer], Exclusive:true, WireTagged:true,
 Discriminator{PropertyName:"type", Mapping:{"card":Card.ID, "bank":BankTransfer.ID}} }`.
 
-- **plan.** `TypePlan.Union` = `discriminated`, and `Discrim` maps `card` and `bank` to the two
-  variants' IDs. No primary-variant collapse — the union stays whole (INV2).
-- **refine.** Go has no sum type → `LowerUnions` picks the sealed-interface strategy:
-  `type Payment interface { isPayment() }`, `Card`/`BankTransfer` each implement an unexported
-  marker. `LowerDiscriminator` reads `Mapping` (keyed by **TypeID**) and generates
-  `UnmarshalJSONFrom` that peeks the `"type"` wire key and dispatches; an unrecognized tag with no
-  `Default` becomes a coded decode error, not a silent nil. Variant identity survives →
-  `NewPaymentCard(...)`.
-- **emit.** Printer emits the interface, markers, concrete structs, and the
+- **plan.** `TypePlan.Union` = `discriminated`, `Discrim` maps `card` and `bank` to the two
+  variants' IDs, and `Open` says whether a value no variant recognizes is kept (§3.5). No
+  primary-variant collapse — the union stays whole (INV2).
+- **refine.** Go has no sum type → `LowerUnions` declares the struct, its sealed interface and a
+  wrapper per variant (§4.4): `type Payment struct{ Value PaymentVariant }`, with `PaymentCard` and
+  `PaymentBankTransfer` implementing an unexported marker. `LowerDiscriminator` reads `Mapping`
+  (keyed by **TypeID**) and generates, on the struct, an `UnmarshalJSONFrom` that peeks the `"type"`
+  wire key and dispatches; a tag that selects no variant, with no `Default`, lands in
+  `PaymentUnknown` on an open union and is a coded decode error on a closed one, never a silent nil.
+  Variant identity survives → `NewPaymentCard(...)`.
+- **emit.** Printer emits the struct, the interface, the wrappers and markers, and the
   `UnmarshalJSONFrom`/`MarshalJSONTo` pair keyed on the **wire** name `"type"` (§4.8). The
   switch-completeness test guarantees every variant is handled.
 
@@ -1798,7 +2051,7 @@ IR: `Operation{ Params:[limit, cursor], Responses:[200 → {items:[]User, next_c
 Pagination{Strategy:cursor, InputCursor:{cursor}, Items:{body→items}, NextCursor:{body→next_cursor}} }`,
 bound `HTTPBinding{GET /users, query limit+cursor}`.
 
-- **plan.** `OpPlan{ Return:value, ReturnType:ListUsersResponse, Page:&PagePlan{Strategy:cursor,
+- **plan.** `OpPlan{ Return:{Shape:value, Type:ListUsersResponse}, Page:&PagePlan{Strategy:cursor,
   ItemType:User, ItemPath:body→items, CursorIn:cursor, CursorOut:next_cursor} }`: each page decodes
   as the response's own type, and `Page` takes the items from it. Item-type unwrap is a plan
   decision. Pacing delay is **not** here — it is runtime policy.
@@ -1812,27 +2065,41 @@ bound `HTTPBinding{GET /users, query limit+cursor}`.
   The pager *runtime* (fetch-and-pace loop) is `pagination.go.tmpl` parameterised by
   `Policy.Pagination.AutoPageDelay` — the legitimate boilerplate seam.
 
-### 8.4 A streaming operation (`StreamEvents`, server-sent events)
+### 8.4 A streaming operation (`TailMetrics`, JSON or server-sent events)
 
-IR: `Operation{ Streaming:server, ResponseStream:&StreamDetail{ Events: &TypeRef→EventUnion } }`
-where `EventUnion = Union{ WireTagged:true, Variants:[Message{Event}, Heartbeat{Event, Terminal:false},
-Done{Event, Terminal:true}] }`, bound `HTTPBinding{GET /events}` with the SSE wire mechanism on the
-binding.
+IR: `Operation{ Streaming:server, ResponseStream:&StreamDetail{ Events:&TypeRef→Metrics },
+Responses:[200 → {application/json → MetricsPage, text/event-stream → Metrics}] }`, bound
+`HTTPBinding{GET /metrics}`. No binding field states the framing: the content's `MediaType` does.
 
-- **plan.** `OpPlan{ Return:stream, Stream:&StreamPlan{Direction:server, EventUnion:EventUnion.ID} }`.
-  Per-event content-types and the terminal bit come from `Variant.Event`.
-- **refine.** The event union lowers exactly like §8.2 (sealed interface `Event` with concrete
-  `MessageEvent`/`HeartbeatEvent`/`DoneEvent`). Server streaming lowers to
-  `func (c *Client) StreamEvents(ctx) (*EventStream, error)` — no request type, since the operation
-  has no input (§4.13) — where
-  `EventStream.Recv() (Event, error)` returns the sealed-interface event and returns `io.EOF` after a
-  variant whose `Variant.Event.Terminal` is true. Direction (server) is read from the *core*; the SSE
-  framing is read from the *binding* — a bidi op (`Streaming:bidi`, both `RequestStream` and
-  `ResponseStream`) would additionally emit a `Send(...)` method, and a gRPC binding of the same core
-  would reuse the same `EventStream` shape over length-prefixed frames.
-- **emit.** Printer emits `StreamEvents`, `EventStream`, and the event union.
-  The stream *runtime* (SSE frame reader) is `stream.go.tmpl` boilerplate behind the `Transport`
-  interface.
+- **plan.** `OpPlan{ Return:{Shape:value, Content:application/json, Type:MetricsPage},
+  Stream:&StreamPlan{ Direction:server, Recv:&StreamSide{ Content:text/event-stream, Framing:sse,
+  Element:Metrics } } }`. The ranking elects JSON for `Return`, and `Recv` holds the stream beside
+  it (§3.1).
+- **refine.** Each shape an operation offers is a method, sending the `Accept` of its content:
+  `func (c *Client) TailMetrics(ctx) (*MetricsPage, error)` and
+  `func (c *Client) TailMetricsStream(ctx) (*Stream[Metrics], error)` — no request type, since the
+  operation has no input (§4.13). An operation whose elected content streams has the one method,
+  under its own name. `Stream[T]` is the runtime's: `Recv() (T, error)` returns each element and
+  then `io.EOF`, and `Close` releases the response, which a caller that stops early must do. A frame
+  that does not decode ends the stream with an `OtherResponse` holding that frame (§3.1). What
+  `T` is follows from `Recv`:
+  - an `Element` lowers as a field of its type does (§9), whatever its kind. A union's is its struct
+    (§8.2), and `Recv` returns `io.EOF` after a variant whose `Variant.Event.Terminal` is true, so
+    an event union needs nothing of its own beyond §8.2. Under `FrameMembers` the element decodes
+    from the frame's `data`, `event`, `id` and `retry`, and otherwise from its `data`.
+  - no `Element` is `Stream[string]`, each frame's text, unread.
+  - a `bytes` side has no frames and no `Stream`: `Recv` lowers as a file does, to `*RawBody`
+    (§8.9), and `Send` to an `io.Reader` field of the request type.
+
+  Direction comes from the *core* (§3.1), and the framing from the plan. A client stream gives
+  `Send(T)` and a `CloseAndRecv` that returns what `Return` reads; a bidi operation has both sides,
+  each with its own element and framing; and a gRPC binding of the same core would reuse the same
+  `Stream` shape over length-prefixed frames. A sentinel frame that ends a stream without being a
+  variant has no IR home yet (#666), so a target cannot tell one from an element; nor does the IR
+  say which input selects a stream, where a request field does (#667).
+- **emit.** Printer emits the methods and the element's declarations. The stream *runtime* is
+  boilerplate behind the `Transport` interface: `stream.go.tmpl`, and one template per framing the
+  document uses, which refine picks rather than a template branching on it (§5.2).
 
 ### 8.5 An error taxonomy (`RateLimited`, 429, retryable-throttling)
 
@@ -1840,20 +2107,124 @@ IR: `ErrorCase{ Name:{Hint:"429"}, Conditions:{429}, Payload:{Contents:[{applica
 RateLimited (Model, reached from this error case)}]}, Headers:[Retry-After], Fault:"client",
 Retryable:&true, Throttling:&true }`; policy default maps `429 → "TooManyRequests"`.
 
-- **plan.** `OpPlan.Errors` = `[PlannedError{ Conditions:{429}, Type:RateLimited, Fault:"client",
-  Retryable:true, Throttling:true }]` — declared IR facts, carried as such. **Known gap (#447):**
-  `PlannedError` has no `Headers` field, so the `Retry-After` on the IR line above has no home in
-  the plan, and its single `Type` names no election where `ErrorCase.Payload.Contents` is plural —
-  the negotiation `PrimaryContent` states for the success side has no error-side counterpart here.
-- **refine.** `LowerErrors` builds the error tree: `APIError` interface → a `ClientError`/`ServerError`
-  split from `Fault` → concrete `RateLimited` implementing `error`. The retry wiring reads
+- **plan.** `OpPlan.Errors` = `[PlannedError{ Conditions:{429}, Response:{Shape:value,
+  Content:application/json, Type:RateLimited, Headers:[Retry-After]}, Fault:"client",
+  Retryable:true, Throttling:true }]` — declared IR facts, carried as such, the content elected as a
+  success's is (§3.1).
+- **refine.** `LowerErrors` generates no error type. A failure is one value of a runtime type, which
+  the operation's response decoder fills from the entry a response takes:
+
+  ```go
+  type APIError struct {         // the runtime's: what one failed response said
+      StatusCode int
+      RawHeader  http.Header     // every header as it arrived, by wire name
+      RawBody    []byte          // the body as it arrived, up to Policy.Errors' bound
+      BodyErr    error           // why the body did not decode; nil when it did, or had none
+      Fault      Fault           // the entry's, else the status's class
+      Kind       Kind            // the taxonomy's logical kind for the status; "" = none
+      Body       any             // the body as its Type lowers, of any kind; nil = none decoded
+      Headers    any             // the entry's declared headers, a struct; nil = none declared
+      retry      retryFacts      // the entry's Retryable and Throttling, behind IsRetryable()
+  }
+
+  func (e *APIError) Error() string { return fmt.Sprintf("api error: status %d", e.StatusCode) }
+  func (e *APIError) Unwrap() error { return e.BodyErr }
+
+  func Body[B any](err error) (B, bool) { // err's failure's body, where it is a B
+      var zero B
+      e, ok := errors.AsType[*APIError](err)
+      if !ok {
+          return zero, false
+      }
+      b, ok := e.Body.(B)
+      return b, ok
+  }
+  ```
+
+  `Headers[H]` reads the same way, and `(*APIError).Is` answers `errors.Is` for `sdk.ErrClient`,
+  `sdk.ErrServer` and a sentinel per kind (`sdk.ErrNotFound`). The retry wiring reads
   `Retryable`/`Throttling` **from the IR fact** and falls back to `Policy.Retry` only where the spec
-  is silent (§6.3); throttling selects the throttling backoff class. The `Error` suffix is a
-  `naming.Policy` rendering of the neutral taxonomy — Python would render `TooManyRequestsError` from
-  the same neutral kind.
-- **emit.** Printer emits the error type + `Error() string`, registers `429 → *RateLimited` in the
-  response decoder, and the retry runtime consults `IsRetryable()`/`IsThrottling()` which return the
-  spec-declared values.
+  is silent (§6.3); throttling selects the throttling backoff class.
+- **emit.** Printer emits the decoder, registering each entry: `429 → RateLimited`, with its headers
+  struct, fault and retry facts, which the retry runtime consults through
+  `IsRetryable()`/`IsThrottling()`. The error types are runtime boilerplate (§5.2): their kinds come
+  from `Policy.Errors`, so a template renders them and no spec changes them.
+
+A caller branches on what happened, and reads the body when it needs it:
+
+```go
+switch {
+case errors.Is(err, sdk.ErrNotFound): // …
+case errors.Is(err, sdk.ErrClient):
+    if p, ok := sdk.Body[sdk.Problem](err); ok { show(p) }
+}
+```
+
+**The status tells failures apart.** A body type rarely does: most specs name one error model for
+every status, or no body at all. On the golden spec at `ef1d30e8`, 453 of the 746 operations
+declaring several error bodies use one type for all of them; across 1,859 corpus documents, 172 of
+the 205 with an error body use a single type, and 8,538 of 13,079 failures have none. So the design
+keys on the status and carries the body as a value. Three designs lost to it. A generated type per
+body distinguishes what a spec rarely does, and gives a spec with one model one type for every
+failure; nor can a model be the error itself, since `Error()` beside a member `error` does not
+compile in Go. A client and a server exception wrapping a value per body leaves a 404 to a check.
+And fixed classes with an untyped body give up what the spec declares.
+
+**How a failure reaches its caller is the target's** (§2.5). Go needs no setting, since an `error`
+is already a value. Kotlin carries it in an exception, the default of `errorStyle` and the only
+style M3 builds:
+
+```kotlin
+class ApiFailure(val statusCode: Int, val rawHeaders: Headers, val rawBody: ByteArray,
+                 val bodyError: Throwable?, val fault: Fault, val kind: Kind?,
+                 val body: Any?, val headers: Any?)
+
+open class ApiException(val failure: ApiFailure) : Exception()
+open class ClientException(failure: ApiFailure) : ApiException(failure)
+open class ServerException(failure: ApiFailure) : ApiException(failure)
+class NotFoundException(failure: ApiFailure) : ClientException(failure)   // one per kind
+
+inline fun <reified B> ApiException.body(): B? = failure.body as? B
+inline fun <reified H> ApiException.headers(): H? = failure.headers as? H
+```
+
+`e.body<T>()` checks a class, and Kotlin erases a generic type's arguments even when `T` is reified,
+so `e.body<List<A>>()` also matches a `List<B>` and fails when an element is read: a caller reads a
+list or a map body by status. Go's assertion is exact.
+
+A kind nests under its fault because a status states its class, so `catch (e: NotFoundException)`
+and `catch (e: ClientException)` both work; a body type could not nest, since one body can arrive
+under either fault. `Fault` is an enum there, with `Unknown` for what Go leaves empty, so a `when`
+over it is exhaustive. An entry whose declared `Fault` contradicts its status takes that fault's
+class, and `fault` and `kind` still state each. `ApiFailure` is no `Throwable`, so a later style,
+such as a `Result` return, or exceptions typed per body for a spec whose errors are named, is one
+more value of `errorStyle`: a template and a signature over the same value, with no plan or IR
+change.
+
+**The kinds are the taxonomy's.** `Policy.Errors`' default table names `BadRequest` 400,
+`Unauthorized` 401, `Forbidden` 403, `NotFound` 404, `Conflict` 409, `UnprocessableEntity` 422,
+`TooManyRequests` 429, `InternalServer` 500 and `ServiceUnavailable` 503. A configuration adds rows,
+and a protocol with statuses of its own has rows of its own. A range such as `4XX` is no obstacle:
+the status that arrives is exact.
+
+**Every failure has one place**, which the status and the entry it takes decide (§3.1):
+
+- Kotlin's class is its kind's where the kind nests under its `Fault`, else its fault's, else the
+  root's, and Go's `errors.Is` answers its kind and its fault each;
+- `Fault` is the entry's, else the class the status states: 4xx `client`, 5xx `server`, any other
+  none, which is what `Policy.Errors` classifies by default (§6.3). A `default` reads this way, and
+  so does any status but a 2xx that no entry answers (§3.1);
+- a `value` body decodes into `Body`, whatever `Type`'s kind, and a `void` or `raw` one leaves it
+  nil, with `RawBody` holding whatever arrived;
+- a body that does not decode never hides the failure: `Body` stays nil and `BodyErr` holds the
+  decode error, since the status is what the caller must learn.
+
+A body is buffered up to `Policy.Errors`' bound and no further, so an endless one cannot exhaust the
+caller; `RawBody` holds what was read, and a body cut there is one that does not decode. A union
+body is its struct (§4.4), and being read it is `Open`, so a new variant in an error reaches the
+caller as one rather than as a decode failure. `Headers` holds a struct of what the entry declares,
+named by its operation and case (`GetZone429Headers`) and read as a success's are (§8.9), so two
+cases sharing a body may declare different headers.
 
 ### 8.6 Auth (OR-of-ANDs, service default with an op override)
 
@@ -1880,7 +2251,7 @@ FinalType:&TypeRef→Export, ResultPath:body→result }, Request:{ExportRequest}
 `HTTPBinding{POST /exports}`; the
 declared poll op `GetExport` is `HTTPBinding{GET /exports/{id}}` returning an `ExportStatus` monitor.
 
-- **plan.** `OpPlan{ Return:value, LRO:&LROPlan{ FinalStateVia:"status-monitor",
+- **plan.** `OpPlan{ Return:{Shape:value}, LRO:&LROPlan{ FinalStateVia:"status-monitor",
   PollOp:GetExport.ID, FinalType:Export, PollType:ExportStatus, ResultPath:body→result } }`. Which
   response signals terminal state, and where the result lives, are plan facts unwrapped from the
   monitor type — the same "classify, don't decide" split pagination uses. Poll *pacing* is **not**
@@ -1960,7 +2331,7 @@ A required property the spec adds changes the builder's constructor, as it chang
   beside the `UtcOffset` it was written with, which converts to an `Instant`. The offset survives,
   as it does in Go's `time.Time` and the JVM's `OffsetDateTime`, and re-encoding writes it back.
 
-**Swift.** A Multiplatform SDK reaches iOS through the Objective-C export, which shapes three rules.
+**Swift.** A Multiplatform SDK reaches iOS through the Objective-C export, which shapes these rules.
 
 - A sealed interface is not exhaustive in a Swift `switch`, so Swift callers need a `default` arm,
   and the generated docs say so.
@@ -1970,6 +2341,11 @@ A required property the spec adds changes the builder's constructor, as it chang
   rather than the exporter's.
 - Default arguments do not reach Swift, which is one reason models and request types are built
   through a builder rather than a constructor with defaults.
+- An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
+  `suspend` function with no `@Throws` propagates cancellation alone. So every operation carries
+  `@Throws(ApiException::class, OtherResponseException::class, CancellationException::class)`, which
+  covers every class of the tree (§8.5) and a response its method cannot return (§8.9), and a Swift
+  caller receives an `NSError` holding the exception, and reads its `failure` or `response`.
 
 **Formatting.** Go formats in process with `go/format` (§5.1). Go can call no Kotlin formatter, and
 `Generate` does no I/O, so the Kotlin printer lays out canonical code itself, and the Kotlin
@@ -1989,7 +2365,8 @@ declares itself (`Client`). Names that collide once cased are `Ctx.Syms`'s on ev
 subclass. So on all three targets a model's `Base` and `Mixins` are flattened into it
 (`TypePlan.Flattened`), which holds the members its `Implements` declare as well, since a type
 conforming to an interface carries them. Subtyping survives as interfaces: `Implements` becomes an
-interface, and a discriminated or abstract base a sealed interface its subtypes implement.
+interface, and a discriminated or abstract base a sealed interface of its subtypes, which Go holds
+in a struct (§4.4).
 
 **Scale.** The JVM caps a method at 255 parameter slots and 64 KiB of bytecode, and a class at
 65,535 constant-pool entries. A refiner checks each declaration against its target's limits and
@@ -2004,33 +2381,104 @@ whose units are Gradle modules, bounds what one module exports.
 
 ### 8.9 Return shapes
 
-What a success body is read as is `OpPlan.Return` (§3.1). §8.3 and §8.7 read a model as a `value`,
+What a success body is read as is `Return.Shape` (§3.1). §8.3 and §8.7 read a model as a `value`,
 behind a pager and a poller, and §8.4 a `stream`; the kinds a `value` holds besides a model, and the
 `raw` and `void` shapes, lower on the three targets as follows.
 
 - **A scalar, a list, a map or a union** (`GET /count` → `integer`, `GET /labels` → a map of
-  strings, `GET /pet` → a `oneOf`). **plan.** `Return:value`, `ReturnType` the content's type.
+  strings, `GET /pet` → a `oneOf`). **plan.** `Shape` `value`, `Type` the content's type.
   **refine.** The method returns that type as any field of it lowers (§9): Go
   `func (c *Client) Count(ctx) (int64, error)`, `Labels` returning `map[string]string`, `GetPet`
-  returning the sealed interface `Pet`; Kotlin `suspend fun count(): Long`, `Map<String, String>`,
+  returning the struct `Pet` (§4.4); Kotlin `suspend fun count(): Long`, `Map<String, String>`,
   the sealed interface `Pet`. A nullable return takes the target's nullable form.
-- **A file** (`GET /file`, `application/octet-stream`, `format: binary`). **plan.** `Return:raw`,
+- **A file** (`GET /file`, `application/octet-stream`, `format: binary`). **plan.** `Shape` `raw`,
   since the compiler marks the content a file (`Content.File`). **refine.** Go
   `func (c *Client) Download(ctx) (*RawBody, error)`, where the runtime's `RawBody` holds the
   response's `io.ReadCloser` and the media type it arrived as, and the caller closes it; Kotlin a
   `suspend fun download(): RawBody` over the transport's byte channel. Nothing decodes or buffers
   the body, so a large download streams.
-- **No body** (`DELETE /pet/{id}` → `204`). **plan.** `Return:void`. **refine.** Go returns `error`
-  alone, Kotlin `Unit`.
+- **No body** (`DELETE /pet/{id}` → `204`, or any `HEAD`). **plan.** `Shape` `void`. **refine.** Go
+  returns `error` alone, Kotlin `Unit`.
 - **A lone default** (`POST /purge`, whose only response is `default`). **plan.** The IR lowers it
   to `Operation.Default`, classed neither way (ir-design §7.2), and the default `PrimaryResponse`
-  takes it for the primary response, marked `Inferred` (§3.5), so `Return` reads it as any other:
+  takes it for the primary response, marked `Inferred` (§3.5), so `Shape` reads it as any other:
   `value` with its body, `void` without one. **refine.** As the line for the body it carries.
-- **No success response** (`POST /purge` declaring only `4XX`). **plan.** `Return:void`: the method
-  returns only an error, and a status no declared response or error case matches is the error
-  taxonomy's to classify (§8.5).
+- **Declared headers** (`GET /zone` → `200` with an `ETag`). **plan.** `Return.Headers` lists them,
+  and each entry of `Others` holds its own. **refine.** The plain method is unchanged: Go `GetZone`
+  returns `*Zone` whatever the response declares. A result type that appeared with the first
+  declared header would change that signature for every caller, and one on every method would put a
+  field in front of every call for the few operations that declare any. So a response that declares
+  headers adds a method, as a stream does (§8.4): Go
+  `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone, GetZoneHeaders], error)`, Kotlin
+  `suspend fun getZoneWithResponse(): Response<Zone, GetZoneHeaders>`. The runtime's `Response`
+  reads as `APIError` does (§8.5): `StatusCode`, `RawHeader`, `Body`, what the plain method returns,
+  or `struct{}` and `Unit` for `void`, and `Headers`, a struct with a field per header of the
+  primary response and of each entry of `Others` that reaches no `OtherResponse` (§3.1), the
+  primary's declaration first, or `struct{}` and `Unit` where they declare none. An `OtherResponse`
+  holds its own headers, and they add no method. A spec's first header adds a method and its next a
+  field, each additive, as §4.13 asks of an input. A field is found by its wire name, ignoring case
+  as HTTP does, read by its type, `Style` and `Explode`, and optional whatever `Required` says. A
+  value that does not parse leaves it unset: a response that delivered its body succeeded, and
+  `RawHeader` still holds the value. A type no header reader lowers, such as a model, is a coded
+  degrade to its text. A pager or a poller has no one response to return, so a paginated or
+  long-running operation has no such method, and its plan says which headers it reads. A header the
+  document does not declare reaches a caller through the transport (§5.4), which a caller may wrap.
+- **Another declared response** (`POST /rules` → `201` `Rule` or `202` `ApprovalPending`;
+  `DELETE /methods/{id}` → `200` `Deleted` or `204`; `GET /object` → `200` or `304`). **plan.**
+  `Others` holds the second response (§3.1). **refine.** One that reads as `Return` is returned as
+  the primary is. One with no body leaves nothing to return: Go `DeleteMethod` returns a nil
+  `*Deleted` and a nil error, Kotlin `suspend fun deleteMethod(): Deleted?`, and any return with no
+  absent state of its own takes the target's nullable form (§4.7). A pager or a stream ends, a
+  stream's `Recv` returning `io.EOF`, so an empty list is no error. Which status came is then all
+  the caller lacks, so such an operation, a paginated one aside, has a `WithResponse` method
+  whatever its headers. A first such response changes a Kotlin return, and a Go return of no
+  nullable type, a break the surface differ reports (§12) and rightly: a call that always had a
+  value may now have none.
+
+  A body the method cannot return is a value of the runtime, and no signature changes for one:
+
+  ```go
+  type OtherResponse struct {    // the runtime's: a response its method cannot return
+      StatusCode int
+      RawHeader  http.Header     // every header as it arrived, by wire name
+      RawBody    []byte          // the body as it arrived, up to Policy.Errors' bound
+      BodyErr    error           // why the body did not decode; nil when it did, or had none
+      Body       any             // the body as its Type lowers, of any kind; nil = none decoded
+      Headers    any             // the entry's declared headers, a struct; nil = none declared
+  }
+
+  func (r *OtherResponse) Error() string {
+      return fmt.Sprintf("response %d is not what this method returns", r.StatusCode)
+  }
+  func (r *OtherResponse) Unwrap() error { return r.BodyErr }
+  ```
+
+  It takes Go's `error` path because the method's result has no place for it, and it is no
+  `*APIError`, so `errors.Is` answers neither fault, no retry reads it, and
+  `errors.AsType[*sdk.OtherResponse](err)` finds it. Its `Headers` struct is named as a failure's is
+  (§8.5), `CreateRule202Headers`. Kotlin throws an exception that carries the same value, outside
+  the tree of §8.5, so `catch (e: ApiException)` still takes failures alone:
+
+  ```kotlin
+  class OtherResponse(val statusCode: Int, val rawHeaders: Headers, val rawBody: ByteArray,
+                      val bodyError: Throwable?, val body: Any?, val headers: Any?)
+
+  class OtherResponseException(val response: OtherResponse) : Exception()
+  ```
+
+  A zero value would not do here: Kotlin's `Rule` has none, a pager has no value to zero, and a nil
+  `*Rule` beside a nil error reads as a created rule until the caller's next line dereferences it.
+- **A status the document does not list, and a body that does not decode** (`GET /zone` → `201`, or
+  a `200` holding a proxy's HTML). **plan.** No field: §3.1 says which entry answers. **refine.**
+  The response decoder reads a 2xx no entry answers as `Return`, so `GetZone` returns the `*Zone` a
+  `201` carries. A body that then does not decode, an empty one under a `value` among them, is the
+  `OtherResponse` above with `BodyErr` set, never an `APIError`: the server answered and may have
+  acted, so nothing retries it, and the caller still has the status and the bytes read.
+- **No success response** (`POST /purge` declaring only `4XX`). **plan.** `Shape` `void`: the method
+  returns only an error, a 2xx returning none since it reads as `Return` does, and any other status
+  no declared response or error case matches is the error taxonomy's to classify (§8.5).
 - **An anonymous decorator** (`200 → {allOf: [{$ref: Zone}], description: …}`). **plan.**
-  `Return:value`, `ReturnType` the decorator, as the content names it, whose `TypePlan.Alias` is
+  `Shape` `value`, `Type` the decorator, as the content names it, whose `TypePlan.Alias` is
   `Zone` (§4.15). **refine.** `CollapseAliases` lowers the reference to `Zone`, so the method
   returns `*Zone`; the description, which no return position holds, stays in the IR for the docs
   emitter and is reported once (§4.15).
@@ -2093,14 +2541,14 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `bool`, `string`, `bytes`, `url` | `bool`, `string`, `[]byte`, which json/v2 writes as base64, `string` | `Boolean`, `String`, `ByteArray` through the runtime's base64 serializer, `String` | bytes as base64 text, where `kotlinx.serialization`'s own `ByteArray` serializer writes an array of numbers; a URL's text, never re-serialized from a parsed form |
 | `uuid` | the standard library's `uuid.UUID` | the standard library's `kotlin.uuid.Uuid` on both (§8.8) | canonical text |
 | `date`, `time`, `datetime`, `datetime_offset`, `duration` | runtime `Date`, `TimeOfDay`, `DateTime`; `time.Time`; a runtime ISO 8601 `Duration` | JVM `LocalDate`, `LocalTime`, `LocalDateTime`, `OffsetDateTime`; KMP `kotlinx-datetime`'s `LocalDate`, `LocalTime`, `LocalDateTime`, the runtime `OffsetDateTime` (§8.8); a runtime ISO 8601 `Duration` on both | the offset a timestamp was written with; a duration's years and months, which neither language's own duration holds |
-| `any`, `Any` | `jsontext.Value`, which keeps the bytes, distinct from a diagnosed unknown | `JsonElement` | every byte; decoding into Go's `any` would turn each number into a `float64` |
+| `any`, `Any` | `jsontext.Value`, which keeps the bytes, distinct from a diagnosed unknown | `JsonElement` | the value, its members in order and each number's text; decoding into Go's `any` would turn each number into a `float64` |
 | nil `*TypeRef` | void | `Unit` | — |
 | `Scalar{Base}` chain | over the chain's root (`TypePlan.Scalar`), typed by the type table's row for the root and the chain's encoding (§2.6): a defined type with a `Validate` for merged constraints where the root's type has no methods (a predeclared type, a slice, a map), an alias (`type X = Root`) over any other, its constraints checked where it is used (§4.9); nil base → newtype | `@JvmInline value class` over a `Boolean`, number, `String` or `ByteArray` root, a `typealias` over any other (§4.9); nil base → value class over the wire form | encoding triple; the root's codec |
-| `Model` (Base/Implements/Mixins) | struct with `Base` and `Mixins` flattened in; `Implements` → interfaces; `Abstract` → interface; `Positional` → index-ordered struct | final class with `Base` and `Mixins` flattened in, built through a builder, never a `data class` (§8.8); `Implements` → interface; discriminated or abstract base → sealed interface | `WireID` order |
+| `Model` (Base/Implements/Mixins) | struct with `Base` and `Mixins` flattened in; `Implements` → interfaces; a discriminated or `Abstract` base → a struct holding a sealed interface of its subtypes (§4.4); `Positional` → index-ordered struct | final class with `Base` and `Mixins` flattened in, built through a builder, never a `data class` (§8.8); `Implements` → interface; discriminated or abstract base → sealed interface | `WireID` order |
 | anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations (§4.15) | no declaration: each reference lowered as one to the first type along its `Base` that is not a decorator, its docs, deprecation and examples folded onto the carrier | the same | — |
 | `Model` whose `Base` is no model, not a decorator | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position (ir-design §4.2); a union base beside properties distributed over the variants as ir-design §4.3 distributes a union co-declared with a composition; anything else a diagnosed degrade | the same | — |
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model (§8.1) | catch-all `Map` filled by a serializer that reads the whole object (§8.8); strict `Json`, `@JsonIgnoreUnknownKeys` on each other open model | pattern channel |
-| `Union` (four wire shapes, §4.4) | sealed interface + marker + concrete variants + tag-dispatch (de)serializer | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; KMP: not exhaustive in Swift | `WireName`/`WireID` per variant |
+| `Union` (four wire shapes, §4.4) | a struct holding a sealed interface + marker + a wrapper per variant + a tag-dispatch (de)serializer on the struct; `Open` → an `Unknown` fallback | sealed interface + one wrapper class per variant + a `KSerializer` per wire shape; `Open` → an `Unknown` fallback; KMP: not exhaustive in Swift | `WireName`/`WireID` per variant; an unknown variant's value |
 | `Enum` open/closed/flags | consts named by enum then member (`StatusActive`, §4.5): closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode | closed → `enum class` with `@SerialName` members, `FallbackMember` on decode; open → value class over the value type with a constant per member, which keeps an unknown value; flags → value class over an integer | member `WireName` |
 | `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode | `List<T>`/`Map<K, V>`/a class with a positional serializer (nullable past `MinItems`, `Rest` → trailing `List`) | packed/expanded |
 | `Literal` | typed constant (incl. `symbol`) | `const val`, or an `object` for a non-primitive value | — |
@@ -2108,13 +2556,14 @@ for both Kotlin targets, and "KMP:" marks where Multiplatform differs from the J
 | `Visibility` sets | N structs from `ModelShape`; PATCH → optional | N classes from `ModelShape`; PATCH → optional | — |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic; a reference on a cycle of references held by value `*T`, or `Opt[*T]` when optional and nullable (§4.16) | `T` / `T?`, left out when null / `T?`, written as null / runtime `Optional<T?>`, absent or null or a value; collapse → diagnostic | — |
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic | a generated `validate()`, never an `init` check, which would refuse a response; unrepresentable regex → diagnostic | numeric bounds as decimal |
-| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` + factories | tag-dispatch `KSerializer` that reads the wire key first | discriminator wire key |
+| `Discriminator{Mapping→ID}` | tag-dispatch `UnmarshalJSONFrom` on the union's struct + factories | tag-dispatch `KSerializer` that reads the wire key first | discriminator wire key |
 | `Pagination` (PropPaths) | `iter.Seq2[T, error]` auto-pager; item unwrap from plan; pacing from policy | `Flow<T>`; item unwrap from plan; pacing from policy | path-based item/cursor read |
-| `Streaming` + `StreamDetail` | `EventStream.Recv()`/`Send()` over event union; terminal ends; direction from core, framing from binding | `Flow` of events received, a send channel for a client stream; the same sources | per-event content-type |
+| `Streaming` + `StreamDetail` | a method per shape offered; `Stream[T].Recv()`/`Send()` over an element of any kind, `string` where frames go unread; a `bytes` side as a file; terminal ends; direction from core, framing from plan | a method per shape offered; `Flow` of elements received, a send channel for a client stream; the same sources | frame boundaries; per-event content-type |
 | `LongRunning` | poller type + `Poll()`/`PollUntilDone()`; result from `ResultPath`; pacing from policy | poller with `suspend` `poll()`/`pollUntilDone()`; the same sources | monitor/final-state channel |
 | `OneWay` | fire-and-forget method, no response binding | `suspend` function returning `Unit`, no response binding | — |
 | `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) | the same, over `Flow` | address/correlation paths |
-| `ErrorCase{Fault, Retryable}` | error tree; declared facts win over policy | exception hierarchy (`ApiException` → client/server → concrete); declared facts win over policy | status→error map |
+| `ErrorCase{Fault, Retryable}` | one runtime `*APIError` holding the status, fault, kind, raw body and typed `Body` and `Headers`; `errors.Is` by fault and kind, `sdk.Body[T]` for the body (§8.5); declared facts win over policy | `ApiException` carrying an `ApiFailure`, a runtime tree by fault then kind (`ClientException` → `NotFoundException`), `e.body<T>()` for the body; declared facts win over policy | status→kind map; an error's raw body |
+| `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → a nullable return, or a pager or stream that ends; another body, or a body that does not decode → `*OtherResponse` on the `error` path, with no fault and no retry; a 2xx the document does not list read as `Return` (§8.9) | one read as `Return` returned as the primary; no body → `T?`, or a `Flow` that ends; another body, or a body that does not decode → `OtherResponseException`, outside `ApiException`; a 2xx the document does not list read as `Return` | the status; the body as it arrived |
 | `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order | `Authenticator` + per-scheme configuration; priority order | — |
 | `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly; a `Default` documented, never written onto a request (§4.10) | literals built from the decimal text, never a `Double` literal; `Ctor` → call; `symbol` → string explicitly; a `Default` documented, never sent | — |
 | `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters, and one that would begin with a digit led by its role's word (§4.12); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed | cased via `naming.Policy`, characters named and leading digits led the same; hard keywords in backticks, other reserved names a trailing underscore; KMP: explicit Objective-C/Swift names where the export would mangle; collisions ID-keyed | `WireName`/`WireID` never cased |
@@ -2129,19 +2578,23 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
 - **Docs emitter (`emitters/docs`).** Reuses the shared plan verbatim (primary response/content,
   pagination, return-shape, error taxonomy — exactly what docs must describe) and most of the refine
   step library, but lowers into a `docast` (pages, operation blocks, schema tables, examples) and
-  runs a **reduced pipeline**: no `EscapeReservedWords`, and casing is a presentation choice (SDK-style
-  identifiers or spec-faithful source names, set in its options). `Docs.Description`
+  runs a **reduced pipeline**: no `EscapeReservedWords`, and casing is a presentation choice
+  (SDK-style identifiers or spec-faithful source names, set in its options). `Docs.Description`
   `{t:TypeID}` cross-reference tokens resolve to intra-doc links via the *same* IR-ID lookup the Go
-  emitter uses for doc comments — links survive renames. Examples use the schema arm (`Value/Headers`)
-  vs the operation arm (`Input/Output/Error`) correctly. No runtime `Policy` is consulted — proving
-  the IR/policy split pays off.
-- **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`/`PrimaryContent` and the IR
-  `Examples` to synthesize canned responses, the error taxonomy to simulate declared failures, the
-  `BindingView` to route requests, and the visibility projections to honor the same wire shapes an
-  SDK sends/receives. Refine lowers into a server-routing AST (routes from `HTTPBinding.URITemplate`,
-  handlers validating against constraints). Because the same plan feeds SDK and mock, the two are
-  **wire-consistent by construction** — the mock can *be* the interception target the SDK's
-  wire-conformance harness (§13) is diffed against.
+  emitter uses for doc comments — links survive renames. Examples use the schema arm
+  (`Value/Headers`) vs the operation arm (`Input/Output/Error`) correctly. A union `TypePlan.Open`
+  marks is documented as one a response may extend, and every `PlannedError` and `PlannedResponse`
+  as the body and headers it declares. No runtime `Policy` is consulted — proving the IR/policy
+  split pays off.
+- **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
+  and the IR `Examples` to synthesize canned responses, `Others` to answer as each declared response
+  does, the error taxonomy to simulate declared failures, `TypePlan.Open` to say whether a variant
+  the document does not list may be sent, the `BindingView` to route requests, and the visibility
+  projections to honor the same wire shapes an SDK sends/receives. Refine lowers into a
+  server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
+  constraints). Because the same plan feeds SDK and mock, the two are **wire-consistent by
+  construction** — the mock can *be* the interception target the SDK's wire-conformance harness
+  (§13) is diffed against.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
@@ -2160,12 +2613,13 @@ Post-milestone (architecture.md §2.3), but the contract is designed so it bolts
 change** (INV9). The `manifest.Manifest` and `Artifact` fields returned from `Generate` are the
 seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
 
-- **Generation manifest keyed by IR stable IDs.** Records spec/plan/emitter/config **hashes**,
-  a **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
-  `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the biggest
-  win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's structural
-  rename-inference machinery. Write/integrate and surface verification (architecture.md §2.3) both
-  rest on it.
+- **Generation manifest keyed by IR stable IDs.** Records spec/plan/emitter/config **hashes**, a
+  **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
+  `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the
+  biggest win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's
+  structural rename-inference machinery. A declaration derived from an entity keys under it, as
+  `User.ID#create` does (§8.1), a union's wrappers and fallback among them, so no two symbols share
+  a key. Write/integrate and surface verification (architecture.md §2.3) both rest on it.
 - **File-header provenance gates pruning.** `Artifact.Header` writes a generated-by header; the
   writer **never deletes a file lacking it** (hand-edited). First adoption (no prior manifest) skips
   pruning, writes a baseline, emits a notice.
@@ -2221,7 +2675,9 @@ throughout this document.
 1. **T-1 · TypeKind switch-completeness** — a test over every `ir.TypeKind` and every target-AST
    `NodeKind`, its kind lists held to what the packages declare; adding a kind fails every dispatch
    that misses it (`assertNever`).
-2. **T-2 · Union tag-mode coverage** — all four wire shapes emit distinct (de)serializers.
+2. **T-2 · Union tag-mode coverage** — all four wire shapes emit distinct (de)serializers, and each
+   decodes through the client and through a caller's own decoder call, into the union and into a
+   type of the caller's that holds it, and a wrapper alone codes as its variant does (§4.4).
 3. **T-3 · Four-state field matrix** — required×nullable×presence produce distinguishable
    declarations, or a diagnosed collapse.
 4. **T-4 · Wire fidelity** — serialized output uses wire names/IDs, never rendered identifiers;
@@ -2238,8 +2694,8 @@ throughout this document.
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in §7.
 12. **T-12 · Wire-conformance (milestone 3)** — expected request shapes derived from `Doc + Plan`
-    alone, diffed against the generated SDK under HTTP interception; request-side mismatches block,
-    response-side inform.
+    alone, the elected media type among them, diffed against the generated SDK under HTTP
+    interception; request-side mismatches block, response-side inform.
 13. **T-13 · Runtime determinism** — the retry, backoff and timeout templates run inside a
     `testing/synctest` bubble against `httptest.NewTestServer`, whose in-memory network works within
     the bubble: a backoff schedule is asserted exactly under the fake clock and completes instantly,
@@ -2267,13 +2723,14 @@ throughout this document.
     type, or declarations past a unit's size limit moves no existing declaration to another unit,
     while an operation in another group moves to the shared unit exactly the types it makes a second
     group reach; under `SplitByGroup` the units' imports form no cycle, and groups whose names
-    render alike, or as a name the units' scope reserves, get distinct units; and every partition
-    error and warning of §4.17 has a fixture that draws it.
-19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters and
-    enum members after every name each scope of §4.12 reserves, after characters alone and after
-    names that begin with a digit, and its groups after the standard-library packages its files
-    import, generates code that compiles on every target, with every template's declared names held
-    to what it binds.
+    render alike, or as a name the units' scope reserves, get distinct units; a union with a variant
+    in another unit compiles; and every partition error and warning of §4.17 has a fixture that
+    draws it.
+19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
+    members and union variants after every name each scope of §4.12 reserves, after characters alone
+    and after names that begin with a digit, and its groups after the standard-library packages its
+    files import, generates code that compiles on every target, with every template's declared names
+    held to what it binds.
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a
     tuple and through another model, and one whose cycle passes through a list or a union, generate
     code that compiles on every target, and exactly the references on a cycle Go holds by value are
@@ -2281,15 +2738,74 @@ throughout this document.
 21. **T-21 · Declarations keep their root's codec** — a named scalar over every primitive, and over
     a model, an enum and a union, encodes and decodes each value byte for byte as its root does on
     every target, and a constraint the scalar declares is still checked (§4.9).
+22. **T-22 · Unknown variants** — on each wire shape and on a polymorphic base, a value no variant
+    recognizes decodes to the fallback on an open union and re-encodes as the same JSON value, its
+    members in order and each number's text intact; `Default` takes it first; a closed union refuses
+    it with a coded error, and a known tag over a body that does not match is an error on both;
+    turning `OpenUnions` off closes every union and removes its `Inferred` mark, and a declared
+    answer, once the IR has one, wins (§3.5, §4.4).
+23. **T-23 · Errors** — a fixture whose failures have as bodies one model across several statuses, a
+    model with a member named `error`, a union, a list and a primitive, beside a case with no body,
+    a `4XX` range and a `default` beside a success, generates no error type and code that compiles
+    on every target and passes `go vet`. Each response raises the class or sentinels of its status's
+    kind and fault, a status outside the table its fault's, with its typed `Body` and `Headers`
+    reachable through the accessors; a body that does not decode raises it with the bytes read and
+    the decode error; a body past the bound stops there; an entry whose declared `Fault` contradicts
+    its status raises that fault's class with its kind still stated; and cases whose contents
+    disagree elect one content on every target, by the entries' classes and the compared media type
+    (§3.1, §8.5).
+24. **T-24 · Streams** — each framing, under an `Item` and by media type where the framing admits
+    both, with an element of each kind, decodes on every target. An operation offering a value and a
+    stream gets a method for each, each sending its own `Accept`; a line under a content with no
+    `Item` and a `string` root reaches the caller as text, where a declared `string` `Item` decodes
+    as JSON; a list schema with no `Item` yields its `Elem`, one frame at a time, a `string` `Elem`
+    decoding as JSON on a line and arriving as `data` on an SSE frame; an SSE element, a union of
+    event shapes among them, reads the frame's fields under `FrameMembers` and the frame's `data`
+    otherwise; a stream under a binding other than HTTP draws no `unframed-stream`; a media type
+    only a compiler option names gets the one stream method, as `bytes`, with that warning; a
+    primary `Default` that streams is `bidi` beside a `Send`; a `bytes` side lowers as a file; and
+    each operation of the golden spec that streams gets a `StreamPlan` (§3.1, §8.4).
+25. **T-25 · Emit-layer rules** — one check per rule of §5.6. A template's context type holds no
+    pointer, map, function or method, by reflection. A golden whose enum value, description and
+    example hold `{{ .X }}`, a `$x` and a `*/` keeps each verbatim and compiles. Each function map
+    is held to a literal list, and the lint refuses `call`. One worker and many give identical
+    artifacts, and so do two runs under different `LC_ALL`, over a fixture whose sort order a
+    collation would change. Two artifacts on one path, and two differing only by case, each draw the
+    error. A template that fails the formatter draws a located error and no artifact, and a build
+    with and without `-trimpath` give identical artifacts. A `Scope` matching nothing and a document
+    with nothing to emit each draw `no-artifacts`. `..`, an absolute path, a sibling sharing the
+    root's prefix and a symlink leaving the root are each refused.
+26. **T-26 · Response headers** — an operation whose response declares headers of each kind, under
+    each shape, gets a `WithResponse` method beside a plain method whose signature the headers do
+    not change, and adding a first header or a further one is additive in the surface differ (§12).
+    A field is found whatever the case its name arrives in; a header that is absent, or whose value
+    does not parse, leaves its field unset and the body returned, with `RawHeader` holding what
+    arrived; and a paginated operation gets no such method (§3.1, §8.9).
+27. **T-27 · Other responses** — on every target, an operation declaring a second response of the
+    primary's type returns it as the primary; one with no body, and a `304`, give the nullable
+    return and no error, with `WithResponse` stating the status, and a pager and a stream end at one
+    with no error; a header only such a response declares is a field of `WithResponse`'s `Headers`;
+    one of another type, and a body beside a `void` primary, reach the caller as `OtherResponse`
+    with its typed `Body`, `Headers` and raw bytes, a body that does not decode as `BodyErr` and one
+    past the bound stopped there, and neither fault, kind nor retry answers it. An exact `200` is
+    primary over a `2XX` written first; an exact `202` beats a `default` catch-all; a `4XX` beside a
+    primary `Default` is a failure; a `201` the document does not list reads as `Return`, beside a
+    `default` catch-all too; a `200` whose body does not decode, an unlisted `204` under a `value`
+    and a frame that does not decode reach the caller as `OtherResponse` with `BodyErr`, and nothing
+    retries them; a `HEAD` reads no body; a poller's start reads each response by its `LROPlan`; an
+    RPC operation's one response is its primary, leaving `Others` empty; and no golden operation's
+    declared status is left to no entry (§3.1, §8.9).
 
 ### 13.1 The behavior server (T-14)
 
 T-12 checks the requests an SDK builds and T-13 the timing of its runtime, both inside the process.
 Much of what an SDK does shows only against a live server: honoring `Retry-After`, an event stream
 split across chunk boundaries or carrying one very large event, JSON Lines framing, each pagination
-strategy, status-monitor polling, OAuth token acquisition and refresh, an error body that does not
-parse, and the four combinations of required and nullable in a response (§4.7). Writing those
-tests once per target does not scale, and nothing would notice a target that left one out.
+strategy, status-monitor polling, OAuth token acquisition and refresh, an error body and a success
+body that do not parse, a union variant the SDK does not know, a declared response a method cannot
+return, a success status the document does not list, and the four combinations of required and
+nullable in a response (§4.7). Writing those tests once per target does not scale, and nothing would
+notice a target that left one out.
 
 - **One server, shared by every target.** It has one route per behavior and is written by hand,
   together with the OpenAPI document that describes it, from which each target generates the SDK
@@ -2402,10 +2918,10 @@ compiler writes as `""` (#978); and facts no OpenAPI construct sets, such as `Mo
    boilerplate = template". Method *bodies* that are pure boilerplate (the pager's fetch loop, the
    retry loop) stay templated; an over-fine AST that models statement-level Go grammar is a
    non-goal. The exact granularity is a per-feature judgment that will be litigated as features land.
-3. **Where content-negotiation ties break.** The `json > form > multipart > binary` default is a
-   shared plan helper (resolves `ir-design.md` Q3), but a target that wants a different primary needs
-   a clean override path that does not fork the plan. Leaning: an override on `plan.Policy`, since the
-   choice is document-neutral.
+3. **A target's own content preference.** The `json > form > multipart > binary` default is a
+   shared plan helper (resolves `ir-design.md` Q3), and §3.1 settles how it breaks a tie, but a
+   target that wants a different primary needs a clean override path that does not fork the plan.
+   Leaning: an override on `plan.Policy`, since the choice is document-neutral.
 4. **Protocol-view neutrality.** The `BindingView` and target-AST `MethodKind` must be designed
    against the full binding matrix (HTTP/RPC/message/GraphQL/OTP) from day one, or they ossify around
    HTTP the way Kiota's model did. The Go-first walkthrough is HTTP-heavy; the RPC/messaging targets

@@ -2340,7 +2340,7 @@ A request body or success response with a Content whose media type the streaming
 `application/jsonl`, `application/x-ndjson` and `text/event-stream` by default, matched on the
 normalized key ([`media-types`](#media-types)) at every minor — lowers to `Operation.RequestStream`
 and `ResponseStream` for the directions that have one, each with `Events` the Content's own `Type`
-(for a frame format the schema describes one frame, not the body), `Streaming` the `client`,
+(for a frame format the schema is read as one frame, not the body), `Streaming` the `client`,
 `server` or `bidi` summary of them, and `Provenance.Inferred` the marker `streaming-media-type` on
 the operation, joined by `,` to any other marker, since below 3.2 a media type is a guess about
 framing and not a declaration. A 3.2 `itemSchema` ([`item-schema`](#item-schema)) is a declaration:
