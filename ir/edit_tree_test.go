@@ -360,10 +360,9 @@ func TestEditor_RangingOverAReadSeesEveryNode(t *testing.T) {
 }
 
 // TestEditor_UpdatesItsNodeWhenItsChangeReadsTheTree pins an update whose
-// change reads a group or service, which builds what the edit removed out of
-// the slices holding it, the update's own node among them when the read
-// reaches it: the change lands in its node, beside what the read built, and the
-// edited document is left as it was.
+// change reads a group or service, which can build that node's slices anew: the
+// change lands beside what the read built, not beside the slices the node held
+// before it, and the edited document is left as it was.
 func TestEditor_UpdatesItsNodeWhenItsChangeReadsTheTree(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

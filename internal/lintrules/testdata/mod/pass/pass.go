@@ -46,6 +46,6 @@ func Prune(doc *ir.Document) (*ir.Document, []ir.Diagnostic) {
 	e.UpdateChannel("c/pass/kept", func(c *ir.Channel) { c.Bindings = nil })
 	e.RemoveMessage("m/pass/unused")
 	e.UpdateAuthScheme("a/pass/kept", func(a *ir.AuthScheme) { a.Flows = nil })
-	e.UpdateDocument(func(d *ir.Document) { d.Servers = d.Servers[:0] })
+	e.UpdateDocument(func(d *ir.Document) { d.Servers = nil })
 	return e.Finish()
 }

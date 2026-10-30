@@ -151,6 +151,22 @@ func containers(doc *ir.Document) map[string]uintptr {
 	return out
 }
 
+// TestEditor_FinishReadsNoTypeUnlessTheEditWroteOne pins that Finish holds the
+// types an edit took to their keys only when it took one: an edit of the rest of
+// a document pays nothing for how many types it holds. It is not run in
+// parallel: AllocsPerRun measures the process.
+func TestEditor_FinishReadsNoTypeUnlessTheEditWroteOne(t *testing.T) {
+	allocs := func(types int) float64 {
+		doc := &ir.Document{Types: ir.TypeRegistry{}}
+		for i := range types {
+			id := ir.TypeID(fmt.Sprint("t/", i))
+			doc.Types[id] = &ir.Any{ID: id}
+		}
+		return testing.AllocsPerRun(10, func() { _, _ = ir.NewEditor(doc).Finish() })
+	}
+	assert.Equal(t, allocs(1), allocs(1024))
+}
+
 // TestEditor_FinishSharesWhatTheEditLeft pins Finish's document: a new one,
 // sharing with the document edited every container the edit wrote nothing
 // into, and only those, and every node it did not write.

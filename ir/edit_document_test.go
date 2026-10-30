@@ -66,7 +66,7 @@ func TestEditor_UpdateDocumentChangesItsOwnFields(t *testing.T) {
 		require.Len(t, d.Servers, 1)
 		require.NotNil(t, d.Contact)
 		d.Name = "renamed"
-		d.Servers = d.Servers[:0]
+		d.Servers = nil
 		d.Contact.Name = "changed"
 		d.Versions = append(d.Versions, "v2")
 	})
