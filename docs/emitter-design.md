@@ -2226,7 +2226,7 @@ A required property the spec adds changes the builder's constructor, as it chang
   beside the `UtcOffset` it was written with, which converts to an `Instant`. The offset survives,
   as it does in Go's `time.Time` and the JVM's `OffsetDateTime`, and re-encoding writes it back.
 
-**Swift.** A Multiplatform SDK reaches iOS through the Objective-C export, which shapes three rules.
+**Swift.** A Multiplatform SDK reaches iOS through the Objective-C export, which shapes these rules.
 
 - A sealed interface is not exhaustive in a Swift `switch`, so Swift callers need a `default` arm,
   and the generated docs say so.
@@ -2236,6 +2236,10 @@ A required property the spec adds changes the builder's constructor, as it chang
   rather than the exporter's.
 - Default arguments do not reach Swift, which is one reason models and request types are built
   through a builder rather than a constructor with defaults.
+- An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
+  `suspend` function with no `@Throws` propagates cancellation alone. So every operation carries
+  `@Throws(ApiException::class, CancellationException::class)`, which the one root covers for every
+  leaf (§8.5), and a Swift caller receives an `NSError` holding the exception, with its `fault`.
 
 **Formatting.** Go formats in process with `go/format` (§5.1). Go can call no Kotlin formatter, and
 `Generate` does no I/O, so the Kotlin printer lays out canonical code itself, and the Kotlin
