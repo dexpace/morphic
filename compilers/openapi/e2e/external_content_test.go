@@ -925,3 +925,109 @@ components:
 		assert.Empty(t, m.Properties[0].Unmodeled, name)
 	}
 }
+
+// TestExternalContent_AComposedFieldIsNamedInItsDocument pins where a field's
+// composition lands when the composing model is another document's: in that
+// document's composed space, so the one pointer in two documents is two nodes,
+// and the document names the namespace it declares.
+func TestExternalContent_AComposedFieldIsNamedInItsDocument(t *testing.T) {
+	t.Parallel()
+	const other = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    F:
+      allOf:
+        - {type: object, properties: {p: {$ref: '#/components/schemas/A'}}}
+        - {type: object, properties: {p: {$ref: '#/components/schemas/B'}}}
+`
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    R: {$ref: './other.yaml#/components/schemas/F'}\n" +
+		"    A: {type: object, properties: {x: {type: string}}}\n" +
+		"    B: {type: object, properties: {y: {type: string}}}\n" +
+		"    F:\n      allOf:\n" +
+		"        - {type: object, properties: {p: {$ref: '#/components/schemas/A'}}}\n" +
+		"        - {type: object, properties: {p: {$ref: '#/components/schemas/B'}}}\n"
+	path := filepath.Join(dir, "root.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+
+	require.NoError(t, err)
+	assert.Empty(t, diags)
+	for _, tc := range []struct{ model, composed, mixin ir.TypeID }{
+		{"t/openapi/components/schemas/F", "t/composed/components/schemas/F/allOf/1/properties/p", "t/openapi/components/schemas/A"},
+		{
+			"t/openapi@other.yaml/components/schemas/F",
+			"t/composed@other.yaml/components/schemas/F/allOf/1/properties/p",
+			"t/openapi@other.yaml/components/schemas/A",
+		},
+	} {
+		m, ok := doc.Types[tc.model].(*ir.Model)
+		require.True(t, ok, tc.model)
+		require.Len(t, m.Properties, 1, tc.model)
+		assert.Equal(t, tc.composed, m.Properties[0].Type.Target, tc.model)
+		c, ok := doc.Types[tc.composed].(*ir.Model)
+		require.True(t, ok, tc.composed)
+		require.Len(t, c.Mixins, 2, tc.composed)
+		assert.Equal(t, tc.mixin, c.Mixins[0].Target, tc.composed)
+	}
+	assert.Contains(t, doc.IDSpaces[ir.IDKindType], "composed@other.yaml")
+}
+
+// TestExternalContent_AFieldCarriedApartIsReadInItsDocument pins whose nodes
+// decide a field's identity: its own document's. Only other.yaml holds a $ref to
+// a branch of F, so its field takes a minted identity, while the root's field at
+// the same pointer keeps its first declaration's.
+func TestExternalContent_AFieldCarriedApartIsReadInItsDocument(t *testing.T) {
+	t.Parallel()
+	const other = `openapi: 3.1.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+    U: {type: object, properties: {u: {$ref: '#/components/schemas/F/allOf/0'}}}
+    F:
+      allOf:
+        - {type: object, properties: {p: {$ref: '#/components/schemas/A'}}}
+        - {type: object, properties: {p: {$ref: '#/components/schemas/B'}}}
+`
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(other), 0o600))
+	const root = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n" +
+		"    R: {$ref: './other.yaml#/components/schemas/F'}\n" +
+		"    S: {$ref: './other.yaml#/components/schemas/U'}\n" +
+		"    A: {type: object, properties: {x: {type: string}}}\n" +
+		"    B: {type: object, properties: {y: {type: string}}}\n" +
+		"    F:\n      allOf:\n" +
+		"        - {type: object, properties: {p: {$ref: '#/components/schemas/A'}}}\n" +
+		"        - {type: object, properties: {p: {$ref: '#/components/schemas/B'}}}\n"
+	path := filepath.Join(dir, "root.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+
+	require.NoError(t, err)
+	assert.Empty(t, diags)
+	for _, tc := range []struct {
+		model ir.TypeID
+		want  ir.PropID
+	}{
+		{"t/openapi/components/schemas/F", "p/openapi/components/schemas/F/allOf/0/properties/p"},
+		{"t/openapi@other.yaml/components/schemas/F", "p/composed@other.yaml/components/schemas/F/allOf/1/properties/p"},
+	} {
+		m, ok := doc.Types[tc.model].(*ir.Model)
+		require.True(t, ok, tc.model)
+		require.Len(t, m.Properties, 1, tc.model)
+		assert.Equal(t, tc.want, m.Properties[0].ID, tc.model)
+	}
+}

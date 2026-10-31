@@ -158,6 +158,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-boolean-branch", assertAllOfBooleanBranch},
 		{"allof-conflicting-type", assertAllOfConflictingType},
 		{"allof-narrowing-redeclaration", assertAllOfNarrowingRedeclaration},
+		{"allof-redeclared-models", assertAllOfRedeclaredModels},
 		{"allof-position-constraints", assertAllOfPositionConstraints},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"anyof-discriminated", assertAnyOfDiscriminated},

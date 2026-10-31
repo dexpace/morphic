@@ -19,9 +19,14 @@ type Reporter func(sev ir.Severity, code string, pointer jsontext.Pointer, forma
 // keep.
 type Source func() (ir.RawValue, error)
 
-// Settle folds what a PropIndex queued against reg, the registry every
-// lowering left, reporting through report.
-type Settle func(reg ir.TypeRegistry, report Reporter)
+// Mint registers m, which composes the declarations of the field pointer names
+// (fieldSpan), and returns the ID m is registered under. It fills m's
+// TypeCommon, since what names a node is the lowering's to derive.
+type Mint func(pointer jsontext.Pointer, m *ir.Model) ir.TypeID
+
+// Settle folds what a PropIndex queued through g, whose Resolve reads the
+// registry every lowering left.
+type Settle func(g *Merger)
 
 // WireNameIndex maps each property's wire name to its position in props, so a
 // lookup by name is one map read rather than a rescan of a wide model.
@@ -92,14 +97,17 @@ func (idx *PropIndex) MergeProperty(p ir.Property, source Source) {
 // settle folds each field declared more than once against reg, in the order of
 // its first redeclaration. A field's first declaration is read off the model as
 // the walk left it, required flag included. A fold reads only nodes the walk
-// built and writes only its own field, so no fold reads another's result.
-func (idx *PropIndex) settle(reg ir.TypeRegistry, report Reporter) {
-	g := Merger{
-		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
-		Report:  report,
-	}
+// built and writes only its own field, and two folds mint under one pointer
+// only where they fold one set of declarations (fieldSpan), so no fold reads
+// another's result. The model's discriminator read the field's ID off the walk,
+// so it follows the field to any identity of its own.
+func (idx *PropIndex) settle(g *Merger) {
 	for _, f := range idx.redeclared {
-		decls := append([]declaration{{prop: idx.m.Properties[f.pos], source: f.first}}, f.rest...)
-		idx.m.Properties[f.pos] = g.fold(decls)
+		first := idx.m.Properties[f.pos]
+		merged := g.fold(append([]declaration{{prop: first, source: f.first}}, f.rest...))
+		idx.m.Properties[f.pos] = merged
+		if d := idx.m.Discriminator; d != nil && d.Property == first.ID {
+			d.Property = merged.ID
+		}
 	}
 }

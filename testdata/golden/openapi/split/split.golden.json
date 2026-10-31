@@ -23,6 +23,10 @@
       "openapi"
     ],
     "p": [
+      "composed",
+      "composed@common.yaml",
+      "composed@paths.yaml",
+      "composed@schemas~1pet.yaml",
       "openapi",
       "openapi@common.yaml",
       "openapi@paths.yaml",

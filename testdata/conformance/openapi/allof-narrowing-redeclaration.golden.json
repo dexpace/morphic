@@ -17,6 +17,7 @@
       "openapi"
     ],
     "p": [
+      "composed",
       "openapi"
     ],
     "param": [
@@ -96,6 +97,52 @@
       "encoding": {
         "name": "hex"
       }
+    },
+    "t/anon/components/schemas/NarrowedPastARef/allOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/NarrowedPastARef/allOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedPastARef/allOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NarrowedPastARef/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NarrowedPastARef/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/ChainNarrowestFirst": {
       "kind": "model",
@@ -727,6 +774,100 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/IntegerInt32NarrowFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NarrowedBranchUser": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NarrowedBranchUser",
+      "name": {
+        "source": "NarrowedBranchUser",
+        "canonical": "narrowed_branch_user"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedBranchUser"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NarrowedBranchUser/properties/branch",
+          "name": {
+            "source": "branch",
+            "canonical": "branch"
+          },
+          "wireName": "branch",
+          "type": {
+            "target": "t/anon/components/schemas/NarrowedPastARef/allOf/0",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NarrowedBranchUser/properties/branch"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NarrowedPastARef": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NarrowedPastARef",
+      "name": {
+        "source": "NarrowedPastARef",
+        "canonical": "narrowed_past_a_ref"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NarrowedPastARef"
+      },
+      "properties": [
+        {
+          "id": "p/composed/components/schemas/NarrowedPastARef/allOf/1/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NarrowedPastARef/allOf/1/properties/p"
           }
         }
       ],
@@ -1742,7 +1883,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/InadmissibleDefaultBroadFirst/allOf/0/properties/p"
@@ -1751,7 +1892,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/InadmissibleDefaultNarrowFirst/allOf/1/properties/p"
@@ -1760,7 +1901,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultFirst/allOf/2/properties/p"
@@ -1769,7 +1910,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultMiddle/allOf/2/properties/p"
@@ -1778,7 +1919,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "the type the declarations of field \"p\" merge it to does not admit the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefusedLateDefaultLast/allOf/1/properties/p"
@@ -1789,7 +1930,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-narrowing-redeclaration.yaml",
-      "hash": "ced25f71b401295798dbc44080f73289934ab0eb0d35441ea29b690808d90c7f"
+      "hash": "82cfaed186a6666f69ebb2545756de70af9af3dfab66fb55699a224c98644542"
     }
   ]
 }
