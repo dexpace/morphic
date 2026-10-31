@@ -259,9 +259,10 @@ These all exist already — extend them rather than building a parallel mechanis
   format's conformance `matrix.md` are read through `internal/keydoc`, the one reader of the
   repository's keyed documents, and a test a Markdown document names must exist, as must a link's
   file and heading (`internal/archtest`).
-  `TestDocuments_LinksResolve` holds a document's links, the citations in a Go or YAML comment, and
-  a Go string naming a design document to a file and a heading, so a section moved or renamed fails
-  until what cites it follows; `skills_lint` holds the skills to the design documents' headings.
+  `TestDocuments_LinksResolve` holds a document's links, a path from the root on any of its lines,
+  the citations in a Go or YAML comment, and a Go string naming a design document to a file and a
+  heading, so a section moved or renamed fails until what cites it follows; `skills_lint` holds the
+  skills to the design documents' headings.
 - **Oracles**: `internal/harness` runs a spec through the engine as `morphic compile --verify` does,
   its passes included and every stage's document verified, and drives it through no-panic →
   `irverify` invariants → no error diagnostic → JSON round-trip → determinism → pass idempotence →

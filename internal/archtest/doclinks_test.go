@@ -37,7 +37,7 @@ var (
 	// mailto:.
 	uriScheme = regexp.MustCompile(`^[a-z][a-z0-9+.-]*:`)
 	// docPath is a document named from the repository's root, as a comment or a
-	// Go sketch cites one, and the heading it names if any.
+	// line of a document cites one, and the heading it names if any.
 	docPath = regexp.MustCompile(`docs/[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.md(?:#[A-Za-z0-9_-]+)?`)
 	// designPath is docPath for a Go string, read under the design trees alone:
 	// a test elsewhere plants documents that exist only in it.
@@ -53,9 +53,9 @@ var (
 	inlineLink = regexp.MustCompile(`\[([^\]]*)\]\([^)]*\)`)
 )
 
-// TestDocuments_LinksResolve reads every Markdown document of the repository
-// and fails on a relative link to no file, or to a heading its file lacks, and
-// holds a citation to the same in a Go sketch, a Go or YAML comment, and a Go
+// TestDocuments_LinksResolve reads every Markdown document and fails on a
+// relative link to no file, or to a heading its file lacks, and holds a citation
+// to the same on any line of a document, in a Go or YAML comment, and in a Go
 // string naming a design document. The design documents are cited by path and
 // heading across a tree, so a heading renamed or a document moved without what
 // cites it sends the reader nowhere. Whether a heading still states what its
@@ -98,8 +98,9 @@ func linkProblems(root string) ([]string, int, error) {
 }
 
 // documentLinkProblems reports each relative link of the Markdown file at path
-// that resolves to nothing, and each document a fenced line cites, where a link
-// does not render, and counts the relative links it read.
+// that resolves to nothing, and each document a line cites by its path from the
+// root, as a fence or a span of code must, where a link does not render, and
+// counts the relative links it read.
 func documentLinkProblems(root, path, rel string) ([]string, int, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
@@ -107,16 +108,13 @@ func documentLinkProblems(root, path, rel string) ([]string, int, error) {
 	}
 	var problems []string
 	links := 0
-	prose := proseLines(string(text))
 	raw := strings.Split(string(text), "\n")
 	for i, line := range linkLines(string(text)) {
-		if prose[i] == "" {
-			found, err := citationProblems(root, rel, i+1, raw[i], docPath)
-			if err != nil {
-				return nil, 0, err
-			}
-			problems = append(problems, found...)
+		found, err := citationProblems(root, rel, i+1, raw[i], docPath)
+		if err != nil {
+			return nil, 0, err
 		}
+		problems = append(problems, found...)
 		for _, m := range markdownLink.FindAllStringSubmatch(line, -1) {
 			if uriScheme.MatchString(m[1]) {
 				continue
@@ -325,8 +323,7 @@ func TestHeadingSlug_FollowsTheRendering(t *testing.T) {
 // TestLinkProblems_ReportsALinkThatResolvesToNothing plants a link of each form
 // beside links that resolve, in a document, a fenced block, a span of code, after
 // a span crossing a line, past a stray tick a blank line ends, and under testdata,
-// and citations of a document in Go comments. A path on a line that is all code
-// is no citation, since only a fence holds one.
+// and citations of a document in Go comments and in a span of code.
 func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -364,7 +361,7 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 		"[shorter fence](absent.md)",
 		"````",
 		"# Guide",
-		"`docs/never-written.md`",
+		"See `docs/target.md#the-rule`, not `docs/target.md#absent` or docs/gone.md.",
 		"",
 	}, "\n"))
 	writeDocFile(t, filepath.Join(root, "x", "testdata", "fixture.md"), "[unread](absent.md)\n")
@@ -394,6 +391,8 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 		`docs/guide.md:4 links "absent.md#x", which names no file`,
 		`docs/guide.md:6 links "absent.md", which names no file`,
 		`docs/guide.md:10 links "absent.md", which names no file`,
+		`docs/guide.md:31 cites docs/target.md#absent, whose file has no such heading`,
+		`docs/guide.md:31 cites docs/gone.md, which names no file`,
 		`docs/sketch.md:2 cites docs/gone.md, which names no file`,
 		`x/testdata/spec.yaml:1 cites docs/target.md#absent, whose file has no such heading`,
 		`x/testdata/spec.yml:1 cites docs/target.md#absent, whose file has no such heading`,
