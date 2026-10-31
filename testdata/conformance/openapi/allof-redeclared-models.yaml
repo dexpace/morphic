@@ -196,3 +196,36 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/Meeting'}
+    # Only a type the winner composes stays reachable through it. An object saying
+    # anything else, and an alias of a bare object, which may say more, are no bare
+    # object, so each composes and keeps what it says. Beside what it stands for,
+    # an alias is still the narrower.
+    TitledAndModel:
+      allOf:
+        - type: object
+          properties:
+            data: {type: object, title: Held on the composition}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+    ConstrainedAliasAndModel:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AtLeastTwoMembers'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+    ConstrainedAliasAndBare:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AnyObject'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/AtLeastTwoMembers'}
+    AnyObject:
+      type: object
+    AtLeastTwoMembers:
+      $ref: '#/components/schemas/AnyObject'
+      minProperties: 2

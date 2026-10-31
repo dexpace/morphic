@@ -271,6 +271,7 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		"t/cycle-b":     &ir.Model{ID: "t/cycle-b", Base: &ir.TypeRef{Target: "t/cycle-a"}},
 		"t/bare":        &ir.Model{ID: "t/bare"},
 		"t/bare-twin":   &ir.Model{ID: "t/bare-twin"},
+		"t/bare-titled": &ir.Model{ID: "t/bare-titled", Docs: ir.Docs{Summary: "s"}},
 		"t/alias-bare":  &ir.Scalar{ID: "t/alias-bare", Base: &ir.TypeRef{Target: "t/bare"}},
 		"t/map":         &ir.MapT{ID: "t/map"},
 		"t/list":        &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/other"}},
@@ -332,7 +333,11 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"a list literal and a bare object", "t/lit-list", "t/bare", relDisjoint},
 		{"a union and a bare object", "t/union", "t/bare", relUnrelated},
 		{"two bare objects declared apart", "t/bare", "t/bare-twin", relOverlap},
-		{"an alias of a bare object and that object", "t/alias-bare", "t/bare", relOverlap},
+		{"an alias of a bare object and that object", "t/alias-bare", "t/bare", relANarrower},
+		{"a model and an alias of a bare object, which may say more", "t/model", "t/alias-bare", relUnrelated},
+		{"a model and an object with a title", "t/model", "t/bare-titled", relUnrelated},
+		{"a map and an object with a title", "t/map", "t/bare-titled", relUnrelated},
+		{"an object with a title and a bare object", "t/bare-titled", "t/bare", relANarrower},
 		{"a model and an alias of a list", "t/model", "t/alias-list", relDisjoint},
 		{"an alias chain is read to its end", "t/list", "t/alias-chain", relDisjoint},
 		{"an alias of a model against a kind", "t/alias-model", "t/prim/string", relDisjoint},
@@ -421,9 +426,9 @@ func TestComposes_ReadsEachPartOnce(t *testing.T) {
 }
 
 // TestSaysOnlyObject_ReadsEveryFieldThatSaysSomething pins what a bare object is:
-// a model nothing narrows. Names and docs say nothing of a value, and anything
-// else on the model does, a field the IR adds later included, since the
-// comparison reads the whole struct.
+// a model with nothing to lose by being narrowed. Where it was declared says
+// nothing, and anything else on the model does, docs and examples among them,
+// and a field the IR adds later, since the comparison reads the whole struct.
 func TestSaysOnlyObject_ReadsEveryFieldThatSaysSomething(t *testing.T) {
 	t.Parallel()
 	ref := &ir.TypeRef{Target: "t/x"}
@@ -433,7 +438,14 @@ func TestSaysOnlyObject_ReadsEveryFieldThatSaysSomething(t *testing.T) {
 		want bool
 	}{
 		{"nothing at all", &ir.Model{}, true},
-		{"a name and docs", &ir.Model{ID: "t/m", Name: ir.Naming{Hint: "m"}, Anonymous: true, Docs: ir.Docs{Summary: "s"}}, true},
+		{"where it was declared", &ir.Model{
+			ID: "t/m", Name: ir.Naming{Hint: "m"}, Anonymous: true, Provenance: ir.Provenance{Pointer: "/m"},
+		}, true},
+		{"docs", &ir.Model{Docs: ir.Docs{Summary: "s"}}, false},
+		{"a deprecation", &ir.Model{Deprecation: &ir.Deprecation{}}, false},
+		{"sensitive", &ir.Model{Sensitive: true}, false},
+		{"an XML hint", &ir.Model{XML: &ir.XMLHints{}}, false},
+		{"an example", &ir.Model{Examples: []ir.Example{{}}}, false},
 		{"a property", declaring("t/m"), false},
 		{"a required name", &ir.Model{Requires: []string{"x"}}, false},
 		{"a Base", &ir.Model{Base: ref}, false},

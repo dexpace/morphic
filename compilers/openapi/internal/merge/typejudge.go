@@ -152,13 +152,13 @@ func (j typeJudge) structures(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.T
 }
 
 // within reports whether every value of a is a value of b, a structure: a is
-// composed of b (composes), or b says nothing but object and a describes one.
+// composed of b (composes), or b says nothing but object and a describes one. An
+// alias of such a model does not count, since it may say more than the model.
 func (j typeJudge) within(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) bool {
-	end := j.unaliased(bt)
-	if !isStructural(end) {
+	if !isStructural(j.unaliased(bt)) {
 		return false
 	}
-	return j.composes(a.Target, b.Target) || (saysOnlyObject(end) && instanceKind(j.unaliased(at)) == ir.KindModel)
+	return j.composes(a.Target, b.Target) || (saysOnlyObject(bt) && instanceKind(j.unaliased(at)) == ir.KindModel)
 }
 
 // maxComposedParts bounds the types composes reads for one question. Stopping
@@ -213,15 +213,17 @@ func composedOf(td ir.TypeDef) []ir.TypeID {
 }
 
 // saysOnlyObject reports whether td is a model saying nothing but that its
-// values are objects, as a bare `type: object` lowers. Docs and the like describe
-// no value. It compares the whole model, so a field added to it counts.
+// values are objects, as a bare `type: object` lowers, however it is named
+// (siteless). A type that composes another still reaches it, but one narrowing
+// this model does not, so a title or an example here would be lost with it. It
+// compares the whole model, so a field added to it counts.
 func saysOnlyObject(td ir.TypeDef) bool {
 	m, ok := td.(*ir.Model)
-	if !ok || len(m.Unmodeled) > 0 {
+	if !ok {
 		return false
 	}
 	bare := *m
-	bare.TypeCommon = ir.TypeCommon{}
+	bare.TypeCommon = siteless(m.TypeCommon)
 	return reflect.DeepEqual(bare, ir.Model{})
 }
 

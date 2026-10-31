@@ -1084,7 +1084,10 @@ an inline copy in either order, and two declared elsewhere overlapping. A struct
 one it says it is: an alias than the type it stands for, and a model than what it composes through
 `Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
 `const` object is narrower than a model saying nothing but `type: object`, and two such models are
-judged as two equal enums are. Any other pair is judged by what the two types hold, an alias as the
+judged as two equal enums are. That model says nothing at all but where it was declared, and an
+alias of it is not one, since an alias may say more: a type composing another still reaches it,
+while one narrowing a bare object does not, so a title or an example there would be lost. Any other
+pair is judged by what the two types hold, an alias as the
 type it stands for and a `const` object or array as a structure of that instance type: disjoint
 where their kinds share no value, or a value type meets a structure, or two structures of different
 instance types meet; an overlap where their kinds share values or a `const` meets a type that ends
@@ -1108,16 +1111,18 @@ written `allOf` of them composes ([`allof-classification`](#allof-classification
 as the only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
 the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
 names one type holding both, whichever branch comes first, rather than flattening them into one
-property list. A `{}`, a bare `type: object` and a model another declaration composes add no
-conjunct. Two aliases of one model are two types, each able to say more than the model, so they
-compose. Any other type beside the models (a map, a kind, a degraded node) leaves the choice to the
-rule above. Every declaration then folds into the field, so none is dropped for its type, and each
-conjunct keeps the node its own pointer denotes. The minted model's ID is in the `composed`
-namespace (§3.1, §4.3), so no `$ref` reaches it, and derives from the declaration naming the field,
-which its provenance records: the last declaration to widen the schema holding them all, so the
-first outside the branch holding the first declaration. A model and a wrapper it flattens can share
-a first declaration or a last one while folding different sets, and not this one. Folds of one set
-share the one node, as the variants of a distributed union do.
+property list. A `{}`, a model saying nothing but `type: object` and a model another declaration
+composes add no conjunct. An object saying anything else composes, so what it says stays reachable.
+Two aliases of one model are two types, each able to say more than the model, so they compose, and
+so does an alias of a bare object beside another model. Any other type beside the models (a map, a
+kind, a degraded node) leaves the choice to the rule above. Every declaration then folds into the
+field, so none is dropped for its type, and each conjunct keeps the node its own pointer denotes.
+The minted model's ID is in the `composed` namespace (§3.1, §4.3), so no `$ref` reaches it, and
+derives from the declaration naming the field, which its provenance records: the last declaration to
+widen the schema holding them all, so the first outside the branch holding the first declaration. A
+model and a wrapper it flattens can share a first declaration or a last one while folding different
+sets, and not this one. Folds of one set share the one node, as the variants of a distributed union
+do.
 
 A `$ref` to an `allOf` branch or wrapper makes a model carrying the declarations under it and not
 the others, so one declaration can stand on two models whose fields differ. Where a node stands at a
@@ -1230,6 +1235,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor`,
   `schema.TestAllOf_RelatedStructuresAreNotCalledAConflict`,
   `schema.TestAllOf_ATypeHoldingAnotherTakesTheField`,
+  `schema.TestAllOf_AnObjectSayingMoreThanItsTypeComposes`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsAChainUpToItsBound`,
   `merge.TestComposes_ReadsEachPartOnce`,
