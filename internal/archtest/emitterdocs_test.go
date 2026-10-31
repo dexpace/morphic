@@ -220,8 +220,8 @@ func unmappedDocuments(docs string) ([]string, int, error) {
 		return nil, 0, err
 	}
 	linked := map[string]bool{}
-	for _, line := range proseLines(string(text)) {
-		for _, m := range markdownLink.FindAllStringSubmatch(codeSpan.ReplaceAllString(line, ""), -1) {
+	for _, line := range linkLines(string(text)) {
+		for _, m := range markdownLink.FindAllStringSubmatch(line, -1) {
 			file, _, _ := strings.Cut(m[1], "#")
 			linked[file] = true
 		}
