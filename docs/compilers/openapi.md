@@ -1609,9 +1609,10 @@ one declared `type` and its `format` select, as a scalar's are read
 a value of that primitive. Otherwise it is the primitive of the `type` alone, else of the members,
 and a `format` that reaches no `ValueType`, whether the table lacks the pairing or a member does not
 fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under `openapi:format`
-(`degraded_lowering`), with an info `openapi/degraded-construct` at the schema. An enumeration an
-`Enum` cannot hold — a list or object member, members of different kinds, or only `null` — lowers to
-a `Union` of `Literal`s instead, reported as an info `openapi/degraded-construct` at the schema, and
+(`degraded_lowering`), with an info `openapi/degraded-construct` at the schema, but for `password`,
+which is a redaction ([`password`](#password)). An enumeration an `Enum` cannot hold — a list or
+object member, members of different kinds, or only `null` — lowers to a `Union` of `Literal`s
+instead, reported as an info `openapi/degraded-construct` at the schema, and
 a member whose value cannot convert makes the enumeration such a union, its own variant the top
 type, reported as an `openapi/degraded-construct` warning at the member. That union is exclusive
 unless an instance can match two variants: an entry repeats, or one lowered to the top type. `enum:
