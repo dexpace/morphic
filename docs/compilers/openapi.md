@@ -1509,7 +1509,8 @@ discriminated ancestor carries no tag however deep. A variant of a distributed `
 - Cases: `discriminator-transitive`, `discriminator-inline-subtype`
 - Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,
   `schema.TestAllOf_DiscriminatorValueFromNearestAncestor`,
-  `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`
+  `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`,
+  `schema.TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping`
 
 ### `string-const-union`
 
