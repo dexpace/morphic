@@ -1012,9 +1012,9 @@ hold ([`shape-applicator`](#shape-applicator)) keeps the `allOf` verbatim under 
 
 ### `allof-inline-residue`
 
-A branch written inline rather than as a `$ref` owns no node, so
-[models](../ir/models.md#composition)'s composition has nowhere to point and the branch is
-merged into the composing model in place. That merge consumes the branch's `properties`, its
+A branch written inline rather than as a `$ref` owns no node, so composition has nowhere to point
+([models](../ir/models.md#composition)) and the branch is merged into the composing model in place.
+That merge consumes the branch's `properties`, its
 `required` list, a `type` that is exactly `object` — which the composed `Model` already restates —
 and, for an entry flattened under [`allof-classification`](#allof-classification), its `allOf` — and
 nothing else. The IR could hold every other keyword a branch writes, and does hold them one level up
@@ -1442,7 +1442,7 @@ or `openapi:anyOf` (`degraded_lowering`), with an info `openapi/degraded-constru
 A `oneOf` or `anyOf` written beside structural keywords
 (`{type: object, properties: {…}, oneOf: [{$ref: A}, {type: string}]}`) conjoins with them, so the
 schema is an *intersection* of a structural type and a union. The IR has `Union` but no intersection
-combinator: [models](../ir/models.md#composition-entries)'s `Base`/`Mixins` composes one
+combinator: `Base`/`Mixins` ([models](../ir/models.md#composition-entries)) composes one
 referent per conjunct, the shape `allOf` writes, and cannot state "conjoined with a union", and
 [boundaries](../ir/boundaries.md#deliberate-exclusions) records why none was added. Target
 languages are not the constraint here; TypeScript writes `{a: string} & (X | Y)` directly. Where the
@@ -1499,9 +1499,9 @@ an alias over a `$ref` beside it, or a union its `allOf` is distributed across.
 
 A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {required: [b]}]`) is not
 a degradation and is not one of the five: it narrows the body without reshaping it, which is
-validation logic, so it is kept under `validation_only` with
-[boundaries](../ir/boundaries.md#validation-only-constructs)'s keyword family and reported as
-an info `openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)).
+validation logic, so it is kept under `validation_only` with the keyword family of
+[boundaries](../ir/boundaries.md#validation-only-constructs) and reported as an info
+`openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)).
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
@@ -1780,8 +1780,9 @@ bound on an object is kept the same way, and a keyword the elected lowering of
 [`competing-keywords`](#competing-keywords) never reads is too. `discriminator` joins the list,
 homed by a `Model` or `Union` that routes by it and by nothing else, so one beside any other node —
 the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the same way. At a
-`$ref` position the census runs on the alias [models](../ir/models.md#composition-entries)'s
-use-site rule hoists, since the siblings bind the position rather than the referent. One limit is
+`$ref` position the census runs on the alias the use-site rule of
+[models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
+than the referent. One limit is
 deliberate: a multi-typed schema (`type: [string, object]`) is exempt, because it lowers one variant
 per declared type from the same schema and the homes are the variants'.
 
@@ -1849,8 +1850,9 @@ under `openapi:format` (`no_ir_home`), with an info `openapi/degraded-construct`
 ### `whole-schema-fallbacks`
 
 Two whole-schema fallbacks answer to a compiler's own limits rather than to anything about the
-construct, which is why [boundaries](../ir/boundaries.md#degraded-constructs)'s list of
-degradations does not hold them. A schema nested past the lowering's depth cap becomes the top type,
+construct, which is why the list of degradations in
+[boundaries](../ir/boundaries.md#degraded-constructs) does not hold them.
+A schema nested past the lowering's depth cap becomes the top type,
 reported as an `openapi/degraded-construct` error at it; the cap counts from where the position's
 own declaration enters, or from the top level for a body only a `$ref` reaches, never from the depth
 of a `$ref` naming it. A boolean `false` schema becomes a closed empty `Model`, with the schema
@@ -2837,8 +2839,8 @@ document means something else by the key. Text of the right JSON shape is taken 
 `x-sunset` fills `RemovalDate` and not `RemovalVersion` because the header it echoes ([RFC
 8594](https://www.rfc-editor.org/rfc/rfc8594)) is a date by definition, and the mapping is where
 that reading is stated — the promotion does not then parse the date to confirm it. No default key
-names `RemovalVersion`: a document stating a removal *version* names its own key, per
-[unmodeled](../ir/unmodeled.md#promotion)'s rule 1.
+names `RemovalVersion`: a document stating a removal *version* names its own key, per rule 1 of
+[unmodeled](../ir/unmodeled.md#promotion).
 
 `Enum.Closed` is the one target whose fact is stated by a key being *present* rather than by a
 value, so nothing is read or reported there. Its default key, `x-extensible-enum`, writes the member

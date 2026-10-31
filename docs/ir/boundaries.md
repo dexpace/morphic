@@ -114,7 +114,7 @@ simply absent from the IR and preserve nothing.
   AsyncAPI can express it, and they share a compiler code path, so a node would be one format's
   artifact given IR-wide status against invariant 9. TypeSpec's `&` is *model-only*
   (`ir-spec-matrix.md`'s Intersection row records it as `⚠ & (model is)`) and so is already covered
-  by [models](./models.md#composition)'s `Base`/`Mixins`; Smithy, GraphQL, Protobuf and Erlang/OTP
+  by `Base`/`Mixins` ([models](./models.md#composition)); Smithy, GraphQL, Protobuf and Erlang/OTP
   cannot express it at all. The shape is instead handled where it arises: distributed across the
   union's variants per [models](./models.md#composition-beside-a-union) when every branch names a
   referent, and kept verbatim under `ReasonDegradedLowering` in the five residual shapes
