@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -113,13 +114,23 @@ func TestStreamingMode_Constants(t *testing.T) {
 	}, "none")
 }
 
-// TestStreamingMode_Valid holds Valid to the declared modes: the empty mode is
-// one of them, and the spelling it replaced is not.
-func TestStreamingMode_Valid(t *testing.T) {
+// TestStreamingMode_TiesToConstBlock holds Valid to the package's declarations
+// rather than a list, the empty mode among them. A mode added without teaching
+// Valid fails here, not as a spurious ir/unknown-streaming-mode on a document
+// that states it correctly.
+func TestStreamingMode_TiesToConstBlock(t *testing.T) {
 	t.Parallel()
-	for _, mode := range []ir.StreamingMode{ir.StreamingNone, ir.StreamingClient, ir.StreamingServer, ir.StreamingBidi} {
-		assert.True(t, mode.Valid(), "%q", mode)
+	declared := declaredConstsOfType(t, "StreamingMode")
+	require.NotEmpty(t, declared, "the ir sources must declare StreamingMode constants")
+	for _, c := range declared {
+		assert.True(t, ir.StreamingMode(c.Value).Valid(), "declared mode %q must be Valid", c.Value)
 	}
+}
+
+// TestStreamingMode_UnknownIsInvalid pins the other direction: Valid rejects a
+// mode no const declares, the spelling the empty mode replaced among them.
+func TestStreamingMode_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
 	for _, mode := range []ir.StreamingMode{"none", "Server", "duplex"} {
 		assert.False(t, mode.Valid(), "%q", mode)
 	}
