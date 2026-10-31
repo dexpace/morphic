@@ -69,7 +69,7 @@ func TestClassify_MapAndModelAreOneObjectKind(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/map":   &ir.MapT{ID: "t/map"},
-		"t/model": &ir.Model{ID: "t/model"},
+		"t/model": declaring("t/model"),
 		"t/list":  &ir.List{ID: "t/list"},
 	})
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }
@@ -296,8 +296,8 @@ func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
 
 // TestClassify_ALiteralOverlapsWhatHoldsValues pins that a literal against
 // another literal or against a type with a primitive kind is an overlap, never
-// silent, while a literal against a structure still conflicts and a dangling
-// target stays silent.
+// silent, while a scalar literal against a structure still conflicts and a
+// dangling target stays silent.
 func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(judgeRegistry())

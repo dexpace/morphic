@@ -22,8 +22,7 @@ import (
 //
 // A registry is matched by its map type, whatever it is named, and a generic
 // by its type arguments. A compile.Settlement's Settle may rewrite the type
-// registry it is handed, in its own body, which compile.Types checks for a
-// changed node count.
+// registry it is handed, in its own body, and compile.Types checks the count.
 func (l layout) registryWrites() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "registrywrites",
