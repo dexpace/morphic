@@ -141,9 +141,9 @@ the rule here rather than reading it across.
 `interface-assertions-stay-narrow`
 
 - **Rule.** Rule 5.26 asks for compliance to be asserted at compile time. Here an exported type
-  implementing an interface this module exports carries a `var _` beside its imports, and an
-  unexported one does not, since the call that passes it fails the build. A standard library
-  interface such as `error` takes none.
+  implementing an exported interface its package declares or imports from this module carries a
+  `var _` beside its imports, and an unexported one does not, since the call that passes it fails
+  the build. A standard library interface such as `error` takes none.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
 - **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported type
   that implements an exported interface its package declares or imports from the module and carries

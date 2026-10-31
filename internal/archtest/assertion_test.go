@@ -70,6 +70,15 @@ func TestMissingAssertions_PlantedShapesAreCaught(t *testing.T) {
 			"type P struct{}\n\ntype Planter interface{ Plant() }\n\nfunc (P) Plant() {}\n\nfunc (P) " + visit +
 				"\nvar _ Planter = P{}\n", []string{"ir.Visitor"}},
 		{"asserted", "type P struct{}\n\nfunc (P) " + visit + "\nvar _ ir.Visitor = P{}\n", nil},
+		{"asserted by a conversion", "type P struct{}\n\nfunc (P) " + visit + "\nvar _ = ir.Visitor(P{})\n", nil},
+		{"asserted by a parenthesized conversion of a pointer", "type P struct{}\n\nfunc (*P) " + visit +
+			"\nvar _ = (ir.Visitor)((*P)(nil))\n", nil},
+		{"asserted by a conversion beside a type", "type P struct{}\n\nfunc (P) " + visit +
+			"\nfunc (P) Cycle(_, _ ir.WalkPath, _ reflect.Type) {}\n\nvar _ ir.Visitor = ir.CycleVisitor(P{})\n", nil},
+		{"a conversion to a type that is no interface", "type P struct{}\n\ntype q P\n\nfunc (P) " + visit +
+			"\nvar _ = q(P{})\n", []string{"ir.Visitor"}},
+		{"a call that converts nothing", "type P struct{}\n\nfunc (P) " + visit +
+			"\nfunc wrap(P) ir.Visitor { return nil }\n\nvar _ = wrap(P{})\n", []string{"ir.Visitor"}},
 		{"asserted through a pointer", "type P struct{}\n\nfunc (*P) " + visit + "\nvar _ ir.Visitor = (*P)(nil)\n", nil},
 		{"asserted in a group",
 			"type P struct{}\n\nfunc (P) " + visit + "\nvar (\n\t_ ir.Visitor = P{}\n)\n", nil},
@@ -170,10 +179,11 @@ func moduleInterfaces(p *decls.Package) []moduleInterface {
 	return out
 }
 
-// assertedInterfaces returns, for each named type a package-level var of an
-// interface type in p holds, the interfaces such vars give it. The value's
-// type is read with any pointer and alias taken off. A named var asserts as
-// var _ does.
+// assertedInterfaces returns, for each named type a package-level var in p
+// holds as an interface, the interfaces such vars give it: a conversion's, as
+// in var _ = I(T{}), or else the var's declared type's. The value's type is
+// read with any pointer and alias taken off. A named var asserts as var _
+// does.
 func assertedInterfaces(p *decls.Package) map[*types.TypeName][]*types.Interface {
 	out := map[*types.TypeName][]*types.Interface{}
 	for _, f := range p.Syntax {
@@ -184,15 +194,11 @@ func assertedInterfaces(p *decls.Package) map[*types.TypeName][]*types.Interface
 			}
 			for _, spec := range gen.Specs {
 				vs, ok := spec.(*ast.ValueSpec)
-				if !ok || vs.Type == nil {
-					continue
-				}
-				iface, ok := p.Info.TypeOf(vs.Type).Underlying().(*types.Interface)
 				if !ok {
 					continue
 				}
 				for _, value := range vs.Values {
-					if tn, ok := typeName(p.Info.TypeOf(value)); ok {
+					if tn, iface, ok := assertion(p, vs.Type, value); ok {
 						out[tn] = append(out[tn], iface)
 					}
 				}
@@ -200,6 +206,27 @@ func assertedInterfaces(p *decls.Package) map[*types.TypeName][]*types.Interface
 		}
 	}
 	return out
+}
+
+// assertion returns the named type value holds and the interface it is held
+// as, by a conversion to an interface or else by typ, the var's declared type,
+// which is nil when the var declares none.
+func assertion(p *decls.Package, typ, value ast.Expr) (*types.TypeName, *types.Interface, bool) {
+	if call, ok := ast.Unparen(value).(*ast.CallExpr); ok && len(call.Args) == 1 && p.Info.Types[call.Fun].IsType() {
+		if iface, ok := p.Info.TypeOf(call.Fun).Underlying().(*types.Interface); ok {
+			tn, ok := typeName(p.Info.TypeOf(call.Args[0]))
+			return tn, iface, ok
+		}
+	}
+	if typ == nil {
+		return nil, nil, false
+	}
+	iface, ok := p.Info.TypeOf(typ).Underlying().(*types.Interface)
+	if !ok {
+		return nil, nil, false
+	}
+	tn, ok := typeName(p.Info.TypeOf(value))
+	return tn, iface, ok
 }
 
 // typeName returns the declaration of t's named type, through an alias and
