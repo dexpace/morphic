@@ -2883,9 +2883,8 @@ is the list, the rest were: the `external` kind; the `datetime`, `decimal`, `dec
 `duration`, `float`, `int16`, `time`, `uint16` and `uint8` primitives; constructor, reference and
 symbol values; every protocol but HTTP, and the auth schemes only those use; pagination,
 long-running, one-way and overloaded operations, idempotency, resources and stream details;
-versioning, from `Availability` to `Document.versions`; the `none` streaming mode, which the
-compiler writes as `""` (#978); and facts no OpenAPI construct sets, such as `Model.abstract`,
-`Property.presence`, `Enum.flags` and the `host` parameter location.
+versioning, from `Availability` to `Document.versions`; and facts no OpenAPI construct sets, such
+as `Model.abstract`, `Property.presence`, `Enum.flags` and the `host` parameter location.
 
 ---
 

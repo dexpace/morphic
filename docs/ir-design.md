@@ -362,6 +362,11 @@ it sees. Changes made together in one bump are listed together under it.
     `Style` and `Explode` beside its members, which encode flat (§7.2). The compiler had kept each
     verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to 0.21.0 that reads those
     entries no longer finds them.
+- **0.23.0** — what these facts say changed:
+  - `StreamingNone` is `""`, where it was `"none"`, the state every operation that does not stream
+    already encoded by having no `streaming` member, and `irverify` holds `Streaming` to the
+    declared modes (`ir/unknown-streaming-mode`) (§7.3). No compiler wrote `"none"`, so no compiled
+    document changes; one that writes it, or a consumer comparing against it, is out of date.
 
 ---
 
@@ -1677,7 +1682,8 @@ type Operation struct {
                                   // send-without-reply, Thrift oneway, JSON-RPC notifications).
                                   // Distinct from a response with no body (an ack still exists);
                                   // validate rejects OneWay with any response, Default included
-    Streaming  StreamingMode      // none | client | server | bidi (derived summary of the two below)
+    Streaming  StreamingMode      // client | server | bidi; "" = does not stream (derived summary
+                                  // of the two below)
     RequestStream  *StreamDetail  // client→server streaming semantics, when present
     ResponseStream *StreamDetail  // server→client streaming semantics, when present
     Pagination *Pagination
@@ -1915,7 +1921,7 @@ type LongRunning struct {
     ResultPath    *PropPath
 }
 
-type StreamingMode string      // "none" | "client" | "server" | "bidi"
+type StreamingMode string      // "" (none) | "client" | "server" | "bidi"
 
 type StreamDetail struct {
     Events  *TypeRef   // stream element type, of any kind; nil where the contents that stream
@@ -1933,9 +1939,13 @@ type StreamDetail struct {
 ```
 
 Streaming mode is on the operation core because it is protocol-independent (gRPC streams, SSE,
-WebSocket, Smithy event streams all project onto it). `Streaming` summarizes an operation, and a
-stream belongs to one content of its payload, so an OpenAPI operation can offer `application/json`
-beside `application/x-ndjson`, and the plan elects among them (emitter-design §3.1). The wire
+WebSocket, Smithy event streams all project onto it). An operation that does not stream holds the
+zero mode, as `IdempotencyUnknown` and `AdditionalUnspecified` are their fields' absent states, so
+such an operation encodes no member; a `"none"` spelling would add one to nearly every operation
+and say nothing `RequestStream` and `ResponseStream` do not. `Streaming` summarizes an operation,
+and a stream belongs to one content of its payload, so an OpenAPI operation can offer
+`application/json` beside `application/x-ndjson`, and the plan elects among them (emitter-design
+§3.1). The wire
 mechanism (SSE vs JSON Lines vs WS frames vs length-prefixed events) has no field of its own: over
 HTTP the streaming content's `MediaType` states it, another binding frames its own messages, and
 the plan derives which (emitter-design §3.1). `Content.Item` declares what one item is; a compiler

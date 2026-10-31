@@ -2360,8 +2360,7 @@ an `itemSchema` declares, and `MediaTypes` replaces the default list instead of 
 - Tests: `operation.TestStreaming_ResponseMediaTypeImpliesServerStream`,
   `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
   `operation.TestStreaming_ItemSchemaDeclaresTheStream`
-- Status: partly built: an operation that does not stream carries an empty `Streaming`, where §7.2
-  declares `none` (#978); the default policy misses `application/json-seq` (#629); sequential media
+- Status: partly built: the default policy misses `application/json-seq` (#629); sequential media
   types derive the wrong item type (#630); a response offering a plain body and an event stream does
   not record which content streams (#601); and an event stream's terminator, and a response that
   streams only when a request field asks it to, have no IR home (#666, #667).
