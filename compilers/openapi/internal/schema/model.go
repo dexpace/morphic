@@ -47,12 +47,12 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 }
 
 // objectNode is the node an object lowering yields: the MapT m is when it is a
-// map and nothing else, else m (ir-design §4.6). It reads the built Model
-// rather than the schema, so a keyword that comes to fill a Model field keeps
-// the position a Model without a second predicate to update. A composed union
-// variant and a false schema skip it: one always holds its branch as a Base or
-// Mixin, and the other is closed. An inert `unevaluatedProperties: false`
-// beside a catch-all still closes a model, keeping it one until #862.
+// map and nothing else, else m (docs/ir/containers.md). It reads the built
+// Model rather than the schema, so a keyword that comes to fill a Model field
+// keeps the position a Model without a second predicate to update. A composed
+// union variant and a false schema skip it: one always holds its branch as a
+// Base or Mixin, and the other is closed. An inert `unevaluatedProperties:
+// false` beside a catch-all still closes a model, keeping it one until #862.
 func objectNode(m *ir.Model) ir.TypeDef {
 	if mt, ok := ir.AsMap(m); ok {
 		return mt
@@ -138,8 +138,9 @@ func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) merge.Source {
 // property: as Required on the property of that wire name, never cleared once
 // set, and otherwise in m.Requires, once, in the order required names it. A
 // name no own property declares is one a Base or Mixin declares, or one only
-// the catch-all governs, and JSON Schema requires it all the same (ir-design
-// §4.3). Each object lowering calls it once, on a model that lists none yet.
+// the catch-all governs, and JSON Schema requires it all the same
+// (docs/ir/models.md). Each object lowering calls it once, on a model that
+// lists none yet.
 func requireMembers(m *ir.Model, required []string) {
 	byWire := merge.WireNameIndex(m.Properties)
 	listed := make(map[string]bool, len(required))

@@ -4,7 +4,8 @@
 package ir
 
 // Service is a client-visible service: a coherent group of operations with a
-// shared identity, auth default, and protocol conventions (ir-design §7.1).
+// shared identity, auth default, and protocol conventions
+// (docs/ir/services.md).
 type Service struct {
 	// ID is the service's stable synthetic identity.
 	ID ServiceID `json:"id,omitempty"`
@@ -16,7 +17,7 @@ type Service struct {
 	// document-level Version remains the API title's version.
 	Version string `json:"version,omitempty"`
 	// Namespace is the source namespace path (TypeSpec/Smithy/proto package).
-	// No segment is blank, and one may repeat (ir-design §4).
+	// No segment is blank, and one may repeat (docs/ir/type-graph.md).
 	Namespace []string `json:"namespace,omitempty"`
 	// Extends lists client-visible service inheritance (Thrift service extends,
 	// WSDL 2.0 interface extension, Cap'n Proto interface inheritance); inherited
@@ -25,9 +26,10 @@ type Service struct {
 	// Groups holds the hierarchical operation groups; a group is a TypeSpec
 	// interface / Smithy resource / tag.
 	Groups []OperationGroup `json:"groups,omitempty"`
-	// Auth is the service-level default requirement (OR-of-ANDs, §9). An empty
-	// non-nil slice (explicitly public) differs from nil (no default); omitzero
-	// writes nil as an absent key and the empty slice as [].
+	// Auth is the service-level default requirement (OR-of-ANDs,
+	// docs/ir/auth.md). An empty non-nil slice (explicitly public) differs from
+	// nil (no default); omitzero writes nil as an absent key and the empty
+	// slice as [].
 	Auth []AuthRequirement `json:"auth,omitzero"`
 	// CommonErrors are errors every operation can return (Smithy service-level
 	// errors).
@@ -40,7 +42,7 @@ type Service struct {
 	Renames map[TypeID]Naming `json:"renames,omitempty"`
 	// Servers names the servers that serve the service, most preferred first;
 	// empty = no declared server does. An operation naming servers of its own
-	// is sent to those instead (ir-design §10). No entry is empty.
+	// is sent to those instead (docs/ir/servers.md). No entry is empty.
 	Servers []ServerID `json:"servers,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
@@ -49,7 +51,7 @@ type Service struct {
 }
 
 // ProtocolDecl is a declared serde/protocol convention a service speaks
-// (ir-design §7.1).
+// (docs/ir/services.md).
 type ProtocolDecl struct {
 	// Name is the protocol name, e.g. "aws.restJson1" or "grpc".
 	Name string `json:"name,omitempty"`
@@ -58,7 +60,7 @@ type ProtocolDecl struct {
 }
 
 // OperationGroup is a hierarchical grouping of operations: a TypeSpec interface,
-// Smithy resource, or tag (ir-design §7.1).
+// Smithy resource, or tag (docs/ir/services.md).
 type OperationGroup struct {
 	// ID is the group's stable synthetic identity, minted by the rule that formed
 	// the group. A rename never moves it, and no two groups share one.
@@ -81,7 +83,7 @@ type OperationGroup struct {
 }
 
 // ResourceInfo carries Smithy resource semantics for an OperationGroup
-// (ir-design §7.1).
+// (docs/ir/services.md).
 type ResourceInfo struct {
 	// Identifiers are the resource identity fields.
 	Identifiers []Property `json:"identifiers,omitempty"`

@@ -3,7 +3,7 @@
 Morphic turns any API specification — OpenAPI/Swagger, TypeSpec, Smithy, GraphQL, AsyncAPI,
 Protobuf, Erlang/OTP module specs — into idiomatic SDKs and docs through a single spec-agnostic
 intermediate representation (IR). This document defines the pipeline, the package layout, and the contracts
-between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
+between stages. The IR itself is specified in the [IR design](./ir/README.md).
 
 ```
                  ┌────────────── compilers ──────────────┐
@@ -348,8 +348,9 @@ Built, and in the default list:
   that, such as discriminator mappings that point at actual variants, wire names and aliases unique
   within a model, a one-way operation that declares no response, and binding completeness: a
   parameter an HTTP binding places twice at one non-host location is an error, one it places nowhere
-  is a warning, and a `host` binding is additive (ir-design §8.1). Structural problems are errors,
-  which fail the run at the default threshold (§4); style issues are warnings.
+  is a warning, and a `host` binding is additive ([http-binding](./ir/http-binding.md)).
+  Structural problems are errors, which fail the run at the default threshold (§4); style issues are
+  warnings.
 
 Designed, not yet built:
 
@@ -457,17 +458,17 @@ construct the IR has no place for, and the surface grows when one does. Two rule
 it verbatim under `ReasonNoIRHome` rather than lowering it to a weaker shape, so nothing is lost
 while the gap is open, and the gap is an issue of its own, where the shape of its home is decided.
 The change that closes it adds the field, moves the construct out of `Unmodeled` and bumps
-`IRVersion`, as any change to the JSON shape does (ir-design §2.1).
+`IRVersion`, as any change to the JSON shape does ([ir-version](./ir/ir-version.md)).
 
 **Once an emitter reads a field, a change to it lands whole.** A change to a field the plan layer
 or an emitter reads — renamed, removed, or given another meaning — lands in the same change as the
 plan, refiner and golden updates it forces, for every target, under one `IRVersion` bump. None of
 it is left to a follow-up: an emitter is built against exactly one generation and has no mode for
-reading another (ir-design §2.1), so a `main` whose compiler writes one generation while an emitter
-reads the last would drop constructs without a word. Several changes made on one line of work are
-batched under one bump where they land, as §2.1 of ir-design already has it. A field no emitter
-reads yet is added by the compiler change that fills it, and the emitter that first reads it adopts
-it in its own change.
+reading another ([ir-version](./ir/ir-version.md)), so a `main` whose compiler writes one
+generation while an emitter reads the last would drop constructs without a word. Several changes
+made on one line of work are batched under one bump where they land, as
+[ir-version](./ir/ir-version.md) already has it. A field no emitter reads yet is added by the
+compiler change that fills it, and the emitter that first reads it adopts it in its own change.
 
 ## 3. Go package layout
 
@@ -475,7 +476,7 @@ it in its own change.
 morphic/
 ├── barrier/                # Layer 0 — turns a panic in code the caller does not own into an error.
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
-│   ├── irfacts/            #           Derived facts of a document, never stored (ir-design §4.9).
+│   ├── irfacts/            #           Derived facts of a document, never stored (docs/ir/derived-facts.md).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.

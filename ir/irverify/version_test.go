@@ -30,9 +30,9 @@ func TestVerify_AbsentIRVersionIsAViolation(t *testing.T) {
 
 // TestVerify_IncompatibleIRVersionIsAViolation asserts a stamp this build does
 // not read is reported, whether it names a real other schema generation or is
-// not a version at all. The policy is exact equality (ir-design §2.1), so both
-// reach the same code: neither can be interpreted, and a consumer has the same
-// one move in either case.
+// not a version at all. The policy is exact equality (docs/ir/ir-version.md),
+// so both reach the same code: neither can be interpreted, and a consumer has
+// the same one move in either case.
 func TestVerify_IncompatibleIRVersionIsAViolation(t *testing.T) {
 	tests := []struct {
 		name    string

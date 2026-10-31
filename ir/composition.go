@@ -11,10 +11,10 @@ import (
 // Supertypes returns the immediate supertypes of the model id names: its Base,
 // then each Implements entry, each read through the alias scalars standing in
 // for it, since a $ref carrying siblings composes the branch's own alias node,
-// not the schema it points at (ir-design §4.3). Mixins are absent on purpose: a
-// mixin contributes members without making the model a member of anything, so
-// it belongs to [ExposedProps], not to subtype identity. An id naming no live
-// model yields nil, and an unset reference is skipped.
+// not the schema it points at (docs/ir/models.md#composition-entries). Mixins
+// are absent on purpose: a mixin contributes members without making the model a
+// member of anything, so it belongs to [ExposedProps], not to subtype identity.
+// An id naming no live model yields nil, and an unset reference is skipped.
 func Supertypes(doc *Document, id TypeID) []TypeID {
 	left := math.MaxInt
 	supers, _ := supertypes(nil, doc, id, &left)
@@ -67,7 +67,8 @@ func take(left *int) bool {
 
 // AliasBase returns the type the alias scalar id names, and false when id names
 // no alias scalar: no Scalar, a typed nil, or one with no Base. An alias stands
-// for its Base, and a chain of them for the type at its end (ir-design §4.2).
+// for its Base, and a chain of them for the type at its end
+// (docs/ir/scalars.md).
 func AliasBase(types TypeRegistry, id TypeID) (TypeID, bool) {
 	s, ok := types[id].(*Scalar)
 	if !ok || s == nil || s.Base == nil {
@@ -147,10 +148,11 @@ func isSubtype(doc *Document, target, base TypeID, left *int) (sub, ok bool) {
 }
 
 // ExposedProps returns the property IDs the type root names exposes: its own
-// plus those it composes in through Base, Implements and Mixins (ir-design
-// §4.3), the flat set an emitter renders. A root naming an alias scalar exposes
-// the parts of the model the alias stands for, and one naming neither that nor
-// a live model exposes none. A visited set ends the walk on a cyclic hierarchy.
+// plus those it composes in through Base, Implements and Mixins
+// (docs/ir/models.md), the flat set an emitter renders. A root naming an alias
+// scalar exposes the parts of the model the alias stands for, and one naming
+// neither that nor a live model exposes none. A visited set ends the walk on a
+// cyclic hierarchy.
 //
 // It is the relation's definition, walked afresh for one root. A caller asking
 // many of one document asks irfacts.Index, which is held to it.

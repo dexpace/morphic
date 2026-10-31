@@ -590,9 +590,9 @@ func TestIndex_UsageIgnoresPositionsThatNameNoType(t *testing.T) {
 
 // TestUsage_ADefaultTravelsAsOutputAndNoError pins that the payload and a header
 // of an operation's Default are the response side's, and carry no error flag:
-// the IR does not class a default as a failure (ir-design §7.2), so the type
-// reads back as plain output. Bound as a webhook, the sides swap and the same
-// types are input.
+// the IR does not class a default as a failure (docs/ir/responses.md), so the
+// type reads back as plain output. Bound as a webhook, the sides swap and the
+// same types are input.
 func TestUsage_ADefaultTravelsAsOutputAndNoError(t *testing.T) {
 	t.Parallel()
 	op := ir.Operation{

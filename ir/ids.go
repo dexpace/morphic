@@ -6,8 +6,8 @@ package ir
 import "strings"
 
 // IDs are opaque to consumers but constructed deterministically by compilers
-// from the source pointer of the defining occurrence (ir-design §3.1). They are
-// never derived from display names and never rewritten by renames.
+// from the source pointer of the defining occurrence (docs/ir/identity.md).
+// They are never derived from display names and never rewritten by renames.
 
 // TypeID identifies a TypeDef in Document.Types,
 // e.g. "t/openapi/components/schemas/User".

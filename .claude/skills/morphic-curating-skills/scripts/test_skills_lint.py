@@ -26,16 +26,16 @@ description: Use when testing.
 ---
 
 See `references/r.md`, `scripts/tool.py`, `ir/a.go`, ir/a.go, TestKnown, TestKnown_Case,
-ir-design §4.3, docs/parser-library.md#known, `morphic-harness` and [a link](references/r.md).
+architecture §4.3, docs/parser-library.md#known, `morphic-harness` and [a link](references/r.md).
 Run `go test ./ir/... $(python3.14 scripts/tool.py)` or `go run ./cmd/morphic-harness <spec>`
 and `gh api repos/{owner}/{repo}`, by `references/r.md#do-the-thing` and
 `.claude/skills/good-skill/references/r.md#do-the-thing`; see `references/<file>.md#<key>`.
 Name `tool.py`, `a.go` and `SKILL.md` alone, and a suffix such as `_test.go`.
-Hold `docs/parser-library.md#known`, `ir/a.go:1` and `ir/*.go` up to the entry, line or glob.
+Hold `docs/parser-library.md#known`, `docs/ir/models.md#the-flattening`, `ir/a.go:1` and `ir/*.go` up to the entry, line or glob.
 Links to [a site](https://example.com/a/b) and [mail](mailto:x@example.com) leave the tree.
 """
 RULE = ("## Do the thing\n`do-the-thing`\n\n- **Rule.** Do it, as `ir/a.go` and TestKnown do.\n"
-        "- **Why.** It broke\n  once (#1).\n- **Probe.** ir-design §4.3.\n")
+        "- **Why.** It broke\n  once (#1).\n- **Probe.** architecture §4.3.\n")
 GOOD_REFERENCE = "# R\n\nWhat these rules are about.\n\n" + RULE
 
 
@@ -56,7 +56,8 @@ def script(root: Path, rel: str, text: str) -> Path:
 def fixture(root: Path) -> None:
     """Write a tree holding one clean skill and everything it names."""
     write(root, "docs/parser-library.md", "### `known`\n")
-    write(root, "docs/ir-design.md", "## 4. Types\n\n### 4.3 Unions\n")
+    write(root, "docs/architecture.md", "## 4. Types\n\n### 4.3 Unions\n")
+    write(root, "docs/ir/models.md", "# Models\n\n```\n# not a heading\n```\n\n## The flattening\n")
     write(root, "ir/a.go", "package ir\n")
     write(root, "cmd/morphic-harness/main.go", "package main\n")
     skill = ".claude/skills/good-skill/"
@@ -103,7 +104,7 @@ class LintTest(unittest.TestCase):
     def test_each_planted_problem_is_reported(self):
         skill = ".claude/skills/Bad_Skill/"
         front = "---\nname: other\ndescription: For tests.\n---\n\n"
-        body = ("Bad `ir/nope.go`, prose ir/gone.go, TestMissing, ir-design §99.1,"
+        body = ("Bad `ir/nope.go`, prose ir/gone.go, TestMissing, architecture §99.1,"
                 " parser-library.md#nope,\n"
                 "`morphic-nope`, [x](references/none.md), /U" "sers/someone.\n"
                 "Run `python3 scripts/gone.py --flag` and `go test ./ir/nope/...`, by `no-rule`.\n"
@@ -127,7 +128,7 @@ class LintTest(unittest.TestCase):
             f"{bad}SKILL.md:7: ir/nope.go does not exist",
             f"{bad}SKILL.md:7: ir/gone.go does not exist",
             f"{bad}SKILL.md:7: no test named TestMissing",
-            f"{bad}SKILL.md:7: docs/ir-design.md has no section 99.1",
+            f"{bad}SKILL.md:7: docs/architecture.md has no section 99.1",
             f"{bad}SKILL.md:7: docs/parser-library.md has no entry nope",
             f"{bad}SKILL.md:8: no skill or command named morphic-nope",
             f"{bad}SKILL.md:8: link target references/none.md does not exist",
@@ -297,21 +298,35 @@ class LintTest(unittest.TestCase):
 
     def test_a_section_wrapped_onto_the_next_line_is_checked_once(self):
         skill = ".claude/skills/good-skill/SKILL.md"
-        write(self.root, skill, GOOD_SKILL + "See ir-design\n"
-              "§99.1 and ir-design §97.1, then ir-design §\n98.2, but ir-design §4.3 holds.\n")
+        write(self.root, skill, GOOD_SKILL + "See architecture\n"
+              "§99.1 and architecture §97.1, then architecture §\n98.2, but architecture §4.3 holds.\n")
         n = GOOD_SKILL.count("\n") + 1
-        want = [f"{skill}:{n}: docs/ir-design.md has no section 99.1",
-                f"{skill}:{n + 1}: docs/ir-design.md has no section 97.1",
-                f"{skill}:{n + 1}: docs/ir-design.md has no section 98.2"]
+        want = [f"{skill}:{n}: docs/architecture.md has no section 99.1",
+                f"{skill}:{n + 1}: docs/architecture.md has no section 97.1",
+                f"{skill}:{n + 1}: docs/architecture.md has no section 98.2"]
         self.assertEqual(self.lint()[1], want)
 
     def test_a_section_naming_no_document_is_reported(self):
         skill = ".claude/skills/good-skill/SKILL.md"
-        write(self.root, skill, GOOD_SKILL + "See ir-design §4.3 and §4.3, RFC 3986 §5.2, or\n"
-              "ir-design.md\n§4.3.\n")
+        write(self.root, skill, GOOD_SKILL + "See architecture §4.3 and §4.3, RFC 3986 §5.2, or\n"
+              "architecture.md\n§4.3.\n")
         n = GOOD_SKILL.count("\n") + 1
-        want = f"{skill}:{n}: a § names no document: name it first, as in ir-design §N"
+        want = f"{skill}:{n}: a § names no document: name it first, as in architecture §N"
         self.assertEqual(self.lint()[1], [want])
+
+    def test_the_ir_design_is_cited_by_heading_and_not_by_number(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill, GOOD_SKILL + "See `docs/ir/models.md#the-flattening` and\n"
+              "`docs/ir/models.md#gone`, `docs/ir/models.md#not-a-heading`,\n"
+              "`docs/ir/gone.md#x`, and ir-design §4.3.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        want = [f"{skill}:{n + 1}: docs/ir/models.md has no heading gone",
+                f"{skill}:{n + 1}: docs/ir/models.md has no heading not-a-heading",
+                f"{skill}:{n + 2}: a § names no document: name it first, as in architecture §N",
+                f"{skill}:{n + 2}: names a retired page: cite a document of docs/ir or docs/emitters",
+                f"{skill}:{n + 2}: docs/ir/gone.md#x does not exist",
+                f"{skill}:{n + 2}: docs/ir/gone.md has no heading x"]
+        self.assertEqual(sorted(self.lint()[1]), sorted(want))
 
     def test_a_scalar_is_read_as_yaml_reads_it(self):
         cases = {"Use when: plain": "Use when: plain", "'it''s'": "it's",

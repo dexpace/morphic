@@ -55,8 +55,9 @@ in a second channel. The first rule that applies decides:
    the response carries no content, or the binding's method is `HEAD`, whose response has no body
    (RFC 9110 §9.3.2). An operation with no primary response returns only an error, and "Which entry
    answers" below says which statuses raise one.
-2. **`raw`** — the elected content is a file (`Content.File`, ir-design §7.2): the body reaches the
-   caller unread, a byte stream beside the media type it arrived as, and nothing decodes it.
+2. **`raw`** — the elected content is a file (`Content.File`, [payloads](../../ir/payloads.md)): the
+   body reaches the caller unread, a byte stream beside the media type it arrived as, and nothing
+   decodes it.
 3. **`stream`** — the elected content streams ([streams](streams.md)): frames are read one at a
    time, as `Stream` describes ([streaming](../operations/streaming.md)).
 4. **`value`** — otherwise: the elected content's codec decodes the body into `Type`, whatever its
@@ -127,7 +128,8 @@ be a union, a list or a primitive as well as a model, and where each lands in th
 A response takes, across the primary response, `Others` and `Errors`, the entry with the most
 specific condition that holds — an exact status, then a range, then the catch-all — and the first
 such entry where several tie, so a declared `202` never reaches a catch-all. A status's class bounds
-a catch-all (ir-design §7.2): a primary `Default` holds only below 400, and the catch-all of
-`Errors` for no 2xx. A 2xx no entry answers is a success the document does not list, so it reads as
-`Return` does: a server that starts sending a `201` must not turn a call that worked into a failure.
-Any other status no entry answers is a failure ([failures](../operations/errors.md)).
+a catch-all ([responses](../../ir/responses.md)): a primary `Default` holds only below 400, and the
+catch-all of `Errors` for no 2xx. A 2xx no entry answers is a success the document does not list, so
+it reads as `Return` does: a server that starts sending a `201` must not turn a call that worked
+into a failure. Any other status no entry answers is a failure
+([failures](../operations/errors.md)).

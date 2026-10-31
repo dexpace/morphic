@@ -13,8 +13,8 @@ import (
 )
 
 // Ptr joins tokens into an RFC 6901 JSON pointer, escaping each one. IDs are
-// derived from the pointers it builds (ir-design §3.1); the grammar wrapped
-// around a pointer to make an ID belongs to the framework.
+// derived from the pointers it builds (docs/ir/identity.md); the grammar
+// wrapped around a pointer to make an ID belongs to the framework.
 //
 // A position beneath another is base + Ptr(tokens...): joining two valid
 // pointers yields a valid pointer, so extending one never takes it apart.
@@ -32,13 +32,14 @@ func Ptr(tokens ...string) jsontext.Pointer {
 
 // Scope joins segments into an Unmodeled key scope: Ptr's escaping without the
 // leading separator, since a scope is a relative path rather than a pointer
-// (ir-design §12).
+// (docs/ir/unmodeled.md#keys).
 //
 // It exists for the scopes holding a segment the document chooses — a form
 // part's name, a callback's — where an unescaped "/" makes one segment read as
 // two. Two parts named "q" and "q/x-a" then wrote one key between them and the
-// surviving entry followed declaration order, silently, which is what §4.3
-// forbids a minted node and §12 promises a scoped key.
+// surviving entry followed declaration order, silently, which is what
+// docs/ir/models.md#composition-beside-a-union forbids a minted node and
+// docs/ir/unmodeled.md#keys promises a scoped key.
 func Scope(segments ...string) string {
 	return strings.TrimPrefix(string(Ptr(segments...)), "/")
 }
@@ -54,19 +55,20 @@ const (
 	OpenAPISpace compile.Space = "openapi"
 	AnonSpace    compile.Space = "anon"
 	// ComposedSpace holds the Models synthesized for distributed union variants
-	// (§4.3) — nodes no schema in the source occupies. The branch pointer denotes
-	// the branch schema, so a $ref naming it must keep resolving to the branch,
-	// and the variant must not be reachable by any pointer a $ref can spell.
-	// ForPointer yields only the openapi and anon spaces, so
-	// resolveSchemaRef can never hand a composed ID to a reference; compile.Types
-	// rejects the mistake of minting into a space that addresses coordinates.
+	// (docs/ir/models.md#composition-beside-a-union) — nodes no schema in the
+	// source occupies. The branch pointer denotes the branch schema, so a $ref
+	// naming it must keep resolving to the branch, and the variant must not be
+	// reachable by any pointer a $ref can spell. ForPointer yields only the
+	// openapi and anon spaces, so resolveSchemaRef can never hand a composed ID
+	// to a reference; compile.Types rejects the mistake of minting into a space
+	// that addresses coordinates.
 	ComposedSpace compile.Space = "composed"
 )
 
 // The spaces an operation group is addressed in. No OpenAPI construct is a
 // group: a Tag Object is metadata about a name, and an operation may tag itself
 // with a name no Tag Object declares. The grouping rule mints the group, so each
-// rule takes a namespace of its own (ir-design §3.1), distinct from
+// rule takes a namespace of its own (docs/ir/identity.md), distinct from
 // OpenAPISpace, which addresses source coordinates. The first two are named for
 // the strategy that forms the group, the last two for the one group they hold.
 const (
@@ -82,8 +84,8 @@ const (
 
 // DefaultServerSpace names the one server OpenAPI supplies, at "/", for a
 // document that declares none. No position in the source writes it, so it is
-// minted rather than found, in a space of its own (ir-design §3.1), apart from
-// OpenAPISpace, where a declared server is addressed by its pointer.
+// minted rather than found, in a space of its own (docs/ir/identity.md), apart
+// from OpenAPISpace, where a declared server is addressed by its pointer.
 const DefaultServerSpace compile.Space = "default"
 
 // TagGroup returns the stable ID of the group of operations whose first tag is
@@ -176,7 +178,8 @@ func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
 }
 
 // ComposedType returns the stable ID of the Model synthesized for the
-// distributed union variant at a branch pointer in d (§4.3).
+// distributed union variant at a branch pointer in d
+// (docs/ir/models.md#composition-beside-a-union).
 func (d Document) ComposedType(branchPointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(branchPointer))
 }

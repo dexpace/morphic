@@ -27,7 +27,7 @@ components:
         - {$ref: '#/components/schemas/B'}
       minProperties: 2
     # An inline branch names no referent to conjoin Base with, so this union is
-    # kept verbatim instead of half-distributed (ir-design 4.8).
+    # kept verbatim instead of half-distributed (docs/ir/boundaries.md#degraded-constructs).
     MixedKinds:
       type: object
       properties:

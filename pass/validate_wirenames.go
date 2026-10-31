@@ -42,7 +42,7 @@ func checkDuplicateWireNames(doc *ir.Document) []ir.Diagnostic {
 // same model also answers to, by its wire name or by an alias of its own: a
 // reader resolving a writer's field by that name has two to choose from, which
 // is why Avro holds an alias to the uniqueness of names. The scope is the one
-// checkDuplicateWireNames holds, a model's own properties (ir-design §3.2).
+// checkDuplicateWireNames holds, a model's own properties (docs/ir/naming.md).
 //
 // A source can write one, so it is a problem in the spec rather than an
 // irverify violation. A repeat within one property's own names is irverify's

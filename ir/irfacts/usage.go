@@ -37,14 +37,14 @@ const spreadingUsage = UsageInput | UsageOutput | UsageError
 // multipartPrefix starts the media type of every multipart body.
 const multipartPrefix = "multipart/"
 
-// Usage returns how the type id is used across the API surface (ir-design
-// §4.9): 0 for a type no root reaches and for an id the document does not
-// declare. The roots are the places an operation, the messages its binding
-// names, a service's common errors, a channel or an auth scheme name a type. A
-// request is written and a response read, and an operation the API itself
-// starts, a webhook or a callback, swaps the two. A flag spreads along the type
-// graph, and a field argument makes the type it names Input. Operations nested
-// past ir.MaxGroupDepth are not read.
+// Usage returns how the type id is used across the API surface
+// (docs/ir/derived-facts.md): 0 for a type no root reaches and for an id the
+// document does not declare. The roots are the places an operation, the
+// messages its binding names, a service's common errors, a channel or an auth
+// scheme name a type. A request is written and a response read, and an
+// operation the API itself starts, a webhook or a callback, swaps the two. A
+// flag spreads along the type graph, and a field argument makes the type it
+// names Input. Operations nested past ir.MaxGroupDepth are not read.
 func (x *Index) Usage(id ir.TypeID) UsageFlags {
 	return x.usageIndex()[id]
 }
@@ -183,7 +183,7 @@ func (r usageRoots) operation(doc *ir.Document, op *ir.Operation, inbound bool) 
 	}
 	if def := op.Default; def != nil {
 		// The default comes back like any response; whether it is an error the
-		// IR does not say (ir-design §7.2), so it is not marked one.
+		// IR does not say (docs/ir/responses.md), so it is not marked one.
 		r.payload(def.Payload, response)
 		r.headers(def.Headers, response)
 	}

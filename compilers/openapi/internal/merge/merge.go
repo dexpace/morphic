@@ -68,7 +68,8 @@ func NewPropIndex(m *ir.Model, later func(Settle)) *PropIndex {
 // MergeProperty appends p to the model, or records it as one more declaration
 // of the field that already carries its wire name: overlapping allOf branches
 // (and properties co-declared alongside allOf) redeclare one logical field
-// under allOf's intersection semantics (ir-design §4.3). Callers must set
+// under allOf's intersection semantics
+// (docs/compilers/openapi.md#allof-redeclared-property). Callers must set
 // p.WireName (fillModelProperties always does); it keys idx directly.
 //
 // p.Provenance locates the declaration and is the only source of that fact

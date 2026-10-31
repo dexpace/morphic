@@ -45,7 +45,8 @@ throughout these documents.
     element, a map value and a content, generate byte-identical artifacts
     ([decorators](../refine/decorators.md)), a variant's name included. Which nodes are decorators
     is `ir.Decorated`'s, whose own test enumerates the fields of `Model`, `Scalar` and `TypeCommon`
-    by reflection and fails on one ir-design §4.10 has not classified.
+    by reflection and fails on one [annotations](../../ir/annotations.md#decorators) has not
+    classified.
 17. **T-17 · Type table** — each target's built-in table has, at every options version, a row for
     every `PrimKind` `ir` declares, read through `internal/decls`; a user row replaces the built-in
     row under its key whole; an encoding with no row falls back to its primitive's and is reported

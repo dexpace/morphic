@@ -84,7 +84,7 @@ components:
 
 // wantReadOnlyVisibility is the Visibility EffectiveVisibility produces for
 // readOnly: visible in every response lifecycle, absent from requests
-// (ir-design §5.2).
+// (docs/ir/properties.md#visibility).
 var wantReadOnlyVisibility = ir.Visibility{
 	Only: []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery},
 }

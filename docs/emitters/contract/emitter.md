@@ -25,8 +25,7 @@ type Emitter interface {
 
 type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
-    Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion (ir-design
-                                  // §4.9), indexed ONCE by the engine, shared with the plan (below)
+    Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
     Plan    *plan.Plan            // language-neutral decisions, computed ONCE by the engine (../plan/overview.md)
     Policy  policy.Policy         // runtime/SDK behavior — a SEPARATE tree, never in the IR (INV10; runtime-policy.md)
     Hints   map[EntityID]ShapeHint// SDK-shaping hints keyed by IR stable ID (shaping-hints.md)
@@ -89,12 +88,12 @@ the plan inline; the function is the same.
 
 The derived facts work the same way. The engine builds one `irfacts.Index` for the document once the
 last pass has run, since an index answers for the document it was built from and a pass may change
-it (ir-design §4.9), and hands that index to `plan.Build` and, as `EmitterInput.Facts`, to every
-`Generate`. So the strongly connected components a refiner reads to break a recursive reference
-([recursive references](../refine/models.md#recursive-references)) are found once per document, not
-once per target. An index is safe for concurrent use, so targets running side by side share it. It
-is not serialized: a consumer outside the process rebuilds it from the document, which determines
-it.
+it ([derived-facts](../../ir/derived-facts.md)), and hands that index to `plan.Build` and, as
+`EmitterInput.Facts`, to every `Generate`. So the strongly connected components a refiner reads to
+break a recursive reference ([recursive references](../refine/models.md#recursive-references)) are
+found once per document, not once per target. An index is safe for concurrent use, so targets
+running side by side share it. It is not serialized: a consumer outside the process rebuilds it from
+the document, which determines it.
 
 ## Contract rules the type system and tests enforce
 

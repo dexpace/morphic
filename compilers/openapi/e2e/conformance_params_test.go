@@ -402,7 +402,8 @@ func assertParamAllowReservedLocations(t *testing.T, doc *ir.Document, diags []i
 // carrier, so the identical property is asserted beside it (GitHub #131). The
 // bound the use site declares beside the $ref is asserted at both carriers
 // against the referent's own: use-site precedence would publish 100 as the
-// whole truth while the document enforces 64 (§12.2, GitHub #428).
+// whole truth while the document enforces 64
+// (docs/ir/annotations.md#what-a-reference-carries-down, GitHub #428).
 func assertParamRefInheritance(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "listItems")
 	require.True(t, ok)

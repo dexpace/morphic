@@ -549,7 +549,8 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	// branches only narrow which properties are required. That is validation
 	// logic, not shape — dependentRequired's sibling — so the structural body
 	// survives and the union is preserved under ReasonValidationOnly, the reason
-	// a validation emitter selects on (ir-design §4.7).
+	// a validation emitter selects on
+	// (docs/ir/boundaries.md#validation-only-constructs).
 	spec := openapitest.ComponentSpec(`    Thing:
       type: object
       additionalProperties: false
@@ -573,10 +574,10 @@ func TestLower_ConstraintOnlyUnionIsValidationOnly(t *testing.T) {
 	require.True(t, ok, "the union is kept verbatim under Unmodeled")
 	assert.Contains(t, string(raw.Value), "required")
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
-		"constraint-only branches narrow the body without reshaping it (ir-design §4.7)")
+		"constraint-only branches narrow the body without reshaping it (docs/compilers/openapi.md#union-beside-structure)")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Thing/oneOf"), raw.Provenance.Pointer)
 	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo),
-		"the union is reported with §4.7's keyword family; got %+v", diags)
+		"the union is reported with the validation-only keyword family; got %+v", diags)
 }
 
 func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
@@ -607,7 +608,7 @@ func TestLower_BooleanUnionBranchDeclaresNoShape(t *testing.T) {
 	raw, ok := m.Unmodeled["openapi:oneOf"]
 	require.True(t, ok, "the union is kept verbatim under Unmodeled")
 	assert.Equal(t, ir.ReasonValidationOnly, raw.Reason,
-		"boolean branches declare no shape, so the union is validation-only (ir-design §4.7)")
+		"boolean branches declare no shape, so the union is validation-only (docs/compilers/openapi.md#union-beside-structure)")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Flag/oneOf"), raw.Provenance.Pointer)
 }
 

@@ -4,11 +4,11 @@
 package ir
 
 // Decorated returns the reference td decorates, and false when td is no
-// decorator (ir-design §4.10): an anonymous Model or Scalar whose Base is set
-// and which says nothing about a value that its Base does not. Beside its
-// identity it may set only the annotations a use site can hold, Availability
-// and Unmodeled, so any other field it sets, one the IR gains included, keeps
-// it a type of its own.
+// decorator (docs/ir/annotations.md#decorators): an anonymous Model or Scalar
+// whose Base is set and which says nothing about a value that its Base does
+// not. Beside its identity it may set only the annotations a use site can hold,
+// Availability and Unmodeled, so any other field it sets, one the IR gains
+// included, keeps it a type of its own.
 func Decorated(td TypeDef) (TypeRef, bool) {
 	var base *TypeRef
 	var common *TypeCommon

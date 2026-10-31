@@ -56,7 +56,7 @@ func TestLower_ValidationOnlyKeywords(t *testing.T) {
 	assert.GreaterOrEqual(t, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo), 5)
 }
 
-// TestLower_PropertyNamesPreserved pins the whole §4.7 contract for
+// TestLower_PropertyNamesPreserved pins the whole validation-only contract for
 // propertyNames end to end: the verbatim payload, the reason a validation
 // emitter selects on, and the one info diagnostic naming the keyword (#117).
 func TestLower_PropertyNamesPreserved(t *testing.T) {
@@ -395,7 +395,8 @@ func TestInlinePosition_ReachedAgainWhileBuildingIsLeftToItsBuilder(t *testing.T
 // names the position's home ahead of its declaration, and the position
 // must not then take the shared node its body reduced to, which would leave the
 // annotations on a node only the outside reference sees and resolve `items` to
-// the bare primitive: a declaration-order dependence ir-design §4.3 rules out.
+// the bare primitive: a declaration-order dependence
+// docs/ir/models.md#composition-beside-a-union rules out.
 //
 // The first assertion is the strongest statement of the rule: the lowering
 // cannot depend on whether an unrelated schema points at an inner pointer.

@@ -28,11 +28,12 @@ import (
 // lowering produced has nowhere to carry (GitHub #148, #151).
 //
 // Two source shapes reach it. A contradictory schema takes one half and keeps the
-// other beside it, which is ir-design §4.8's rule about a degraded lowering
-// (docs/compilers/openapi.md#shape-applicator). And an applicator with no
-// `type` beside it still constrains an instance — {items: {type: string}}
-// constrains every array — where the position lowers to the top type, which
-// understates it entirely.
+// other beside it, the rule about a degraded lowering in
+// docs/ir/boundaries.md#degraded-constructs and
+// docs/compilers/openapi.md#shape-applicator. And an applicator with no `type`
+// beside it still constrains an instance — {items: {type: string}} constrains
+// every array — where the position lowers to the top type, which understates it
+// entirely.
 func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	untyped := map[string]struct{ keyword, raw string }{
 		"UntypedItems":         {"items", `{"type":"string"}`},
@@ -309,7 +310,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // no IR combinator, so the merge keeps the first declaration and, under
 // docs/compilers/openapi.md#allof-redeclared-property, the loser verbatim
 // (GitHub #424). The entry holds the declaration as written, not the dropped IR
-// value, because ir-design §12 defines an Unmodeled value as the source
+// value, because docs/ir/unmodeled.md defines an Unmodeled value as the source
 // construct; that keeps the nullable bit a target ID would lose (GitHub #445).
 //
 // Described is the same event where the types agree but both branches fill the
@@ -640,9 +641,9 @@ func assertParamXMLResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	}
 }
 
-// assertDependentRequired pins dependentRequired as a §4.7 validation-only
-// keyword. The library binds no field for it, which is why it was the one member
-// of that family being dropped silently (GitHub #125).
+// assertDependentRequired pins dependentRequired as a validation-only keyword.
+// The library binds no field for it, which is why it was the one member of that
+// family being dropped silently (GitHub #125).
 func assertDependentRequired(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	card, ok := doc.Types[componentID("Card")].(*ir.Model)
 	require.True(t, ok, "the structural body still lowers")
@@ -688,7 +689,7 @@ func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	// The outside $ref reaches the contentSchema position first, and what is
 	// under it is still spelled from the declaration: the order-invariance oracle
 	// is what proves the two orders agree, and this is what says which spelling
-	// won (§4.3).
+	// won (docs/ir/models.md#composition-beside-a-union).
 	feed, ok := doc.Types[componentID("Feed")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, feed.Encoding)

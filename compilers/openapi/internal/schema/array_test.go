@@ -20,8 +20,8 @@ import (
 // the bounds beside them. 2020-12 applies items to every element past
 // prefixItems and reads an absent one as `true`, so only `items: false` closes
 // the tuple. The rest is modeled, so nothing is kept beside it and nothing is
-// reported as degraded; an unevaluatedItems stays the §4.7 keeper's whatever
-// the rest is.
+// reported as degraded; an unevaluatedItems stays the validation-only keeper's
+// whatever the rest is.
 func TestLower_TupleRest(t *testing.T) {
 	t.Parallel()
 	const head = "      type: array\n      prefixItems: [{type: string}, {type: integer}]\n"
