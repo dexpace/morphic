@@ -156,7 +156,7 @@ func tableConstructs(path, head string) ([]string, error) {
 	if len(rows) <= tableHeadRows {
 		return nil, nil
 	}
-	constructs := make([]string, 0, len(rows)-tableHeadRows)
+	var constructs []string
 	for _, row := range rows[tableHeadRows:] {
 		cell, rest := cutCell(row)
 		if strings.Trim(rest, " |") != "" {

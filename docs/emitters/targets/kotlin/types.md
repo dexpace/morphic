@@ -24,5 +24,5 @@ the root's type, and its serializer, in every signature.
 
 ## Enums
 
-A Kotlin entry lives in its enum class and takes the member's name alone (`ACTIVE`, as the naming
-policy cases it).
+An enum's forms are in the [lowering table](lowering.md). A Kotlin entry lives in its enum class and
+takes the member's name alone (`ACTIVE`, as the naming policy cases it).

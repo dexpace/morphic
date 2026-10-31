@@ -119,11 +119,11 @@ func documentLinkProblems(root, path, rel string) ([]string, int, error) {
 				continue
 			}
 			links++
-			why, err := brokenLink(path, m[1])
+			why, broken, err := brokenLink(path, m[1])
 			if err != nil {
 				return nil, 0, err
 			}
-			if why != "" {
+			if broken {
 				problems = append(problems, fmt.Sprintf("%s:%d links %q, %s", rel, i+1, m[1], why))
 			}
 		}
@@ -131,31 +131,33 @@ func documentLinkProblems(root, path, rel string) ([]string, int, error) {
 	return problems, links, nil
 }
 
-// brokenLink says what is wrong with target, a relative link from the document
-// at doc, or "" when it resolves. A fragment is held to the headings of a
-// Markdown target only, since another file has none.
-func brokenLink(doc, target string) (string, error) {
+// brokenLink says whether target, a relative link from the document at doc,
+// resolves to nothing, and why. A fragment is held to the headings of a Markdown
+// target only, since another file has none.
+func brokenLink(doc, target string) (why string, broken bool, err error) {
 	file, fragment, _ := strings.Cut(target, "#")
 	resolved := doc
 	if file != "" {
 		resolved = filepath.Join(filepath.Dir(doc), file)
 	}
-	if _, err := os.Stat(resolved); errors.Is(err, fs.ErrNotExist) {
-		return "which names no file", nil
-	} else if err != nil {
-		return "", err
+	_, err = os.Stat(resolved)
+	if errors.Is(err, fs.ErrNotExist) {
+		return "which names no file", true, nil
+	}
+	if err != nil {
+		return "", false, err
 	}
 	if fragment == "" || filepath.Ext(resolved) != ".md" {
-		return "", nil
+		return "", false, nil
 	}
 	text, err := os.ReadFile(resolved)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if !headingSlugs(string(text))[fragment] {
-		return "whose file has no such heading", nil
+		return "whose file has no such heading", true, nil
 	}
-	return "", nil
+	return "", false, nil
 }
 
 // goCitationProblems reports each broken citation in a comment of the Go file
@@ -207,11 +209,11 @@ func commentCitationProblems(root, path, rel string) ([]string, error) {
 func citationProblems(root, rel string, line int, text string, cite *regexp.Regexp) ([]string, error) {
 	var problems []string
 	for _, cited := range cite.FindAllString(text, -1) {
-		why, err := brokenLink(filepath.Join(root, rel), filepath.Join(citedFrom(rel), cited))
+		why, broken, err := brokenLink(filepath.Join(root, rel), filepath.Join(citedFrom(rel), cited))
 		if err != nil {
 			return nil, err
 		}
-		if why != "" {
+		if broken {
 			problems = append(problems, fmt.Sprintf("%s:%d cites %s, %s", rel, line, cited, why))
 		}
 	}
@@ -256,11 +258,11 @@ func headingSlugs(text string) map[string]bool {
 			continue
 		}
 		slug := headingSlug(m[1])
+		fragment := slug
 		if n := seen[slug]; n > 0 {
-			slugs[fmt.Sprintf("%s-%d", slug, n)] = true
-		} else {
-			slugs[slug] = true
+			fragment = fmt.Sprintf("%s-%d", slug, n)
 		}
+		slugs[fragment] = true
 		seen[slug]++
 	}
 	return slugs
