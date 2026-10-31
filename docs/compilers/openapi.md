@@ -1222,6 +1222,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFieldPointer_NamesTheSchemaHoldingEveryDeclaration`,
   `merge.TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn`,
   `merge.TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity`,
+  `e2e.TestAllOf_ACollisionPastTheFlatteningDepthIsRefused`,
   `merge.TestSelectBase_ChoosesAsTheRuleSays`,
   `schema.TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem`,
   `schema.TestAllOf_AComposedFieldKeepsADiscriminatedBase`,
@@ -1295,7 +1296,9 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
   (#1042); two models alike in every property compose rather than collapse to one type (#1083); a
   model and a map or a union are reported as types the merge does not compare (#1182), and so are two
-  lists, tuples or maps whose members are different models (#1180). Open:
+  lists, tuples or maps whose members are different models (#1180); a model and the wrapper it
+  flattens that fold different sets only because the model stops at the flattening depth are refused
+  as `compile/registry-refused`, not told apart, since they name one field pointer. Open:
   intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted
   value against the constraints written on the property (#10).
 

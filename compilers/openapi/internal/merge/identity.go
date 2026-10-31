@@ -15,7 +15,8 @@ import (
 // declarations reaches that schema, and no two sets reach one, because a
 // wrapper's declarations are all in every model that flattens it. The first or
 // last declaration alone could not say so: a model and a wrapper it flattens
-// may share either while folding different sets.
+// may share either while folding different sets. Past the flattening depth a
+// model can miss what its wrapper reads, and Register refuses that collision.
 func fieldPointer(decls []declaration) jsontext.Pointer {
 	first := decls[0].prop.Provenance.Pointer
 	schema := schemaOf(first)
