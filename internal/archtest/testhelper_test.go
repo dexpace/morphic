@@ -160,8 +160,10 @@ func TestTestHelperViolations_ReadsTheNamesAFileImports(t *testing.T) {
 
 // TestTestHelperViolations_ReadsTheModulesTestingInterfaces plants helpers
 // that take an interface the module declares in place of a testing type, as
-// openapitest.TB stands in for *testing.T, and a type parameter constrained by
-// either. Each is planted beside an interface it must not be taken for.
+// openapitest.TB stands in for *testing.T, or a type parameter constrained by
+// either. Each that takes a module interface is planted beside one it must not
+// be taken for, and a name is read in the scope that declares it: a type
+// parameter's, or a package's beside its external test package.
 func TestTestHelperViolations_ReadsTheModulesTestingInterfaces(t *testing.T) {
 	t.Parallel()
 	const tb = "package a\n\nimport \"testing\"\n\ntype TB interface {\n\tHelper()\n\tFatal(...any)\n}\n\n" +
@@ -183,6 +185,9 @@ func TestTestHelperViolations_ReadsTheModulesTestingInterfaces(t *testing.T) {
 			"b/p_test.go": fmt.Sprintf(imported, "", module, "morphic.TB")}, "b/p_test.go:9"},
 		{"one embedding testing.TB", map[string]string{"a/tb.go": tb,
 			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.Embeds")}, "b/p_test.go:9"},
+		{"an external test package's own", map[string]string{"a/tb.go": tb,
+			"a/p_test.go": "package a_test\n\nimport \"testing\"\n\ntype Own interface {\n\tHelper()\n\tFatal(...any)\n}\n\n" +
+				"func check(t Own) { t.Fatal(1) }\n" + caller}, "a/p_test.go:10"},
 		{"a type parameter constrained by a testing type",
 			map[string]string{"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check[T testing.TB](t T) { t.Fatal(1) }\n" +
 				caller}, "a/p_test.go:5"},
@@ -197,6 +202,19 @@ func TestTestHelperViolations_ReadsTheModulesTestingInterfaces(t *testing.T) {
 		{"a type parameter constrained otherwise",
 			map[string]string{"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check[T interface{ Fatal(...any) }](t T) " +
 				"{ t.Fatal(1) }\n" + caller}, ""},
+		{"a type parameter named like a module interface", map[string]string{"a/tb.go": tb,
+			"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check[TB Fails](t TB) { t.Fatal(1) }\n" + caller}, ""},
+		{"a type parameter whose constraint points to one named like it", map[string]string{"a/tb.go": tb,
+			"a/p_test.go": "package a\n\nimport \"github.com/stretchr/testify/assert\"\n\n" +
+				"func check[U *TB, TB Fails](t U) { assert.NotNil(nil, t) }\n\ntype f struct{}\n\nfunc (f) Fatal(...any) {}\n\n" +
+				"func use() { check[*f](nil) }\n"}, ""},
+		{"an external test package's own type of that name", map[string]string{"a/tb.go": tb,
+			"a/p_test.go": "package a_test\n\nimport \"testing\"\n\ntype TB interface{ Fatal(...any) }\n\n" +
+				"func check(t TB) { t.Fatal(1) }\n" + caller}, ""},
+		{"an imported directory's external test type", map[string]string{
+			"a/tb.go":      "package a\n\ntype TB interface{ Fatal(...any) }\n",
+			"a/tb_test.go": "package a_test\n\ntype TB interface {\n\tHelper()\n\tFatal(...any)\n}\n",
+			"b/p_test.go":  fmt.Sprintf(imported, "", module+"/a", "a.TB")}, ""},
 		{"a name another directory declares", map[string]string{"a/tb.go": tb,
 			"b/p_test.go": "package b\n\nimport \"testing\"\n\nfunc check(t TB) { t.Fatal(1) }\n" + caller}, ""},
 		{"a package outside the module", map[string]string{"a/tb.go": tb,
@@ -248,8 +266,9 @@ func TestTestHelperViolations_EntryPointsAreTestFilesOwn(t *testing.T) {
 }
 
 // TestTestHelperViolations_CallsCountWithinAPackage pins that a call counts from
-// any file of the helper's directory, and from none outside it: one helper of
-// that name called elsewhere says nothing of a case body here.
+// any file of the helper's package, and from none outside it, an external test
+// package in its directory included: one helper of that name called elsewhere
+// says nothing of a case body here.
 func TestTestHelperViolations_CallsCountWithinAPackage(t *testing.T) {
 	t.Parallel()
 	const helper = "package p\n\nimport \"testing\"\n\nfunc check(t *testing.T) { t.Fatal(1) }\n"
@@ -259,12 +278,16 @@ func TestTestHelperViolations_CallsCountWithinAPackage(t *testing.T) {
 	writeDocFile(t, filepath.Join(root, "a/b_test.go"), caller)
 	writeDocFile(t, filepath.Join(root, "c/c_test.go"), helper)
 	writeDocFile(t, filepath.Join(root, "d/d_test.go"), caller)
+	writeDocFile(t, filepath.Join(root, "e/in_test.go"), strings.Replace(helper, "package p", "package e", 1)+
+		"\nvar cases = []func(*testing.T){check}\n")
+	writeDocFile(t, filepath.Join(root, "e/ext_test.go"), "package e_test\n\nimport \"testing\"\n\n"+
+		"func check(t *testing.T) {\n\tt.Helper()\n\tt.Fatal(1)\n}\n\nfunc TestP(t *testing.T) { check(t) }\n")
 
 	got, helpers, err := testHelperViolations(root)
 	require.NoError(t, err)
 	want := []string{"a/a_test.go:5: an asserting helper starts with its Helper call"}
 	assert.Empty(t, cmp.Diff(want, got))
-	assert.Equal(t, 2, helpers)
+	assert.Equal(t, 4, helpers)
 }
 
 // testHelperViolations returns a line for each function under root that breaks
@@ -281,16 +304,15 @@ func testHelperViolations(root string) ([]string, int, error) {
 	var pending []pendingHelper
 	helpers := 0
 	err = walkGoFiles(root, func(rel string, fset *token.FileSet, f *ast.File) {
-		dir := path.Dir(rel)
+		ft := fileTypes{dir: path.Dir(rel), pkg: f.Name.Name, names: importNames(f), ifaces: ifaces}
 		ast.Inspect(f, func(n ast.Node) bool {
 			if call, ok := n.(*ast.CallExpr); ok {
 				if id, ok := calledName(call.Fun); ok {
-					called[dir+"/"+id] = true
+					called[declKey(ft.dir, ft.pkg, id)] = true
 				}
 			}
 			return true
 		})
-		ft := fileTypes{dir: dir, names: importNames(f), ifaces: ifaces}
 		for _, decl := range f.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
 			if !ok || fn.Recv != nil || fn.Body == nil || (strings.HasSuffix(rel, "_test.go") && isEntryPoint(fn.Name.Name)) {
@@ -302,7 +324,7 @@ func testHelperViolations(root string) ([]string, int, error) {
 			}
 			helpers++
 			if !startsWithHelper(fn.Body, params) {
-				pending = append(pending, pendingHelper{rel, dir, fn.Name.Name, fset.Position(fn.Pos()).Line})
+				pending = append(pending, pendingHelper{rel, declKey(ft.dir, ft.pkg, fn.Name.Name), fn.Name.Name, fset.Position(fn.Pos()).Line})
 			}
 		}
 	})
@@ -311,7 +333,7 @@ func testHelperViolations(root string) ([]string, int, error) {
 	}
 	var violations []string
 	for _, h := range pending {
-		if called[h.dir+"/"+h.name] || ast.IsExported(h.name) {
+		if called[h.key] || ast.IsExported(h.name) {
 			violations = append(violations,
 				fmt.Sprintf("%s:%d: an asserting helper starts with its Helper call", h.rel, h.line))
 		}
@@ -322,10 +344,17 @@ func testHelperViolations(root string) ([]string, int, error) {
 
 // pendingHelper is a function that asserts and does not start with t.Helper,
 // which breaks the rule if something calls it directly: the calls are not all
-// read until the walk ends.
+// read until the walk ends. Its key is declKey's.
 type pendingHelper struct {
-	rel, dir, name string
+	rel, key, name string
 	line           int
+}
+
+// declKey names a top-level declaration by its directory under the root, its
+// package clause and its name. A directory can hold a package and its external
+// test package, which share neither declarations nor calls.
+func declKey(dir, pkg, name string) string {
+	return dir + "/" + pkg + "." + name
 }
 
 // assertPaths are the testify packages whose functions fail a test from where
@@ -391,7 +420,7 @@ func isEntryPoint(name string) bool {
 	})
 }
 
-// helperInterfaces returns, keyed dir/name, each interface a file under root
+// helperInterfaces returns, keyed by declKey, each interface a file under root
 // declares at top level whose own methods include Helper or that embeds a
 // testing type: a helper can take one in place of *testing.T, as
 // openapitest.TB stands in for it. One that has Helper only through a module
@@ -411,7 +440,7 @@ func helperInterfaces(root string) (map[string]bool, error) {
 					continue
 				}
 				if it, ok := ts.Type.(*ast.InterfaceType); ok && ft.declaresHelper(it) {
-					out[path.Dir(rel)+"/"+ts.Name.Name] = true
+					out[declKey(path.Dir(rel), f.Name.Name, ts.Name.Name)] = true
 				}
 			}
 		}
@@ -420,12 +449,12 @@ func helperInterfaces(root string) (map[string]bool, error) {
 }
 
 // fileTypes is what reading a type in one file needs: the file's directory
-// under the root, what importNames read of it, and helperInterfaces' result.
-// A directory stands for its package, as only code that builds is read.
+// under the root and its package clause, what importNames read of it, and
+// helperInterfaces' result.
 type fileTypes struct {
-	dir    string
-	names  map[string][]string
-	ifaces map[string]bool
+	dir, pkg string
+	names    map[string][]string
+	ifaces   map[string]bool
 }
 
 // declaresHelper reports whether it names a Helper method or embeds a testing
@@ -444,16 +473,37 @@ func (ft fileTypes) declaresHelper(it *ast.InterfaceType) bool {
 // variadic parameter is left out, as its elements are not read by name, and so
 // is a constraint that is a union or an interface literal.
 func (ft fileTypes) testingParams(fn *ast.FuncDecl) []string {
-	var typeParams []string
-	if fn.Type.TypeParams != nil {
-		typeParams = ft.namesOf(fn.Type.TypeParams.List, nil)
+	return ft.namesOf(fn.Type.Params.List, ft.typeParams(fn))
+}
+
+// typeParams maps each of fn's type parameters to whether its constraint is a
+// testing type. Every one of them is in scope in each constraint, where it is
+// never a testing type: a constraint can name one only under a pointer, which
+// has no methods.
+func (ft fileTypes) typeParams(fn *ast.FuncDecl) map[string]bool {
+	if fn.Type.TypeParams == nil {
+		return nil
 	}
-	return ft.namesOf(fn.Type.Params.List, typeParams)
+	fields := fn.Type.TypeParams.List
+	inScope := map[string]bool{}
+	for _, field := range fields {
+		for _, name := range field.Names {
+			inScope[name.Name] = false
+		}
+	}
+	out := make(map[string]bool, len(inScope))
+	for _, field := range fields {
+		byTesting := ft.isTesting(field.Type, inScope)
+		for _, name := range field.Names {
+			out[name.Name] = byTesting
+		}
+	}
+	return out
 }
 
 // namesOf returns the names of fields whose type isTesting reads as a testing
 // type.
-func (ft fileTypes) namesOf(fields []*ast.Field, typeParams []string) []string {
+func (ft fileTypes) namesOf(fields []*ast.Field, typeParams map[string]bool) []string {
 	var out []string
 	for _, field := range fields {
 		if !ft.isTesting(field.Type, typeParams) {
@@ -467,16 +517,21 @@ func (ft fileTypes) namesOf(fields []*ast.Field, typeParams []string) []string {
 }
 
 // isTesting reports whether typ, less any pointer, is one of testingKinds, an
-// interface helperInterfaces found, or one of typeParams, whose constraints
-// are such types. A module interface is written bare in its own directory and
-// through an import elsewhere. A local alias of a testing type is not read.
-func (ft fileTypes) isTesting(typ ast.Expr, typeParams []string) bool {
+// interface helperInterfaces found, or a type parameter that typeParams maps
+// to true; a type parameter's name hides an interface's. A module interface is
+// written bare in its own package and through an import elsewhere, whose
+// clause is its path's last element. A local alias of a testing type is not
+// read.
+func (ft fileTypes) isTesting(typ ast.Expr, typeParams map[string]bool) bool {
 	if star, ok := typ.(*ast.StarExpr); ok {
 		typ = star.X
 	}
 	switch x := typ.(type) {
 	case *ast.Ident:
-		return ft.ifaces[ft.dir+"/"+x.Name] || slices.Contains(typeParams, x.Name)
+		if byTesting, ok := typeParams[x.Name]; ok {
+			return byTesting
+		}
+		return ft.ifaces[declKey(ft.dir, ft.pkg, x.Name)]
 	case *ast.SelectorExpr:
 		pkg, ok := x.X.(*ast.Ident)
 		if !ok {
@@ -486,7 +541,7 @@ func (ft fileTypes) isTesting(typ ast.Expr, typeParams []string) bool {
 			return true
 		}
 		for p, names := range ft.names {
-			if dir, ok := moduleDir(p); ok && slices.Contains(names, pkg.Name) && ft.ifaces[dir+"/"+x.Sel.Name] {
+			if dir, ok := moduleDir(p); ok && slices.Contains(names, pkg.Name) && ft.ifaces[declKey(dir, path.Base(p), x.Sel.Name)] {
 				return true
 			}
 		}
