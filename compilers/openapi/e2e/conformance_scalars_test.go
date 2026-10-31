@@ -186,7 +186,7 @@ func assertSelectedPrimitives(t *testing.T, doc *ir.Document, h *ir.Model) {
 		assert.Equal(t, ir.PrimTypeID(want), p.Type.Target, "%s selects the shared primitive", wire)
 		prim, ok := doc.Types[p.Type.Target].(*ir.Primitive)
 		require.True(t, ok, "%s's primitive is interned", wire)
-		assert.Equal(t, want, prim.Prim)
+		assert.Equal(t, want, prim.Prim, "%s's node is the primitive it selects", wire)
 	}
 }
 
