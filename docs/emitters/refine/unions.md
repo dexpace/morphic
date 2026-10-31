@@ -52,8 +52,8 @@ All four wire shapes decode in one order: the variant the tag or the key names, 
 recognition finds; then `Discriminator.Default`, for a tag it does not name or no tag at all; then,
 on an `Open` union ([plan policy](../plan/policy.md)), the fallback; and otherwise a coded decode
 error. A tag that names a variant whose body fails to decode is an error either way: the variant is
-known, and the value does not match it. The fallback is one more variant, holding the value as the
-target's untyped JSON value ([Go](../targets/go/unions.md#the-fallback),
+known, and the value does not match it. The fallback is one more variant, `Unknown`, holding the
+value as the target's untyped JSON value ([Go](../targets/go/unions.md#the-fallback),
 [Kotlin](../targets/kotlin/unions.md#the-fallback)). It re-encodes as the same JSON value, its
 members in order and each number's text intact. It has no factory, since only a response produces
 one, and one a caller sends back goes out as it came. A closed union declares none.

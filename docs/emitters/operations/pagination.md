@@ -16,3 +16,11 @@ bound `HTTPBinding{GET /users, query limit+cursor}`.
 ItemType:User, ItemPath:body→items, CursorIn:cursor, CursorOut:next_cursor}
 }`: each page decodes as the response's own type, and `Page` takes the items from it. Item-type
 unwrap is a plan decision. Pacing delay is **not** here — it is runtime policy.
+
+## What a target generates
+
+`LowerPagination` emits an auto-pager: it walks pages using `CursorOut` to read `next_cursor` and
+`CursorIn` to feed it back, yields each item deserialized elementwise over `ItemPath`, stops when a
+fetch fails, and fetches no further page once the caller stops reading. The pager *runtime*, the
+fetch-and-pace loop, is boilerplate parameterised by `Policy.Pagination.AutoPageDelay` — the
+legitimate boilerplate seam ([structure and boilerplate](../emit/templates.md)).
