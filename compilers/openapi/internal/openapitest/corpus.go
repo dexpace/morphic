@@ -126,8 +126,13 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 	var tokens []string
 	switch n.Kind {
 	case yaml.MappingNode:
+		// The raw pairs: a `<<` key is a token of its own here, and the keys it
+		// merges are asked about only below it (#1188).
 		for i := 0; i+1 < len(n.Content); i += 2 {
 			key, value := n.Content[i], n.Content[i+1]
+			if key.Kind == yaml.AliasNode {
+				key = key.Alias // a key reads as the node its alias names
+			}
 			children, tokens = append(children, value), append(tokens, key.Value)
 			if key.Value == "$ref" && value.Kind == yaml.ScalarNode {
 				*refs = append(*refs, written{site: at, value: value.Value})

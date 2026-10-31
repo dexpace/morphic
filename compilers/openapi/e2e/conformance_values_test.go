@@ -48,6 +48,12 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 	require.NotNil(t, flag.Default)
 	assert.Equal(t, ir.Value{Kind: ir.ValueBool, Bool: true}, *flag.Default)
 
+	cleared, ok := propByWire(m, "cleared")
+	require.True(t, ok)
+	require.NotNil(t, cleared.Default, "a written null is a default, not the absence of one")
+	assert.Equal(t, ir.Value{Kind: ir.ValueNull}, *cleared.Default)
+	assert.True(t, cleared.Type.Nullable, "and the type admits it")
+
 	blob, ok := propByWire(m, "blob")
 	require.True(t, ok)
 	require.NotNil(t, blob.Default)

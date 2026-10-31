@@ -1509,7 +1509,8 @@ discriminated ancestor carries no tag however deep. A variant of a distributed `
 - Cases: `discriminator-transitive`, `discriminator-inline-subtype`
 - Tests: `schema.TestAllOf_DiscriminatorSubtypeValue`,
   `schema.TestAllOf_DiscriminatorValueFromNearestAncestor`,
-  `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`
+  `schema.TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue`,
+  `schema.TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping`
 
 ### `string-const-union`
 
@@ -1706,11 +1707,12 @@ names the encoding instead; where the two name different encodings the format is
 for its format carries the bounds written beside it. The table is the same at every minor, and a
 pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)'.
 
-- Cases: `encoding-byte`
+- Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
   `schema.TestLower_NamedScalarComponentResolves`,
-  `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`
+  `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
+  `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
 - Status: partly built: `date-time-local` and `time-local` hoist over `string`, and `time`'s offset
   has no home (#869), and a `byte` string and a string-carried number put the logical and the wire
   type on opposite fields (#637).
@@ -2584,7 +2586,7 @@ rule table's to report instead ([`minor-required-fields`](#minor-required-fields
 the rules this one reports, a requirement naming no scheme and a scheme naming no mechanism, and
 leaves them to it.
 
-- Cases: `security-schemes`, `security-or-and`, `oauth2-no-flow`
+- Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `oauth2-no-flow`
 - Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`, `openapi/unresolved-ref`
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused`,
