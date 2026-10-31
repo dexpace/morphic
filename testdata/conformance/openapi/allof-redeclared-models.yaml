@@ -109,3 +109,52 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/Recording'}
+    # A $ref into a branch makes a model carrying the first declaration alone,
+    # so the field the branches make together is another property.
+    RefIntoBranch:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Recording'}
+    BranchUser:
+      type: object
+      properties:
+        branch: {$ref: '#/components/schemas/RefIntoBranch/allOf/0'}
+    # A model and the wrapper it flattens share a first declaration, and fold
+    # different sets, so each field names a composition of its own.
+    SharedFirst:
+      allOf:
+        - allOf:
+            - type: object
+              properties:
+                data: {$ref: '#/components/schemas/Meeting'}
+            - type: object
+              properties:
+                data: {$ref: '#/components/schemas/Recording'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Pet'}
+    FirstWrapperUser:
+      type: object
+      properties:
+        wrapper: {$ref: '#/components/schemas/SharedFirst/allOf/0'}
+    # The same with the wrapper last: the two share a last declaration.
+    SharedLast:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Pet'}
+        - allOf:
+            - type: object
+              properties:
+                data: {$ref: '#/components/schemas/Meeting'}
+            - type: object
+              properties:
+                data: {$ref: '#/components/schemas/Recording'}
+    LastWrapperUser:
+      type: object
+      properties:
+        wrapper: {$ref: '#/components/schemas/SharedLast/allOf/1'}

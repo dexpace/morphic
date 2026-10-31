@@ -52,6 +52,8 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 			reg[m.ID] = m
 			return m.ID
 		},
+		Interned: func(jsontext.Pointer) bool { return false },
+		PropAt:   func(pointer jsontext.Pointer) ir.PropID { return "p/test" + ir.PropID(pointer) },
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
@@ -59,8 +61,8 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	return g, recorded
 }
 
-// composedAt is the ID stubMerger mints a composition under, for a field first
-// declared at pointer.
+// composedAt is the ID stubMerger mints a composition under, for the field at
+// pointer.
 func composedAt(pointer jsontext.Pointer) ir.TypeID { return "t/composed" + ir.TypeID(pointer) }
 
 // foldTwo folds src, rendered by source, into dst, a first declaration with
@@ -70,14 +72,14 @@ func foldTwo(g *Merger, dst, src ir.Property, source Source) ir.Property {
 }
 
 // indexOver returns an index filling m, and settle, which folds what the index
-// queued against reg and reports through g, as Finish takes the compiler's
-// completions once every lowering has returned.
-func indexOver(m *ir.Model, reg map[ir.TypeID]ir.TypeDef, g *Merger) (idx *PropIndex, settle func()) {
+// queued through g, as Finish takes the compiler's completions once every
+// lowering has returned.
+func indexOver(m *ir.Model, g *Merger) (idx *PropIndex, settle func()) {
 	var queued []Settle
 	idx = NewPropIndex(m, func(s Settle) { queued = append(queued, s) })
 	return idx, func() {
 		for _, s := range queued {
-			s(reg, g.Mint, g.Report)
+			s(g)
 		}
 		queued = nil
 	}
@@ -111,10 +113,9 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 
 	reg["t/uri"] = &ir.Primitive{ID: "t/uri", Prim: ir.PrimURL}
 	reg["t/bool"] = &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool}
-	var settled []ir.Diagnostic
-	queued[0](reg, nil, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-		settled = append(settled, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
-	})
+	g, recorded := stubMerger(reg)
+	queued[0](g)
+	settled := *recorded
 
 	assert.Equal(t, ir.TypeID("t/uri"), m.Properties[0].Type.Target,
 		"the narrower type wins, judged against a node the walk had not built")
@@ -162,7 +163,7 @@ func TestMergeProperty_AppendsThenFolds(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	m := &ir.Model{}
-	idx, settle := indexOver(m, nil, g)
+	idx, settle := indexOver(m, g)
 
 	idx.MergeProperty(ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")}, unread(t))
 	idx.MergeProperty(ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t))

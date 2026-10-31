@@ -962,10 +962,10 @@ components:
 	require.NoError(t, err)
 	assert.Empty(t, diags)
 	for _, tc := range []struct{ model, composed, mixin ir.TypeID }{
-		{"t/openapi/components/schemas/F", "t/composed/components/schemas/F/allOf/0/properties/p", "t/openapi/components/schemas/A"},
+		{"t/openapi/components/schemas/F", "t/composed/components/schemas/F/properties/p", "t/openapi/components/schemas/A"},
 		{
 			"t/openapi@other.yaml/components/schemas/F",
-			"t/composed@other.yaml/components/schemas/F/allOf/0/properties/p",
+			"t/composed@other.yaml/components/schemas/F/properties/p",
 			"t/openapi@other.yaml/components/schemas/A",
 		},
 	} {

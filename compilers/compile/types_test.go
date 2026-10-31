@@ -275,3 +275,32 @@ func TestTypes_RefusesANamespaceUsedBothWays(t *testing.T) {
 		})
 	}
 }
+
+// TestTypes_RegisterRefusesADifferentNodeUnderOneID pins what a colliding ID may
+// be. One node minted alike twice is registered once, while a different node is
+// a minting bug: an overwrite would change what every reference to the ID means,
+// silently, so it is refused and the held node stands.
+func TestTypes_RegisterRefusesADifferentNodeUnderOneID(t *testing.T) {
+	t.Parallel()
+	first, other := ir.TypeRef{Target: "t/first"}, ir.TypeRef{Target: "t/other"}
+	mint := func(ref ir.TypeRef) *ir.Model { return &ir.Model{ID: "t/minted", Mixins: []ir.TypeRef{ref}} }
+	for _, tc := range []struct {
+		name    string
+		again   *ir.Model
+		refused int
+	}{
+		{"alike", mint(first), 0},
+		{"different", mint(other), 1},
+	} {
+		types := compile.NewTypes()
+		held := mint(first)
+
+		types.Register("t/minted", held)
+		types.Register("t/minted", tc.again)
+
+		assert.Len(t, types.Violations(), tc.refused, tc.name)
+		got, ok := types.Node("t/minted")
+		assert.True(t, ok, tc.name)
+		assert.Same(t, held, got, tc.name)
+	}
+}

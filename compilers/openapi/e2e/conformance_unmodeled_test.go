@@ -374,8 +374,8 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 // assertAllOfRedeclaredModels pins that a field declared as several models names
 // one minted model composing each declaration, in either branch order, with
 // nothing kept but the one value no declaration's own type can answer for. The
-// composition sits at the first declaration's pointer in the composed space, and
-// the conjuncts stay the nodes the source wrote.
+// composition sits at the field's pointer in the composed space, and the
+// conjuncts stay the nodes the source wrote.
 func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const schemas = "/components/schemas/"
 	meeting, recording := ir.TypeID("t/openapi"+schemas+"Meeting"), ir.TypeID("t/openapi"+schemas+"Recording")
@@ -402,7 +402,7 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 		p := owner.Properties[0]
 		assert.Equal(t, tc.field, p.WireName, tc.model)
 		assert.Equal(t, tc.nullable, p.Type.Nullable, tc.model)
-		want := ir.TypeID("t/composed" + schemas + tc.model + "/allOf/0/properties/" + tc.field)
+		want := ir.TypeID("t/composed" + schemas + tc.model + "/properties/" + tc.field)
 		require.Equal(t, want, p.Type.Target, tc.model)
 		m, ok := doc.Types[want].(*ir.Model)
 		require.True(t, ok, tc.model)

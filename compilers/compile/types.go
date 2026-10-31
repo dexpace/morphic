@@ -6,6 +6,7 @@ package compile
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -174,14 +175,15 @@ func (t *Types) Intern(pointer string, id ir.TypeID, build func() ir.TypeDef) ir
 }
 
 // Register records td under id, a node a lowering or a Settlement mints rather
-// than finds, without associating it with any source coordinate. A composed
-// union variant is one: its coordinate denotes the branch schema it was built
-// from, so interning it there would race for one pointer.
+// than finds, with no source coordinate: a composed union variant's denotes the
+// branch schema it was built from, so interning it there would race for one
+// pointer.
 //
 // Prefer Intern for a node with a source coordinate: it enforces one node per
-// coordinate and terminates recursion. Register overwrites a colliding ID, a
-// minting bug or one node minted alike twice, as a distributed union's variants
-// mint a composed field. claimSpace checks the namespace.
+// coordinate and terminates recursion. A colliding ID must be one node minted
+// alike twice, as a distributed union's variants mint a composed field. Any
+// other is a minting bug, refused with the held node standing. claimSpace
+// checks the namespace.
 func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
 	if id == "" {
 		t.refuse("register rejected: empty type id")
@@ -195,9 +197,13 @@ func (t *Types) Register(id ir.TypeID, td ir.TypeDef) {
 	// cause, and dropping the node would add dangling references on top of it —
 	// a second symptom of the same bug, further from its source.
 	t.claimSpace(id, true)
-	if _, held := t.reg[id]; !held {
-		t.minted++
+	if held, ok := t.reg[id]; ok {
+		if !reflect.DeepEqual(held, td) {
+			t.refuse("register rejected: id=%q already holds a different node", id)
+		}
+		return
 	}
+	t.minted++
 	t.reg[id] = td
 }
 

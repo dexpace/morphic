@@ -81,18 +81,26 @@ type settledMerge struct {
 // rewrites the model's property, and adds a node only through mint.
 func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	s.fold(reg, s.mint, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-		diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
+	s.fold(&merge.Merger{
+		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
+		Mint:    s.mint,
+		Interned: func(pointer jsontext.Pointer) bool {
+			_, ok := s.ts.Lookup(s.c.IDs().Coordinate(pointer))
+			return ok
+		},
+		PropAt: s.c.IDs().Prop,
+		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+			diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
+		},
 	})
 	return diags
 }
 
-// mint registers m, the composition of a field's declarations, the first of
-// them written at pointer. That pointer denotes the declaration's own schema,
-// so m takes the ID of a node no schema occupies (ids.ComposedType) and points
-// back at it, as a distributed variant points at its branch. The variants of
-// one distributed union fold the same declarations, so each mints this one
-// node, alike, as each carries the field's one PropID.
+// mint registers m, the composition of the field at pointer. A $ref may name a
+// schema written there, so m takes the ID of a node no schema occupies
+// (ids.ComposedType) and points back at it, as a distributed variant points at
+// its branch. The variants of one distributed union fold the same declarations,
+// so each mints this one node, alike.
 func (s settledMerge) mint(pointer jsontext.Pointer, m *ir.Model) ir.TypeID {
 	id := s.c.IDs().ComposedType(pointer)
 	m.TypeCommon = commonFor(s.c, id, pointer)

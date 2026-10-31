@@ -43,8 +43,14 @@ func composeRegistry() map[ir.TypeID]ir.TypeDef {
 	}
 }
 
-// declaredAt is where the nth declaration of a field is written.
-func declaredAt(n int) jsontext.Pointer { return jsontext.Pointer(fmt.Sprintf("/d/%d", n)) }
+// declaredAt is where the nth declaration of a field is written, each in an
+// allOf branch of the schema composedField names the field of.
+func declaredAt(n int) jsontext.Pointer {
+	return jsontext.Pointer(fmt.Sprintf("/s/allOf/%d/properties/data", n))
+}
+
+// fieldAtSchema is the pointer of the field declaredAt's declarations make.
+const fieldAtSchema = jsontext.Pointer("/s/properties/data")
 
 // nthDecl is the nth declaration of a field, of target.
 func nthDecl(n int, target ir.TypeID) declaration {
@@ -93,7 +99,7 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 
 			got := g.fold(declsOf(tc.targets...))
 
-			require.Equal(t, composedAt(declaredAt(0)), got.Type.Target, "the field takes the minted model")
+			require.Equal(t, composedAt(fieldAtSchema), got.Type.Target, "the field takes the minted model")
 			m, ok := reg[got.Type.Target].(*ir.Model)
 			require.True(t, ok, "the minted model is registered")
 			assert.Empty(t, cmp.Diff(tc.mixins, targetsOf(m.Mixins)), "mixins")

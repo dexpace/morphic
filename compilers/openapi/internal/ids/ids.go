@@ -56,9 +56,9 @@ const (
 	// ComposedSpace holds the Models synthesized for distributed union variants
 	// (§4.3) and for a field redeclared as several models
 	// (docs/compilers/openapi.md#allof-redeclared-property) — nodes no schema in
-	// the source occupies. The pointer denotes what is written there, so a $ref
-	// naming it must keep resolving to that. One path ends in oneOf or anyOf and
-	// an index and the other in properties and a name, so the two never meet.
+	// the source occupies. A $ref naming the pointer must keep resolving to
+	// whatever is written there. One path ends in oneOf or anyOf and an index and
+	// the other in properties and a name, so the two never meet.
 	// ForPointer yields only the openapi and anon spaces, so resolveSchemaRef can
 	// never hand a composed ID to a reference; compile.Types rejects the mistake
 	// of minting into a space that addresses coordinates.
@@ -178,8 +178,8 @@ func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
 }
 
 // ComposedType returns the stable ID of the Model synthesized at pointer in d:
-// a distributed union variant's branch (§4.3), or the first declaration of a
-// field redeclared as several models.
+// a distributed union variant's branch (§4.3), or the field a schema's
+// declarations of several models make together.
 func (d Document) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(pointer))
 }

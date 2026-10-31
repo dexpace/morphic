@@ -931,16 +931,17 @@ const redeclaredModelsSpec = `    Meeting:
 `
 
 // composedField returns the model the field wire of the component name composes
-// to, and asserts its ID is first, the field's first declaration, in the
-// composed space, and that it is anonymous and points back at that declaration.
-func composedField(t *testing.T, doc *ir.Document, name, wire, first string) *ir.Model {
+// to, and asserts its ID is the field's pointer in the composed space, and that
+// it is anonymous and points back at that pointer.
+func composedField(t *testing.T, doc *ir.Document, name, wire string) *ir.Model {
 	t.Helper()
 	p := propertyOf(t, doc, name, wire)
-	want := ir.TypeID("t/composed/components/schemas/" + name + first)
+	field := "/components/schemas/" + name + "/properties/" + wire
+	want := ir.TypeID("t/composed" + field)
 	require.Equal(t, want, p.Type.Target)
 	m, ok := doc.Types[want].(*ir.Model)
 	require.True(t, ok, "%s should hold a registered model", want)
-	assert.Equal(t, "/components/schemas/"+name+first, string(m.Provenance.Pointer), "it points back at the first declaration")
+	assert.Equal(t, field, string(m.Provenance.Pointer), "it points back at the field")
 	assert.True(t, m.Anonymous)
 	return m
 }
@@ -962,7 +963,7 @@ func TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem(t *testing.T) {
 		{"T", "t/anon/components/schemas/T/allOf/1/properties/data"},
 		{"U", "t/anon/components/schemas/U/allOf/0/properties/data"},
 	} {
-		m := composedField(t, doc, tc.name, "data", "/allOf/0/properties/data")
+		m := composedField(t, doc, tc.name, "data")
 		require.NotNil(t, m.Base, tc.name)
 		assert.Equal(t, componentID("Meeting"), m.Base.Target, tc.name)
 		require.Len(t, m.Mixins, 1, tc.name)
@@ -998,7 +999,7 @@ func TestAllOf_AComposedFieldKeepsADiscriminatedBase(t *testing.T) {
         - {type: object, properties: {pet: {$ref: '#/components/schemas/Pet'}}}
 `))
 	assert.Empty(t, diags)
-	m := composedField(t, doc, "Owner", "pet", "/allOf/0/properties/pet")
+	m := composedField(t, doc, "Owner", "pet")
 	require.NotNil(t, m.Base)
 	assert.Equal(t, componentID("Pet"), m.Base.Target)
 	require.Len(t, m.Mixins, 1)
@@ -1035,7 +1036,7 @@ func TestAllOf_EveryDistributedVariantSharesOneComposedField(t *testing.T) {
         - {$ref: '#/components/schemas/D'}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	const shared = ir.TypeID("t/composed/components/schemas/S/allOf/0/properties/data")
+	const shared = ir.TypeID("t/composed/components/schemas/S/properties/data")
 	for _, variant := range []ir.TypeID{
 		"t/composed/components/schemas/S/oneOf/0",
 		"t/composed/components/schemas/S/oneOf/1",
@@ -1090,7 +1091,7 @@ func TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor(t *testing.T) {
 			continue
 		}
 		assert.Empty(t, diags, name)
-		m := composedField(t, doc, "T", "v", "/allOf/0/properties/v")
+		m := composedField(t, doc, "T", "v")
 		require.Len(t, m.Mixins, 2, name)
 		assert.Equal(t, tc.mixins, []ir.TypeID{m.Mixins[0].Target, m.Mixins[1].Target}, name)
 	}

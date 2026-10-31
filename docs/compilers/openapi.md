@@ -1049,7 +1049,8 @@ every entry reads that one twice.
 ### `allof-redeclared-property`
 
 `allOf` intersection folds a field declared in more than one branch into one `Property` (§4.3),
-which keeps the first declaration's identity. The fold reads every declaration of the field at once,
+which keeps the first declaration's identity unless another model carries that declaration. The
+fold reads every declaration of the field at once,
 once every type has lowered, and decides each fact from the whole set, so neither the order of the
 branches nor where a component is declared decides what the field holds; declaration order breaks
 only a tie, and the merge reports each one. One judgment compares two declarations' types and
@@ -1106,9 +1107,18 @@ both, whichever branch comes first, rather than flattening them into one propert
 no conjunct, and any other type beside the models (a map, a kind, a degraded node) leaves the choice
 to the rule above. Every declaration then folds into the field, so none is dropped for its type, and
 each conjunct keeps the node its own pointer denotes. The minted model's ID is in the `composed`
-namespace (§3.1, §4.3), derived from the first declaration's pointer, which its provenance records,
-so no `$ref` reaches it. The variants of a distributed union fold the same declarations, so they
-share that one node.
+namespace (§3.1, §4.3), so no `$ref` reaches it, and derives from the field's pointer, which its
+provenance records: the wire name under `properties` of the narrowest schema holding every
+declaration, whether or not that schema writes one there. A model and a wrapper it flattens can
+share a first declaration or a last one while folding different sets, and only that pointer tells
+them apart. Folds of one set share the one node, as the variants of a distributed union do.
+
+A `$ref` to an `allOf` branch or wrapper makes a model carrying the declarations under it and not
+the others, so one declaration can stand on two models whose fields differ. Where a node stands at a
+schema inside the field's that holds its first declaration, the field is a different property from
+that node's: it takes the field's pointer for its `PropID` and its provenance, and the model's
+discriminator follows it. Every other fold keeps the first declaration's identity, which the walk has
+already handed out.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
 silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its
@@ -1203,6 +1213,9 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_AComposedFieldKeepsEveryDeclarationsDetail`,
   `merge.TestFold_AComposedFieldAdoptsOnlyANull`,
   `merge.TestFold_ComposesOnlyTheDeclarationsItJudges`,
+  `merge.TestFieldPointer_NamesTheSchemaHoldingEveryDeclaration`,
+  `merge.TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn`,
+  `merge.TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity`,
   `merge.TestSelectBase_ChoosesAsTheRuleSays`,
   `schema.TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem`,
   `schema.TestAllOf_AComposedFieldKeepsADiscriminatedBase`,

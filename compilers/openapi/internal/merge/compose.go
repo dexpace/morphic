@@ -72,7 +72,7 @@ func (f *folding) compose() ir.TypeID {
 		}
 		composed.Mixins = append(composed.Mixins, ref)
 	}
-	return f.g.Mint(f.at(0), composed)
+	return f.g.Mint(f.field, composed)
 }
 
 // SelectBase returns which entry of a composition becomes Model.Base, given

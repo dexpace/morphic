@@ -27,6 +27,10 @@ type Merger struct {
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
 	// Mint registers the model a field's declarations compose to.
 	Mint Mint
+	// Interned reports whether a node stands at a pointer.
+	Interned func(jsontext.Pointer) bool
+	// PropAt returns the ID of a property at a pointer.
+	PropAt func(jsontext.Pointer) ir.PropID
 	// Report records one diagnostic a fold draws.
 	Report Reporter
 }
@@ -41,9 +45,9 @@ type declaration struct {
 // fold returns the property decls make together under allOf intersection
 // (ir-design §4.3, docs/compilers/openapi.md#allof-redeclared-property). decls
 // is every declaration of one wire name, at least two, in declaration order;
-// the field keeps the first one's identity. Every fact is decided from the
-// whole set, so declaration order decides only a tie, and the merge reports
-// each one. What a declaration says that the field does not carry is reported
+// the field keeps the first one's identity unless another model carries that
+// declaration (identify). Every fact is decided from the whole set, so
+// declaration order decides only a tie, and the merge reports each one. What a declaration says that the field does not carry is reported
 // at that declaration, which is kept verbatim beside the field.
 //
 // A fold judges every pair of declarations, so it judges at most
@@ -53,7 +57,8 @@ func (g *Merger) fold(decls []declaration) ir.Property {
 	if len(decls) > maxFoldDeclarations {
 		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
 	}
-	f := newFolding(g, judged)
+	field := fieldPointer(judged)
+	f := newFolding(g, judged, field)
 	f.foldType()
 	f.foldConstraints()
 	f.foldValues()
@@ -62,6 +67,7 @@ func (g *Merger) fold(decls []declaration) ir.Property {
 	f.foldAnnotations()
 	f.foldUnmodeled()
 	merged := f.finish()
+	g.identify(&merged, field)
 	g.keepUnjudged(&merged, past)
 	return merged
 }
@@ -93,6 +99,8 @@ func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) {
 type folding struct {
 	g     *Merger
 	decls []declaration
+	// field is the field's pointer (fieldPointer).
+	field jsontext.Pointer
 	// rel[i][j] is the judgment of decls[i]'s type against decls[j]'s.
 	rel [][]relation
 	// winner is the declaration whose type the field takes, and cone marks
@@ -120,11 +128,11 @@ type note struct {
 
 // newFolding judges every pair of decls once, picks the winner (widestCone) or
 // the models to compose (composition), and starts the field from the first
-// declaration, whose identity it keeps.
-func newFolding(g *Merger, decls []declaration) *folding {
+// declaration.
+func newFolding(g *Merger, decls []declaration, field jsontext.Pointer) *folding {
 	n := len(decls)
 	f := &folding{
-		g: g, decls: decls, rel: make([][]relation, n), cone: make([]bool, n),
+		g: g, decls: decls, field: field, rel: make([][]relation, n), cone: make([]bool, n),
 		notes: make([][]note, n), lost: make([]bool, n), merged: decls[0].prop,
 	}
 	for i := range n {
