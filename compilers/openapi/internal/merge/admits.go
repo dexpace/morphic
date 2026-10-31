@@ -25,7 +25,7 @@ const (
 	uint64Max ir.BigVal = "18446744073709551615"
 )
 
-// The IEEE 754 formats admits judges against: decimal128's digit budget and
+// The IEEE 754 formats Admits judges against: decimal128's digit budget and
 // exponent range, and the mantissa width and top exponent of each binary float.
 const (
 	decimal128Digits    = 34

@@ -154,6 +154,31 @@ paths:
 	assert.Contains(t, unmodeled, "openapi:content/text~1plain")
 }
 
+// TestPassedOverEntries_NamesOnlyWhatItKept holds the warning to what reached
+// the IR: an entry whose node cannot be kept is reported as unpreservable, and
+// naming it as kept as well would announce a preservation that did not happen.
+func TestPassedOverEntries_NamesOnlyWhatItKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - name: p
+          in: query
+          content:
+            application/json: {schema: {type: integer}}
+            application/xml: {x-twice: 1, x-twice: 2}
+            text/plain: {schema: {type: string}}
+      responses: {"200": {description: ok}}
+`))
+	_, mediaType, unmodeled := electedParam(t, doc)
+	assert.Equal(t, "application/json", mediaType)
+	assert.Equal(t, []string{"openapi:content/text~1plain"}, slices.Sorted(maps.Keys(unmodeled)))
+	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+		"/paths/~1x/get/parameters/0/content"), `"application/json" is lowered and text/plain kept verbatim under Unmodeled`)
+}
+
 // TestElectContentEntry_OneEntryIsSilent is the control: the legal one-entry
 // spelling must not warn, or every content-style header and parameter would.
 func TestElectContentEntry_OneEntryIsSilent(t *testing.T) {

@@ -212,9 +212,6 @@ func TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed(t *testing.T) 
 	}
 }
 
-// TestStreaming_OrdinaryContentDoesNotStream is the negative half: without a
-// streaming media type the operation core keeps its zero values, so every spec
-// that does not stream is untouched by this classification.
 // TestStreaming_AFileBodyStreamsBytes holds Events on a file body to bytes. Its
 // schema describes the file rather than a frame, so what it says of the whole
 // names no element, and two such contents agree on one. Each Content keeps its
@@ -238,6 +235,9 @@ func TestStreaming_AFileBodyStreamsBytes(t *testing.T) {
 	assert.NotEqual(t, op.Request.Contents[0].Type, op.Request.Contents[1].Type)
 }
 
+// TestStreaming_OrdinaryContentDoesNotStream is the negative half: without a
+// streaming media type the operation core keeps its zero values, so every spec
+// that does not stream is untouched by this classification.
 func TestStreaming_OrdinaryContentDoesNotStream(t *testing.T) {
 	t.Parallel()
 	doc, _ := streamingSpec(t, eventStreamSpec("3.1.0", "application/json"), openapi.Options{})
