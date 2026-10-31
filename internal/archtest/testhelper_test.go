@@ -42,8 +42,9 @@ func TestTestHelpers_StartWithHelper(t *testing.T) {
 	}
 }
 
-// TestTestHelperViolations_PlantedShapesAreCaught plants each kind of function
-// the rule reaches and each it leaves alone, in a package's test files.
+// TestTestHelperViolations_PlantedShapesAreCaught plants, in one test file,
+// each kind of function taking testing's own types that the rule reaches and
+// each it leaves alone. The tests below plant what turns on other files.
 func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 	t.Parallel()
 	const head = "package p\n\nimport (\n\t\"log\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/assert\"\n" +
@@ -157,6 +158,95 @@ func TestTestHelperViolations_ReadsTheNamesAFileImports(t *testing.T) {
 	}
 }
 
+// TestTestHelperViolations_ReadsTheModulesTestingInterfaces plants helpers
+// that take an interface the module declares in place of a testing type, as
+// openapitest.TB stands in for *testing.T, and a type parameter constrained by
+// either. Each is planted beside an interface it must not be taken for.
+func TestTestHelperViolations_ReadsTheModulesTestingInterfaces(t *testing.T) {
+	t.Parallel()
+	const tb = "package a\n\nimport \"testing\"\n\ntype TB interface {\n\tHelper()\n\tFatal(...any)\n}\n\n" +
+		"type Embeds interface{ testing.TB }\n\ntype Fails interface{ Fatal(...any) }\n"
+	const caller = "\nfunc TestP(t *testing.T) { check(t) }\n"
+	const imported = "package b\n\nimport (\n\t\"testing\"\n\n\t%s\"%s\"\n)\n\nfunc check(t %s) { t.Fatal(1) }\n" + caller
+	tests := []struct {
+		name  string
+		files map[string]string // by path under the root
+		want  string            // the line reported, "" for none
+	}{
+		{"its own package's", map[string]string{"a/tb.go": tb,
+			"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check(t TB) { t.Fatal(1) }\n" + caller}, "a/p_test.go:5"},
+		{"another package's", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.TB")}, "b/p_test.go:9"},
+		{"another package's, imported under another name", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "x ", module+"/a", "x.TB")}, "b/p_test.go:9"},
+		{"the module root's", map[string]string{"tb.go": strings.Replace(tb, "package a", "package morphic", 1),
+			"b/p_test.go": fmt.Sprintf(imported, "", module, "morphic.TB")}, "b/p_test.go:9"},
+		{"one embedding testing.TB", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.Embeds")}, "b/p_test.go:9"},
+		{"a type parameter constrained by a testing type",
+			map[string]string{"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check[T testing.TB](t T) { t.Fatal(1) }\n" +
+				caller}, "a/p_test.go:5"},
+		{"a type parameter constrained by a pointer to one",
+			map[string]string{"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check[T *testing.T](t T) { t.Fatal(1) }\n" +
+				caller}, "a/p_test.go:5"},
+		{"a type parameter constrained by a module interface", map[string]string{"a/tb.go": tb,
+			"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check[U any, T TB](t T) { t.Fatal(1) }\n" + caller},
+			"a/p_test.go:5"},
+		{"an interface with no Helper", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.Fails")}, ""},
+		{"a type parameter constrained otherwise",
+			map[string]string{"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check[T interface{ Fatal(...any) }](t T) " +
+				"{ t.Fatal(1) }\n" + caller}, ""},
+		{"a name another directory declares", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": "package b\n\nimport \"testing\"\n\nfunc check(t TB) { t.Fatal(1) }\n" + caller}, ""},
+		{"a package outside the module", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "", "example.com/a", "a.TB")}, ""},
+		{"a path outside the module that names a directory", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "", "a", "a.TB")}, ""},
+		{"another import's type of the same name", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": "package b\n\nimport (\n\t\"testing\"\n\n\t_ \"" + module + "/a\"\n\tc \"example.com/c\"\n)\n\n" +
+				"func check(t c.TB) { t.Fatal(1) }\n" + caller}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			for name, src := range tc.files {
+				writeDocFile(t, filepath.Join(root, filepath.FromSlash(name)), src)
+			}
+
+			got, _, err := testHelperViolations(root)
+			require.NoError(t, err)
+			var want []string
+			if tc.want != "" {
+				want = []string{tc.want + ": an asserting helper starts with its Helper call"}
+			}
+			assert.Empty(t, cmp.Diff(want, got))
+		})
+	}
+}
+
+// TestTestHelperViolations_EntryPointsAreTestFilesOwn pins that a function
+// named like a test, benchmark or fuzz target is skipped only in a test file:
+// the go tool runs none from another, so there it is a helper like any other.
+func TestTestHelperViolations_EntryPointsAreTestFilesOwn(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	writeDocFile(t, filepath.Join(root, "a/p.go"), "package a\n\nimport \"testing\"\n\n"+
+		"func TestSpec(t *testing.T) { t.Fatal(1) }\n\nfunc BenchmarkSpec(b *testing.B) { b.Fatal(1) }\n\n"+
+		"func FuzzSeeds(f *testing.F) { f.Fatal(1) }\n")
+
+	got, helpers, err := testHelperViolations(root)
+	require.NoError(t, err)
+	want := []string{
+		"a/p.go:5: an asserting helper starts with its Helper call",
+		"a/p.go:7: an asserting helper starts with its Helper call",
+		"a/p.go:9: an asserting helper starts with its Helper call",
+	}
+	assert.Empty(t, cmp.Diff(want, got))
+	assert.Equal(t, 3, helpers)
+}
+
 // TestTestHelperViolations_CallsCountWithinAPackage pins that a call counts from
 // any file of the helper's directory, and from none outside it: one helper of
 // that name called elsewhere says nothing of a case body here.
@@ -179,12 +269,18 @@ func TestTestHelperViolations_CallsCountWithinAPackage(t *testing.T) {
 
 // testHelperViolations returns a line for each function under root that breaks
 // TestTestHelpers_StartWithHelper, sorted, and how many asserting functions it
-// read. A method is left out, as a call to one is a selector this does not follow.
+// read. A method is left out, as a call to one is a selector this does not
+// follow. So is a function run only through a value (f := check; f(t)), which
+// reads as a table's case does.
 func testHelperViolations(root string) ([]string, int, error) {
+	ifaces, err := helperInterfaces(root)
+	if err != nil {
+		return nil, 0, err
+	}
 	called := map[string]bool{}
 	var pending []pendingHelper
 	helpers := 0
-	err := walkGoFiles(root, func(rel string, fset *token.FileSet, f *ast.File) {
+	err = walkGoFiles(root, func(rel string, fset *token.FileSet, f *ast.File) {
 		dir := path.Dir(rel)
 		ast.Inspect(f, func(n ast.Node) bool {
 			if call, ok := n.(*ast.CallExpr); ok {
@@ -194,14 +290,14 @@ func testHelperViolations(root string) ([]string, int, error) {
 			}
 			return true
 		})
-		names := importNames(f)
+		ft := fileTypes{dir: dir, names: importNames(f), ifaces: ifaces}
 		for _, decl := range f.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Recv != nil || fn.Body == nil || isEntryPoint(fn.Name.Name) {
+			if !ok || fn.Recv != nil || fn.Body == nil || (strings.HasSuffix(rel, "_test.go") && isEntryPoint(fn.Name.Name)) {
 				continue
 			}
-			params := testingParams(fn, names["testing"])
-			if len(params) == 0 || !asserts(fn.Body, params, names) {
+			params := ft.testingParams(fn)
+			if len(params) == 0 || !asserts(fn.Body, params, ft.names) {
 				continue
 			}
 			helpers++
@@ -236,10 +332,12 @@ type pendingHelper struct {
 // they are called.
 var assertPaths = []string{"github.com/stretchr/testify/assert", "github.com/stretchr/testify/require"}
 
-// importNames maps each import path f names to the names f calls it by, so
-// that a package imported under another name, or under two, is still read. A
-// local that shadows one of these names is still read as the import, as this
-// reads syntax and not types; revive's import-shadowing refuses such a local.
+// importNames maps each import path f names to the names it is imported
+// under: its alias, or else the path's last element, which is the package's
+// name for testing, testify and the module's packages, the paths this reads.
+// A local that shadows one of these names is still read as the import, as
+// this reads syntax and not types; revive's import-shadowing refuses such a
+// local.
 func importNames(f *ast.File) map[string][]string {
 	names := map[string][]string{}
 	for _, spec := range f.Imports {
@@ -281,9 +379,10 @@ var testingKinds = []string{"T", "B", "F", "TB"}
 // whose failures are their own lines.
 var entryPrefixes = []string{"Test", "Benchmark", "Fuzz"}
 
-// isEntryPoint reports whether name is one the go tool runs itself: a prefix
-// followed by nothing or by a rune that is not lowercase, as go help testfunc
-// says. Benchmarked is a helper's name, not a benchmark's.
+// isEntryPoint reports whether name is one the go tool runs itself when a test
+// file declares it: a prefix followed by nothing or by a rune that is not
+// lowercase, as go help testfunc says. Benchmarked is a helper's name, not a
+// benchmark's.
 func isEntryPoint(name string) bool {
 	return slices.ContainsFunc(entryPrefixes, func(p string) bool {
 		rest, ok := strings.CutPrefix(name, p)
@@ -292,29 +391,118 @@ func isEntryPoint(name string) bool {
 	})
 }
 
+// helperInterfaces returns, keyed dir/name, each interface a file under root
+// declares at top level whose own methods include Helper or that embeds a
+// testing type: a helper can take one in place of *testing.T, as
+// openapitest.TB stands in for it. One that has Helper only through a module
+// interface it embeds is not read.
+func helperInterfaces(root string) (map[string]bool, error) {
+	out := map[string]bool{}
+	err := walkGoFiles(root, func(rel string, _ *token.FileSet, f *ast.File) {
+		ft := fileTypes{names: importNames(f)}
+		for _, decl := range f.Decls {
+			gen, ok := decl.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range gen.Specs {
+				ts, ok := spec.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				if it, ok := ts.Type.(*ast.InterfaceType); ok && ft.declaresHelper(it) {
+					out[path.Dir(rel)+"/"+ts.Name.Name] = true
+				}
+			}
+		}
+	})
+	return out, err
+}
+
+// fileTypes is what reading a type in one file needs: the file's directory
+// under the root, what importNames read of it, and helperInterfaces' result.
+// A directory stands for its package, as only code that builds is read.
+type fileTypes struct {
+	dir    string
+	names  map[string][]string
+	ifaces map[string]bool
+}
+
+// declaresHelper reports whether it names a Helper method or embeds a testing
+// type.
+func (ft fileTypes) declaresHelper(it *ast.InterfaceType) bool {
+	return slices.ContainsFunc(it.Methods.List, func(m *ast.Field) bool {
+		if len(m.Names) == 0 {
+			return ft.isTesting(m.Type, nil)
+		}
+		return slices.ContainsFunc(m.Names, func(n *ast.Ident) bool { return n.Name == "Helper" })
+	})
+}
+
 // testingParams returns the names of fn's parameters, in any position, whose
-// type is one of testingKinds; pkgs are the names fn's file imports testing
-// by.
-func testingParams(fn *ast.FuncDecl, pkgs []string) []string {
-	var params []string
-	for _, field := range fn.Type.Params.List {
-		typ := field.Type
-		if star, ok := typ.(*ast.StarExpr); ok {
-			typ = star.X
-		}
-		sel, ok := typ.(*ast.SelectorExpr)
-		if !ok {
-			continue
-		}
-		x, ok := sel.X.(*ast.Ident)
-		if !ok || !slices.Contains(pkgs, x.Name) || !slices.Contains(testingKinds, sel.Sel.Name) {
+// type isTesting reads as a testing type, through fn's own type parameters. A
+// variadic parameter is left out, as its elements are not read by name, and so
+// is a constraint that is a union or an interface literal.
+func (ft fileTypes) testingParams(fn *ast.FuncDecl) []string {
+	var typeParams []string
+	if fn.Type.TypeParams != nil {
+		typeParams = ft.namesOf(fn.Type.TypeParams.List, nil)
+	}
+	return ft.namesOf(fn.Type.Params.List, typeParams)
+}
+
+// namesOf returns the names of fields whose type isTesting reads as a testing
+// type.
+func (ft fileTypes) namesOf(fields []*ast.Field, typeParams []string) []string {
+	var out []string
+	for _, field := range fields {
+		if !ft.isTesting(field.Type, typeParams) {
 			continue
 		}
 		for _, name := range field.Names {
-			params = append(params, name.Name)
+			out = append(out, name.Name)
 		}
 	}
-	return params
+	return out
+}
+
+// isTesting reports whether typ, less any pointer, is one of testingKinds, an
+// interface helperInterfaces found, or one of typeParams, whose constraints
+// are such types. A module interface is written bare in its own directory and
+// through an import elsewhere. A local alias of a testing type is not read.
+func (ft fileTypes) isTesting(typ ast.Expr, typeParams []string) bool {
+	if star, ok := typ.(*ast.StarExpr); ok {
+		typ = star.X
+	}
+	switch x := typ.(type) {
+	case *ast.Ident:
+		return ft.ifaces[ft.dir+"/"+x.Name] || slices.Contains(typeParams, x.Name)
+	case *ast.SelectorExpr:
+		pkg, ok := x.X.(*ast.Ident)
+		if !ok {
+			return false
+		}
+		if slices.Contains(ft.names["testing"], pkg.Name) && slices.Contains(testingKinds, x.Sel.Name) {
+			return true
+		}
+		for p, names := range ft.names {
+			if dir, ok := moduleDir(p); ok && slices.Contains(names, pkg.Name) && ft.ifaces[dir+"/"+x.Sel.Name] {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+// moduleDir returns the directory under the repository root that holds the
+// module package at import path p.
+func moduleDir(p string) (string, bool) {
+	if p == module {
+		return ".", true
+	}
+	return strings.CutPrefix(p, module+"/")
 }
 
 // asserts reports whether body fails its test by itself, through testify or a

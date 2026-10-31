@@ -115,6 +115,7 @@ func throughReference(ref written, tree []jsontext.Pointer) []jsontext.Pointer {
 // MaxTreeDepth, which fails t. A model's tree is the mapping it was built
 // from, and one built in code has none.
 func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer, refs *[]written, depth int) bool {
+	t.Helper()
 	if depth >= MaxTreeDepth {
 		t.Fatalf("the tree under %q nests past %d levels", at, MaxTreeDepth)
 		return false
