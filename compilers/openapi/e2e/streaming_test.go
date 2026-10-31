@@ -131,10 +131,11 @@ func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.Inferred("streaming-media-type"), op.Provenance.Inferred)
 }
 
-// assertStreamingMedia31 is the corpus row for the shapes 3.0 cannot show on one
-// operation: a request that streams beside its response, one that streams
-// alone, a response whose two streaming contents name different element types,
-// where none is elected, and one whose two name the same, where it is.
+// assertStreamingMedia31 is the corpus row for what assertStreamingMedia30 leaves
+// out, which a 3.0 document lowers alike: a request that streams beside its
+// response, one that streams alone, a response whose two streaming contents name
+// different element types, where none is elected, and one whose two name the
+// same, where it is.
 //
 // The last two are the pair that says what the refusal is for. Refusing on the
 // count alone would pass the first of them and fail the second, and content
