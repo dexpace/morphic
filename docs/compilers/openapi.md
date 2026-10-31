@@ -1180,8 +1180,8 @@ warning where their types are incompatible — disjoint primitive kinds (`string
 structure, two structures of different instance types, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
-two enums of one kind, each with members, a `const` against a kind with no judge or against any
-other value-holding node, or two lists or maps whose members share only null or share nothing while
+two enums of one kind, each with members, a `const` against a kind with no judge, against a node
+that ends in a kind or against another `const`, or two lists or maps whose members share only null or share nothing while
 both admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types
 the judgment does not compare (a model and a map, a list and a tuple, a union, an opaque scalar, a
 node a degraded lowering minted, or two models beside a type that keeps them from composing), since

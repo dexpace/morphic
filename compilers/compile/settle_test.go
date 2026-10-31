@@ -213,10 +213,6 @@ func TestTypes_FinishBuildsPromisesBeforeSettling(t *testing.T) {
 	assert.Equal(t, []ir.Diagnostic{{Code: "built"}, {Code: "settled"}}, diags)
 }
 
-// TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a
-// settlement may not make. Nothing lowers after Settle, so an added node is
-// the only one no lowering produced, and a removed one leaves its references
-// dangling. Either is reported as a breach, and left standing.
 // TestTypes_SettlementMayRegisterWhatItMints pins the one way a settlement adds
 // a node: through Register, which holds it to a minted namespace. A node
 // registered twice counts once, and one more written past Register is still
@@ -258,6 +254,10 @@ func TestTypes_SettlementMayRegisterWhatItMints(t *testing.T) {
 	}
 }
 
+// TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a
+// settlement may not make. Nothing lowers after Settle, so a node written past
+// Register is one no lowering produced, and a removed one leaves its references
+// dangling. Either is reported as a breach, and left standing.
 func TestTypes_SettlementThatAddsOrRemovesANodeIsRefused(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

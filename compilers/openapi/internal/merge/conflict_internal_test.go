@@ -296,8 +296,8 @@ func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
 
 // TestClassify_ALiteralOverlapsWhatHoldsValues pins that a literal against
 // another literal or against a type with a primitive kind is an overlap, never
-// silent, while a literal against a structure still conflicts and a dangling
-// target stays silent.
+// silent, while a scalar literal against a structure still conflicts and a
+// dangling target stays silent.
 func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(judgeRegistry())
