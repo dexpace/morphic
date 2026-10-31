@@ -2352,8 +2352,9 @@ reported as one info `openapi/degraded-construct` at the content, while `itemSch
 ### `streaming-media`
 
 A request body or success response with a Content whose media type the streaming policy names —
-`application/jsonl`, `application/x-ndjson` and `text/event-stream` by default, matched on the
-normalized key ([`media-types`](#media-types)) at every minor — lowers to `Operation.RequestStream`
+`application/json-seq`, `application/jsonl`, `application/x-ndjson`, `text/event-stream` and the
+`+json-seq` structured suffix by default, matched on the normalized key
+([`media-types`](#media-types)) at every minor — lowers to `Operation.RequestStream`
 and `ResponseStream` for the directions that have one, each with `Events` the Content's own `Type`
 (for a frame format the schema is read as one frame, not the body), `Streaming` the `client`,
 `server` or `bidi` summary of them, and `Provenance.Inferred` the marker `streaming-media-type` on
@@ -2366,17 +2367,20 @@ media-type reading at its own Content. Streaming Contents that name different el
 same element elect it. Error responses and the default are not read: whether the default answers a
 success is the plan's to decide ([`response-conditions`](#response-conditions)). The policy is the
 Go option `Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what
-an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it.
+an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it, an
+entry starting with `+` naming a structured suffix. The `streaming-media` setting sets `MediaTypes`,
+its entries separated by commas, and refuses one that is neither a media type nor a suffix.
 
 - Cases: `streaming-media-30`, `streaming-media-31`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestStreaming_ResponseMediaTypeImpliesServerStream`,
   `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
-  `operation.TestStreaming_ItemSchemaDeclaresTheStream`
-- Status: partly built: the default policy misses `application/json-seq` (#629); sequential media
-  types derive the wrong item type (#630); a response offering a plain body and an event stream does
-  not record which content streams (#601); and an event stream's terminator, and a response that
-  streams only when a request field asks it to, have no IR home (#666, #667).
+  `operation.TestStreaming_ItemSchemaDeclaresTheStream`,
+  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
+- Status: partly built: sequential media types derive the wrong item type (#630); a response
+  offering a plain body and an event stream does not record which content streams (#601); and an
+  event stream's terminator, and a response that streams only when a request field asks it to, have
+  no IR home (#666, #667).
 
 ### `multipart-encoding`
 

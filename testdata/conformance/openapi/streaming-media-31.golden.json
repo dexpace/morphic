@@ -274,6 +274,136 @@
                 "pointer": "/paths/~1negotiated/get",
                 "inferred": "streaming-media-type"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1sequence/get",
+              "name": {
+                "source": "streamSequence",
+                "canonical": "stream_sequence"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json-seq",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/sequence",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sequence/get",
+                "inferred": "streaming-media-type"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1sequence-suffix/post",
+              "name": {
+                "source": "uploadSequence",
+                "canonical": "upload_sequence"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/geo+json-seq",
+                    "type": {
+                      "target": "t/openapi/components/schemas/Frame",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "client",
+              "requestStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/sequence-suffix",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/geo+json-seq"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sequence-suffix/post",
+                "inferred": "streaming-media-type"
+              }
             }
           ]
         }
@@ -571,7 +701,7 @@
     {
       "format": "openapi@3.1",
       "path": "streaming-media-31.yaml",
-      "hash": "c7c7a5c5051e94131d339363c28854b82e5a6fda41e8381ee46fbd2bbca4fb1a"
+      "hash": "0c1a6bffc4bb6c23aff3470a7e077fbee159839f540e2e6e6a3f9588c3cf1290"
     }
   ]
 }

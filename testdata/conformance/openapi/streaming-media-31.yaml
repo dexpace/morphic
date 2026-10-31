@@ -52,6 +52,25 @@ paths:
               schema: {$ref: '#/components/schemas/Frame'}
             application/x-ndjson:
               schema: {$ref: '#/components/schemas/Frame'}
+  # A registered sequence type (RFC 7464), and its structured suffix (RFC 8091).
+  /sequence:
+    get:
+      operationId: streamSequence
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json-seq:
+              schema: {$ref: '#/components/schemas/Frame'}
+  /sequence-suffix:
+    post:
+      operationId: uploadSequence
+      requestBody:
+        content:
+          application/geo+json-seq:
+            schema: {$ref: '#/components/schemas/Frame'}
+      responses:
+        "204": {description: ok}
 components:
   schemas:
     Frame:
