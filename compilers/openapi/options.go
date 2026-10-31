@@ -417,14 +417,16 @@ func decodeStreamingMedia(out *[]string, value string) error {
 }
 
 // namesMedia reports whether entry has the form of a structured suffix or of a
-// media type: `+suffix`, or `type/subtype`, each with any parameters.
+// media type: `+suffix`, or `type/subtype`, each with any parameters. A suffix
+// holds no second plus: a media type's starts at its last one, so `+a+b` could
+// match nothing.
 func namesMedia(entry string) bool {
 	name, _, err := mime.ParseMediaType(entry)
 	if err != nil {
 		return false
 	}
 	if suffix, ok := strings.CutPrefix(name, "+"); ok {
-		return suffix != "" && !strings.Contains(suffix, "/")
+		return suffix != "" && !strings.ContainsAny(suffix, "/+")
 	}
 	return strings.Contains(name, "/")
 }

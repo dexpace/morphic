@@ -144,6 +144,11 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`"streaming-media": want media types or +suffixes separated by commas, got "+json seq"`},
 		{"a suffix holding a slash", map[string]string{"streaming-media": "+json/seq"},
 			`"streaming-media": want media types or +suffixes separated by commas, got "+json/seq"`},
+		// A media type's suffix starts at its last plus, so these match nothing.
+		{"a suffix holding a plus", map[string]string{"streaming-media": "+a+json-seq"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "+a+json-seq"`},
+		{"a suffix of a plus", map[string]string{"streaming-media": "++"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "++"`},
 		{"non-boolean policy", map[string]string{"nullable-widening": "maybe"},
 			`option "nullable-widening": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},
