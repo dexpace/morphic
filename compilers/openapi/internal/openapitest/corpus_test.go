@@ -96,6 +96,26 @@ func TestPositions_ReadsTheWalkTheTreeAndAStrayToken(t *testing.T) {
 	}
 }
 
+// TestPositions_ReadsAnAliasKeyAsTheScalarItNames pins that a key spelled as an
+// alias is asked about under the key it reads as, and that a $ref spelled so
+// is read through like any other, since the anchor's name is no position.
+func TestPositions_ReadsAnAliasKeyAsTheScalarItNames(t *testing.T) {
+	t.Parallel()
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(`openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+x-names: [&spelled spdx, &reference $ref]
+x-target: {below: 1}
+x-license: {*spelled : MIT}
+x-link: {*reference : '#/x-target'}
+`))
+	require.NoError(t, err)
+	got := openapitest.Positions(t.Context(), t, doc)
+	assert.Contains(t, got, jsontext.Pointer("/x-license/spdx"), "the key it reads as")
+	assert.NotContains(t, got, jsontext.Pointer("/x-license/spelled"), "not the anchor's name")
+	assert.Contains(t, got, jsontext.Pointer("/x-link/below"), "the target's path, read through the $ref")
+}
+
 // TestPositions_FailsPastMaxTreeDepth pins the bound on the tree's depth: a
 // spec nesting past it fails the test and yields nothing, rather than leaving
 // the paths below unread.
