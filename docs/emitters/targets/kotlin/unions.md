@@ -1,5 +1,7 @@
 # Unions in Kotlin
 
+What holds on every target is in [unions](../../refine/unions.md).
+
 Kotlin declares its `KSerializer` on the sealed interface itself, which a Kotlin interface allows,
 so it needs no struct.
 

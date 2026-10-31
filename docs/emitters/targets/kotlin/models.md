@@ -24,8 +24,8 @@ The states' forms are in the [lowering table](lowering.md).
 
 ## Unknown members
 
-Unknown members follow [Go's per-model rule](../go/models.md#user-in-go): the SDK's `Json` is
-strict, and each model the spec leaves open carries `@JsonIgnoreUnknownKeys`, so a closed model
+Unknown members follow [the shared rule](../../refine/models.md#unknown-members): the SDK's `Json`
+is strict, and each model the spec leaves open carries `@JsonIgnoreUnknownKeys`, so a closed model
 nested in an open one stays strict and the reverse stays open. A model with a catch-all
 (`AdditionalProps`) is the exception: the annotation would drop the undeclared members before its
 serializer saw them, so its serializer reads the object whole through

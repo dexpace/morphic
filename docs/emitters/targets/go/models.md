@@ -37,11 +37,12 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
   never the identifier, and `omitzero` because an unset box written without it would send
   `"email":null`. `password` (`Secret`) gets a redacting `String()` and is excluded from the read
   shape. `Additional:"closed"` → the model's `UnmarshalJSONFrom` decodes its members under
-  `json.RejectUnknownMembers(true)`. Every model pins that option for itself, `false` unless closed:
-  a v2 option reaches every value below the call that sets it, so a closed model would otherwise
-  make an open model nested in it strict, and a strict caller would reach a model the spec leaves
-  open. A catch-all (`AdditionalProps`) is the struct's one embedded fallback, a `map[string]T`
-  tagged `json:",embed"`, which receives the undeclared members whatever the options say.
+  `json.RejectUnknownMembers(true)`. Every model pins that option for itself ([the shared
+  rule](../../refine/models.md#unknown-members)), `false` unless closed: a v2 option reaches every
+  value below the call that sets it, so a closed model would otherwise make an open model nested in
+  it strict, and a strict caller would reach a model the spec leaves open. A catch-all
+  (`AdditionalProps`) is the struct's one embedded fallback, a `map[string]T` tagged
+  `json:",embed"`, which receives the undeclared members whatever the options say.
 - **emit.** Printer folds the two structs, prints through `go/format`. File `user.go` in the root
   unit ([output units](../../refine/output-units.md)). Manifest records `User.ID → "User"` and
   `User.ID#create → "UserCreate"`.

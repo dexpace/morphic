@@ -19,9 +19,9 @@ answers. A shared document may name a language to illustrate a rule, or for a fa
 explains the rule, and it spells a runtime type as Go does; what a target chooses belongs in that
 target's documents.
 
-A trace of one construct divides where the pipeline does. Its IR and its plan are the same for every
-target, so they sit in the shared document, and what refine and emit build from them sits in the
-target's. A trace's IR field names are `ir-design.md`'s.
+A trace of one construct divides the same way. Its IR and its plan are the same for every target, so
+they sit in the shared document, as does what every target builds from them, and the forms one
+target builds sit in that target's. A trace's IR field names are `ir-design.md`'s.
 
 A new target adds a directory under `targets/` holding the documents every target has (`overview`,
 `lowering`, `types`, `models`, `unions`, `naming`, `operations`, `returns` and `errors`) and any of
