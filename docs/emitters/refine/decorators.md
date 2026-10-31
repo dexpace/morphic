@@ -24,7 +24,7 @@ union variant holding one by it, and the plan cannot disagree about which nodes 
 else a node sets — a property, a required member, a constraint, `Sensitive`, an XML name, a
 media-type hint — says something about values at its position, and the node lowers as it would
 otherwise. A named type is never a decorator: its name is public surface, lowered by each target's
-[lowering table](lowering-table.md).
+lowering table ([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)).
 
 **What the plan records.** A decorator's `TypePlan.Alias` is the first type along its `Base` chain
 that is not one, found by a walk bounded by the size of the registry. A chain that returns to a

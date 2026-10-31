@@ -18,8 +18,10 @@ election](../plan/responses.md#one-election)).
 
 ## One value of the runtime
 
-`LowerErrors` generates no error type. A failure is one value of a runtime type, which the
-operation's response decoder fills from the entry a response takes. The retry wiring reads
+`LowerErrors` generates no error type. A failure is one value of a runtime type, `APIError` as Go
+spells it ([Go](../targets/go/errors.md#ratelimited-in-go),
+[Kotlin](../targets/kotlin/errors.md#how-a-failure-reaches-its-caller)), which the operation's
+response decoder fills from the entry a response takes. The retry wiring reads
 `Retryable`/`Throttling` **from the IR fact** and falls back to `Policy.Retry` only where the spec
 is silent ([precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule));
 throttling selects the throttling backoff class. The error types are runtime boilerplate ([structure

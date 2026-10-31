@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/keydoc"
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
@@ -138,11 +139,7 @@ func commonDocuments(path string) ([]string, error) {
 	if list == nil {
 		return nil, nil
 	}
-	var documents []string
-	for _, span := range codeSpan.FindAllString(list[1], -1) {
-		documents = append(documents, strings.Trim(span, "`"))
-	}
-	return documents, nil
+	return keydoc.Spans(list[1]), nil
 }
 
 // tableConstructs returns the first column of the table opening on head in the
@@ -186,16 +183,13 @@ func tableRows(lines []string, head string) []string {
 	return nil
 }
 
-// cutCell returns the first cell of a table row and what follows it, a pipe
-// inside a span of code being no separator.
+// cutCell returns the first cell of a table row and what follows it. A pipe
+// separates cells unless a backslash escapes it, in a span of code or not, as
+// GitHub renders a table.
 func cutCell(row string) (cell, rest string) {
-	inCode := false
-	for i, r := range row[1:] {
-		switch {
-		case r == '`':
-			inCode = !inCode
-		case r == '|' && !inCode:
-			return strings.TrimSpace(row[1 : i+1]), row[i+2:]
+	for i := 1; i < len(row); i++ {
+		if row[i] == '|' && row[i-1] != '\\' {
+			return strings.TrimSpace(row[1:i]), row[i+1:]
 		}
 	}
 	return strings.TrimSpace(row[1:]), ""
@@ -255,54 +249,63 @@ func unmappedDocuments(docs string) ([]string, int, error) {
 }
 
 // TestTableConstructs_ReadsTheNamedTable plants a target's table the way the
-// real ones are written: a prose lead, a code span holding a pipe, a citation in
-// a cell, a row with no answer, and a second table that ends the file with no
-// newline after it. Each head reads its own table alone.
+// real ones are written: a prose lead, an escaped pipe in a code span and out of
+// one, a citation in a cell, a row with no answer, and a second table that ends
+// the file with no newline after it. Each head reads its own table alone.
 func TestTableConstructs_ReadsTheNamedTable(t *testing.T) {
 	t.Parallel()
-	path := filepath.Join(t.TempDir(), "lowering.md")
-	writeDocFile(t, path, "# Table\n\nLead.\n\n| IR construct | Go |\n|---|---|\n"+
-		"| `A \\| B` union | a |\n| plain ([see](../a.md#x)) | b \\| c |\n| silent |  |\n"+
+	dir := t.TempDir()
+	tables := filepath.Join(dir, "lowering.md")
+	writeDocFile(t, tables, "# Table\n\nLead.\n\n| IR construct | Go |\n|---|---|\n"+
+		"| `A \\| B` union | a |\n| plain ([see](../a.md#x)) | b \\| c |\n| C \\| D | d |\n|tight|e|\n| silent |  |\n"+
 		"\n## Steps\n\n| Step | Lowers |\n|---|---|\n| `S` | x |")
-	got, err := tableConstructs(path, constructHead)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"`A \\| B` union", "plain (see)"}, got)
-	got, err = tableConstructs(path, stepHead)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"`S`"}, got)
-	got, err = tableConstructs(path, "absent")
-	require.NoError(t, err)
-	assert.Empty(t, got)
+	headerOnly := filepath.Join(dir, "empty.md")
+	writeDocFile(t, headerOnly, "# No table\n\n| IR construct | a header |\n|---|---|\n")
 
-	empty := filepath.Join(t.TempDir(), "empty.md")
-	writeDocFile(t, empty, "# No table\n\n| IR construct | a header |\n|---|---|\n")
-	got, err = tableConstructs(empty, constructHead)
-	require.NoError(t, err)
-	assert.Empty(t, got)
+	tests := []struct {
+		name, path, head string
+		want             []string
+	}{
+		{"the first table", tables, constructHead, []string{"`A \\| B` union", "plain (see)", "C \\| D", "tight"}},
+		{"the table after it", tables, stepHead, []string{"`S`"}},
+		{"a head no table opens on", tables, "absent", nil},
+		{"a table of no rows", headerOnly, constructHead, nil},
+	}
+	for _, tt := range tests {
+		got, err := tableConstructs(tt.path, tt.head)
+		require.NoError(t, err, tt.name)
+		assert.Equal(t, tt.want, got, tt.name)
+	}
 
-	_, err = tableConstructs(filepath.Join(t.TempDir(), "absent.md"), constructHead)
+	_, err := tableConstructs(filepath.Join(dir, "absent.md"), constructHead)
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 
 // TestCommonDocuments_ReadsTheRootsList plants the root's list wrapped across
-// lines, a copy of its words in a fenced block, and a root that has none.
+// lines beside a copy of its words in a fenced block, and a root that has none.
 func TestCommonDocuments_ReadsTheRootsList(t *testing.T) {
 	t.Parallel()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "README.md")
-	writeDocFile(t, path, "```\nthe documents every target has (`fenced`)\n```\n\n"+
-		"Each holds the documents every target has (`overview`,\n`lowering` and `errors`) and others (`not`).\n")
-	got, err := commonDocuments(path)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"overview", "lowering", "errors"}, got)
+	tests := []struct {
+		name, text string
+		want       []string
+	}{
+		{
+			"a wrapped list",
+			"```\nthe documents every target has (`fenced`)\n```\n\n" +
+				"Each holds the documents every target has (`overview`,\n`lowering` and `errors`) and others (`not`).\n",
+			[]string{"overview", "lowering", "errors"},
+		},
+		{"no list", "No list.\n", nil},
+	}
+	for _, tt := range tests {
+		path := filepath.Join(t.TempDir(), "README.md")
+		writeDocFile(t, path, tt.text)
+		got, err := commonDocuments(path)
+		require.NoError(t, err, tt.name)
+		assert.Equal(t, tt.want, got, tt.name)
+	}
 
-	none := filepath.Join(dir, "none.md")
-	writeDocFile(t, none, "No list.\n")
-	got, err = commonDocuments(none)
-	require.NoError(t, err)
-	assert.Empty(t, got)
-
-	_, err = commonDocuments(filepath.Join(dir, "absent.md"))
+	_, err := commonDocuments(filepath.Join(t.TempDir(), "absent.md"))
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }
 

@@ -45,6 +45,13 @@ Subtyping survives as interfaces: `Implements` becomes an interface, and a discr
 base a sealed interface of its subtypes, which Go holds in a struct ([Go
 unions](../targets/go/unions.md)).
 
+## Unknown members
+
+`Additional` decides for its own model alone, whatever decodes around it: a closed model nested in
+an open one stays strict, and an open one nested in a closed one stays open, under a strict caller
+too. Each target says how ([Go](../targets/go/models.md#user-in-go),
+[Kotlin](../targets/kotlin/models.md#unknown-members)).
+
 ## Recursive references
 
 `Facts.Recursive` says whether a value of a type can hold, at any depth, a value of its own shape,

@@ -6,18 +6,16 @@ Go's request type ([request shaping](../../refine/requests.md)) is a `<Operation
 
 ## Pagination
 
-The IR and the plan are in [pagination](../../operations/pagination.md#a-paginated-operation).
+The IR, the plan and what every target generates are in [pagination](../../operations/pagination.md).
 
 - **refine.** `BuildRequestShaping` builds the request from the query bindings. By the default
   parameter shape ([request shaping](../../refine/requests.md)), marked `Inferred`, `limit` and
   `cursor` are fields of `ListUsersParams`.
   `func (c *Client) ListUsers(ctx, *ListUsersParams) iter.Seq2[User, error]` is a range-over-func
-  auto-pager: it walks pages using `CursorOut` to read `next_cursor` and `CursorIn` to feed it back,
-  yields each item deserialized elementwise over `ItemPath`, yields one non-nil error and stops when
-  a fetch fails, and fetches no further page once the caller's loop breaks.
+  auto-pager: it yields one non-nil error when a fetch fails, and fetches no further page once the
+  caller's loop breaks.
 - **emit.** Printer emits `ListUsers` and `ListUsersParams`; the pager needs no named iterator type.
-  The pager *runtime* (fetch-and-pace loop) is `pagination.go.tmpl` parameterised by
-  `Policy.Pagination.AutoPageDelay` — the legitimate boilerplate seam.
+  The pager *runtime* is `pagination.go.tmpl`.
 
 ## Streaming
 
