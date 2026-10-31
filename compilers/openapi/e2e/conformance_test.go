@@ -265,6 +265,7 @@ func conformanceCases() []conformanceCase {
 		{"oauth-flow-fields", assertOAuthFlowFields},
 		{"reached-outside-model", assertReachedOutsideModel},
 		{"security-or-and", assertSecurityOrAnd},
+		{"security-root-empty", assertSecurityRootEmpty},
 	}
 }
 

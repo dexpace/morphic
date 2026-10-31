@@ -2586,7 +2586,7 @@ rule table's to report instead ([`minor-required-fields`](#minor-required-fields
 the rules this one reports, a requirement naming no scheme and a scheme naming no mechanism, and
 leaves them to it.
 
-- Cases: `security-schemes`, `security-or-and`, `oauth2-no-flow`
+- Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `oauth2-no-flow`
 - Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`, `openapi/unresolved-ref`
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused`,
