@@ -20,8 +20,11 @@ import (
 )
 
 // irDocs is the tree of the IR's design documents, relative to the repository's
-// root.
-const irDocs = "docs/ir"
+// root, and irMap the heading its README maps them under.
+const (
+	irDocs = "docs/ir"
+	irMap  = "Where each part lives"
+)
 
 // retiredTest is this file, whose strings plant the form it refuses.
 const retiredTest = "internal/archtest/irdocs_test.go"
@@ -30,14 +33,14 @@ const retiredTest = "internal/archtest/irdocs_test.go"
 var retiredCitation = regexp.MustCompile(`(?:ir|emitter)-design`)
 
 // TestIRDocs_RootMapsEveryDocument fails on a document under the tree that its
-// README does not link, so the map stays the way in to every document.
+// README's map does not link, so the map stays the way in to every document.
 func TestIRDocs_RootMapsEveryDocument(t *testing.T) {
 	t.Parallel()
-	unmapped, mapped, err := unmappedDocuments(filepath.Join(irtest.RepoRoot(t), filepath.FromSlash(irDocs)))
+	unmapped, mapped, err := unmappedDocuments(filepath.Join(irtest.RepoRoot(t), filepath.FromSlash(irDocs)), irMap)
 	require.NoError(t, err)
-	require.NotZero(t, mapped, "the README links no document, so this proves nothing")
+	require.NotZero(t, mapped, "the map links no document, so this proves nothing")
 	for _, doc := range unmapped {
-		t.Errorf("%s/README.md links no %s", irDocs, doc)
+		t.Errorf("%s/README.md links no %s under %q", irDocs, doc, irMap)
 	}
 }
 
