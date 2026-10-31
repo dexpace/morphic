@@ -255,7 +255,7 @@ func unmappedDocuments(docs, section string) ([]string, int, error) {
 // heading title and the next heading of any level.
 func sectionLines(text, title string) []string {
 	var lines []string
-	inside := false
+	var inside bool
 	for _, line := range proseLines(text) {
 		if m := atxHeading.FindStringSubmatch(line); m != nil {
 			inside = m[1] == title
