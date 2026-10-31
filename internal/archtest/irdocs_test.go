@@ -86,6 +86,7 @@ func TestRetiredCitations_ReportsEachForm(t *testing.T) {
 	writeDocFile(t, filepath.Join(root, "doc.md"), "See `ir-design.md §4.7`, or the ir-design tree.\n"+
 		"Or ir-design/models.md.\n")
 	writeDocFile(t, filepath.Join(root, "spec.yaml"), "# ir-design §4.8\n")
+	writeDocFile(t, filepath.Join(root, "spec.yml"), "# ir-design §4.9\n")
 	writeDocFile(t, filepath.Join(root, "notes.txt"), "ir-design §1\n")
 	writeDocFile(t, filepath.Join(root, ".hidden", "h.md"), "ir-design §1\n")
 
@@ -100,5 +101,6 @@ func TestRetiredCitations_ReportsEachForm(t *testing.T) {
 		"doc.md:1 names a design tree as one page",
 		"doc.md:2 names a design tree as one page",
 		"spec.yaml:1 names a design tree as one page",
+		"spec.yml:1 names a design tree as one page",
 	}, problems)
 }

@@ -346,6 +346,7 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 	writeDocFile(t, filepath.Join(root, "x", "testdata", "a.go"), "// Unread: docs/gone.md.\npackage a\n")
 	writeDocFile(t, filepath.Join(root, "x", "testdata", "spec.yaml"),
 		"# Follows docs/target.md and docs/target.md#absent.\nnote: docs/gone.md\n")
+	writeDocFile(t, filepath.Join(root, "x", "testdata", "spec.yml"), "# Follows docs/target.md#absent.\n")
 	writeDocFile(t, filepath.Join(root, "docs", "sketch.md"),
 		"```go\ntype T struct{} // docs/target.md#the-rule, not docs/gone.md\n```\n")
 
@@ -364,6 +365,7 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 		`docs/guide.md:4 links "absent.md#x", which names no file`,
 		`docs/sketch.md:2 cites docs/gone.md, which names no file`,
 		`x/testdata/spec.yaml:1 cites docs/target.md#absent, whose file has no such heading`,
+		`x/testdata/spec.yml:1 cites docs/target.md#absent, whose file has no such heading`,
 	}, problems)
 
 	_, _, err = linkProblems(filepath.Join(root, "absent"))
