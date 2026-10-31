@@ -129,9 +129,9 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 		// The raw pairs: a `<<` key is a token of its own here, and the keys it
 		// merges are asked about only below it (#1188).
 		for i := 0; i+1 < len(n.Content); i += 2 {
-			key, value := aliased(n.Content[i]), n.Content[i+1]
+			key, value := deref(n.Content[i]), n.Content[i+1]
 			children, tokens = append(children, value), append(tokens, key.Value)
-			if target := aliased(value); key.Value == "$ref" && target.Kind == yaml.ScalarNode {
+			if target := deref(value); key.Value == "$ref" && target.Kind == yaml.ScalarNode {
 				*refs = append(*refs, written{site: at, value: target.Value})
 			}
 		}
@@ -155,8 +155,8 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 	return true
 }
 
-// aliased returns the node n reads as: the one it names, if it is an alias.
-func aliased(n *yaml.Node) *yaml.Node {
+// deref returns the node n reads as: the one it names, if it is an alias.
+func deref(n *yaml.Node) *yaml.Node {
 	if n.Kind == yaml.AliasNode {
 		return n.Alias
 	}
