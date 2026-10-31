@@ -371,6 +371,9 @@ it sees. Changes made together in one bump are listed together under it.
     written `bytes` over it, which left the schema on a node nothing referenced. `File` still says
     the body is a file, so a consumer pinned to 0.22.0 that reads `File` first is unaffected, and
     one that expects `Type` to be `bytes` finds a reference to the schema instead.
+  - `Union.Exclusive` is false on a union whose variants can match one instance, which the source
+    did not ask to exclude (§4.4): a type array naming `integer` and `number`, and an enum whose
+    entry repeats. The compiler had set it, leaving such a union to refuse what its schema admits.
 
 ---
 
@@ -1015,7 +1018,9 @@ instead, enumerated by the OpenAPI compiler's rule
 type Union struct {
     TypeCommon
     Variants      []Variant
-    Exclusive     bool           // exactly one variant matches (oneOf); false = one or more (anyOf)
+    Exclusive     bool           // exactly one variant matches (oneOf); false = one or more (anyOf,
+                                 // and a union whose variants overlap though no source asked to
+                                 // exclude them: a type array naming integer and number)
     WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
                                  // a single key (Smithy union, protobuf oneof); false = untagged
     Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged

@@ -444,6 +444,33 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, e.Members[1].Value)
 }
 
+// TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries holds the union an
+// enum lowers to to what Exclusive states: a repeated entry matches an instance
+// twice, and so does the top type an unconvertible entry lowers to.
+func TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		schema string
+		want   bool
+	}{
+		{"distinct entries", `{enum: [1, "a"]}`, true},
+		{"a repeated entry", `{enum: [1, "a", 1]}`, false},
+		{"one value spelled two ways", `{enum: [1, "a", 1.0]}`, false},
+		{"a repeated composite", `{enum: [[1], "a", [1.0]]}`, false},
+		{"an unconvertible entry", `{enum: [1, !foo bar]}`, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := schema.LowerSpec(t, openapitest.ComponentSpec("    E: "+tc.schema+"\n"))
+			u, ok := doc.Types[componentID("E")].(*ir.Union)
+			require.True(t, ok)
+			assert.Equal(t, tc.want, u.Exclusive)
+		})
+	}
+}
+
 func TestEnum_ValueTypeVariants(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    EInt: {type: integer, enum: [1, 2]}

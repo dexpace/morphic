@@ -179,6 +179,7 @@ func conformanceCases() []conformanceCase {
 		{"dialect-keywords", assertDialectKeywords},
 		{"dynamic-ref", assertDynamicRef},
 		{"schema-identifiers", assertSchemaIdentifiers},
+		{"type-array-numeric", assertTypeArrayNumeric},
 		{"enum-string", assertEnumString},
 		{"enum-numeric", assertEnumNumeric},
 		{"empty-enum", assertEmptyEnum},

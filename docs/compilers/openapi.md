@@ -1306,21 +1306,25 @@ collapses into its reference.
 
 ### `type-arrays`
 
-A schema whose `type` lists more than one type lowers to an exclusive `Union` with one variant per
-listed type other than `null`, in order, each lowered from the same schema as that type alone and
-named by it: a shared primitive for a scalar type, and for `object` or `array` a node hoisted at
+A schema whose `type` lists more than one type lowers to a `Union` with one variant per listed type
+other than `null`, in order, each lowered from the same schema as that type alone and named by it: a
+shared primitive for a scalar type, and for `object` or `array` a node hoisted at
 `<pointer>/type/<index>`. A `null` among them makes the position nullable instead
-([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The bounds a
-carried schema writes land on its property or parameter ([`constraints`](#constraints)). No keyword
-census runs over the union, since each variant is built from the whole schema and holds what its own
-type admits ([`shape-applicator`](#shape-applicator)).
+([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The union is
+exclusive unless the list names both `integer` and `number`, the one pair of JSON types that
+overlap, since every integer is a number; two variants the types resolve to one primitive, as a
+width does ([`numeric-formats`](#numeric-formats)), stay two. The bounds a carried schema writes land
+on its property or parameter ([`constraints`](#constraints)). No keyword census runs over the union,
+since each variant is built from the whole schema and holds what its own type admits
+([`shape-applicator`](#shape-applicator)).
 
+- Cases: `type-array-numeric`
 - Tests: `schema.TestLower_MultiTypeUnion`,
+  `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
 - Status: partly built: a keyword or bound that no variant holds, as at a component, where no
-  carrier takes a bound, is dropped in silence (#852); a list naming `integer` and `number` lowers
-  to an exclusive union that no integer satisfies, since every integer is a number (#868); and a
-  multi-typed base's discriminator routes to no subtype (#853).
+  carrier takes a bound, is dropped in silence (#852); and a multi-typed base's discriminator routes
+  to no subtype (#853).
 
 ### `union-null-variant`
 
@@ -1525,11 +1529,13 @@ chooses the collapse.
 An `enum` lowers to a closed `Enum` at any member count, one member included, each entry a member
 holding its value ([`values`](#values)) in source order (§4.5); a `null` entry beside others is no
 member but makes the position nullable ([`nullable`](#nullable)). An enumeration an `Enum` cannot
-hold — a list or object member, members of different kinds, or only `null` — lowers to an exclusive
-`Union` of `Literal`s instead, reported as an info `openapi/degraded-construct` at the schema, and a
-member whose value cannot convert makes the enumeration such a union, its own variant the top type,
-reported as an `openapi/degraded-construct` warning at the member. `enum: []` lowers to a closed
-`Enum` with no members, a position accepting no value, reported as an `openapi/empty-enum` warning.
+hold — a list or object member, members of different kinds, or only `null` — lowers to a `Union` of
+`Literal`s instead, reported as an info `openapi/degraded-construct` at the schema, and a member
+whose value cannot convert makes the enumeration such a union, its own variant the top type,
+reported as an `openapi/degraded-construct` warning at the member. That union is exclusive unless
+an instance can match two variants: an entry repeats, or one lowered to the top type. `enum: []`
+lowers to a closed `Enum` with no members, a position accepting no value, reported as an
+`openapi/empty-enum` warning.
 An entry repeating an earlier entry's value, compared as JSON Schema compares instances, is kept,
 each occurrence a member of its own (§4.5), and reported as an `openapi/duplicate-enum-value`
 warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers to the top type, with an
@@ -1545,6 +1551,7 @@ at that position, whichever is lowered first.
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
+  `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: an `enum` ignores its `format`, though `Enum.ValueType` can carry it (#607);
   an enum whose members do not match its declared type lowers to a union with only an info

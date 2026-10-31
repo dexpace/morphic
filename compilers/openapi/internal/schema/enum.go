@@ -136,8 +136,9 @@ func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer js
 	return members, prim, true
 }
 
-// enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
-// hoisted Literals, emitting one info diagnostic.
+// enumAsUnion lowers a heterogeneous or non-scalar enum to a Union of hoisted
+// Literals, emitting one info diagnostic. The Union is exclusive unless an
+// instance can match two variants (enumEntriesDistinct).
 func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
@@ -155,8 +156,23 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 	return &ir.Union{
 		TypeCommon: common,
 		Variants:   variants,
-		Exclusive:  true,
+		Exclusive:  enumEntriesDistinct(nodes),
 	}, diags
+}
+
+// enumEntriesDistinct reports whether no instance equals two of the entries:
+// no value repeats, and each has a key, since one with none may lower to the
+// top type, which every instance matches.
+func enumEntriesDistinct(nodes []values.Value) bool {
+	seen := make(map[string]bool, len(nodes))
+	for _, node := range nodes {
+		key, keyed := entryKey(node)
+		if !keyed || seen[key] {
+			return false
+		}
+		seen[key] = true
+	}
+	return true
 }
 
 // hoistLiteral hoists a single node as a Literal type at its own pointer, or

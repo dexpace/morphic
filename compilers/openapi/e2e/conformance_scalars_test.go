@@ -45,6 +45,17 @@ func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.BigVal("9007199254740993"), e.Members[1].Value.Num)
 }
 
+// assertTypeArrayNumeric pins that a type array's union admits what the array
+// does: one naming integer and number is inclusive, as every integer is a number.
+func assertTypeArrayNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for name, want := range map[string]bool{"Measure": false, "Sized": false, "Label": true} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, name)
+		require.Len(t, u.Variants, 2, name)
+		assert.Equal(t, want, u.Exclusive, name)
+	}
+}
+
 // assertEmptyEnum covers `enum: []`: legal JSON Schema whose value space holds
 // no member, so the position accepts no instance. The IR says that exactly,
 // since a closed Enum admits its members and nothing else. Reading the keyword
