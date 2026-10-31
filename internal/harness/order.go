@@ -266,7 +266,9 @@ func reversedPairs(content []*yaml.Node) []*yaml.Node {
 // as the parser reads it: an alias stands for the node it names, whose Value is
 // empty when that is no scalar (docs/parser-library.md#non-scalar-key). Reversing
 // such a mapping changes which declaration wins (#95), so the two compiles would
-// differ for a reason that is not a defect.
+// differ for a reason that is not a defect. It compares text alone, so a `<<`
+// merge key beside a quoted or aliased `<<`, which the parser reads apart, is
+// declined too, leaving that source unchecked rather than misjudged.
 func duplicateKeys(n *yaml.Node) bool {
 	seen := make(map[string]bool, len(n.Content)/2)
 	for i := 0; i+1 < len(n.Content); i += 2 {
