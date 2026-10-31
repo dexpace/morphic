@@ -72,13 +72,14 @@ func TestMissingAssertions_PlantedShapesAreCaught(t *testing.T) {
 		{"asserted", "type P struct{}\n\nfunc (P) " + visit + "\nvar _ ir.Visitor = P{}\n", nil},
 		{"asserted by a conversion", "type P struct{}\n\nfunc (P) " + visit + "\nvar _ = ir.Visitor(P{})\n", nil},
 		{"asserted by a parenthesized conversion of a pointer", "type P struct{}\n\nfunc (*P) " + visit +
-			"\nvar _ = (ir.Visitor)((*P)(nil))\n", nil},
+			"\nvar _ = ((ir.Visitor)((*P)(nil)))\n", nil},
 		{"asserted by a conversion beside a type", "type P struct{}\n\nfunc (P) " + visit +
 			"\nfunc (P) Cycle(_, _ ir.WalkPath, _ reflect.Type) {}\n\nvar _ ir.Visitor = ir.CycleVisitor(P{})\n", nil},
 		{"a conversion to a type that is no interface", "type P struct{}\n\ntype q P\n\nfunc (P) " + visit +
 			"\nvar _ = q(P{})\n", []string{"ir.Visitor"}},
 		{"a call that converts nothing", "type P struct{}\n\nfunc (P) " + visit +
 			"\nfunc wrap(P) ir.Visitor { return nil }\n\nvar _ = wrap(P{})\n", []string{"ir.Visitor"}},
+		{"a builtin's call", "type P struct{}\n\nfunc (P) " + visit + "\nvar _ = new(P)\n", []string{"ir.Visitor"}},
 		{"asserted through a pointer", "type P struct{}\n\nfunc (*P) " + visit + "\nvar _ ir.Visitor = (*P)(nil)\n", nil},
 		{"asserted in a group",
 			"type P struct{}\n\nfunc (P) " + visit + "\nvar (\n\t_ ir.Visitor = P{}\n)\n", nil},
@@ -210,9 +211,10 @@ func assertedInterfaces(p *decls.Package) map[*types.TypeName][]*types.Interface
 
 // assertion returns the named type value holds and the interface it is held
 // as, by a conversion to an interface or else by typ, the var's declared type,
-// which is nil when the var declares none.
+// which is nil when the var declares none. A call whose callee has an
+// interface type is a conversion, as no interface value can be called.
 func assertion(p *decls.Package, typ, value ast.Expr) (*types.TypeName, *types.Interface, bool) {
-	if call, ok := ast.Unparen(value).(*ast.CallExpr); ok && len(call.Args) == 1 && p.Info.Types[call.Fun].IsType() {
+	if call, ok := ast.Unparen(value).(*ast.CallExpr); ok && len(call.Args) == 1 {
 		if iface, ok := p.Info.TypeOf(call.Fun).Underlying().(*types.Interface); ok {
 			tn, ok := typeName(p.Info.TypeOf(call.Args[0]))
 			return tn, iface, ok
