@@ -374,8 +374,8 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 // assertAllOfRedeclaredModels pins that a field declared as several models names
 // one minted model composing each declaration, in either branch order, with
 // nothing kept but the one value no declaration's own type can answer for. The
-// composition sits at the field's pointer in the composed space, and the
-// conjuncts stay the nodes the source wrote.
+// composition sits at the declaration naming the field in the composed space,
+// and the conjuncts stay the nodes the source wrote.
 func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const schemas = "/components/schemas/"
 	meeting, recording := ir.TypeID("t/openapi"+schemas+"Meeting"), ir.TypeID("t/openapi"+schemas+"Recording")
@@ -384,17 +384,18 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 	}
 	for _, tc := range []struct {
 		model, field string
+		naming       string // the allOf branch of the declaration naming the field
 		base         ir.TypeID
 		mixins       []ir.TypeID
 		nullable     bool
 	}{
-		{model: "RefFirst", field: "data", base: meeting, mixins: []ir.TypeID{anon("RefFirst", "1")}},
-		{model: "InlineFirst", field: "data", base: meeting, mixins: []ir.TypeID{anon("InlineFirst", "0")}},
-		{model: "TwoInline", field: "data", mixins: []ir.TypeID{anon("TwoInline", "0"), anon("TwoInline", "2")}},
-		{model: "TwoComponents", field: "data", mixins: []ir.TypeID{meeting, recording}, nullable: true},
-		{model: "DiscriminatedBase", field: "pet", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
-		{model: "DiscriminatedFirst", field: "pet", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
-		{model: "KeptDefault", field: "data", mixins: []ir.TypeID{meeting, recording}},
+		{model: "RefFirst", field: "data", naming: "1", base: meeting, mixins: []ir.TypeID{anon("RefFirst", "1")}},
+		{model: "InlineFirst", field: "data", naming: "1", base: meeting, mixins: []ir.TypeID{anon("InlineFirst", "0")}},
+		{model: "TwoInline", field: "data", naming: "1", mixins: []ir.TypeID{anon("TwoInline", "0"), anon("TwoInline", "2")}},
+		{model: "TwoComponents", field: "data", naming: "1", mixins: []ir.TypeID{meeting, recording}, nullable: true},
+		{model: "DiscriminatedBase", field: "pet", naming: "1", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
+		{model: "DiscriminatedFirst", field: "pet", naming: "1", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
+		{model: "KeptDefault", field: "data", naming: "1", mixins: []ir.TypeID{meeting, recording}},
 	} {
 		owner, ok := doc.Types[ir.TypeID("t/openapi"+schemas+tc.model)].(*ir.Model)
 		require.True(t, ok, tc.model)
@@ -402,7 +403,7 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 		p := owner.Properties[0]
 		assert.Equal(t, tc.field, p.WireName, tc.model)
 		assert.Equal(t, tc.nullable, p.Type.Nullable, tc.model)
-		want := ir.TypeID("t/composed" + schemas + tc.model + "/properties/" + tc.field)
+		want := ir.TypeID("t/composed" + schemas + tc.model + "/allOf/" + tc.naming + "/properties/" + tc.field)
 		require.Equal(t, want, p.Type.Target, tc.model)
 		m, ok := doc.Types[want].(*ir.Model)
 		require.True(t, ok, tc.model)

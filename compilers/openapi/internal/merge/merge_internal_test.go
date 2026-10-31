@@ -60,7 +60,7 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 			return m.ID
 		},
 		Interned: func(jsontext.Pointer) bool { return false },
-		PropAt:   func(pointer jsontext.Pointer) ir.PropID { return "p/test" + ir.PropID(pointer) },
+		PropAt:   func(pointer jsontext.Pointer) ir.PropID { return "p/minted" + ir.PropID(pointer) },
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
@@ -68,8 +68,8 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	return g, recorded
 }
 
-// composedAt is the ID stubMerger mints a composition under, for the field at
-// pointer.
+// composedAt is the ID stubMerger mints a composition under, for the field the
+// declaration at pointer names.
 func composedAt(pointer jsontext.Pointer) ir.TypeID { return "t/composed" + ir.TypeID(pointer) }
 
 // foldTwo folds src, rendered by source, into dst, a first declaration with

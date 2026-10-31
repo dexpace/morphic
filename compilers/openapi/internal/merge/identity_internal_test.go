@@ -24,12 +24,13 @@ func declaredIn(pointers ...jsontext.Pointer) []declaration {
 	return decls
 }
 
-// TestFieldPointer_NamesTheSchemaHoldingEveryDeclaration pins the one key that
-// tells two folds apart. A model and a wrapper it flattens can share a first
-// declaration or a last one, so neither names a field: only the narrowest schema
-// holding every declaration does. It reads tokens, so an index that prefixes
-// another is no ancestor, and a property named allOf is no allOf.
-func TestFieldPointer_NamesTheSchemaHoldingEveryDeclaration(t *testing.T) {
+// TestFieldSpan_NamesEachSetOfDeclarations pins the one key that tells two folds
+// apart. A model and a wrapper it flattens can share a first declaration or a
+// last one, so neither names a field: the declaration that last widened the
+// schema holding them all does, and it is one the source wrote. Each pair of
+// rows sharing a first or a last differs in that. It reads tokens, so an index
+// that prefixes another is no ancestor, and a property named allOf is no allOf.
+func TestFieldSpan_NamesEachSetOfDeclarations(t *testing.T) {
 	t.Parallel()
 	const (
 		a  = "/s/allOf/0/properties/p"
@@ -40,26 +41,30 @@ func TestFieldPointer_NamesTheSchemaHoldingEveryDeclaration(t *testing.T) {
 		y  = "/s/allOf/1/allOf/1/properties/p"
 	)
 	for _, tc := range []struct {
-		name  string
-		decls []jsontext.Pointer
-		want  jsontext.Pointer
+		name   string
+		decls  []jsontext.Pointer
+		schema jsontext.Pointer
+		field  jsontext.Pointer
 	}{
-		{"two branches", []jsontext.Pointer{a, b}, "/s/properties/p"},
-		{"a branch and the schema's own", []jsontext.Pointer{a, "/s/properties/p"}, "/s/properties/p"},
-		{"two branches of a wrapper", []jsontext.Pointer{in, on}, "/s/allOf/0/properties/p"},
-		{"a wrapper and a later branch share the first", []jsontext.Pointer{in, on, b}, "/s/properties/p"},
-		{"a branch and a later wrapper share the last", []jsontext.Pointer{a, x, y}, "/s/properties/p"},
-		{"that wrapper alone", []jsontext.Pointer{x, y}, "/s/allOf/1/properties/p"},
-		{"a wrapper's own beside its branch", []jsontext.Pointer{in, "/s/allOf/0/properties/p"}, "/s/allOf/0/properties/p"},
-		{"an index prefixing another", []jsontext.Pointer{"/s/allOf/1/properties/p", "/s/allOf/10/properties/p"}, "/s/properties/p"},
+		{"two branches", []jsontext.Pointer{a, b}, "/s", b},
+		{"a branch and the schema's own", []jsontext.Pointer{a, "/s/properties/p"}, "/s", "/s/properties/p"},
+		{"two branches of a wrapper", []jsontext.Pointer{in, on}, "/s/allOf/0", on},
+		{"that wrapper, then a later branch", []jsontext.Pointer{in, on, b}, "/s", b},
+		{"a branch, then a wrapper", []jsontext.Pointer{a, x, y}, "/s", x},
+		{"that wrapper alone", []jsontext.Pointer{x, y}, "/s/allOf/1", y},
+		{"two wrappers", []jsontext.Pointer{in, on, x, y}, "/s", x},
+		{"a wrapper's own beside its branch", []jsontext.Pointer{in, "/s/allOf/0/properties/p"}, "/s/allOf/0", "/s/allOf/0/properties/p"},
+		{"an index prefixing another", []jsontext.Pointer{"/s/allOf/1/properties/p", "/s/allOf/10/properties/p"}, "/s", "/s/allOf/10/properties/p"},
 		{
 			"a schema under a property named allOf",
 			[]jsontext.Pointer{"/s/properties/allOf/allOf/0/properties/p", "/s/properties/allOf/allOf/1/properties/p"},
-			"/s/properties/allOf/properties/p",
+			"/s/properties/allOf", "/s/properties/allOf/allOf/1/properties/p",
 		},
-		{"an escaped wire name", []jsontext.Pointer{"/s/allOf/0/properties/a~1b", "/s/allOf/1/properties/a~1b"}, "/s/properties/a~1b"},
+		{"a declaration inside what the first spans", []jsontext.Pointer{"/s/properties/p", a}, "/s", "/s/properties/p"},
 	} {
-		assert.Equal(t, tc.want, fieldPointer(declaredIn(tc.decls...)), tc.name)
+		schema, field := fieldSpan(declaredIn(tc.decls...))
+		assert.Equal(t, tc.schema, schema, tc.name)
+		assert.Equal(t, tc.field, field, tc.name)
 	}
 }
 
@@ -67,7 +72,8 @@ func TestFieldPointer_NamesTheSchemaHoldingEveryDeclaration(t *testing.T) {
 // leaves its first declaration's identity: where a node inside the schema
 // holding every declaration holds the first, since that model's field is a
 // different one. A node at that schema, or above it, folds these same
-// declarations, so it is this one field.
+// declarations, so it is this one field. The identity is a minted one, named for
+// a declaration the source wrote.
 func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 	t.Parallel()
 	const (
@@ -76,25 +82,26 @@ func TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn(t *testing.T) {
 		later = "/s/allOf/1/properties/p"
 	)
 	for _, tc := range []struct {
-		name  string
-		decls []jsontext.Pointer
-		nodes []jsontext.Pointer
-		want  jsontext.Pointer
+		name    string
+		decls   []jsontext.Pointer
+		nodes   []jsontext.Pointer
+		id      ir.PropID
+		pointer jsontext.Pointer
 	}{
-		{"no other node", []jsontext.Pointer{first, later}, nil, first},
-		{"the branch holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, "/s/properties/p"},
-		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, "/s/properties/p"},
-		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, first},
-		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, first},
-		{"a branch holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, first},
+		{"no other node", []jsontext.Pointer{first, later}, nil, "p/test" + first, first},
+		{"the branch holding the first", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0/allOf/0"}, "p/minted" + later, later},
+		{"a wrapper around it", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/0"}, "p/minted" + later, later},
+		{"the schema holding every declaration", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s"}, "p/test" + first, first},
+		{"a wrapper holding every declaration", []jsontext.Pointer{first, next}, []jsontext.Pointer{"/s/allOf/0"}, "p/test" + first, first},
+		{"a branch holding only a later one", []jsontext.Pointer{first, later}, []jsontext.Pointer{"/s/allOf/1"}, "p/test" + first, first},
 	} {
 		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})
 		g.Interned = func(p jsontext.Pointer) bool { return slices.Contains(tc.nodes, p) }
 
 		got := g.fold(declaredIn(tc.decls...))
 
-		assert.Equal(t, tc.want, got.Provenance.Pointer, tc.name)
-		assert.Equal(t, ir.PropID("p/test"+tc.want), got.ID, tc.name)
+		assert.Equal(t, tc.pointer, got.Provenance.Pointer, tc.name)
+		assert.Equal(t, tc.id, got.ID, tc.name)
 	}
 }
 
@@ -109,7 +116,7 @@ func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 		names ir.PropID
 		want  ir.PropID
 	}{
-		{"the folded field", "p/test" + first, "p/test/s/properties/p"},
+		{"the folded field", "p/test" + first, "p/minted" + later},
 		{"another field", "p/test/other", "p/test/other"},
 	} {
 		g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{"t/prim/string": &ir.Primitive{ID: "t/prim/string", Prim: ir.PrimString}})

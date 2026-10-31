@@ -19,8 +19,8 @@ type Reporter func(sev ir.Severity, code string, pointer jsontext.Pointer, forma
 // keep.
 type Source func() (ir.RawValue, error)
 
-// Mint registers m, which composes the declarations of the field at pointer
-// (fieldPointer), and returns the ID m is registered under. It fills m's
+// Mint registers m, which composes the declarations of the field pointer names
+// (fieldSpan), and returns the ID m is registered under. It fills m's
 // TypeCommon, since what names a node is the lowering's to derive.
 type Mint func(pointer jsontext.Pointer, m *ir.Model) ir.TypeID
 
@@ -98,7 +98,7 @@ func (idx *PropIndex) MergeProperty(p ir.Property, source Source) {
 // its first redeclaration. A field's first declaration is read off the model as
 // the walk left it, required flag included. A fold reads only nodes the walk
 // built and writes only its own field, and two folds mint under one pointer
-// only where they fold one set of declarations (fieldPointer), so no fold reads
+// only where they fold one set of declarations (fieldSpan), so no fold reads
 // another's result. The model's discriminator read the field's ID off the walk,
 // so it follows the field to any identity of its own.
 func (idx *PropIndex) settle(g *Merger) {

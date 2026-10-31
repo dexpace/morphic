@@ -337,7 +337,8 @@ func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(narrowingRegistry())
 	decls := []declaration{stringAt("/allOf/0/properties/p", `{}`), stringAt("/allOf/1/properties/p", `{}`)}
-	f := newFolding(g, decls, fieldPointer(decls))
+	_, field := fieldSpan(decls)
+	f := newFolding(g, decls, field)
 	f.rel[f.winner][1] = relBNarrower
 
 	f.drop(1)

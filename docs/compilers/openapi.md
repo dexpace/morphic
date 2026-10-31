@@ -1113,18 +1113,18 @@ conjunct. Two aliases of one model are two types, each able to say more than the
 compose. Any other type beside the models (a map, a kind, a degraded node) leaves the choice to the
 rule above. Every declaration then folds into the field, so none is dropped for its type, and each
 conjunct keeps the node its own pointer denotes. The minted model's ID is in the `composed`
-namespace (§3.1, §4.3), so no `$ref` reaches it, and derives from the field's pointer, which its
-provenance records: the wire name under `properties` of the narrowest schema holding every
-declaration, whether or not that schema writes one there. A model and a wrapper it flattens can
-share a first declaration or a last one while folding different sets, and only that pointer tells
-them apart. Folds of one set share the one node, as the variants of a distributed union do.
+namespace (§3.1, §4.3), so no `$ref` reaches it, and derives from the declaration naming the field,
+which its provenance records: the last declaration to widen the schema holding them all, so the
+first outside the branch holding the first declaration. A model and a wrapper it flattens can share
+a first declaration or a last one while folding different sets, and not this one. Folds of one set
+share the one node, as the variants of a distributed union do.
 
 A `$ref` to an `allOf` branch or wrapper makes a model carrying the declarations under it and not
 the others, so one declaration can stand on two models whose fields differ. Where a node stands at a
-schema inside the field's that holds its first declaration, the field is a different property from
-that node's: it takes the field's pointer for its `PropID` and its provenance, and the model's
-discriminator follows it. Every other fold keeps the first declaration's identity, which the walk has
-already handed out.
+schema inside the one holding every declaration that holds the first, the field is a different
+property from that node's: it takes a `PropID` in the `composed` namespace, derived from the
+declaration naming it, and that declaration's provenance, and the model's discriminator follows it.
+Every other fold keeps the first declaration's identity, which the walk has already handed out.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
 silently, holds in every reading. Its value-domain half is `PrimKind.StrictlyWithin` (§4.1) and its
@@ -1219,7 +1219,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_AComposedFieldKeepsEveryDeclarationsDetail`,
   `merge.TestFold_AComposedFieldAdoptsOnlyANull`,
   `merge.TestFold_ComposesOnlyTheDeclarationsItJudges`,
-  `merge.TestFieldPointer_NamesTheSchemaHoldingEveryDeclaration`,
+  `merge.TestFieldSpan_NamesEachSetOfDeclarations`,
   `merge.TestFold_AFieldAnotherModelCarriesTakesAnIdentityOfItsOwn`,
   `merge.TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity`,
   `e2e.TestAllOf_ACollisionPastTheFlatteningDepthIsRefused`,
@@ -1299,7 +1299,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   model and a map or a union are reported as types the merge does not compare (#1182), and so are two
   lists, tuples or maps whose members are different models (#1180); a model and the wrapper it
   flattens that fold different sets only because the model stops at the flattening depth are refused
-  as `compile/registry-refused`, not told apart, since they name one field pointer. Open:
+  as `compile/registry-refused`, not told apart, since one declaration names both. Open:
   intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted
   value against the constraints written on the property (#10).
 

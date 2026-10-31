@@ -427,7 +427,7 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 	assert.Equal(t, map[string][]string{
 		ir.IDKindType:       {"anon", "composed", "openapi"},
 		ir.IDKindOp:         {"openapi"},
-		ir.IDKindProp:       {"openapi"},
+		ir.IDKindProp:       {"composed", "openapi"},
 		ir.IDKindAuth:       {"openapi"},
 		ir.IDKindService:    {"openapi"},
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
@@ -447,7 +447,7 @@ func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 		ir.IDKindType: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml",
 			"composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 		ir.IDKindOp:         {"openapi"},
-		ir.IDKindProp:       {"openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindProp:       {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 		ir.IDKindAuth:       {"openapi"},
 		ir.IDKindService:    {"openapi"},
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},

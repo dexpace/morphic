@@ -17,6 +17,7 @@
       "openapi"
     ],
     "p": [
+      "composed",
       "openapi"
     ],
     "param": [
@@ -210,6 +211,52 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/RefIntoBranch/allOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/RefIntoBranch/allOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RefIntoBranch/allOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RefIntoBranch/allOf/1/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/openapi/components/schemas/Recording",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RefIntoBranch/allOf/1/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/SharedFirst/allOf/0": {
       "kind": "model",
       "id": "t/anon/components/schemas/SharedFirst/allOf/0",
@@ -232,7 +279,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/SharedFirst/allOf/0/properties/data",
+            "target": "t/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -278,7 +325,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/SharedLast/allOf/1/properties/data",
+            "target": "t/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -394,9 +441,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/DiscriminatedBase/properties/pet": {
+    "t/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet": {
       "kind": "model",
-      "id": "t/composed/components/schemas/DiscriminatedBase/properties/pet",
+      "id": "t/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet",
       "name": {
         "hint": "pet"
       },
@@ -405,7 +452,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/DiscriminatedBase/properties/pet"
+        "pointer": "/components/schemas/DiscriminatedBase/allOf/1/properties/pet"
       },
       "base": {
         "target": "t/openapi/components/schemas/Pet",
@@ -421,9 +468,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/DiscriminatedFirst/properties/pet": {
+    "t/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet": {
       "kind": "model",
-      "id": "t/composed/components/schemas/DiscriminatedFirst/properties/pet",
+      "id": "t/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet",
       "name": {
         "hint": "pet"
       },
@@ -432,7 +479,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/DiscriminatedFirst/properties/pet"
+        "pointer": "/components/schemas/DiscriminatedFirst/allOf/1/properties/pet"
       },
       "base": {
         "target": "t/openapi/components/schemas/Pet",
@@ -448,9 +495,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/InlineFirst/properties/data": {
+    "t/composed/components/schemas/InlineFirst/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/InlineFirst/properties/data",
+      "id": "t/composed/components/schemas/InlineFirst/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -459,7 +506,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/InlineFirst/properties/data"
+        "pointer": "/components/schemas/InlineFirst/allOf/1/properties/data"
       },
       "base": {
         "target": "t/openapi/components/schemas/Meeting",
@@ -475,9 +522,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/KeptDefault/properties/data": {
+    "t/composed/components/schemas/KeptDefault/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/KeptDefault/properties/data",
+      "id": "t/composed/components/schemas/KeptDefault/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -486,7 +533,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/KeptDefault/properties/data"
+        "pointer": "/components/schemas/KeptDefault/allOf/1/properties/data"
       },
       "mixins": [
         {
@@ -502,9 +549,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/RefFirst/properties/data": {
+    "t/composed/components/schemas/RefFirst/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/RefFirst/properties/data",
+      "id": "t/composed/components/schemas/RefFirst/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -513,7 +560,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/RefFirst/properties/data"
+        "pointer": "/components/schemas/RefFirst/allOf/1/properties/data"
       },
       "base": {
         "target": "t/openapi/components/schemas/Meeting",
@@ -529,9 +576,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/RefIntoBranch/properties/data": {
+    "t/composed/components/schemas/RefIntoBranch/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/RefIntoBranch/properties/data",
+      "id": "t/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -540,7 +587,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/RefIntoBranch/properties/data"
+        "pointer": "/components/schemas/RefIntoBranch/allOf/1/properties/data"
       },
       "mixins": [
         {
@@ -556,9 +603,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/SharedFirst/allOf/0/properties/data": {
+    "t/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/SharedFirst/allOf/0/properties/data",
+      "id": "t/composed/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -567,7 +614,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/SharedFirst/allOf/0/properties/data"
+        "pointer": "/components/schemas/SharedFirst/allOf/0/allOf/1/properties/data"
       },
       "mixins": [
         {
@@ -583,9 +630,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/SharedFirst/properties/data": {
+    "t/composed/components/schemas/SharedFirst/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/SharedFirst/properties/data",
+      "id": "t/composed/components/schemas/SharedFirst/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -594,7 +641,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/SharedFirst/properties/data"
+        "pointer": "/components/schemas/SharedFirst/allOf/1/properties/data"
       },
       "base": {
         "target": "t/openapi/components/schemas/Pet",
@@ -614,9 +661,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/SharedLast/allOf/1/properties/data": {
+    "t/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/SharedLast/allOf/1/properties/data",
+      "id": "t/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data",
       "name": {
         "hint": "data"
       },
@@ -625,34 +672,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/SharedLast/allOf/1/properties/data"
-      },
-      "mixins": [
-        {
-          "target": "t/openapi/components/schemas/Meeting",
-          "nullable": false
-        },
-        {
-          "target": "t/openapi/components/schemas/Recording",
-          "nullable": false
-        }
-      ],
-      "abstract": false,
-      "positional": false,
-      "inputOnly": false
-    },
-    "t/composed/components/schemas/SharedLast/properties/data": {
-      "kind": "model",
-      "id": "t/composed/components/schemas/SharedLast/properties/data",
-      "name": {
-        "hint": "data"
-      },
-      "anonymous": true,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/SharedLast/properties/data"
+        "pointer": "/components/schemas/SharedLast/allOf/1/allOf/0/properties/data"
       },
       "base": {
         "target": "t/openapi/components/schemas/Pet",
@@ -672,9 +692,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/TwoComponents/properties/data": {
+    "t/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/TwoComponents/properties/data",
+      "id": "t/composed/components/schemas/SharedLast/allOf/1/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -683,7 +703,7 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/TwoComponents/properties/data"
+        "pointer": "/components/schemas/SharedLast/allOf/1/allOf/1/properties/data"
       },
       "mixins": [
         {
@@ -699,9 +719,9 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/composed/components/schemas/TwoInline/properties/data": {
+    "t/composed/components/schemas/TwoComponents/allOf/1/properties/data": {
       "kind": "model",
-      "id": "t/composed/components/schemas/TwoInline/properties/data",
+      "id": "t/composed/components/schemas/TwoComponents/allOf/1/properties/data",
       "name": {
         "hint": "data"
       },
@@ -710,7 +730,34 @@
       "sensitive": false,
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/TwoInline/properties/data"
+        "pointer": "/components/schemas/TwoComponents/allOf/1/properties/data"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Meeting",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Recording",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/composed/components/schemas/TwoInline/allOf/1/properties/data": {
+      "kind": "model",
+      "id": "t/composed/components/schemas/TwoInline/allOf/1/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoInline/allOf/1/properties/data"
       },
       "mixins": [
         {
@@ -861,6 +908,33 @@
             "source": 0,
             "pointer": "/components/schemas/BranchUser/properties/branch"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/BranchUser/properties/other",
+          "name": {
+            "source": "other",
+            "canonical": "other"
+          },
+          "wireName": "other",
+          "type": {
+            "target": "t/anon/components/schemas/RefIntoBranch/allOf/1",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BranchUser/properties/other"
+          }
         }
       ],
       "abstract": false,
@@ -890,7 +964,7 @@
           },
           "wireName": "pet",
           "type": {
-            "target": "t/composed/components/schemas/DiscriminatedBase/properties/pet",
+            "target": "t/composed/components/schemas/DiscriminatedBase/allOf/1/properties/pet",
             "nullable": false
           },
           "required": false,
@@ -937,7 +1011,7 @@
           },
           "wireName": "pet",
           "type": {
-            "target": "t/composed/components/schemas/DiscriminatedFirst/properties/pet",
+            "target": "t/composed/components/schemas/DiscriminatedFirst/allOf/1/properties/pet",
             "nullable": false
           },
           "required": false,
@@ -1083,7 +1157,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/InlineFirst/properties/data",
+            "target": "t/composed/components/schemas/InlineFirst/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -1130,7 +1204,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/KeptDefault/properties/data",
+            "target": "t/composed/components/schemas/KeptDefault/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -1405,7 +1479,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/RefFirst/properties/data",
+            "target": "t/composed/components/schemas/RefFirst/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -1445,14 +1519,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/RefIntoBranch/properties/data",
+          "id": "p/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/RefIntoBranch/properties/data",
+            "target": "t/composed/components/schemas/RefIntoBranch/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -1468,7 +1542,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/RefIntoBranch/properties/data"
+            "pointer": "/components/schemas/RefIntoBranch/allOf/1/properties/data"
           }
         }
       ],
@@ -1492,14 +1566,14 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/SharedFirst/properties/data",
+          "id": "p/composed/components/schemas/SharedFirst/allOf/1/properties/data",
           "name": {
             "source": "data",
             "canonical": "data"
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/SharedFirst/properties/data",
+            "target": "t/composed/components/schemas/SharedFirst/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -1515,7 +1589,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/SharedFirst/properties/data"
+            "pointer": "/components/schemas/SharedFirst/allOf/1/properties/data"
           }
         }
       ],
@@ -1546,7 +1620,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/SharedLast/properties/data",
+            "target": "t/composed/components/schemas/SharedLast/allOf/1/allOf/0/properties/data",
             "nullable": false
           },
           "required": false,
@@ -1640,7 +1714,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/TwoComponents/properties/data",
+            "target": "t/composed/components/schemas/TwoComponents/allOf/1/properties/data",
             "nullable": true
           },
           "required": false,
@@ -1687,7 +1761,7 @@
           },
           "wireName": "data",
           "type": {
-            "target": "t/composed/components/schemas/TwoInline/properties/data",
+            "target": "t/composed/components/schemas/TwoInline/allOf/1/properties/data",
             "nullable": false
           },
           "required": false,
@@ -1776,7 +1850,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "048a05aff40d54634dce581335e540745da09a32dbd1d76a0ebe08d706f640b4"
+      "hash": "95e0a5271de674fbbdc127c3ade994f466189991d282e00ceb411bb883616a9e"
     }
   ]
 }

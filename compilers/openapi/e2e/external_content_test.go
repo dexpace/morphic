@@ -962,10 +962,10 @@ components:
 	require.NoError(t, err)
 	assert.Empty(t, diags)
 	for _, tc := range []struct{ model, composed, mixin ir.TypeID }{
-		{"t/openapi/components/schemas/F", "t/composed/components/schemas/F/properties/p", "t/openapi/components/schemas/A"},
+		{"t/openapi/components/schemas/F", "t/composed/components/schemas/F/allOf/1/properties/p", "t/openapi/components/schemas/A"},
 		{
 			"t/openapi@other.yaml/components/schemas/F",
-			"t/composed@other.yaml/components/schemas/F/properties/p",
+			"t/composed@other.yaml/components/schemas/F/allOf/1/properties/p",
 			"t/openapi@other.yaml/components/schemas/A",
 		},
 	} {
@@ -983,8 +983,8 @@ components:
 
 // TestExternalContent_AFieldCarriedApartIsReadInItsDocument pins whose nodes
 // decide a field's identity: its own document's. Only other.yaml holds a $ref to
-// a branch of F, so its field takes the field pointer, while the root's field at
-// the same pointer keeps its first declaration's identity.
+// a branch of F, so its field takes a minted identity, while the root's field at
+// the same pointer keeps its first declaration's.
 func TestExternalContent_AFieldCarriedApartIsReadInItsDocument(t *testing.T) {
 	t.Parallel()
 	const other = `openapi: 3.1.0
@@ -1023,7 +1023,7 @@ components:
 		want  ir.PropID
 	}{
 		{"t/openapi/components/schemas/F", "p/openapi/components/schemas/F/allOf/0/properties/p"},
-		{"t/openapi@other.yaml/components/schemas/F", "p/openapi@other.yaml/components/schemas/F/properties/p"},
+		{"t/openapi@other.yaml/components/schemas/F", "p/composed@other.yaml/components/schemas/F/allOf/1/properties/p"},
 	} {
 		m, ok := doc.Types[tc.model].(*ir.Model)
 		require.True(t, ok, tc.model)

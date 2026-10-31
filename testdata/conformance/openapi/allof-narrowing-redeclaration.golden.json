@@ -17,6 +17,7 @@
       "openapi"
     ],
     "p": [
+      "composed",
       "openapi"
     ],
     "param": [
@@ -843,7 +844,7 @@
       },
       "properties": [
         {
-          "id": "p/openapi/components/schemas/NarrowedPastARef/properties/p",
+          "id": "p/composed/components/schemas/NarrowedPastARef/allOf/1/properties/p",
           "name": {
             "source": "p",
             "canonical": "p"
@@ -866,7 +867,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/NarrowedPastARef/properties/p"
+            "pointer": "/components/schemas/NarrowedPastARef/allOf/1/properties/p"
           }
         }
       ],

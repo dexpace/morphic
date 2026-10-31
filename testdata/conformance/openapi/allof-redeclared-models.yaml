@@ -109,8 +109,9 @@ components:
         - type: object
           properties:
             data: {$ref: '#/components/schemas/Recording'}
-    # A $ref into a branch makes a model carrying the first declaration alone,
-    # so the field the branches make together is another property.
+    # A $ref into a branch makes a model carrying that declaration alone, so the
+    # field the branches make together is another property, and no declaration's
+    # own ID is free for it to take.
     RefIntoBranch:
       allOf:
         - type: object
@@ -123,6 +124,7 @@ components:
       type: object
       properties:
         branch: {$ref: '#/components/schemas/RefIntoBranch/allOf/0'}
+        other: {$ref: '#/components/schemas/RefIntoBranch/allOf/1'}
     # A model and the wrapper it flattens share a first declaration, and fold
     # different sets, so each field names a composition of its own.
     SharedFirst:

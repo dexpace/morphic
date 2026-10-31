@@ -53,15 +53,15 @@ const (
 	// own pointer, and no pointer is both.
 	OpenAPISpace compile.Space = "openapi"
 	AnonSpace    compile.Space = "anon"
-	// ComposedSpace holds the Models synthesized for distributed union variants
-	// (§4.3) and for a field redeclared as several models
-	// (docs/compilers/openapi.md#allof-redeclared-property) — nodes no schema in
-	// the source occupies. A $ref naming the pointer must keep resolving to
-	// whatever is written there. One path ends in oneOf or anyOf and an index and
-	// the other in properties and a name, so the two never meet.
-	// ForPointer yields only the openapi and anon spaces, so resolveSchemaRef can
-	// never hand a composed ID to a reference; compile.Types rejects the mistake
-	// of minting into a space that addresses coordinates.
+	// ComposedSpace holds what no schema or declaration in the source occupies:
+	// the Models synthesized for distributed union variants (§4.3) and for a field
+	// redeclared as several models, and the identity of a field whose first
+	// declaration another model carries
+	// (docs/compilers/openapi.md#allof-redeclared-property). A $ref naming the
+	// pointer must keep resolving to what is written there. A variant's path ends
+	// in oneOf or anyOf and an index, and a field's in properties and a name, so
+	// the two never meet. ForPointer yields only the openapi and anon spaces, so
+	// resolveSchemaRef can never hand a composed ID to a reference.
 	ComposedSpace compile.Space = "composed"
 )
 
@@ -116,7 +116,7 @@ func Namespaces(others ...Document) compile.Namespaces {
 	ns := compile.Namespaces{
 		ir.IDKindType:       {OpenAPISpace, AnonSpace, ComposedSpace},
 		ir.IDKindOp:         {OpenAPISpace},
-		ir.IDKindProp:       {OpenAPISpace},
+		ir.IDKindProp:       {OpenAPISpace, ComposedSpace},
 		ir.IDKindAuth:       {OpenAPISpace},
 		ir.IDKindService:    {OpenAPISpace},
 		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
@@ -126,7 +126,7 @@ func Namespaces(others ...Document) compile.Namespaces {
 	}
 	for _, d := range others {
 		ns[ir.IDKindType] = append(ns[ir.IDKindType], d.space(OpenAPISpace), d.space(AnonSpace), d.space(ComposedSpace))
-		ns[ir.IDKindProp] = append(ns[ir.IDKindProp], d.space(OpenAPISpace))
+		ns[ir.IDKindProp] = append(ns[ir.IDKindProp], d.space(OpenAPISpace), d.space(ComposedSpace))
 		ns[ir.IDKindEnumMember] = append(ns[ir.IDKindEnumMember], d.space(OpenAPISpace), d.space(AnonSpace))
 		ns[ir.IDKindServer] = append(ns[ir.IDKindServer], d.space(OpenAPISpace))
 	}
@@ -178,10 +178,17 @@ func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
 }
 
 // ComposedType returns the stable ID of the Model synthesized at pointer in d:
-// a distributed union variant's branch (§4.3), or the field a schema's
-// declarations of several models make together.
+// a distributed union variant's branch (§4.3), or the declaration naming a field
+// redeclared as several models.
 func (d Document) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(pointer))
+}
+
+// ComposedProp returns the stable ID of a field the declaration at pointer in d
+// names, where another model carries the field's first declaration, so that no
+// declaration's own ID is taken.
+func (d Document) ComposedProp(pointer jsontext.Pointer) ir.PropID {
+	return compile.PropID(d.space(ComposedSpace), string(pointer))
 }
 
 // Op returns the stable ID of the operation at pointer.

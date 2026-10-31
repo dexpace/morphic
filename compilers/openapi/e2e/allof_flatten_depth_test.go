@@ -16,10 +16,10 @@ import (
 )
 
 // TestAllOf_ACollisionPastTheFlatteningDepthIsRefused pins the one way two folds
-// reach one field pointer with different sets: a wrapper reads a declaration
-// nested just past the depth a model enclosing it flattens to. The field pointer
-// cannot tell them apart, so the registry refuses it rather than let one replace
-// the other, and one level shallower both read it and share the node.
+// reach one naming declaration with different sets: a wrapper reads a declaration
+// nested just past the depth a model enclosing it flattens to. The key cannot
+// tell them apart, so the registry refuses it rather than let one replace the
+// other, and one level shallower both read it and share the node.
 func TestAllOf_ACollisionPastTheFlatteningDepthIsRefused(t *testing.T) {
 	t.Parallel()
 	spec := func(depth int) string {

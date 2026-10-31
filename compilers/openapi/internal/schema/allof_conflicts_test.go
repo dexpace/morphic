@@ -931,17 +931,18 @@ const redeclaredModelsSpec = `    Meeting:
 `
 
 // composedField returns the model the field wire of the component name composes
-// to, and asserts its ID is the field's pointer in the composed space, and that
-// it is anonymous and points back at that pointer.
+// to, and asserts its ID is the pointer of the declaration naming the field, the
+// component's second allOf branch here, in the composed space, and that it is
+// anonymous and points back at that declaration.
 func composedField(t *testing.T, doc *ir.Document, name, wire string) *ir.Model {
 	t.Helper()
 	p := propertyOf(t, doc, name, wire)
-	field := "/components/schemas/" + name + "/properties/" + wire
+	field := "/components/schemas/" + name + "/allOf/1/properties/" + wire
 	want := ir.TypeID("t/composed" + field)
 	require.Equal(t, want, p.Type.Target)
 	m, ok := doc.Types[want].(*ir.Model)
 	require.True(t, ok, "%s should hold a registered model", want)
-	assert.Equal(t, field, string(m.Provenance.Pointer), "it points back at the field")
+	assert.Equal(t, field, string(m.Provenance.Pointer), "it points back at the declaration")
 	assert.True(t, m.Anonymous)
 	return m
 }
@@ -1036,7 +1037,7 @@ func TestAllOf_EveryDistributedVariantSharesOneComposedField(t *testing.T) {
         - {$ref: '#/components/schemas/D'}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	const shared = ir.TypeID("t/composed/components/schemas/S/properties/data")
+	const shared = ir.TypeID("t/composed/components/schemas/S/allOf/1/properties/data")
 	for _, variant := range []ir.TypeID{
 		"t/composed/components/schemas/S/oneOf/0",
 		"t/composed/components/schemas/S/oneOf/1",

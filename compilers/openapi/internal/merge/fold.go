@@ -29,7 +29,7 @@ type Merger struct {
 	Mint Mint
 	// Interned reports whether a node stands at a pointer.
 	Interned func(jsontext.Pointer) bool
-	// PropAt returns the ID of a property at a pointer.
+	// PropAt returns the identity a field named for a pointer takes (identify).
 	PropAt func(jsontext.Pointer) ir.PropID
 	// Report records one diagnostic a fold draws.
 	Report Reporter
@@ -58,7 +58,7 @@ func (g *Merger) fold(decls []declaration) ir.Property {
 	if len(decls) > maxFoldDeclarations {
 		judged, past = decls[:maxFoldDeclarations], decls[maxFoldDeclarations:]
 	}
-	field := fieldPointer(judged)
+	schema, field := fieldSpan(judged)
 	f := newFolding(g, judged, field)
 	f.foldType()
 	f.foldConstraints()
@@ -68,7 +68,7 @@ func (g *Merger) fold(decls []declaration) ir.Property {
 	f.foldAnnotations()
 	f.foldUnmodeled()
 	merged := f.finish()
-	g.identify(&merged, field)
+	g.identify(&merged, schema, field)
 	g.keepUnjudged(&merged, past)
 	return merged
 }
@@ -100,7 +100,7 @@ func (g *Merger) keepUnjudged(merged *ir.Property, past []declaration) {
 type folding struct {
 	g     *Merger
 	decls []declaration
-	// field is the field's pointer (fieldPointer).
+	// field is the declaration naming the field (fieldSpan).
 	field jsontext.Pointer
 	// rel[i][j] is the judgment of decls[i]'s type against decls[j]'s.
 	rel [][]relation
