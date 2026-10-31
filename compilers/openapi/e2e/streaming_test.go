@@ -173,4 +173,12 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.NotNil(t, negotiated.Responses[0].Payload)
 	assert.Len(t, negotiated.Responses[0].Payload.Contents, 2,
 		"and both media types are still kept, as they are for the unelected case")
+
+	sequence, ok := opByName(doc, "streamSequence")
+	require.True(t, ok)
+	assert.Equal(t, ir.StreamingServer, sequence.Streaming, "application/json-seq is a sequence")
+
+	suffix, ok := opByName(doc, "uploadSequence")
+	require.True(t, ok)
+	assert.Equal(t, ir.StreamingClient, suffix.Streaming, "and so is whatever carries its suffix")
 }

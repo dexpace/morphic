@@ -17,6 +17,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -60,7 +62,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 		}
 		return &ir.Enum{
 			TypeCommon: common,
-			ValueType:  enumValueType(s, memberPrim),
+			ValueType:  enumValueType(s, members, memberPrim),
 			Members:    members,
 			Closed:     true,
 		}
@@ -76,7 +78,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 // irverify rejects as ir/union-no-variants and no reader can act on (GitHub
 // #318).
 //
-// ValueType is the declared scalar type, else the top type. Whether a
+// ValueType is what the declaration selects, else the top type. Whether a
 // reference admits null is not settled here: schemaAdmitsNull reads the type
 // keyword at each use site (GitHub #288).
 func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
@@ -84,7 +86,7 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
 	return &ir.Enum{
 		TypeCommon: common,
-		ValueType:  enumValueType(s, ir.PrimAny),
+		ValueType:  enumValueType(s, nil, ir.PrimAny),
 		Closed:     true,
 	}, diags
 }
@@ -136,8 +138,9 @@ func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer js
 	return members, prim, true
 }
 
-// enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
-// hoisted Literals, emitting one info diagnostic.
+// enumAsUnion lowers a heterogeneous or non-scalar enum to a Union of hoisted
+// Literals, emitting one info diagnostic. The Union is exclusive unless an
+// instance can match two variants (enumEntriesDistinct).
 func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
@@ -155,8 +158,23 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 	return &ir.Union{
 		TypeCommon: common,
 		Variants:   variants,
-		Exclusive:  true,
+		Exclusive:  enumEntriesDistinct(nodes),
 	}, diags
+}
+
+// enumEntriesDistinct reports whether no instance equals two of the entries:
+// no value repeats, and each has a key, since one with none may lower to the
+// top type, which every instance matches.
+func enumEntriesDistinct(nodes []values.Value) bool {
+	seen := make(map[string]bool, len(nodes))
+	for _, node := range nodes {
+		key, keyed := entryKey(node)
+		if !keyed || seen[key] {
+			return false
+		}
+		seen[key] = true
+	}
+	return true
 }
 
 // hoistLiteral hoists a single node as a Literal type at its own pointer, or
@@ -189,24 +207,33 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer 
 	return id, diags
 }
 
-// enumValueType picks an Enum's ValueType from the schema's declared scalar
-// type, falling back to the primitive its members classified to. It does not
-// re-derive that primitive from a ValueKind: enumMemberForm decided it once,
-// for the same members, so there is nothing here to disagree with.
-func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
+// enumValueType picks an Enum's ValueType: the primitive the schema's declared
+// type and format select, as a scalar's are read, where every member is a value
+// of it; else the declared scalar type; else the primitive its members
+// classified to. A format the members do not fit is one no target could back
+// the enum with, so it stays verbatim, as a format the table lacks does. It does
+// not re-derive memberPrim from a ValueKind: enumMemberForm decided it once, for
+// the same members, so there is nothing here to disagree with.
+func enumValueType(s *oas3.Schema, members []ir.EnumMember, memberPrim ir.PrimKind) ir.PrimKind {
+	if prim, paired := formatPrimitive(s); paired && enumMembersAre(members, prim) {
+		return prim
+	}
 	if types := effectiveTypes(s); len(types) == 1 {
-		switch types[0] {
-		case oas3.SchemaTypeString:
-			return ir.PrimString
-		case oas3.SchemaTypeInteger:
-			return ir.PrimInteger
-		case oas3.SchemaTypeNumber:
-			return ir.PrimNumber
-		case oas3.SchemaTypeBoolean:
-			return ir.PrimBool
+		if prim, known := spelling.Lookup(string(types[0])); known {
+			return prim
 		}
 	}
 	return memberPrim
+}
+
+// enumMembersAre reports whether every member's value is a value of prim.
+func enumMembersAre(members []ir.EnumMember, prim ir.PrimKind) bool {
+	for _, m := range members {
+		if !merge.Admits(prim, m.Value) {
+			return false
+		}
+	}
+	return true
 }
 
 // enumMemberForm classifies one lowered value as an Enum member: the PrimKind

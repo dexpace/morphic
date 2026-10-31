@@ -1306,21 +1306,25 @@ collapses into its reference.
 
 ### `type-arrays`
 
-A schema whose `type` lists more than one type lowers to an exclusive `Union` with one variant per
-listed type other than `null`, in order, each lowered from the same schema as that type alone and
-named by it: a shared primitive for a scalar type, and for `object` or `array` a node hoisted at
+A schema whose `type` lists more than one type lowers to a `Union` with one variant per listed type
+other than `null`, in order, each lowered from the same schema as that type alone and named by it: a
+shared primitive for a scalar type, and for `object` or `array` a node hoisted at
 `<pointer>/type/<index>`. A `null` among them makes the position nullable instead
-([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The bounds a
-carried schema writes land on its property or parameter ([`constraints`](#constraints)). No keyword
-census runs over the union, since each variant is built from the whole schema and holds what its own
-type admits ([`shape-applicator`](#shape-applicator)).
+([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The union is
+exclusive unless the list names both `integer` and `number`, the one pair of JSON types that
+overlap, since every integer is a number; two variants the types resolve to one primitive, as a
+width does ([`numeric-formats`](#numeric-formats)), stay two. The bounds a carried schema writes land
+on its property or parameter ([`constraints`](#constraints)). No keyword census runs over the union,
+since each variant is built from the whole schema and holds what its own type admits
+([`shape-applicator`](#shape-applicator)).
 
+- Cases: `type-array-numeric`
 - Tests: `schema.TestLower_MultiTypeUnion`,
+  `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
 - Status: partly built: a keyword or bound that no variant holds, as at a component, where no
-  carrier takes a bound, is dropped in silence (#852); a list naming `integer` and `number` lowers
-  to an exclusive union that no integer satisfies, since every integer is a number (#868); and a
-  multi-typed base's discriminator routes to no subtype (#853).
+  carrier takes a bound, is dropped in silence (#852); and a multi-typed base's discriminator routes
+  to no subtype (#853).
 
 ### `union-null-variant`
 
@@ -1524,15 +1528,22 @@ chooses the collapse.
 
 An `enum` lowers to a closed `Enum` at any member count, one member included, each entry a member
 holding its value ([`values`](#values)) in source order (§4.5); a `null` entry beside others is no
-member but makes the position nullable ([`nullable`](#nullable)). An enumeration an `Enum` cannot
-hold — a list or object member, members of different kinds, or only `null` — lowers to an exclusive
-`Union` of `Literal`s instead, reported as an info `openapi/degraded-construct` at the schema, and a
-member whose value cannot convert makes the enumeration such a union, its own variant the top type,
-reported as an `openapi/degraded-construct` warning at the member. `enum: []` lowers to a closed
-`Enum` with no members, a position accepting no value, reported as an `openapi/empty-enum` warning.
-An entry repeating an earlier entry's value, compared as JSON Schema compares instances, is kept,
-each occurrence a member of its own (§4.5), and reported as an `openapi/duplicate-enum-value`
-warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers to the top type, with an
+member but makes the position nullable ([`nullable`](#nullable)). Its `ValueType` is the primitive
+one declared `type` and its `format` select, as a scalar's are read
+([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)), where every member is
+a value of that primitive. Otherwise it is the primitive of the `type` alone, else of the members,
+and a `format` that reaches no `ValueType`, whether the table lacks the pairing or a member does not
+fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under `openapi:format`
+(`degraded_lowering`), with an info `openapi/degraded-construct` at the schema. An enumeration an
+`Enum` cannot hold — a list or object member, members of different kinds, or only `null` — lowers to
+a `Union` of `Literal`s instead, reported as an info `openapi/degraded-construct` at the schema, and
+a member whose value cannot convert makes the enumeration such a union, its own variant the top
+type, reported as an `openapi/degraded-construct` warning at the member. That union is exclusive
+unless an instance can match two variants: an entry repeats, or one lowered to the top type. `enum:
+[]` lowers to a closed `Enum` with no members, a position accepting no value, reported as an
+`openapi/empty-enum` warning. An entry repeating an earlier entry's value, compared as JSON Schema
+compares instances, is kept, each occurrence a member of its own (§4.5), and reported as an
+`openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers to the top type, with an
 `openapi/budget-exceeded` error at the schema. A `const` lowers to a `Literal` of its value, and one
 that cannot convert to the top type, with an `openapi/degraded-construct` warning at the schema. A
 `$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
@@ -1544,12 +1555,14 @@ at that position, whichever is lowered first.
   `openapi/budget-exceeded`
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`,
+  `schema.TestEnum_ValueTypeReadsTheFormatItsMembersFit`,
+  `schema.TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
+  `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
-- Status: partly built: an `enum` ignores its `format`, though `Enum.ValueType` can carry it (#607);
-  an enum whose members do not match its declared type lowers to a union with only an info
-  diagnostic (#619); and a `Literal` carries no value type or format (#668). Open: whether a
-  mixed-type enum's `null` lifts out of its union (#618).
+- Status: partly built: an enum whose members do not match its declared type lowers to a union with
+  only an info diagnostic (#619); and a `Literal` carries no value type or format (#668). Open:
+  whether a mixed-type enum's `null` lifts out of its union (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 
@@ -2154,14 +2167,17 @@ or not it lowers, and a list another document writes where it lowers; the rule t
 
 ### `content-parameters`
 
-A parameter or header that states its type with `content` instead of `schema` lowers through the
-first media-type entry, which OpenAPI requires to be the only one. Its schema is the type, lowered
-as the `schema` spelling's is with the same constraints and `xml` hints, hoisted at
+A parameter or header that states its type with `content` instead of `schema` lowers through one
+media-type entry, which OpenAPI requires to be the only one: the lowest key as written where a
+document declares more, so that no declaration order changes the type. Its schema is the type,
+lowered as the `schema` spelling's is with the same constraints and `xml` hints, hoisted at
 `<owner>/content/<key>/schema`, or the top type where the entry writes none, and the key as written
 is the media type that serializes the value: `HTTPParamBinding.ContentType` on a parameter,
-`Property.Encoding.MediaType` on a header, neither set by the `schema` spelling. Further entries
-lower nothing, reported as an `openapi/degraded-construct` warning at the `content` map naming them.
-What else the entry writes is kept: its `example` and `examples` follow the parameter's or header's
+`Property.Encoding.MediaType` on a header, neither set by the `schema` spelling. Every other entry
+lowers nothing and is kept whole under `openapi:content/<key>`, the key escaped as a pointer segment
+(`degraded_lowering`), reported as one `openapi/degraded-construct` warning at the `content` map
+naming them, beside the `openapi/validation` error ([`validation`](#validation)) such a map draws.
+What else the elected entry writes is kept: its `example` and `examples` follow the parameter's or header's
 own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the key escaped
 as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared key under
 `out_of_scope`, with the `openapi/unknown-object-key` warning [`unknown-keys`](#unknown-keys) gives
@@ -2171,14 +2187,14 @@ at it. A `content` map with no entry elects nothing: a `schema` beside it stands
 is kept under `degraded_lowering` with an `openapi/degraded-construct` warning. The converse,
 `schema` beside a non-empty `content`, is [`competing-keywords`](#competing-keywords)'.
 
-- Cases: `param-content-fields`, `header-content-schema`
+- Cases: `param-content-fields`, `header-content-schema`, `content-several-entries`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestParams_ContentStyleParameter`,
-  `operation.TestSingleContentEntry_ReportsExtraMediaTypes`,
+  `operation.TestPassedOverEntries_ReportsExtraMediaTypes`,
+  `operation.TestElectContentEntry_DoesNotFollowDeclarationOrder`,
   `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
-- Status: partly built: a parameter or header with several `content` entries takes its type from
-  whichever comes first (#606), and a `style`, `explode` or `allowReserved` beside a parameter's
-  `content` lowers in silence (#887).
+- Status: partly built: a `style`, `explode` or `allowReserved` beside a parameter's `content` lowers
+  in silence (#887).
 
 ### `allow-empty-value`
 
@@ -2296,18 +2312,19 @@ all three and its `x-*`, reported as an `openapi/empty-request-content` warning 
 A content entry whose schema is `type: string` with `format: binary`, read through a `$ref` and
 whatever its media type, or whose schema is absent or boolean on `application/octet-stream`, matched
 on the normalized key ([`media-types`](#media-types)), lowers to `Content.File` with `IsText` false
-and `ContentTypes` the key as written, and `Content.Type` the non-nullable `bytes` primitive in
-place of whatever the schema lowered to, so that a body to stream is not read as a model. No other
-`FileInfo` field is set. The same holds for a response and an error case. An `octet-stream` entry
+and `ContentTypes` the key as written, so that a body to stream is not read as a model.
+`Content.Type` stays what the schema lowered to, which keeps its docs, bounds and examples
+reachable, and is the non-nullable `bytes` primitive only where the schema is absent or `true` and
+states nothing. No other `FileInfo` field is set. The same holds for a response and an error case. An `octet-stream` entry
 with a schema that is not `string` with `binary`, a `format: byte` or `contentMediaType` string, and
 a schema-less entry on any other media type are ordinary Contents.
 
 - Cases: `file-body`
 - Tests: `operation.TestContent_BinaryOctetStreamBody`,
   `operation.TestContent_MixedCaseOctetStreamBodyIsFile`,
-  `operation.TestContent_BinaryRefBodyDetectedAsFile`
-- Status: partly built: a binary body's schema keeps its docs and bounds on a node no Content
-  references (#600), and the 3.1 idioms for a file, `contentMediaType` without `contentEncoding` and
+  `operation.TestContent_BinaryRefBodyDetectedAsFile`,
+  `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`
+- Status: partly built: the 3.1 idioms for a file, `contentMediaType` without `contentEncoding` and
   a schema-less entry on a media type other than `application/octet-stream`, are not recognized
   (#605).
 
@@ -2339,11 +2356,13 @@ reported as one info `openapi/degraded-construct` at the content, while `itemSch
 ### `streaming-media`
 
 A request body or success response with a Content whose media type the streaming policy names —
-`application/jsonl`, `application/x-ndjson` and `text/event-stream` by default, matched on the
-normalized key ([`media-types`](#media-types)) at every minor — lowers to `Operation.RequestStream`
+`application/json-seq`, `application/jsonl`, `application/x-ndjson`, `text/event-stream` and the
+`+json-seq` structured suffix by default, matched on the normalized key
+([`media-types`](#media-types)) at every minor — lowers to `Operation.RequestStream`
 and `ResponseStream` for the directions that have one, each with `Events` the Content's own `Type`
-(for a frame format the schema is read as one frame, not the body), `Streaming` the `client`,
-`server` or `bidi` summary of them, and `Provenance.Inferred` the marker `streaming-media-type` on
+(for a frame format the schema is read as one frame, not the body), or `bytes` on a file body
+([`file-bodies`](#file-bodies)), whose schema describes the file, `Streaming` the `client`, `server`
+or `bidi` summary of them, and `Provenance.Inferred` the marker `streaming-media-type` on
 the operation, joined by `,` to any other marker, since below 3.2 a media type is a guess about
 framing and not a declaration. A 3.2 `itemSchema` ([`item-schema`](#item-schema)) is a declaration:
 it streams on any media type with `Events` the `Item` type and no marker, and wins over the
@@ -2353,18 +2372,21 @@ media-type reading at its own Content. Streaming Contents that name different el
 same element elect it. Error responses and the default are not read: whether the default answers a
 success is the plan's to decide ([`response-conditions`](#response-conditions)). The policy is the
 Go option `Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what
-an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it.
+an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it, an
+entry starting with `+` naming a structured suffix. The `streaming-media` setting sets `MediaTypes`,
+its entries separated by commas, and refuses one that is neither a media type nor a suffix.
 
 - Cases: `streaming-media-30`, `streaming-media-31`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestStreaming_ResponseMediaTypeImpliesServerStream`,
   `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
-  `operation.TestStreaming_ItemSchemaDeclaresTheStream`
-- Status: partly built: an operation that does not stream carries an empty `Streaming`, where §7.2
-  declares `none` (#978); the default policy misses `application/json-seq` (#629); sequential media
-  types derive the wrong item type (#630); a response offering a plain body and an event stream does
-  not record which content streams (#601); and an event stream's terminator, and a response that
-  streams only when a request field asks it to, have no IR home (#666, #667).
+  `operation.TestStreaming_ItemSchemaDeclaresTheStream`,
+  `operation.TestStreaming_AFileBodyStreamsBytes`,
+  `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
+- Status: partly built: sequential media types derive the wrong item type (#630); a response
+  offering a plain body and an event stream does not record which content streams (#601); and an
+  event stream's terminator, and a response that streams only when a request field asks it to, have
+  no IR home (#666, #667).
 
 ### `multipart-encoding`
 

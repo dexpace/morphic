@@ -785,11 +785,11 @@ components:
 		require.Len(t, op(path).Request.Contents, 1, path)
 		assert.Equal(t, keys, slices.Sorted(maps.Keys(op(path).Request.Contents[0].Encoding)), "%s: a form body's parts", path)
 	}
-	for _, path := range []string{"file", "file-home"} {
+	for path, schema := range map[string]ir.TypeID{"file": lib.AnonType("/Bin"), "file-home": "t/openapi/components/schemas/Bin"} {
 		require.NotNil(t, op(path).Request, path)
 		require.Len(t, op(path).Request.Contents, 1, path)
 		body := op(path).Request.Contents[0]
-		assert.Equal(t, ir.TypeID("t/prim/bytes"), body.Type.Target, "%s: a binary body's type", path)
+		assert.Equal(t, schema, body.Type.Target, "%s: a binary body's type", path)
 		assert.NotNil(t, body.File, path)
 	}
 	for name, base := range map[string]ir.TypeID{"Local": lib.AnonType("/Kid"), "Mine": lib.AnonType("/Pet")} {

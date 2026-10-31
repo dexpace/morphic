@@ -73,25 +73,20 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 // ir.Value one, and the raw-JSON one went on rewriting a date to RFC 3339 with
 // this fixture green (GitHub #242); assertRawPreservedDates is the other half.
 func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	// R's `not` announces the §4.7 carve-out, and D's `format: date` announces
-	// that an ir.Enum has no Encoding field to put it in, so it is kept verbatim
-	// beside the enum rather than dropped. Those two are the only notices any
-	// site here is allowed to say, and neither is about a date: one that was
-	// dropped or degraded reports itself as a warning, which is what this fixture
-	// exists to catch.
+	// R's `not` announces the §4.7 carve-out. That is the only notice any site
+	// here is allowed to say, and it is not about a date: one that was dropped or
+	// degraded reports itself as a warning, which is what this fixture exists to
+	// catch.
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityInfo, d.Severity,
 			"every unquoted date converts cleanly; nothing is dropped or degraded: %+v", d)
-		if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == "/components/schemas/D" {
-			continue
-		}
 		assert.Equal(t, "openapi/validation-only-keyword", d.Code,
 			"the §4.7 carve-out is the only other notice this fixture expects: %+v", d)
 	}
 
 	d, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum of the real dates, not a union of null literals")
-	assert.Equal(t, ir.PrimString, d.ValueType)
+	assert.Equal(t, ir.PrimDate, d.ValueType)
 	require.Len(t, d.Members, 2)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, d.Members[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, d.Members[1].Value)

@@ -102,15 +102,27 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 }
 
 // TestStreamingMode_Constants pins the on-disk spelling of every StreamingMode
-// value.
+// value, including the empty-string "none" state.
 func TestStreamingMode_Constants(t *testing.T) {
 	t.Parallel()
 	assertConstantSpellings(t, map[ir.StreamingMode]string{
-		ir.StreamingNone:   "none",
+		ir.StreamingNone:   "",
 		ir.StreamingClient: "client",
 		ir.StreamingServer: "server",
 		ir.StreamingBidi:   "bidi",
-	}, "unspecified")
+	}, "none")
+}
+
+// TestStreamingMode_Valid holds Valid to the declared modes: the empty mode is
+// one of them, and the spelling it replaced is not.
+func TestStreamingMode_Valid(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []ir.StreamingMode{ir.StreamingNone, ir.StreamingClient, ir.StreamingServer, ir.StreamingBidi} {
+		assert.True(t, mode.Valid(), "%q", mode)
+	}
+	for _, mode := range []ir.StreamingMode{"none", "Server", "duplex"} {
+		assert.False(t, mode.Valid(), "%q", mode)
+	}
 }
 
 // TestIdempotencyKind_Constants pins the on-disk spelling of every

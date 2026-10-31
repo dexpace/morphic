@@ -362,6 +362,21 @@ it sees. Changes made together in one bump are listed together under it.
     `Style` and `Explode` beside its members, which encode flat (§7.2). The compiler had kept each
     verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to 0.21.0 that reads those
     entries no longer finds them.
+- **0.23.0** — what these facts say changed:
+  - `StreamingNone` is `""`, where it was `"none"`, the state every operation that does not stream
+    already encoded by having no `streaming` member, and `irverify` holds `Streaming` to the
+    declared modes (`ir/unknown-streaming-mode`) (§7.3). No compiler wrote `"none"`, so no compiled
+    document changes; one that writes it, or a consumer comparing against it, is out of date.
+  - A file body's `Content.Type` holds what its schema lowered to (§7.2). The OpenAPI compiler had
+    written `bytes` over it, which left the schema on a node nothing referenced. `File` still says
+    the body is a file, so a consumer pinned to 0.22.0 that reads `File` first is unaffected, and
+    one that expects `Type` to be `bytes` finds a reference to the schema instead.
+  - `Enum.ValueType` holds the primitive a declared type and format select, where every member is
+    a value of it (§4.5): `int64` where the compiler had written `integer` and kept the format
+    verbatim under `Unmodeled`, an entry such a consumer no longer finds.
+  - `Union.Exclusive` is false on a union whose variants can match one instance, which the source
+    did not ask to exclude (§4.4): a type array naming `integer` and `number`, and an enum whose
+    entry repeats. The compiler had set it, leaving such a union to refuse what its schema admits.
 
 ---
 
@@ -1006,7 +1021,9 @@ instead, enumerated by the OpenAPI compiler's rule
 type Union struct {
     TypeCommon
     Variants      []Variant
-    Exclusive     bool           // exactly one variant matches (oneOf); false = one or more (anyOf)
+    Exclusive     bool           // exactly one variant matches (oneOf); false = one or more (anyOf,
+                                 // and a union whose variants overlap though no source asked to
+                                 // exclude them: a type array naming integer and number)
     WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
                                  // a single key (Smithy union, protobuf oneof); false = untagged
     Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged
@@ -1677,7 +1694,8 @@ type Operation struct {
                                   // send-without-reply, Thrift oneway, JSON-RPC notifications).
                                   // Distinct from a response with no body (an ack still exists);
                                   // validate rejects OneWay with any response, Default included
-    Streaming  StreamingMode      // none | client | server | bidi (derived summary of the two below)
+    Streaming  StreamingMode      // client | server | bidi; "" = does not stream (derived summary
+                                  // of the two below)
     RequestStream  *StreamDetail  // client→server streaming semantics, when present
     ResponseStream *StreamDetail  // server→client streaming semantics, when present
     Pagination *Pagination
@@ -1768,7 +1786,9 @@ type Content struct {
                                   // `pass` resolves a key against that model rather than a
                                   // registry; of a part several declarations name, the one the
                                   // model's flattening takes (§4.3)
-    File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
+    File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary
+                                  // payloads): how it travels, while Type stays what the source
+                                  // declares of it, so nothing that declaration says is lost
     Examples  []Example
     Unmodeled  Unmodeled
 }
@@ -1915,7 +1935,7 @@ type LongRunning struct {
     ResultPath    *PropPath
 }
 
-type StreamingMode string      // "none" | "client" | "server" | "bidi"
+type StreamingMode string      // "" (none) | "client" | "server" | "bidi"
 
 type StreamDetail struct {
     Events  *TypeRef   // stream element type, of any kind; nil where the contents that stream
@@ -1933,14 +1953,18 @@ type StreamDetail struct {
 ```
 
 Streaming mode is on the operation core because it is protocol-independent (gRPC streams, SSE,
-WebSocket, Smithy event streams all project onto it). `Streaming` summarizes an operation, and a
-stream belongs to one content of its payload, so an OpenAPI operation can offer `application/json`
-beside `application/x-ndjson`, and the plan elects among them (emitter-design §3.1). The wire
+WebSocket, Smithy event streams all project onto it). An operation that does not stream holds the
+zero mode, as `IdempotencyUnknown` and `AdditionalUnspecified` are their fields' absent states, so
+such an operation encodes no member; a `"none"` spelling would add one to nearly every operation
+and say nothing `RequestStream` and `ResponseStream` do not. `Streaming` summarizes an operation,
+and a stream belongs to one content of its payload, so an OpenAPI operation can offer
+`application/json` beside `application/x-ndjson`, and the plan elects among them (emitter-design
+§3.1). The wire
 mechanism (SSE vs JSON Lines vs WS frames vs length-prefixed events) has no field of its own: over
 HTTP the streaming content's `MediaType` states it, another binding frames its own messages, and
 the plan derives which (emitter-design §3.1). `Content.Item` declares what one item is; a compiler
-that reads a stream from a media type alone names the content's `Type` as `Events`, a reading
-`Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
+that reads a stream from a media type alone names the content's `Type` as `Events`, or `bytes` for
+a file, whose `Type` describes the whole, a reading `Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
 it is one. Smithy **waiters** (`smithy.waiters#waitable`) are *not* folded into `LongRunning` —
 acceptor lists and JMESPath matchers are preserved verbatim in `Operation.Unmodeled` (§15).
 

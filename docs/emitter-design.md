@@ -859,7 +859,7 @@ type Policy struct {
     PrimaryResponse func(*ir.Operation) *ir.Response  // default: lowest 2xx, else the
                                                       // unconditional one, else the Default
     EnvelopeDetect  EnvelopePolicy                    // off unless explicitly enabled
-    Framings        map[string]Framing                // media type → how it frames a stream (§3.1)
+    Framings        map[string]Framing                // media type or +suffix → how it frames a stream (§3.1)
     FrameMembers    bool                              // default on: an SSE schema naming only frame
                                                       // fields describes the frame (§3.1)
     OpenUnions      bool                              // default on: a union a client reads keeps a
@@ -896,10 +896,12 @@ wins, as §6.3 has it. The plan records the choice so that docs and a mock agree
 `Inferred`: whether a content streams is the source's to declare or the compiler's to infer, and the
 table says only how it divides. Its default holds the sequential media types OpenAPI 3.2 names:
 `text/event-stream` is `sse`; `application/jsonl` and `application/x-ndjson` are `json_lines`;
-`application/json-seq` and `application/geo+json-seq` are `json_seq`; and `multipart/mixed` is
-`multipart`. An entry matches a media type compared as §3.1 says, and a configuration adds one for
-a media type its compiler was told streams. A framing a target has no reader for is that target's
-coded degrade to `raw` (§3.1).
+`application/json-seq` and the `+json-seq` structured suffix, which `application/geo+json-seq`
+carries, are `json_seq`; and `multipart/mixed` is `multipart`. An entry matches a media type compared
+as §3.1 says, one starting with `+` every media type with that suffix, as the compiler's streaming
+policy reads one ([`streaming-media`](./compilers/openapi.md#streaming-media)), and a configuration
+adds one for a media type its compiler was told streams. A framing a target has no reader for is
+that target's coded degrade to `raw` (§3.1).
 
 ### 3.6 Plan fact or refine fact
 
@@ -2883,9 +2885,8 @@ is the list, the rest were: the `external` kind; the `datetime`, `decimal`, `dec
 `duration`, `float`, `int16`, `time`, `uint16` and `uint8` primitives; constructor, reference and
 symbol values; every protocol but HTTP, and the auth schemes only those use; pagination,
 long-running, one-way and overloaded operations, idempotency, resources and stream details;
-versioning, from `Availability` to `Document.versions`; the `none` streaming mode, which the
-compiler writes as `""` (#978); and facts no OpenAPI construct sets, such as `Model.abstract`,
-`Property.presence`, `Enum.flags` and the `host` parameter location.
+versioning, from `Availability` to `Document.versions`; and facts no OpenAPI construct sets, such
+as `Model.abstract`, `Property.presence`, `Enum.flags` and the `host` parameter location.
 
 ---
 

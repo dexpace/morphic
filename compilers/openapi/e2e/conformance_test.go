@@ -172,6 +172,7 @@ func conformanceCases() []conformanceCase {
 		{"union-beside-ref", assertUnionBesideRef},
 		{"codeclared-keywords", assertCoDeclaredKeywords},
 		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
+		{"content-several-entries", assertContentSeveralEntries},
 		{"anyof-untagged", assertAnyOfUntagged},
 		{"union-decorated-branch", assertUnionDecoratedBranch},
 		{"negation-not", assertNegationNot},
@@ -179,6 +180,7 @@ func conformanceCases() []conformanceCase {
 		{"dialect-keywords", assertDialectKeywords},
 		{"dynamic-ref", assertDynamicRef},
 		{"schema-identifiers", assertSchemaIdentifiers},
+		{"type-array-numeric", assertTypeArrayNumeric},
 		{"enum-string", assertEnumString},
 		{"enum-numeric", assertEnumNumeric},
 		{"empty-enum", assertEmptyEnum},
@@ -307,5 +309,8 @@ func invalidCases() map[string][]string {
 	return map[string][]string{
 		// A parameter and a header writing both schema and content: "but not both".
 		"codeclared-schema-content": {"openapi/validation/validation-mutually-exclusive-fields"},
+		// A parameter and a header whose content holds several entries, where the
+		// specification requires exactly one.
+		"content-several-entries": {"openapi/validation/validation-entry-count"},
 	}
 }

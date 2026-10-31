@@ -390,7 +390,7 @@ func literalAgainst(v ir.Value, kind ir.PrimKind, bareNullable bool) relation {
 		return relANarrower
 	case v.Kind == ir.ValueNull:
 		return relDisjoint
-	case admits(kind, v):
+	case Admits(kind, v):
 		return relANarrower
 	case kind == ir.PrimBytes || kind == ir.PrimDatetime:
 		return relOverlap
@@ -572,7 +572,7 @@ func (j typeJudge) admitsAt(ref ir.TypeRef, v ir.Value, depth int) bool {
 	}
 	switch t := td.(type) {
 	case *ir.Primitive:
-		return admits(t.Prim, v)
+		return Admits(t.Prim, v)
 	case *ir.Any:
 		return true
 	case *ir.Enum:

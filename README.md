@@ -220,6 +220,7 @@ OpenAPI compiler accepts:
 | `overlay` | a file path | Apply an [OpenAPI Overlay](https://spec.openapis.org/overlay/latest.html) document to the source before lowering. It is read as the spec is: a regular file, within `max-source-bytes`. |
 | `overlay-lax` | `true`, `false` (default) | Do not refuse when an overlay action's selector matches nothing. |
 | `nullable-widening` | `true` (default), `false` | Read `nullable: true` as admitting null wherever a schema writes it, and keywords beside a `$ref` that admit null as a nullable reference, marking each reference only that reading makes nullable as inferred. `false` reads them only as the document's OpenAPI version does. |
+| `streaming-media` | media types and `+suffix`es, separated by commas | The media types read as a stream of frames where a document declares no `itemSchema`, in place of the default list: `application/json-seq`, `application/jsonl`, `application/x-ndjson`, `text/event-stream` and `+json-seq`. An entry starting with `+` matches every media type with that structured suffix. |
 | `max-source-bytes` | an integer | The byte budget for one document: the spec, the overlay, and each document a `$ref` reads. None is read more than a byte past it. |
 | `max-source-nodes` | an integer | The budget on the YAML nodes one document parses to. |
 | `max-enum-members` | an integer | The budget on the members of one enum. |
