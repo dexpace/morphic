@@ -399,7 +399,9 @@ func decodeGrouping(out *GroupingStrategy, value string) error {
 // decodeStreamingMedia reads the streaming media list: entries separated by
 // commas, which no media type holds outside a parameter's quotes. An entry that
 // is neither a media type nor a suffix is refused rather than kept: it could
-// match nothing, and the list it sits in replaces the default.
+// match nothing, and the list it sits in replaces the default. It sets the list
+// alone: neither turning the inference off nor the promotion mapping has a
+// setting yet (GitHub #658).
 func decodeStreamingMedia(out *[]string, value string) error {
 	entries := strings.Split(value, ",")
 	for i, entry := range entries {

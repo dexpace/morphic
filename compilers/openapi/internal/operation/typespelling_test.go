@@ -64,13 +64,15 @@ func TestPassedOverEntries_ReportsExtraMediaTypes(t *testing.T) {
 // TestElectContentEntry_DoesNotFollowDeclarationOrder compiles a parameter and a
 // header in every order of their entries. Each order lowers one entry, keeps the
 // others whole under their own keys, and reports them alike, so a reordered map
-// changes nothing, and nothing an entry wrote is lost (GitHub #606).
+// changes nothing, and nothing an entry wrote is lost (GitHub #606). It is the
+// diff the harness cannot run: such a document draws a validation error, where
+// the order oracle stops.
 func TestElectContentEntry_DoesNotFollowDeclarationOrder(t *testing.T) {
 	t.Parallel()
 	const (
-		number = `application/json: {schema: {$ref: "#/components/schemas/Num"}}`
-		plain  = `text/plain: {schema: {$ref: "#/components/schemas/Str"}, example: hi, x-kept: 1}`
-		xml    = `application/xml: {schema: {type: boolean}}`
+		numberEntry = `application/json: {schema: {$ref: "#/components/schemas/Num"}}`
+		plainEntry  = `text/plain: {schema: {$ref: "#/components/schemas/Str"}, example: hi, x-kept: 1}`
+		xmlEntry    = `application/xml: {schema: {type: boolean}}`
 	)
 	spec := func(entries ...string) string {
 		content := "\n                " + strings.Join(entries, "\n                ")
@@ -100,8 +102,9 @@ components:
 	const wantWarning = `"application/json" is lowered and application/xml, text/plain kept verbatim under Unmodeled`
 
 	for _, entries := range [][]string{
-		{number, plain, xml}, {number, xml, plain}, {plain, number, xml},
-		{plain, xml, number}, {xml, number, plain}, {xml, plain, number},
+		{numberEntry, plainEntry, xmlEntry}, {numberEntry, xmlEntry, plainEntry},
+		{plainEntry, numberEntry, xmlEntry}, {plainEntry, xmlEntry, numberEntry},
+		{xmlEntry, numberEntry, plainEntry}, {xmlEntry, plainEntry, numberEntry},
 	} {
 		doc, diags := parseFull(t, spec(entries...))
 		for name, elected := range map[string]func(*testing.T, *ir.Document) (ir.TypeID, string, ir.Unmodeled){

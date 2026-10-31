@@ -44,7 +44,8 @@ var streamingModeType = reflect.TypeFor[ir.StreamingMode]()
 
 // checkStreamingModes asserts every Operation.Streaming holds a mode ir
 // declares. An emitter switches on the mode to shape a method, and StreamingMode
-// is a plain string type, so nothing else rejects an invented one.
+// is a plain string type, so nothing else rejects an invented one. The other
+// wire enums with no Valid method are not held yet (GitHub #1190).
 func checkStreamingModes(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{
