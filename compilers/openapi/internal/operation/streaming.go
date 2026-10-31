@@ -135,8 +135,9 @@ func streamCandidates(c lowering.Ctx, ts *compile.Types, payload *ir.Payload) []
 // frameType is what one frame of a streaming content holds. For a frame format
 // the schema under the media type is read as one frame, not the whole body —
 // the opposite of how an ordinary content is read — so it is the element type
-// as well as the content type. A file body's schema describes the file, whose
-// frames are bytes, whatever its docs or bounds say of the whole.
+// as well as the content type. A file body's schema describes the file, which
+// has no frames (emitter-design §3.1): what travels is bytes, whatever its docs
+// or bounds say of the whole.
 func frameType(ts *compile.Types, content ir.Content) ir.TypeRef {
 	if content.File != nil {
 		return ts.PrimRef(ir.PrimBytes)

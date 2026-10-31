@@ -1084,7 +1084,7 @@ shape twice.
 ```go
 type Enum struct {
     TypeCommon
-    ValueType PrimKind      // string | int32 | int64 | float64 …; every member's Value is one
+    ValueType PrimKind      // string | int32 | int64 | float64 …
     Members   []EnumMember
     Closed    bool          // false = open/extensible: unknown values must be representable
     Flags     bool          // bitfield semantics
