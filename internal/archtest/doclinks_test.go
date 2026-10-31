@@ -29,7 +29,9 @@ import (
 const citationTest = "internal/archtest/doclinks_test.go"
 
 var (
-	// markdownLink is an inline link, its target holding no space.
+	// markdownLink is an inline link, its target holding no space. It is the one
+	// form the documents write but for the root README's raw HTML, which stays
+	// unread.
 	markdownLink = regexp.MustCompile(`\]\(([^)\s]+)\)`)
 	// uriScheme opens a target outside the repository, such as https: or
 	// mailto:.
@@ -105,16 +107,17 @@ func documentLinkProblems(root, path, rel string) ([]string, int, error) {
 	}
 	var problems []string
 	links := 0
+	prose := proseLines(string(text))
 	raw := strings.Split(string(text), "\n")
-	for i, line := range proseLines(string(text)) {
-		if line == "" {
+	for i, line := range linkLines(string(text)) {
+		if prose[i] == "" {
 			found, err := citationProblems(root, rel, i+1, raw[i], docPath)
 			if err != nil {
 				return nil, 0, err
 			}
 			problems = append(problems, found...)
 		}
-		for _, m := range markdownLink.FindAllStringSubmatch(codeSpan.ReplaceAllString(line, ""), -1) {
+		for _, m := range markdownLink.FindAllStringSubmatch(line, -1) {
 			if uriScheme.MatchString(m[1]) {
 				continue
 			}
@@ -246,6 +249,21 @@ func proseLines(text string) []string {
 	return lines
 }
 
+// linkLines returns the lines of a Markdown document with each fenced block and
+// span of code left empty, so an index still numbers its line and what remains
+// is what can hold a link. A span may cross lines but not a blank one, so ticks
+// pair within a block of text and never within a line alone: a span closing on
+// a line would pair its tick with the next span's and hide what lies between.
+func linkLines(text string) []string {
+	blocks := strings.Split(strings.Join(proseLines(text), "\n"), "\n\n")
+	for i, block := range blocks {
+		blocks[i] = codeSpan.ReplaceAllStringFunc(block, func(span string) string {
+			return strings.Repeat("\n", strings.Count(span, "\n"))
+		})
+	}
+	return strings.Split(strings.Join(blocks, "\n\n"), "\n")
+}
+
 // headingSlugs returns the fragment of each heading of a Markdown document. A
 // heading repeating an earlier one's slug takes a numbered suffix, as it
 // renders.
@@ -305,8 +323,9 @@ func TestHeadingSlug_FollowsTheRendering(t *testing.T) {
 }
 
 // TestLinkProblems_ReportsALinkThatResolvesToNothing plants a link of each form
-// beside links that resolve, in a document, a fenced block, a span of code and
-// under testdata, and citations of a document in Go comments.
+// beside links that resolve, in a document, a fenced block, a span of code, after
+// a span crossing a line, past a stray tick a blank line ends, and under testdata,
+// and citations of a document in Go comments.
 func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -318,6 +337,12 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 		"[gone](absent.md) [no heading](target.md#absent) [fenced heading](target.md#fenced) [no self](#absent)",
 		"[web](https://example.com/absent.md) [mail](mailto:a@example.com) [data](data.txt#line)",
 		"`[span](absent.md)`, [one](target.md) `x` [other](absent.md#x) `y`",
+		"`a span crossing",
+		"two lines` [after it](absent.md) `x` [beside it](target.md)",
+		"",
+		"a stray ` tick",
+		"",
+		"[past a blank line](absent.md) and a stray ` tick",
 		"  ```",
 		"[fence](absent.md)",
 		"  ```",
@@ -354,7 +379,7 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 
 	problems, links, err := linkProblems(root)
 	require.NoError(t, err)
-	assert.Equal(t, 11, links, "each relative link read is counted once")
+	assert.Equal(t, 14, links, "each relative link read is counted once")
 	assert.Equal(t, []string{
 		`a/a.go:1 cites docs/gone.md, which names no file`,
 		`a/a.go:4 cites docs/also/gone.md, which names no file`,
@@ -365,6 +390,8 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 		`docs/guide.md:2 links "target.md#fenced", whose file has no such heading`,
 		`docs/guide.md:2 links "#absent", whose file has no such heading`,
 		`docs/guide.md:4 links "absent.md#x", which names no file`,
+		`docs/guide.md:6 links "absent.md", which names no file`,
+		`docs/guide.md:10 links "absent.md", which names no file`,
 		`docs/sketch.md:2 cites docs/gone.md, which names no file`,
 		`x/testdata/spec.yaml:1 cites docs/target.md#absent, whose file has no such heading`,
 		`x/testdata/spec.yml:1 cites docs/target.md#absent, whose file has no such heading`,

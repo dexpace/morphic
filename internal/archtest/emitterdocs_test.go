@@ -224,7 +224,7 @@ func unmappedDocuments(docs, section string) ([]string, int, error) {
 	}
 	linked := map[string]bool{}
 	for _, line := range sectionLines(string(text), section) {
-		for _, m := range markdownLink.FindAllStringSubmatch(codeSpan.ReplaceAllString(line, ""), -1) {
+		for _, m := range markdownLink.FindAllStringSubmatch(line, -1) {
 			file, _, _ := strings.Cut(m[1], "#")
 			linked[strings.TrimPrefix(file, "./")] = true
 		}
@@ -251,18 +251,21 @@ func unmappedDocuments(docs, section string) ([]string, int, error) {
 	return unmapped, mapped, err
 }
 
-// sectionLines returns the prose lines of a Markdown document between the
-// heading title and the next heading of any level.
+// sectionLines returns what linkLines reads of a Markdown document between the
+// heading title and the next heading of any level. A heading is told from the
+// prose, where a span of code in it survives: linkLines would empty one that is
+// all code, and the section would run on past it.
 func sectionLines(text, title string) []string {
+	links := linkLines(text)
 	var lines []string
 	var inside bool
-	for _, line := range proseLines(text) {
+	for i, line := range proseLines(text) {
 		if m := atxHeading.FindStringSubmatch(line); m != nil {
 			inside = m[1] == title
 			continue
 		}
 		if inside {
-			lines = append(lines, line)
+			lines = append(lines, links[i])
 		}
 	}
 	return lines

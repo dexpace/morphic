@@ -6,7 +6,8 @@ Go's request type ([request shaping](../../refine/requests.md)) is a `<Operation
 
 ## Pagination
 
-The IR, the plan and what every target generates are in [pagination](../../operations/pagination.md).
+The IR, the plan and what every target generates are in
+[pagination](../../operations/pagination.md).
 
 - **refine.** `BuildRequestShaping` builds the request from the query bindings. By the default
   parameter shape ([request shaping](../../refine/requests.md)), marked `Inferred`, `limit` and
