@@ -145,8 +145,9 @@ the rule here rather than reading it across.
   unexported one does not, since the call that passes it fails the build. A standard library
   interface such as `error` takes none.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
-- **Probe.** `git grep -nE '^(var )?[[:space:]]*_ +[A-Za-z.*]+ += ' -- '*.go' ':!*_test.go' ':!*testdata*'`
-  lists them.
+- **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported type
+  that implements an exported interface its package declares or imports from the module and carries
+  no assertion. A grep lists only the assertions present.
 
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`
