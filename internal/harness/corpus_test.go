@@ -136,6 +136,10 @@ func knownInvalid() map[string]bool {
 		// specification bars ("but not both"); the case pins how such a document
 		// lowers.
 		filepath.FromSlash("../../testdata/conformance/openapi/codeclared-schema-content.yaml"): true,
+		// A parameter and a header whose content holds several entries, which the
+		// specification bars ("exactly one"); the case pins how such a document
+		// lowers.
+		filepath.FromSlash("../../testdata/conformance/openapi/content-several-entries.yaml"): true,
 		// Discriminator mappings naming a schema that is not a variant of the
 		// base: a sub-schema (f08, f13), a component named "" (f31), and a
 		// $defs entry mapped from a base with no composition (defs_at_root,

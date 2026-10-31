@@ -2187,7 +2187,7 @@ at it. A `content` map with no entry elects nothing: a `schema` beside it stands
 is kept under `degraded_lowering` with an `openapi/degraded-construct` warning. The converse,
 `schema` beside a non-empty `content`, is [`competing-keywords`](#competing-keywords)'.
 
-- Cases: `param-content-fields`, `header-content-schema`
+- Cases: `param-content-fields`, `header-content-schema`, `content-several-entries`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestParams_ContentStyleParameter`,
   `operation.TestPassedOverEntries_ReportsExtraMediaTypes`,
