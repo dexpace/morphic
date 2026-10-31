@@ -208,9 +208,10 @@ const (
 	// with disagreeing values. The judgment finds the types narrower (no
 	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
 	// not narrow) or disjoint; only disjoint types, a scalar against a structure
-	// and two structure kinds conflict. A conflicting constraint keyword
-	// (minimum: 10 vs. exclusiveMinimum: 10) is usually satisfiable, but no
-	// simple merge states it, so the merge keeps a source-order winner.
+	// and two structures of different instance types conflict. A conflicting
+	// constraint keyword (minimum: 10 vs. exclusiveMinimum: 10) is usually
+	// satisfiable, but no simple merge states it, so the merge keeps a
+	// source-order winner.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
 	// Unmodeled (merge.keepLosingDeclaration); #10 records intersecting bounds.

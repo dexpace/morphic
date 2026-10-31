@@ -213,9 +213,50 @@ func TestTypes_FinishBuildsPromisesBeforeSettling(t *testing.T) {
 	assert.Equal(t, []ir.Diagnostic{{Code: "built"}, {Code: "settled"}}, diags)
 }
 
+// TestTypes_SettlementMayRegisterWhatItMints pins the one way a settlement adds
+// a node: through Register, which holds it to a minted namespace. A node
+// registered twice counts once, and one more written past Register is still
+// refused beside it.
+func TestTypes_SettlementMayRegisterWhatItMints(t *testing.T) {
+	t.Parallel()
+	for _, c := range []struct {
+		name    string
+		settle  func(*compile.Types, ir.TypeRegistry)
+		refused int
+	}{
+		{"registered", func(types *compile.Types, _ ir.TypeRegistry) {
+			types.Register("t/minted/a", &ir.Model{ID: "t/minted/a"})
+		}, 0},
+		{"registered twice", func(types *compile.Types, _ ir.TypeRegistry) {
+			types.Register("t/minted/a", &ir.Model{ID: "t/minted/a"})
+			types.Register("t/minted/a", &ir.Model{ID: "t/minted/a"})
+		}, 0},
+		{"registered, and another written past it", func(types *compile.Types, reg ir.TypeRegistry) {
+			types.Register("t/minted/a", &ir.Model{ID: "t/minted/a"})
+			reg["t/minted/b"] = &ir.Model{ID: "t/minted/b"}
+		}, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			types := compile.NewTypes()
+			types.Intern("/p", "t/source/x", func() ir.TypeDef { return &ir.Model{ID: "t/source/x"} })
+			types.Complete(settleFunc(func(reg ir.TypeRegistry) []ir.Diagnostic {
+				c.settle(types, reg)
+				return nil
+			}))
+
+			types.Settle(t.Context())
+
+			assert.Len(t, types.Violations(), c.refused)
+			_, ok := types.Node("t/minted/a")
+			assert.True(t, ok, "the registered node stands")
+		})
+	}
+}
+
 // TestTypes_SettlementThatAddsOrRemovesANodeIsRefused pins the writes a
-// settlement may not make. Nothing lowers after Settle, so an added node is
-// the only one no lowering produced, and a removed one leaves its references
+// settlement may not make. Nothing lowers after Settle, so a node written past
+// Register is one no lowering produced, and a removed one leaves its references
 // dangling. Either is reported as a breach, and left standing.
 func TestTypes_SettlementThatAddsOrRemovesANodeIsRefused(t *testing.T) {
 	t.Parallel()

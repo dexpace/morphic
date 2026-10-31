@@ -66,7 +66,7 @@ func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 	}
 	g, _ := stubMerger(reg)
 	m := &ir.Model{}
-	idx, settle := indexOver(m, reg, g)
+	idx, settle := indexOver(m, g)
 
 	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}, unread(t))
 	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}, written(`{"type":"integer"}`))
