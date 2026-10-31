@@ -7,9 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
@@ -79,6 +83,49 @@ func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 				"reaches no field once the position resolves to the shared primitive; "+
 				"a format whose kind does not differ must not be a row", key, prim, typ)
 	}
+}
+
+// TestFormatTable_EveryStringRowLowersToItsPrimitive holds the table's string
+// rows, and what each lowers to, to the pairings
+// docs/compilers/openapi.md#string-formats states. The other tests here hold a
+// row to its relations alone, so two rows trading primitives pass them. It reads
+// the rows off the table, so a row added or dropped fails here too.
+func TestFormatTable_EveryStringRowLowersToItsPrimitive(t *testing.T) {
+	t.Parallel()
+	want := map[string]ir.PrimKind{
+		"date":      ir.PrimDate,
+		"time":      ir.PrimTime,
+		"duration":  ir.PrimDuration,
+		"uuid":      ir.PrimUUID,
+		"uri":       ir.PrimURL,
+		"date-time": ir.PrimDatetimeOffset,
+		"binary":    ir.PrimBytes,
+	}
+	got := make(map[string]ir.PrimKind, len(want))
+	for key := range spelling.FormatTable {
+		if format, ok := strings.CutPrefix(key, "string/"); ok {
+			got[format] = loweredStringFormat(t, format)
+		}
+	}
+	assert.Empty(t, cmp.Diff(want, got), "the string rows lower as the rule states (-want +got)")
+}
+
+// loweredStringFormat compiles a property of `{type: string, format: format}`
+// and returns the primitive it reaches. The rule gives such a pairing no node
+// of its own, so a position resolving to anything else fails.
+func loweredStringFormat(t *testing.T, format string) ir.PrimKind {
+	t.Helper()
+	spec := openapitest.ComponentSpec("    H: {type: object, properties: {p: {type: string, format: " + format + "}}}\n")
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{openapitest.SourceOf(spec)}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	require.Empty(t, diags, "the format is homed, so nothing is reported")
+	h, ok := doc.Types["t/openapi/components/schemas/H"].(*ir.Model)
+	require.True(t, ok, "H lowers to a model")
+	require.Len(t, h.Properties, 1)
+	prim, ok := doc.Types[h.Properties[0].Type.Target].(*ir.Primitive)
+	require.True(t, ok, "%s resolves to a shared primitive", format)
+	return prim.Prim
 }
 
 // TestFormatTable_EveryRowNarrowsItsBareType holds the relation to what the

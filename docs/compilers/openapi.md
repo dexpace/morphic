@@ -1707,11 +1707,12 @@ names the encoding instead; where the two name different encodings the format is
 for its format carries the bounds written beside it. The table is the same at every minor, and a
 pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)'.
 
-- Cases: `encoding-byte`
+- Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestScalar_UnknownFormatPerBaseType`,
   `schema.TestLower_NamedScalarComponentResolves`,
-  `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`
+  `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
+  `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
 - Status: partly built: `date-time-local` and `time-local` hoist over `string`, and `time`'s offset
   has no home (#869), and a `byte` string and a string-carried number put the logical and the wire
   type on opposite fields (#637).
