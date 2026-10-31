@@ -112,7 +112,8 @@ func TestFormatTable_EveryStringRowLowersToItsPrimitive(t *testing.T) {
 
 // loweredStringFormat compiles a property of `{type: string, format: format}`
 // and returns the primitive it reaches. The rule gives such a pairing no node
-// of its own, so a position resolving to anything else fails.
+// of its own, so a position resolving to anything else fails. That reach
+// through openapi is why openapitest cannot hold it.
 func loweredStringFormat(t *testing.T, format string) ir.PrimKind {
 	t.Helper()
 	spec := openapitest.ComponentSpec("    H: {type: object, properties: {p: {type: string, format: " + format + "}}}\n")
