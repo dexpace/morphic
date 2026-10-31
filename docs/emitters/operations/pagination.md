@@ -19,8 +19,9 @@ unwrap is a plan decision. Pacing delay is **not** here — it is runtime policy
 
 ## What a target generates
 
-`LowerPagination` emits an auto-pager: it walks pages using `CursorOut` to read `next_cursor` and
-`CursorIn` to feed it back, yields each item deserialized elementwise over `ItemPath`, stops when a
-fetch fails, and fetches no further page once the caller stops reading. The pager *runtime*, the
-fetch-and-pace loop, is boilerplate parameterised by `Policy.Pagination.AutoPageDelay` — the
-legitimate boilerplate seam ([structure and boilerplate](../emit/templates.md)).
+`LowerPagination` emits an auto-pager that follows `Page`: for `ListUsers` it reads `next_cursor`
+through `CursorOut` and feeds it back through `CursorIn`. Every pager yields each item deserialized
+elementwise over `ItemPath`, stops when a fetch fails, and fetches no further page once the caller
+stops reading. The pager *runtime*, the fetch-and-pace loop, is boilerplate parameterised by
+`Policy.Pagination.AutoPageDelay` — the legitimate boilerplate seam ([structure and
+boilerplate](../emit/templates.md)).
