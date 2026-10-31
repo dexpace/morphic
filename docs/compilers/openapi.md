@@ -2166,14 +2166,17 @@ or not it lowers, and a list another document writes where it lowers; the rule t
 
 ### `content-parameters`
 
-A parameter or header that states its type with `content` instead of `schema` lowers through the
-first media-type entry, which OpenAPI requires to be the only one. Its schema is the type, lowered
-as the `schema` spelling's is with the same constraints and `xml` hints, hoisted at
+A parameter or header that states its type with `content` instead of `schema` lowers through one
+media-type entry, which OpenAPI requires to be the only one: the lowest key as written where a
+document declares more, so that no declaration order changes the type. Its schema is the type,
+lowered as the `schema` spelling's is with the same constraints and `xml` hints, hoisted at
 `<owner>/content/<key>/schema`, or the top type where the entry writes none, and the key as written
 is the media type that serializes the value: `HTTPParamBinding.ContentType` on a parameter,
-`Property.Encoding.MediaType` on a header, neither set by the `schema` spelling. Further entries
-lower nothing, reported as an `openapi/degraded-construct` warning at the `content` map naming them.
-What else the entry writes is kept: its `example` and `examples` follow the parameter's or header's
+`Property.Encoding.MediaType` on a header, neither set by the `schema` spelling. Every other entry
+lowers nothing and is kept whole under `openapi:content/<key>`, the key escaped as a pointer segment
+(`degraded_lowering`), reported as one `openapi/degraded-construct` warning at the `content` map
+naming them, beside the `openapi/validation` error ([`validation`](#validation)) such a map draws.
+What else the elected entry writes is kept: its `example` and `examples` follow the parameter's or header's
 own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the key escaped
 as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared key under
 `out_of_scope`, with the `openapi/unknown-object-key` warning [`unknown-keys`](#unknown-keys) gives
@@ -2186,11 +2189,11 @@ is kept under `degraded_lowering` with an `openapi/degraded-construct` warning. 
 - Cases: `param-content-fields`, `header-content-schema`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestParams_ContentStyleParameter`,
-  `operation.TestSingleContentEntry_ReportsExtraMediaTypes`,
+  `operation.TestPassedOverEntries_ReportsExtraMediaTypes`,
+  `operation.TestElectContentEntry_DoesNotFollowDeclarationOrder`,
   `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
-- Status: partly built: a parameter or header with several `content` entries takes its type from
-  whichever comes first (#606), and a `style`, `explode` or `allowReserved` beside a parameter's
-  `content` lowers in silence (#887).
+- Status: partly built: a `style`, `explode` or `allowReserved` beside a parameter's `content` lowers
+  in silence (#887).
 
 ### `allow-empty-value`
 
