@@ -106,4 +106,5 @@ Additional:"closed" }`.
 read is the derived-fact index's, `Facts.Usage(User)` = Input|Output, which no plan field copies
 ([plan or refine](plan-or-refine.md)).
 
-What refine and emit build from it: [Go](../targets/go/models.md#user-in-go).
+What refine and emit build from it: [Go](../targets/go/models.md#user-in-go),
+[Kotlin](../targets/kotlin/models.md).

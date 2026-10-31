@@ -6,6 +6,8 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
 
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
+The sets for the units and for a unit are not stated yet (#1187).
+
 ## The escape
 
 A Kotlin hard keyword used as a name (`class`, `object`, `true`) is escaped with backticks, which

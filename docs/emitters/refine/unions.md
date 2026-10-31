@@ -81,4 +81,5 @@ Discriminator{PropertyName:"type", Mapping:{"card":Card.ID, "bank":BankTransfer.
 `Open` says whether a value no variant recognizes is kept ([plan policy](../plan/policy.md)). No
 primary-variant collapse — the union stays whole (INV2).
 
-What refine and emit build from it: [Go](../targets/go/unions.md#payment-in-go).
+What refine and emit build from it: [Go](../targets/go/unions.md#payment-in-go),
+[Kotlin](../targets/kotlin/unions.md).
