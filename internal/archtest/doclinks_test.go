@@ -325,7 +325,8 @@ func TestHeadingSlug_FollowsTheRendering(t *testing.T) {
 // TestLinkProblems_ReportsALinkThatResolvesToNothing plants a link of each form
 // beside links that resolve, in a document, a fenced block, a span of code, after
 // a span crossing a line, past a stray tick a blank line ends, and under testdata,
-// and citations of a document in Go comments.
+// and citations of a document in Go comments. A path on a line that is all code
+// is no citation, since only a fence holds one.
 func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
@@ -363,6 +364,7 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 		"[shorter fence](absent.md)",
 		"````",
 		"# Guide",
+		"`docs/never-written.md`",
 		"",
 	}, "\n"))
 	writeDocFile(t, filepath.Join(root, "x", "testdata", "fixture.md"), "[unread](absent.md)\n")

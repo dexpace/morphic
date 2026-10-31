@@ -345,12 +345,13 @@ func TestConstructProblems_ReportsADriftEachWay(t *testing.T) {
 
 // TestUnmappedDocuments_ReportsADocumentTheRootOmits plants a document the map
 // links with a fragment, one it links plainly, one it does not, and one linked
-// only before the map and one only after it, which it does not map either.
+// only before the map and one only after it, past a heading that is all code,
+// which it does not map either.
 func TestUnmappedDocuments_ReportsADocumentTheRootOmits(t *testing.T) {
 	t.Parallel()
 	docs := t.TempDir()
 	writeDocFile(t, filepath.Join(docs, "README.md"), "[d](d.md)\n\n## Map\n\n"+
-		"[a](a.md#x) and [b](sub/b.md); `[c](c.md)`\n\n## After\n\n[e](e.md)\n")
+		"[a](a.md#x) and [b](sub/b.md); `[c](c.md)`\n\n## `After`\n\n[e](e.md)\n")
 	for _, doc := range []string{"a.md", filepath.Join("sub", "b.md"), "c.md", "d.md", "e.md"} {
 		writeDocFile(t, filepath.Join(docs, doc), "# Doc\n")
 	}
