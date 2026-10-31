@@ -37,6 +37,13 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
+// declaring returns a model declaring one property, which a test takes where
+// any model will do: a model declaring nothing says nothing but object
+// (saysOnlyObject).
+func declaring(id ir.TypeID) *ir.Model {
+	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: "own"}}}
+}
+
 // judge is the type judgment over the registry g reads.
 func judge(g *Merger) typeJudge { return typeJudge{Resolve: g.Resolve} }
 

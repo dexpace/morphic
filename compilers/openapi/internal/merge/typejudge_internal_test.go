@@ -257,8 +257,18 @@ func TestTypeJudge_NullIsJudgedByNullability(t *testing.T) {
 func TestClassify_ComparesResolvedKinds(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/model":       &ir.Model{ID: "t/model"},
-		"t/other":       &ir.Model{ID: "t/other"},
+		"t/model":       declaring("t/model"),
+		"t/other":       declaring("t/other"),
+		"t/derived":     &ir.Model{ID: "t/derived", Base: &ir.TypeRef{Target: "t/model"}},
+		"t/grandchild":  &ir.Model{ID: "t/grandchild", Base: &ir.TypeRef{Target: "t/derived"}},
+		"t/mixed":       &ir.Model{ID: "t/mixed", Mixins: []ir.TypeRef{{Target: "t/other"}, {Target: "t/model"}}},
+		"t/via-alias":   &ir.Model{ID: "t/via-alias", Base: &ir.TypeRef{Target: "t/alias-model"}},
+		"t/dangling":    &ir.Model{ID: "t/dangling", Base: &ir.TypeRef{Target: "t/absent"}},
+		"t/cycle-a":     &ir.Model{ID: "t/cycle-a", Base: &ir.TypeRef{Target: "t/cycle-b"}},
+		"t/cycle-b":     &ir.Model{ID: "t/cycle-b", Base: &ir.TypeRef{Target: "t/cycle-a"}},
+		"t/bare":        &ir.Model{ID: "t/bare"},
+		"t/bare-twin":   &ir.Model{ID: "t/bare-twin"},
+		"t/alias-bare":  &ir.Scalar{ID: "t/alias-bare", Base: &ir.TypeRef{Target: "t/bare"}},
 		"t/map":         &ir.MapT{ID: "t/map"},
 		"t/list":        &ir.List{ID: "t/list", Elem: ir.TypeRef{Target: "t/other"}},
 		"t/tuple":       &ir.Tuple{ID: "t/tuple"},
@@ -299,10 +309,29 @@ func TestClassify_ComparesResolvedKinds(t *testing.T) {
 		{"a list literal and a list", "t/lit-list", "t/list", relUnrelated},
 		{"a list literal and a model", "t/lit-list", "t/model", relDisjoint},
 		{"a model and an alias of another", "t/other", "t/alias-model", relUnrelated},
-		{"a model and an alias of itself", "t/model", "t/alias-model", relUnrelated},
+		{"a model and an alias of itself", "t/model", "t/alias-model", relBNarrower},
+		{"a chain of aliases and the model at its end", "t/alias-chain", "t/model", relANarrower},
+		{"two links of one chain", "t/alias-chain", "t/alias-model", relANarrower},
+		{"a list and an alias of itself", "t/list", "t/alias-list", relBNarrower},
+		{"a model and its Base", "t/derived", "t/model", relANarrower},
+		{"a model and its Base's Base", "t/grandchild", "t/model", relANarrower},
+		{"a model and a mixin", "t/mixed", "t/model", relANarrower},
+		{"a model and the model an alias Base stands for", "t/via-alias", "t/model", relANarrower},
+		{"a Base the registry does not hold", "t/dangling", "t/model", relUnrelated},
+		{"models composing each other", "t/cycle-a", "t/cycle-b", relOverlap},
+		{"a model and a bare object", "t/model", "t/bare", relANarrower},
+		{"a map and a bare object", "t/map", "t/bare", relANarrower},
+		{"an object literal and a bare object", "t/lit-object", "t/bare", relANarrower},
+		{"an alias of a model and a bare object", "t/alias-model", "t/bare", relANarrower},
+		{"a list and a bare object", "t/list", "t/bare", relDisjoint},
+		{"a list literal and a bare object", "t/lit-list", "t/bare", relDisjoint},
+		{"a union and a bare object", "t/union", "t/bare", relUnrelated},
+		{"two bare objects declared apart", "t/bare", "t/bare-twin", relOverlap},
+		{"an alias of a bare object and that object", "t/alias-bare", "t/bare", relOverlap},
 		{"a model and an alias of a list", "t/model", "t/alias-list", relDisjoint},
 		{"an alias chain is read to its end", "t/list", "t/alias-chain", relDisjoint},
 		{"an alias of a model against a kind", "t/alias-model", "t/prim/string", relDisjoint},
+		{"a kind and a bare object", "t/prim/string", "t/bare", relDisjoint},
 		{"an alias with nothing at its end stays opaque", "t/list", "t/alias-gone", relUnrelated},
 		{"a cyclic alias stays opaque", "t/list", "t/alias-loop", relUnrelated},
 	} {
@@ -329,7 +358,7 @@ func TestUnaliased_ReadsAChainUpToItsBound(t *testing.T) {
 		{"at the bound", maxTypeResolveDepth, true},
 		{"past the bound", maxTypeResolveDepth + 1, false},
 	} {
-		reg := map[ir.TypeID]ir.TypeDef{"t/end": &ir.Model{ID: "t/end"}}
+		reg := map[ir.TypeID]ir.TypeDef{"t/end": declaring("t/end")}
 		next := ir.TypeID("t/end")
 		for i := range tc.aliases {
 			id := ir.TypeID(fmt.Sprintf("t/alias-%d", i))
@@ -341,6 +370,77 @@ func TestUnaliased_ReadsAChainUpToItsBound(t *testing.T) {
 		_, isModel := judge(g).unaliased(reg[next]).(*ir.Model)
 
 		assert.Equal(t, tc.wantModel, isModel, tc.name)
+	}
+}
+
+// TestComposes_ReadsAChainUpToItsBound pins maxComposedParts: a part that many
+// links away is found, and one more is not, so a hierarchy too deep to read
+// stays two types the field composes.
+func TestComposes_ReadsAChainUpToItsBound(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		links int
+		want  bool
+	}{
+		{"at the bound", maxComposedParts, true},
+		{"past the bound", maxComposedParts + 1, false},
+	} {
+		reg := map[ir.TypeID]ir.TypeDef{"t/end": declaring("t/end")}
+		next := ir.TypeID("t/end")
+		for i := range tc.links {
+			id := ir.TypeID(fmt.Sprintf("t/link-%d", i))
+			reg[id] = &ir.Model{ID: id, Base: &ir.TypeRef{Target: next}}
+			next = id
+		}
+		g, _ := stubMerger(reg)
+
+		assert.Equal(t, tc.want, judge(g).composes(next, "t/end"), tc.name)
+	}
+}
+
+// TestComposes_ReadsEachPartOnce pins that a diamond and a cycle both end: a
+// part two chains reach is read once, and a walk back to its start stops there.
+func TestComposes_ReadsEachPartOnce(t *testing.T) {
+	t.Parallel()
+	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
+		"t/root":   &ir.Model{ID: "t/root", Mixins: []ir.TypeRef{{Target: "t/left"}, {Target: "t/right"}}},
+		"t/left":   &ir.Model{ID: "t/left", Base: &ir.TypeRef{Target: "t/shared"}},
+		"t/right":  &ir.Model{ID: "t/right", Base: &ir.TypeRef{Target: "t/shared"}},
+		"t/shared": &ir.Model{ID: "t/shared", Base: &ir.TypeRef{Target: "t/root"}},
+		"t/alone":  declaring("t/alone"),
+	})
+
+	assert.True(t, judge(g).composes("t/root", "t/shared"))
+	assert.False(t, judge(g).composes("t/root", "t/alone"))
+}
+
+// TestSaysOnlyObject_ReadsEveryFieldThatSaysSomething pins what a bare object is:
+// a model nothing narrows. Names and docs say nothing of a value, and anything
+// else on the model does, a field the IR adds later included, since the
+// comparison reads the whole struct.
+func TestSaysOnlyObject_ReadsEveryFieldThatSaysSomething(t *testing.T) {
+	t.Parallel()
+	ref := &ir.TypeRef{Target: "t/x"}
+	for _, tc := range []struct {
+		name string
+		td   ir.TypeDef
+		want bool
+	}{
+		{"nothing at all", &ir.Model{}, true},
+		{"a name and docs", &ir.Model{ID: "t/m", Name: ir.Naming{Hint: "m"}, Anonymous: true, Docs: ir.Docs{Summary: "s"}}, true},
+		{"a property", declaring("t/m"), false},
+		{"a required name", &ir.Model{Requires: []string{"x"}}, false},
+		{"a Base", &ir.Model{Base: ref}, false},
+		{"a mixin", &ir.Model{Mixins: []ir.TypeRef{*ref}}, false},
+		{"a catch-all", &ir.Model{AdditionalProps: &ir.AdditionalProps{}}, false},
+		{"closed", &ir.Model{Additional: ir.AdditionalClosed}, false},
+		{"constraints", &ir.Model{Constraints: &ir.Constraints{}}, false},
+		{"a discriminator", &ir.Model{Discriminator: &ir.Discriminator{}}, false},
+		{"something kept verbatim", &ir.Model{Unmodeled: ir.Unmodeled{"k": {}}}, false},
+		{"no model", &ir.MapT{}, false},
+	} {
+		assert.Equal(t, tc.want, saysOnlyObject(tc.td), tc.name)
 	}
 }
 

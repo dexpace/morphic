@@ -69,7 +69,7 @@ func TestClassify_MapAndModelAreOneObjectKind(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/map":   &ir.MapT{ID: "t/map"},
-		"t/model": &ir.Model{ID: "t/model"},
+		"t/model": declaring("t/model"),
 		"t/list":  &ir.List{ID: "t/list"},
 	})
 	ref := func(id ir.TypeID) ir.TypeRef { return ir.TypeRef{Target: id} }

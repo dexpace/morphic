@@ -55,6 +55,23 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/BareAndModel/allOf/0/properties/data": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/BareAndModel/allOf/0/properties/data",
+      "name": {
+        "hint": "data"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareAndModel/allOf/0/properties/data"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/InlineFirst/allOf/0/properties/data": {
       "kind": "model",
       "id": "t/anon/components/schemas/InlineFirst/allOf/0/properties/data",
@@ -709,6 +726,100 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/AliasAndModel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/AliasAndModel",
+      "name": {
+        "source": "AliasAndModel",
+        "canonical": "alias_and_model"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AliasAndModel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/AliasAndModel/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/openapi/components/schemas/MeetingAlias",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/AliasAndModel/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BareAndModel": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BareAndModel",
+      "name": {
+        "source": "BareAndModel",
+        "canonical": "bare_and_model"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareAndModel"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BareAndModel/allOf/0/properties/data",
+          "name": {
+            "source": "data",
+            "canonical": "data"
+          },
+          "wireName": "data",
+          "type": {
+            "target": "t/openapi/components/schemas/Meeting",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BareAndModel/allOf/0/properties/data"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/BranchUser": {
       "kind": "model",
       "id": "t/openapi/components/schemas/BranchUser",
@@ -848,6 +959,58 @@
       ],
       "abstract": false,
       "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Dog": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Dog",
+      "name": {
+        "source": "Dog",
+        "canonical": "dog"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Dog"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Dog/allOf/1/properties/barks",
+          "name": {
+            "source": "barks",
+            "canonical": "barks"
+          },
+          "wireName": "barks",
+          "type": {
+            "target": "t/prim/bool",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Dog/allOf/1/properties/barks"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "discriminatorValue": "Dog",
       "inputOnly": false
     },
     "t/openapi/components/schemas/FirstWrapperUser": {
@@ -1099,6 +1262,27 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/openapi/components/schemas/MeetingAlias": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/MeetingAlias",
+      "name": {
+        "source": "MeetingAlias",
+        "canonical": "meeting_alias"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "A meeting under another name."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/MeetingAlias"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Meeting",
+        "nullable": false
+      }
     },
     "t/openapi/components/schemas/Pet": {
       "kind": "model",
@@ -1386,6 +1570,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/SubtypeAndBase": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/SubtypeAndBase",
+      "name": {
+        "source": "SubtypeAndBase",
+        "canonical": "subtype_and_base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/SubtypeAndBase"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/SubtypeAndBase/allOf/0/properties/pet",
+          "name": {
+            "source": "pet",
+            "canonical": "pet"
+          },
+          "wireName": "pet",
+          "type": {
+            "target": "t/openapi/components/schemas/Dog",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/SubtypeAndBase/allOf/0/properties/pet"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/TwoComponents": {
       "kind": "model",
       "id": "t/openapi/components/schemas/TwoComponents",
@@ -1492,6 +1723,18 @@
       },
       "prim": "any"
     },
+    "t/prim/bool": {
+      "kind": "primitive",
+      "id": "t/prim/bool",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bool"
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -1533,7 +1776,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-redeclared-models.yaml",
-      "hash": "adf24826187438efa636c8452358b83983175da561cab29f056f5e04ddfedc18"
+      "hash": "048a05aff40d54634dce581335e540745da09a32dbd1d76a0ebe08d706f640b4"
     }
   ]
 }

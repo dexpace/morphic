@@ -1097,6 +1097,56 @@ func TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor(t *testing.T) {
 	}
 }
 
+// TestAllOf_ATypeHoldingAnotherTakesTheField pins that a field composes only what
+// no other declaration holds, in either order: a model and an alias of it, a
+// model and what composes it, and a model and a bare object each name one type,
+// which is the narrower, with nothing kept and nothing reported. Two aliases of
+// one model each may say more than the model, so those compose.
+func TestAllOf_ATypeHoldingAnotherTakesTheField(t *testing.T) {
+	t.Parallel()
+	const spec = `    A:
+      type: object
+      properties:
+        a: {type: string}
+    Z:
+      $ref: '#/components/schemas/A'
+      description: an alias
+    Y:
+      $ref: '#/components/schemas/A'
+      description: another alias
+    D:
+      allOf:
+        - {$ref: '#/components/schemas/A'}
+        - {type: object, properties: {d: {type: string}}}
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	for _, tc := range []struct {
+		name, a, b string
+		want       ir.TypeID
+	}{
+		{"a model and its alias", ref("A"), ref("Z"), componentID("Z")},
+		{"a model and what composes it", ref("A"), ref("D"), componentID("D")},
+		{"a model and a bare object", ref("A"), "{type: object}", componentID("A")},
+	} {
+		for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, diags, tc.name)
+			p := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, p.Unmodeled, tc.name)
+			assert.Equal(t, tc.want, p.Type.Target, tc.name)
+		}
+	}
+
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, ref("Z"), ref("Y"))))
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Equal(t, []ir.TypeRef{{Target: componentID("Z")}, {Target: componentID("Y")}}, composedField(t, doc, "T", "v").Mixins)
+}
+
 // TestAllOf_RelatedStructuresAreNotCalledAConflict pins the warning to pairs
 // that cannot both hold (GitHub #899). `["a"]` satisfies a list and a tuple, a
 // union may hold the very model it meets, and a `const` object may be a value of

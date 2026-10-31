@@ -424,6 +424,18 @@ func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diag
 		}
 	}
 
+	for model, want := range map[string]ir.TypeID{
+		"AliasAndModel":  componentID("MeetingAlias"),
+		"SubtypeAndBase": componentID("Dog"),
+		"BareAndModel":   meeting,
+	} {
+		owner, ok := doc.Types[componentID(model)].(*ir.Model)
+		require.True(t, ok, model)
+		require.Len(t, owner.Properties, 1, model)
+		assert.Equal(t, want, owner.Properties[0].Type.Target, "%s: one type holds the other, so nothing composes", model)
+		assert.Empty(t, owner.Properties[0].Unmodeled, model)
+	}
+
 	owner, ok := doc.Types[componentID("KeptDefault")].(*ir.Model)
 	require.True(t, ok)
 	kept, ok := propByWire(owner, "data")

@@ -1080,12 +1080,16 @@ more widely than the other and the other holds no constraint, encoding, document
 `Unmodeled` the winner lacks; disjoint members still overlap where both admit null, or where both
 containers admit the empty one. Two alike in every member and in that detail are judged as two
 equal enums are: one type where both were written inline, the one declared elsewhere winning over
-an inline copy in either order, and two declared elsewhere overlapping. Any other pair is judged by
-what the two types hold, an alias as the type it stands for and a `const` object or array as a
-structure of that instance type: disjoint where their kinds share no value, or a value type meets a
-structure, or two structures of different instance types meet; an overlap where their kinds share
-values or a `const` meets a type that ends in a kind or another `const`; and unrelated where nothing
-says what they share, as between two models, a model and a map, a list and a tuple, an opaque scalar
+an inline copy in either order, and two declared elsewhere overlapping. A structure is narrower than
+one it says it is: an alias than the type it stands for, and a model than what it composes through
+`Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
+`const` object is narrower than a model saying nothing but `type: object`, and two such models are
+judged as two equal enums are. Any other pair is judged by what the two types hold, an alias as the
+type it stands for and a `const` object or array as a structure of that instance type: disjoint
+where their kinds share no value, or a value type meets a structure, or two structures of different
+instance types meet; an overlap where their kinds share values or a `const` meets a type that ends
+in a kind or another `const`; and unrelated where nothing says what they share, as between two
+models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
 and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
 types and as two containers' members.
 
@@ -1096,17 +1100,19 @@ the same as or narrower than folds into the field, which adopts its shape detail
 dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in every order,
 while `int32` and `uint32` alone keep the first declared and report the other.
 
-Two models are the exception, since an instance satisfying both is a value of a type neither names.
-Where the declarations whose types no other declaration holds are two or more models, each named
-directly or through an alias, the field's type is a `Model` the merge mints: anonymous, holding no
-property of its own, and composing each of those types once as a written `allOf` of them composes
-([`allof-classification`](#allof-classification)). The one written as the only `$ref`, or else the
-first `$ref` whose model carries a discriminator, is its `Base`, and the rest are `Mixins` in
-declaration order. So a field declared as `Meeting` and as an inline object names one type holding
-both, whichever branch comes first, rather than flattening them into one property list. A `{}` adds
-no conjunct, and any other type beside the models (a map, a kind, a degraded node) leaves the choice
-to the rule above. Every declaration then folds into the field, so none is dropped for its type, and
-each conjunct keeps the node its own pointer denotes. The minted model's ID is in the `composed`
+Two models neither of which holds the other are the exception, since an instance satisfying both is
+a value of a type neither names. Where the declarations whose types no other declaration holds are
+two or more models, each named directly or through an alias, the field's type is a `Model` the merge
+mints: anonymous, holding no property of its own, and composing each of those types once as a
+written `allOf` of them composes ([`allof-classification`](#allof-classification)). The one written
+as the only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
+the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
+names one type holding both, whichever branch comes first, rather than flattening them into one
+property list. A `{}`, a bare `type: object` and a model another declaration composes add no
+conjunct. Two aliases of one model are two types, each able to say more than the model, so they
+compose. Any other type beside the models (a map, a kind, a degraded node) leaves the choice to the
+rule above. Every declaration then folds into the field, so none is dropped for its type, and each
+conjunct keeps the node its own pointer denotes. The minted model's ID is in the `composed`
 namespace (§3.1, §4.3), so no `$ref` reaches it, and derives from the field's pointer, which its
 provenance records: the wire name under `properties` of the narrowest schema holding every
 declaration, whether or not that schema writes one there. A model and a wrapper it flattens can
@@ -1222,7 +1228,11 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_EveryDistributedVariantSharesOneComposedField`,
   `schema.TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor`,
   `schema.TestAllOf_RelatedStructuresAreNotCalledAConflict`,
+  `schema.TestAllOf_ATypeHoldingAnotherTakesTheField`,
   `merge.TestUnaliased_ReadsAChainUpToItsBound`,
+  `merge.TestComposes_ReadsAChainUpToItsBound`,
+  `merge.TestComposes_ReadsEachPartOnce`,
+  `merge.TestSaysOnlyObject_ReadsEveryFieldThatSaysSomething`,
   `e2e.TestExternalContent_AComposedFieldIsNamedInItsDocument`,
   `merge.TestFold_ANarrowingIsNoDrop`,
   `merge.TestFold_ANarrowingCarriesTheNullMarkers`,

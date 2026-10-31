@@ -158,3 +158,39 @@ components:
       type: object
       properties:
         wrapper: {$ref: '#/components/schemas/SharedLast/allOf/1'}
+    MeetingAlias:
+      $ref: '#/components/schemas/Meeting'
+      description: A meeting under another name.
+    Dog:
+      allOf:
+        - {$ref: '#/components/schemas/Pet'}
+        - type: object
+          properties:
+            barks: {type: boolean}
+    # An alias is within what it stands for, so it holds the model and nothing
+    # composes. What composes a model holds it the same way, and a bare object
+    # holds nothing a model does not.
+    AliasAndModel:
+      allOf:
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/MeetingAlias'}
+    SubtypeAndBase:
+      allOf:
+        - type: object
+          properties:
+            pet: {$ref: '#/components/schemas/Pet'}
+        - type: object
+          properties:
+            pet: {$ref: '#/components/schemas/Dog'}
+    BareAndModel:
+      allOf:
+        - type: object
+          properties:
+            data: {type: object}
+        - type: object
+          properties:
+            data: {$ref: '#/components/schemas/Meeting'}

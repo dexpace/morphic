@@ -93,7 +93,7 @@ func TestFold_NullabilityIntersectsWhenTargetsAgree(t *testing.T) {
 func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 	t.Parallel()
 	reg := map[ir.TypeID]ir.TypeDef{
-		"t/A":   &ir.Model{ID: "t/A"},
+		"t/A":   declaring("t/A"),
 		"t/map": &ir.MapT{ID: "t/map"},
 		"t/any": &ir.Any{ID: "t/any"},
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
@@ -141,7 +141,7 @@ func TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict(t *testing.T) {
 func TestFold_ADroppedTypeTakesNothingWithItEvenUnjudged(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
-		"t/A":   &ir.Model{ID: "t/A"},
+		"t/A":   declaring("t/A"),
 		"t/map": &ir.MapT{ID: "t/map"},
 	})
 	dst := ir.Property{WireName: "x", Type: ir.TypeRef{Target: "t/A"}}

@@ -23,14 +23,18 @@ import (
 // node hoisted at or under declaredAt(n) reads as written inline by the nth
 // declaration.
 func composeRegistry() map[ir.TypeID]ir.TypeDef {
+	own := []ir.Property{{WireName: "own"}}
 	inline := func(id ir.TypeID, pointer jsontext.Pointer) *ir.Model {
-		return &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(pointer)}
+		return &ir.Model{ID: id, Anonymous: true, Provenance: ptrAt(pointer), Properties: own}
 	}
 	return map[ir.TypeID]ir.TypeDef{
-		"t/A":      &ir.Model{ID: "t/A", Provenance: ptrAt("/components/schemas/A")},
-		"t/B":      &ir.Model{ID: "t/B", Provenance: ptrAt("/components/schemas/B")},
-		"t/Pet":    &ir.Model{ID: "t/Pet", Provenance: ptrAt("/components/schemas/Pet"), Discriminator: &ir.Discriminator{}},
-		"t/Dog":    &ir.Model{ID: "t/Dog", Provenance: ptrAt("/components/schemas/Dog"), Discriminator: &ir.Discriminator{}},
+		"t/A":      &ir.Model{ID: "t/A", Provenance: ptrAt("/components/schemas/A"), Properties: own},
+		"t/B":      &ir.Model{ID: "t/B", Provenance: ptrAt("/components/schemas/B"), Properties: own},
+		"t/sub":    &ir.Model{ID: "t/sub", Provenance: ptrAt("/components/schemas/Sub"), Base: &ir.TypeRef{Target: "t/A"}},
+		"t/bare":   &ir.Model{ID: "t/bare", Anonymous: true, Provenance: ptrAt(declaredAt(0))},
+		"t/bare1":  &ir.Model{ID: "t/bare1", Anonymous: true, Provenance: ptrAt(declaredAt(1))},
+		"t/Pet":    &ir.Model{ID: "t/Pet", Provenance: ptrAt("/components/schemas/Pet"), Properties: own, Discriminator: &ir.Discriminator{}},
+		"t/Dog":    &ir.Model{ID: "t/Dog", Provenance: ptrAt("/components/schemas/Dog"), Properties: own, Discriminator: &ir.Discriminator{}},
 		"t/alias":  &ir.Scalar{ID: "t/alias", Base: &ir.TypeRef{Target: "t/B"}},
 		"t/in0":    inline("t/in0", declaredAt(0)),
 		"t/in1":    inline("t/in1", declaredAt(1)),
@@ -89,6 +93,8 @@ func TestFold_RedeclaredModelsCompose(t *testing.T) {
 		{name: "the first discriminated component is", targets: []ir.TypeID{"t/Dog", "t/A", "t/Pet"}, base: "t/Dog", mixins: []ir.TypeID{"t/A", "t/Pet"}},
 		{name: "one type declared twice composes once", targets: []ir.TypeID{"t/A", "t/B", "t/A"}, mixins: []ir.TypeID{"t/A", "t/B"}},
 		{name: "`{}` adds no conjunct", targets: []ir.TypeID{"t/top", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
+		{name: "a bare object adds no conjunct", targets: []ir.TypeID{"t/bare", "t/A", "t/in2"}, base: "t/A", mixins: []ir.TypeID{"t/in2"}},
+		{name: "a type what composes it holds adds no conjunct", targets: []ir.TypeID{"t/A", "t/B", "t/sub"}, mixins: []ir.TypeID{"t/B", "t/sub"}},
 		{name: "an alias composes as written", targets: []ir.TypeID{"t/alias", "t/in1"}, base: "t/alias", mixins: []ir.TypeID{"t/in1"}},
 		{name: "a node under its declaration is inline", targets: []ir.TypeID{"t/in0", "t/nested"}, mixins: []ir.TypeID{"t/in0", "t/nested"}},
 	} {
@@ -137,6 +143,12 @@ func TestFold_OnlyTwoOrMoreModelsCompose(t *testing.T) {
 		dropped []jsontext.Pointer
 	}{
 		{name: "one model twice", targets: []ir.TypeID{"t/A", "t/A"}, want: "t/A"},
+		{name: "a model and what composes it", targets: []ir.TypeID{"t/A", "t/sub"}, want: "t/sub"},
+		{name: "what composes a model, then the model", targets: []ir.TypeID{"t/sub", "t/A"}, want: "t/sub"},
+		{name: "a model and an alias of it", targets: []ir.TypeID{"t/B", "t/alias"}, want: "t/alias"},
+		{name: "a bare object and a model", targets: []ir.TypeID{"t/bare", "t/A"}, want: "t/A"},
+		{name: "a model and a bare object", targets: []ir.TypeID{"t/A", "t/bare1"}, want: "t/A"},
+		{name: "two bare objects written inline", targets: []ir.TypeID{"t/bare", "t/bare1"}, want: "t/bare"},
 		{name: "`{}` loses to one model", targets: []ir.TypeID{"t/top", "t/A"}, want: "t/A"},
 		{name: "a kind beside two models", targets: []ir.TypeID{"t/A", "t/B", "t/str"}, want: "t/A", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
 		{name: "a degraded node beside two models", targets: []ir.TypeID{"t/any", "t/A", "t/B"}, want: "t/any", dropped: []jsontext.Pointer{declaredAt(1), declaredAt(2)}},
