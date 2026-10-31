@@ -494,8 +494,8 @@ func (ft fileTypes) testingParams(fn *ast.FuncDecl) []string {
 
 // typeParams maps each of fn's type parameters to whether its constraint is a
 // testing type. Every one of them is in scope in each constraint, where it is
-// never a testing type: a constraint can name one only under a pointer, which
-// has no methods.
+// never a testing type: no type parameter is a constraint itself, so isTesting
+// reaches one there only under a pointer, which has no methods.
 func (ft fileTypes) typeParams(fn *ast.FuncDecl) map[string]bool {
 	if fn.Type.TypeParams == nil {
 		return nil
@@ -589,10 +589,10 @@ func moduleDir(p string) (string, bool) {
 
 // asserts reports whether body fails its test by itself, through testify or a
 // failing method of one of params, read through parentheses; names is what
-// importNames read of the file.
-// A function literal's body is left out: a failure there is placed by whatever
-// runs it. A testing parameter copied into another local before it fails is
-// not followed, as this reads syntax and not data flow.
+// importNames read of the file. A function literal's body is left out: a
+// failure there is placed by whatever runs it. A testing parameter copied into
+// another local before it fails is not followed, as this reads syntax and not
+// data flow.
 func asserts(body *ast.BlockStmt, params []string, names map[string][]string) bool {
 	found := false
 	ast.Inspect(body, func(n ast.Node) bool {
