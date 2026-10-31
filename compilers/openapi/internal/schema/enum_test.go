@@ -488,6 +488,28 @@ func TestEnum_ValueTypeReadsTheFormatItsMembersFit(t *testing.T) {
 	}
 }
 
+// TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder holds the allOf judge's reading
+// of ValueType: a field redeclared as an enum whose format the members fit narrows
+// the primitive it restates, whichever branch declares it. With the format left
+// verbatim the two orders kept different declarations.
+func TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder(t *testing.T) {
+	t.Parallel()
+	const (
+		enum  = `{type: object, properties: {f: {type: integer, format: int8, enum: [1]}}}`
+		plain = `{type: object, properties: {f: {type: integer, format: int64}}}`
+	)
+	for name, branches := range map[string]string{"enum first": enum + ", " + plain, "enum last": plain + ", " + enum} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    M: {allOf: ["+branches+"]}\n"))
+		assert.Empty(t, diags, name)
+		model, ok := doc.Types[componentID("M")].(*ir.Model)
+		require.True(t, ok, name)
+		require.Len(t, model.Properties, 1, name)
+		e, ok := doc.Types[model.Properties[0].Type.Target].(*ir.Enum)
+		require.True(t, ok, name)
+		assert.Equal(t, ir.PrimInt8, e.ValueType, name)
+	}
+}
+
 // TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries holds the union an
 // enum lowers to to what Exclusive states: a repeated entry matches an instance
 // twice, and so does the top type an unconvertible entry lowers to.
