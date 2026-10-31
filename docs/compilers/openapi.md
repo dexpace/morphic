@@ -1235,6 +1235,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestComposes_ReadsEachPartOnce`,
   `merge.TestSaysOnlyObject_ReadsEveryFieldThatSaysSomething`,
   `e2e.TestExternalContent_AComposedFieldIsNamedInItsDocument`,
+  `e2e.TestExternalContent_AFieldCarriedApartIsReadInItsDocument`,
   `merge.TestFold_ANarrowingIsNoDrop`,
   `merge.TestFold_ANarrowingCarriesTheNullMarkers`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
