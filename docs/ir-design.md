@@ -1963,8 +1963,8 @@ and a stream belongs to one content of its payload, so an OpenAPI operation can 
 mechanism (SSE vs JSON Lines vs WS frames vs length-prefixed events) has no field of its own: over
 HTTP the streaming content's `MediaType` states it, another binding frames its own messages, and
 the plan derives which (emitter-design §3.1). `Content.Item` declares what one item is; a compiler
-that reads a stream from a media type alone names the content's `Type` as `Events`, a reading
-`Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
+that reads a stream from a media type alone names the content's `Type` as `Events`, or `bytes` for
+a file, whose `Type` describes the whole, a reading `Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
 it is one. Smithy **waiters** (`smithy.waiters#waitable`) are *not* folded into `LongRunning` —
 acceptor lists and JMESPath matchers are preserved verbatim in `Operation.Unmodeled` (§15).
 

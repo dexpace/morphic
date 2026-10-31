@@ -2360,8 +2360,9 @@ A request body or success response with a Content whose media type the streaming
 `+json-seq` structured suffix by default, matched on the normalized key
 ([`media-types`](#media-types)) at every minor — lowers to `Operation.RequestStream`
 and `ResponseStream` for the directions that have one, each with `Events` the Content's own `Type`
-(for a frame format the schema is read as one frame, not the body), `Streaming` the `client`,
-`server` or `bidi` summary of them, and `Provenance.Inferred` the marker `streaming-media-type` on
+(for a frame format the schema is read as one frame, not the body), or `bytes` on a file body
+([`file-bodies`](#file-bodies)), whose schema describes the file, `Streaming` the `client`, `server`
+or `bidi` summary of them, and `Provenance.Inferred` the marker `streaming-media-type` on
 the operation, joined by `,` to any other marker, since below 3.2 a media type is a guess about
 framing and not a declaration. A 3.2 `itemSchema` ([`item-schema`](#item-schema)) is a declaration:
 it streams on any media type with `Events` the `Item` type and no marker, and wins over the
@@ -2380,6 +2381,7 @@ its entries separated by commas, and refuses one that is neither a media type no
 - Tests: `operation.TestStreaming_ResponseMediaTypeImpliesServerStream`,
   `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
   `operation.TestStreaming_ItemSchemaDeclaresTheStream`,
+  `operation.TestStreaming_AFileBodyStreamsBytes`,
   `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
 - Status: partly built: sequential media types derive the wrong item type (#630); a response
   offering a plain body and an event stream does not record which content streams (#601); and an

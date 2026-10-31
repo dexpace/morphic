@@ -6,6 +6,7 @@ package operation
 import (
 	"encoding/json/jsontext"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
@@ -41,9 +42,9 @@ type streamDirection struct {
 // It runs over the lowered operation rather than the source, so it reads one
 // answer per direction no matter how many places a payload was assembled from,
 // and it is the only writer of the three streaming fields.
-func applyStreaming(c lowering.Ctx, op *ir.Operation, declPtr jsontext.Pointer) (ir.Inferred, []ir.Diagnostic) {
-	request := classifyStream(streamCandidates(c, op.Request))
-	response := classifyStream(responseCandidates(c, op.Responses))
+func applyStreaming(c lowering.Ctx, ts *compile.Types, op *ir.Operation, declPtr jsontext.Pointer) (ir.Inferred, []ir.Diagnostic) {
+	request := classifyStream(streamCandidates(c, ts, op.Request))
+	response := classifyStream(responseCandidates(c, ts, op.Responses))
 	if request.detail == nil && response.detail == nil {
 		return "", nil
 	}
@@ -104,10 +105,10 @@ func classifyStream(candidates []streamCandidate) streamDirection {
 // streaming. Nor is the default, whose class only the plan's policy decides
 // (ir-design §7.2): a stream it alone declares sets no ResponseStream, and a
 // plan taking it for the success response reads its Contents itself.
-func responseCandidates(c lowering.Ctx, responses []ir.Response) []streamCandidate {
+func responseCandidates(c lowering.Ctx, ts *compile.Types, responses []ir.Response) []streamCandidate {
 	out := make([]streamCandidate, 0, len(responses))
 	for i := range responses {
-		out = append(out, streamCandidates(c, responses[i].Payload)...)
+		out = append(out, streamCandidates(c, ts, responses[i].Payload)...)
 	}
 	return out
 }
@@ -115,7 +116,7 @@ func responseCandidates(c lowering.Ctx, responses []ir.Response) []streamCandida
 // streamCandidates collects the contents of one payload that carry a stream. A
 // declared itemSchema wins over the media-type reading at the same content, so
 // the two can never both classify it.
-func streamCandidates(c lowering.Ctx, payload *ir.Payload) []streamCandidate {
+func streamCandidates(c lowering.Ctx, ts *compile.Types, payload *ir.Payload) []streamCandidate {
 	if payload == nil {
 		return nil
 	}
@@ -125,13 +126,22 @@ func streamCandidates(c lowering.Ctx, payload *ir.Payload) []streamCandidate {
 		case content.Item != nil:
 			out = append(out, streamCandidate{events: *content.Item, declared: true})
 		case c.MediaTypeStreams(content.MediaType):
-			// For a frame format the schema under the media type is read as one
-			// frame, not the whole body — the opposite of how an ordinary content
-			// is read — so it is the element type as well as the content type.
-			out = append(out, streamCandidate{events: content.Type})
+			out = append(out, streamCandidate{events: frameType(ts, content)})
 		}
 	}
 	return out
+}
+
+// frameType is what one frame of a streaming content holds. For a frame format
+// the schema under the media type is read as one frame, not the whole body —
+// the opposite of how an ordinary content is read — so it is the element type
+// as well as the content type. A file body's schema describes the file, whose
+// frames are bytes, whatever its docs or bounds say of the whole.
+func frameType(ts *compile.Types, content ir.Content) ir.TypeRef {
+	if content.File != nil {
+		return ts.PrimRef(ir.PrimBytes)
+	}
+	return content.Type
 }
 
 // streamingMode is the summary the two directions derive. It is only ever asked

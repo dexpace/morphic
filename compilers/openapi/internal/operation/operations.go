@@ -165,7 +165,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	}
 	diags = append(diags, lowerRequestBody(c, w.types, &op, &hb, src, decl)...)
 	// After both payload lowerings, which are what it reads.
-	streaming, streamDiags := applyStreaming(c, &op, decl)
+	streaming, streamDiags := applyStreaming(c, w.types, &op, decl)
 	diags = append(diags, streamDiags...)
 	op.Provenance.Inferred = ir.JoinInferred(op.Provenance.Inferred, opCtx.inferred, streaming)
 	var extra []ir.Operation
