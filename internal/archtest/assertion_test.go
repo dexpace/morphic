@@ -64,6 +64,8 @@ func TestMissingAssertions_PlantedShapesAreCaught(t *testing.T) {
 		{"its own package's interface, unasserted",
 			"type P struct{}\n\ntype Planter interface{ Plant() }\n\nfunc (P) Plant() {}\n",
 			[]string{"pass.Planter"}},
+		{"a var of a type that is no interface",
+			"type P struct{}\n\nfunc (P) " + visit + "\nvar _ P = P{}\n", []string{"ir.Visitor"}},
 		{"a var with no type is no assertion",
 			"type P struct{}\n\nfunc (P) " + visit + "\nvar _ = P{}\n", []string{"ir.Visitor"}},
 		{"another interface asserted",
@@ -217,7 +219,10 @@ func assertion(p *decls.Package, typ, value ast.Expr) (*types.TypeName, *types.I
 	if call, ok := ast.Unparen(value).(*ast.CallExpr); ok && len(call.Args) == 1 {
 		if iface, ok := p.Info.TypeOf(call.Fun).Underlying().(*types.Interface); ok {
 			tn, ok := typeName(p.Info.TypeOf(call.Args[0]))
-			return tn, iface, ok
+			if !ok {
+				return nil, nil, false
+			}
+			return tn, iface, true
 		}
 	}
 	if typ == nil {
@@ -228,7 +233,10 @@ func assertion(p *decls.Package, typ, value ast.Expr) (*types.TypeName, *types.I
 		return nil, nil, false
 	}
 	tn, ok := typeName(p.Info.TypeOf(value))
-	return tn, iface, ok
+	if !ok {
+		return nil, nil, false
+	}
+	return tn, iface, true
 }
 
 // typeName returns the declaration of t's named type, through an alias and

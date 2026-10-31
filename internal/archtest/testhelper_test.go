@@ -42,9 +42,11 @@ func TestTestHelpers_StartWithHelper(t *testing.T) {
 	}
 }
 
-// TestTestHelperViolations_PlantedShapesAreCaught plants, in one test file,
-// each kind of function taking testing's own types that the rule reaches and
-// each it leaves alone. The tests below plant what turns on other files.
+// TestTestHelperViolations_PlantedShapesAreCaught plants functions the rule
+// reaches and ones it leaves alone, each in one file that imports testing and
+// testify under their own names. The tests below plant what turns on an
+// import's name, on a module interface or a type parameter, or on which file or
+// package holds a function.
 func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 	t.Parallel()
 	const head = "package p\n\nimport (\n\t\"log\"\n\t\"testing\"\n\n\t\"github.com/stretchr/testify/assert\"\n" +
@@ -64,6 +66,8 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"called, taking a *testing.F", "func check(f *testing.F) { f.Fatal(1) }\n\nfunc FuzzP(f *testing.F) { check(f) }\n", line},
 		{"called, failing through its second testing parameter",
 			"func check(a, t *testing.T) { t.Fatal(a.Name()) }\n\nfunc TestP(t *testing.T) { check(t, t) }\n", line},
+		{"called, failing through its second testing field",
+			"func check(b *testing.B, t *testing.T) { t.Fatal(b.N) }\n\nfunc TestP(t *testing.T) { check(nil, t) }\n", line},
 		{"called through parentheses", "func check(t *testing.T) { t.Fatal(1) }\n\nfunc TestP(t *testing.T) { (check)(t) }\n", line},
 		{"called through a parenthesized instantiation",
 			"func check[V any](t *testing.T, v V) { t.Fatal(v) }\n\nfunc TestP(t *testing.T) { (check[int])(t, 1) }\n", line},
@@ -84,6 +88,8 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"a table's case", "func check(t *testing.T) { t.Fatal(1) }\n\nvar cases = []func(*testing.T){check}\n", 0},
 		{"failing something else", "func check(t *testing.T) { log.Fatal(1) }\n" + caller, 0},
 		{"another package's T", "func check(t *other.T) { t.Fatal(1) }\n" + caller, 0},
+		{"taking another testing type",
+			"func check(pb *testing.PB) { assert.True(nil, pb.Next()) }\n\nfunc use(pb *testing.PB) { check(pb) }\n", 0},
 		{"asserting nothing", "func check(t *testing.T) { _ = t.Name() }\n" + caller, 0},
 		{"asserting only in a literal", "func check(t *testing.T) func() { return func() { t.Fatal(1) } }\n" + caller, 0},
 		{"a test", "func TestQ(t *testing.T) { t.Fatal(1) }\n", 0},
@@ -574,7 +580,11 @@ func moduleDir(p string) (string, bool) {
 	if p == module {
 		return ".", true
 	}
-	return strings.CutPrefix(p, module+"/")
+	dir, ok := strings.CutPrefix(p, module+"/")
+	if !ok {
+		return "", false
+	}
+	return dir, true
 }
 
 // asserts reports whether body fails its test by itself, through testify or a
