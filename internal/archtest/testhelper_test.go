@@ -10,8 +10,11 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
@@ -56,7 +59,20 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"called, asserting through require", "func check(t *testing.T) { require.True(t, true) }\n" + caller, line},
 		{"called, failing through t", "func check(t *testing.T) { t.Fatal(1) }\n" + caller, line},
 		{"called, taking a testing.TB", "func check(t testing.TB) { t.Error(1) }\n" + caller, line},
+		{"called, taking a *testing.B", "func check(b *testing.B) { b.Fatal(1) }\n\nfunc BenchmarkP(b *testing.B) { check(b) }\n", line},
+		{"called, taking a *testing.F", "func check(f *testing.F) { f.Fatal(1) }\n\nfunc FuzzP(f *testing.F) { check(f) }\n", line},
+		{"called, failing through its second testing parameter",
+			"func check(a, t *testing.T) { t.Fatal(a.Name()) }\n\nfunc TestP(t *testing.T) { check(t, t) }\n", line},
+		{"called through parentheses", "func check(t *testing.T) { t.Fatal(1) }\n\nfunc TestP(t *testing.T) { (check)(t) }\n", line},
+		{"called through a parenthesized instantiation",
+			"func check[V any](t *testing.T, v V) { t.Fatal(v) }\n\nfunc TestP(t *testing.T) { (check[int])(t, 1) }\n", line},
 		{"called, its parameter named otherwise", "func check(tb *testing.T) { tb.Fail() }\n" + caller, line},
+		{"called, its testing parameter second",
+			"func check(name string, t *testing.T) { t.Fatal(name) }\n\nfunc TestP(t *testing.T) { check(\"x\", t) }\n", line},
+		{"called through an instantiation",
+			"func check[V any](t *testing.T, v V) { t.Fatal(v) }\n\nfunc TestP(t *testing.T) { check[int](t, 1) }\n", line},
+		{"called through an instantiation of two", "func check[K, V any](t *testing.T, k K, v V) { t.Fatal(k, v) }\n\n" +
+			"func TestP(t *testing.T) { check[int, int](t, 1, 1) }\n", line},
 		{"t.Helper second", "func check(t *testing.T) {\n\tassert.True(t, true)\n\tt.Helper()\n}\n" + caller, line},
 		{"another package can call it", "func Check(t *testing.T) { t.Fatal(1) }\n", line},
 		{"another value's Helper first", "func check(t *testing.T) {\n\tx.Helper()\n\tt.Fatal(1)\n}\n" + caller, line},
@@ -67,6 +83,16 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"asserting nothing", "func check(t *testing.T) { _ = t.Name() }\n" + caller, 0},
 		{"asserting only in a literal", "func check(t *testing.T) func() { return func() { t.Fatal(1) } }\n" + caller, 0},
 		{"a test", "func TestQ(t *testing.T) { t.Fatal(1) }\n", 0},
+		{"a benchmark", "func BenchmarkQ(b *testing.B) { b.Fatal(1) }\n", 0},
+		{"a fuzz target", "func FuzzQ(f *testing.F) { f.Fatal(1) }\n", 0},
+		{"a test named only by its prefix", "func Test(t *testing.T) { t.Fatal(1) }\n", 0},
+		{"a test whose prefix a non-letter follows", "func Test_q(t *testing.T) { t.Fatal(1) }\n", 0},
+		{"a name that only starts like a test", "func Testdata(t *testing.T) { t.Fatal(1) }\n", line},
+		{"a name that only starts like a benchmark", "func Benchmarked(t *testing.T) { t.Fatal(1) }\n", line},
+		{"a name that only starts like a fuzz target", "func Fuzzy(t *testing.T) { t.Fatal(1) }\n", line},
+		{"a second testing parameter's Helper first",
+			"func check(a, t *testing.T) {\n\tt.Helper()\n\tt.Fatal(a.Name())\n}\n\nfunc TestP(t *testing.T) { check(t, t) }\n", 0},
+		{"an unnamed testing parameter", "func check(*testing.T) {}\n\nfunc TestP(t *testing.T) { check(t) }\n", 0},
 		{"no testing parameter", "func check(n int) { _ = n }\n\nfunc use() { check(1) }\n", 0},
 		{"a method", "type s struct{}\n\nfunc (s) check(t *testing.T) { t.Fatal(1) }\n\nfunc use(t *testing.T) { s{}.check(t) }\n", 0},
 		{"an exported method", "type s struct{}\n\nfunc (s) Check(t *testing.T) { t.Fatal(1) }\n", 0},
@@ -76,6 +102,49 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 			t.Parallel()
 			root := t.TempDir()
 			writeDocFile(t, filepath.Join(root, "a/p_test.go"), head+tc.src)
+
+			got, _, err := testHelperViolations(root)
+			require.NoError(t, err)
+			var want []string
+			if tc.want != 0 {
+				want = []string{fmt.Sprintf("a/p_test.go:%d: an asserting helper starts with its Helper call", tc.want)}
+			}
+			assert.Empty(t, cmp.Diff(want, got))
+		})
+	}
+}
+
+// TestTestHelperViolations_ReadsTheNamesAFileImports plants files importing
+// testing and testify under names of their own, and packages that only share
+// a name with them, since what a call means is set by the file's imports.
+func TestTestHelperViolations_ReadsTheNamesAFileImports(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		src  string
+		want int // the line reported, 0 for none
+	}{
+		{"testing under two names",
+			"package p\n\nimport (\n\t\"testing\"\n\ttst \"testing\"\n)\n\nfunc check(t *testing.T) { t.Fatal(1) }\n\n" +
+				"func TestP(t *tst.T) { check(t) }\n", 8},
+		{"testing under another name",
+			"package p\n\nimport tst \"testing\"\n\nfunc check(t *tst.T) { t.Fatal(1) }\n\n" +
+				"func TestP(t *tst.T) { check(t) }\n", 5},
+		{"testify under another name",
+			"package p\n\nimport (\n\t\"testing\"\n\n\ta \"github.com/stretchr/testify/assert\"\n)\n\n" +
+				"func check(t *testing.T) { a.True(t, true) }\n\nfunc TestP(t *testing.T) { check(t) }\n", 9},
+		{"another package named assert",
+			"package p\n\nimport (\n\t\"testing\"\n\n\tassert \"example.com/check\"\n)\n\n" +
+				"func check(t *testing.T) { assert.True(t, true) }\n\nfunc TestP(t *testing.T) { check(t) }\n", 0},
+		{"another package whose last element is testing",
+			"package p\n\nimport \"example.com/testing\"\n\nfunc check(t *testing.T) { t.Fatal(1) }\n\n" +
+				"func use(t *testing.T) { check(t) }\n", 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			writeDocFile(t, filepath.Join(root, "a/p_test.go"), tc.src)
 
 			got, _, err := testHelperViolations(root)
 			require.NoError(t, err)
@@ -119,23 +188,24 @@ func testHelperViolations(root string) ([]string, int, error) {
 		dir := path.Dir(rel)
 		ast.Inspect(f, func(n ast.Node) bool {
 			if call, ok := n.(*ast.CallExpr); ok {
-				if id, ok := call.Fun.(*ast.Ident); ok {
-					called[dir+"/"+id.Name] = true
+				if id, ok := calledName(call.Fun); ok {
+					called[dir+"/"+id] = true
 				}
 			}
 			return true
 		})
+		names := importNames(f)
 		for _, decl := range f.Decls {
 			fn, ok := decl.(*ast.FuncDecl)
-			if !ok || fn.Recv != nil || fn.Body == nil || strings.HasPrefix(fn.Name.Name, "Test") {
+			if !ok || fn.Recv != nil || fn.Body == nil || isEntryPoint(fn.Name.Name) {
 				continue
 			}
-			param, ok := testingParam(fn)
-			if !ok || !asserts(fn.Body, param) {
+			params := testingParams(fn, names["testing"])
+			if len(params) == 0 || !asserts(fn.Body, params, names) {
 				continue
 			}
 			helpers++
-			if !startsWithHelper(fn.Body, param) {
+			if !startsWithHelper(fn.Body, params) {
 				pending = append(pending, pendingHelper{rel, dir, fn.Name.Name, fset.Position(fn.Pos()).Line})
 			}
 		}
@@ -162,32 +232,97 @@ type pendingHelper struct {
 	line           int
 }
 
-// testingParam returns the name of fn's first parameter when its type is
-// *testing.T or testing.TB, the two whose Helper reports a test's line.
-func testingParam(fn *ast.FuncDecl) (string, bool) {
-	params := fn.Type.Params.List
-	if len(params) == 0 || len(params[0].Names) == 0 {
-		return "", false
+// assertPaths are the testify packages whose functions fail a test from where
+// they are called.
+var assertPaths = []string{"github.com/stretchr/testify/assert", "github.com/stretchr/testify/require"}
+
+// importNames maps each import path f names to the names f calls it by, so
+// that a package imported under another name, or under two, is still read. A
+// local that shadows one of these names is still read as the import, as this
+// reads syntax and not types; revive's import-shadowing refuses such a local.
+func importNames(f *ast.File) map[string][]string {
+	names := map[string][]string{}
+	for _, spec := range f.Imports {
+		p, err := strconv.Unquote(spec.Path.Value)
+		if err != nil {
+			continue
+		}
+		name := path.Base(p)
+		if spec.Name != nil {
+			name = spec.Name.Name
+		}
+		names[p] = append(names[p], name)
 	}
-	typ := params[0].Type
-	if star, ok := typ.(*ast.StarExpr); ok {
-		typ = star.X
+	return names
+}
+
+// calledName returns the name a call's function is written as, through an
+// instantiation such as check[int] and through parentheses.
+func calledName(fun ast.Expr) (string, bool) {
+	switch x := ast.Unparen(fun).(type) {
+	case *ast.IndexExpr:
+		fun = x.X
+	case *ast.IndexListExpr:
+		fun = x.X
+	default:
 	}
-	sel, ok := typ.(*ast.SelectorExpr)
+	id, ok := ast.Unparen(fun).(*ast.Ident)
 	if !ok {
 		return "", false
 	}
-	pkg, ok := sel.X.(*ast.Ident)
-	if !ok || pkg.Name != "testing" || (sel.Sel.Name != "T" && sel.Sel.Name != "TB") {
-		return "", false
+	return id.Name, true
+}
+
+// testingKinds are the testing types a helper can take, each of which has a
+// Helper that moves a failure's line to the caller.
+var testingKinds = []string{"T", "B", "F", "TB"}
+
+// entryPrefixes start the names of the functions the go tool runs itself,
+// whose failures are their own lines.
+var entryPrefixes = []string{"Test", "Benchmark", "Fuzz"}
+
+// isEntryPoint reports whether name is one the go tool runs itself: a prefix
+// followed by nothing or by a rune that is not lowercase, as go help testfunc
+// says. Benchmarked is a helper's name, not a benchmark's.
+func isEntryPoint(name string) bool {
+	return slices.ContainsFunc(entryPrefixes, func(p string) bool {
+		rest, ok := strings.CutPrefix(name, p)
+		r, _ := utf8.DecodeRuneInString(rest)
+		return ok && (rest == "" || !unicode.IsLower(r))
+	})
+}
+
+// testingParams returns the names of fn's parameters, in any position, whose
+// type is one of testingKinds; pkgs are the names fn's file imports testing
+// by.
+func testingParams(fn *ast.FuncDecl, pkgs []string) []string {
+	var params []string
+	for _, field := range fn.Type.Params.List {
+		typ := field.Type
+		if star, ok := typ.(*ast.StarExpr); ok {
+			typ = star.X
+		}
+		sel, ok := typ.(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+		x, ok := sel.X.(*ast.Ident)
+		if !ok || !slices.Contains(pkgs, x.Name) || !slices.Contains(testingKinds, sel.Sel.Name) {
+			continue
+		}
+		for _, name := range field.Names {
+			params = append(params, name.Name)
+		}
 	}
-	return params[0].Names[0].Name, true
+	return params
 }
 
 // asserts reports whether body fails its test by itself, through testify or a
-// failing method of param. A function literal's body is left out: a failure
-// there is placed by whatever runs it.
-func asserts(body *ast.BlockStmt, param string) bool {
+// failing method of one of params; names is what importNames read of the file.
+// A function literal's body is left out: a failure there is placed by whatever
+// runs it. A testing parameter copied into another local before it fails is
+// not followed, as this reads syntax and not data flow.
+func asserts(body *ast.BlockStmt, params []string, names map[string][]string) bool {
 	found := false
 	ast.Inspect(body, func(n ast.Node) bool {
 		if _, ok := n.(*ast.FuncLit); ok {
@@ -205,8 +340,7 @@ func asserts(body *ast.BlockStmt, param string) bool {
 		if !ok {
 			return true
 		}
-		if x.Name == "assert" || x.Name == "require" ||
-			(x.Name == param && slices.Contains(failingMethods, sel.Sel.Name)) {
+		if isAssertPackage(names, x.Name) || (slices.Contains(params, x.Name) && slices.Contains(failingMethods, sel.Sel.Name)) {
 			found = true
 		}
 		return true
@@ -214,8 +348,14 @@ func asserts(body *ast.BlockStmt, param string) bool {
 	return found
 }
 
-// startsWithHelper reports whether body's first statement is param.Helper().
-func startsWithHelper(body *ast.BlockStmt, param string) bool {
+// isAssertPackage reports whether name is what a file calls one of assertPaths.
+func isAssertPackage(names map[string][]string, name string) bool {
+	return slices.ContainsFunc(assertPaths, func(p string) bool { return slices.Contains(names[p], name) })
+}
+
+// startsWithHelper reports whether body's first statement is the Helper call
+// of one of params.
+func startsWithHelper(body *ast.BlockStmt, params []string) bool {
 	if len(body.List) == 0 {
 		return false
 	}
@@ -232,5 +372,5 @@ func startsWithHelper(body *ast.BlockStmt, param string) bool {
 		return false
 	}
 	x, ok := sel.X.(*ast.Ident)
-	return ok && x.Name == param
+	return ok && slices.Contains(params, x.Name)
 }
