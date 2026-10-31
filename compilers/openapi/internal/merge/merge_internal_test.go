@@ -37,6 +37,13 @@ func written(source string) func() (ir.RawValue, error) {
 	return func() (ir.RawValue, error) { return ir.RawValue(source), nil }
 }
 
+// declaring returns a model declaring one property, which a test takes where
+// any model will do: a model declaring nothing says nothing but object
+// (saysOnlyObject).
+func declaring(id ir.TypeID) *ir.Model {
+	return &ir.Model{ID: id, Properties: []ir.Property{{WireName: "own"}}}
+}
+
 // judge is the type judgment over the registry g reads.
 func judge(g *Merger) typeJudge { return typeJudge{Resolve: g.Resolve} }
 
@@ -47,12 +54,23 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
 	g := &Merger{
 		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
+		Mint: func(pointer jsontext.Pointer, m *ir.Model) ir.TypeID {
+			m.ID = composedAt(pointer)
+			reg[m.ID] = m
+			return m.ID
+		},
+		Interned: func(jsontext.Pointer) bool { return false },
+		PropAt:   func(pointer jsontext.Pointer) ir.PropID { return "p/minted" + ir.PropID(pointer) },
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
 	}
 	return g, recorded
 }
+
+// composedAt is the ID stubMerger mints a composition under, for the field the
+// declaration at pointer names.
+func composedAt(pointer jsontext.Pointer) ir.TypeID { return "t/composed" + ir.TypeID(pointer) }
 
 // foldTwo folds src, rendered by source, into dst, a first declaration with
 // no source recorded: the pair the walk hands over for one redeclared field.
@@ -61,14 +79,14 @@ func foldTwo(g *Merger, dst, src ir.Property, source Source) ir.Property {
 }
 
 // indexOver returns an index filling m, and settle, which folds what the index
-// queued against reg and reports through g, as Finish takes the compiler's
-// completions once every lowering has returned.
-func indexOver(m *ir.Model, reg map[ir.TypeID]ir.TypeDef, g *Merger) (idx *PropIndex, settle func()) {
+// queued through g, as Finish takes the compiler's completions once every
+// lowering has returned.
+func indexOver(m *ir.Model, g *Merger) (idx *PropIndex, settle func()) {
 	var queued []Settle
 	idx = NewPropIndex(m, func(s Settle) { queued = append(queued, s) })
 	return idx, func() {
 		for _, s := range queued {
-			s(reg, g.Report)
+			s(g)
 		}
 		queued = nil
 	}
@@ -102,10 +120,9 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 
 	reg["t/uri"] = &ir.Primitive{ID: "t/uri", Prim: ir.PrimURL}
 	reg["t/bool"] = &ir.Primitive{ID: "t/bool", Prim: ir.PrimBool}
-	var settled []ir.Diagnostic
-	queued[0](reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-		settled = append(settled, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
-	})
+	g, recorded := stubMerger(reg)
+	queued[0](g)
+	settled := *recorded
 
 	assert.Equal(t, ir.TypeID("t/uri"), m.Properties[0].Type.Target,
 		"the narrower type wins, judged against a node the walk had not built")
@@ -153,7 +170,7 @@ func TestMergeProperty_AppendsThenFolds(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	m := &ir.Model{}
-	idx, settle := indexOver(m, nil, g)
+	idx, settle := indexOver(m, g)
 
 	idx.MergeProperty(ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")}, unread(t))
 	idx.MergeProperty(ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t))

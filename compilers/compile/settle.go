@@ -15,9 +15,10 @@ import (
 // whatever had been lowered so far, and its answer would follow declaration
 // order (invariant 3). Deferred to Finish, it reads the registry whole.
 //
-// Settle may rewrite nodes already in reg but must not add or remove one:
-// nothing lowers after it, so an added node is one no lowering produced, and a
-// removed one leaves every reference to it dangling.
+// Settle may rewrite nodes already in reg. It must not remove one, which would
+// leave every reference to it dangling, and it adds one only through Register:
+// nothing lowers after it, so an added node is one it mints, which Register
+// holds to a namespace of its own.
 type Settlement interface {
 	Settle(reg ir.TypeRegistry) []ir.Diagnostic
 }
@@ -51,10 +52,10 @@ func (t *Types) queue(q *[]Settlement, verb string, s Settlement) {
 // queued, each kind in the order queued, and returns their diagnostics; Finish
 // calls it once every promised node is built. It checks ctx before each
 // settlement and stops once it is done, leaving a registry the caller must not
-// assemble. A settlement that changes how many nodes the registry holds is
-// refused and left standing, a compiler bug rather than a recovery. A swap of
-// one node for another keeps the count, so the references it leaves dangling
-// are left to pass.Validate and irverify.
+// assemble. A settlement leaving the registry any size but the one its Register
+// calls account for is refused and left standing, a compiler bug, not a
+// recovery. A swap of one node for another keeps the count, so the references
+// it leaves dangling are left to pass.Validate and irverify.
 func (t *Types) settle(ctx context.Context) []ir.Diagnostic {
 	t.settled = true
 	pending := slices.Concat(t.completing, t.pending)
@@ -64,11 +65,12 @@ func (t *Types) settle(ctx context.Context) []ir.Diagnostic {
 		if ctx.Err() != nil {
 			return diags
 		}
-		before := len(t.reg)
+		before, minted := len(t.reg), t.minted
 		diags = append(diags, s.Settle(t.reg)...)
-		if after := len(t.reg); after != before {
-			t.refuse("settlement %T changed the registry from %d to %d nodes; a settlement may only rewrite nodes the walk interned",
-				s, before, after)
+		if after := len(t.reg); after != before+t.minted-minted {
+			t.refuse("settlement %T changed the registry from %d to %d nodes, having registered %d; "+
+				"a settlement rewrites nodes the registry holds, and adds one only through Register",
+				s, before, after, t.minted-minted)
 		}
 	}
 	return diags

@@ -2,7 +2,8 @@
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
 // Package merge reconciles the properties more than one allOf branch declares:
-// either folding the declarations into one or reporting that they disagree.
+// folding the declarations into one, composing the models they name, or
+// reporting that they disagree.
 //
 // It is the compiler's most intricate logic and the part least tied to the walk
 // that drives it. The walk hands it each declaration through a PropIndex, and a

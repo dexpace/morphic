@@ -17,9 +17,10 @@ type relation int
 
 const (
 	// relUnrelated is a pair nothing relates, such as two composites of one
-	// kind, a union or an opaque scalar against a kind, the top type spelled
-	// as an alias, a degraded node, nesting past maxJudgeDepth, or a type the
-	// registry does not hold. The fold drops the second and says it does not
+	// kind neither says it is, a union or an opaque scalar against a kind or a
+	// structure, the top type spelled as an alias, a degraded node, nesting past
+	// maxJudgeDepth, or a type the registry does not hold. The fold composes two
+	// models (composition), and otherwise drops the second and says it does not
 	// compare.
 	relUnrelated relation = iota
 	// relDisjoint is a pair no value satisfies together, but a null both sides
@@ -106,7 +107,8 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 // can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
 // against a bare primitive; two identical such nodes; two lists or two maps,
 // two alike in every member and detail taking the copy rule identical nodes
-// take (sameNodes). Any other pair is unrelated here.
+// take (sameNodes); and a structure against one it says it is (structures).
+// Any other pair is unrelated here.
 func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
@@ -126,20 +128,115 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 		// rule sameNodes states for the other nodes.
 		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
 	}
+	if rel == relUnrelated {
+		return j.structures(a, at, b, bt)
+	}
 	return rel
 }
 
-// classify judges a pair arms cannot narrow by what each type holds. Two that
-// end in primitive kinds go through spelling.Relate: disjoint kinds, or an enum
-// none of whose members the other kind admits, are disjoint, and any other
-// pair overlaps. A literal against anything that holds values overlaps, since
-// which values meet is not decided here. A value type against a structure is
-// disjoint, and so are two kinds of structure. Two composites of one kind, or
-// the top type spelled as an alias, stay unrelated: nothing says what their
-// intersection holds.
+// structures relates two types by what one says of the other, read off the
+// nodes the walk built. Each is within the other in a cycle, or where both say
+// nothing but object, and those take the copy rule (sameNodes).
+func (j typeJudge) structures(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
+	aWithin, bWithin := j.within(a, at, b, bt), j.within(b, bt, a, at)
+	switch {
+	case aWithin && bWithin:
+		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
+	case aWithin:
+		return relANarrower
+	case bWithin:
+		return relBNarrower
+	default:
+		return relUnrelated
+	}
+}
+
+// within reports whether every value of a is a value of b, a structure: a is
+// composed of b (composes), or b says nothing but object and a describes one.
+func (j typeJudge) within(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) bool {
+	end := j.unaliased(bt)
+	if !isStructural(end) {
+		return false
+	}
+	return j.composes(a.Target, b.Target) || (saysOnlyObject(end) && instanceKind(j.unaliased(at)) == ir.KindModel)
+}
+
+// maxComposedParts bounds the types composes reads for one question. Stopping
+// early only misses a narrowing, which leaves two types for the field to
+// compose, and that loses nothing.
+const maxComposedParts = 64
+
+// composes reports whether id is composed of target: a chain of alias scalars,
+// Base and Mixins leads from one to the other, and every value of the first is
+// a value of what it composes. A folded field names no such link, so the answer
+// follows no fold. The walk reads at most maxComposedParts types.
+func (j typeJudge) composes(id, target ir.TypeID) bool {
+	seen := map[ir.TypeID]bool{id: true}
+	queue := []ir.TypeID{id}
+	for len(queue) > 0 && len(seen) <= maxComposedParts {
+		td, ok := j.Resolve(queue[len(queue)-1])
+		queue = queue[:len(queue)-1]
+		if !ok {
+			continue
+		}
+		for _, part := range composedOf(td) {
+			if part == target {
+				return true
+			}
+			if !seen[part] {
+				seen[part] = true
+				queue = append(queue, part)
+			}
+		}
+	}
+	return false
+}
+
+// composedOf returns the types td says its values are also values of.
+func composedOf(td ir.TypeDef) []ir.TypeID {
+	var parts []ir.TypeID
+	switch t := td.(type) {
+	case *ir.Scalar:
+		if t.Base != nil {
+			parts = append(parts, t.Base.Target)
+		}
+	case *ir.Model:
+		if t.Base != nil {
+			parts = append(parts, t.Base.Target)
+		}
+		for _, m := range t.Mixins {
+			parts = append(parts, m.Target)
+		}
+	default:
+	}
+	return parts
+}
+
+// saysOnlyObject reports whether td is a model saying nothing but that its
+// values are objects, as a bare `type: object` lowers. Docs and the like describe
+// no value. It compares the whole model, so a field added to it counts.
+func saysOnlyObject(td ir.TypeDef) bool {
+	m, ok := td.(*ir.Model)
+	if !ok || len(m.Unmodeled) > 0 {
+		return false
+	}
+	bare := *m
+	bare.TypeCommon = ir.TypeCommon{}
+	return reflect.DeepEqual(bare, ir.Model{})
+}
+
+// classify judges a pair arms cannot narrow by what each type holds, an alias
+// as the type it stands for. Two that end in primitive kinds go through
+// spelling.Relate: disjoint kinds, or an enum none of whose members the other
+// kind admits, are disjoint, and any other pair overlaps. A literal against a
+// type that ends in a kind, or against another literal, overlaps, since which
+// values meet is not decided here. A value type against a structure is disjoint,
+// and so are two structures of different instance types (saysItsValues). Anything
+// else stays unrelated: nothing says what the intersection holds.
 func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
 	ak, aok := j.primKind(a)
 	bk, bok := j.primKind(b)
+	at, bt = j.unaliased(at), j.unaliased(bt)
 	switch {
 	case aok && ak == ir.PrimAny, bok && bk == ir.PrimAny:
 		return relUnrelated
@@ -156,8 +253,31 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 	case isLiteral(at) && isLiteral(bt):
 		return relOverlap
 	default:
-		return disjointIf(objectKind(at.Kind()) != objectKind(bt.Kind()))
+		return disjointIf(saysItsValues(at) && saysItsValues(bt) && instanceKind(at) != instanceKind(bt))
 	}
+}
+
+// saysItsValues reports whether td is a literal or a structure, which classify
+// can compare by kind. Nothing else that reaches it can be: a union or an
+// external may hold a value of any kind, and an opaque scalar says nothing.
+func saysItsValues(td ir.TypeDef) bool { return isLiteral(td) || isStructural(td) }
+
+// unaliased returns the type td stands for: td itself, or what a chain of alias
+// scalars ends in (ir-design §4.2). The chain is bounded against a malformed
+// registry, as primKind's is.
+func (j typeJudge) unaliased(td ir.TypeDef) ir.TypeDef {
+	for range maxTypeResolveDepth {
+		s, alias := td.(*ir.Scalar)
+		if !alias || s.Base == nil {
+			return td
+		}
+		next, ok := j.Resolve(s.Base.Target)
+		if !ok {
+			return td
+		}
+		td = next
+	}
+	return td
 }
 
 // againstKind judges td, which ends in no primitive kind, against a type that
@@ -198,13 +318,25 @@ func isStructural(td ir.TypeDef) bool {
 	}
 }
 
-// objectKind folds a MapT into the Model kind: both are objects, and one
-// instance can satisfy a map and a struct at once. Which of the two a position
-// lowers to depends on what else it declares about its members (ir-design
-// §4.6), not on a shape that could contradict the other.
-func objectKind(k ir.TypeKind) ir.TypeKind {
+// instanceKind folds td's kind onto the JSON instance type it describes: a MapT
+// or an object literal into the Model kind, and a Tuple or a list literal into
+// the List kind. One instance can satisfy a map and a struct at once, or a list
+// and a tuple. Which of the two a position lowers to depends on what else it
+// declares about its members (ir-design §4.6), not on a shape that could
+// contradict the other.
+func instanceKind(td ir.TypeDef) ir.TypeKind {
+	if lit, ok := td.(*ir.Literal); ok && lit.Value.Kind == ir.ValueObject {
+		return ir.KindModel
+	}
+	if lit, ok := td.(*ir.Literal); ok && lit.Value.Kind == ir.ValueList {
+		return ir.KindList
+	}
+	k := td.Kind()
 	if k == ir.KindMap {
 		return ir.KindModel
+	}
+	if k == ir.KindTuple {
+		return ir.KindList
 	}
 	return k
 }

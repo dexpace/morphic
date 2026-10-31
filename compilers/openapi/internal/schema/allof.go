@@ -513,15 +513,7 @@ func selectAllOfBase(refs *typed.Bindings, branches []allOfBranch) (int, bool) {
 			refIdxs = append(refIdxs, i)
 		}
 	}
-	if len(refIdxs) == 1 {
-		return refIdxs[0], true
-	}
-	for _, i := range refIdxs {
-		if refTargetHasDiscriminator(refs, branches[i].schema) {
-			return i, true
-		}
-	}
-	return 0, false
+	return merge.SelectBase(refIdxs, func(i int) bool { return refTargetHasDiscriminator(refs, branches[i].schema) })
 }
 
 // refTargetHasDiscriminator reports whether a $ref branch resolves to a schema
