@@ -1104,7 +1104,7 @@ func TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor(t *testing.T) {
 // model and what composes it, a model and a bare object, and a bare object and
 // an alias of it each name one type, which is the narrower, with nothing kept
 // and nothing reported. Two aliases of one model each may say more than the
-// model, so those compose.
+// model, and two bare objects declared apart are two types, so those compose.
 func TestAllOf_ATypeHoldingAnotherTakesTheField(t *testing.T) {
 	t.Parallel()
 	const spec = `    A:
@@ -1122,6 +1122,8 @@ func TestAllOf_ATypeHoldingAnotherTakesTheField(t *testing.T) {
         - {$ref: '#/components/schemas/A'}
         - {type: object, properties: {d: {type: string}}}
     Bare:
+      type: object
+    Twin:
       type: object
     MinTwo:
       $ref: '#/components/schemas/Bare'
@@ -1151,9 +1153,13 @@ func TestAllOf_ATypeHoldingAnotherTakesTheField(t *testing.T) {
 		}
 	}
 
-	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, ref("Z"), ref("Y"))))
-	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, []ir.TypeRef{{Target: componentID("Z")}, {Target: componentID("Y")}}, composedField(t, doc, "T", "v").Mixins)
+	for _, pair := range [][2]string{{"Z", "Y"}, {"Bare", "Twin"}} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, ref(pair[0]), ref(pair[1]))))
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, diags, pair[0])
+		assert.Equal(t, []ir.TypeRef{{Target: componentID(pair[0])}, {Target: componentID(pair[1])}},
+			composedField(t, doc, "T", "v").Mixins, pair[0])
+	}
 }
 
 // TestAllOf_AnObjectSayingMoreThanItsTypeComposes pins what keeps a declaration

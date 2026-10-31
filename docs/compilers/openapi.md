@@ -1111,10 +1111,12 @@ written `allOf` of them composes ([`allof-classification`](#allof-classification
 as the only `$ref`, or else the first `$ref` whose model carries a discriminator, is its `Base`, and
 the rest are `Mixins` in declaration order. So a field declared as `Meeting` and as an inline object
 names one type holding both, whichever branch comes first, rather than flattening them into one
-property list. A `{}`, a model saying nothing but `type: object` and a model another declaration
-composes add no conjunct. An object saying anything else composes, so what it says stays reachable.
-Two aliases of one model are two types, each able to say more than the model, so they compose, and
-so does an alias of a bare object beside another model. Any other type beside the models (a map, a
+property list. Whatever another declaration's type holds adds no conjunct: a `{}`, a model saying
+nothing but `type: object` beside one saying more, and a model another declaration composes. Two
+models saying nothing, declared apart, are two types neither of which holds the other, so they
+compose, and an object saying anything else composes too, so what it says stays reachable. Two
+aliases of one model are two types, each able to say more than the model, so they compose, and so
+does an alias of a bare object beside another model. Any other type beside the models (a map, a
 kind, a degraded node) leaves the choice to the rule above. Every declaration then folds into the
 field, so none is dropped for its type, and each conjunct keeps the node its own pointer denotes.
 The minted model's ID is in the `composed` namespace (§3.1, §4.3), so no `$ref` reaches it, and
