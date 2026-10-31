@@ -186,16 +186,13 @@ func tableRows(lines []string, head string) []string {
 	return nil
 }
 
-// cutCell returns the first cell of a table row and what follows it, a pipe
-// inside a span of code being no separator.
+// cutCell returns the first cell of a table row and what follows it. A pipe
+// separates cells unless a backslash escapes it, in a span of code or not, as
+// GitHub renders a table.
 func cutCell(row string) (cell, rest string) {
-	inCode := false
-	for i, r := range row[1:] {
-		switch {
-		case r == '`':
-			inCode = !inCode
-		case r == '|' && !inCode:
-			return strings.TrimSpace(row[1 : i+1]), row[i+2:]
+	for i := 1; i < len(row); i++ {
+		if row[i] == '|' && row[i-1] != '\\' {
+			return strings.TrimSpace(row[1:i]), row[i+1:]
 		}
 	}
 	return strings.TrimSpace(row[1:]), ""
@@ -255,18 +252,18 @@ func unmappedDocuments(docs string) ([]string, int, error) {
 }
 
 // TestTableConstructs_ReadsTheNamedTable plants a target's table the way the
-// real ones are written: a prose lead, a code span holding a pipe, a citation in
-// a cell, a row with no answer, and a second table that ends the file with no
-// newline after it. Each head reads its own table alone.
+// real ones are written: a prose lead, an escaped pipe in a code span and out of
+// one, a citation in a cell, a row with no answer, and a second table that ends
+// the file with no newline after it. Each head reads its own table alone.
 func TestTableConstructs_ReadsTheNamedTable(t *testing.T) {
 	t.Parallel()
 	path := filepath.Join(t.TempDir(), "lowering.md")
 	writeDocFile(t, path, "# Table\n\nLead.\n\n| IR construct | Go |\n|---|---|\n"+
-		"| `A \\| B` union | a |\n| plain ([see](../a.md#x)) | b \\| c |\n| silent |  |\n"+
+		"| `A \\| B` union | a |\n| plain ([see](../a.md#x)) | b \\| c |\n| C \\| D | d |\n|tight|e|\n| silent |  |\n"+
 		"\n## Steps\n\n| Step | Lowers |\n|---|---|\n| `S` | x |")
 	got, err := tableConstructs(path, constructHead)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"`A \\| B` union", "plain (see)"}, got)
+	assert.Equal(t, []string{"`A \\| B` union", "plain (see)", "C \\| D", "tight"}, got)
 	got, err = tableConstructs(path, stepHead)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"`S`"}, got)
