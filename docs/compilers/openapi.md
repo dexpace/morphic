@@ -1128,7 +1128,8 @@ A `$ref` to an `allOf` branch or wrapper makes a model carrying the declarations
 the others, so one declaration can stand on two models whose fields differ. Where a node stands at a
 schema inside the one holding every declaration that holds the first, the field is a different
 property from that node's: it takes a `PropID` in the `composed` namespace, derived from the
-declaration naming it, and that declaration's provenance, and the model's discriminator follows it.
+declaration naming it, and its provenance points at that declaration, and the model's discriminator
+follows it.
 Every other fold keeps the first declaration's identity, which the walk has already handed out.
 
 The relation between kinds is stated over JSON instances, so that a narrowing, which is adopted
@@ -1159,9 +1160,10 @@ Values are refused before one is kept, so a value the field takes is never lost 
 written before it. Constraint keywords merge
 over the declarations folded into the field, the first to set a keyword keeping it; the title,
 description, external links, deprecation, XML hints and each `Unmodeled` key over every declaration,
-the first to give one keeping it, and a declaration giving one differently is reported and kept. The
-field keeps the first declaration's provenance, joined by the heuristic that promoted its
-deprecation from an extension wherever the deprecation it keeps came from.
+the first to give one keeping it, and a declaration giving one differently is reported and kept. A
+field keeping the first declaration's identity keeps that declaration's provenance, and either way
+it names the heuristic that promoted its deprecation from an extension, wherever the deprecation it
+keeps came from.
 
 The IR has no combinator for "string here, integer there", nor a second slot for a default, title,
 description, external link, examples, deprecation or XML hint another declaration already fills, so
@@ -1303,7 +1305,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
   (#1042); two models alike in every property compose rather than collapse to one type (#1083); a
   model and a map or a union are reported as types the merge does not compare (#1182), and so are two
-  lists, tuples or maps whose members are different models (#1180); a model and the wrapper it
+  lists, tuples or maps whose members are different models (#1180); a model, an alias of `{}` and
+  another model keep the first and report the rest (#1194); a model and the wrapper it
   flattens that fold different sets only because the model stops at the flattening depth are refused
   as `compile/registry-refused`, not told apart, since one declaration names both. Open:
   intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted

@@ -20,7 +20,8 @@ type conjunct struct {
 // models say nothing of what they share, but an instance satisfies both, so
 // the field's type is the composition of them all. It returns nothing where
 // fewer than two remain, since one type then holds every other, or where one
-// that remains is no model, which leaves the type to the winner.
+// that remains is no model, such as an alias of `{}` (#1194), which leaves the
+// type to the winner.
 func (f *folding) composition() []conjunct {
 	judge := typeJudge{Resolve: f.g.Resolve}
 	var conjuncts []conjunct
