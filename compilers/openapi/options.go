@@ -6,6 +6,7 @@ package openapi
 import (
 	"fmt"
 	"maps"
+	"mime"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,9 +38,9 @@ const (
 // named here rather than restated for the reason GroupingStrategy is.
 type StreamingMedia = lowering.StreamingMedia
 
-// DefaultStreamingMediaTypes returns the media types StreamingMedia classifies
-// as streams when the caller names none. It is exported so a caller extending
-// the list can start from it rather than transcribe it.
+// DefaultStreamingMediaTypes returns the media types and suffixes StreamingMedia
+// classifies as streams when the caller names none. It is exported so a caller
+// extending the list can start from it rather than transcribe it.
 func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
 
 // ExtensionPromotions is the vendor-extension promotion policy: which x-* keys
@@ -416,13 +417,16 @@ func decodeStreamingMedia(out *[]string, value string) error {
 }
 
 // namesMedia reports whether entry has the form of a structured suffix or of a
-// media type: `+suffix`, or `type/subtype`.
+// media type: `+suffix`, or `type/subtype`, each with any parameters.
 func namesMedia(entry string) bool {
-	if suffix, ok := strings.CutPrefix(entry, "+"); ok {
-		return suffix != ""
+	name, _, err := mime.ParseMediaType(entry)
+	if err != nil {
+		return false
 	}
-	kind, subtype, ok := strings.Cut(entry, "/")
-	return ok && kind != "" && subtype != ""
+	if suffix, ok := strings.CutPrefix(name, "+"); ok {
+		return suffix != "" && !strings.Contains(suffix, "/")
+	}
+	return strings.Contains(name, "/")
 }
 
 // decodeBudget reads a budget setting: a decimal integer, read as the Limits

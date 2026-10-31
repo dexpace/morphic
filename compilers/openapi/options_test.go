@@ -49,7 +49,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"overlay":                "patch.yaml",
 			"overlay-lax":            "true",
 			"nullable-widening":      "false",
-			"streaming-media":        "application/vnd.acme.frames, +frames",
+			"streaming-media":        "application/vnd.acme.frames; charset=utf-8, +frames",
 			"max-source-bytes":       "11",
 			"max-source-nodes":       "-1",
 			"max-enum-members":       "0",
@@ -68,7 +68,7 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.Nil(t, opts.Overlay.Data, "named for the compile to read, not read")
 	assert.True(t, opts.Overlay.Lax)
 	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
-	assert.Equal(t, openapi.StreamingMedia{MediaTypes: []string{"application/vnd.acme.frames", "+frames"}},
+	assert.Equal(t, openapi.StreamingMedia{MediaTypes: []string{"application/vnd.acme.frames; charset=utf-8", "+frames"}},
 		opts.StreamingMedia, "the list as the Go field reads it, one entry each")
 	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14},
 		opts.Limits, "each budget as the Go field reads it, 0 left for the default")
@@ -136,6 +136,14 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`"streaming-media": want media types or +suffixes separated by commas, got "text/"`},
 		{"a media type with no type", map[string]string{"streaming-media": "/plain"},
 			`"streaming-media": want media types or +suffixes separated by commas, got "/plain"`},
+		{"a media type with two slashes", map[string]string{"streaming-media": "text/plain/x"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "text/plain/x"`},
+		{"a media type holding a space", map[string]string{"streaming-media": "text/event stream"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "text/event stream"`},
+		{"a suffix holding a space", map[string]string{"streaming-media": "+json seq"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "+json seq"`},
+		{"a suffix holding a slash", map[string]string{"streaming-media": "+json/seq"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "+json/seq"`},
 		{"non-boolean policy", map[string]string{"nullable-widening": "maybe"},
 			`option "nullable-widening": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},

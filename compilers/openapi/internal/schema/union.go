@@ -347,9 +347,13 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 	return id, diags
 }
 
-// typesDisjoint reports whether no instance has two of types. JSON's types are
-// disjoint but for one pair: every integer is a number.
+// typesDisjoint reports whether no instance has two of types. A type listed
+// twice overlaps itself, and JSON's types are otherwise disjoint but for one
+// pair: every integer is a number.
 func typesDisjoint(types []oas3.SchemaType) bool {
+	if len(slices.Compact(slices.Sorted(slices.Values(types)))) != len(types) {
+		return false
+	}
 	return !slices.Contains(types, oas3.SchemaTypeInteger) || !slices.Contains(types, oas3.SchemaTypeNumber)
 }
 

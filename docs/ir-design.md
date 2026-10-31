@@ -375,8 +375,9 @@ it sees. Changes made together in one bump are listed together under it.
     a value of it (§4.5): `int64` where the compiler had written `integer` and kept the format
     verbatim under `Unmodeled`, an entry such a consumer no longer finds.
   - `Union.Exclusive` is false on a union whose variants can match one instance, which the source
-    did not ask to exclude (§4.4): a type array naming `integer` and `number`, and an enum whose
-    entry repeats. The compiler had set it, leaving such a union to refuse what its schema admits.
+    did not ask to exclude (§4.4): a type array naming `integer` and `number` or repeating a type,
+    and an enum whose entry repeats or lowers to the top type. The compiler had set it, leaving such
+    a union to refuse what its schema admits.
 
 ---
 
@@ -1023,7 +1024,7 @@ type Union struct {
     Variants      []Variant
     Exclusive     bool           // exactly one variant matches (oneOf); false = one or more (anyOf,
                                  // and a union whose variants overlap though no source asked to
-                                 // exclude them: a type array naming integer and number)
+                                 // exclude them, as a type array naming integer and number)
     WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
                                  // a single key (Smithy union, protobuf oneof); false = untagged
     Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged
@@ -1807,7 +1808,9 @@ type PartEncoding struct {
 
 type FileInfo struct {
     IsText   bool                 // textual vs binary contents
-    Contents *TypeRef             // declared contents scalar chain (string/bytes extensions); nil = bytes
+    Contents *TypeRef             // declared contents scalar chain (string/bytes extensions); nil = bytes.
+                                  // A compiler's lowered schema stays on Content.Type: it need not
+                                  // be such a chain, as a type array lowers to a union
     ContentTypes []string         // declared *allowed* content-type set (TypeSpec File<"image/png" |
                                   // "image/jpeg">); runtime Content-Type comes from the file value
     ContentTypeDefault string     // default when the file value carries none
@@ -1959,13 +1962,13 @@ such an operation encodes no member; a `"none"` spelling would add one to nearly
 and say nothing `RequestStream` and `ResponseStream` do not. `Streaming` summarizes an operation,
 and a stream belongs to one content of its payload, so an OpenAPI operation can offer
 `application/json` beside `application/x-ndjson`, and the plan elects among them (emitter-design
-§3.1). The wire
-mechanism (SSE vs JSON Lines vs WS frames vs length-prefixed events) has no field of its own: over
-HTTP the streaming content's `MediaType` states it, another binding frames its own messages, and
-the plan derives which (emitter-design §3.1). `Content.Item` declares what one item is; a compiler
-that reads a stream from a media type alone names the content's `Type` as `Events`, or `bytes` for
-a file, whose `Type` describes the whole, a reading `Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
-it is one. Smithy **waiters** (`smithy.waiters#waitable`) are *not* folded into `LongRunning` —
+§3.1). The wire mechanism (SSE vs JSON Lines vs WS frames vs length-prefixed events) has no field of
+its own: over HTTP the streaming content's `MediaType` states it, another binding frames its own
+messages, and the plan derives which (emitter-design §3.1). `Content.Item` declares what one item
+is; a compiler that reads a stream from a media type alone names the content's `Type` as `Events`,
+or `bytes` for a file, whose `Type` describes the whole, a reading `Provenance.Inferred` marks. An
+element need not be a union, and `Variant.Event` applies only where it is one. Smithy **waiters**
+(`smithy.waiters#waitable`) are *not* folded into `LongRunning` —
 acceptor lists and JMESPath matchers are preserved verbatim in `Operation.Unmodeled` (§15).
 
 ---

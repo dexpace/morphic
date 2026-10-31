@@ -683,6 +683,19 @@ func TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes(t *testing.T) {
 	}
 }
 
+// TestLower_ATypeListedTwiceIsNotExclusive covers the other way two listed types
+// overlap: such a list is invalid, yet its two variants admit one value alike, so
+// an exclusive reading would refuse every string.
+func TestLower_ATypeListedTwiceIsNotExclusive(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    U: {type: [string, integer, string]}\n"))
+	openapitest.AssertHasCode(t, diags, "openapi/validation/validation-duplicate-key", ir.SeverityError)
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 3)
+	assert.False(t, u.Exclusive)
+}
+
 func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    A:

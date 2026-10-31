@@ -897,11 +897,12 @@ wins, as §6.3 has it. The plan records the choice so that docs and a mock agree
 table says only how it divides. Its default holds the sequential media types OpenAPI 3.2 names:
 `text/event-stream` is `sse`; `application/jsonl` and `application/x-ndjson` are `json_lines`;
 `application/json-seq` and the `+json-seq` structured suffix, which `application/geo+json-seq`
-carries, are `json_seq`; and `multipart/mixed` is `multipart`. An entry matches a media type compared
-as §3.1 says, one starting with `+` every media type with that suffix, as the compiler's streaming
-policy reads one ([`streaming-media`](./compilers/openapi.md#streaming-media)), and a configuration
-adds one for a media type its compiler was told streams. A framing a target has no reader for is
-that target's coded degrade to `raw` (§3.1).
+carries, are `json_seq`; and `multipart/mixed` is `multipart`. An entry matches a media type
+compared as §3.1 says, and one starting with `+` every media type with that suffix, as the
+compiler's streaming policy reads one ([`streaming-media`](./compilers/openapi.md#streaming-media)),
+an entry naming the whole media type winning over a suffix. A configuration adds one for a media
+type its compiler was told streams. A framing a target has no reader for is that target's coded
+degrade to `raw` (§3.1).
 
 ### 3.6 Plan fact or refine fact
 

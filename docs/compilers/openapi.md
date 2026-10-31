@@ -1311,16 +1311,18 @@ other than `null`, in order, each lowered from the same schema as that type alon
 shared primitive for a scalar type, and for `object` or `array` a node hoisted at
 `<pointer>/type/<index>`. A `null` among them makes the position nullable instead
 ([`nullable`](#nullable)), so one type and `null` lower as that type alone, nullable. The union is
-exclusive unless the list names both `integer` and `number`, the one pair of JSON types that
-overlap, since every integer is a number; two variants the types resolve to one primitive, as a
-width does ([`numeric-formats`](#numeric-formats)), stay two. The bounds a carried schema writes land
-on its property or parameter ([`constraints`](#constraints)). No keyword census runs over the union,
-since each variant is built from the whole schema and holds what its own type admits
+exclusive unless two listed types overlap: `integer` and `number`, the one pair of JSON types that
+do, since every integer is a number, or a type listed twice, which [`validation`](#validation)
+reports. Two variants the types resolve to one primitive, as a width does
+([`numeric-formats`](#numeric-formats)), stay two. The bounds a carried schema writes land on its
+property or parameter ([`constraints`](#constraints)). No keyword census runs over the union, since
+each variant is built from the whole schema and holds what its own type admits
 ([`shape-applicator`](#shape-applicator)).
 
 - Cases: `type-array-numeric`
 - Tests: `schema.TestLower_MultiTypeUnion`,
   `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
+  `schema.TestLower_ATypeListedTwiceIsNotExclusive`,
   `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
 - Status: partly built: a keyword or bound that no variant holds, as at a component, where no
   carrier takes a bound, is dropped in silence (#852); and a multi-typed base's discriminator routes
@@ -1543,9 +1545,10 @@ unless an instance can match two variants: an entry repeats, or one lowered to t
 []` lowers to a closed `Enum` with no members, a position accepting no value, reported as an
 `openapi/empty-enum` warning. An entry repeating an earlier entry's value, compared as JSON Schema
 compares instances, is kept, each occurrence a member of its own (§4.5), and reported as an
-`openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers to the top type, with an
-`openapi/budget-exceeded` error at the schema. A `const` lowers to a `Literal` of its value, and one
-that cannot convert to the top type, with an `openapi/degraded-construct` warning at the schema. A
+`openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers
+to the top type, with an `openapi/budget-exceeded` error at the schema. A `const` lowers to a
+`Literal` of its value, and one that cannot convert to the top type, with an
+`openapi/degraded-construct` warning at the schema. A
 `$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
 at that position, whichever is lowered first.
 
@@ -2177,15 +2180,16 @@ is the media type that serializes the value: `HTTPParamBinding.ContentType` on a
 lowers nothing and is kept whole under `openapi:content/<key>`, the key escaped as a pointer segment
 (`degraded_lowering`), reported as one `openapi/degraded-construct` warning at the `content` map
 naming them, beside the `openapi/validation` error ([`validation`](#validation)) such a map draws.
-What else the elected entry writes is kept: its `example` and `examples` follow the parameter's or header's
-own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the key escaped
-as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared key under
-`out_of_scope`, with the `openapi/unknown-object-key` warning [`unknown-keys`](#unknown-keys) gives
-it; and its `description` and the fields only a body Content models, `itemSchema`, `itemEncoding`,
-`prefixEncoding` and `encoding`, under `no_ir_home`, each with an info `openapi/degraded-construct`
-at it. A `content` map with no entry elects nothing: a `schema` beside it stands, and the empty map
-is kept under `degraded_lowering` with an `openapi/degraded-construct` warning. The converse,
-`schema` beside a non-empty `content`, is [`competing-keywords`](#competing-keywords)'.
+What else the elected entry writes is kept: its `example` and `examples` follow the parameter's or
+header's own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the
+key escaped as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared
+key under `out_of_scope`, with the `openapi/unknown-object-key` warning
+[`unknown-keys`](#unknown-keys) gives it; and its `description` and the fields only a body Content
+models, `itemSchema`, `itemEncoding`, `prefixEncoding` and `encoding`, under `no_ir_home`, each with
+an info `openapi/degraded-construct` at it. A `content` map with no entry elects nothing: a `schema`
+beside it stands, and the empty map is kept under `degraded_lowering` with an
+`openapi/degraded-construct` warning. The converse, `schema` beside a non-empty `content`, is
+[`competing-keywords`](#competing-keywords)'.
 
 - Cases: `param-content-fields`, `header-content-schema`, `content-several-entries`
 - Codes: `openapi/degraded-construct`
@@ -2315,9 +2319,9 @@ on the normalized key ([`media-types`](#media-types)), lowers to `Content.File` 
 and `ContentTypes` the key as written, so that a body to stream is not read as a model.
 `Content.Type` stays what the schema lowered to, which keeps its docs, bounds and examples
 reachable, and is the non-nullable `bytes` primitive only where the schema is absent or `true` and
-states nothing. No other `FileInfo` field is set. The same holds for a response and an error case. An `octet-stream` entry
-with a schema that is not `string` with `binary`, a `format: byte` or `contentMediaType` string, and
-a schema-less entry on any other media type are ordinary Contents.
+states nothing. No other `FileInfo` field is set. The same holds for a response and an error case.
+An `octet-stream` entry with a schema that is not `string` with `binary`, a `format: byte` or
+`contentMediaType` string, and a schema-less entry on any other media type are ordinary Contents.
 
 - Cases: `file-body`
 - Tests: `operation.TestContent_BinaryOctetStreamBody`,
