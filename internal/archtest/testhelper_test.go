@@ -67,6 +67,9 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"called through parentheses", "func check(t *testing.T) { t.Fatal(1) }\n\nfunc TestP(t *testing.T) { (check)(t) }\n", line},
 		{"called through a parenthesized instantiation",
 			"func check[V any](t *testing.T, v V) { t.Fatal(v) }\n\nfunc TestP(t *testing.T) { (check[int])(t, 1) }\n", line},
+		{"called, taking a pointer to a parenthesized testing type", "func check(t *(testing.T)) { t.Fatal(1) }\n" + caller, line},
+		{"called, failing through a parenthesized parameter", "func check(t *testing.T) { (t).Fatal(1) }\n" + caller, line},
+		{"called, failing through a parenthesized method", "func check(t *testing.T) { (t.Fatal)(1) }\n" + caller, line},
 		{"called, its parameter named otherwise", "func check(tb *testing.T) { tb.Fail() }\n" + caller, line},
 		{"called, its testing parameter second",
 			"func check(name string, t *testing.T) { t.Fatal(name) }\n\nfunc TestP(t *testing.T) { check(\"x\", t) }\n", line},
@@ -91,6 +94,8 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"a name that only starts like a test", "func Testdata(t *testing.T) { t.Fatal(1) }\n", line},
 		{"a name that only starts like a benchmark", "func Benchmarked(t *testing.T) { t.Fatal(1) }\n", line},
 		{"a name that only starts like a fuzz target", "func Fuzzy(t *testing.T) { t.Fatal(1) }\n", line},
+		{"a parenthesized parameter's Helper first", "func check(t *testing.T) {\n\t(t).Helper()\n\tt.Fatal(1)\n}\n" + caller, 0},
+		{"a parenthesized Helper first", "func check(t *testing.T) {\n\t(t.Helper)()\n\tt.Fatal(1)\n}\n" + caller, 0},
 		{"a second testing parameter's Helper first",
 			"func check(a, t *testing.T) {\n\tt.Helper()\n\tt.Fatal(a.Name())\n}\n\nfunc TestP(t *testing.T) { check(t, t) }\n", 0},
 		{"an unnamed testing parameter", "func check(*testing.T) {}\n\nfunc TestP(t *testing.T) { check(t) }\n", 0},
@@ -167,7 +172,8 @@ func TestTestHelperViolations_ReadsTheNamesAFileImports(t *testing.T) {
 func TestTestHelperViolations_ReadsTheModulesTestingInterfaces(t *testing.T) {
 	t.Parallel()
 	const tb = "package a\n\nimport \"testing\"\n\ntype TB interface {\n\tHelper()\n\tFatal(...any)\n}\n\n" +
-		"type Embeds interface{ testing.TB }\n\ntype Fails interface{ Fatal(...any) }\n"
+		"type Embeds interface{ testing.TB }\n\ntype Fails interface{ Fatal(...any) }\n\n" +
+		"type Of[X any] interface {\n\tHelper()\n\tFatal(...any)\n}\n\ntype OfTwo[X, Y any] interface {\n\tHelper()\n\tFatal(...any)\n}\n"
 	const caller = "\nfunc TestP(t *testing.T) { check(t) }\n"
 	const imported = "package b\n\nimport (\n\t\"testing\"\n\n\t%s\"%s\"\n)\n\nfunc check(t %s) { t.Fatal(1) }\n" + caller
 	tests := []struct {
@@ -185,6 +191,10 @@ func TestTestHelperViolations_ReadsTheModulesTestingInterfaces(t *testing.T) {
 			"b/p_test.go": fmt.Sprintf(imported, "", module, "morphic.TB")}, "b/p_test.go:9"},
 		{"one embedding testing.TB", map[string]string{"a/tb.go": tb,
 			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.Embeds")}, "b/p_test.go:9"},
+		{"its own package's, instantiated", map[string]string{"a/tb.go": tb,
+			"a/p_test.go": "package a\n\nimport \"testing\"\n\nfunc check(t Of[int]) { t.Fatal(1) }\n" + caller}, "a/p_test.go:5"},
+		{"another package's, instantiated with two", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.OfTwo[int, int]")}, "b/p_test.go:9"},
 		{"an external test package's own", map[string]string{"a/tb.go": tb,
 			"a/p_test.go": "package a_test\n\nimport \"testing\"\n\ntype Own interface {\n\tHelper()\n\tFatal(...any)\n}\n\n" +
 				"func check(t Own) { t.Fatal(1) }\n" + caller}, "a/p_test.go:10"},
@@ -516,15 +526,22 @@ func (ft fileTypes) namesOf(fields []*ast.Field, typeParams map[string]bool) []s
 	return out
 }
 
-// isTesting reports whether typ, less any pointer, is one of testingKinds, an
-// interface helperInterfaces found, or a type parameter that typeParams maps
-// to true; a type parameter's name hides an interface's. A module interface is
-// written bare in its own package and through an import elsewhere, whose
-// clause is its path's last element. A local alias of a testing type is not
-// read.
+// isTesting reports whether typ, less any pointer, the parentheses gofmt keeps
+// under one, and an instantiation, is one of testingKinds, an interface
+// helperInterfaces found, or a type parameter that typeParams maps to true; a
+// type parameter's name hides an interface's. A module interface is written
+// bare in its own package and through an import elsewhere, whose clause is its
+// path's last element. A local alias of a testing type is not read.
 func (ft fileTypes) isTesting(typ ast.Expr, typeParams map[string]bool) bool {
 	if star, ok := typ.(*ast.StarExpr); ok {
-		typ = star.X
+		typ = ast.Unparen(star.X)
+	}
+	switch x := typ.(type) {
+	case *ast.IndexExpr:
+		typ = x.X
+	case *ast.IndexListExpr:
+		typ = x.X
+	default:
 	}
 	switch x := typ.(type) {
 	case *ast.Ident:
@@ -561,7 +578,8 @@ func moduleDir(p string) (string, bool) {
 }
 
 // asserts reports whether body fails its test by itself, through testify or a
-// failing method of one of params; names is what importNames read of the file.
+// failing method of one of params, read through parentheses; names is what
+// importNames read of the file.
 // A function literal's body is left out: a failure there is placed by whatever
 // runs it. A testing parameter copied into another local before it fails is
 // not followed, as this reads syntax and not data flow.
@@ -575,11 +593,11 @@ func asserts(body *ast.BlockStmt, params []string, names map[string][]string) bo
 		if !ok {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
+		sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
-		x, ok := sel.X.(*ast.Ident)
+		x, ok := ast.Unparen(sel.X).(*ast.Ident)
 		if !ok {
 			return true
 		}
@@ -597,7 +615,7 @@ func isAssertPackage(names map[string][]string, name string) bool {
 }
 
 // startsWithHelper reports whether body's first statement is the Helper call
-// of one of params.
+// of one of params, read through parentheses.
 func startsWithHelper(body *ast.BlockStmt, params []string) bool {
 	if len(body.List) == 0 {
 		return false
@@ -610,10 +628,10 @@ func startsWithHelper(body *ast.BlockStmt, params []string) bool {
 	if !ok {
 		return false
 	}
-	sel, ok := call.Fun.(*ast.SelectorExpr)
+	sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
 	if !ok || sel.Sel.Name != "Helper" {
 		return false
 	}
-	x, ok := sel.X.(*ast.Ident)
+	x, ok := ast.Unparen(sel.X).(*ast.Ident)
 	return ok && slices.Contains(params, x.Name)
 }
