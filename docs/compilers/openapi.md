@@ -758,7 +758,7 @@ carries it ([`constraints`](#constraints)).
 A schema that reaches itself through `$ref` — directly, through a property, `items`,
 `additionalProperties`, a union branch or an inline position, or through another component — lowers
 to a `TypeRef` to the ID the schema was registered under before its body lowered, so the cycle lives
-in the type graph by ID ([README](../ir/README.md#design-rules)), whichever declaration
+in the type graph by ID ([design rules](../ir/README.md#design-rules)), whichever declaration
 lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node without one
 (`A: {$ref: B}`, `B: {$ref: A}`) is not recursion but a cycle with no schema in it, which
 [`reference-cycles`](#reference-cycles) reports.

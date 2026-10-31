@@ -194,9 +194,9 @@ func typeUnmodeled(t *testing.T, doc *ir.Document, id ir.TypeID) ir.Unmodeled {
 // TestPreserve_AllReasonsReachable pins that every UnmodeledReason an OpenAPI
 // document can provoke is produced by some lowering here, so a consumer
 // switching on the enum meets no value this compiler can never emit. There is no
-// longer an exception: ReasonOutOfScope was once only
-// docs/ir/boundaries.md#deliberate-exclusions's Smithy and TypeSpec exclusions,
-// but the JSON Schema resource and dialect keywords land under it too
+// longer an exception: ReasonOutOfScope was once only the Smithy and TypeSpec
+// exclusions of docs/ir/boundaries.md#deliberate-exclusions, but the JSON
+// Schema resource and dialect keywords land under it too
 // (dialectAt, TestDialectKeywords_KeptOutOfScope), so S declares one.
 //
 // The reach is per reason, not per entry: an entry left at the zero reason is

@@ -9,7 +9,8 @@ type RPCBinding struct {
     InputType   *TypeRef   // the request message type params fold into (nil = synthesize from Params)
     ParamStructure string  // "" | "by_name" | "by_position" | "either" — how params serialize
                            // (JSON-RPC positional vs named; OpenRPC paramStructure). Param order
-                           // is already source order per design rule 5 (README.md); this is the mode
+                           // is already source order per design rule 5
+                           // (docs/ir/README.md#design-rules); this is the mode
     IdempotencyLevel string
     Unmodeled   Unmodeled
 }

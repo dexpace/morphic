@@ -6,8 +6,8 @@ description: Use when changing anything under ir/ or pass/ (types, codecs, walks
 # Changing the IR
 
 The IR is the ABI (`CLAUDE.md`, invariant 1): a change to it is a change to every stage that reads
-it. `docs/ir/README.md` leads to what is normative for its shapes, `CLAUDE.md` gives the Go representation they
-take, and architecture §2.5 says how a change lands.
+it. `docs/ir/README.md` leads to what is normative for its shapes, `CLAUDE.md` gives the Go
+representation they take, and architecture §2.5 says how a change lands.
 
 ## Before writing it
 
@@ -28,8 +28,8 @@ cannot be turned off.
 
 ## What changes with it
 
-- **Version.** Bump `IRVersion` as `docs/ir/ir-version.md` says. `TestIRVersion_PinsTheEncodedShape` and
-  `TestIRVersion_HistoryRecordsEachGeneration` catch a shape change. A change of meaning with no
+- **Version.** Bump `IRVersion` as `docs/ir/ir-version.md` says. `TestIRVersion_PinsTheEncodedShape`
+  and `TestIRVersion_HistoryRecordsEachGeneration` catch a shape change. A change of meaning with no
   change of shape, such as a lowering that starts filling a member, is the bump no test sees: make
   it, with the row's `meaning`.
 - **Other PRs.** Before claiming a version, and after each merge of `main`, list the open PRs
@@ -40,8 +40,9 @@ cannot be turned off.
 - **Census.** A fact no committed spec sets is a line of `testdata/unwitnessed.golden.txt`, which
   `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.
-- **Breaking.** A version bump breaks every consumer, as `docs/ir/ir-version.md` says: the title carries
-  `!`, and the commit and PR bodies say what an older consumer sees (`morphic-shipping-prs`).
+- **Breaking.** A version bump breaks every consumer, as `docs/ir/ir-version.md` says: the title
+  carries `!`, and the commit and PR bodies say what an older consumer sees
+  (`morphic-shipping-prs`).
 
 ## References
 

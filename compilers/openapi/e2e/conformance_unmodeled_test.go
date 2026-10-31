@@ -28,11 +28,12 @@ import (
 // lowering produced has nowhere to carry (GitHub #148, #151).
 //
 // Two source shapes reach it. A contradictory schema takes one half and keeps the
-// other beside it, which is docs/ir/boundaries.md#degraded-constructs's rule
-// about a degraded lowering (docs/compilers/openapi.md#shape-applicator). And
-// an applicator with no `type` beside it still constrains an instance — {items:
-// {type: string}} constrains every array — where the position lowers to the top
-// type, which understates it entirely.
+// other beside it, the rule about a degraded lowering in
+// docs/ir/boundaries.md#degraded-constructs and
+// docs/compilers/openapi.md#shape-applicator. And an applicator with no `type`
+// beside it still constrains an instance — {items: {type: string}} constrains
+// every array — where the position lowers to the top type, which understates it
+// entirely.
 func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	untyped := map[string]struct{ keyword, raw string }{
 		"UntypedItems":         {"items", `{"type":"string"}`},

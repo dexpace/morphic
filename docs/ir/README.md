@@ -27,7 +27,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 
 | Document | Owns |
 |---|---|
-| [type-graph](./type-graph.md) | `TypeDef` kinds, `TypeCommon` and `TypeRef` |
+| [type-graph](./type-graph.md) | `TypeKind`, `TypeCommon` and `TypeRef` |
 | [primitives](./primitives.md) | `Primitive`, `PrimKind` and containment between kinds |
 | [scalars](./scalars.md) | `Scalar`, and the alias a position hoists over a shared target |
 | [models](./models.md) | `Model`, `Discriminator`, composition and the flattening |
@@ -122,7 +122,7 @@ holds that list to the kinds the `ir` sources declare.
 Name a document by its path from the repository root, and a section by its heading's anchor:
 `docs/ir/models.md#the-flattening`. A Markdown page links instead, as these do. A citation carries
 no section number, so a section can move within its document without touching what cites it, and
-`TestDocuments_LinksResolve` holds every citation to a document and a heading, so one that moves
+`TestDocuments_LinksResolve` holds a citation to a document and a heading, so a section that moves
 further fails until its citations follow.
 
 ## Former section numbers
