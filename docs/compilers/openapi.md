@@ -1528,17 +1528,22 @@ chooses the collapse.
 
 An `enum` lowers to a closed `Enum` at any member count, one member included, each entry a member
 holding its value ([`values`](#values)) in source order (§4.5); a `null` entry beside others is no
-member but makes the position nullable ([`nullable`](#nullable)). An enumeration an `Enum` cannot
-hold — a list or object member, members of different kinds, or only `null` — lowers to a `Union` of
-`Literal`s instead, reported as an info `openapi/degraded-construct` at the schema, and a member
-whose value cannot convert makes the enumeration such a union, its own variant the top type,
-reported as an `openapi/degraded-construct` warning at the member. That union is exclusive unless
-an instance can match two variants: an entry repeats, or one lowered to the top type. `enum: []`
-lowers to a closed `Enum` with no members, a position accepting no value, reported as an
-`openapi/empty-enum` warning.
-An entry repeating an earlier entry's value, compared as JSON Schema compares instances, is kept,
-each occurrence a member of its own (§4.5), and reported as an `openapi/duplicate-enum-value`
-warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers to the top type, with an
+member but makes the position nullable ([`nullable`](#nullable)). Its `ValueType` is the primitive
+one declared `type` and its `format` select, as a scalar's are read
+([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)), where every member is
+a value of that primitive. Otherwise it is the primitive of the `type` alone, else of the members,
+and a `format` that reaches no `ValueType`, whether the table lacks the pairing or a member does not
+fit it, as none is a value of `binary`'s `bytes`, is kept verbatim under `openapi:format`
+(`degraded_lowering`), with an info `openapi/degraded-construct` at the schema. An enumeration an
+`Enum` cannot hold — a list or object member, members of different kinds, or only `null` — lowers to
+a `Union` of `Literal`s instead, reported as an info `openapi/degraded-construct` at the schema, and
+a member whose value cannot convert makes the enumeration such a union, its own variant the top
+type, reported as an `openapi/degraded-construct` warning at the member. That union is exclusive
+unless an instance can match two variants: an entry repeats, or one lowered to the top type. `enum:
+[]` lowers to a closed `Enum` with no members, a position accepting no value, reported as an
+`openapi/empty-enum` warning. An entry repeating an earlier entry's value, compared as JSON Schema
+compares instances, is kept, each occurrence a member of its own (§4.5), and reported as an
+`openapi/duplicate-enum-value` warning at the repeat. An `enum` past `Limits.MaxEnumMembers` lowers to the top type, with an
 `openapi/budget-exceeded` error at the schema. A `const` lowers to a `Literal` of its value, and one
 that cannot convert to the top type, with an `openapi/degraded-construct` warning at the schema. A
 `$ref` into a member of such a union names the member's `Literal`, the node the enumeration lowers
@@ -1550,13 +1555,13 @@ at that position, whichever is lowered first.
   `openapi/budget-exceeded`
 - Tests: `schema.TestEnum_HeterogeneousBecomesUnionWithBadValue`,
   `schema.TestEnum_NonScalarAndMidListMismatch`,
+  `schema.TestEnum_ValueTypeReadsTheFormatItsMembersFit`,
   `schema.TestEnumAsUnion_UnconvertibleMemberBecomesAny`,
   `schema.TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
-- Status: partly built: an `enum` ignores its `format`, though `Enum.ValueType` can carry it (#607);
-  an enum whose members do not match its declared type lowers to a union with only an info
-  diagnostic (#619); and a `Literal` carries no value type or format (#668). Open: whether a
-  mixed-type enum's `null` lifts out of its union (#618).
+- Status: partly built: an enum whose members do not match its declared type lowers to a union with
+  only an info diagnostic (#619); and a `Literal` carries no value type or format (#668). Open:
+  whether a mixed-type enum's `null` lifts out of its union (#618).
 
 ## 6. Schemas: objects, arrays and scalars
 

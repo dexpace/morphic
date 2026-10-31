@@ -420,11 +420,10 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
 	// Before the fix, scalarValue had no case for it, so both enum members
 	// failed to convert, enumMembers bailed to enumAsUnion, and the union
 	// fallback turned every member into a null literal — the actual dates never
-	// survived. Two diagnostics stand beside that, neither about a date: the
+	// survived. One diagnostic stands beside that, not about a date: the
 	// component-level default is kept as residue (it binds a use of the type, so
 	// the type node has no field for it; see
-	// TestProperty_UnquotedDateDefaultPreserved for the default path), and the
-	// `format` is kept verbatim because an ir.Enum has no Encoding field.
+	// TestProperty_UnquotedDateDefaultPreserved for the default path).
 	spec := openapitest.ComponentSpec(`    D:
       type: string
       format: date
@@ -432,16 +431,61 @@ func TestEnum_UnquotedDatesStayClosedEnum(t *testing.T) {
       enum: [2021-01-01, 2022-02-02]
 `)
 	doc, diags := schema.LowerSpec(t, spec)
-	require.Len(t, diags, 2, "the dates convert cleanly: neither diagnostic is about a member")
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/D", "/components/schemas/D/default"},
-		[]jsontext.Pointer{diags[0].Provenance.Pointer, diags[1].Provenance.Pointer})
+	require.Len(t, diags, 1, "the dates convert cleanly: no diagnostic is about a member")
+	assert.Equal(t, jsontext.Pointer("/components/schemas/D/default"), diags[0].Provenance.Pointer)
 	e, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum, never degrades to a Union of literals")
 	assert.True(t, e.Closed)
-	assert.Equal(t, ir.PrimString, e.ValueType)
+	assert.Equal(t, ir.PrimDate, e.ValueType)
 	require.Len(t, e.Members, 2)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, e.Members[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, e.Members[1].Value)
+}
+
+// TestEnum_ValueTypeReadsTheFormatItsMembersFit holds an Enum's ValueType to the
+// table scalars read (GitHub #607), and the format to one home: the ValueType
+// that took it, or else Unmodeled with a report. A format the members do not fit
+// is not taken, since no target could back the enum with it.
+func TestEnum_ValueTypeReadsTheFormatItsMembersFit(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		schema string
+		want   ir.PrimKind
+		kept   bool
+	}{
+		{"a sized integer", `{type: integer, format: int64, enum: [1, 2]}`, ir.PrimInt64, false},
+		{"a date", `{type: string, format: date, enum: ["2020-01-01"]}`, ir.PrimDate, false},
+		{"a width under number", `{type: number, format: int32, enum: [1]}`, ir.PrimInt32, false},
+		{"a float that rounds", `{type: number, format: float, enum: [0.1]}`, ir.PrimFloat32, false},
+		{"a nullable type", `{type: [integer, "null"], format: int64, enum: [1, null]}`, ir.PrimInt64, false},
+		{"no members to fit", `{type: integer, format: int64, enum: []}`, ir.PrimInt64, false},
+		{"a format the table lacks", `{type: string, format: email, enum: [a@b.c]}`, ir.PrimString, true},
+		{"byte, read before the table", `{type: string, format: byte, enum: [YWJj]}`, ir.PrimString, true},
+		{"a pairing the table lacks", `{type: integer, format: float, enum: [1]}`, ir.PrimInteger, true},
+		{"binary, which no member's value is", `{type: string, format: binary, enum: [abc]}`, ir.PrimString, true},
+		{"a member past the width", `{type: integer, format: int8, enum: [1, 1000]}`, ir.PrimInteger, true},
+		{"a fraction under a width", `{type: number, format: int32, enum: [1.5]}`, ir.PrimNumber, true},
+		{"a member no date", `{type: string, format: date, enum: [soon]}`, ir.PrimString, true},
+		{"no declared type", `{format: int64, enum: [1, 2]}`, ir.PrimNumber, true},
+		{"several declared types", `{type: [integer, string], format: int64, enum: [1, 2]}`, ir.PrimNumber, true},
+		{"no format", `{type: integer, enum: [1, 2]}`, ir.PrimInteger, false},
+		{"a redaction", `{type: string, format: password, enum: [a]}`, ir.PrimString, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    E: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			e, ok := doc.Types[componentID("E")].(*ir.Enum)
+			require.True(t, ok)
+			assert.Equal(t, tc.want, e.ValueType)
+			_, kept := e.Unmodeled["openapi:format"]
+			assert.Equal(t, tc.kept, kept)
+			assert.Equal(t, tc.kept, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/E"),
+				"the format is reported exactly where it is kept: %+v", diags)
+		})
+	}
 }
 
 // TestEnumAsUnion_ExclusiveWhereNoInstanceMatchesTwoEntries holds the union an

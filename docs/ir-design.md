@@ -371,6 +371,9 @@ it sees. Changes made together in one bump are listed together under it.
     written `bytes` over it, which left the schema on a node nothing referenced. `File` still says
     the body is a file, so a consumer pinned to 0.22.0 that reads `File` first is unaffected, and
     one that expects `Type` to be `bytes` finds a reference to the schema instead.
+  - `Enum.ValueType` holds the primitive a declared type and format select, where every member is
+    a value of it (§4.5): `int64` where the compiler had written `integer` and kept the format
+    verbatim under `Unmodeled`, an entry such a consumer no longer finds.
   - `Union.Exclusive` is false on a union whose variants can match one instance, which the source
     did not ask to exclude (§4.4): a type array naming `integer` and `number`, and an enum whose
     entry repeats. The compiler had set it, leaving such a union to refuse what its schema admits.
@@ -1081,7 +1084,7 @@ shape twice.
 ```go
 type Enum struct {
     TypeCommon
-    ValueType PrimKind      // string | int32 | int64 | float64 …
+    ValueType PrimKind      // string | int32 | int64 | float64 …; every member's Value is one
     Members   []EnumMember
     Closed    bool          // false = open/extensible: unknown values must be representable
     Flags     bool          // bitfield semantics

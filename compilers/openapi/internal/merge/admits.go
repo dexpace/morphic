@@ -37,14 +37,14 @@ const (
 	float64MaxExp       = 1024
 )
 
-// admits reports whether v is a value of the primitive kind k, judged exactly:
+// Admits reports whether v is a value of the primitive kind k, judged exactly:
 // a bounded read of a number rather than a conversion, so an exponent no
 // machine type holds is refused, not overflowed. A kind with no judge admits
 // nothing, which keeps a value off a field it cannot be shown to fit.
 //
 // A null is not judged here: whether null is a value depends on the merged
 // field's nullability, not on a kind.
-func admits(k ir.PrimKind, v ir.Value) bool {
+func Admits(k ir.PrimKind, v ir.Value) bool {
 	switch k {
 	case ir.PrimAny:
 		return true
