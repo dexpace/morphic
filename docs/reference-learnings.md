@@ -129,17 +129,19 @@ operation; `extractModelName` walks the TypeRef collapsing nullable→inner, arr
 model variant (a lossy ergonomic shortcut correctly made *in the plan layer*, not the IR). TypeSpec/
 TCGC keep paging as *metadata* (property **paths** from response root, not top-level names) so next-
 links/items can live inside envelopes. **Recommendation:** Morphic's `Pagination` (path-based
-`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropPath`s, multiple strategies) is richer than all
-references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never pre-flatten
-in IR. Add oagen's two plan predicates Morphic's §2.3 list omits: **`pathParamsInOptions`**
-(positional-vs-options-bag: `pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and
-**`isArrayResponse`** (unpaginated array→`Model[]` + elementwise decode, distinct from the pagination
-wrapper). Streaming stays on the operation core (`StreamDetail`/`Variant.Event`) — Kiota's lack of any
-streaming concept is the counterexample. *Superseded in part:* `pathParamsInOptions` is not a plan
-predicate — how a target passes its inputs varies by language, so emitter-design §3.6 makes the shape
-each target's (§4.13) — and `isArrayResponse` is not a shape of its own: an unpaginated array is a
-`value` of `BodyShape`, decoded as any type is, since the typed targets decode a list whole
-(emitter-design §3.1).
+`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropPath`s, multiple strategies) is richer than
+all references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never
+pre-flatten in IR. Add oagen's two plan predicates Morphic's §2.3 list omits:
+**`pathParamsInOptions`** (positional-vs-options-bag:
+`pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and **`isArrayResponse`** (unpaginated
+array→`Model[]` + elementwise decode, distinct from the pagination wrapper). Streaming stays on the
+operation core (`StreamDetail`/`Variant.Event`) — Kiota's lack of any streaming concept is the
+counterexample. *Superseded in part:* `pathParamsInOptions` is not a plan predicate — how a target
+passes its inputs varies by language, so [plan fact or refine
+fact](./emitters/plan/plan-or-refine.md) makes the shape each target's ([request
+shaping](./emitters/refine/requests.md)) — and `isArrayResponse` is not a shape of its own: an
+unpaginated array is a `value` of `BodyShape`, decoded as any type is, since the typed targets
+decode a list whole ([body shapes](./emitters/plan/responses.md#body-shapes)).
 
 ## A6. Naming / casing / reserved words: neutral in IR, rendered in refine — STRONGLY CONFIRMS #3/#4
 

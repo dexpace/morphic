@@ -32,7 +32,7 @@ Read the documents for your layer, and skip the rest until you need them.
 | A pass | [`architecture.md`](docs/architecture.md) §2.2 | the `ir-design.md` sections of the nodes it reads |
 | A compiler | `architecture.md` §2 and §3, `ir-design.md`, [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) | [`prior-art.md`](docs/prior-art.md), [`reference-learnings.md`](docs/reference-learnings.md) |
 | The IR | `ir-design.md`, `architecture.md` §2.5, `prior-art.md` | `reference-learnings.md` |
-| An emitter (none exists yet) | [`emitter-design.md`](docs/emitter-design.md), `architecture.md` §2.3 to §2.5 | `prior-art.md` |
+| An emitter (none exists yet) | [`emitters/`](docs/emitters/README.md), `architecture.md` §2.3 to §2.5 | `prior-art.md` |
 
 ### Where a test goes
 
@@ -252,7 +252,8 @@ needless; a verified run catches one.
    pass's own in `cmd/morphic`, both added with the pass (architecture.md §2.2).
 5. **Record it** in `architecture.md` §2.2 under "Built, and in the default list", moving it from
    "Designed, not yet built" where it is listed there, and in the two other places that name the
-   built passes: the README's Passes bullet and `emitter-design.md` §1.1. No test reads any of them.
+   built passes: the README's Passes bullet and `docs/emitters/README.md`. No test reads any of
+   them.
 6. **Run the gate:** `make gate`.
 
 ## Add a compiler

@@ -1,6 +1,6 @@
 ---
 name: morphic-changing-the-ir
-description: Use when changing anything under ir/ or pass/ (types, codecs, walks, irfacts, irverify, the passes), docs/ir-design.md or docs/emitter-design.md, the IRVersion constant, or a lowering that starts or stops filling an IR field.
+description: Use when changing anything under ir/ or pass/ (types, codecs, walks, irfacts, irverify, the passes), docs/ir-design.md or docs/emitters, the IRVersion constant, or a lowering that starts or stops filling an IR field.
 ---
 
 # Changing the IR

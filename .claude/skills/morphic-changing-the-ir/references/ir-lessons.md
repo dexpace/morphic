@@ -81,7 +81,7 @@ verifier and codecs must reach.
 ## Check a design rule against everything in its document it governs
 `design-rule-over-its-document`
 
-- **Rule.** When a change to ir-design or emitter-design states a general rule, a placement
+- **Rule.** When a change to ir-design or the emitter design states a general rule, a placement
   argument or a step order, list every field, input or step in the document it applies to and
   check each; check a step order against what each step reads that a later step can still change.
 - **Why.** A rule giving derived facts no plan field stood beside a plan field copying one, a

@@ -14,9 +14,9 @@ import (
 // A member is identified by its value in its enum, and a repeated value's ID ends
 // in its occurrence number, so a compiler following ir-design §4.5 never trips
 // this. A document that does has two members an emitter cannot tell apart,
-// which is what keying collision resolution by ID (emitter-design §4.12) rests
-// on not happening. Every enum is read through the same map, so none costs one
-// of its own.
+// which is what keying collision resolution by ID
+// (docs/emitters/refine/naming.md) rests on not happening. Every enum is read
+// through the same map, so none costs one of its own.
 func checkDuplicateMemberIDs(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var members reusedMap[ir.EnumMemberID, bool]
