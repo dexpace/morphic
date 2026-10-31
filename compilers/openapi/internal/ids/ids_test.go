@@ -245,6 +245,7 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 		"composed": string(ids.Document{}.ComposedType(pointer)),
 		"op":       string(ids.Op(pointer)),
 		"prop":     string(ids.Document{}.Prop(pointer)),
+		"minted":   string(ids.Document{}.ComposedProp(pointer)),
 		"auth":     string(ids.Auth("apiKey")),
 		"service":  string(ids.Service(0)),
 	}
@@ -254,6 +255,7 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 		"composed": "t/composed/components/schemas/User",
 		"op":       "op/openapi/components/schemas/User",
 		"prop":     "p/openapi/components/schemas/User",
+		"minted":   "p/composed/components/schemas/User",
 		"auth":     "auth/openapi/components/securitySchemes/apiKey",
 		"service":  "s/openapi/0",
 	}
@@ -283,6 +285,7 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"composed":   "t/composed@dir~1a~0b.yaml/components/schemas/User",
 		"for":        "t/anon@dir~1a~0b.yaml/X",
 		"prop":       "p/openapi@dir~1a~0b.yaml/components/schemas/User",
+		"minted":     "p/composed@dir~1a~0b.yaml/components/schemas/User",
 		"member":     "e/openapi@dir~1a~0b.yaml/components/schemas/User/s:a",
 		"coordinate": "@dir~1a~0b.yaml/components/schemas/User",
 	}, map[string]string{
@@ -291,6 +294,7 @@ func TestDocument_QualifiesEachSpaceByItsLabel(t *testing.T) {
 		"composed":   string(other.ComposedType(pointer)),
 		"for":        string(other.ForPointer("/X")),
 		"prop":       string(other.Prop(pointer)),
+		"minted":     string(other.ComposedProp(pointer)),
 		"member":     string(other.EnumMember(pointer, "s:a", 1)),
 		"coordinate": other.Coordinate(pointer),
 	})
@@ -427,7 +431,7 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 	assert.Equal(t, map[string][]string{
 		ir.IDKindType:       {"anon", "composed", "openapi"},
 		ir.IDKindOp:         {"openapi"},
-		ir.IDKindProp:       {"openapi"},
+		ir.IDKindProp:       {"composed", "openapi"},
 		ir.IDKindAuth:       {"openapi"},
 		ir.IDKindService:    {"openapi"},
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
@@ -447,7 +451,7 @@ func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 		ir.IDKindType: {"anon", "anon@a.yaml", "anon@b~1c.yaml", "composed", "composed@a.yaml",
 			"composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 		ir.IDKindOp:         {"openapi"},
-		ir.IDKindProp:       {"openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
+		ir.IDKindProp:       {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 		ir.IDKindAuth:       {"openapi"},
 		ir.IDKindService:    {"openapi"},
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
