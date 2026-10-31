@@ -176,7 +176,7 @@ type Content struct {
 	// flattening of Type takes (ir-design §4.3). No key is empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
-	// payloads).
+	// payloads): how it travels, while Type stays what the source declares of it.
 	File *FileInfo `json:"file,omitzero"`
 	// Examples are content-level example values.
 	Examples []Example `json:"examples,omitempty"`

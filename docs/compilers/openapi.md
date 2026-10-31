@@ -2296,18 +2296,19 @@ all three and its `x-*`, reported as an `openapi/empty-request-content` warning 
 A content entry whose schema is `type: string` with `format: binary`, read through a `$ref` and
 whatever its media type, or whose schema is absent or boolean on `application/octet-stream`, matched
 on the normalized key ([`media-types`](#media-types)), lowers to `Content.File` with `IsText` false
-and `ContentTypes` the key as written, and `Content.Type` the non-nullable `bytes` primitive in
-place of whatever the schema lowered to, so that a body to stream is not read as a model. No other
-`FileInfo` field is set. The same holds for a response and an error case. An `octet-stream` entry
+and `ContentTypes` the key as written, so that a body to stream is not read as a model.
+`Content.Type` stays what the schema lowered to, which keeps its docs, bounds and examples
+reachable, and is the non-nullable `bytes` primitive only where the schema is absent or `true` and
+states nothing. No other `FileInfo` field is set. The same holds for a response and an error case. An `octet-stream` entry
 with a schema that is not `string` with `binary`, a `format: byte` or `contentMediaType` string, and
 a schema-less entry on any other media type are ordinary Contents.
 
 - Cases: `file-body`
 - Tests: `operation.TestContent_BinaryOctetStreamBody`,
   `operation.TestContent_MixedCaseOctetStreamBodyIsFile`,
-  `operation.TestContent_BinaryRefBodyDetectedAsFile`
-- Status: partly built: a binary body's schema keeps its docs and bounds on a node no Content
-  references (#600), and the 3.1 idioms for a file, `contentMediaType` without `contentEncoding` and
+  `operation.TestContent_BinaryRefBodyDetectedAsFile`,
+  `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`
+- Status: partly built: the 3.1 idioms for a file, `contentMediaType` without `contentEncoding` and
   a schema-less entry on a media type other than `application/octet-stream`, are not recognized
   (#605).
 

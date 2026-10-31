@@ -367,6 +367,10 @@ it sees. Changes made together in one bump are listed together under it.
     already encoded by having no `streaming` member, and `irverify` holds `Streaming` to the
     declared modes (`ir/unknown-streaming-mode`) (§7.3). No compiler wrote `"none"`, so no compiled
     document changes; one that writes it, or a consumer comparing against it, is out of date.
+  - A file body's `Content.Type` holds what its schema lowered to (§7.2). The OpenAPI compiler had
+    written `bytes` over it, which left the schema on a node nothing referenced. `File` still says
+    the body is a file, so a consumer pinned to 0.22.0 that reads `File` first is unaffected, and
+    one that expects `Type` to be `bytes` finds a reference to the schema instead.
 
 ---
 
@@ -1774,7 +1778,9 @@ type Content struct {
                                   // `pass` resolves a key against that model rather than a
                                   // registry; of a part several declarations name, the one the
                                   // model's flattening takes (§4.3)
-    File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
+    File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary
+                                  // payloads): how it travels, while Type stays what the source
+                                  // declares of it, so nothing that declaration says is lost
     Examples  []Example
     Unmodeled  Unmodeled
 }
