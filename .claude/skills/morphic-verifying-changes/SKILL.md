@@ -34,9 +34,9 @@ goes to the type that owns the broken state
   (`references/differentials.md#validate-the-instrument-first`).
 - Read every result line: a mutant that did not compile, a test that never ran and a panic in
   another test all look like verdicts.
-- Iterate with `go test` on the packages you touched, run `go test ./...` before concluding, as
-  Go's test cache keeps the unchanged packages cheap, and `make gate` before calling it done:
-  `go test` passing is not the coverage gate (`references/toolchain.md#coverage-per-package`).
+- Iterate with `go test` on the packages you touched, `go test ./...` before concluding and
+  `make gate` before calling it done: `go test` passing is not the coverage gate
+  (`references/toolchain.md#coverage-per-package`). A review's gate pass may take CI's run for both.
 
 ## Script
 

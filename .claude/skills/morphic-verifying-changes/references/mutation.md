@@ -66,9 +66,14 @@ yourself. These rules are the ways that reading still lies.
 `mutation-survivor-scope`
 
 - **Rule.** Before calling a survivor untested, run it over `go test ./...` and ask whether anything
-  can observe it. An unobservable mutant is equivalent: record it with the reason.
+  can observe it. An unobservable mutant is equivalent: record it with the reason. For a helper in a
+  `_test.go` file, `go test` on its directory and on `./internal/archtest` is that run: no other
+  package compiles the file, `export_test.go` included, and archtest reads it as text.
 - **Why.** Two of three "untested" survivors were killed in another package, and the third was
-  equivalent (#825).
+  equivalent (#825). The rule then asked for a module run per survivor where
+  `go test ./internal/archtest` had settled three in that directory's helpers (#1233), yet deleting
+  a helper's `t.Helper()` in `pass/validate_payloads_test.go` passes `go test ./pass` and fails
+  archtest.
 
 ## A kill by panic hides whether the pinning test pins
 `mutation-crash-kill`
