@@ -24,7 +24,8 @@ goes to the type that owns the broken state
 | order-independent | swap the declaration order; diff the documents, and the diagnostics as a sorted multiset |
 | no regression against main | `scripts/sweep.py`, or `references/differentials.md#argv-differential` for a change under `cmd/`; each new probe fails on `main`, and a build with the fix broken differs |
 | the fixture reaches the check | confirm where it lands: `harness.Check` stops at the first error diagnostic |
-| a bound of N holds | lower it by one at each site; a test at N and at N+1 notices |
+| a bound of N holds | lower it by one at each site; a test at N and N+1 notices |
+| this test reaches no network | `references/claims.md#no-network-through-a-logging-proxy` |
 | lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic |
 | a count, size or cost | derive it with a command and name the revision; a cost by `morphic-measuring-performance` |
 
@@ -34,16 +35,16 @@ goes to the type that owns the broken state
   (`references/differentials.md#validate-the-instrument-first`).
 - Read every result line: a mutant that did not compile, a test that never ran and a panic in
   another test all look like verdicts.
-- Iterate with `go test` on the packages you touched, run `go test ./...` before concluding, as
-  Go's test cache keeps the unchanged packages cheap, and `make gate` before calling it done:
-  `go test` passing is not the coverage gate (`references/toolchain.md#coverage-per-package`).
+- Iterate with `go test` on the packages you touched, `go test ./...` before concluding and
+  `make gate` before calling it done: `go test` passing is not the coverage gate
+  (`references/toolchain.md#coverage-per-package`). A review's gate pass may take CI's run for both.
 
 ## Script
 
-`python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py`, run from the repository
-root, compiles a corpus at a base and at the working tree, then prints each side's exit codes and
-each spec whose exit code or output differs. It judges nothing: `references/differentials.md` says
-what the codes mean, and its `--help` gives the options.
+`python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py` compiles a corpus at a base
+and at the working tree, printing each side's exit codes and each spec that differs past its IR
+version. It judges nothing: `references/differentials.md` says what the codes mean, and `--help`
+the options.
 
 ## References
 

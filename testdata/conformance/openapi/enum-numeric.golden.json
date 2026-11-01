@@ -99,6 +99,104 @@
       ],
       "closed": true,
       "flags": false
+    },
+    "t/openapi/components/schemas/OversizedCodes": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/OversizedCodes",
+      "name": {
+        "source": "OversizedCodes",
+        "canonical": "oversized_codes"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:format": {
+          "reason": "degraded_lowering",
+          "value": "int8",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/OversizedCodes/format"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OversizedCodes"
+      },
+      "valueType": "integer",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/OversizedCodes/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/OversizedCodes/n:1e3",
+          "name": {
+            "source": "1000",
+            "canonical": "1000"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1000"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/SizedCodes": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/SizedCodes",
+      "name": {
+        "source": "SizedCodes",
+        "canonical": "sized_codes"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/SizedCodes"
+      },
+      "valueType": "int64",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/SizedCodes/n:1e0",
+          "name": {
+            "source": "1",
+            "canonical": "1"
+          },
+          "value": {
+            "kind": "number",
+            "num": "1"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/SizedCodes/n:9.007199254740993e15",
+          "name": {
+            "source": "9007199254740993",
+            "canonical": "9007199254740993"
+          },
+          "value": {
+            "kind": "number",
+            "num": "9007199254740993"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
     }
   },
   "servers": {
@@ -114,11 +212,22 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an enum whose members are not all values of int8, which has no home for format declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OversizedCodes"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "enum-numeric.yaml",
-      "hash": "d15037c5b1d912cebf55377d252656be7c7b2f864d03381ff96c63065cdd3236"
+      "hash": "dec3e2bd0d5eab6317bc22d4cf4b196423296ce0385ca6d90fd0d35761f5c01a"
     }
   ]
 }
