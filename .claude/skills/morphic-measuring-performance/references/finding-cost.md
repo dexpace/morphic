@@ -83,8 +83,8 @@ how to measure so the number means what the claim says.
   input measures one arm. Generate an input per arm, quote the range rather than one figure, and
   name any arm left out with the reason: reading does not find the dear one.
 - **Why.** `merge.Admits` judges an enum member by primitive kind, and one figure, 2.1%, stood for
-  every format. Measured per format, `uuid` added 0.15% and `double` 35.45%, by rebuilding a constant
-  on each call (#1191, #1205).
+  every format. Measured per format, `uuid` added 0.15% and `double` 35.45%, by rebuilding a
+  constant on each call (#1191, #1205).
 - **Probe.** List each arm with the input that reached it, and take each arm's instructions on both
   builds (`references/finding-cost.md#instructions-not-wall-clock`).
 
