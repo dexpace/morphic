@@ -48,7 +48,10 @@ var loweringRecursions = [][]string{
 	// self-referential allOf rather than anything in this shape. A $ref's hops
 	// are walked in a loop its chain's length bounds, and a loop of $refs has no
 	// end to walk to.
-	{"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage"},
+	{
+		"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage",
+		"nulls.widenByBranch",
+	},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
 	// lowering reaches itself through them.

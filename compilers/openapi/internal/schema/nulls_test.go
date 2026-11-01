@@ -320,6 +320,7 @@ func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	}{
 		"no type":   {"[{$ref: '#/components/schemas/Pet'}, {nullable: true}]", "3.0.3", true, "this schema writes none"},
 		"a type":    {"[{$ref: '#/components/schemas/Plain'}, {type: string, nullable: true}]", "3.0.3", true, "another conjunct"},
+		"an enum":   {"[{$ref: '#/components/schemas/Plain'}, {enum: [a, null], nullable: true}]", "3.0.3", true, "another conjunct"},
 		"3.1":       {"[{$ref: '#/components/schemas/Plain'}, {nullable: true}]", "3.1.0", true, "declares OpenAPI 3.1.0"},
 		"a wrapper": {"[{$ref: '#/components/schemas/Pet'}, {allOf: [{nullable: true}]}]", "3.0.3", true, ""},
 		"writing properties": {"[{$ref: '#/components/schemas/Pet'}, {nullable: true, properties: {a: {type: string}}}]",

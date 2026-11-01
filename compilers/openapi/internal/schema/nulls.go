@@ -435,9 +435,9 @@ func (n *nulls) allOf(s *oas3.Schema, site nullSite) nullReading {
 // widenByBranch is the lenient reading of a `nullable: true` that folds: written
 // on an inline branch that speaks for the position, it says what the keyword
 // beside the allOf says, and widens all of s (widen), a `type` beside the allOf
-// included, where the declared reading leaves it conjoined. A branch with a `type`
-// of its own admitted the null by itself, so widen said nothing of it, and it is
-// noted here. A 3.1 `type: [T, "null"]` on a conjunct stays conjoined, which
+// included, where the declared reading leaves it conjoined. A branch whose own
+// keywords admit null said so by themselves, so widen said nothing of it, and it
+// is noted here. A 3.1 `type: [T, "null"]` on a conjunct stays conjoined, which
 // beside a $ref it does not (docs/compilers/openapi.md#allof-refinement).
 func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) nullReading {
 	if !widensAny(s) || !allOfDecides(s) {
@@ -449,7 +449,7 @@ func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) null
 		if !speaks || bs.Nullable == nil || !foldsNullable(bs) {
 			continue
 		}
-		if r.declared != nullAdmitted && site.ok && n.declaredTypeVerdict(bs) == nullAdmitted {
+		if r.declared != nullAdmitted && site.ok && n.keywords(bs, nullSite{}).declared == nullAdmitted {
 			n.found = append(n.found, nullFinding{at: comp.branches[i].pointer + ids.Ptr("nullable"), message: "nullable: true " +
 				"is read as admitting null under the nullable-widening policy, though another conjunct of this allOf " +
 				"excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it " +
