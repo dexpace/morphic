@@ -80,6 +80,7 @@ func TestChildCommandViolations_PlantedRowsAreReportedExactly(t *testing.T) {
 		{"import under another name", "p/a_test.go",
 			"package p\n\nimport x \"os/exec\"\n\nvar _ = x.Command(\"x\") // want\n", 1},
 		{"dot import", "p/a_test.go", "package p\n\nimport . \"os/exec\" // want dot\n", 1},
+		{"blank import", "p/a_test.go", "package p\n\nimport _ \"os/exec\"\n", 1},
 		{"pointer to the type", "p/a_test.go", execFile(`func f(c *exec.Cmd) *exec.Cmd { return c }`), 1},
 		{"parenthesized pointer target", "p/a_test.go", execFile(`func f(c *(exec.Cmd)) {}`), 1},
 		{"slice of pointers", "p/a_test.go", execFile(`var _ []*exec.Cmd`), 1},

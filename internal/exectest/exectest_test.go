@@ -163,6 +163,7 @@ func TestCommand_AdoptsOnlyWhatACoverageRunWrote(t *testing.T) {
 		"covmeta.abc":             "meta",
 		"covcounters.abc.1.1":     "first",
 		"tmp.covcounters.abc.1.2": "partial",
+		"tmp.covmeta.abc123":      "partial",
 		"other":                   "not coverage",
 	})
 	child(map[string]string{
