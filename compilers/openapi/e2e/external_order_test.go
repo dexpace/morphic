@@ -8,7 +8,9 @@ package e2e_test // external test package — exercises only the public API
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -151,15 +153,27 @@ func mappingKeys(n *yaml.Node) []string {
 	return out
 }
 
-// compiledThrough compiles root as root.yaml in dir with external references
-// allowed, and returns what an order comparison reads: each diagnostic, sorted,
-// and the types, encoded deterministically.
+// errOffline is the one failure every http(s) read of the sweep gets.
+var errOffline = errors.New("the order oracle reads no http(s) reference")
+
+// offline is a RoundTripper that sends nothing and fails every request alike,
+// so both declaration orders see the same report for a remote reference
+// whatever the network does, and the suite reaches no third-party host.
+type offline struct{}
+
+// RoundTrip implements http.RoundTripper.
+func (offline) RoundTrip(*http.Request) (*http.Response, error) { return nil, errOffline }
+
+// compiledThrough compiles root as root.yaml in dir with external file
+// references allowed and every http(s) one refused, and returns what an order
+// comparison reads: each diagnostic, sorted, and the types, encoded
+// deterministically.
 func compiledThrough(t *testing.T, dir, root string) []string {
 	t.Helper()
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{Client: &http.Client{Transport: offline{}}}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags)+1)
 	for _, d := range diags {
