@@ -499,9 +499,9 @@ func TestCollectionBound_ReadsThePositionNotItsTarget(t *testing.T) {
 	for _, target := range []string{"Str", "Obj", "Tup"} {
 		t.Run(target, func(t *testing.T) {
 			t.Parallel()
-			schema := "{$ref: '#/components/schemas/" + target + "', minItems: 1}"
+			written := "{$ref: '#/components/schemas/" + target + "', minItems: 1}"
 			doc, diags := parseFull(t, openapitest.ComponentSpec(targets+
-				"    S: "+schema+"\n    Holder:\n      type: object\n      properties:\n        f: "+schema+"\n"))
+				"    S: "+written+"\n    Holder:\n      type: object\n      properties:\n        f: "+written+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			want := &ir.Constraints{MinItems: new(int64(1))}
@@ -563,13 +563,12 @@ func TestCollectionBound_ARedeclaredFieldFoldsIt(t *testing.T) {
 	for _, tc := range []struct {
 		name, a, b string
 		want       *ir.Constraints
-		conflict   string
+		conflicts  int
 	}{
-		{"agreeing", ref + "minItems: 1}", ref + "minItems: 1}", &ir.Constraints{MinItems: new(int64(1))}, ""},
+		{"agreeing", ref + "minItems: 1}", ref + "minItems: 1}", &ir.Constraints{MinItems: new(int64(1))}, 0},
 		{"each its own", ref + "minItems: 1}", ref + "maxItems: 2}",
-			&ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(2))}, ""},
-		{"disagreeing", ref + "minItems: 1}", ref + "minItems: 2}",
-			&ir.Constraints{MinItems: new(int64(1))}, "conflicting minItems (1 and 2)"},
+			&ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(2))}, 0},
+		{"disagreeing", ref + "minItems: 1}", ref + "minItems: 2}", &ir.Constraints{MinItems: new(int64(1))}, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -580,12 +579,10 @@ func TestCollectionBound_ARedeclaredFieldFoldsIt(t *testing.T) {
 			assert.Equal(t, tc.want, p.Constraints)
 			assert.NotContains(t, p.Unmodeled, "openapi:minItems", "the fold reads the typed field")
 			conflicts := conflictDiags(diags)
-			if tc.conflict == "" {
-				assert.Empty(t, conflicts)
-				return
+			assert.Len(t, conflicts, tc.conflicts)
+			for _, d := range conflicts {
+				assert.Contains(t, d.Message, "conflicting minItems (1 and 2)")
 			}
-			require.Len(t, conflicts, 1)
-			assert.Contains(t, conflicts[0].Message, tc.conflict)
 		})
 	}
 }
@@ -687,9 +684,9 @@ func TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState(t *testing.T)
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			schema := "{$ref: '#/components/schemas/Tags', " + tc.keywords + "}"
+			written := "{$ref: '#/components/schemas/Tags', " + tc.keywords + "}"
 			doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
-				"    S: "+schema+"\n    Holder:\n      type: object\n      properties:\n        f: "+schema+"\n"))
+				"    S: "+written+"\n    Holder:\n      type: object\n      properties:\n        f: "+written+"\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 
 			alias, ok := typeByName(doc, "S").(*ir.Scalar)
