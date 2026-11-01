@@ -33,8 +33,8 @@ const (
 // copyPerm is the mode of a coverage file copied into the parent's directory.
 const copyPerm = 0o644
 
-// Command returns exec.CommandContext(ctx, name, args...) with Env set, so a
-// Dir the caller sets does not put PWD in the child's environment. When the
+// Command returns exec.CommandContext(ctx, name, args...) with Env set, so the
+// child keeps this process's PWD when the caller sets Dir. When the
 // test binary is built for coverage, the child gets a GOCOVERDIR of its own,
 // and t's cleanup copies the coverage files it left into this process's.
 // Children sharing one directory race: each writes its meta-data file through

@@ -81,6 +81,7 @@ func TestChildCommandViolations_PlantedRowsAreReportedExactly(t *testing.T) {
 			"package p\n\nimport x \"os/exec\"\n\nvar _ = x.Command(\"x\") // want\n", 1},
 		{"dot import", "p/a_test.go", "package p\n\nimport . \"os/exec\" // want dot\n", 1},
 		{"pointer to the type", "p/a_test.go", execFile(`func f(c *exec.Cmd) *exec.Cmd { return c }`), 1},
+		{"parenthesized pointer target", "p/a_test.go", execFile(`func f(c *(exec.Cmd)) {}`), 1},
 		{"slice of pointers", "p/a_test.go", execFile(`var _ []*exec.Cmd`), 1},
 		{"elided literal in a slice of pointers", "p/a_test.go",
 			execFile(`var _ = []*exec.Cmd{{Path: "x"}} // want`), 1},
@@ -209,7 +210,8 @@ func wantedLines(file, src string) []string {
 // so it sees a command only where a statement names exec's Command,
 // CommandContext or Cmd, and an Env only where one assigns a selection of it.
 // A copy (c := *cmd) selects no Cmd, and a write through a pointer
-// (p := &cmd.Env; *p = …) no Env, so both pass, as do the syscall starters.
+// (p := &cmd.Env; *p = …) no Env, so both pass, as do os.StartProcess and
+// the syscall starters.
 func childCommandViolations(root string) (violations []string, importers int, err error) {
 	err = walkGoFiles(root, func(rel string, fset *token.FileSet, f *ast.File) {
 		if rel == exectestFile {
@@ -261,7 +263,7 @@ func isEnvSelection(e ast.Expr) bool {
 // may itself be such an append. The walk down the first arguments ends at the
 // innermost call, which the syntax tree bounds. It does not follow x to the
 // command assigned, so append(other.Env, …) passes, nor a variable holding
-// os.Environ().
+// os.Environ(), nor an appended value that names GOCOVERDIR itself.
 func extendsEnv(e ast.Expr) bool {
 	for {
 		call, ok := ast.Unparen(e).(*ast.CallExpr)
@@ -325,7 +327,7 @@ func fileChildCommands(rel string, fset *token.FileSet, f *ast.File, spec *ast.I
 	pointed := map[*ast.SelectorExpr]bool{}
 	ast.Inspect(f, func(n ast.Node) bool {
 		if star, ok := n.(*ast.StarExpr); ok {
-			if sel, ok := star.X.(*ast.SelectorExpr); ok {
+			if sel, ok := ast.Unparen(star.X).(*ast.SelectorExpr); ok {
 				pointed[sel] = true
 			}
 		}
