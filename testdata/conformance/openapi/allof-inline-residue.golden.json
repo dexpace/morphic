@@ -114,7 +114,7 @@
       "docs": {},
       "sensitive": false,
       "unmodeled": {
-        "openapi:allOf/1": {
+        "openapi:allOf/0": {
           "reason": "degraded_lowering",
           "value": {
             "maxLength": 3,
@@ -122,17 +122,13 @@
           },
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Contradicted/allOf/1"
+            "pointer": "/components/schemas/Contradicted/allOf/0"
           }
         }
       },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Contradicted"
-      },
-      "base": {
-        "target": "t/openapi/components/schemas/Base",
-        "nullable": false
       },
       "abstract": false,
       "positional": false,
@@ -249,7 +245,7 @@
       "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type, maxLength) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
-        "pointer": "/components/schemas/Contradicted/allOf/1"
+        "pointer": "/components/schemas/Contradicted/allOf/0"
       }
     }
   ],
@@ -257,7 +253,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-inline-residue.yaml",
-      "hash": "e239cc77c43b685e2354919999edb066392b9412d90c2c2e9c049d8671fb66c4"
+      "hash": "96ea229b4e8c532e7728a1fdbc5c94c9d444a25886836b0c531e48948053cb27"
     }
   ]
 }

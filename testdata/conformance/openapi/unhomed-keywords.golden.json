@@ -1167,6 +1167,15 @@
       }
     },
     {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (type: string, allOf/0: object), so no instance satisfies this schema, which lowers as written",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AllOfWithScalarType"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "this position lowered to a node of kind \"model\", which has no home for type declared beside it; kept verbatim under Unmodeled",

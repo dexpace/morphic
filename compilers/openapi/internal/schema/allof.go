@@ -39,7 +39,8 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		comp := allOfBranches(s, pointer) // the one flattened list; the readers below take it, not s
+		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
+		diags = append(diags, diagDisjointConjuncts(c, comp)...)
 		idx := propIndex(c, ts, m)
 		diags = append(diags, fillAllOf(c, ts, depth, m, idx, comp)...)
 		diags = append(diags, fillModelProperties(c, ts, depth, idx, s, pointer)...)
@@ -156,6 +157,9 @@ func stackPath(buf []int, stack []allOfFrame) []int {
 type allOfComposition struct {
 	pointer  jsontext.Pointer
 	branches []allOfBranch
+	// disjoint names what each conjunct states where they share no value, and is
+	// nil otherwise (readAllOf).
+	disjoint []string
 }
 
 // allOfBranches returns the branches of s's allOf as walkAllOf yields them, each
@@ -223,7 +227,12 @@ func FlattenedAllOf(s *oas3.Schema) []FlatBranch {
 // and its path from the composed schema. The path's tokens are `allOf` and
 // decimal indices, so trimming the prefix is exact.
 func (a allOfComposition) branchKey(bptr jsontext.Pointer) string {
-	return "openapi:" + strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
+	return "openapi:" + a.branchPath(bptr)
+}
+
+// branchPath is the path of the allOf branch at bptr from the composed schema.
+func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
+	return strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
 }
 
 // flattensInto reports whether the allOf branch b, at nesting depth depth, is a
@@ -274,7 +283,7 @@ func fillAllOf(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, idx *m
 	for i, e := range comp.branches {
 		if !isRefBranch(e.schema) {
 			diags = append(diags, fillModelProperties(c, ts, depth, idx, e.schema.GetSchema(), e.pointer)...)
-			diags = append(diags, preserveUnmergedBranch(c, m, e, comp.branchKey(e.pointer))...)
+			diags = append(diags, preserveUnmergedBranch(c, m, e, comp)...)
 			continue
 		}
 		diags = append(diags, fillRefBranch(c, ts, m, e, hasBase && i == base)...)
@@ -343,14 +352,14 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
 // composed model when it declares more than the merge consumes, under
 // ReasonDegradedLowering and located at the branch
-// (docs/compilers/openapi.md#allof-inline-residue). key names the entry, so
+// (docs/compilers/openapi.md#allof-inline-residue). comp keys the entry, so
 // sibling branches never overwrite one another. A flattened branch's allOf is
 // consumed: allOfBranches replaced it by its own entries.
 //
 // A boolean branch has no keywords to leave a residue; applyFalseBranches
 // handles it. A $ref branch takes neither path: fillAllOf homes its siblings on
 // an alias over the target.
-func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, key string) []ir.Diagnostic {
+func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, comp allOfComposition) []ir.Diagnostic {
 	bs := e.schema.GetSchema()
 	if bs == nil {
 		return nil // boolean branch; applyFalseBranches handles it.
@@ -359,12 +368,12 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, key stri
 	if len(residue) == 0 {
 		return nil
 	}
-	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, key,
+	kept, keptDiags := annotation.PreserveNodeInto(&m.Unmodeled, comp.branchKey(e.pointer),
 		bs.GetRootNode(), ir.ReasonDegradedLowering, c.ProvenanceAt(e.pointer))
 	if !kept {
 		return keptDiags
 	}
-	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e))
+	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e, len(comp.disjoint) > 0))
 }
 
 // diagUnmergedBranch builds the diagnostic announcing one merged branch's
@@ -376,9 +385,10 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, e allOfBranch, key stri
 // so the IR contradicts the branch — `allOf: [{type: string, maxLength: 3}]`
 // lowers to an empty model. Any other residue only narrows a model the IR
 // describes correctly, the under-constrained case
-// (docs/compilers/openapi.md#allof-inline-residue).
-func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch) ir.Diagnostic {
-	if branchExcludesObject(bs) {
+// (docs/compilers/openapi.md#allof-inline-residue). Disjoint conjuncts are the
+// schema's to report, so this then reports residue alone.
+func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch, disjoint bool) ir.Diagnostic {
+	if branchExcludesObject(bs) && !disjoint {
 		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
 			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
 		if e.capped {

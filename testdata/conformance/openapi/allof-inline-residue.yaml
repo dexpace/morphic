@@ -17,8 +17,10 @@ components:
             name: {type: string}
           maxProperties: 3
     # This branch declares a type that cannot be an object, which the composed
-    # model asserts it is — the same residue, reported one severity higher.
+    # model asserts it is — the same residue, reported one severity higher. It
+    # stands alone: beside the Base the conjuncts would share no value, and
+    # allof-disjoint-conjuncts would report that once at the schema, leaving the
+    # branch an info.
     Contradicted:
       allOf:
-        - {$ref: '#/components/schemas/Base'}
         - {type: string, maxLength: 3}

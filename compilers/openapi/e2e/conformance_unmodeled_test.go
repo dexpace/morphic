@@ -298,10 +298,10 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 
 	contradicted, ok := doc.Types[componentID("Contradicted")].(*ir.Model)
 	require.True(t, ok)
-	entry = unmodeledEntry(t, contradicted.Unmodeled, "openapi:allOf/1")
+	entry = unmodeledEntry(t, contradicted.Unmodeled, "openapi:allOf/0")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
-		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Contradicted/allOf/1"),
+		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Contradicted/allOf/0"),
 		"a branch excluding object contradicts the composed model and is a warning")
 }
 

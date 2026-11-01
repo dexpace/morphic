@@ -157,6 +157,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-nested-inline", assertAllOfNestedInline},
 		{"allof-ref-branch-siblings", assertAllOfRefBranchSiblings},
 		{"allof-boolean-branch", assertAllOfBooleanBranch},
+		{"allof-disjoint-conjuncts", assertAllOfDisjointConjuncts},
 		{"allof-conflicting-type", assertAllOfConflictingType},
 		{"allof-narrowing-redeclaration", assertAllOfNarrowingRedeclaration},
 		{"allof-redeclared-models", assertAllOfRedeclaredModels},

@@ -57,6 +57,11 @@ var loweringRecursions = [][]string{
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
 	{"listKey", "objectKey", "valueKey"},
+	// The instance types a schema states. Like nullability it is a predicate over
+	// allOf conjuncts and what a $ref lands on, not a lowering, and it is bounded
+	// the same way (maxNullConjuncts), which is what stops a self-referential
+	// allOf.
+	{"conjunctTypes.branch", "conjunctTypes.schema"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.
