@@ -203,6 +203,25 @@ components:
 		"the pointer names the option's own index, not the list or a constant 0")
 }
 
+// TestSecurityRequirement_AnOptionKeepsItsIndexPastANonObjectEntry pins that a
+// report names the position the source writes. An entry that is no object lowers
+// to no option, so what follows it lands one place earlier in the IR and stays
+// where it is in the source.
+func TestSecurityRequirement_AnOptionKeepsItsIndexPastANonObjectEntry(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security:
+  - null
+  - missing: []
+paths: {}
+`)
+	require.Len(t, svc.Auth, 1, "the entry that is no object lowers to no option")
+	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("missing")}, schemeUses(svc.Auth[0]))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.UnresolvedSecurityScheme, "/security/1"),
+		"reported where the source writes it: %+v", diags)
+}
+
 // TestSecurityRequirement_AnOperationsOwnUnresolvedListDoesNotInherit is the
 // reproduction of issue #633: an operation stating its own requirement must not
 // read as inheriting the service's, whose credentials an SDK would then send.
