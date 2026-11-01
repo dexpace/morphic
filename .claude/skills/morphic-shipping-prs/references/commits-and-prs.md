@@ -74,14 +74,14 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `closing-keywords`
 
 - **Rule.** On merge, GitHub closes each issue that `close`, `fix` or `resolve`, in any tense and
-  case, a colon after it or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body, and a
+  case, colon or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body, and a
   keyword reaches only the reference after it. Write one `Closes #N` line per finished issue,
   narrate other work with other verbs ("landed"), and give a stack landing through one PR every
   child's `Closes #N`: a keyword links only in a PR based on `main`.
 - **Why.** "closed #907", written about another PR, made #948 claim #907; #1016 wrote a line per
   issue, since a list after one keyword closes its first alone; #464 left its stack's issues open.
-- **Probe.** After each body edit, compare `gh pr view <N> --json closingIssuesReferences` with
-  what this finds in the body:
+- **Probe.** Seconds after each body edit, as the field lags, compare
+  `gh pr view <N> --json closingIssuesReferences` with what the body holds:
   `grep -noiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? +([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'`.
 
 ## Check the tracker for a recorded decision before changing what it covers
