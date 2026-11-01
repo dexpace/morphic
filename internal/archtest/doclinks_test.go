@@ -39,9 +39,10 @@ var (
 	// docPath is a document named from the repository's root, as a comment or a
 	// line of a document cites one, and the heading it names if any.
 	docPath = regexp.MustCompile(`docs/[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.md(?:#[A-Za-z0-9_-]+)?`)
-	// designPath is docPath for a Go string, read under the design trees alone:
-	// a test elsewhere plants documents that exist only in it.
-	designPath = regexp.MustCompile(`docs/(?:ir|emitters)/[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.md(?:#[A-Za-z0-9_-]+)?`)
+	// designPath is docPath for a Go string, read under the design trees and
+	// the compilers' specifications alone: a test elsewhere plants documents
+	// that exist only in it.
+	designPath = regexp.MustCompile(`docs/(?:ir|emitters|compilers)/[A-Za-z0-9_./-]*[A-Za-z0-9_-]\.md(?:#[A-Za-z0-9_-]+)?`)
 	// codeSpan is an inline span of code, whose text is no Markdown.
 	codeSpan = regexp.MustCompile("`[^`]*`")
 	// fenceRun is the run of backticks or tildes opening or closing a fenced
@@ -56,9 +57,9 @@ var (
 // TestDocuments_LinksResolve reads every Markdown document and fails on a
 // relative link to no file, or to a heading its file lacks, and holds a citation
 // to the same on any line of a document, in a Go or YAML comment, and in a Go
-// string naming a design document. The design documents are cited by path and
-// heading across a tree, so a heading renamed or a document moved without what
-// cites it sends the reader nowhere. Whether a heading still states what its
+// string naming a design document or a compiler's specification. Those are
+// cited by path and heading across a tree, so a heading renamed or a document
+// moved without what cites it sends the reader nowhere. Whether a heading still states what its
 // citer claims is left to a reader: a rule moved to another heading passes.
 func TestDocuments_LinksResolve(t *testing.T) {
 	t.Parallel()
@@ -162,8 +163,9 @@ func brokenLink(doc, target string) (why string, broken bool, err error) {
 }
 
 // goCitationProblems reports each broken citation in a comment of the Go file
-// at path, and in a string naming a design document. A test of the citations
-// plants broken ones in its strings, so its own are left unread.
+// at path, and in a string naming a design document or a compiler's
+// specification. A test of the citations plants broken ones in its strings, so
+// its own are left unread.
 func goCitationProblems(root, path, rel string) ([]string, error) {
 	problems, err := commentCitationProblems(root, path, rel)
 	if err != nil || rel == citationTest {
@@ -368,7 +370,8 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 	writeDocFile(t, filepath.Join(root, ".hidden", "h.md"), "[unread](absent.md)\n")
 	writeDocFile(t, filepath.Join(root, "a", "a.go"), "// Package a follows docs/target.md and docs/gone.md.\n"+
 		"package a\n\n/* A block cites docs/also/gone.md. */\nconst s = \"docs/string.md\"\n\n"+
-		"// T follows docs/target.md#the-rule, not docs/target.md#absent.\nconst T = \"docs/ir/gone.md\"\n")
+		"// T follows docs/target.md#the-rule, not docs/target.md#absent.\nconst T = \"docs/ir/gone.md\"\n\n"+
+		"const U = \"docs/compilers/gone.md#rule\"\n")
 	writeDocFile(t, filepath.Join(root, "x", "testdata", "a.go"), "// Unread: docs/gone.md.\npackage a\n")
 	writeDocFile(t, filepath.Join(root, "x", "testdata", "spec.yaml"),
 		"# Follows docs/target.md and docs/target.md#absent.\nnote: docs/gone.md\n")
@@ -384,6 +387,7 @@ func TestLinkProblems_ReportsALinkThatResolvesToNothing(t *testing.T) {
 		`a/a.go:4 cites docs/also/gone.md, which names no file`,
 		`a/a.go:7 cites docs/target.md#absent, whose file has no such heading`,
 		`a/a.go:8 cites docs/ir/gone.md, which names no file`,
+		`a/a.go:10 cites docs/compilers/gone.md#rule, which names no file`,
 		`docs/guide.md:2 links "absent.md", which names no file`,
 		`docs/guide.md:2 links "target.md#absent", whose file has no such heading`,
 		`docs/guide.md:2 links "target.md#fenced", whose file has no such heading`,
