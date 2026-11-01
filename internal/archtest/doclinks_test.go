@@ -59,8 +59,9 @@ var (
 // to the same on any line of a document, in a Go or YAML comment, and in a Go
 // string naming a design document or a compiler's specification. Those are
 // cited by path and heading across a tree, so a heading renamed or a document
-// moved without what cites it sends the reader nowhere. Whether a heading still states what its
-// citer claims is left to a reader: a rule moved to another heading passes.
+// moved without what cites it sends the reader nowhere. Whether a heading still
+// states what its citer claims is left to a reader: a rule moved to another
+// heading passes.
 func TestDocuments_LinksResolve(t *testing.T) {
 	t.Parallel()
 	problems, links, err := linkProblems(irtest.RepoRoot(t))
