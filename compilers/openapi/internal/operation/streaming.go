@@ -65,8 +65,8 @@ func applyStreaming(c lowering.Ctx, ts *compile.Types, op *ir.Operation, declPtr
 	if len(request) == 0 && len(response) == 0 {
 		return ""
 	}
-	op.RequestStream = electStream(ts, request, unelectedElementDiag(c, declPtr+ids.Ptr("requestBody"), "request"))
-	op.ResponseStream = electStream(ts, response, unelectedElementDiag(c, declPtr+ids.Ptr("responses"), "response"))
+	op.RequestStream = electStream(c, ts, request, declPtr+ids.Ptr("requestBody"), "request")
+	op.ResponseStream = electStream(c, ts, response, declPtr+ids.Ptr("responses"), "response")
 	op.Streaming = streamingMode(op.RequestStream != nil, op.ResponseStream != nil)
 	guessed := func(candidate streamCandidate) bool { return !candidate.declared }
 	if slices.ContainsFunc(request, guessed) || slices.ContainsFunc(response, guessed) {
@@ -76,29 +76,33 @@ func applyStreaming(c lowering.Ctx, ts *compile.Types, op *ir.Operation, declPtr
 }
 
 // electStream returns the detail of a direction with candidates, nil for one
-// with none, and queues the election of its element.
-func electStream(ts *compile.Types, candidates []streamCandidate, unelected ir.Diagnostic) *ir.StreamDetail {
+// with none, and queues the election of its element. pointer and direction name
+// the direction in the report a disagreement draws.
+func electStream(c lowering.Ctx, ts *compile.Types, candidates []streamCandidate, pointer jsontext.Pointer, direction string) *ir.StreamDetail {
 	if len(candidates) == 0 {
 		return nil
 	}
 	detail := &ir.StreamDetail{}
-	ts.Defer(streamElement{detail: detail, candidates: candidates, unelected: unelected})
+	ts.Defer(streamElement{c: c, detail: detail, candidates: candidates, pointer: pointer, direction: direction})
 	return detail
 }
 
 // streamElement elects one direction's Events once the registry is whole
-// (compile.Settlement): a frame can be a node a $ref promised, which mid-walk may
-// not exist yet, so reading it there would follow declaration order.
+// (compile.Settlement): a frame can be a node a $ref promised, not built mid-walk,
+// so reading it there would follow declaration order.
 //
-// Candidates that disagree elect nothing, and unelected reports it: StreamDetail
-// holds one Events per direction while Payload keeps every media type, so naming
-// one would be the primary-content selection invariant 2 forbids. They are compared,
-// not counted: one frame under two media types is content negotiation. ir.TypeRef
-// is a TypeID and a nullability bit, so == is all "the same element" means.
+// Candidates that disagree elect nothing, and unelectedElementDiag reports it:
+// StreamDetail holds one Events per direction while Payload keeps every media type,
+// so naming one would be the primary-content selection invariant 2 forbids. They are
+// compared, not counted: one frame under two media types is content negotiation. ==
+// reads all an ir.TypeRef states, so which copy Events holds follows no map order.
+// c is the context the operation lowered in.
 type streamElement struct {
+	c          lowering.Ctx
 	detail     *ir.StreamDetail
 	candidates []streamCandidate
-	unelected  ir.Diagnostic
+	pointer    jsontext.Pointer
+	direction  string
 }
 
 // Settle writes the element to the detail and no node of reg.
@@ -106,7 +110,7 @@ func (e streamElement) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	events := e.candidates[0].frame(reg)
 	for _, candidate := range e.candidates[1:] {
 		if candidate.frame(reg) != events {
-			return []ir.Diagnostic{e.unelected}
+			return []ir.Diagnostic{unelectedElementDiag(e.c, e.pointer, e.direction)}
 		}
 	}
 	e.detail.Events = &events

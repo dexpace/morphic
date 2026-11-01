@@ -207,8 +207,11 @@ func TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed(t *testing.T) 
 
 	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"one report per direction; got %+v", diags)
-	for _, pointer := range []string{"/paths/~1events/post/requestBody", "/paths/~1events/post/responses"} {
-		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, pointer),
+	for pointer, direction := range map[string]string{
+		"/paths/~1events/post/requestBody": "the request streams",
+		"/paths/~1events/post/responses":   "the response streams",
+	} {
+		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, pointer), direction,
 			"the refusal names the direction it was made in: %s", pointer)
 	}
 }
@@ -233,7 +236,7 @@ func TestStreaming_AListBodyStreamsItsElement(t *testing.T) {
 		{"a list behind an alias a $ref's sibling hoists", `{$ref: '#/components/schemas/Events', description: d}`, ir.TypeRef{Target: event}},
 		{"a list behind two aliases", `{$ref: '#/components/schemas/Again', description: d}`, ir.TypeRef{Target: event}},
 		{"a nullable list, whose frames are not null", `{type: [array, "null"], items: {$ref: '#/components/schemas/Event'}}`, ir.TypeRef{Target: event}},
-		{"a list of nullable items", `{type: array, items: {$ref: '#/components/schemas/Maybe'}}`, ir.TypeRef{Target: "t/openapi/components/schemas/Maybe"}},
+		{"a list of nullable items, whose frames are", `{type: array, items: {$ref: '#/components/schemas/Maybe'}}`, ir.TypeRef{Target: "t/openapi/components/schemas/Maybe", Nullable: true}},
 		{"a tuple, whose frames differ by position", `{type: array, prefixItems: [{type: string}, {type: integer}], items: false}`, ir.TypeRef{Target: pairs}},
 		{"a model, the frame itself", `{$ref: '#/components/schemas/Event'}`, ir.TypeRef{Target: event}},
 		{"a name for another name", `{$ref: '#/components/schemas/Named'}`, ir.TypeRef{Target: named}},
@@ -260,7 +263,7 @@ components:
 			op := openapitest.FindOp(t, doc, "s")
 			require.NotNil(t, op.ResponseStream)
 			require.NotNil(t, op.ResponseStream.Events)
-			assert.Equal(t, tc.want.Target, op.ResponseStream.Events.Target)
+			assert.Equal(t, tc.want, *op.ResponseStream.Events)
 		})
 	}
 }
