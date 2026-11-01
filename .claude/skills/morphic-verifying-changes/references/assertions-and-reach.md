@@ -118,17 +118,28 @@ it.
   run the suite; for no-mutation promises, plant an in-place sort or fresh construction and assert
   on the caller's own value after the call.
 
-## Make a failing test fail fast, name its cause, and spare the golden
+## Make a failing test fail fast and name its cause
 `tests-fail-fast-and-legibly`
 
 - **Rule.** Guard preconditions with require (NotNil, length) before dereferencing or indexing; diff
-  member sets rather than counts; give a hang-prone guard a bounded-time case that fails in seconds;
-  and stop before any golden write when an earlier assertion failed.
-- **Why.** A panic or package timeout hides the cause, a count mismatch names no member, and a
-  non-fatal assertion under -update rewrote the golden from regressed output (#149, #379).
+  member sets rather than counts; and give a hang-prone guard a bounded-time case that fails in
+  seconds.
+- **Why.** A panic or package timeout hides the cause, and a count mismatch names no member (#149,
+  #379).
 - **Probe.** Break the code under test and read the failure: it must name the cause within seconds
-  and not panic; run the golden test with -update while an assertion fails and confirm the golden
-  file is unchanged.
+  and not panic.
+
+## Finish every check before a golden write
+`finish-checks-before-the-golden`
+
+- **Rule.** Finish every check before any golden write. No assertion follows the write, and one that
+  may start a parallel subtest runs inside a serial `t.Run`, so the guard reads a settled
+  `t.Failed()`.
+- **Why.** A non-fatal assertion under -update rewrote the golden from regressed output (#149, #379).
+  A parallel subtest runs after its parent returns, and an assertion after the write has not run, so
+  neither stops a guard placed ahead of the write (#1242).
+- **Probe.** With -update, plant a regression that changes the golden at each kind of check, on both
+  sides of the write and inside a parallel subtest, and confirm no golden changes.
 
 ## A closure in a parallel subtest must not use the parent's t
 `parent-t-in-subtest`
