@@ -81,8 +81,8 @@ func childOfSource(val *yaml.Node, key string, path []*yaml.Node) (*yaml.Node, b
 }
 
 // Strings returns the text of each item of the sequence n, and whether n is a
-// list of strings as oas.CheckFormat reads one: scalars, none null, aliases
-// followed. A scalar's tag does not matter, as it does to the model
+// list of strings as oas.Checker reads one: scalars, none null, aliases followed.
+// A scalar's tag does not matter, as it does to the model
 // (docs/parser-library.md#undecoded-scalar).
 func Strings(n *yaml.Node) ([]string, bool) {
 	n = Deref(n)

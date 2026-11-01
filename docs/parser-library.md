@@ -529,8 +529,9 @@ components:
 The model decodes a string from a scalar the YAML decoder takes for one: a string, or a number or
 boolean, as its text. A `!!timestamp`, which any plain date is
 ([`scalar-resolution`](#scalar-resolution)), a `!!binary` and a local tag are none of these. A string
-field so written reads as empty, with no finding, and a Reference Object's `$ref` as no reference,
-so the load phase meets none. The core keeps the node.
+field so written reads as empty, and a Reference Object's `$ref` as no reference, so the load phase
+meets none. The validator, which the compiler does not call, reports a type mismatch at each; the
+compiler's table reads any scalar as a string and reports neither. The core keeps the node.
 
 ```yaml
 info: {title: 2021-01-01}    # GetTitle is empty

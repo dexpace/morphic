@@ -646,18 +646,19 @@ func nonScalarKey(t *testing.T) {
 }
 
 // undecodedScalar pins undecoded-scalar: a scalar the decoder takes for no string
-// reads as empty through the model, a $ref as no reference, while the core keeps
-// the node.
+// reads as empty through the model, a $ref as no reference, while the validator
+// reports each and the core keeps the node.
 func undecodedScalar(t *testing.T) {
 	for written, text := range map[string]string{
 		"2021-01-01":    "2021-01-01",
 		"!!binary aGk=": "aGk=",
 		"!local tagged": "tagged",
 	} {
-		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(
+		doc, found, err := soa.Unmarshal(t.Context(), strings.NewReader(
 			"openapi: 3.1.0\ninfo: {title: "+written+", version: '1'}\npaths: {}\n"+
 				"components:\n  securitySchemes:\n    s: {$ref: "+written+"}\n"))
 		require.NoError(t, err, written)
+		assert.Len(t, found, 2, "the type mismatches of %s: %s", written, revisit(t, result{}))
 		assert.Empty(t, doc.GetInfo().GetTitle(), "the title of %s: %s", written, revisit(t, result{}))
 		rs := doc.Components.SecuritySchemes.GetOrZero("s")
 		assert.False(t, rs.IsReference(), "the $ref of %s: %s", written, revisit(t, result{}))

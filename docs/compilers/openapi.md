@@ -2751,8 +2751,9 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestAuth_RequirementsOrOfAnds`
 - Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
   unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
-  the IR undeduplicated (#738), and a requirement whose only key is a `<<` naming no mapping lowers
-  to the empty option, beside the rule table's error (#1244).
+  the IR undeduplicated (#738), a requirement whose only key is a `<<` naming no mapping lowers to
+  the empty option, beside the rule table's error (#1244), and an entry's field written as a plain
+  date reads as left out, so `scheme: 2021-01-01` names no mechanism (#1280).
 
 ### `security-scheme-fields`
 
