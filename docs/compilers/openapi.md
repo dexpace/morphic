@@ -682,8 +682,8 @@ changes it: a union variant, or a composition branch holding a `$ref`, is named 
 `$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
 is never set. These names are what an emitter renders, so a change to how one is derived moves
 `IRVersion` ([ir-version](../ir/ir-version.md)), and
-`testdata/golden/openapi/hint_positions.yaml` writes the positions within one valid document that a
-hint is composed from, one for each decision the naming takes.
+`testdata/golden/openapi/hint_positions.yaml` writes the positions within one document that a hint
+is composed from, one for each way the naming composes one.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,

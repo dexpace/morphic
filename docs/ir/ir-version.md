@@ -84,9 +84,9 @@ decides at a rune from that rune and its two neighbours, so those names reach ev
 makes over those classes, and the ASCII runes pin which runes separate, which one class hides. The
 grammar's conformance table stays out of the description, so a row added to it moves nothing. A hint
 has no such closure, since it is composed per compiler from whatever position the compiler names:
-the pin reaches the positions `hint_positions.yaml` writes, one for each decision the compiler's
-naming takes within a valid document, and a position it does not write, such as a document a `$ref`
-reads whole, shows only in the corpus goldens, as the one bump no test requires.
+the pin reaches the positions `hint_positions.yaml` writes, one for each way the compiler's naming
+composes a hint from a position, and a position it does not write, such as a document a `$ref` reads
+whole, shows only in the corpus goldens, as the one bump no test requires.
 
 **Bumping.** A bump sets `IRVersion` to the next MINOR, appends the row the failing test prints,
 and adds an entry to the [history](./version-history.md), which

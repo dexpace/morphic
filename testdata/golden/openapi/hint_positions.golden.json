@@ -947,6 +947,307 @@
               }
             },
             {
+              "id": "op/openapi/paths/~1structures/get",
+              "name": {
+                "hint": "get_structures"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1structures/get/parameters/filter/query",
+                  "name": {
+                    "source": "filter",
+                    "canonical": "filter"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1structures/get/parameters/0/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1structures/get/parameters/0"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1structures/get/parameters/foo/query",
+                  "name": {
+                    "source": "foo",
+                    "canonical": "foo"
+                  },
+                  "type": {
+                    "target": "t/anon/components/schemas/Positions/x-parameter/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/schemas/Positions/x-parameter"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1structures/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "application/yaml",
+                        "type": {
+                          "target": "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "text/csv",
+                        "type": {
+                          "target": "t/anon/paths/~1structures/get/responses/200/content/text~1csv/schema",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "application/xml",
+                        "type": {
+                          "target": "t/anon/paths/~1structures/get/responses/200/content/application~1xml/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1structures/get/responses/200/headers/X-List",
+                      "name": {
+                        "source": "X-List",
+                        "canonical": "x_list"
+                      },
+                      "wireName": "X-List",
+                      "type": {
+                        "target": "t/anon/paths/~1structures/get/responses/200/headers/X-List/schema",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1structures/get/responses/200/headers/X-List"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                },
+                {
+                  "name": {
+                    "hint": "201"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 201,
+                        "to": 201
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/schemas/Positions/x-response/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "kept under an extension"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/structures",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1structures/get/parameters/filter/query",
+                        "location": "query",
+                        "wireName": "filter",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1structures/get/parameters/foo/query",
+                        "location": "query",
+                        "wireName": "foo",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1structures/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1structures/put",
+              "name": {
+                "hint": "put_structures"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/components/schemas/Positions/x-body/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "stored"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/structures",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1structures/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1structures/post",
+              "name": {
+                "source": "makeStructure",
+                "canonical": "make_structure"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1structures/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "stored"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/structures",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1structures/post"
+              }
+            },
+            {
               "id": "op/openapi/paths/~1events/get",
               "name": {
                 "source": "events",
@@ -2966,6 +3267,66 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/Positions/properties/refBesideAllOf": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Positions/properties/refBesideAllOf",
+      "name": {
+        "hint": "ref_beside_all_of"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/refBesideAllOf"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "pet"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Positions/properties/refBesideAllOf/oneOf/0",
+      "name": {
+        "hint": "pet"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "$ref": "#/components/schemas/Owner"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/refBesideAllOf/oneOf/0/allOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/refBesideAllOf/oneOf/0"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/Positions/properties/tuple": {
       "kind": "tuple",
       "id": "t/anon/components/schemas/Positions/properties/tuple",
@@ -3201,6 +3562,240 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Positions/properties/withDefs/$defs/Local/properties/n"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/wrapped": {
+      "kind": "union",
+      "id": "t/anon/components/schemas/Positions/properties/wrapped",
+      "name": {
+        "hint": "wrapped"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/wrapped"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/wrapped/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/anon/components/schemas/Positions/properties/wrapped/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/wrapped/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/wrapped/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/wrapped/oneOf/0/properties/own",
+          "name": {
+            "source": "own",
+            "canonical": "own"
+          },
+          "wireName": "own",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/wrapped/oneOf/0/properties/own"
+          }
+        }
+      ],
+      "base": {
+        "target": "t/openapi/components/schemas/Pet",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/x-body/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/x-body/content/application~1json/schema",
+      "name": {
+        "hint": "request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/x-body/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/x-body/content/application~1json/schema/properties/cl",
+          "name": {
+            "source": "cl",
+            "canonical": "cl"
+          },
+          "wireName": "cl",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/x-body/content/application~1json/schema/properties/cl"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/x-parameter/schema": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/x-parameter/schema",
+      "name": {
+        "hint": "foo"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/x-parameter/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/x-parameter/schema/properties/ck",
+          "name": {
+            "source": "ck",
+            "canonical": "ck"
+          },
+          "wireName": "ck",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/x-parameter/schema/properties/ck"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/x-response/content/application~1json/schema": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Positions/x-response/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/x-response/content/application~1json/schema"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Positions/x-response/content/application~1json/schema/items",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Positions/x-response/content/application~1json/schema/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/x-response/content/application~1json/schema/items",
+      "name": {
+        "hint": "response_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/x-response/content/application~1json/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/x-response/content/application~1json/schema/items/properties/cm",
+          "name": {
+            "source": "cm",
+            "canonical": "cm"
+          },
+          "wireName": "cm",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/x-response/content/application~1json/schema/items/properties/cm"
           }
         }
       ],
@@ -3668,6 +4263,540 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/paths/~1structures/get/parameters/0/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1structures/get/parameters/0/schema",
+      "name": {
+        "hint": "filter"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/parameters/0/schema"
+      },
+      "elem": {
+        "target": "t/anon/paths/~1structures/get/parameters/0/schema/items",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1structures/get/parameters/0/schema/items": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/parameters/0/schema/items",
+      "name": {
+        "hint": "filter_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/parameters/0/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/get/parameters/0/schema/items/properties/ca",
+          "name": {
+            "source": "ca",
+            "canonical": "ca"
+          },
+          "wireName": "ca",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/get/parameters/0/schema/items/properties/ca"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/application~1json/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/application~1json/schema"
+      },
+      "elem": {
+        "target": "t/anon/paths/~1structures/get/responses/200/content/application~1json/schema/items",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/application~1json/schema/items": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/application~1json/schema/items",
+      "name": {
+        "hint": "response_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/application~1json/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/get/responses/200/content/application~1json/schema/items/properties/cc",
+          "name": {
+            "source": "cc",
+            "canonical": "cc"
+          },
+          "wireName": "cc",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/get/responses/200/content/application~1json/schema/items/properties/cc"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/application~1xml/schema": {
+      "kind": "union",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/application~1xml/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/application~1xml/schema"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0/properties/cg",
+          "name": {
+            "source": "cg",
+            "canonical": "cg"
+          },
+          "wireName": "cg",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/get/responses/200/content/application~1xml/schema/oneOf/0/properties/cg"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/application~1yaml/schema"
+      },
+      "additionalProps": {
+        "value": {
+          "target": "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema/additionalProperties",
+          "nullable": false
+        },
+        "patterns": [
+          {
+            "pattern": "^y",
+            "value": {
+              "target": "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema/patternProperties/^y",
+              "nullable": false
+            }
+          }
+        ]
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema/additionalProperties": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema/additionalProperties",
+      "name": {
+        "hint": "response_value"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/application~1yaml/schema/additionalProperties"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/get/responses/200/content/application~1yaml/schema/additionalProperties/properties/cd",
+          "name": {
+            "source": "cd",
+            "canonical": "cd"
+          },
+          "wireName": "cd",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/get/responses/200/content/application~1yaml/schema/additionalProperties/properties/cd"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema/patternProperties/^y": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/application~1yaml/schema/patternProperties/^y",
+      "name": {
+        "hint": "response_pattern"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/application~1yaml/schema/patternProperties/^y"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/get/responses/200/content/application~1yaml/schema/patternProperties/^y/properties/ce",
+          "name": {
+            "source": "ce",
+            "canonical": "ce"
+          },
+          "wireName": "ce",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/get/responses/200/content/application~1yaml/schema/patternProperties/^y/properties/ce"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/text~1csv/schema": {
+      "kind": "tuple",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/text~1csv/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/text~1csv/schema"
+      },
+      "elems": [
+        {
+          "target": "t/anon/paths/~1structures/get/responses/200/content/text~1csv/schema/prefixItems/0",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1structures/get/responses/200/content/text~1csv/schema/prefixItems/0": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/responses/200/content/text~1csv/schema/prefixItems/0",
+      "name": {
+        "hint": "response_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/content/text~1csv/schema/prefixItems/0"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/get/responses/200/content/text~1csv/schema/prefixItems/0/properties/cf",
+          "name": {
+            "source": "cf",
+            "canonical": "cf"
+          },
+          "wireName": "cf",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/get/responses/200/content/text~1csv/schema/prefixItems/0/properties/cf"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/get/responses/200/headers/X-List/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1structures/get/responses/200/headers/X-List/schema",
+      "name": {
+        "hint": "x_list"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/headers/X-List/schema"
+      },
+      "elem": {
+        "target": "t/anon/paths/~1structures/get/responses/200/headers/X-List/schema/items",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1structures/get/responses/200/headers/X-List/schema/items": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/get/responses/200/headers/X-List/schema/items",
+      "name": {
+        "hint": "x_list_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/get/responses/200/headers/X-List/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/get/responses/200/headers/X-List/schema/items/properties/cb",
+          "name": {
+            "source": "cb",
+            "canonical": "cb"
+          },
+          "wireName": "cb",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/get/responses/200/headers/X-List/schema/items/properties/cb"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1structures/post/requestBody/content/application~1json/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1structures/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "make_structure_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/post/requestBody/content/application~1json/schema"
+      },
+      "elem": {
+        "target": "t/anon/paths/~1structures/post/requestBody/content/application~1json/schema/items",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1structures/post/requestBody/content/application~1json/schema/items": {
+      "kind": "model",
+      "id": "t/anon/paths/~1structures/post/requestBody/content/application~1json/schema/items",
+      "name": {
+        "hint": "make_structure_request_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1structures/post/requestBody/content/application~1json/schema/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1structures/post/requestBody/content/application~1json/schema/items/properties/ch",
+          "name": {
+            "source": "ch",
+            "canonical": "ch"
+          },
+          "wireName": "ch",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1structures/post/requestBody/content/application~1json/schema/items/properties/ch"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema",
@@ -3845,6 +4974,52 @@
           "provenance": {
             "source": 0,
             "pointer": "/x-library/Shared/properties/v"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/x-library/items": {
+      "kind": "model",
+      "id": "t/anon/x-library/items",
+      "name": {
+        "hint": "x_library_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/x-library/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/x-library/items/properties/cj",
+          "name": {
+            "source": "cj",
+            "canonical": "cj"
+          },
+          "wireName": "cj",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/x-library/items/properties/cj"
           }
         }
       ],
@@ -4308,6 +5483,73 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
+      "unmodeled": {
+        "openapi:x-body": {
+          "reason": "vendor_extension",
+          "value": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "cl": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/x-body"
+          }
+        },
+        "openapi:x-parameter": {
+          "reason": "vendor_extension",
+          "value": {
+            "in": "query",
+            "name": "foo",
+            "schema": {
+              "properties": {
+                "ck": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/x-parameter"
+          }
+        },
+        "openapi:x-response": {
+          "reason": "vendor_extension",
+          "value": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "properties": {
+                      "cm": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "kept under an extension"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/x-response"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Positions"
@@ -4554,6 +5796,60 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Positions/properties/decorated"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/wrapped",
+          "name": {
+            "source": "wrapped",
+            "canonical": "wrapped"
+          },
+          "wireName": "wrapped",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/wrapped",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/wrapped"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/refBesideAllOf",
+          "name": {
+            "source": "refBesideAllOf",
+            "canonical": "ref_beside_all_of"
+          },
+          "wireName": "refBesideAllOf",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/refBesideAllOf",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/refBesideAllOf"
           }
         },
         {
@@ -4928,6 +6224,33 @@
           }
         },
         {
+          "id": "p/openapi/components/schemas/Positions/properties/throughExtensionRole",
+          "name": {
+            "source": "throughExtensionRole",
+            "canonical": "through_extension_role"
+          },
+          "wireName": "throughExtensionRole",
+          "type": {
+            "target": "t/anon/x-library/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/throughExtensionRole"
+          }
+        },
+        {
           "id": "p/openapi/components/schemas/Positions/properties/throughAllOf",
           "name": {
             "source": "throughAllOf",
@@ -5062,6 +6385,14 @@
             }
           },
           "type": "object"
+        },
+        "items": {
+          "properties": {
+            "cj": {
+              "type": "string"
+            }
+          },
+          "type": "object"
         }
       },
       "provenance": {
@@ -5079,7 +6410,7 @@
         "source": 0,
         "pointer": "/components/schemas/***",
         "position": {
-          "line": 220,
+          "line": 283,
           "column": 7
         }
       }
@@ -5092,9 +6423,18 @@
         "source": 0,
         "pointer": "/components/schemas/",
         "position": {
-          "line": 224,
+          "line": 287,
           "column": 7
         }
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for allOf declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/refBesideAllOf/oneOf/0"
       }
     },
     {
@@ -5156,7 +6496,7 @@
     {
       "format": "openapi@3.2",
       "path": "hint_positions.yaml",
-      "hash": "b0a9016fa644bdff857575aee1fc15ace0aa61a2601078a98e6cecd2de7e387e"
+      "hash": "933c422addf2b6c32c2f51c2b491f1eea12c68cd7dbb461e44d0c572ad8c6ac9"
     }
   ]
 }

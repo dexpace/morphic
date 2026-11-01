@@ -1,10 +1,12 @@
-# The positions within one valid document that the OpenAPI compiler composes a
-# hint from, written to take each decision the naming makes. A hint is what an
-# emitter renders an unnamed node's identifier from, so
-# ir/testdata/names.golden.txt lists each one here and IRVersion is pinned to
-# that list (docs/ir/ir-version.md). A document a $ref reads whole is named too,
+# The positions within one document that the OpenAPI compiler composes a hint
+# from, one for each way the naming composes one. A hint is what an emitter
+# renders an unnamed node's identifier from, so ir/testdata/names.golden.txt
+# lists each one here and IRVersion is pinned to that list
+# (docs/ir/ir-version.md). A document a $ref reads whole is named too,
 # and one file cannot write that position. The root declares no server because
-# the one OpenAPI then supplies is a position of its own.
+# the one OpenAPI then supplies is a position of its own. Roles repeat under each
+# kind of owner because the owner decides them: beneath a component schema, a
+# hint read from the pointer alone reads the same.
 openapi: 3.2.0
 info: {title: Hint positions, version: 1.0.0}
 tags:
@@ -105,6 +107,50 @@ paths:
       responses:
         '204': {description: stored}
   /shared: {$ref: '#/components/pathItems/Shared'}
+  /structures:
+    get:
+      parameters:
+        - name: filter
+          in: query
+          schema: {type: array, items: {type: object, properties: {ca: {type: string}}}}
+        - {$ref: '#/components/schemas/Positions/x-parameter'}
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-List:
+              schema: {type: array, items: {type: object, properties: {cb: {type: string}}}}
+          content:
+            application/json:
+              schema: {type: array, items: {type: object, properties: {cc: {type: string}}}}
+            application/yaml:
+              schema:
+                type: object
+                additionalProperties: {type: object, properties: {cd: {type: string}}}
+                patternProperties: {'^y': {type: object, properties: {ce: {type: string}}}}
+            text/csv:
+              schema:
+                type: array
+                prefixItems:
+                  - {type: object, properties: {cf: {type: string}}}
+            application/xml:
+              schema:
+                oneOf:
+                  - {type: object, properties: {cg: {type: string}}}
+                  - {type: string}
+        '201': {$ref: '#/components/schemas/Positions/x-response'}
+    post:
+      operationId: makeStructure
+      requestBody:
+        content:
+          application/json:
+            schema: {type: array, items: {type: object, properties: {ch: {type: string}}}}
+      responses:
+        '204': {description: stored}
+    put:
+      requestBody: {$ref: '#/components/schemas/Positions/x-body'}
+      responses:
+        '204': {description: stored}
   /events:
     get:
       operationId: events
@@ -130,6 +176,7 @@ webhooks:
         '200': {description: seen}
 x-library:
   Shared: {type: object, properties: {v: {type: string}}}
+  items: {type: object, properties: {cj: {type: string}}}
 components:
   schemas:
     Pet:
@@ -140,6 +187,13 @@ components:
       properties: {since: {type: string}}
     Positions:
       type: object
+      x-parameter: {name: foo, in: query, schema: {type: object, properties: {ck: {type: string}}}}
+      x-body: {content: {application/json: {schema: {type: object, properties: {cl: {type: string}}}}}}
+      x-response:
+        description: kept under an extension
+        content:
+          application/json:
+            schema: {type: array, items: {type: object, properties: {cm: {type: string}}}}
       properties:
         nested: {type: object, properties: {deep: {type: object, properties: {leaf: {type: string}}}}}
         list: {type: array, items: {type: object, properties: {a: {type: string}}}}
@@ -166,6 +220,14 @@ components:
           oneOf:
             - allOf: [{$ref: '#/components/schemas/Pet'}]
               description: a decorated branch
+        wrapped:
+          oneOf:
+            - allOf: [{$ref: '#/components/schemas/Pet'}]
+              properties: {own: {type: string}}
+        refBesideAllOf:
+          oneOf:
+            - $ref: '#/components/schemas/Pet'
+              allOf: [{$ref: '#/components/schemas/Owner'}]
         composed:
           allOf:
             - {$ref: '#/components/schemas/Pet'}
@@ -199,6 +261,7 @@ components:
         throughNot: {$ref: '#/components/schemas/Positions/properties/negated/not'}
         throughNotItems: {$ref: '#/components/schemas/Positions/properties/negated/not/items'}
         throughExtension: {$ref: '#/x-library/Shared'}
+        throughExtensionRole: {$ref: '#/x-library/items'}
         throughAllOf: {$ref: '#/components/schemas/Positions/properties/composed/allOf/1'}
     Keyed:
       type: object
