@@ -42,7 +42,7 @@ goes to the type that owns the broken state
 
 `python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py`, run from the repository
 root, compiles a corpus at a base and at the working tree, then prints each side's exit codes and
-each spec whose exit code or output differs. It judges nothing: `references/differentials.md` says
+each spec that differs past its IR version. It judges nothing: `references/differentials.md` says
 what the codes mean, and its `--help` gives the options.
 
 ## References
