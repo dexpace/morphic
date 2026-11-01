@@ -131,8 +131,9 @@ func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (strin
 //
 // The reason and severity are passedOverSpelling's: OpenAPI forbids the entries
 // and an election passed them over, so the document's own error is visible
-// rather than absorbed. An entry interns no node, so --explain at its pointer
-// finds none; the warning at the map is what names it.
+// rather than absorbed. An entry interns no node, and --explain does not read
+// Unmodeled (GitHub #693), so it finds nothing at the entry's pointer; the
+// warning at the map is what names it.
 func passedOverEntries(c lowering.Ctx, u *ir.Unmodeled, content *sequencedmap.Map[string, *soa.MediaType],
 	elected string, root *yaml.Node, at jsontext.Pointer,
 ) []ir.Diagnostic {
