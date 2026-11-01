@@ -37,4 +37,5 @@ of its own: the document's diagnostics already carry it.
   option in priority order, and an option ANDing the scheme with others needs it like any of them.
   If no option remains, the request is refused unsent, with an error naming the scheme. The refusal
   is where a request starts: a call's error, a pager's first page, a stream's open. The service's
-  credentials are never sent in its place, and neither is a request with none.
+  credentials are never sent in its place, and a request goes with none only where the list itself
+  offers the empty option.

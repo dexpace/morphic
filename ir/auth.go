@@ -3,12 +3,12 @@
 
 package ir
 
-// AuthKind names one authentication mechanism (docs/ir/auth.md). X509 is
-// distinct from mutual_tls (certificate as credential vs mutual verification);
-// compilers must not conflate them.
+// AuthKind names one authentication mechanism, or says the compiler holds none
+// (docs/ir/auth.md). X509 is distinct from mutual_tls (certificate as credential
+// vs mutual verification); compilers must not conflate them.
 type AuthKind string
 
-// Authentication mechanisms.
+// Authentication kinds.
 const (
 	// AuthKindAPIKey is an API key in a header, query, cookie, or transport slot.
 	AuthKindAPIKey AuthKind = "apiKey"
@@ -47,11 +47,11 @@ const (
 	AuthKindUnresolved AuthKind = "unresolved"
 )
 
-// Valid reports whether k is one of the mechanisms declared above. AuthKind is a
-// bare string enum, so nothing rejects an empty, misspelled or stale value on
-// the wire, and a scheme naming no mechanism is indistinguishable from one
-// naming oauth2 to every structural check that reads only its key and its ID.
-// irverify calls this so such a scheme is reported as the compiler bug it is.
+// Valid reports whether k is one of the kinds declared above. AuthKind is a bare
+// string enum, so nothing rejects an empty, misspelled or stale value on the
+// wire, and a scheme with such a kind is indistinguishable from one naming
+// oauth2 to every structural check that reads only its key and its ID. irverify
+// calls this so such a scheme is reported as the compiler bug it is.
 func (k AuthKind) Valid() bool {
 	switch k {
 	case AuthKindAPIKey, AuthKindHTTPBasic, AuthKindHTTPBearer, AuthKindOAuth2,
@@ -72,7 +72,8 @@ type AuthScheme struct {
 	ID AuthID `json:"id,omitempty"`
 	// Name is the scheme's naming.
 	Name Naming `json:"name"`
-	// Kind is the authentication mechanism.
+	// Kind is the authentication mechanism, or AuthKindUnresolved where the
+	// compiler holds none.
 	Kind AuthKind `json:"kind,omitempty"`
 	// Docs is the scheme's documentation.
 	Docs Docs `json:"docs"`

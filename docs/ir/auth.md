@@ -89,7 +89,8 @@ A requirement names its schemes, and a name can reach no mechanism: nothing decl
 declares it names none, or the compiler cannot read what it names. The requirement still stands,
 so the option keeps its place in the list, its other schemes and its scopes, and names a scheme of
 kind `unresolved`, one per name. An SDK asks its caller for that credential, and never sends the
-service's in its place or nothing at all ([auth](../emitters/operations/auth.md#unresolved-schemes)).
+service's in its place, or nothing at all unless the list offers the empty option
+([auth](../emitters/operations/auth.md#unresolved-schemes)).
 
 The kind says what the compiler holds, which is no mechanism. It does not say the source states
 none: an OpenAPI 3.2 requirement can name a scheme by URI, and an entry can write `in` and `name`
@@ -102,9 +103,9 @@ accepted that finding. Its ID is in a namespace of its own
 
 The premise is measured. `cloudflare/api-schemas` at `319dc756`, the golden spec, names three such
 schemes from nine operations, and in those nine every option does, so nothing else states what they
-need. Of the 1,840 OpenAPI documents in the reference corpus, 57 name one, at 286 options, 50 of
-them listing scopes, and none ANDs such a name with a declared scheme. In 45 of those documents the
-list holds `{}` as well, so dropping the rest would leave it saying no auth is needed.
+need. Of the 1,862 OpenAPI documents the reference corpus lowers to, 57 name one, at 286 options, 50
+of them listing scopes, and none ANDs such a name with a declared scheme. In 45 of those documents
+the list holds `{}` as well, so dropping the rest would leave it saying no auth is needed.
 
 Rejected, each with the input it fails on:
 

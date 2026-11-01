@@ -39,11 +39,10 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 	return vs
 }
 
-// checkAuthKinds asserts every interned auth scheme names a mechanism ir
-// declares.
+// checkAuthKinds asserts every interned auth scheme has a kind ir declares.
 //
 // Nothing else looks at what a scheme says (checkRegistryKeys and checkIDs hold
-// only its key and ID shape), so an empty or misspelled mechanism verifies like
+// only its key and ID shape), so an empty or misspelled kind verifies like
 // oauth2 (GitHub #295). Kind is the only AuthScheme field backed by a declared
 // constant set.
 //
