@@ -86,8 +86,9 @@ func TestUse_ADefaultBesideItsValueSetStands(t *testing.T) {
 
 // TestUse_ACarrierReadsThroughADecorator pins the object spelling of a read-only
 // use: a decorator over an object keeps its node, and the carrier holding it reads
-// what its $ref binds as the 3.1 spelling does. A composition adding a member says
-// more than its $ref, so it reads nothing through it.
+// what its $ref binds as the 3.1 spelling does, a bound beside the $ref included.
+// A composition adding a member says more than its $ref, so it reads nothing
+// through it.
 func TestUse_ACarrierReadsThroughADecorator(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Stamp:
@@ -100,6 +101,7 @@ func TestUse_ACarrierReadsThroughADecorator(t *testing.T) {
       properties:
         wrapped: {allOf: [{$ref: '#/components/schemas/Stamp'}], description: mine}
         branch: {allOf: [{$ref: '#/components/schemas/Stamp'}, {description: mine}]}
+        bound: {allOf: [{$ref: '#/components/schemas/Stamp'}, {minProperties: 1}]}
         viaRef: {$ref: '#/components/schemas/Wrap'}
         adds:
           allOf:
@@ -109,7 +111,7 @@ func TestUse_ACarrierReadsThroughADecorator(t *testing.T) {
     Wrap: {allOf: [{$ref: '#/components/schemas/Stamp'}], description: wrapper}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, wire := range []string{"wrapped", "branch", "viaRef"} {
+	for _, wire := range []string{"wrapped", "branch", "bound", "viaRef"} {
 		p := propertyOf(t, doc, "Holder", wire)
 		assert.NotEmpty(t, p.Visibility.Only, wire)
 		assert.NotNil(t, p.Default, wire)

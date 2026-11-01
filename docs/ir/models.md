@@ -192,12 +192,14 @@ documents and the position alone, so an outside `$ref` naming the branch pointer
 whichever lowering interns the node.
 
 `Base` and `Mixins` name whatever the source composed with, which in JSON Schema is any schema:
-`allOf: [{$ref: SomeScalar}]` is legal and lowers to a `Base` pointing at a `Scalar`, and the same
-holds for an `Enum`, a `Union`, a `MapT`, or the top type. They are typed `TypeRef` rather than
-"reference to a `Model`" for exactly that reason — narrowing them would mean dropping a branch the
-source wrote, against invariant 2. What is *shaped* like `allOf` is the composition itself: one
-referent per conjunct, resolved by reference. Emitters that can only render model inheritance are
-the ones that must lower a non-`Model` conjunct to something their target can express.
+`allOf: [{$ref: Pet}, {$ref: Tags}]` is legal and, `Tags` being a list, lowers to a `Mixin` pointing
+at a `List`, and the same holds for a `Scalar`, an `Enum`, a `Union`, a `MapT`, or the top type. They
+are typed `TypeRef` rather than "reference to a `Model`" for exactly that reason — narrowing them
+would mean dropping a branch the source wrote, against invariant 2. What is *shaped* like `allOf` is
+the composition itself: one referent per conjunct, resolved by reference. Emitters that can only
+render model inheritance are the ones that must lower a non-`Model` conjunct to something their
+target can express. An `allOf` none of whose conjuncts can make an object composes nothing: it is
+[a use of one of them](#an-allof-no-object-satisfies).
 
 ## An allOf no object satisfies
 

@@ -794,10 +794,12 @@ visibility and redaction, on the carrier or else on the alias keeping it, and so
 or a `const` beside its `allOf` passes over ([`competing-keywords`](#competing-keywords)), on the node
 that lowers to; its `default` counts only where the narrowed type takes it, and its examples stay on
 its node, as any target's do ([`schema-examples`](#schema-examples)). A `default` written with the
-value set is the position's own, in the set or not, as a plain `enum`'s is. A sole `$ref` that a
-decorator wraps ([annotations](../ir/annotations.md#decorators)) lends a carrier what it would lend
-written alone, since the visibility and `default` of the use have no other home. A composition
-saying anything else holds what it composes as `Base` and `Mixins`, which lends a carrier nothing.
+value set is the position's own, in the set or not, as a plain `enum`'s is. A sole `$ref` composed
+with nothing a `Model` alone holds, a decorator ([annotations](../ir/annotations.md#decorators)) or a
+bound beside it, lends a carrier what it would lend written alone, since the visibility and `default`
+of the use have no other home. A composition writing what only a `Model` holds
+([`allof-refinement`](#allof-refinement)) holds what it composes as `Base` and `Mixins`, which lends a
+carrier nothing.
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
   `schema-ref-siblings-30`, `allof-refinement`
@@ -928,8 +930,8 @@ reference, and a `nullable: true` on an inline `allOf` branch writing no `proper
 the whole schema holding the `allOf`, a `type` beside the `allOf` included, as beside the `allOf` it
 does ([`allof-inline-residue`](#allof-inline-residue)). A `type` without `null` beside a `$ref` still
 narrows what it lands on, and a `type: [T, "null"]` on a conjunct of an `allOf` conjoins with the
-rest. A reference whose null only that reading admits names `nullable-widening` in `TypeRef.Inferred` (invariant 6), so
-`Nullable` with no marker is the declared reading, and each such null is reported once as an info
+rest. A reference whose null only that reading admits names `nullable-widening` in
+`TypeRef.Inferred` (invariant 6), so `Nullable` with no marker is the declared reading, and each such null is reported once as an info
 `openapi/inferred-nullable`, at the `nullable` keyword or, for keywords beside a `$ref`, at the
 schema that writes them, saying why its version does not admit it, whatever references its schema.
 The policy is the Go option `Options.NullableWidening`, whose `Disabled` reads the keywords only as
@@ -1006,9 +1008,9 @@ merge after them, as a composing schema's own merge after its entries'. So `allO
 B]}]` classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that
 the merge does not consume is kept beside the composition as residue
 ([`allof-inline-residue`](#allof-inline-residue)), so `{additionalProperties: false, allOf: [A, B]}`
-composes `A` and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside 32 flattened
-entries is not flattened itself, so its `allOf` is residue, and it is reported as nested past the
-flattening depth of 32. This is not the flattening the
+composes `A` and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside
+32 flattened entries is not flattened itself, so its `allOf` is residue, and it is reported as nested
+past the flattening depth of 32. This is not the flattening the
 [design rules](../ir/README.md#design-rules) leave to emitters: every `$ref` entry still composes as
 a `Base` or `Mixin`, and all that goes is a grouping no instance can observe, which an inline entry
 owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
@@ -1024,13 +1026,15 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
 
 ### `allof-refinement`
 
-An `allOf` is a composition only where a conjunct can make the value an object: a `$ref` whose
-target admits one, or a conjunct writing `type: object` or one of `properties`, `patternProperties`,
-`additionalProperties`, `required` and `discriminator`, the keywords beside the `allOf` being a
-conjunct as much as a branch is. A `Model` anywhere else asserts an object the source rules out, so
-that `{allOf: [{type: integer}, {type: integer, format: int32}]}` reaches a consumer as an object with
-no fields, where it means `int32`. Any other `allOf` is a *refinement*: one use of the conjunct that
-decides it, its *principal*, with what the other conjuncts say read as said of that use.
+An `allOf` is a composition where a conjunct writes `properties`, `patternProperties`,
+`additionalProperties`, `required` or `discriminator`, which only a `Model` holds, or where the
+conjuncts together admit an object and one of them is a `$ref` or names a kind, the keywords beside
+the `allOf` being a conjunct as much as a branch is. A `Model` anywhere else asserts an object the
+source rules out, so that `{allOf: [{type: integer}, {type: integer, format: int32}]}` reaches a
+consumer as an object with no fields, where it means `int32`. Any other `allOf` is a *refinement*:
+one use of the conjunct that decides it, its *principal*, with what the other conjuncts say read as
+said of that use. So `{allOf: [{$ref: T}, {type: string}]}` refines a `T` that may be a string or an
+object, as the two together admit no object.
 
 What the conjuncts admit is read from the source and the bindings, never the registry, so no
 lowering order decides it. Each conjunct's JSON kinds and value set are read across `$ref`, `allOf`,
@@ -1076,12 +1080,12 @@ A `format` or `items` written with no `type` qualifies a kind and names none, so
 either order, since no one conjunct says `int32` and a schema built from two would stand at a pointer
 naming neither. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
 principal and is the top type. Where the keywords beside the `allOf` win, the position lowers by them
-as if no `allOf` were written. A principal lowers at the pointer it is written at, so nothing is minted and each node stands
-at a pointer naming its schema: a `$ref` as any `$ref` branch does, what is written beside it on the
-alias [models](../ir/models.md#composition-entries) describes, and an inline branch as a schema
-carried by the position. A branch that reduces to a shared node reads as written beside the `allOf`,
-and one owning a node keeps there what it writes, a parameter keeping its `readOnly` and `writeOnly`
-as it keeps its schema's.
+as if no `allOf` were written. A principal lowers at the pointer it is written at, so nothing is
+minted and each node stands at a pointer naming its schema: a `$ref` as any `$ref` branch does, what
+is written beside it on the alias [models](../ir/models.md#composition-entries) describes, and an
+inline branch as a schema carried by the position. A branch that reduces to a shared node reads as
+written beside the `allOf`, and one owning a node keeps there what it writes, a parameter keeping its
+`readOnly` and `writeOnly` as it keeps its schema's.
 
 What the conjuncts say lands where the position keeps what it writes: on the carrier
 ([`ref-use-site`](#ref-use-site)), else on an alias hoisted at the position only if it writes
@@ -1099,7 +1103,8 @@ Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
 verbatim reading no target ([`shape-applicator`](#shape-applicator)), and on `type: [T, "null"]`,
 which the nullable-widening policy reads as widening beside a `$ref` and which conjoins here, as JSON
-Schema says ([`nullable`](#nullable)).
+Schema says ([`nullable`](#nullable)). A `$ref` naming either parts as well: it reads what `K` says
+here, and past it there, as a chain of `$ref`s is read to its end ([`ref-use-site`](#ref-use-site)).
 
 The IR's rule that compilers leave flattening to emitters
 ([design rules](../ir/README.md#design-rules)) is not what this departs from, and the alternative of

@@ -229,7 +229,7 @@ func (st Site) Chain() []*oas3.Schema {
 	return append(chain, st.Referents...)
 }
 
-// At builds the site for js, a reference site's without its Referent (see
+// At builds the site for js, a reference site's without its Referents (see
 // Site).
 //
 // A schema whose $ref is present but empty ({$ref: ""}) is a declaration, not a

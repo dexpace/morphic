@@ -132,7 +132,7 @@ func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool 
 // UseOf reads what speaks for a carrier holding js at pointer, which lowered to
 // t: what a $ref names, or what passageOf reads on through. A principal owning a
 // node keeps its annotations there, so it speaks here as a referent does. A
-// composition saying more than its $ref does lends nothing: its Model holds what
+// composition writing what only a Model holds lends nothing: its Model holds what
 // it composes as Base and Mixins.
 func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) Use {
 	s := js.GetSchema()
