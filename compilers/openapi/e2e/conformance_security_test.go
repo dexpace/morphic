@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -174,6 +175,68 @@ func assertOAuthFlowFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 		{Name: "read", Description: "Read data"},
 		{Name: "admin", Description: "Full access"},
 	}, scoped[0].Scopes), "scopes keep source order")
+}
+
+// assertSecurityUnresolved pins that a requirement stays whole at every carrier
+// when a name reaches no mechanism, and what the scheme it names holds.
+func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const (
+		declared    ir.AuthID = "auth/openapi/components/securitySchemes/apiKeyAuth"
+		undeclared  ir.AuthID = "auth/unresolved/components/securitySchemes/undeclaredAuth"
+		upload      ir.AuthID = "auth/unresolved/components/securitySchemes/uploadAuth"
+		noMechanism ir.AuthID = "auth/unresolved/components/securitySchemes/noMechanismAuth"
+		brokenRef   ir.AuthID = "auth/unresolved/components/securitySchemes/brokenRefAuth"
+	)
+	require.Len(t, doc.Services, 1)
+	assert.Empty(t, cmp.Diff([]ir.AuthRequirement{
+		{Schemes: []ir.SchemeUse{{Scheme: declared}}},
+		{Schemes: []ir.SchemeUse{{Scheme: undeclared, Scopes: []string{"read"}}}},
+		{},
+	}, doc.Services[0].Auth, cmpopts.EquateEmpty()), "every option stays, in order")
+
+	byOp := map[string][]ir.AuthRequirement{
+		"bothOp":        {{Schemes: []ir.SchemeUse{{Scheme: undeclared, Scopes: []string{"read", "write"}}, {Scheme: declared}}}},
+		"soleOp":        {{Schemes: []ir.SchemeUse{{Scheme: upload}}}},
+		"soleAgainOp":   {{Schemes: []ir.SchemeUse{{Scheme: upload}}}},
+		"eventOp":       {{Schemes: []ir.SchemeUse{{Scheme: upload}}}},
+		"createdOp":     {{Schemes: []ir.SchemeUse{{Scheme: upload}}}},
+		"noMechanismOp": {{Schemes: []ir.SchemeUse{{Scheme: noMechanism}}}},
+		"brokenRefOp":   {{Schemes: []ir.SchemeUse{{Scheme: brokenRef}}}},
+	}
+	for name, want := range byOp {
+		op, ok := opByName(doc, name)
+		require.True(t, ok, name)
+		assert.Empty(t, cmp.Diff(want, op.Auth, cmpopts.EquateEmpty()), name)
+	}
+	inherits, ok := opByName(doc, "inheritsOp")
+	require.True(t, ok)
+	assert.Nil(t, inherits.Auth, "an operation writing no security still inherits")
+	public, ok := opByName(doc, "publicOp")
+	require.True(t, ok)
+	assert.Empty(t, public.Auth)
+	assert.NotNil(t, public.Auth, "and security: [] is still explicitly public")
+
+	require.Len(t, doc.Auth, 5, "one scheme per name, however many requirements use it")
+	for id, scheme := range doc.Auth {
+		if id != declared {
+			assert.Equal(t, ir.AuthKindUnresolved, scheme.Kind, id)
+		}
+	}
+	assert.Zero(t, doc.Auth[undeclared].Provenance.Pointer, "no position writes a name nothing declares")
+	entry := doc.Auth[noMechanism]
+	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/noMechanismAuth"), entry.Provenance.Pointer)
+	assert.Equal(t, "Issued by the upload endpoint.", entry.Docs.Description)
+	assert.Contains(t, entry.Unmodeled, "openapi:in", "what the entry wrote is kept: %v", entry.Unmodeled)
+	assert.Equal(t, "Issued by the account service.", doc.Auth[brokenRef].Docs.Description)
+
+	var pointers []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == diag.UnresolvedSecurityScheme {
+			assert.Equal(t, ir.SeverityError, d.Severity)
+			pointers = append(pointers, d.Provenance.Pointer)
+		}
+	}
+	assert.Len(t, pointers, 8, "one report at each requirement: %v", pointers)
 }
 
 func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

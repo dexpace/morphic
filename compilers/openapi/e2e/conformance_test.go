@@ -266,6 +266,7 @@ func conformanceCases() []conformanceCase {
 		{"oauth-flow-fields", assertOAuthFlowFields},
 		{"reached-outside-model", assertReachedOutsideModel},
 		{"security-or-and", assertSecurityOrAnd},
+		{"security-unresolved", assertSecurityUnresolved},
 	}
 }
 
@@ -308,5 +309,11 @@ func invalidCases() map[string][]string {
 	return map[string][]string{
 		// A parameter and a header writing both schema and content: "but not both".
 		"codeclared-schema-content": {"openapi/validation/validation-mutually-exclusive-fields"},
+		// Requirements naming a scheme the document does not hold: each name
+		// "MUST correspond to a security scheme". An entry naming no mechanism
+		// and one whose $ref reaches nothing are among what they name.
+		"security-unresolved": {
+			"openapi/unresolved-security-scheme", "openapi/incomplete-security-scheme", "openapi/unresolved-ref",
+		},
 	}
 }

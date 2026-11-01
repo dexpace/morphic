@@ -1,0 +1,94 @@
+openapi: 3.1.0
+info: {title: SecurityUnresolved, version: "1.0.0"}
+security:
+  - apiKeyAuth: []
+  - undeclaredAuth: [read]
+  - {}
+paths:
+  /both:
+    get:
+      operationId: bothOp
+      security:
+        - undeclaredAuth: [read, write]
+          apiKeyAuth: []
+      responses:
+        "200":
+          description: ok
+  /sole:
+    post:
+      operationId: soleOp
+      security:
+        - uploadAuth: []
+      responses:
+        "200":
+          description: ok
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post:
+              operationId: eventOp
+              security:
+                - uploadAuth: []
+              responses:
+                "200":
+                  description: ok
+  /sole-again:
+    get:
+      operationId: soleAgainOp
+      security:
+        - uploadAuth: []
+      responses:
+        "200":
+          description: ok
+  /inherits:
+    get:
+      operationId: inheritsOp
+      responses:
+        "200":
+          description: ok
+  /public:
+    get:
+      operationId: publicOp
+      security: []
+      responses:
+        "200":
+          description: ok
+  /no-mechanism:
+    get:
+      operationId: noMechanismOp
+      security:
+        - noMechanismAuth: []
+      responses:
+        "200":
+          description: ok
+  /broken-ref:
+    get:
+      operationId: brokenRefOp
+      security:
+        - brokenRefAuth: []
+      responses:
+        "200":
+          description: ok
+webhooks:
+  created:
+    post:
+      operationId: createdOp
+      security:
+        - uploadAuth: []
+      responses:
+        "200":
+          description: ok
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+    noMechanismAuth:
+      description: Issued by the upload endpoint.
+      in: header
+      name: X-Upload-Token
+      x-rotation-days: 30
+    brokenRefAuth:
+      $ref: '#/components/securitySchemes/missingAuth'
+      description: Issued by the account service.

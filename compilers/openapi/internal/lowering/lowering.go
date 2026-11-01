@@ -100,17 +100,6 @@ type Ctx struct {
 	home    int
 	homeDoc bind.DocID
 
-	// auth is the document's declared security schemes, keyed by the IDs a
-	// requirement names. It is unexported, and read through a predicate rather
-	// than handed back, for the reason schemas is.
-	//
-	// Unlike every other field it is not derived at entry: resolving the schemes
-	// is a lowering that reports, and micro-compiler-design §4.1 keeps such work
-	// out of New so it cannot report on documents that never ask. The compiler
-	// resolves it once and extends the context with WithAuth, so the derivation
-	// stays a lowering and only its result becomes context.
-	auth map[ir.AuthID]ir.AuthScheme
-
 	// overlay attributes a position to the overlay document that introduced it,
 	// where one was applied. Its zero value answers for every compile without an
 	// overlay, so nothing below has to ask whether there was one.
@@ -229,22 +218,6 @@ func (c Ctx) Sources() []ir.SourceInfo {
 		}
 	}
 	return out
-}
-
-// WithAuth returns a copy of c carrying the resolved security schemes.
-//
-// Only the service walk is given the extended value; the phases that run before
-// it keep the plain one. That is what keeps "populated partway through" from
-// being a trap: the lowerings that run before the schemes are resolved never
-// hold a context that could answer this, so there is no window in which it reads
-// empty.
-//
-// A copy, not a fresh context: everything the service walk is about to lower —
-// the document, its identity and index, and the declared-name index derived at
-// entry — has to survive the extension.
-func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
-	c.auth = auth
-	return c
 }
 
 // WithLoaded returns a copy of c carrying what the load phase resolved with
@@ -384,12 +357,6 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // DeclaresSchema reports whether the document declares a component schema of
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
-
-// DeclaresAuth reports whether the document declares the security scheme a
-// requirement names. It is a predicate rather than a getter for the reason
-// DeclaresSchema is: handing back the map would make it writable by every
-// caller, which is the one thing keeping it unexported was for.
-func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
 // Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
 // 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such

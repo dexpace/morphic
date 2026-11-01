@@ -20,52 +20,41 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// LowerSecuritySchemes interns every declared security scheme into the auth
-// registry keyed by ids.Auth(name) (docs/ir/auth.md). Run it before the service
-// walk so requirements reference registered IDs.
+// LowerSecuritySchemes lowers every securitySchemes entry into the Registry
+// (docs/ir/auth.md), keyed by ids.Auth(name). Run it before the service walk so
+// requirements reference registered IDs.
 //
-// An entry whose $ref resolves to nothing is reported at its own components
-// pointer and interned nowhere; see unresolvableSchemeDiags.
-//
-// An entry that resolves to an object but names no mechanism is refused and
-// reported the same way; see mechanismRefusalDiag. Every other diagnostic from
-// here concerns a scheme that did intern.
-func LowerSecuritySchemes(c lowering.Ctx) (map[ir.AuthID]ir.AuthScheme, []ir.Diagnostic) {
-	comps := c.Doc.Components
-	if comps == nil {
-		return nil, nil
-	}
-	schemes := comps.GetSecuritySchemes()
-	if schemes == nil || schemes.Len() == 0 {
-		return nil, nil
-	}
-	out := make(map[ir.AuthID]ir.AuthScheme, schemes.Len())
+// An entry that yields no mechanism lowers all the same, keyed by
+// ids.UnresolvedAuth(name), so nothing can reach it as a declared scheme: one
+// whose $ref resolves to nothing, reported at its own components pointer (see
+// unresolvableSchemeDiags), and one naming no mechanism, reported the same way
+// (see noMechanismDiag). Every other diagnostic from here concerns a scheme with
+// a mechanism.
+func LowerSecuritySchemes(c lowering.Ctx) (*Registry, []ir.Diagnostic) {
+	reg := &Registry{byID: map[ir.AuthID]ir.AuthScheme{}, root: c.ProvenanceAt("")}
 	var diags []ir.Diagnostic
-	for name, rs := range schemes.All() {
+	for name, rs := range c.Doc.Components.GetSecuritySchemes().All() {
 		entry := ids.Ptr("components", "securitySchemes", name)
+		var scheme ir.AuthScheme
+		var schemeDiags []ir.Diagnostic
 		ss, dc, decl := lowering.Declared[soa.SecurityScheme](c, rs, entry)
 		if ss == nil {
-			diags = append(diags, unresolvableSchemeDiags(c, name, rs, entry)...)
-			continue
+			scheme = unresolvedScheme(name, c.ProvenanceAt(entry))
+			schemeDiags = unresolvableSchemeDiags(c, name, rs, entry)
+		} else {
+			scheme, schemeDiags = lowerSecurityScheme(c, dc, name, ss, entry, decl)
 		}
-		scheme, ok, schemeDiags := lowerSecurityScheme(c, dc, name, ss, entry, decl)
 		diags = append(diags, schemeDiags...)
-		if !ok {
-			continue
-		}
 		// A summary or description beside a $ref of the entry's chain documents
 		// this entry rather than the scheme it names (GitHub #610).
 		scheme.Docs = resolve.UseDocs[soa.SecurityScheme](rs, scheme.Docs)
-		out[ids.Auth(name)] = scheme
+		reg.byID[scheme.ID] = scheme
 	}
-	if len(out) == 0 {
-		return nil, diags
-	}
-	return out, diags
+	return reg, diags
 }
 
-// unresolvableSchemeDiags reports a securitySchemes entry that lowered to no
-// scheme, but only when it was written as a $ref that resolves to nothing. The
+// unresolvableSchemeDiags reports a securitySchemes entry that resolved to no
+// object, but only when it was written as a $ref that resolves to nothing. The
 // compiler keeps the load phase's report at that pointer instead, which has the
 // resolver's reason (GitHub #385); this one stands where the load phase never
 // got that far, as when a resolver panic ends its walk.
@@ -87,9 +76,8 @@ func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecu
 		"security scheme %q has a $ref that resolves to nothing: %q", name, ref)}
 }
 
-// lowerSecurityScheme lowers one named security scheme into its AuthScheme. ok
-// reports whether the entry named a mechanism; if not, the caller interns
-// nothing.
+// lowerSecurityScheme lowers one named security scheme into its AuthScheme, of
+// kind unresolved where the entry names no mechanism.
 //
 // For an entry written as a $ref the pointers differ (issue #107). entry is
 // where the document names the scheme and places anything said of the entry as
@@ -99,8 +87,8 @@ func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecu
 // reference, so `<entry>/in` names a position no document holds.
 func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme,
 	entry, decl jsontext.Pointer,
-) (scheme ir.AuthScheme, ok bool, diags []ir.Diagnostic) {
-	scheme = ir.AuthScheme{
+) (ir.AuthScheme, []ir.Diagnostic) {
+	scheme := ir.AuthScheme{
 		ID:         ids.Auth(name),
 		Name:       compile.NamingFor(name),
 		Docs:       ir.Docs{Description: ss.GetDescription()},
@@ -109,9 +97,10 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 	if ss.GetDeprecated() {
 		scheme.Deprecation = &ir.Deprecation{}
 	}
-	missing, named := fillSchemeKind(&scheme, ss)
-	if !named {
-		return ir.AuthScheme{}, false, []ir.Diagnostic{mechanismRefusalDiag(c, name, missing, entry)}
+	var diags []ir.Diagnostic
+	if missing, named := fillSchemeKind(&scheme, ss); !named {
+		scheme.ID, scheme.Kind = ids.UnresolvedAuth(name), ir.AuthKindUnresolved
+		diags = append(diags, noMechanismDiag(c, name, missing, entry))
 	}
 	if tokenless(scheme) && !flowsMissing(ss) {
 		// Reported rather than refused; see oauthNoFlowDiag.
@@ -125,8 +114,7 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 	// at all.
 	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, dc.ProvenanceAt, decl)...)
 	// After the extensions, whose entries are what a promotion reads.
-	return scheme, true, append(diags,
-		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
+	return scheme, append(diags, c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
 }
 
 // applySchemeAnnotations keeps what the securitySchemes entry and, for an oauth2
@@ -153,24 +141,22 @@ func applySchemeAnnotations(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Secur
 	return append(diags, applyFlowAnnotations(c, scheme.Flows, flows, flowsPtr)...)
 }
 
-// mechanismRefusalDiag reports a securitySchemes entry that omits missing, the
-// field that would name its mechanism.
+// noMechanismDiag reports a securitySchemes entry that omits missing, the field
+// that would name its mechanism.
 //
-// It is refused rather than interned because ir.AuthKind has no value for "the
-// document did not say"; AuthKindCustom means a mechanism the IR does not
-// model. An interned scheme would be one no emitter can implement, asserting
-// that the API is authenticated by nothing in particular (#294).
-//
-// A requirement naming it drops whole (#41; see lowerSecurityRequirement). The
-// entry's other fields are not kept: it is a document defect, as an
-// unresolvable $ref is, and there is no scheme to hold an Unmodeled map.
-func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.Pointer) ir.Diagnostic {
+// Custom is no home for it: AuthKindCustom means a mechanism the IR does not
+// model, and an entry naming none would assert that the API is authenticated by
+// nothing in particular, which no emitter can implement (#294). So it takes the
+// kind that says the compiler holds no mechanism, with what it wrote kept beside
+// that, and a requirement naming it stands. An error: what the entry means is
+// missing, and OpenAPI requires both fields.
+func noMechanismDiag(c lowering.Ctx, name, missing string, entry jsontext.Pointer) ir.Diagnostic {
 	// "has no", not "declares no": a $ref entry declares only the reference, yet
 	// alias and target are each reported at their own entry, so the wording must
 	// hold for both.
 	return c.DiagAt(ir.SeverityError, diag.IncompleteSecurityScheme, entry,
 		"security scheme %q has no %s, so it names no authentication mechanism: "+
-			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
+			"it is kept without one, and every requirement naming it is kept", name, missing)
 }
 
 // fillSchemeKind sets the mechanism kind and its per-kind fields
@@ -272,23 +258,24 @@ func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
 	}
 }
 
-// preserveUnreadFields keeps every mechanism field the entry declared that its
-// own type gives no meaning to verbatim under Unmodeled (#294).
+// preserveUnreadFields keeps verbatim under Unmodeled every mechanism field the
+// entry declared that its own type gives no meaning to (#294), and every such
+// field of an entry naming no mechanism, which has none to read them.
 //
-// Each mechanism's lowering reads only its own fields, so the rest would be
-// lost silently. ir.AuthScheme has a field of each name, but filling one would
-// give the mechanism a property it does not define, so the declaration is kept
-// beside the scheme under ReasonDegradedLowering.
+// ir.AuthScheme has a field of each name, but filling one would give the
+// mechanism a property it does not define, so the field is kept beside the
+// scheme under ReasonDegradedLowering. One the entry did not write records
+// nothing; an explicit `in: ""` is recorded as written.
 //
-// A field the entry did not write records nothing; an explicit `in: ""` is
-// recorded as written.
-//
-// decl is where the fields are written: the referenced declaration for a $ref
-// entry (#107).
+// decl is where the fields are written, the declaration for a $ref entry (#107).
 func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.SecurityScheme,
 	decl jsontext.Pointer,
 ) []ir.Diagnostic {
+	unresolved := scheme.Kind == ir.AuthKindUnresolved
 	defined := fieldsDefinedBy(ss.GetType())
+	if unresolved {
+		defined = nil
+	}
 	var diags []ir.Diagnostic
 	for _, field := range mechanismFieldNames() {
 		if slices.Contains(defined, field) {
@@ -299,6 +286,11 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 			nodeview.Child(ss.GetRootNode(), field), ir.ReasonDegradedLowering, c.ProvenanceAt(at))
 		diags = append(diags, keptDiags...)
 		if !kept {
+			continue
+		}
+		if unresolved {
+			diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+				"security scheme %s belongs to no mechanism the entry names; kept verbatim under Unmodeled", field))
 			continue
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,

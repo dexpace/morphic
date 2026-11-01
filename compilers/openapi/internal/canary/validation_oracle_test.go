@@ -97,8 +97,9 @@ var validationReasons = map[string]string{
 		"under Unmodeled and says so",
 	"owned": "another package reports the rule, and the table states it and leaves it to them: a repeated " +
 		"operationId is judged once every operation is lowered (docs/compilers/openapi.md#operation-ids), a repeated " +
-		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), an " +
-		"HTTP scheme written empty by the security scheme lowering (docs/compilers/openapi.md#security-requirements)",
+		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), a " +
+		"scheme with no type, or an HTTP one written empty, by the security scheme lowering " +
+		"(docs/compilers/openapi.md#security-requirements)",
 	"beside-ref": "the library models a Path Item that writes a $ref as the reference alone, and validates none of " +
 		"the fields beside it; the table reads them as the item's own, as the lowering does " +
 		"(docs/compilers/openapi.md#path-item-ref-fields)",

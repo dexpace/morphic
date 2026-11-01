@@ -21,19 +21,16 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty pins the guard that
-// keeps an empty map out of the document. A components.securitySchemes block
-// whose every entry fails to resolve declares no scheme the IR can carry, and
-// an empty Auth map would be a field the source never wrote.
-//
-// The entry is a hand-built nil, which no parsed document produces — a
-// malformed entry still arrives as an object. That makes this the nil-guard
-// case rather than the reporting one, so nothing is reported: the entry carries
-// no $ref to have failed. TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce
-// covers the shapes a document can write, through the compiler.
-func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
+// TestLowerSecuritySchemes_ANilEntryLowersAndReportsNothing pins the guard for a
+// hand-built nil entry, which no parsed document produces: a malformed entry
+// still arrives as an object. It carries no $ref that could have failed, so
+// nothing is reported, and its name is held like any other entry's.
+// TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce covers the shapes a
+// document can write, through the compiler.
+func TestLowerSecuritySchemes_ANilEntryLowersAndReportsNothing(t *testing.T) {
 	t.Parallel()
 	doc := &soa.OpenAPI{Components: &soa.Components{
 		SecuritySchemes: sequencedmap.New(
@@ -42,14 +39,15 @@ func TestLowerSecuritySchemes_NothingLoweredIsNilNotEmpty(t *testing.T) {
 
 	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: doc})
 
-	assert.Nil(t, got, "an unresolvable entry leaves no map behind")
+	assert.Contains(t, got.Schemes(), ids.UnresolvedAuth("ghost"))
 	assert.Empty(t, diags, "a nil entry names no reference that could have failed")
 }
 
 // TestLowerSecuritySchemes_ABrokenRefIsReportedByLoadOnce pins how each
 // unresolvable entry below is reported, through the compiler rather than a
 // hand-built node: a document can write these shapes. None is named by a
-// requirement, so nothing downstream reports them.
+// requirement, so nothing downstream reports them. Each still lowers to a scheme
+// at its own pointer, which holds its name and no mechanism.
 //
 // A $ref resolving to nothing is reported once at the entry's own pointer: this
 // package and the load phase both report it there, and the compiler keeps the
@@ -89,8 +87,13 @@ components:
     ghost: `+tc.entry+`
     key: {type: apiKey, in: header, name: X-Key}
 `)
-			assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "the entry interns no scheme")
-			assert.Contains(t, doc.Auth, ids.Auth("key"), "its resolvable sibling still does")
+			assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "it takes no ID a reference can spell")
+			assert.Contains(t, doc.Auth, ids.Auth("key"), "its resolvable sibling keeps its own")
+			scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
+			require.True(t, ok, "the entry's name is held: %+v", doc.Auth)
+			assert.Equal(t, ir.AuthKindUnresolved, scheme.Kind)
+			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), scheme.Provenance.Pointer,
+				"at the entry that wrote it")
 
 			got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
 			if tc.wantRef == "" {
@@ -138,33 +141,32 @@ B: {$ref}
 func TestLowerSecuritySchemes_NoComponentsAtAll(t *testing.T) {
 	t.Parallel()
 	got, diags := auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{}})
-	assert.Nil(t, got)
+	assert.Nil(t, got.Schemes(), "an empty Auth map would be a field the source never wrote")
 	assert.Empty(t, diags)
 
 	got, diags = auth.LowerSecuritySchemes(lowering.Ctx{Doc: &soa.OpenAPI{Components: &soa.Components{}}})
-	assert.Nil(t, got)
+	assert.Nil(t, got.Schemes())
 	assert.Empty(t, diags)
 }
 
-// TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused pins the two
+// TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved pins the
 // shapes that declare a scheme without saying what it is: an entry with no
-// `type`, and an http entry with no `scheme` token. Both used to intern a
-// custom scheme whose mechanism was the empty string, which states that the API
-// is authenticated by nothing in particular (GitHub #294).
-//
-// Each is reported at the entry's own components pointer and interned nowhere,
-// exactly as an entry whose $ref resolves to nothing already is.
-func TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused(t *testing.T) {
+// `type`, and an http entry with no `scheme` token. Both once interned a custom
+// scheme whose mechanism was the empty string, which states that the API is
+// authenticated by nothing in particular (GitHub #294). Each is reported at the
+// entry and takes the kind that says the compiler holds no mechanism.
+func TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name  string
-		entry string
+		name    string
+		entry   string
+		missing string
 	}{
-		{name: "no type at all", entry: `{}`},
-		{name: "no type, but fields an apiKey would use", entry: `{in: header, name: X-Key}`},
-		{name: "an explicitly empty type", entry: `{type: ""}`},
-		{name: "http with no scheme token", entry: `{type: http}`},
-		{name: "http with an empty scheme token", entry: `{type: http, scheme: ""}`},
+		{name: "no type at all", entry: `{}`, missing: "type"},
+		{name: "no type, but fields an apiKey would use", entry: `{in: header, name: X-Key}`, missing: "type"},
+		{name: "an explicitly empty type", entry: `{type: ""}`, missing: "type"},
+		{name: "http with no scheme token", entry: `{type: http}`, missing: "scheme"},
+		{name: "http with an empty scheme token", entry: `{type: http, scheme: ""}`, missing: "scheme"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -177,25 +179,30 @@ components:
     ghost: `+tc.entry+`
     key: {type: apiKey, in: header, name: X-Key}
 `)
-			assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "the entry interns no scheme")
-			assert.Contains(t, doc.Auth, ids.Auth("key"), "its complete sibling still does")
+			assert.NotContains(t, doc.Auth, ids.Auth("ghost"), "it takes no ID a reference can spell")
+			assert.Contains(t, doc.Auth, ids.Auth("key"), "its complete sibling keeps its own")
+			scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
+			require.True(t, ok, "the entry's name is held: %+v", doc.Auth)
+			assert.Equal(t, ir.AuthKindUnresolved, scheme.Kind)
+			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), scheme.Provenance.Pointer)
 
 			d, ok := openapitest.FirstDiag(diags, diag.IncompleteSecurityScheme)
-			require.True(t, ok, "the refusal is reported: %+v", diags)
+			require.True(t, ok, "the entry is reported: %+v", diags)
 			assert.Equal(t, ir.SeverityError, d.Severity)
 			assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost"), d.Provenance.Pointer,
 				"reported at the entry, not at the requirement that names it")
-			assert.Contains(t, d.Message, `"ghost"`, "the report names the entry")
+			assert.Equal(t, `security scheme "ghost" has no `+tc.missing+`, so it names no authentication `+
+				`mechanism: it is kept without one, and every requirement naming it is kept`, d.Message,
+				"the message states what became of the entry and of the requirements")
 		})
 	}
 }
 
-// TestLowerSecuritySchemes_ARefusedEntryDropsTheRequirementNamingIt pins the
-// downstream half of the refusal. Nothing is interned, so a requirement naming
-// the entry resolves to no scheme and drops whole under the rule #41
-// established, collapsing a sole-option list to nil rather than leaving the
-// empty-option encoding that reads as "no auth is also fine".
-func TestLowerSecuritySchemes_ARefusedEntryDropsTheRequirementNamingIt(t *testing.T) {
+// TestLowerSecuritySchemes_ARequirementNamingAnEntryWithNoMechanismKeepsIt pins
+// the downstream half: the requirement stands, naming the scheme the entry
+// lowered to rather than one minted over it, and is reported like any other that
+// resolved to no mechanism.
+func TestLowerSecuritySchemes_ARequirementNamingAnEntryWithNoMechanismKeepsIt(t *testing.T) {
 	t.Parallel()
 	doc, svc, diags := serviceSpec(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -206,10 +213,125 @@ components:
   securitySchemes:
     ghost: {in: header, name: X-Key}
 `)
-	assert.Empty(t, doc.Auth, "a document whose only scheme is refused carries no auth registry")
-	assert.Nil(t, svc.Auth, "the sole option drops, collapsing the list rather than emptying it")
-	assert.NotEmpty(t, messagesAt(diags, diag.UnresolvedRef),
-		"the requirement that named it is reported too: %+v", diags)
+	require.Len(t, svc.Auth, 1)
+	assert.Equal(t, []ir.AuthID{ids.UnresolvedAuth("ghost")}, schemeUses(svc.Auth[0]))
+	assert.Equal(t, []string{"/security/0"}, sortedPointersAt(diags, diag.UnresolvedSecurityScheme))
+	assert.Equal(t, []string{"openapi:in", "openapi:name"},
+		unmodeledKeys(doc.Auth[ids.UnresolvedAuth("ghost")].Unmodeled), "what the entry wrote is still there")
+}
+
+// TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsWhatItWrote pins what
+// #294 asked to survive. Each row writes what the entry's type would give a
+// home, had it named a mechanism, and no mechanism field fills: those are what
+// the kind denies, so they stay under Unmodeled. The http row is what separates
+// keeping everything from keeping what the type leaves unread.
+func TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsWhatItWrote(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		entry string
+		want  []string
+	}{
+		{
+			name:  "no type",
+			entry: `{in: header, name: X-Key, flows: {implicit: {scopes: {}}}, x-note: n, bogus: b}`,
+			want:  []string{"openapi:bogus", "openapi:flows", "openapi:in", "openapi:name", "openapi:x-note"},
+		},
+		{name: "http with no scheme", entry: `{type: http, bearerFormat: JWT}`, want: []string{"openapi:bearerFormat"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _, _ := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: `+tc.entry+`
+`)
+			scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
+			require.True(t, ok, "%+v", doc.Auth)
+			assert.Equal(t, tc.want, unmodeledKeys(scheme.Unmodeled))
+			assert.Empty(t, scheme.BearerFormat+scheme.In+scheme.KeyName, "no mechanism field fills")
+		})
+	}
+}
+
+// TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsItsDocs pins the text a
+// caller writing the credential by hand needs, and that the entry's deprecation
+// survives with it. Deprecation is a 3.2 field.
+func TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsItsDocs(t *testing.T) {
+	t.Parallel()
+	doc, _, _ := serviceSpec(t, `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: {description: Issued by the upload endpoint., deprecated: true}
+`)
+	scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
+	require.True(t, ok, "%+v", doc.Auth)
+	assert.Equal(t, "Issued by the upload endpoint.", scheme.Docs.Description)
+	assert.NotNil(t, scheme.Deprecation)
+}
+
+// TestLowerSecuritySchemes_AnAliasOfAnEntryNamingNoMechanismIsItsOwnScheme pins
+// that aliases stay separate schemes here as they do for a scheme with a
+// mechanism, each at its own entry, and that the text the target wrote reaches
+// both. Unmodeled keeps pointing at the one place it is written.
+func TestLowerSecuritySchemes_AnAliasOfAnEntryNamingNoMechanismIsItsOwnScheme(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    alias: {$ref: '#/components/securitySchemes/ghost'}
+    ghost: {description: Issued by the upload endpoint., in: header}
+`)
+	assert.Empty(t, irverify.Verify(doc))
+	alias, ok := doc.Auth[ids.UnresolvedAuth("alias")]
+	require.True(t, ok, "%+v", doc.Auth)
+	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/alias"), alias.Provenance.Pointer)
+	assert.Equal(t, "Issued by the upload endpoint.", alias.Docs.Description)
+	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost/in"),
+		alias.Unmodeled["openapi:in"].Provenance.Pointer)
+	assert.Contains(t, doc.Auth, ids.UnresolvedAuth("ghost"))
+	assert.Equal(t, []string{"/components/securitySchemes/alias", "/components/securitySchemes/ghost"},
+		sortedPointersAt(diags, diag.IncompleteSecurityScheme), "each is reported at its own entry")
+}
+
+// TestLowerSecuritySchemes_AKeptFieldOfNoMechanismBlamesNoType pins the wording
+// of a field an entry with no mechanism keeps: `http` does define bearerFormat,
+// so the report other kinds draw, that the type does not define it, would be
+// false here, and for an entry with no type it would name the empty string.
+func TestLowerSecuritySchemes_AKeptFieldOfNoMechanismBlamesNoType(t *testing.T) {
+	t.Parallel()
+	_, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: {type: http, bearerFormat: JWT}
+`)
+	assert.Equal(t, []string{"security scheme bearerFormat belongs to no mechanism the entry names; " +
+		"kept verbatim under Unmodeled"}, messagesAtPointer(diags, "/components/securitySchemes/ghost/bearerFormat"))
+}
+
+// TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt pins that a description
+// a Reference Object writes survives the $ref it stands beside (GitHub #610).
+func TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt(t *testing.T) {
+	t.Parallel()
+	doc, _, _ := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: {$ref: '#/components/securitySchemes/Missing', description: Issued by the upload endpoint.}
+`)
+	scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
+	require.True(t, ok, "%+v", doc.Auth)
+	assert.Equal(t, "Issued by the upload endpoint.", scheme.Docs.Description)
 }
 
 // TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive pins that no field

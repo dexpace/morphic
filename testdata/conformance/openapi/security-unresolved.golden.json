@@ -1,0 +1,792 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "SecurityUnresolved",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SecurityUnresolved",
+        "canonical": "security_unresolved"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1both/get",
+              "name": {
+                "source": "bothOp",
+                "canonical": "both_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/unresolved/components/securitySchemes/undeclaredAuth",
+                      "scopes": [
+                        "read",
+                        "write"
+                      ]
+                    },
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/apiKeyAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/both",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1both/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1sole/post",
+              "name": {
+                "source": "soleOp",
+                "canonical": "sole_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/unresolved/components/securitySchemes/uploadAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/sole",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false,
+                    "callbacks": [
+                      {
+                        "expression": "{$request.body#/url}",
+                        "operations": [
+                          "op/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sole/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post",
+              "name": {
+                "source": "eventOp",
+                "canonical": "event_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/unresolved/components/securitySchemes/uploadAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$request.body#/url}",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1sole-again/get",
+              "name": {
+                "source": "soleAgainOp",
+                "canonical": "sole_again_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/unresolved/components/securitySchemes/uploadAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/sole-again",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sole-again/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1inherits/get",
+              "name": {
+                "source": "inheritsOp",
+                "canonical": "inherits_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/inherits",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1inherits/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1public/get",
+              "name": {
+                "source": "publicOp",
+                "canonical": "public_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/public",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1public/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1no-mechanism/get",
+              "name": {
+                "source": "noMechanismOp",
+                "canonical": "no_mechanism_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/unresolved/components/securitySchemes/noMechanismAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/no-mechanism",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1no-mechanism/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1broken-ref/get",
+              "name": {
+                "source": "brokenRefOp",
+                "canonical": "broken_ref_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/unresolved/components/securitySchemes/brokenRefAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/broken-ref",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1broken-ref/get"
+              }
+            }
+          ]
+        },
+        {
+          "id": "g/webhooks",
+          "name": {
+            "hint": "webhooks"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/webhooks/created/post",
+              "name": {
+                "source": "createdOp",
+                "canonical": "created_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/unresolved/components/securitySchemes/uploadAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true,
+                    "webhookName": "created"
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/created/post"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": [
+        {
+          "schemes": [
+            {
+              "scheme": "auth/openapi/components/securitySchemes/apiKeyAuth"
+            }
+          ]
+        },
+        {
+          "schemes": [
+            {
+              "scheme": "auth/unresolved/components/securitySchemes/undeclaredAuth",
+              "scopes": [
+                "read"
+              ]
+            }
+          ]
+        },
+        {}
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "auth": {
+    "auth/openapi/components/securitySchemes/apiKeyAuth": {
+      "id": "auth/openapi/components/securitySchemes/apiKeyAuth",
+      "name": {
+        "source": "apiKeyAuth",
+        "canonical": "api_key_auth"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "in": "header",
+      "keyName": "X-API-Key",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/apiKeyAuth"
+      }
+    },
+    "auth/unresolved/components/securitySchemes/brokenRefAuth": {
+      "id": "auth/unresolved/components/securitySchemes/brokenRefAuth",
+      "name": {
+        "source": "brokenRefAuth",
+        "canonical": "broken_ref_auth"
+      },
+      "kind": "unresolved",
+      "docs": {
+        "description": "Issued by the account service."
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/brokenRefAuth"
+      }
+    },
+    "auth/unresolved/components/securitySchemes/noMechanismAuth": {
+      "id": "auth/unresolved/components/securitySchemes/noMechanismAuth",
+      "name": {
+        "source": "noMechanismAuth",
+        "canonical": "no_mechanism_auth"
+      },
+      "kind": "unresolved",
+      "docs": {
+        "description": "Issued by the upload endpoint."
+      },
+      "unmodeled": {
+        "openapi:in": {
+          "reason": "degraded_lowering",
+          "value": "header",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/noMechanismAuth/in"
+          }
+        },
+        "openapi:name": {
+          "reason": "degraded_lowering",
+          "value": "X-Upload-Token",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/noMechanismAuth/name"
+          }
+        },
+        "openapi:x-rotation-days": {
+          "reason": "vendor_extension",
+          "value": 30,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/noMechanismAuth/x-rotation-days"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/noMechanismAuth"
+      }
+    },
+    "auth/unresolved/components/securitySchemes/undeclaredAuth": {
+      "id": "auth/unresolved/components/securitySchemes/undeclaredAuth",
+      "name": {
+        "source": "undeclaredAuth",
+        "canonical": "undeclared_auth"
+      },
+      "kind": "unresolved",
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    },
+    "auth/unresolved/components/securitySchemes/uploadAuth": {
+      "id": "auth/unresolved/components/securitySchemes/uploadAuth",
+      "name": {
+        "source": "uploadAuth",
+        "canonical": "upload_auth"
+      },
+      "kind": "unresolved",
+      "docs": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-ref",
+      "message": "unresolved $ref \"#/components/securitySchemes/missingAuth\": not found -- key missingAuth not found in sequencedmap.Map",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/brokenRefAuth"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/incomplete-security-scheme",
+      "message": "security scheme \"noMechanismAuth\" has no type, so it names no authentication mechanism: it is kept without one, and every requirement naming it is kept",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/noMechanismAuth"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "security scheme in belongs to no mechanism the entry names; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/noMechanismAuth/in"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "security scheme name belongs to no mechanism the entry names; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/noMechanismAuth/name"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"undeclaredAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/security/1"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"undeclaredAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1both/get/security/0"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"uploadAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1sole/post/security/0"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"uploadAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1sole/post/callbacks/onEvent/{$request.body#~1url}/post/security/0"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"uploadAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1sole-again/get/security/0"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"noMechanismAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1no-mechanism/get/security/0"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"brokenRefAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1broken-ref/get/security/0"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"uploadAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/webhooks/created/post/security/0"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "security-unresolved.yaml",
+      "hash": "21b9902f57feddd72b8425fcada40368e139ba7d30a27b6e7360331f3bf6ecc1"
+    }
+  ]
+}

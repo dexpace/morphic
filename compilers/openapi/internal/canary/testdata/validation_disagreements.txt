@@ -255,6 +255,7 @@ testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:95	later-version-con
 testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:111	later-version-construct	compiler	ref-siblings
 testdata/conformance/openapi/schema-ref-siblings-30.yaml	17:84	later-version-construct	compiler	ref-siblings
 testdata/conformance/openapi/security-schemes.yaml	46:21	validation-allowed-values	library	over-strict
+testdata/conformance/openapi/security-unresolved.yaml	88:7	validation-required-field	library	owned
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/yaml-merge-keys.yaml	41:30	validation-allowed-values	library	over-strict

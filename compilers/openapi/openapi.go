@@ -184,14 +184,11 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	}
 
 	schemes, authDiags := auth.LowerSecuritySchemes(c)
-	out.Auth = schemes
 	acc.AppendAll(authDiags)
-	// Only the service walk gets the auth-carrying context; run keeps the plain
-	// one, so no lowering above the schemes can read them as empty.
-	svcCtx := c.WithAuth(schemes)
 
 	srv := servers.NewRegistry()
-	svc, tagDefs, svcDiags := operation.LowerService(ctx, svcCtx, ts, srv)
+	svc, tagDefs, svcDiags := operation.LowerService(ctx, c, ts, srv, schemes)
+	out.Auth = schemes.Schemes()
 	out.Services = []ir.Service{svc}
 	out.Servers = srv.Servers()
 	out.TagDefs = tagDefs
