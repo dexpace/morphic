@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/values"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -59,8 +60,14 @@ func (u Use) DefaultChain(s *oas3.Schema) []*oas3.Schema {
 	}
 	own := len(chain) - len(u.Referents) + u.narrowedFrom
 	return slices.Concat(chain[:own], slices.DeleteFunc(slices.Clone(chain[own:]), func(r *oas3.Schema) bool {
-		return !u.narrowed.takes(r.GetDefault()) && !(u.nullable && isNullValue(r.GetDefault()))
+		return !u.takes(r.GetDefault())
 	}))
+}
+
+// takes reports whether the position admits v: the narrowing does, or v is the
+// null its reference admits.
+func (u Use) takes(v values.Value) bool {
+	return u.narrowed.takes(v) || (u.nullable && isNullValue(v))
 }
 
 // Written returns the inline branches written for the position that a keeper of
