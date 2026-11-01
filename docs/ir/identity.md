@@ -67,12 +67,13 @@ name's, so a name is one node however many requirements use it, and none of them
 namespace keeps it from the pointer's own ID, even where a broken entry sits at that pointer. A
 scheme lowered from such an entry records the entry's pointer, as any node does. One nothing
 declares records none: no position writes it, and a pointer under `components` would name something
-the document does not hold, so it has no path for `irverify` to compare, as `server/default` has
-none.
+the document does not hold, so `irverify` has no pointer to compare its path with, as it has none
+for `server/default`.
 
-`unresolved` is `ir.IDSpaceUnresolved`, one spelling for every format, since a consumer tells such a
-scheme by it. It is reserved, like `prim`: `irverify` reports a scheme of that kind outside the
-namespace, and one of any other kind inside it (`ir/unresolved-auth-space`).
+`unresolved` is `ir.IDSpaceUnresolved`, one spelling for every format, since `irverify` holds the
+kind to it whichever format minted the scheme. A consumer reads the kind, an ID being opaque to it.
+The namespace is reserved, like `prim`: `irverify` reports a scheme of that kind outside it, and one
+of any other kind inside it (`ir/unresolved-auth-space`).
 
 ## Named entities
 

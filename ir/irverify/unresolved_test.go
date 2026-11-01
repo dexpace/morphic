@@ -42,7 +42,7 @@ func TestVerify_AnUnresolvedSchemeInItsSpaceIsClean(t *testing.T) {
 // TestVerify_AnUnresolvedSchemeLivesInItsOwnSpace pins invariant 3 for a
 // document no compiler here produced: a kind and a space that disagree let a
 // reference spelled at a pointer reach a node with no mechanism, or a mechanism
-// hide in the space an emitter reads as having none.
+// squat the space ir reserves for the kind.
 func TestVerify_AnUnresolvedSchemeLivesInItsOwnSpace(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

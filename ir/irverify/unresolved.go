@@ -14,9 +14,9 @@ import (
 //
 // The kind and ir.IDSpaceUnresolved go together both ways: outside the space a
 // pointer could reach the scheme, which is invariant 3's corollary, and inside
-// it a mechanism sits where an emitter reads none. A scheme with no space to
-// compare is checkIDs' to report. A field saying how to authenticate would
-// contradict the kind, while a name and text about the scheme do not.
+// it a mechanism squats the space ir reserves for the kind. A scheme with no
+// space to compare is checkIDs' to report. A field saying how to authenticate
+// would contradict the kind, while a name and text about the scheme do not.
 func checkUnresolvedSchemes(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, scheme := range doc.Auth {

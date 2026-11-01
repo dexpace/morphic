@@ -184,6 +184,7 @@ it sees. Changes made together in one bump are listed together under it.
   declares under `idSpaces.auth`, whether or not it mints there. The OpenAPI compiler had dropped
   such a requirement, so an `Auth` left with no option read as inheriting and one left with others
   lost the option. It also read a name whose value reads as no list of strings as not written, so
-  `{name: null}` read as the empty option, and such a name now stands. A consumer pinned to 0.22.0
-  finds those operations naming a kind it has no reading for, where it read them as inheriting the
-  service's credentials.
+  `{name: null}` read as the empty option, and such a name now stands. A `securitySchemes` entry
+  yielding no mechanism had lowered to nothing, and now lowers to that kind whether or not a
+  requirement names it. A consumer pinned to 0.22.0 finds those operations naming a kind it has no
+  reading for, where it read them as inheriting the service's credentials.

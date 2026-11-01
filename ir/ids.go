@@ -93,9 +93,9 @@ const IDSpacePrim = "prim"
 // IDSpaceUnresolved is the space the schemes of kind AuthKindUnresolved are
 // addressed in.
 //
-// It is every format's, like IDSpacePrim, and reserved like it, so a reader can
-// tell such a scheme from its ID, and no pointer a reference can spell reaches
-// one (docs/ir/identity.md). irverify holds the kind and the space together.
+// It is every format's, like IDSpacePrim, and reserved like it, so no pointer a
+// reference can spell reaches such a scheme, and irverify can hold the kind and
+// the space together whichever format minted it (docs/ir/identity.md).
 const IDSpaceUnresolved = "unresolved"
 
 // PrimTypeID returns the shared TypeID of the primitive of kind k.
