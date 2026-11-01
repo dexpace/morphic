@@ -85,6 +85,8 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"called, failing through a parenthesized parameter", "func check(t *testing.T) { (t).Fatal(1) }\n" + caller, line},
 		{"called, failing through a parenthesized method", "func check(t *testing.T) { (t.Fatal)(1) }\n" + caller, line},
 		{"called, failing through a dereferenced parameter", "func check(t *testing.T) { (*t).Fatal(1) }\n" + caller, line},
+		{"called, failing through a parenthesized dereferenced parameter", "func check(t *testing.T) { (*(t)).Fatal(1) }\n" + caller,
+			line},
 		{"called, failing through a pointer to an interface",
 			"func check(t *testing.TB) { (*t).Fatal(1) }\n" + callerByPointer, line},
 		{"called, failing through a method value", "func check(t *testing.T) {\n\tfail := t.Fatal\n\tfail(1)\n}\n" + caller, line},
@@ -127,6 +129,8 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 			"func check(a, t *testing.T) {\n\ta.Helper()\n\tt.Helper()\n\ta.Fatal(1)\n\tt.Fatal(1)\n}\n" + callerOfTwo, 0},
 		{"the Helper first of the parameter testify fails through",
 			"func check(a, t *testing.T) {\n\tt.Helper()\n\tassert.True(t, a != nil)\n}\n" + callerOfTwo, 0},
+		{"the Helper first of the parameter a parenthesized testify call fails through",
+			"func check(a, t *testing.T) {\n\tt.Helper()\n\t(assert.True)(t, a != nil)\n}\n" + callerOfTwo, 0},
 		{"the Helper first of the parameter testify fails through, dereferenced",
 			"func check(a, t *testing.TB) {\n\t(*t).Helper()\n\tassert.True(*t, a != nil)\n}\n" +
 				"\nfunc TestP(t *testing.T) {\n\tvar x testing.TB = t\n\tcheck(&x, &x)\n}\n", 0},
