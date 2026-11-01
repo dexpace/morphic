@@ -46,9 +46,9 @@ func TestExtensionsFrom_NothingWrittenIsNotAnEmptyMap(t *testing.T) {
 }
 
 // TestExtensionsNamed_ReadsOnlyWhatItIsAsked pins the reader a use site makes of
-// its referent: the names it is given, in ExtensionsFrom's form so one reader
-// takes either map, and nothing where nothing of them is written, as a nil map
-// and not an empty one a carrier would have to tell apart.
+// its referent: the names it is given, keyed and valued as ExtensionsFrom's so
+// one reader takes either map, and nothing where nothing of them is written, as a
+// nil map and not an empty one a carrier would have to tell apart.
 func TestExtensionsNamed_ReadsOnlyWhatItIsAsked(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: string\nx-a: 1\nx-b: {k: v}\n")
@@ -65,6 +65,11 @@ func TestExtensionsNamed_ReadsOnlyWhatItIsAsked(t *testing.T) {
 	unserializable := schemaFromYAML(t, "type: string\nx-bad: .nan\n")
 	assert.Nil(t, ExtensionsNamed(unserializable.GetExtensions(), slices.Values([]string{"x-bad"})),
 		"left out, as ExtensionsFrom warns of it where it is written")
+
+	beside := schemaFromYAML(t, "type: string\nx-bad: .nan\nx-good: 1\n")
+	got = ExtensionsNamed(beside.GetExtensions(), slices.Values([]string{"x-bad", "x-good"}))
+	require.Len(t, got, 1, "one value left out leaves the names after it")
+	assert.Equal(t, ir.RawValue("1"), got["openapi:x-good"].Value)
 }
 
 // TestExtensionsFrom_UnserializableIsWarnedNotKept pins the degradation path,

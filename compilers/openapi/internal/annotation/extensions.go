@@ -68,11 +68,12 @@ func ExtensionsUnder(ext *extensions.Extensions, locate Locator, owner jsontext.
 	return out, diags
 }
 
-// ExtensionsNamed lowers the extensions names lists out of ext, in the form
-// ExtensionsFrom gives them, for a reader of another object's keys: a carrier
-// reading its $ref's referent. Looking up each name leaves the rest of ext
-// unserialized, which is every key of nearly every referent. A value that does
-// not serialize is left out, as ExtensionsFrom reports it where it is written.
+// ExtensionsNamed lowers the extensions names lists out of ext, keyed and valued
+// as ExtensionsFrom gives them, for a reader of another object's keys: a carrier
+// reading its $ref's referent. Such a reader reports nothing, so an entry has no
+// provenance. Looking up each name leaves the rest of ext unserialized, which is
+// every key of nearly every referent. A value that does not serialize is left
+// out, as ExtensionsFrom reports it where it is written.
 func ExtensionsNamed(ext *extensions.Extensions, names iter.Seq[string]) ir.Unmodeled {
 	if ext == nil || ext.Len() == 0 {
 		return nil
