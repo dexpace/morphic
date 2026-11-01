@@ -29,13 +29,10 @@ go build -o "$tool" ./cmd/morphic-vet
 
 # The module and the plant are vetted in one go: their findings, the file each
 # is in, must be exactly the plant. A finding in the module, or an error, names
-# a file of its own. go vet replays a cached finding with the path of the tree
-# that produced it, so the plant's file is read by its path below the module root,
-# whichever tree ran first.
+# a file of its own.
 status=0
 go vet -vettool="$tool" ./... "./$reach" 2>"$work/vet.out" || status=$?
-got="$(sed -nE 's/^([^#][^:]*):[0-9]+:[0-9]+: .*/\1/p' "$work/vet.out" |
-	sed -E "s#^.*/($reach/reach\.go)\$#\1#")"
+got="$(sed -nE 's/^([^#][^:]*):[0-9]+:[0-9]+: .*/\1/p' "$work/vet.out")"
 if [[ "$got" != "$reach/reach.go" || "$status" -ne 1 ]]; then
 	echo "vet-rules: the one finding must be in $reach/reach.go (exit $status):" >&2
 	cat "$work/vet.out" >&2
