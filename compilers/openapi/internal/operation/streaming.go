@@ -103,8 +103,8 @@ func classifyStream(candidates []streamCandidate) streamDirection {
 // Error responses are deliberately not read: an operation's ResponseStream
 // describes what it streams back, and a 4xx body is what it sends instead of
 // streaming. Nor is the default, whose class only the plan's policy decides
-// (ir-design §7.2): a stream it alone declares sets no ResponseStream, and a
-// plan taking it for the success response reads its Contents itself.
+// (docs/ir/responses.md): a stream it alone declares sets no ResponseStream,
+// and a plan taking it for the success response reads its Contents itself.
 func responseCandidates(c lowering.Ctx, ts *compile.Types, responses []ir.Response) []streamCandidate {
 	out := make([]streamCandidate, 0, len(responses))
 	for i := range responses {

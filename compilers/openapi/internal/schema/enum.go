@@ -32,9 +32,9 @@ import (
 // small source (GitHub #75).
 //
 // A listed `null` member is stripped onto the reference's Nullable bit
-// (ir-design §3.3) when schemaAdmitsNull holds, the predicate every Nullable
-// site shares. A sibling `type: string` forbids that null, so it stays and the
-// set becomes a Union.
+// (docs/compilers/openapi.md#enum-const) when schemaAdmitsNull holds, the
+// predicate every Nullable site shares. A sibling `type: string` forbids that
+// null, so it stays and the set becomes a Union.
 func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {

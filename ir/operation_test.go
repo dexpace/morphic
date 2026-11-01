@@ -462,9 +462,9 @@ func TestIdempotency_PopulatedRoundTrip(t *testing.T) {
 
 // TestPagination_JSONContract pins Pagination's contract that Inferred
 // carries no omitempty — whether a pagination scheme was declared or
-// heuristically detected is always a fact worth recording (ir-design §7.3),
-// never an absence — and that a fully populated Pagination — every
-// navigation-link path — round-trips.
+// heuristically detected is always a fact worth recording
+// (docs/ir/interaction-patterns.md), never an absence — and that a fully
+// populated Pagination — every navigation-link path — round-trips.
 func TestPagination_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Pagination{}, `{"inferred":false}`, ir.Pagination{

@@ -17,9 +17,9 @@ var (
 	_ TypeDef = (*Any)(nil)
 )
 
-// PrimKind names a built-in primitive scalar (ir-design §4.1). The set is the
-// union of TypeSpec's intrinsic scalars, JSON Schema's types, and Protobuf's
-// needs.
+// PrimKind names a built-in primitive scalar (docs/ir/primitives.md). The set
+// is the union of TypeSpec's intrinsic scalars, JSON Schema's types, and
+// Protobuf's needs.
 type PrimKind string
 
 // Primitive kinds.
@@ -104,9 +104,10 @@ func (k PrimKind) Valid() bool {
 const maxDomainDepth = 8
 
 // domainParents returns the immediate supertypes of k by value domain: the
-// kinds that hold every finite value of k, with no kind between (ir-design
-// §4.1). A kind with none is a root. PrimAny is the top of every kind without
-// being an edge; see StrictlyWithin. The result is fresh, so a caller may keep it.
+// kinds that hold every finite value of k, with no kind between
+// (docs/ir/primitives.md). A kind with none is a root. PrimAny is the top of
+// every kind without being an edge; see StrictlyWithin. The result is fresh, so
+// a caller may keep it.
 func (k PrimKind) domainParents() []PrimKind {
 	switch k {
 	case PrimInt8:
@@ -172,7 +173,7 @@ func (k PrimKind) StrictlyWithin(broad PrimKind) bool {
 }
 
 // AdditionalMode describes the openness of a model's property set beyond its
-// declared properties and AdditionalProps (ir-design §4.3).
+// declared properties and AdditionalProps (docs/ir/models.md).
 type AdditionalMode string
 
 // Additional-property modes.
@@ -187,23 +188,25 @@ const (
 	AdditionalClosedAfterComposition AdditionalMode = "closed_after_composition"
 )
 
-// Primitive is a built-in scalar leaf type (ir-design §4.1).
+// Primitive is a built-in scalar leaf type (docs/ir/primitives.md).
 type Primitive struct {
 	TypeCommon
 	// Prim selects the primitive kind.
 	Prim PrimKind `json:"prim"`
 }
 
-// Scalar is a named restricted or extended primitive (ir-design §4.2). Emitters
-// resolve the Base chain to the nearest representable base, accumulating
-// constraints and encoding along the way.
+// Scalar is a named restricted or extended primitive (docs/ir/scalars.md).
+// Emitters resolve the Base chain to the nearest representable base,
+// accumulating constraints and encoding along the way.
 type Scalar struct {
 	TypeCommon
 	// Base is what this scalar extends: a primitive or another scalar in a
 	// restriction chain, or — where the scalar is the alias a declaring position
-	// hoisted over a shared target (ir-design §12.1) — a node of any kind, which a
-	// consumer following the chain must expect and stop at. nil = opaque scalar
-	// with implementation-defined representation (GraphQL custom scalars).
+	// hoisted over a shared target
+	// (docs/ir/annotations.md#one-structural-home-per-declaration) — a node of
+	// any kind, which a consumer following the chain must expect and stop at.
+	// nil = opaque scalar with implementation-defined representation (GraphQL
+	// custom scalars).
 	Base *TypeRef `json:"base,omitzero"`
 	// Constraints restricts the scalar's admissible values.
 	Constraints *Constraints `json:"constraints,omitzero"`
@@ -211,9 +214,9 @@ type Scalar struct {
 	Encoding *Encoding `json:"encoding,omitzero"`
 }
 
-// Model is a struct, object, or message shape (ir-design §4.3). Properties holds
-// only the model's own properties; consumers walk Base, Implements, and Mixins
-// for the full shape.
+// Model is a struct, object, or message shape (docs/ir/models.md). Properties
+// holds only the model's own properties; consumers walk Base, Implements, and
+// Mixins for the full shape.
 type Model struct {
 	TypeCommon
 	// Properties are the model's own properties, in source order.
@@ -261,7 +264,7 @@ type Model struct {
 	InputOnly bool `json:"inputOnly"`
 }
 
-// WireIDRange is an inclusive range of wire IDs (ir-design §4.3).
+// WireIDRange is an inclusive range of wire IDs (docs/ir/models.md).
 type WireIDRange struct {
 	// From is the first wire ID in the range.
 	From int `json:"from"`
@@ -270,8 +273,8 @@ type WireIDRange struct {
 }
 
 // AdditionalProps describes a model's catch-all for undeclared properties
-// (ir-design §4.3). It types the members beside a model's declared structure; a
-// map that declares nothing else is a MapT.
+// (docs/ir/models.md). It types the members beside a model's declared
+// structure; a map that declares nothing else is a MapT.
 type AdditionalProps struct {
 	// Value is the value schema for catch-all properties.
 	Value TypeRef `json:"value"`
@@ -291,12 +294,13 @@ type PatternProps struct {
 }
 
 // Discriminator locates and maps the tag that selects a variant in a
-// polymorphic model hierarchy or union (ir-design §4.3). Exactly one of
-// Property, PropertyName, or Index locates the tag.
+// polymorphic model hierarchy or union (docs/ir/models.md#discriminator).
+// Exactly one of Property, PropertyName, or Index locates the tag.
 type Discriminator struct {
 	// Property is the property carrying the tag in model hierarchies, the
-	// declaration the flattening of the model holding it takes (ir-design §4.3);
-	// empty when PropertyName or Index locates the tag instead.
+	// declaration the flattening of the model holding it takes
+	// (docs/ir/models.md#the-flattening); empty when PropertyName or Index
+	// locates the tag instead.
 	Property PropID `json:"property,omitempty"`
 	// PropertyName is the wire name of the tag property in unions, where the
 	// property exists on no single model (TypeSpec @discriminated
@@ -321,8 +325,9 @@ type Discriminator struct {
 	Inferred bool `json:"inferred"`
 }
 
-// Union is a sum over variant types (ir-design §4.4). One node covers untagged
-// anyOf/oneOf, unions a tag in the payload routes, and key-tagged unions.
+// Union is a sum over variant types (docs/ir/unions.md). One node covers
+// untagged anyOf/oneOf, unions a tag in the payload routes, and key-tagged
+// unions.
 type Union struct {
 	TypeCommon
 	// Variants are the union's members, in source order.
@@ -344,7 +349,7 @@ type Union struct {
 	Discriminator *Discriminator `json:"discriminator,omitzero"`
 }
 
-// Variant is one member of a Union (ir-design §4.4).
+// Variant is one member of a Union (docs/ir/unions.md).
 type Variant struct {
 	// Name is the variant's naming; Hint-only for bare oneOf members.
 	Name Naming `json:"name"`
@@ -373,7 +378,7 @@ type Variant struct {
 }
 
 // EventInfo carries per-event metadata when a union is an event stream's event
-// set (ir-design §4.4).
+// set (docs/ir/unions.md).
 type EventInfo struct {
 	// ContentType is the per-event content type (TypeSpec @Events.contentType).
 	ContentType string `json:"contentType,omitempty"`
@@ -382,7 +387,7 @@ type EventInfo struct {
 	Terminal bool `json:"terminal"`
 }
 
-// Enum is a closed or open set of named values (ir-design §4.5).
+// Enum is a closed or open set of named values (docs/ir/enums.md).
 type Enum struct {
 	TypeCommon
 	// ValueType is the primitive type of the members' values.
@@ -399,7 +404,7 @@ type Enum struct {
 	FallbackMember string `json:"fallbackMember,omitempty"`
 }
 
-// EnumMember is one member of an Enum (ir-design §4.5).
+// EnumMember is one member of an Enum (docs/ir/enums.md).
 type EnumMember struct {
 	// ID identifies the member within the document. It is keyed by the member's
 	// value, never its name or position, so reordering members whose values are
@@ -424,7 +429,7 @@ type EnumMember struct {
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
-// List is an ordered collection (ir-design §4.6).
+// List is an ordered collection (docs/ir/containers.md).
 type List struct {
 	TypeCommon
 	// Elem is the element type.
@@ -438,8 +443,8 @@ type List struct {
 
 // MapT is a keyed collection and nothing else: TypeSpec Record, a protobuf
 // map, an OpenAPI object whose only statement about its members is
-// additionalProperties (ir-design §4.6). A catch-all beside any other member
-// fact stays a Model's AdditionalProps; AsMap draws that line for every
+// additionalProperties (docs/ir/containers.md). A catch-all beside any other
+// member fact stays a Model's AdditionalProps; AsMap draws that line for every
 // producer.
 type MapT struct {
 	TypeCommon
@@ -455,9 +460,9 @@ type MapT struct {
 
 // Tuple is a positional sequence: a type for each leading position, then the
 // type of whatever follows them (prefixItems and items, TypeSpec tuples, Erlang
-// tuples) (ir-design §4.6). Elems types positions without requiring them: how
-// many elements an instance must hold is Constraints.MinItems, so a tuple of
-// fixed length sets it to len(Elems) and has no Rest.
+// tuples) (docs/ir/containers.md). Elems types positions without requiring
+// them: how many elements an instance must hold is Constraints.MinItems, so a
+// tuple of fixed length sets it to len(Elems) and has no Rest.
 type Tuple struct {
 	TypeCommon
 	// Elems are the element types in position order.
@@ -470,8 +475,8 @@ type Tuple struct {
 }
 
 // Literal is a single constant value used as a type: JSON Schema const, a
-// TypeSpec literal type, an Erlang atom (ir-design §4.6). An enum of one member
-// is an Enum, never a Literal (ir-design §4.5).
+// TypeSpec literal type, an Erlang atom (docs/ir/containers.md). An enum of one
+// member is an Enum, never a Literal (docs/ir/enums.md).
 type Literal struct {
 	TypeCommon
 	// Value is the constant value.
@@ -479,7 +484,8 @@ type Literal struct {
 }
 
 // External is a well-known library type that no target can structurally model,
-// resolved to a runtime handle by the emitter (TCGC external) (ir-design §4.6).
+// resolved to a runtime handle by the emitter (TCGC external)
+// (docs/ir/containers.md).
 type External struct {
 	TypeCommon
 	// Identity is the external type's stable identity (e.g. "erlang:pid").
@@ -490,7 +496,7 @@ type External struct {
 	MinVersion string `json:"minVersion,omitempty"`
 }
 
-// Any is a schemaless type (ir-design §4.6).
+// Any is a schemaless type (docs/ir/containers.md).
 type Any struct {
 	TypeCommon
 }

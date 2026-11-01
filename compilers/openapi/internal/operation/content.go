@@ -26,8 +26,8 @@ import (
 
 // lowerPayload lowers a request/response body's content map into a Payload with
 // one Content per media type — all kept, in source order, with no primary-
-// content selection (ir-design §7.2). The pointer is the payload owner (the
-// response or requestBody); each Content's schema hoists under
+// content selection (docs/ir/payloads.md). The pointer is the payload owner
+// (the response or requestBody); each Content's schema hoists under
 // <pointer>/content/<mt>/schema.
 func lowerPayload(c lowering.Ctx, ts *compile.Types, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {

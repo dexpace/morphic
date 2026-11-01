@@ -27,7 +27,8 @@ two states, a `Diagnostic` is emitted — never a silent conflation
 A nullable reference whose `TypeRef.Inferred` names a heuristic renders as nullable like any
 other: the compiler's policy already chose to read null in, and the marker is there so that choice
 stays auditable (INV6). A configuration that wants only what the source declares reads
-`Nullable && Inferred == ""` instead, which is the declared bit (ir-design §3.3).
+`Nullable && Inferred == ""` instead, which is the declared bit
+([type-graph](../../ir/type-graph.md#type-references)).
 
 A merge-patch body (`application/merge-patch+json`) is where all three of an optional field's states
 change the request: absent leaves the member as it is and `null` removes it. Every target sends both
@@ -54,9 +55,10 @@ too. Each target says how ([Go](../targets/go/models.md#user-in-go),
 ## Recursive references
 
 `Facts.Recursive` says whether a value of a type can hold, at any depth, a value of its own shape,
-and `Facts.Component` which types share that cycle (ir-design §4.9); the engine derives both once
-per document ([who computes the plan](../contract/emitter.md#who-computes-the-plan)). What a target
-must do about a cycle is its own, since what breaks one is a property of its type system ([plan or
+and `Facts.Component` which types share that cycle ([derived-facts](../../ir/derived-facts.md)); the
+engine derives both once per document ([who computes the
+plan](../contract/emitter.md#who-computes-the-plan)). What a target must do about a cycle is its
+own, since what breaks one is a property of its type system ([plan or
 refine](../plan/plan-or-refine.md)). Each says what it does
 ([Go](../targets/go/models.md#recursive-references),
 [Kotlin](../targets/kotlin/models.md#recursive-references)). A cycle a target must break lies within

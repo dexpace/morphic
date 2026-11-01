@@ -4,8 +4,9 @@
 package ir
 
 // AsMap returns the MapT that m is when m is a map and nothing else, and false
-// otherwise (ir-design §4.6). It is the one reading of that rule: a compiler
-// converts the Model it built through it, and irverify holds a document to it.
+// otherwise (docs/ir/containers.md). It is the one reading of that rule: a
+// compiler converts the Model it built through it, and irverify holds a
+// document to it.
 //
 // The MapT keeps m's TypeCommon, so its ID, name and annotations, and takes the
 // catch-all's key and value and m's Constraints. It shares their slices, maps

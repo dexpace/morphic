@@ -15,12 +15,12 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// LowerSecurityRequirements lowers an OR-of-ANDs security list (ir-design §9)
-// declared under base: "" at the root, else an operation's own declaration,
-// never its mount. A nil list inherits the enclosing default; an empty one
-// stays []. A non-nil list yields one AuthRequirement per surviving option,
-// diagnosed at base+/security/<index>; an empty option {} means "no auth is one
-// acceptable choice".
+// LowerSecurityRequirements lowers an OR-of-ANDs security list
+// (docs/ir/auth.md) declared under base: "" at the root, else an operation's
+// own declaration, never its mount. A nil list inherits the enclosing default;
+// an empty one stays []. A non-nil list yields one AuthRequirement per
+// surviving option, diagnosed at base+/security/<index>; an empty option {}
+// means "no auth is one acceptable choice".
 //
 // If every option of a non-empty list drops, it collapses to nil, with an
 // error: the IR cannot say "auth required, scheme undeclared", #14 forbids an

@@ -1,13 +1,13 @@
 # BindingView — the per-protocol request/response projection
 
-`Parameter`s carry no protocol location (`ir-design.md §7.2`). The plan derives, from `OpBindings`,
-a neutral per-protocol view a refiner turns into a request builder: which params are path/query/
-header/cookie/body, their style/explode/prefix, escaping, empty value and media type, RPC message
-folding, message channel + reply, the GraphQL entry point, the OTP call/cast shape. One operation
-may carry several bindings (gRPC transcoding `additional_bindings`, HTTP+RPC); all are represented,
-primary first. This resolves `ir-design.md` open Q6 on the emitter side: status conditions and
-`StatusCodeProp` are read through the HTTP `BindingView`, so RPC/OTP single-response ops with empty
-conditions are handled uniformly.
+`Parameter`s carry no protocol location ([operations](../../ir/operations.md)). The plan derives,
+from `OpBindings`, a neutral per-protocol view a refiner turns into a request builder: which params
+are path/query/ header/cookie/body, their style/explode/prefix, escaping, empty value and media
+type, RPC message folding, message channel + reply, the GraphQL entry point, the OTP call/cast
+shape. One operation may carry several bindings (gRPC transcoding `additional_bindings`, HTTP+RPC);
+all are represented, primary first. This resolves [open question 6](../../ir/open-questions.md) on
+the emitter side: status conditions and `StatusCodeProp` are read through the HTTP `BindingView`, so
+RPC/OTP single-response ops with empty conditions are handled uniformly.
 
 ```go
 type BindingView struct {
@@ -40,18 +40,18 @@ type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir
 
 The traces in these documents exercise `Protocol == "http"`; the RPC/message/OTP arms exist in the
 type so the second-protocol emitter ([open question 4](../open-questions.md)) does not force a plan
-schema change (INV9). Channels and messages (`ir-design.md §8.3`) reach an emitter through
-`MsgView`; a messaging target consumes them the same way an HTTP target consumes `HTTP`.
+schema change (INV9). Channels and messages ([messaging](../../ir/messaging.md)) reach an emitter
+through `MsgView`; a messaging target consumes them the same way an HTTP target consumes `HTTP`.
 
 `Raw` is `ir.RawConfig`, not `ir.Unmodeled`, and the distinction is not cosmetic. It carries
 *declared* protocol configuration the plan chooses to pass through unstructured — the GraphQL
 entry point, the OTP call/cast tag, AsyncAPI deployment bindings — all of which the IR models
 fields for; there is no unmodeled construct to give a reason for, and the source position a
 consumer would want is the owning binding's. The `Unmodeled` map each binding struct carries
-(`ir-design.md §8.1`–`§8.5`) is the other thing entirely: the escape hatch for constructs the IR
-does *not* model — a directive applied to a GraphQL entry-point field, say — where `Reason` and
-`Provenance` are exactly what a policy layer selects on. A refiner reads both, for different
-purposes.
+(the [binding documents](../../ir/bindings.md)) is the other thing entirely: the escape hatch for
+constructs the IR does *not* model — a directive applied to a GraphQL entry-point field, say — where
+`Reason` and `Provenance` are exactly what a policy layer selects on. A refiner reads both, for
+different purposes.
 
 Sub-clients and fluent navigation are built from the `OperationGroup` tree itself — its nesting,
 names, operations and Smithy `Resource` — which the IR states, so the plan mirrors none of it ([plan

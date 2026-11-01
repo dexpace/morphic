@@ -73,15 +73,15 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 // ir.Value one, and the raw-JSON one went on rewriting a date to RFC 3339 with
 // this fixture green (GitHub #242); assertRawPreservedDates is the other half.
 func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	// R's `not` announces the §4.7 carve-out. That is the only notice any site
-	// here is allowed to say, and it is not about a date: one that was dropped or
-	// degraded reports itself as a warning, which is what this fixture exists to
-	// catch.
+	// R's `not` announces the validation-only carve-out. That is the only notice
+	// any site here is allowed to say, and it is not about a date: one that was
+	// dropped or degraded reports itself as a warning, which is what this fixture
+	// exists to catch.
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityInfo, d.Severity,
 			"every unquoted date converts cleanly; nothing is dropped or degraded: %+v", d)
 		assert.Equal(t, "openapi/validation-only-keyword", d.Code,
-			"the §4.7 carve-out is the only other notice this fixture expects: %+v", d)
+			"the validation-only carve-out is the only other notice this fixture expects: %+v", d)
 	}
 
 	d, ok := doc.Types[componentID("D")].(*ir.Enum)
@@ -118,7 +118,7 @@ func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagn
 }
 
 // assertRawPreservedDates pins the source spelling of a date kept as raw JSON,
-// at both sites that channel has: a vendor extension and the §4.7
+// at both sites that channel has: a vendor extension and the validation-only
 // validation-only carve-out. Each wants the text the source wrote — resolving
 // the tag and re-rendering it hands the construct a padding, a time and a zone
 // nobody asked for, and the resolved form cannot be read back to the spelling.

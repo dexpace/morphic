@@ -57,9 +57,10 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 // allOf wrapper, so the whole encoding block was discarded with no diagnostic and
 // a Content that still looked well-formed, just smaller (GitHub #140).
 //
-// The keys are asserted to be the properties the IR actually holds: §4.3 keeps a
-// composed model's inherited parts on its Base, so a key derived from the
-// composed node's own pointer would name a property that exists nowhere.
+// The keys are asserted to be the properties the IR actually holds:
+// docs/ir/models.md#composition keeps a composed model's inherited parts on its
+// Base, so a key derived from the composed node's own pointer would name a
+// property that exists nowhere.
 func assertComposedPartEncoding(t *testing.T, doc *ir.Document) {
 	t.Helper()
 	op, ok := opByName(doc, "uploadComposed")

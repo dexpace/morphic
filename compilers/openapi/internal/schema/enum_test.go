@@ -36,10 +36,11 @@ func TestEnum_StringClosed(t *testing.T) {
 	assert.Equal(t, "b", e.Members[1].Name.Source)
 }
 
-// TestEnum_NullMemberNormalizesToNullable pins ir-design §3.3 for the canonical
-// spelling of a nullable enum: on a schema that admits null in its own right,
-// the `null` member is stripped and carried by the enclosing reference's
-// Nullable bit, leaving a closed Enum of the scalar members (GitHub #44).
+// TestEnum_NullMemberNormalizesToNullable pins
+// docs/ir/type-graph.md#type-references for the canonical spelling of a
+// nullable enum: on a schema that admits null in its own right, the `null`
+// member is stripped and carried by the enclosing reference's Nullable bit,
+// leaving a closed Enum of the scalar members (GitHub #44).
 //
 // The leading-null rows are not duplicates of the trailing-null ones: member
 // kinds were reconciled against the member at index 0, so a leading `null`

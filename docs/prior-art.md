@@ -1,7 +1,7 @@
 # Prior Art — Lessons from oagen, Kiota, and TypeSpec
 
 Condensed findings from studying three reference codebases, and the decisions Morphic takes from
-each. This is the evidence base behind `architecture.md` and `ir-design.md`.
+each. This is the evidence base behind `architecture.md` and the [IR design](./ir/README.md).
 
 ---
 
@@ -91,7 +91,8 @@ and a self-correcting overlay loop. Three structural lessons:
   reinvents a spec-level identity (`conceptualChangeId`). Morphic's pointer-derived IDs make
   rename detection a lookup; the compat experience adds one refinement — when both pointer
   *and* name churn, a third *structural* correlation tier (content-hash / field-set
-  similarity, shared with the `dedup` pass) is the fallback (see ir-design.md open question 5).
+  similarity, shared with the `dedup` pass) is the fallback (see [open question
+  5](./ir/open-questions.md)).
 - **Breaking-ness is per-language policy, not a property of a change.** The same spec change
   is breaking in PHP (param names are public API), soft-risk in Kotlin, invisible in Node.
   oagen's two-stage split — neutral change records, then `(change × language) → severity`

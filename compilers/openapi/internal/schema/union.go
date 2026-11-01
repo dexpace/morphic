@@ -21,12 +21,12 @@ import (
 )
 
 // lowerOneOfAnyOf lowers a oneOf/anyOf schema. A set of one non-null branch X
-// beside any number of bare null branches collapses to nullable X (ir-design
-// §3.3); a set with no non-null branch at all (every branch a bare `type:
-// null`) has no X for that collapse to name, so it lowers to nullable `any`
-// instead (lowerNullOnlyUnion, GitHub #416); everything else becomes a Union
-// with one Variant per non-null branch (oneOf exclusive, anyOf not), never
-// collapsing a union into optional fields.
+// beside any number of bare null branches collapses to nullable X
+// (docs/ir/type-graph.md#type-references); a set with no non-null branch at all
+// (every branch a bare `type: null`) has no X for that collapse to name, so it
+// lowers to nullable `any` instead (lowerNullOnlyUnion, GitHub #416);
+// everything else becomes a Union with one Variant per non-null branch (oneOf
+// exclusive, anyOf not), never collapsing a union into optional fields.
 func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	if inner, ip, ok := nullUnionCollapse(s, pointer); ok {
 		ref, diags := Ref(c, ts, depth, inner, ip)
@@ -55,7 +55,8 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schem
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
 // beside `type: null` branches, and returns that branch's schema and pointer,
-// so it lowers as nullable X, not a union node (ir-design §3.3).
+// so it lowers as nullable X, not a union node
+// (docs/ir/type-graph.md#type-references).
 //
 // A schema declaring both combinators collapses neither: the co-declared anyOf
 // conjoins, so the position is not nullable X. The Union keeps the unused
@@ -174,7 +175,7 @@ func preserveNullOnlyUnion(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *o
 
 // preserveBranchSets stores s's declared oneOf/anyOf verbatim under p, in
 // keyword order, reporting one it cannot convert. ir.ReasonValidationOnly
-// routes each through §4.7's keyword-family reporting
+// routes each through the validation-only keyword-family reporting
 // (annotation.PreserveValidationOnlyKeyword) and returns no keywords. Every
 // other reason keeps each plainly (annotation.PreserveSchemaKeyword) and returns
 // the keywords kept, so a caller with a message of its own knows what to name.
@@ -259,7 +260,7 @@ type variantTypeFunc func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.
 // The variants are lowered before the discriminator, so its mapping resolves
 // knowing what each variant names (readsThrough). A union the discriminator
 // routes is WireTagged, an anyOf as much as a oneOf: the tag property's value
-// names its variant (ir-design §4.4).
+// names its variant (docs/ir/unions.md).
 func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer, variantType variantTypeFunc) (ir.TypeDef, []ir.Diagnostic) {
 	branches, key, exclusive := unionBranches(s)
 	diags := preserveUnusedCombinator(c, &common.Unmodeled, s, key, pointer)
@@ -361,7 +362,8 @@ func typesDisjoint(types []oas3.SchemaType) bool {
 // keywords (a type, properties, allOf, const/enum, additionalProperties, ...) or
 // a keyword that narrows an instance without declaring one. When it does, the
 // union alone cannot represent the schema, so the sibling body must be lowered
-// too rather than dropped (invariant 2, ir-design §4.3).
+// too rather than dropped (invariant 2,
+// docs/ir/models.md#composition-beside-a-union).
 func hasUnionSiblings(s *oas3.Schema) bool {
 	return narrowsInstance(s) || declaresShape(s)
 }
@@ -404,7 +406,8 @@ const (
 // classifyUnionSiblings picks the lowering for a schema whose oneOf/anyOf sits
 // beside structural keywords. JSON Schema conjoins keywords, so such a schema
 // is an intersection of a structural body and a union, which the IR
-// deliberately has no combinator for (ir-design §15). Every outcome keeps both
+// deliberately has no combinator for
+// (docs/ir/boundaries.md#deliberate-exclusions). Every outcome keeps both
 // sides: classified where the IR can express the conjunction, verbatim where it
 // cannot.
 //
@@ -439,7 +442,7 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
 // data shape. When none does — `oneOf: [{required: [a]}, {required: [b]}]`, the
 // commonest instance — the union narrows what the sibling body accepts without
 // changing it, which is dependentRequired's job description: validation logic,
-// not shape (ir-design §4.7).
+// not shape (docs/ir/boundaries.md#validation-only-constructs).
 func unionBranchesDeclareShape(s *oas3.Schema) bool {
 	return slices.ContainsFunc(s.GetOneOf(), branchDeclaresShape) ||
 		slices.ContainsFunc(s.GetAnyOf(), branchDeclaresShape)
@@ -579,8 +582,8 @@ func lowerBesideUnmodeledUnion(c lowering.Ctx, ts *compile.Types, depth int, s *
 }
 
 // preserveUnionSiblings stores the raw oneOf/anyOf of s under the owning node's
-// Unmodeled. A validation-only union joins §4.7's keyword family and is reported
-// with it; anything else is a §4.8 degradation and says so.
+// Unmodeled. A validation-only union joins the validation-only keywords and is
+// reported with it; anything else is a degraded lowering and says so.
 func preserveUnionSiblings(c lowering.Ctx, ts *compile.Types, id ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer, reason ir.UnmodeledReason, why string) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {
@@ -625,8 +628,9 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 // lowerDistributedUnion emits the Union that is the schema's value, distributing
 // the sibling composition across its variants: `S ∧ (X | Y)` becomes
 // `(S ∧ X) | (S ∧ Y)`. Each variant is a Model classifying S's Base/Mixins and
-// own properties (ir-design §4.3) alongside its branch, so the composition is
-// carried on every variant rather than merged into one or dropped.
+// own properties (docs/ir/models.md#composition-beside-a-union) alongside its
+// branch, so the composition is carried on every variant rather than merged
+// into one or dropped.
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
@@ -657,13 +661,15 @@ type composedBody struct {
 // composedVariant synthesizes the Model for one distributed variant: the
 // enclosing schema's composition and own properties conjoined with that
 // branch's referent. The branch is conjoined last so the enclosing composition
-// classifies first, keeping ir-design §4.3's "sole $ref becomes Base" reading
-// of the allOf the source actually wrote.
+// classifies first, keeping the "sole $ref becomes Base" reading of
+// docs/compilers/openapi.md#allof-classification of the allOf the source
+// actually wrote.
 //
 // The Model gets an ID of its own (ids.ComposedType), not the branch pointer's,
 // which already denotes the branch schema. Interning there made the two race
 // for one pointer, so a $ref to the branch could find either the bare branch or
-// the full variant, depending on lowering order (§4.3).
+// the full variant, depending on lowering order
+// (docs/ir/models.md#composition-beside-a-union).
 func composedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody,
 	b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer,
 ) (ir.TypeRef, []ir.Diagnostic) {
@@ -727,12 +733,13 @@ func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body com
 }
 
 // conjoinBranch adds one union branch's referent to the variant model,
-// classified per ir-design §4.3: Base when the enclosing schema composed
-// nothing, a Mixin otherwise. Only the target is carried, never the branch
-// ref's Nullable bit — fillAllOf drops it for an allOf entry on the same
-// reasoning: Base and Mixins name a conjunct, and nullability is a property of
-// the usage that names the conjunction, not of one side of it. The usage here is
-// the union variant, and composedVariantRef is what puts the bit on it.
+// classified per docs/ir/models.md#composition-beside-a-union: Base when the
+// enclosing schema composed nothing, a Mixin otherwise. Only the target is
+// carried, never the branch ref's Nullable bit — fillAllOf drops it for an
+// allOf entry on the same reasoning: Base and Mixins name a conjunct, and
+// nullability is a property of the usage that names the conjunction, not of one
+// side of it. The usage here is the union variant, and composedVariantRef is
+// what puts the bit on it.
 func conjoinBranch(m *ir.Model, branch ir.TypeID) {
 	target := ir.TypeRef{Target: branch}
 	if m.Base == nil && len(m.Mixins) == 0 {

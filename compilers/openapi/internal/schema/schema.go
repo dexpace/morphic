@@ -155,13 +155,14 @@ func falseSchema(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer) (i
 	// it is the honest place for it, not a load-bearing one.
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		// Kept verbatim beside the approximation, which is what §4.8 asks of
-		// every degraded lowering that loses something, and what the composition
-		// half of this same rule already did. Without it a `false` schema and a
-		// schema that merely wrote `additionalProperties: false` are the same
-		// node, so nothing downstream can tell "no instance" from "the empty
-		// object" — the diagnostic says which one it was, but a diagnostic is not
-		// part of the document.
+		// Kept verbatim beside the approximation, which is what
+		// docs/ir/boundaries.md#degraded-constructs asks of every degraded
+		// lowering that loses something, and what the composition half of this
+		// same rule already did. Without it a `false` schema and a schema that
+		// merely wrote `additionalProperties: false` are the same node, so
+		// nothing downstream can tell "no instance" from "the empty object" —
+		// the diagnostic says which one it was, but a diagnostic is not part of
+		// the document.
 		//
 		// The key names the position rather than a keyword, because a boolean
 		// schema writes none. Nothing can collide with it: a schema that is a
@@ -366,9 +367,10 @@ func dispatchOf(s *oas3.Schema) dispatch {
 //
 // JSON Schema conjoins keywords, so `{allOf: [{$ref: Base}], enum: [a, b]}` is a
 // narrowing of Base, not a malformed document. The IR has no intersection
-// combinator (ir-design §15), so only one family can be the value; keeping the
-// loser beside it is what the rule docs/compilers/openapi.md#competing-keywords
-// asks of an unrepresentable conjunction.
+// combinator (docs/ir/boundaries.md#deliberate-exclusions), so only one family
+// can be the value; keeping the loser beside it is what the rule
+// docs/compilers/openapi.md#competing-keywords asks of an unrepresentable
+// conjunction.
 //
 // It reports the keywords it stored, never the ones it was handed, so the
 // message cannot claim one that failed to convert.
@@ -418,7 +420,7 @@ func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 // property set, a value set, composition, or a catch-all — rather than only
 // narrowing what an already-declared shape accepts. The narrowing keywords are
 // narrowsInstance's, which hasUnionSiblings and dynamicRefSiblings add to it
-// (ir-design §4.7).
+// (docs/compilers/openapi.md#union-beside-structure).
 func declaresShape(s *oas3.Schema) bool {
 	if props := s.GetProperties(); props != nil && props.Len() > 0 {
 		return true

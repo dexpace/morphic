@@ -77,12 +77,13 @@ func TestNewDiagnostic_RoundTripsByteForByte(t *testing.T) {
 	assert.Equal(t, d, back, "the in-memory diagnostic survives a JSON round-trip")
 }
 
-// TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey pins the wire shape §13
-// promises: each kind of locator sits under its own JSON member, so a consumer
-// can tell a pointer from a position from a node by the key alone rather than
-// by parsing the value. The pointer-only row is byte-identical to what 0.5.0
-// wrote — the field was already a string on the wire, so the type change
-// underneath it is invisible to a consumer reading JSON.
+// TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey pins the wire shape
+// docs/ir/provenance.md promises: each kind of locator sits under its own JSON
+// member, so a consumer can tell a pointer from a position from a node by the
+// key alone rather than by parsing the value. The pointer-only row is
+// byte-identical to what 0.5.0 wrote — the field was already a string on the
+// wire, so the type change underneath it is invisible to a consumer reading
+// JSON.
 func TestProvenance_JSONEncodesEachLocatorUnderItsOwnKey(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

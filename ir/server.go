@@ -3,10 +3,10 @@
 
 package ir
 
-// Server is a named endpoint template (ir-design §10). Servers are named
-// entities (AsyncAPI name-keyed servers, OpenAPI 3.2 Server.name), registered in
-// Document.Servers whichever object declares them, and the services, channels
-// and operations they serve name them by ID.
+// Server is a named endpoint template (docs/ir/servers.md). Servers are named
+// entities (AsyncAPI name-keyed servers, OpenAPI 3.2 Server.name), registered
+// in Document.Servers whichever object declares them, and the services,
+// channels and operations they serve name them by ID.
 type Server struct {
 	// ID is the server's stable synthetic identity, derived from where the source
 	// declares it.
@@ -42,7 +42,8 @@ type Server struct {
 	Provenance Provenance `json:"provenance"`
 }
 
-// ServerVariable is one variable of a Server's URL template (ir-design §10).
+// ServerVariable is one variable of a Server's URL template
+// (docs/ir/servers.md).
 type ServerVariable struct {
 	// Name is the variable name referenced in the URL template.
 	Name string `json:"name,omitempty"`

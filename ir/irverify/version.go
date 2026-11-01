@@ -14,7 +14,7 @@ import (
 const versionPath = ir.DocumentPath + ".IRVersion"
 
 // checkVersion asserts the document declares the IR schema generation it was
-// written against, and that this build reads it (ir-design §2.1).
+// written against, and that this build reads it (docs/ir/ir-version.md).
 //
 // Every other check holds a document against itself; this one holds it against
 // the schema it claims to conform to, the one claim a consumer cannot recompute

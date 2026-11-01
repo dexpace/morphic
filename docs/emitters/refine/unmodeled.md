@@ -1,7 +1,8 @@
 # Unmodeled entries
 
-An `Unmodeled` entry is a construct the IR keeps verbatim rather than modeling it (ir-design §12).
-An SDK emitter acts on an entry's `Reason`, never on its key, and reports none of them:
+An `Unmodeled` entry is a construct the IR keeps verbatim rather than modeling it
+([unmodeled](../../ir/unmodeled.md)). An SDK emitter acts on an entry's `Reason`, never on its key,
+and reports none of them:
 
 | Reason | What an SDK emitter does |
 |---|---|
@@ -13,9 +14,9 @@ An SDK emitter acts on an entry's `Reason`, never on its key, and reports none o
 
 **Reporting is the compiler's.** The compiler is the stage that chose to keep a construct rather
 than model it, and its specification states the diagnostic each kept construct draws, or that it
-draws none (ir-design §12). `Document.Diagnostics` carries those reports to every consumer, so a
-report from the emitter would repeat each one once per target and add only "this target ignores
-it", which the table already says of every SDK target.
+draws none ([unmodeled](../../ir/unmodeled.md#reporting)). `Document.Diagnostics` carries those
+reports to every consumer, so a report from the emitter would repeat each one once per target and
+add only "this target ignores it", which the table already says of every SDK target.
 
 **Keys are read by name only through a policy.** An SDK emitter reads an entry's key only where a
 policy names it, and only `vendor_extension` and `out_of_scope` entries are kept for policies

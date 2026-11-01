@@ -4,8 +4,8 @@
 package ir
 
 // Operation is the protocol-neutral core of a callable API operation
-// (ir-design §7.2). Parameters carry no protocol location; each binding in
-// Bindings maps the core onto a concrete protocol.
+// (docs/ir/operations.md). Parameters carry no protocol location; each binding
+// in Bindings maps the core onto a concrete protocol.
 type Operation struct {
 	// ID is the operation's stable synthetic identity.
 	ID OpID `json:"id,omitempty"`
@@ -51,9 +51,9 @@ type Operation struct {
 	// (Smithy @readonly, HTTP GET semantics).
 	Idempotency Idempotency `json:"idempotency"`
 	// Servers names the servers the operation is sent to, most preferred first,
-	// in place of its service's; empty = its service's (ir-design §10). OpenAPI
-	// declares them on a path item and on an operation, the operation's own
-	// taking precedence. No entry is empty.
+	// in place of its service's; empty = its service's (docs/ir/servers.md).
+	// OpenAPI declares them on a path item and on an operation, the operation's
+	// own taking precedence. No entry is empty.
 	Servers []ServerID `json:"servers,omitempty"`
 	// Auth overrides the service default; an empty slice differs from nil (empty
 	// = explicitly public). omitzero keeps the two apart on the wire: nil is an
@@ -71,7 +71,8 @@ type Operation struct {
 	// OverloadOf points at the operation this one overloads (TypeSpec @overload);
 	// when set, never empty.
 	OverloadOf *OpID `json:"overloadOf,omitzero"`
-	// Bindings describes how the neutral core maps onto concrete protocols (§8).
+	// Bindings describes how the neutral core maps onto concrete protocols
+	// (docs/ir/bindings.md).
 	Bindings OpBindings `json:"bindings"`
 	// Examples are operation-scenario examples.
 	Examples []Example `json:"examples,omitempty"`
@@ -82,8 +83,8 @@ type Operation struct {
 }
 
 // Parameter is one logical input of an Operation, protocol-unbound; its wire
-// location is HTTP-binding detail (ir-design §7.2). GraphQL field arguments
-// (Property.Args) reuse this shape.
+// location is HTTP-binding detail (docs/ir/operations.md). GraphQL field
+// arguments (Property.Args) reuse this shape.
 type Parameter struct {
 	// ID identifies the parameter within the document. The bindings, the
 	// pagination inputs and the idempotency token name a parameter by it, not by
@@ -102,7 +103,8 @@ type Parameter struct {
 	// stays on the node Type points at and is never copied here, unlike Docs,
 	// Deprecation and Default, which merge from that target with use-site
 	// precedence: bounds conjoin rather than override, so nil means this
-	// position declared none, not that the value is unbounded (ir-design §12.2).
+	// position declared none, not that the value is unbounded
+	// (docs/ir/annotations.md#what-a-reference-carries-down).
 	Constraints *Constraints `json:"constraints,omitzero"`
 	// ValueFrom derives the parameter's value from a location in the
 	// outgoing/incoming message (AsyncAPI parameter location runtime
@@ -129,7 +131,7 @@ type Parameter struct {
 }
 
 // Payload is the body/message content of a request, response, or message
-// (ir-design §7.2). All media types are kept.
+// (docs/ir/payloads.md). All media types are kept.
 type Payload struct {
 	// Contents holds one entry per media type / message schema — all kept. A
 	// request body declaring no media type, which OpenAPI's schemas admit, has
@@ -153,7 +155,7 @@ type Payload struct {
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
-// Content is one media-type view of a Payload (ir-design §7.2).
+// Content is one media-type view of a Payload (docs/ir/payloads.md).
 type Content struct {
 	// MediaType is "application/json", "multipart/form-data", or "" for non-HTTP.
 	MediaType string `json:"mediaType,omitempty"`
@@ -173,7 +175,8 @@ type Content struct {
 	ItemEncoding *PartEncoding `json:"itemEncoding,omitzero"`
 	// Encoding holds multipart/form per-property (part) wire config, keyed by the
 	// part property's PropID: of a part several declarations name, the one the
-	// flattening of Type takes (ir-design §4.3). No key is empty.
+	// flattening of Type takes (docs/ir/models.md#the-flattening). No key is
+	// empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
 	// payloads): how it travels, while Type stays what the source declares of it.
@@ -185,8 +188,8 @@ type Content struct {
 }
 
 // PartEncoding is the wire configuration of one multipart part or sequential
-// item (ir-design §7.2). TypeSpec tuple-form multipart lowers to a synthesized
-// model whose properties are the parts.
+// item (docs/ir/payloads.md). TypeSpec tuple-form multipart lowers to a
+// synthesized model whose properties are the parts.
 type PartEncoding struct {
 	// ContentTypes are the media type(s) of this part.
 	ContentTypes []string `json:"contentTypes,omitempty"`
@@ -205,7 +208,7 @@ type PartEncoding struct {
 	AllowReserved bool `json:"allowReserved"`
 }
 
-// FileInfo describes a file-upload/download body (ir-design §7.2).
+// FileInfo describes a file-upload/download body (docs/ir/payloads.md).
 type FileInfo struct {
 	// IsText reports textual vs binary contents.
 	IsText bool `json:"isText"`
@@ -224,7 +227,7 @@ type FileInfo struct {
 	FilenameWireName string `json:"filenameWireName,omitempty"`
 }
 
-// Response is one declared output of an Operation (ir-design §7.2). All
+// Response is one declared output of an Operation (docs/ir/responses.md). All
 // responses and all content types survive; the plan layer picks a primary.
 type Response struct {
 	// Name is the response naming for formats with named outputs; Hint elsewhere.
@@ -246,14 +249,14 @@ type Response struct {
 }
 
 // ResponseConditions selects the status codes a Response or ErrorCase applies to
-// (ir-design §7.2).
+// (docs/ir/responses.md).
 type ResponseConditions struct {
 	// StatusCodes are the applicable status ranges; empty = unconditional.
 	StatusCodes []StatusRange `json:"statusCodes,omitempty"`
 }
 
 // StatusRange is an inclusive HTTP status-code range: 200–200, 400–499 ("4XX"),
-// 0–0 = default/catch-all (ir-design §7.2).
+// 0–0 = default/catch-all (docs/ir/responses.md).
 type StatusRange struct {
 	// From is the inclusive lower bound.
 	From int `json:"from"`
@@ -261,7 +264,7 @@ type StatusRange struct {
 	To int `json:"to"`
 }
 
-// ErrorCase is a declared failure shape of an Operation (ir-design §7.2).
+// ErrorCase is a declared failure shape of an Operation (docs/ir/responses.md).
 //
 // An error case is a response, so the four fields it shares with [Response] —
 // Name, Conditions, Payload, Headers — are spelled and lowered identically, and
@@ -304,7 +307,7 @@ type ErrorCase struct {
 }
 
 // StreamingMode is the protocol-independent streaming direction of an Operation
-// (ir-design §7.3).
+// (docs/ir/interaction-patterns.md).
 type StreamingMode string
 
 // Streaming modes.
@@ -331,7 +334,8 @@ func (m StreamingMode) Valid() bool {
 	}
 }
 
-// StreamDetail describes one direction of a streaming Operation (ir-design §7.3).
+// StreamDetail describes one direction of a streaming Operation
+// (docs/ir/interaction-patterns.md).
 type StreamDetail struct {
 	// Events is the stream element type, of any kind; nil where the contents
 	// that stream name different elements, which stay on the payload. For a
@@ -350,7 +354,8 @@ type StreamDetail struct {
 	RequiresLength bool `json:"requiresLength"`
 }
 
-// IdempotencyKind names the idempotency class of an Operation (ir-design §7.2).
+// IdempotencyKind names the idempotency class of an Operation
+// (docs/ir/operations.md).
 type IdempotencyKind string
 
 // Idempotency kinds.
@@ -371,7 +376,7 @@ const (
 // Idempotency is the resolved idempotency classification of an Operation. It
 // reifies the spec's shorthand states unknown | safe | idempotent |
 // idempotency_token(param); TokenParam is set only for the token kind
-// (ir-design §7.2).
+// (docs/ir/operations.md).
 type Idempotency struct {
 	// Kind is the idempotency class.
 	Kind IdempotencyKind `json:"kind,omitempty"`
@@ -380,7 +385,8 @@ type Idempotency struct {
 	TokenParam ParamID `json:"tokenParam,omitempty"`
 }
 
-// PageStrategy names the pagination mechanism of an Operation (ir-design §7.3).
+// PageStrategy names the pagination mechanism of an Operation
+// (docs/ir/interaction-patterns.md).
 type PageStrategy string
 
 // Pagination strategies.
@@ -399,7 +405,8 @@ const (
 	PageStrategyToken PageStrategy = "token"
 )
 
-// Pagination describes an Operation's pagination (ir-design §7.3).
+// Pagination describes an Operation's pagination
+// (docs/ir/interaction-patterns.md).
 type Pagination struct {
 	// Strategy is the pagination mechanism.
 	Strategy PageStrategy `json:"strategy,omitempty"`
@@ -427,7 +434,7 @@ type Pagination struct {
 }
 
 // PropPath addresses a member within a type by identity, not by name
-// (ir-design §7.3).
+// (docs/ir/interaction-patterns.md).
 type PropPath struct {
 	// Root is the type the path roots in; nil = determined by context (the
 	// enclosing response body, message payload, …).
@@ -440,7 +447,8 @@ type PropPath struct {
 	Segments []PropID `json:"segments,omitempty"`
 }
 
-// ParamPath addresses a member within a named parameter (ir-design §7.3).
+// ParamPath addresses a member within a named parameter
+// (docs/ir/interaction-patterns.md).
 type ParamPath struct {
 	// Param is the ID of the parameter the path roots in.
 	Param ParamID `json:"param,omitempty"`
@@ -449,7 +457,8 @@ type ParamPath struct {
 	Segments []PropID `json:"segments,omitempty"`
 }
 
-// LongRunning describes long-running-operation semantics (ir-design §7.3).
+// LongRunning describes long-running-operation semantics
+// (docs/ir/interaction-patterns.md).
 type LongRunning struct {
 	// FinalStateVia is "operation-location" | "status-monitor" | "original-uri" |
 	// … — how the final state is located.

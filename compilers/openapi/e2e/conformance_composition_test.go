@@ -128,12 +128,13 @@ func assertAllOfRequiredOnly(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 }
 
 // assertRequiredMembers pins where a `required` name lands when no property of
-// the object it is written for declares it (ir-design §4.3): in Model.Requires,
-// once, beside the Required on the properties it does name. The four shapes are
-// four ways an object lowers: a plain object, an allOf making a property its
-// base declares required, an object whose catch-all governs the name, which
-// stays a Model rather than becoming a map since a map requires no key, and the
-// object variant of a multi-typed schema.
+// the object it is written for declares it
+// (docs/ir/models.md#required-members): in Model.Requires, once, beside the
+// Required on the properties it does name. The four shapes are four ways an
+// object lowers: a plain object, an allOf making a property its base declares
+// required, an object whose catch-all governs the name, which stays a Model
+// rather than becoming a map since a map requires no key, and the object
+// variant of a multi-typed schema.
 func assertRequiredMembers(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	plain, ok := doc.Types[componentID("Plain")].(*ir.Model)
 	require.True(t, ok)
@@ -179,11 +180,12 @@ func assertRequiredMembers(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 // assertAllOfOneOfCooccurrence pins both halves of the co-declared composition
-// rule: §4.3 distributes a union whose branches all name referents, and the
-// rule docs/compilers/openapi.md#union-beside-structure keeps one with an
-// inline branch verbatim rather than distributing it halfway. The verbatim half
-// is covered over a model body, which owns a node already, and over a scalar
-// one, which does not — there the alias hoisted for the union carries what the
+// rule: docs/ir/models.md#composition-beside-a-union distributes a union whose
+// branches all name referents, and the rule
+// docs/compilers/openapi.md#union-beside-structure keeps one with an inline
+// branch verbatim rather than distributing it halfway. The verbatim half is
+// covered over a model body, which owns a node already, and over a scalar one,
+// which does not — there the alias hoisted for the union carries what the
 // position wrote beside it too. The outside reference to a branch pointer pins
 // the third thing: a composed variant is Morphic's own node, so it cannot be
 // taken by, or take from, a $ref.
@@ -298,8 +300,8 @@ func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 }
 
 // assertAnyOfDiscriminated pins that the tag mode and Exclusive are independent
-// (ir-design §4.4): a discriminator on an anyOf tags the union without making
-// it exclusive, since a payload may still satisfy both branches.
+// (docs/ir/unions.md): a discriminator on an anyOf tags the union without
+// making it exclusive, since a payload may still satisfy both branches.
 func assertAnyOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	u, ok := doc.Types[componentID("Resource")].(*ir.Union)
 	require.True(t, ok, "anyOf survives as a Union node, never collapsed")

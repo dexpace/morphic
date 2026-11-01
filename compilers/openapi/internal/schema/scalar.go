@@ -146,7 +146,8 @@ func encodingName(c lowering.Ctx, s *oas3.Schema, formatName string, common *ir.
 // a consumer would have to re-parse.
 //
 // The pointer it hoists at is the one the source wrote it at, which only this
-// declaration can name, so the node needs no namespace of its own (§4.3).
+// declaration can name, so the node needs no namespace of its own
+// (docs/ir/identity.md#the-id-grammar).
 func contentSchemaRef(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (*ir.TypeRef, []ir.Diagnostic) {
 	cs := s.GetContentSchema()
 	if !annotation.Written(cs) {
@@ -159,9 +160,10 @@ func contentSchemaRef(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Sche
 // contentKeywords are the 2020-12 content-vocabulary keywords, all three of
 // which lower into ir.Encoding: contentEncoding names Encoding.Name,
 // contentMediaType names Encoding.MediaType, and contentSchema names
-// Encoding.Schema (ir/constraints.go, ir-design §5.3). One list because they
-// share one home — a position that reached no Encoding keeps all three, and one
-// that reached an Encoding keeps none.
+// Encoding.Schema (ir/constraints.go,
+// docs/compilers/openapi.md#content-vocabulary). One list because they share
+// one home — a position that reached no Encoding keeps all three, and one that
+// reached an Encoding keeps none.
 var contentKeywords = []string{"contentEncoding", "contentMediaType", "contentSchema"}
 
 // declaresContentVocabulary reports whether s writes any content-vocabulary

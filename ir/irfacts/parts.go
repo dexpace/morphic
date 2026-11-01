@@ -6,8 +6,8 @@ package irfacts
 import "github.com/dexpace/morphic/ir"
 
 // typeParts is what one type names, by what each named type is to a value of it
-// (ir-design §4.9): held, the types of the values it holds, encoded ones
-// included; composed, those whose members it includes; alias, the type a
+// (docs/ir/derived-facts.md): held, the types of the values it holds, encoded
+// ones included; composed, those whose members it includes; alias, the type a
 // scalar stands for; and args, its properties' field arguments, which a client
 // writes to select a field.
 //

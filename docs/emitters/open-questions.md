@@ -9,15 +9,15 @@
    retry loop) stay templated; an over-fine AST that models statement-level Go grammar is a
    non-goal. The exact granularity is a per-feature judgment that will be litigated as features land.
 3. **A target's own content preference.** The `json > form > multipart > binary` default is a shared
-   plan helper (resolves `ir-design.md` Q3), and [one election](plan/responses.md#one-election)
-   settles how it breaks a tie, but a target that wants a different primary needs a clean override
-   path that does not fork the plan. Leaning: an override on `plan.Policy`, since the choice is
-   document-neutral.
+   plan helper (resolves [open question 3](../ir/open-questions.md)), and [one
+   election](plan/responses.md#one-election) settles how it breaks a tie, but a target that wants a
+   different primary needs a clean override path that does not fork the plan. Leaning: an override
+   on `plan.Policy`, since the choice is document-neutral.
 4. **Protocol-view neutrality.** The `BindingView` and target-AST `MethodKind` must be designed
    against the full binding matrix (HTTP/RPC/message/GraphQL/OTP) from day one, or they ossify
    around HTTP the way Kiota's model did. The first targets' traces are HTTP-heavy; the
    RPC/messaging targets are the real test. Revisit when the second-protocol emitter lands (tracks
-   `ir-design.md` Q6).
+   [open question 6](../ir/open-questions.md)).
 5. **Manifest granularity for merge.** Whether the entity→symbol map keys at property level (not just
    type/op level) to support field-level additive merge, or leaves sub-type merge to the `go/ast`
    adapter. Decide when write/integrate (M4) is built.

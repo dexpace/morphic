@@ -25,6 +25,7 @@ import (
 const (
 	emitterDocs = "docs/emitters"
 	emitterRoot = "README.md"
+	emitterMap  = "The documents"
 	sharedTable = "refine/lowering-table.md"
 	sharedSteps = "refine/steps.md"
 	targetsDir  = "targets"
@@ -103,15 +104,15 @@ func TestEmitterDocs_TargetStepsAreCanonical(t *testing.T) {
 }
 
 // TestEmitterDocs_RootMapsEveryDocument fails on a document under the tree that
-// its root does not link, so the map stays the way in to every document.
+// the root's map does not link, so the map stays the way in to every document.
 func TestEmitterDocs_RootMapsEveryDocument(t *testing.T) {
 	t.Parallel()
 	docs := filepath.Join(irtest.RepoRoot(t), filepath.FromSlash(emitterDocs))
-	unmapped, mapped, err := unmappedDocuments(docs)
+	unmapped, mapped, err := unmappedDocuments(docs, emitterMap)
 	require.NoError(t, err)
-	require.NotZero(t, mapped, "the root links no document, so this proves nothing")
+	require.NotZero(t, mapped, "the map links no document, so this proves nothing")
 	for _, doc := range unmapped {
-		t.Errorf("%s links no %s", emitterRoot, doc)
+		t.Errorf("%s links no %s under %q", emitterRoot, doc, emitterMap)
 	}
 }
 
@@ -216,17 +217,19 @@ func constructProblems(target string, shared, answered []string) []string {
 }
 
 // unmappedDocuments returns, relative to docs, each Markdown document under it
-// that its root does not link, and counts the documents the root does.
-func unmappedDocuments(docs string) ([]string, int, error) {
+// that the root's section headed section does not link, and counts the documents
+// that section does. A link elsewhere in the root maps nothing: the IR's root
+// links every document again under its former section numbers.
+func unmappedDocuments(docs, section string) ([]string, int, error) {
 	text, err := os.ReadFile(filepath.Join(docs, emitterRoot))
 	if err != nil {
 		return nil, 0, err
 	}
 	linked := map[string]bool{}
-	for _, line := range linkLines(string(text)) {
+	for _, line := range sectionLines(string(text), section) {
 		for _, m := range markdownLink.FindAllStringSubmatch(line, -1) {
 			file, _, _ := strings.Cut(m[1], "#")
-			linked[file] = true
+			linked[strings.TrimPrefix(file, "./")] = true
 		}
 	}
 	var unmapped []string
@@ -249,6 +252,26 @@ func unmappedDocuments(docs string) ([]string, int, error) {
 		return nil
 	})
 	return unmapped, mapped, err
+}
+
+// sectionLines returns what linkLines reads of a Markdown document between the
+// heading title and the next heading of any level. A heading is told from the
+// prose, where a span of code in it survives: linkLines would empty one that is
+// all code, and the section would run on past it.
+func sectionLines(text, title string) []string {
+	links := linkLines(text)
+	var lines []string
+	var inside bool
+	for i, line := range proseLines(text) {
+		if m := atxHeading.FindStringSubmatch(line); m != nil {
+			inside = m[1] == title
+			continue
+		}
+		if inside {
+			lines = append(lines, links[i])
+		}
+	}
+	return lines
 }
 
 // TestTableConstructs_ReadsTheNamedTable plants a target's table the way the
@@ -333,22 +356,30 @@ func TestConstructProblems_ReportsADriftEachWay(t *testing.T) {
 	}, constructProblems("go", []string{"a", "b"}, []string{"a", "c"}))
 }
 
-// TestUnmappedDocuments_ReportsADocumentTheRootOmits plants a document the root
-// links with a fragment, one it links plainly, and one it does not.
+// TestUnmappedDocuments_ReportsADocumentTheRootOmits plants a document the map
+// links with a fragment, one it links plainly, one it does not, and one linked
+// only before the map and one only after it, past a heading that is all code,
+// which it does not map either.
 func TestUnmappedDocuments_ReportsADocumentTheRootOmits(t *testing.T) {
 	t.Parallel()
 	docs := t.TempDir()
-	writeDocFile(t, filepath.Join(docs, "README.md"), "[a](a.md#x) and [b](sub/b.md); `[c](c.md)`\n")
-	writeDocFile(t, filepath.Join(docs, "a.md"), "# A\n")
-	writeDocFile(t, filepath.Join(docs, "sub", "b.md"), "# B\n")
-	writeDocFile(t, filepath.Join(docs, "c.md"), "# C\n")
+	writeDocFile(t, filepath.Join(docs, "README.md"), "[d](d.md)\n\n## Map\n\n"+
+		"[a](a.md#x) and [b](sub/b.md); `[c](c.md)`\n\n## `After`\n\n[e](e.md)\n")
+	for _, doc := range []string{"a.md", filepath.Join("sub", "b.md"), "c.md", "d.md", "e.md"} {
+		writeDocFile(t, filepath.Join(docs, doc), "# Doc\n")
+	}
 	writeDocFile(t, filepath.Join(docs, "sub", "data.txt"), "not a document\n")
 
-	unmapped, mapped, err := unmappedDocuments(docs)
+	unmapped, mapped, err := unmappedDocuments(docs, "Map")
 	require.NoError(t, err)
-	assert.Equal(t, []string{"c.md"}, unmapped)
+	assert.Equal(t, []string{"c.md", "d.md", "e.md"}, unmapped)
 	assert.Equal(t, 2, mapped)
 
-	_, _, err = unmappedDocuments(filepath.Join(docs, "absent"))
+	unmapped, mapped, err = unmappedDocuments(docs, "No such heading")
+	require.NoError(t, err)
+	assert.Len(t, unmapped, 5)
+	assert.Zero(t, mapped, "a map under no heading links nothing, which the tests refuse")
+
+	_, _, err = unmappedDocuments(filepath.Join(docs, "absent"), "Map")
 	require.ErrorIs(t, err, fs.ErrNotExist)
 }

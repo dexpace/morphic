@@ -10,9 +10,9 @@ import (
 )
 
 // Recursive reports whether a value of exactly the type id names can hold, at
-// any depth, a value of the same shape (ir-design §4.9): its shape lies on a
-// cycle of the type graph. A reference to a polymorphic model counts every
-// subtype it may hold, so a subtype holding its own polymorphic base is
+// any depth, a value of the same shape (docs/ir/derived-facts.md): its shape
+// lies on a cycle of the type graph. A reference to a polymorphic model counts
+// every subtype it may hold, so a subtype holding its own polymorphic base is
 // recursive, while a subtype that only composes its base is not. A type the
 // document does not declare is not recursive.
 func (x *Index) Recursive(id ir.TypeID) bool {

@@ -67,9 +67,10 @@ func TestValidate_ModelDiscriminator(t *testing.T) {
 
 // TestValidate_SubtypeThroughAliasChain pins that a subtype composing an alias
 // of the base is still a subtype. A `$ref` carrying siblings composes the
-// branch's own node (ir-design §4.3), so a hierarchy written that way names its
-// base one hop away — two hops where the alias itself was reached through
-// another, which a single dereference would still miss.
+// branch's own node (docs/ir/models.md#composition-entries), so a hierarchy
+// written that way names its base one hop away — two hops where the alias
+// itself was reached through another, which a single dereference would still
+// miss.
 //
 // The cyclic chain is here because the IR permits one and the walk must
 // terminate on it: the alias resolves to no base, so the mapping is reported

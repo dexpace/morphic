@@ -82,7 +82,7 @@ func TestModel_AdditionalPropertiesFalseClosed(t *testing.T) {
 	assert.Equal(t, ir.AdditionalClosed, m.Additional)
 }
 
-// TestObject_MapAndNothingElseLowersToMapT pins ir-design §4.6 at the
+// TestObject_MapAndNothingElseLowersToMapT pins docs/ir/containers.md at the
 // lowering: an object whose one member fact is its catch-all is a MapT with
 // string keys, however it is spelled, and reports nothing. `true` and `{}` are
 // one schema, so they lower alike; the entry bounds land on the map; an empty

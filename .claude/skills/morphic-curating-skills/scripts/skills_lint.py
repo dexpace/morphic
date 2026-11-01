@@ -66,11 +66,16 @@ NAME_IN_FILE = re.compile(r"`([A-Za-z_]\w*)` in `([^`\s]+\.go)`")
 # puts first on its line and indents nothing it nests to match.
 GO_BLOCK = re.compile(r"^(?:(?:const|var|type) \(|type [^\n]* (?:struct|interface) \{)\n"
                       r"(.*?)^[)}]$", re.M | re.S)
-SECTION = re.compile(r"(ir-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
+SECTION = re.compile(r"(architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
 # A § after the name of a document it can be in, a line break between them allowed: one of the
 # design documents SECTION holds to the tree, or an RFC. Any other names no document.
-NAMED_SECTION = re.compile(r"(?:(?:ir-design|architecture)(?:\.md)?|RFC \d+)\s?§")
+NAMED_SECTION = re.compile(r"(?:architecture(?:\.md)?|RFC \d+)\s?§")
 KEY = re.compile(r"(parser-library|compilers/openapi)\.md#([a-z0-9-]+)")
+# A section of a design tree, cited as GitHub anchors its heading.
+DESIGN_SECTION = re.compile(r"docs/((?:ir|emitters)/[A-Za-z0-9_/-]+\.md)#([A-Za-z0-9_-]+)")
+# A design tree's name from when it was a single page, which names nothing now.
+RETIRED = re.compile(r"(?:ir|emitter)-design")
+HEADING = re.compile(r"#{1,6} +(.+)")
 # A fenced block's opening or closing run, as CommonMark reads one: three or more backticks or
 # tildes, indented by at most three spaces, then the info string.
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
@@ -388,7 +393,7 @@ class Linter:
         for m in re.finditer("§", text):
             if m.start() not in named:
                 line = text.count("\n", 0, m.start()) + 1
-                self.report(f, line, "a § names no document: name it first, as in ir-design §N")
+                self.report(f, line, "a § names no document: name it first, as in architecture §N")
         lines = text.split("\n")
         for i, line in enumerate(lines, 1):
             for tok in SPAN.findall(line):
@@ -435,6 +440,11 @@ class Linter:
             for doc, key in KEY.findall(line):
                 if not self.has(doc, "^### `" + re.escape(key) + "`"):
                     self.report(f, i, f"docs/{doc}.md has no entry {key}")
+            for doc, anchor in DESIGN_SECTION.findall(line):
+                if anchor not in self.design_anchors(doc):
+                    self.report(f, i, f"docs/{doc} has no heading {anchor}")
+            if RETIRED.search(line):
+                self.report(f, i, "names a retired page: cite a document of docs/ir or docs/emitters")
 
     def check_span(self, d: Path, f: Path, line: int, tok: str) -> None:
         shown, tok = tok, path_word(tok)
@@ -486,6 +496,18 @@ class Linter:
         if rel.split("/", 1)[0] != ".." and (self.root / rel).exists():
             return f"{shown} is ignored by git, so no clone holds it"
         return f"{shown} does not exist"
+
+    def design_anchors(self, doc: str) -> set[str]:
+        """Return the anchors GitHub gives the headings of a design document, outside its code
+        fences, as internal/archtest reads them too."""
+        path = self.root / "docs" / doc
+        found, fenced = set(), False
+        for line in path.read_text().splitlines() if path.is_file() else ():
+            fenced ^= line.startswith("```")
+            heading = HEADING.fullmatch(line)
+            if heading and not fenced:
+                found.add(re.sub(r"[^\w\- ]", "", heading[1].lower()).replace(" ", "-"))
+        return found
 
     def has(self, doc: str, pattern: str) -> bool:
         path = self.root / "docs" / f"{doc}.md"

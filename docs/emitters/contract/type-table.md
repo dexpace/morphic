@@ -33,12 +33,13 @@ type Dependency struct {
 - **The key is the IR's, never a source format's.** A reference resolves to a key through the plan's
   scalar chain ([TypePlan](../plan/types.md)): the primitive at its root, and the name of the
   encoding declared nearest the reference — a property's own `Encoding`, which overrides its type's
-  (ir-design §5.3), then `ScalarChain.Encoding` — or `""` where none is. A compiler already gives
-  every format it recognizes a primitive of its own — OpenAPI's `date-time` is `datetime_offset` —
-  so a key spells only what the IR does not, such as `{string, "email"}` or `{bytes, "base64"}`,
-  compared exactly as written. An enum's `ValueType` resolves to its primitive's default row, an
-  `Any` node to the `any` primitive's, and an `External` to its `Identity`. A property whose own
-  encoding changes the key is typed by that key's row, not by the declaration its reference names.
+  ([constraints](../../ir/constraints.md#encodings)), then `ScalarChain.Encoding` — or `""` where
+  none is. A compiler already gives every format it recognizes a primitive of its own — OpenAPI's
+  `date-time` is `datetime_offset` — so a key spells only what the IR does not, such as
+  `{string, "email"}` or `{bytes, "base64"}`, compared exactly as written. An enum's `ValueType`
+  resolves to its primitive's default row, an `Any` node to the `any` primitive's, and an `External`
+  to its `Identity`. A property whose own encoding changes the key is typed by that key's row, not
+  by the declaration its reference names.
 - **Lookup.** `{prim, encoding}`, then `{prim, ""}`. An encoding with no row of its own falls back
   to its primitive's: the encoding stays in the IR and the SDK types it as the primitive, reported
   once per key as an info `emitters/<target>/unmapped-encoding` at the first type in ID order that

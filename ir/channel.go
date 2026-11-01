@@ -4,7 +4,7 @@
 package ir
 
 // Channel is an event/messaging endpoint: an AsyncAPI channel, a webhook, a
-// subscription, or an OTP process (ir-design §8.3). Its messages live in
+// subscription, or an OTP process (docs/ir/messaging.md). Its messages live in
 // Document.Messages and are referenced here by identity.
 type Channel struct {
 	// ID is the channel's stable synthetic identity.
@@ -27,7 +27,7 @@ type Channel struct {
 	// Servers names the servers the channel is available on, most preferred
 	// first; empty = no declared server is. A format that reads a channel naming
 	// none as available on every server, as AsyncAPI does, lists them all
-	// (ir-design §10). No entry is empty.
+	// (docs/ir/servers.md). No entry is empty.
 	Servers []ServerID `json:"servers,omitempty"`
 	// Bindings holds protocol-specific config ("kafka", "amqp", "ws", "mqtt")
 	// kept as namespaced raw config.
@@ -39,7 +39,7 @@ type Channel struct {
 }
 
 // Message is a reusable message shape referenced by channels, operations, and
-// replies by identity (ir-design §8.3, AsyncAPI 3).
+// replies by identity (docs/ir/messaging.md, AsyncAPI 3).
 type Message struct {
 	// ID is the message's stable synthetic identity.
 	ID MessageID `json:"id,omitempty"`
@@ -50,7 +50,7 @@ type Message struct {
 	// Headers is the header schema — an object-constrained model hoisted into the
 	// type registry like any anonymous type (headers can be named, composed, even
 	// Avro-defined; and $message.header#/… paths need a type to resolve against).
-	// Emitters compute flat lists per §4.3.
+	// Emitters compute flat lists per docs/ir/models.md#the-flattening.
 	Headers *TypeRef `json:"headers,omitzero"`
 	// CorrelationID locates the correlation value: In: "header" | "" (payload).
 	CorrelationID *PropPath `json:"correlationID,omitzero"`

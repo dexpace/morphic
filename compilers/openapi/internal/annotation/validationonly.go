@@ -121,8 +121,9 @@ func jsonObject(members []rawMember) (ir.RawValue, error) {
 	return ir.RawValue(b.String()), nil
 }
 
-// validationOnlyAt collects the §4.7 keywords a schema declares that the IR does
-// not model, keeping each verbatim and announcing it.
+// validationOnlyAt collects the validation-only keywords
+// (docs/ir/boundaries.md#validation-only-constructs) a schema declares that the
+// IR does not model, keeping each verbatim and announcing it.
 //
 // Site-only: these constrain the value at the position that wrote them.
 func validationOnlyAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {

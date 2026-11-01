@@ -4,16 +4,17 @@
 package ir
 
 // TypeRef references a TypeDef by ID and records whether this usage admits null
-// on the wire (ir-design §3.3). Nullability lives on the reference, not the
-// target, since one type may be nullable in one position and not another; with
-// Property.Required it yields the four required/optional × nullable/non-null
-// states.
+// on the wire (docs/ir/type-graph.md#type-references). Nullability lives on the
+// reference, not the target, since one type may be nullable in one position and
+// not another; with Property.Required it yields the four required/optional ×
+// nullable/non-null states.
 //
 // A TypeRef carries nothing of its target. Without resolving Target, a use site
 // can read only what a compiler merged onto the carrier from a $ref's target,
 // with use-site precedence: a Property's or Parameter's Docs, Deprecation and
 // Default, and a Property's Visibility. Everything else, Constraints above all,
-// is read from the target node (ir-design §12.2).
+// is read from the target node
+// (docs/ir/annotations.md#what-a-reference-carries-down).
 type TypeRef struct {
 	// Target identifies the referenced TypeDef in Document.Types. It is never
 	// empty: a position that admits no type holds a nil *TypeRef, so a TypeRef
@@ -27,6 +28,7 @@ type TypeRef struct {
 	// Inferred is empty when the source declares that this usage admits null.
 	// Otherwise it lists the heuristics that read null in, as
 	// Provenance.Inferred lists them, since a reference has no provenance of its
-	// own (ir-design §3.3). It is set only on a Nullable reference.
+	// own (docs/ir/type-graph.md#type-references). It is set only on a Nullable
+	// reference.
 	Inferred Inferred `json:"inferred,omitempty"`
 }
