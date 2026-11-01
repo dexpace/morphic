@@ -5,7 +5,9 @@
 // a $ref's target onto the property, parameter or header naming it, field by
 // field and by one rule at every carrier, so a fact a key states on the target
 // reaches the use site as the keyword's fact does. The reading happens at three
-// construction sites, which is why each case below runs at all three.
+// construction sites, which is why each case below runs at all three, and a
+// parameter and a header elect their schema from two spellings, which is why it
+// runs at both of those too.
 package e2e_test // external test package — exercises only the public API
 
 import (
@@ -40,8 +42,8 @@ const useSiteComponents = `components:
     Mid: {$ref: '#/components/schemas/Spent', x-sunset: "1999-01-01", x-sensitive: true}
 `
 
-// useSiteSpec declares schema, a flow-style schema object, as one property, one
-// query parameter and one response header.
+// useSiteSpec declares schema, a flow-style schema object, as one property, and
+// as a query parameter and a response header by each of their spellings.
 func useSiteSpec(schema string) string {
 	return `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -51,11 +53,13 @@ paths:
       operationId: x
       parameters:
         - {name: use, in: query, schema: ` + schema + `}
+        - {name: useContent, in: query, content: {text/plain: {schema: ` + schema + `}}}
       responses:
         "200":
           description: ok
           headers:
             X-Use: {schema: ` + schema + `}
+            X-Use-Content: {content: {text/plain: {schema: ` + schema + `}}}
           content:
             application/json:
               schema:
@@ -84,29 +88,35 @@ type useSite struct {
 	inferred    ir.Inferred
 }
 
-// useSitesOf reads the three carriers useSiteSpec declares.
+// useSitesOf reads the carriers useSiteSpec declares.
 func useSitesOf(t *testing.T, doc *ir.Document) map[string]useSite {
 	t.Helper()
 	op, ok := opByName(doc, "x")
 	require.True(t, ok)
 	param, ok := openapitest.ParamBySource(op, "use")
 	require.True(t, ok)
+	paramContent, ok := openapitest.ParamBySource(op, "useContent")
+	require.True(t, ok)
 	require.Len(t, op.Responses, 1)
 	header, ok := headerByWire(op.Responses[0].Headers, "X-Use")
+	require.True(t, ok)
+	headerContent, ok := headerByWire(op.Responses[0].Headers, "X-Use-Content")
 	require.True(t, ok)
 	model, ok := doc.Types[openapitest.BodyTarget(t, op.Responses[0].Payload)].(*ir.Model)
 	require.True(t, ok)
 	prop, ok := propByWire(model, "use")
 	require.True(t, ok)
 	return map[string]useSite{
-		"parameter": {param.Deprecation, param.Secret, param.Provenance.Inferred},
-		"header":    {header.Deprecation, header.Secret, header.Provenance.Inferred},
-		"property":  {prop.Deprecation, prop.Secret, prop.Provenance.Inferred},
+		"parameter":         {param.Deprecation, param.Secret, param.Provenance.Inferred},
+		"content parameter": {paramContent.Deprecation, paramContent.Secret, paramContent.Provenance.Inferred},
+		"header":            {header.Deprecation, header.Secret, header.Provenance.Inferred},
+		"content header":    {headerContent.Deprecation, headerContent.Secret, headerContent.Provenance.Inferred},
+		"property":          {prop.Deprecation, prop.Secret, prop.Provenance.Inferred},
 	}
 }
 
 // TestPromotion_AUseReadsItsReferentsKeys is the rule of
-// docs/compilers/openapi.md#ref-use-site at the three carriers: a key on the
+// docs/compilers/openapi.md#ref-use-site at every carrier: a key on the
 // target merges as its keyword would, field by field, and one beside the $ref
 // wins. Without it the node reads `removalDate` and the use reads an empty
 // Deprecation, though every other annotation merged.
