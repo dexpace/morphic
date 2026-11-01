@@ -18,7 +18,7 @@ var docsType = reflect.TypeFor[ir.Docs]()
 // order and without overlap, so an emitter can splice a link over each in one
 // pass over the text (docs/ir/annotations.md#references-in-prose). A span
 // outside the text, splitting a rune or empty names nothing a reader can link,
-// and one replaced Description left behind is the likeliest way to get one.
+// and a Description replaced without its Refs is the likeliest way to get one.
 //
 // Whether a span's type exists is checkReferentialIntegrity's, since a DocRef's
 // Type is a TypeID like any other; whether it is set is checkEmptyRefs'.

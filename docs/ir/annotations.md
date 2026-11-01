@@ -55,9 +55,9 @@ span and leaves the prose as the source wrote it.** A `DocRef` says that a run o
 bytes names a type. An emitter replaces the span with a link to whatever the type renders as, and
 one that does not resolve references reads text that still says what the author meant.
 
-A span counts bytes of the UTF-8 text, which is what every string a document holds is
-([names](./naming.md)), so a reader in another language converts from that encoding rather than
-counting in its own. Spans ascend and do not overlap, so an emitter splices them in one pass over
+A span counts bytes of UTF-8, the encoding every string a document holds is in
+([names](./naming.md)), so a reader in another language converts from it rather than counting in
+its own. Spans ascend and do not overlap, so an emitter splices them in one pass over
 the text. `irverify` holds a span to a non-empty run of whole runes inside its description
 (`ir/doc-ref-span`), and the list to that order (`ir/doc-ref-order`). `Type` is a `TypeID` like any
 other, so both checkers report one that names nothing as `ir/dangling-type-ref` and neither reads
@@ -78,9 +78,9 @@ reference in the text were weighed, and each fails on input real documents write
 
 - **An escape rule**, a compiler writing `\{t:` for a literal `{t:`, fails where such text sits.
   CommonMark reads no backslash escape inside a code span, so `` `{t:1}` `` would render with a
-  stray backslash wherever a consumer did not undo the rule, and a brace in prose is usually one in
-  code: of the 259 descriptions in `cloudflare/api-schemas` @ `319dc756` holding one, 149 hold it
-  after a backtick. It would also stop `Description` being what the source wrote (invariant 2).
+  stray backslash wherever a consumer did not undo the rule, and braces often sit in code: of the
+  253 descriptions compiled from `cloudflare/api-schemas` @ `319dc756` that hold one, 121 hold it in
+  a code span. It would also stop `Description` being what the source wrote (invariant 2).
 - **A CommonMark construct of the IR's own**, such as a link under a reserved scheme, is the same
   ambiguity with a rarer spelling, and telling one from a code span takes a CommonMark parser, which
   `ir` may not import.

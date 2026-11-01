@@ -1,7 +1,7 @@
 # IR version
 
-Part of the [IR design](./README.md). The schema stamp a document carries and the compatibility
-policy around it. What each past generation changed is in the [version
+Part of the [IR design](./README.md). The schema stamp a document carries, the compatibility policy
+around it, and the names it covers. What each past generation changed is in the [version
 history](./version-history.md).
 
 `IRVersion` names the generation of the IR *schema* — the shape of the document itself, not the
@@ -15,6 +15,14 @@ refuses a member it does not know, so a build at the old version cannot read the
 line of work that changes the shape several times bumps it once, where it lands on `main` — a
 version that moves within an unmerged branch tells a consumer nothing. `ir.IRVersion` is the
 constant; the [version history](./version-history.md) records what each past bump changed.
+
+**A change to a name moves it too.** An emitter renders an identifier from `Naming.Canonical`, or
+from `Naming.Hint` where the source wrote no name, so changing how either is derived renames every
+symbol it touches in every SDK generated after it, with no key of the document moved. That is a
+breaking change to the IR's contract, versioned like a change of shape, whichever of these it comes
+from: the [word grammar](./naming.md#the-word-grammar), the Unicode tables the grammar reads, which a
+Go release can move, or how a compiler composes a hint from a position. Such a bump keeps the shape,
+so its row states the meaning that changed.
 
 **What a bump implies.** Pre-1.0 (`0.MINOR.PATCH`), MINOR is the breaking position and every bump
 so far has been breaking. There is no non-breaking bump in the history and nothing distinguishes
@@ -65,15 +73,31 @@ is outside it, left to the JSON contract tests in package `ir`. A type
 from another package, such as `jsontext.Value`, is described by its name, underlying type and codec
 methods, so a Go release that changes how one of them encodes moves the description too.
 
+**How it is held to the names.** `TestIRVersion_PinsTheNames` (`ir/irversion_names_test.go`)
+describes them in `ir/testdata/names.golden.txt` and requires the file's SHA-256 to be the `names`
+its `generations` row records for `IRVersion`, so a name changed at an unmoved version fails and a
+reviewer reads it as that file's diff. The description holds `unicode.Version`, the canonical form of
+every spelling the grammar's conformance table names, that of every name of up to three runes over
+one rune of each class the Unicode tables tell apart, and the hint of every `Naming` in
+`testdata/golden/openapi/hint_positions.golden.json`. Three runes are enough because the grammar
+decides at a rune from that rune and its two neighbours, so those names reach every decision it
+makes over those classes. A hint has no such closure, since it is composed per compiler from
+whatever position the compiler names: the pin reaches the positions `hint_positions.yaml` writes,
+all those one document can, and a position it does not write, such as a document a `$ref` reads
+whole, shows only in the corpus goldens, as the one bump no test requires.
+
 **Bumping.** A bump sets `IRVersion` to the next MINOR, appends the row the failing test prints,
 and adds an entry to the [history](./version-history.md), which
-`TestIRVersion_HistoryRecordsEachGeneration` requires to end at `IRVersion`. The description itself
-is `ir/testdata/shape.golden.txt`, rewritten with `go test ./ir -run TestIRVersion -update`, so a
-reviewer reads a shape change as its diff. No golden moves. A row on `main` is never edited: two
-branches that claim one version append their rows in the same place, so whichever merges second
-meets the other's in a conflict and takes the next version. A change to how `jsonshape` spells a
-shape moves `jsonshape.Format` and appends a row describing the current generation anew, with no
-bump.
+`TestIRVersion_HistoryRecordsEachGeneration` requires to end at `IRVersion`. The descriptions
+themselves are `ir/testdata/shape.golden.txt` and `ir/testdata/names.golden.txt`, each rewritten with
+`go test ./ir -run TestIRVersion -update`, after `go test ./compilers/openapi/e2e -run
+TestGolden_HintPositions -update` where a hint moved, so a reviewer reads the change as their diff.
+No other golden moves. `TestIRVersion_PinsTheNames` prints the row's `names` once the row exists.
+Adding a position to `hint_positions.yaml` moves that hash as a renamed one does, so it lands with
+a bump. A row on `main` is never edited: two branches that claim one version append their rows in
+the same place, so whichever merges second meets the other's in a conflict and takes the next
+version. A change to how `jsonshape` spells a shape moves `jsonshape.Format` and appends a row
+describing the current generation anew, with no bump.
 
 **Goldens store no stamp.** `irtest.WriteGolden` and `irtest.CompareGolden` refuse a document not
 stamped with `ir.IRVersion`, then encode it without the stamp, and `irtest.ReadGolden` puts it back.

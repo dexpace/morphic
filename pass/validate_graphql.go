@@ -79,7 +79,7 @@ func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 //
 // Reachability follows one class, so it names that class rather than resolving
 // against a document it is not handed, and it reads no path. A DocRef is passed
-// over: prose naming a type uses it no more than ir.TypeEdges says it does.
+// over: prose naming a type does not use it, as ir.TypeEdges holds too.
 func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 	ir.WalkValues(root, "", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
 		if v.Type() == docRefType {

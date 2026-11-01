@@ -1,0 +1,186 @@
+# Every position within one document that the OpenAPI compiler composes a hint
+# from. A hint is what an emitter renders an unnamed node's identifier from, so
+# ir/testdata/names.golden.txt lists each one here and IRVersion is pinned to that
+# list (docs/ir/ir-version.md). A document a $ref reads whole is named too, and
+# one file cannot write that position.
+openapi: 3.2.0
+info: {title: Hint positions, version: 1.0.0}
+servers:
+  - url: https://api.example.com/v1
+  - url: /
+tags:
+  - name: pets
+paths:
+  /pets/{petId}:
+    get:
+      tags: [pets]
+      parameters:
+        - name: petId
+          in: path
+          required: true
+          schema: {type: object, properties: {id: {type: string}}}
+        - name: X-Trace
+          in: header
+          content:
+            application/json:
+              schema: {type: object, properties: {span: {type: string}}}
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-Rate:
+              schema: {type: object, properties: {left: {type: integer}}}
+            X-Page:
+              content:
+                application/json:
+                  schema: {type: object, properties: {next: {type: string}}}
+          content:
+            application/json:
+              schema: {type: object, properties: {name: {type: string}}}
+        '404': {description: missing}
+        4XX: {description: client}
+        5XX: {description: server}
+        default: {description: fallback}
+  /pets:
+    post:
+      operationId: createPet
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {name: {type: string}}}
+      responses:
+        '201': {$ref: '#/components/responses/Created'}
+  /uploads:
+    post:
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {size: {type: integer}}}
+      responses:
+        '204': {description: stored}
+    put:
+      operationId: replaceUpload
+      requestBody: {$ref: '#/components/requestBodies/Upload'}
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+      responses:
+        '204':
+          description: stored
+          headers:
+            X-Trace: {$ref: '#/components/headers/Trace'}
+  /events:
+    get:
+      operationId: events
+      responses:
+        '200':
+          description: ok
+          content:
+            application/jsonl:
+              itemSchema: {type: object, properties: {at: {type: string}}}
+webhooks:
+  ping:
+    post:
+      operationId: onPing
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {sent: {type: string}}}
+      responses:
+        '200': {description: seen}
+x-library:
+  Shared: {type: object, properties: {v: {type: string}}}
+components:
+  schemas:
+    Pet:
+      type: object
+      properties: {name: {type: string}}
+    Owner:
+      type: object
+      properties: {since: {type: string}}
+    Positions:
+      type: object
+      properties:
+        nested: {type: object, properties: {deep: {type: object, properties: {leaf: {type: string}}}}}
+        list: {type: array, items: {type: object, properties: {a: {type: string}}}}
+        listOfLists:
+          type: array
+          items: {type: array, items: {type: object, properties: {b: {type: string}}}}
+        dictionary: {type: object, additionalProperties: {type: object, properties: {c: {type: string}}}}
+        patterned: {type: object, patternProperties: {'^x': {type: object, properties: {d: {type: string}}}}}
+        tuple:
+          type: array
+          prefixItems:
+            - {type: object, properties: {e: {type: string}}}
+            - {type: string}
+        exclusive:
+          oneOf:
+            - {$ref: '#/components/schemas/Pet'}
+            - {type: object, properties: {f: {type: string}}}
+            - {type: string}
+        inclusive:
+          anyOf:
+            - {$ref: '#/components/schemas/Pet'}
+            - {type: object, properties: {g: {type: string}}}
+        decorated:
+          oneOf:
+            - allOf: [{$ref: '#/components/schemas/Pet'}]
+              description: a decorated branch
+        composed:
+          allOf:
+            - {$ref: '#/components/schemas/Pet'}
+            - {type: object, properties: {h: {type: string}}}
+        unionOfUnions:
+          oneOf:
+            - oneOf:
+                - {type: object, properties: {i: {type: string}}}
+                - {type: integer}
+            - {type: boolean}
+        distributed:
+          allOf:
+            - {type: object, properties: {j: {type: string}}}
+          oneOf:
+            - {$ref: '#/components/schemas/Pet'}
+            - {$ref: '#/components/schemas/Owner'}
+        multiTyped: {type: [string, integer]}
+        multiTypedObject: {type: [object, string], properties: {w: {type: string}}}
+        mixedEnum: {enum: [a, 1, true]}
+        emptyEnum: {enum: ['', b]}
+        embedded:
+          type: string
+          contentMediaType: application/json
+          contentSchema: {type: object, properties: {m: {type: string}}}
+        withDefs:
+          $defs:
+            Local: {type: object, properties: {n: {type: string}}}
+          $ref: '#/components/schemas/Positions/properties/withDefs/$defs/Local'
+        negated:
+          not: {type: array, items: {type: object, properties: {u: {type: string}}}}
+        throughNot: {$ref: '#/components/schemas/Positions/properties/negated/not'}
+        throughNotItems: {$ref: '#/components/schemas/Positions/properties/negated/not/items'}
+        throughExtension: {$ref: '#/x-library/Shared'}
+    '***':
+      type: object
+      properties:
+        '': {type: object, properties: {o: {type: string}}}
+    '':
+      type: object
+      properties: {p: {type: string}}
+  requestBodies:
+    Upload:
+      content:
+        application/json:
+          schema: {type: object, properties: {q: {type: string}}}
+  responses:
+    Created:
+      description: created
+      content:
+        application/json:
+          schema: {type: object, properties: {r: {type: string}}}
+  parameters:
+    Limit:
+      name: limit
+      in: query
+      schema: {type: object, properties: {s: {type: string}}}
+  headers:
+    Trace:
+      schema: {type: object, properties: {t: {type: string}}}

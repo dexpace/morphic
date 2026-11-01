@@ -679,7 +679,10 @@ is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such n
 the documents and the position alone, read where the position is written, so no lowering order
 changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
 `$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
-is never set.
+is never set. These names are what an emitter renders, so a change to how one is derived moves
+`IRVersion` ([ir-version](../ir/ir-version.md)), and
+`testdata/golden/openapi/hint_positions.yaml` writes each position within one document that a hint
+is composed from.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
@@ -689,7 +692,8 @@ is never set.
   `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`,
   `schema.TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds`,
   `schema.TestUnionVariant_AWholeDocumentIsNamedForIt`, `naming.TestAt_NamesASchemaAfterItsOwner`,
-  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`
+  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`,
+  `e2e.TestGolden_HintPositions`
 - Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662).
 
 ### `values`

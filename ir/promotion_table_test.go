@@ -8,6 +8,7 @@ import (
 	"go/types"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -37,10 +38,10 @@ func promotionRows(doc string) []promotionRow {
 	_, section, _ := strings.Cut(doc, promotionTable)
 	var rows []promotionRow
 	for line := range strings.Lines(section) {
-		cells := strings.Split(line, "|")
 		if strings.HasPrefix(line, "#") {
 			break
 		}
+		cells := strings.Split(line, "|")
 		if len(cells) != 5 || !strings.Contains(cells[1], "`") {
 			continue
 		}
@@ -55,8 +56,9 @@ func promotionRows(doc string) []promotionRow {
 
 // spans returns the code spans of a table cell.
 func spans(cell string) []string {
-	var out []string
-	for _, m := range backticked.FindAllStringSubmatch(cell, -1) {
+	matches := backticked.FindAllStringSubmatch(cell, -1)
+	out := make([]string, 0, len(matches))
+	for _, m := range matches {
 		out = append(out, m[1])
 	}
 	return out
@@ -155,33 +157,26 @@ func TestPromotionFindings(t *testing.T) {
 		"Unmarked": {"Fact", "Unmodeled"},
 		"Sealed":   {"Fact", "Provenance"},
 	}
-	has := func(structName, field string) bool {
-		for _, f := range structs[structName] {
-			if f == field {
-				return true
-			}
-		}
-		return false
-	}
+	has := func(structName, field string) bool { return slices.Contains(structs[structName], field) }
 	for _, tc := range []struct {
 		name string
 		row  promotionRow
 		want string // "" means no finding
 	}{
-		{"a node with a Provenance", promotionRow{[]string{"Marked.Fact"}, []string{"Marked"}, "Provenance.Inferred"}, ""},
-		{"a node with its own marker", promotionRow{[]string{"Bare.Fact"}, []string{"Bare"}, "Inferred"}, ""},
-		{"a field on another node", promotionRow{[]string{"Unmarked.Fact"}, []string{"Marked"}, "Provenance.Inferred"}, ""},
-		{"a target no node can record", promotionRow{[]string{"Unmarked.Fact"}, []string{"Unmarked"}, "Provenance.Inferred"},
+		{"a node with a Provenance", promotionRow{fields: []string{"Marked.Fact"}, kept: []string{"Marked"}, record: "Provenance.Inferred"}, ""},
+		{"a node with its own marker", promotionRow{fields: []string{"Bare.Fact"}, kept: []string{"Bare"}, record: "Inferred"}, ""},
+		{"a field on another node", promotionRow{fields: []string{"Unmarked.Fact"}, kept: []string{"Marked"}, record: "Provenance.Inferred"}, ""},
+		{"a target no node can record", promotionRow{fields: []string{"Unmarked.Fact"}, kept: []string{"Unmarked"}, record: "Provenance.Inferred"},
 			"Unmarked is said to record in its Provenance, which it does not have"},
-		{"a marker the node lacks", promotionRow{[]string{"Unmarked.Fact"}, []string{"Unmarked"}, "Inferred"},
+		{"a marker the node lacks", promotionRow{fields: []string{"Unmarked.Fact"}, kept: []string{"Unmarked"}, record: "Inferred"},
 			"Unmarked is said to record in its Inferred, which it does not have"},
-		{"a bare marker beside a Provenance", promotionRow{[]string{"Marked.Fact"}, []string{"Marked"}, "Inferred"},
+		{"a bare marker beside a Provenance", promotionRow{fields: []string{"Marked.Fact"}, kept: []string{"Marked"}, record: "Inferred"},
 			"Marked has a Provenance, which is where it records"},
-		{"a field nothing declares", promotionRow{[]string{"Marked.Gone"}, []string{"Marked"}, "Provenance.Inferred"},
+		{"a field nothing declares", promotionRow{fields: []string{"Marked.Gone"}, kept: []string{"Marked"}, record: "Provenance.Inferred"},
 			"Marked.Gone names a field ir does not declare"},
-		{"a node keeping no extension", promotionRow{[]string{"Sealed.Fact"}, []string{"Sealed"}, "Provenance.Inferred"},
+		{"a node keeping no extension", promotionRow{fields: []string{"Sealed.Fact"}, kept: []string{"Sealed"}, record: "Provenance.Inferred"},
 			"Sealed keeps no extension: it has no Unmodeled"},
-		{"a record that is no marker", promotionRow{[]string{"Marked.Fact"}, []string{"Marked"}, "Docs"},
+		{"a record that is no marker", promotionRow{fields: []string{"Marked.Fact"}, kept: []string{"Marked"}, record: "Docs"},
 			`Marked records in "Docs", which is neither marker`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

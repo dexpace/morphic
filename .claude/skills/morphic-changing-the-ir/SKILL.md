@@ -29,9 +29,12 @@ cannot be turned off.
 ## What changes with it
 
 - **Version.** Bump `IRVersion` as `docs/ir/ir-version.md` says. `TestIRVersion_PinsTheEncodedShape`
-  and `TestIRVersion_HistoryRecordsEachGeneration` catch a shape change. A change of meaning with no
-  change of shape, such as a lowering that starts filling a member, is the bump no test sees: make
-  it, with the row's `meaning`.
+  and `TestIRVersion_HistoryRecordsEachGeneration` catch a shape change, and
+  `TestIRVersion_PinsTheNames` a renamed symbol. A change of meaning with no change of shape, such as
+  a lowering that starts filling a member, or a hint moved at a position
+  `testdata/golden/openapi/hint_positions.yaml` does not write, is the bump no test sees: make it,
+  with the row's `meaning`. `git diff origin/main... -- testdata | grep -E '^-\s*"(canonical|hint)"'`
+  lists the names a branch moved.
 - **Other PRs.** Before claiming a version, and after each merge of `main`, list the open PRs
   that claim one (`references/ir-lessons.md#version-collisions`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
