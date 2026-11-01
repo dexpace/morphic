@@ -81,6 +81,12 @@ func TestChildCommandViolations_PlantedRowsAreReportedExactly(t *testing.T) {
 			"package p\n\nimport x \"os/exec\"\n\nvar _ = x.Command(\"x\") // want\n", 1},
 		{"dot import", "p/a_test.go", "package p\n\nimport . \"os/exec\" // want dot\n", 1},
 		{"blank import", "p/a_test.go", "package p\n\nimport _ \"os/exec\"\n", 1},
+		{"named import beside a blank one", "p/a_test.go",
+			"package p\n\nimport (\n\t_ \"os/exec\"\n\te \"os/exec\"\n)\n\nvar _ = e.Command(\"x\") // want\n", 1},
+		{"second named import", "p/a_test.go",
+			"package p\n\nimport (\n\ta \"os/exec\"\n\tb \"os/exec\"\n)\n\nvar _ = a.ExitError{}\nvar _ = b.Command(\"x\") // want\n", 1},
+		{"dot import after a named one", "p/a_test.go",
+			"package p\n\nimport (\n\te \"os/exec\"\n\t. \"os/exec\" // want dot\n)\n\nvar _ e.ExitError\n", 1},
 		{"pointer to the type", "p/a_test.go", execFile(`func f(c *exec.Cmd) *exec.Cmd { return c }`), 1},
 		{"parenthesized pointer target", "p/a_test.go", execFile(`func f(c *(exec.Cmd)) {}`), 1},
 		{"slice of pointers", "p/a_test.go", execFile(`var _ []*exec.Cmd`), 1},
@@ -219,12 +225,14 @@ func childCommandViolations(root string) (violations []string, importers int, er
 			return
 		}
 		violations = append(violations, envViolations(rel, fset, f)...)
-		spec := osExecSpec(f)
-		if spec == nil {
+		specs := osExecSpecs(f)
+		if len(specs) == 0 {
 			return
 		}
 		importers++
-		violations = append(violations, fileChildCommands(rel, fset, f, spec)...)
+		for _, spec := range specs {
+			violations = append(violations, fileChildCommands(rel, fset, f, spec)...)
+		}
 	})
 	return violations, importers, err
 }
@@ -301,18 +309,20 @@ func readsEnviron(e ast.Expr) bool {
 	return found
 }
 
-// osExecSpec returns f's import of os/exec, or nil when f has none.
-func osExecSpec(f *ast.File) *ast.ImportSpec {
+// osExecSpecs returns every import of os/exec in f, in source order: a file
+// may import it more than once, as `_ "os/exec"` beside a named import.
+func osExecSpecs(f *ast.File) []*ast.ImportSpec {
+	var specs []*ast.ImportSpec
 	for _, spec := range f.Imports {
 		if spec.Path.Value == osExecImport {
-			return spec
+			specs = append(specs, spec)
 		}
 	}
-	return nil
+	return specs
 }
 
 // fileChildCommands returns the violations of f, which imports os/exec through
-// spec, each naming rel and its line.
+// spec, one of its imports of it, each naming rel and its line.
 func fileChildCommands(rel string, fset *token.FileSet, f *ast.File, spec *ast.ImportSpec) []string {
 	name := "exec"
 	if spec.Name != nil {
