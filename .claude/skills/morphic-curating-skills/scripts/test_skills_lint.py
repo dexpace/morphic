@@ -526,13 +526,16 @@ class LoadTreeTest(unittest.TestCase):
             write(root, "scripts/new.py", "")
             write(root, "notes/café.md", "")
             write(root, "out/built.txt", "")
+            # A test written beside the skill naming it, which is not staged yet, and a built one.
+            write(root, "ir/new_test.go", "package ir\n\nfunc TestNew_Case(t *testing.T) {}\n")
+            write(root, "out/built_test.go", "package o\n\nfunc TestBuilt(t *testing.T) {}\n")
             # A tracked test file deleted mid-change, as before a git rm, declares nothing.
             for gone in ("gone.go", "gone_test.go"):
                 (root / "ir" / gone).unlink()
             top_level, tests, known = skills_lint.load_tree(root)
         self.assertEqual(top_level, {".claude", ".gitignore", "ir", "données"})
-        self.assertEqual(tests, {"TestA", "TestA_B", "TestB"})
-        self.assertEqual(known, {".gitignore", "ir/a_test.go", "données/b_test.go",
+        self.assertEqual(tests, {"TestA", "TestA_B", "TestB", "TestNew", "TestNew_Case"})
+        self.assertEqual(known, {".gitignore", "ir/a_test.go", "données/b_test.go", "ir/new_test.go",
                                  "scripts/new.py", "notes/café.md"},
                          "untracked files count, and ignored or deleted ones do not")
 
