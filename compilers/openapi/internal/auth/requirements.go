@@ -81,7 +81,8 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 // like the {} meaning "no auth is one acceptable choice" (issue #284). The node
 // it was read from separates them: the marshaller records a root node only for
 // a value it could read as a mapping, so {} carries one inline or through an
-// alias. Being library behavior, it is tested through compiled documents.
+// alias. Being library behavior, it is tested through compiled documents. A
+// mapping whose only key is a `<<` naming no mapping still reads as {} (#1244).
 //
 // A nil req is unreachable from a parsed document; that guard is for a
 // hand-built slice, as in unresolvableScheme.

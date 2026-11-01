@@ -2688,9 +2688,10 @@ with the scopes it lists ([auth](../ir/auth.md)). An operation that writes no `s
 inherits the document's, and one writing `security: []` is public; the two stay apart, absent
 against empty ([operations](../ir/operations.md)).
 
-A requirement names a scheme by its key under `securitySchemes`, matched exactly. A name that
-reaches no mechanism lowers to a scheme of kind `unresolved` ([auth](../ir/auth.md#unresolved-schemes)),
-one per name, and is reported as an `openapi/unresolved-security-scheme` error at each requirement.
+A requirement names a scheme by its key under the source's `securitySchemes`, whichever document
+holds the requirement, matched exactly. A name that reaches no mechanism lowers to a scheme of kind
+`unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is reported as an
+`openapi/unresolved-security-scheme` error at each requirement.
 Nothing else about the requirement changes: the option keeps its other schemes, its scopes and its
 place in the list, so an operation stating its own requirement does not read as inheriting, and an
 option naming nothing does not vanish from the options beside it. The error stands however the rest
@@ -2737,12 +2738,14 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption`,
   `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
   `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
+  `e2e.TestSecurityUnresolved_ANameTwoDocumentsUseIsOneSchemeOfTheSource`,
   `auth.TestSecurityRequirement_AnOperationsOwnUnresolvedListDoesNotInherit`,
   `auth.TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil`,
   `auth.TestAuth_RequirementsOrOfAnds`
 - Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
-  unresolved scheme name gets no near-miss hint (#694), and a scope a requirement repeats passes
-  into the IR undeduplicated (#738).
+  unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
+  the IR undeduplicated (#738), and a requirement whose only key is a `<<` naming no mapping lowers
+  to the empty option, beside the rule table's error (#1244).
 
 ### `security-scheme-fields`
 
