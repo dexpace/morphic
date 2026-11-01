@@ -169,10 +169,11 @@ to read — and to execute outside the case its author measured.
 
 - **Rule.** A PR body or commit reports what the final tree showed: a fix it names is in the diff; a
   mutation it cites was planted exactly, once, at the named site, with each subtest's outcome read
-  under `-v`; "all routes" comes from probing each route. A result at one site is not a result for
-  its mechanism.
+  under `-v`; "all routes" comes from probing each route; a match count comes with the matches read.
+  One site's result is not its mechanism's. Edit a body once `git ls-remote` shows its push landed.
 - **Why.** Bodies claimed fixes that had not landed, "every package green" where none went red, and
-  a bite in subtests that passed under the mutation (#349, #135, #382, #379).
+  a bite in subtests that passed under the mutation (#349, #135, #382, #379). A body outran a
+  refused commit, and a grep count held ordinary text (#1210).
 - **Probe.** Before pushing, rerun each quoted mutation and probe on the final tree and paste what
   it printed.
 
