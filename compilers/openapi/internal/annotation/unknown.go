@@ -68,7 +68,7 @@ const MaxUnknownKeys = 64
 //
 //   - $comment: 2020-12 §8.3 forbids presenting it to end users, so it is
 //     dropped on purpose.
-//   - $dynamicAnchor: read by the anchor index as a reference target, so a
+//   - $dynamicAnchor: read by internal/bind as a reference target, so a
 //     $dynamicRef can expand.
 //   - $dynamicRef: carried by the dynamic-reference lowering, which expands it
 //     or keeps it under its own reason. A census entry beside an expanded one

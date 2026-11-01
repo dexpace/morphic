@@ -270,8 +270,8 @@ func (b *binder) table(t *Table) *Table {
 	return t
 }
 
-// attribute returns, for each position some $ref's or mapping value's chain
-// reaches, the least such position, in whichever document. Starting from each
+// attribute returns, for each position some $ref's, mapping value's or expanding
+// $dynamicRef's chain reaches, the least such position, in whichever document. Starting from each
 // in order, a chain is followed until it meets a position a lesser start
 // reached, whose chain on from there that start has marked, so each position
 // is marked once.
@@ -290,6 +290,9 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 	}
 	for _, m := range t.mappings {
 		add(m.At, m.Hop)
+	}
+	for _, e := range b.find.expansions {
+		add(e.from, Hop{Status: Resolved, Target: e.to})
 	}
 	slices.SortFunc(starts, func(x, y start) int {
 		if c := b.docs.compare(x.from, y.from); c != 0 {

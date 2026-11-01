@@ -287,6 +287,12 @@ func TestBind_LandsOnTheAnchorAnotherDocumentsDynamicRefNames(t *testing.T) {
 
 	table, doc, at := landed(t, "E: {$dynamicRef: '#n'}\nT: {$dynamicAnchor: n, properties: {p: {$ref: '#/U'}}}\nU: {type: string}\n")
 	assert.Contains(t, at, jsontext.Pointer("/T"))
+	for _, l := range table.Landings() {
+		if l.At.Pointer == "/T" {
+			assert.True(t, l.Reached, "the expansion reaches it, so what reads a reached schema reads it")
+			assert.Equal(t, bind.Position{Doc: doc, Pointer: "/E"}, l.Site)
+		}
+	}
 	e, ok := table.Entry(bind.Position{Doc: doc, Pointer: "/T/properties/p"})
 	require.True(t, ok, "what the anchor's schema holds is read")
 	assert.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())

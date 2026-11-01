@@ -506,7 +506,6 @@ morphic/
 │   │       ├── detect/     #             a source recognized from its bytes, on load's parse
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── naming/     #             each node's name, from its coordinate alone
-│   │       ├── anchors/    #             the $dynamicAnchor index a $dynamicRef expands against
 │   │       ├── lowering/   #             the immutable context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements

@@ -385,8 +385,8 @@ deemed unresolvable, as OAS 3.1.1 §4.3.1 requires, so a URI a document declares
 identifier whichever reference comes first, is never fetched, and is never refused. References are
 read in passes over the same set, each against the URIs the last one's documents declared, and only
 the last pass's answers stand, so no declaration order reaches an answer. A pass reads a document
-on the network only once no other document it can read is left to declare that URI, and one a later
-identifier made unnecessary is read but lowers nothing and is no `Document.Sources` entry. A pointer passing a reference object reads on where the resolver resolved
+an absolute URI names only once no other document it can read is left to declare that URI, and one
+a later identifier made unnecessary is read but lowers nothing and is no `Document.Sources` entry. A pointer passing a reference object reads on where the resolver resolved
 that, in whichever document, and a `$ref` written in another document's content is read in that
 document. What a `$ref` lands on in another document lowers where that document declares it; one in
 the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
@@ -2012,8 +2012,9 @@ A `$dynamicRef` is read against the anchors of the document it is written in, by
 one in another document expands to the type lowered where that document declares its anchor, in that
 document's namespace ([identity](../ir/identity.md#across-documents)), never to a source anchor of
 that name. There any position may hold the anchor, since a reference hoists what it reaches
-([`references`](#references)). What a reference resolved to where no position of its document
-places it reads no anchors, so a `$dynamicRef` in it is kept.
+([`references`](#references)), and the schema an expansion reaches is read and validated as one a
+`$ref` reaches. What a reference resolved to where no position of its document places it reads no
+anchors, so a `$dynamicRef` in it is kept.
 
 Anchors are the identifiers [`references`](#references) reads, where it reads them, so one in an
 example or an extension declares nothing, and one read through a YAML alias or a merge key is a

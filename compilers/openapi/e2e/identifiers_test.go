@@ -181,3 +181,25 @@ q: {name: r, in: query, schema: {type: string}}
 	}
 	assert.True(t, found, "%+v", diags)
 }
+
+// TestCompile_ASchemaAnExpansionReachesIsValidated pins that an expansion reaches
+// what it names as a $ref does: a schema of another document only a $dynamicRef
+// reaches draws what the same schema draws reached by a $ref, not nothing.
+func TestCompile_ASchemaAnExpansionReachesIsValidated(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	layout(t, dir, map[string]string{"o.yaml": "E: {$dynamicRef: '#n'}\nT: {$dynamicAnchor: n, maxLength: -1}\n"})
+	findings := func(ref string) []string {
+		_, diags := compileOnDisk(t, filepath.Join(dir, "spec.yaml"), specNaming("    E: {$ref: '"+ref+"'}\n"), false)
+		var got []string
+		for _, d := range diags {
+			if d.Severity == ir.SeverityError {
+				got = append(got, d.Code+" "+string(d.Provenance.Pointer))
+			}
+		}
+		return got
+	}
+	byRef := findings("o.yaml#/T")
+	require.NotEmpty(t, byRef)
+	assert.Equal(t, byRef, findings("o.yaml#/E"))
+}

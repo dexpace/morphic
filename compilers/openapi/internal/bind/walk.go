@@ -47,7 +47,8 @@ type finder struct {
 	mappingSites  map[mappingKey]bool
 	fresh         []Position
 	freshMappings []mappingKey
-	freshDynamic  []dynamicKey
+	freshDynamic  []dynamicSite
+	expansions    []expansion
 	landings      map[Position]bool
 	pending       []root
 	covered       map[root]bool
@@ -166,6 +167,18 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 	}
 }
 
+// dynamicSite is a $dynamicRef of another document and the anchor it names.
+type dynamicSite struct {
+	at  Position
+	key dynamicKey
+}
+
+// expansion is a $dynamicRef written at from and the schema at to declaring the
+// one anchor of its name, which it reaches as a $ref reaches what it names.
+type expansion struct {
+	from, to Position
+}
+
 // dynamicOf notes the anchor the $dynamicRef the schema at at, holding n, names,
 // where another document holds it. Nothing but a reference builds a schema of
 // another document (landed), and an expansion is one, so settle lands on the
@@ -179,7 +192,7 @@ func (w *finder) dynamicOf(n *yaml.Node, at Position) {
 		return
 	}
 	if name, _, ok := DynamicFragment(ref); ok {
-		w.freshDynamic = append(w.freshDynamic, dynamicKey{doc: at.Doc, name: name})
+		w.freshDynamic = append(w.freshDynamic, dynamicSite{at: at, key: dynamicKey{doc: at.Doc, name: name}})
 	}
 }
 
@@ -190,10 +203,11 @@ func (w *finder) dynamicOf(n *yaml.Node, at Position) {
 func (w *finder) landOnAnchors() {
 	dynamic := w.freshDynamic
 	w.freshDynamic = nil
-	for _, k := range dynamic {
-		w.identify(k.doc)
-		if at := w.ids.dynamic[k]; len(at) == 1 {
+	for _, d := range dynamic {
+		w.identify(d.key.doc)
+		if at := w.ids.dynamic[d.key]; len(at) == 1 {
 			w.landed(Hop{Target: at[0], Role: Raw})
+			w.expansions = append(w.expansions, expansion{from: d.at, to: at[0]})
 		}
 	}
 }
