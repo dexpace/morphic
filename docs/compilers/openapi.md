@@ -1596,8 +1596,9 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   `schema.TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget`,
   `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
-  mapping to a component that is a `$ref` to a subtype fails validation (#844). Open: inferring a discriminator from pinned tag
-  values, as an injectable policy (#659).
+  mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
+  type two variants alias, which a valid document can write (#1298). Open: inferring a
+  discriminator from pinned tag values, as an injectable policy (#659).
 
 ### `discriminator-value`
 
@@ -1962,6 +1963,8 @@ of its own, since reading it so loses nothing.
   `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
   `anchors.TestBuild_ANullAnchorNamesNothing`,
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`
+- Status: partly built: a keyword written `null` beneath the same keyword, such as an `items` inside
+  an `items`, turns the outer position into the `false` schema (#1299).
 
 ## 7. Schemas: keywords beyond the shape
 
@@ -2409,8 +2412,9 @@ A parameter schema's `xml`, and its `readOnly` and `writeOnly`, are kept verbati
 `Unmodeled` (`no_ir_home`), reported as an info `openapi/degraded-construct` at the keyword, since
 `ir.Parameter` has no field for either. The `xml` of a schema that owns a node of its own stays on
 that node's `XMLHints` instead. A schema with no node of its own keeps there too what any carrier
-keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that did
-not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads ([`unknown-keys`](#unknown-keys)).
+keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
+did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
+([`unknown-keys`](#unknown-keys)).
 
 - Cases: `param-xml-residue`
 - Codes: `openapi/degraded-construct`
@@ -2880,12 +2884,13 @@ beneath the scope its extensions use (`openapi:info/<key>`, `openapi:pathItem/<k
 a YAML anchor included. A schema keyword no field of the schema model names is kept the same way,
 reported as an info `openapi/unknown-schema-keyword`, because JSON Schema obliges an implementation
 to ignore a keyword it does not know, and a position that lowers to a shared node and carries no
-property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and `$dynamicRef`
-are decided elsewhere and left out. So is a keyword the model names and the dialect the schema is read in does
-not define, which only `nullable` is, with the nullable-widening policy off
-([`nullable`](#nullable)). One object contributes at most `annotation.MaxUnknownKeys` keys, taken in
-byte order after the keys another reader already kept at the same pointer are set aside, and the
-rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the object.
+property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
+`$dynamicRef` are decided elsewhere and left out. So is a keyword the model names and the dialect
+the schema is read in does not define, which only `nullable` is, with the nullable-widening policy
+off ([`nullable`](#nullable)). One object contributes at most `annotation.MaxUnknownKeys` keys,
+taken in byte order after the keys another reader already kept at the same pointer are set aside,
+and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
+object.
 Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`, where
 `openapi:<key>` is already held by a construct written elsewhere on a carrier two objects share, a
 parameter's own key and its schema's keyword, whichever lowered first surviving; and

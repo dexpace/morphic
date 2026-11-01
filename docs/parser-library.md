@@ -545,9 +545,9 @@ components:
 
 ### `null-type-is-empty`
 
-A `type` written as a YAML `null`, rather than the string `"null"`, decodes as one type spelled `""`,
-as an item of a list does: `GetType` returns `[""]`, which no `SchemaType` constant names and which
-reads as a type written, where the keyword states nothing.
+A `type` written as a YAML `null`, rather than the string `"null"`, decodes as one type spelled
+`""`, as an item of a list does: `GetType` returns `[""]`, which no `SchemaType` constant names and
+which reads as a type written, where the keyword states nothing.
 
 ```yaml
 components:

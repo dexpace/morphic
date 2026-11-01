@@ -261,7 +261,7 @@ func stringValue(node *yaml.Node) (string, bool) {
 type keyClass struct {
 	code     string
 	severity ir.Severity
-	skip     []string // keywords already decided about; see DecidedKeywords
+	skip     []string // keys another reader answers for
 	message  string   // one %q, filled with the key
 }
 
