@@ -67,6 +67,24 @@ func TestExternalCorpus_DeclarationOrderDecidesNothing(t *testing.T) {
 	}
 }
 
+// TestExternalCorpus_RemoteReadsAreRefused holds the order oracle's reader
+// offline: a remote reference it meets fails with errOffline, so neither order
+// depends on the network.
+func TestExternalCorpus_RemoteReadsAreRefused(t *testing.T) {
+	t.Parallel()
+	// example.invalid never resolves (RFC 6761), so a regressed reader still
+	// contacts no third-party host.
+	const root = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: "https://example.invalid/a.yaml"}
+`
+	got := compiledThrough(t, t.TempDir(), root)
+	assert.Contains(t, strings.Join(got, "\n"), errOffline.Error(), "the oracle's reader sent a remote read")
+}
+
 // orderDecided holds the corpus specs whose report, compiled as another
 // document, still follows declaration order, each with the issue recording
 // why. An entry must still differ, so it comes off once its issue is fixed.
