@@ -40,7 +40,9 @@ const (
 	// TargetDeprecation deprecates what a key sits on where no `deprecated`
 	// keyword did, giving the members below a Deprecation to fill. The text
 	// "deprecated" or a boolean true states it; a key may hold other words, as
-	// x-stability does, and false or another word states nothing.
+	// x-stability does, and false or another word states nothing. A mapping
+	// cannot narrow that to one form, so a stability key's true states it too
+	// (GitHub #654).
 	TargetDeprecation ExtensionTarget = "deprecation"
 	// TargetDeprecationMessage fills ir.Deprecation.Message.
 	TargetDeprecationMessage ExtensionTarget = "deprecation.message"
@@ -125,7 +127,7 @@ type ExtensionPromotions struct {
 // states none. It is a default and not a standard: OpenAPI defines none of
 // these keys, and each is simply the spelling that has become common for a
 // field the format never gave a keyword. A document using another spelling is
-// not wrong — it names its own mapping.
+// not wrong — it names its own mapping. GitHub #656 tracks the facts it leaves.
 func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 	return map[ExtensionTarget][]ExtensionSource{
 		// Both are stability keys, and `deprecated` is a word of theirs that names
@@ -163,14 +165,14 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 // which is what makes "the extension survives its own promotion" structural
 // instead of a rule each caller has to remember: nothing here can consume an
 // entry. It takes them at the top level, so a key under a scope or inside a
-// verbatim entry reaches no field (GitHub #1220, #1221).
+// verbatim entry reaches no field (GitHub #661, #1220, #1221).
 type Promoter struct {
 	targets map[ExtensionTarget][]ExtensionSource
 	// keys is every extension key targets reads, distinct and sorted.
 	keys []string
 	// referents remembers what each position lends (Referent). Copies share it
 	// on purpose: an answer reads only the document and the policy, which no
-	// lowering changes.
+	// lowering changes. Nothing guards it, as a compile lowers on one goroutine.
 	referents map[bind.Position]Referent
 }
 
@@ -226,10 +228,11 @@ func newPromoter(p ExtensionPromotions) *Promoter {
 // referent.
 func (p Promoter) Keys() iter.Seq[string] { return slices.Values(p.keys) }
 
-// Referent returns what the schema at at lends a carrier of a $ref ending on it.
-// declared is that schema's `deprecated: true`, and entries reads its mapped keys
-// in Unmodeled's form, once for every copy of p: a schema has as many carriers as
-// a document names it, and a key's value can be as large as the document.
+// Referent returns what the schema at position at lends a carrier of a $ref
+// ending on it. declared is that schema's `deprecated: true`, and entries reads
+// its mapped keys in Unmodeled's form, once for every copy of p: a schema has as
+// many carriers as a document names it, and a key's value can be as large as the
+// document.
 //
 // The readings' findings are dropped because the schema is a declaration, and
 // reports where it is written; a use repeating them would be one report per use.

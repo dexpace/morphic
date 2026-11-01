@@ -115,13 +115,13 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 
 // PromoteUse reads the vendor extensions into the deprecation and redaction of a
 // carrier of the schema js: a property, a header or a parameter. Its own keys are
-// the ones kept in unmodeled, and its $ref's referent lends its own beneath them,
-// as every other annotation it declares
+// the ones kept in unmodeled, and its $ref's referent lends its own beneath them
 // (docs/compilers/openapi.md#ref-use-site).
 //
-// A caller runs it once the carrier's own keywords and keys are all on it, which
-// for a header or a parameter means after the object around the schema: what
-// that object says decides what is deprecated, and so what a member can fill.
+// A caller runs it once the carrier's keywords and keys are all on it, which for
+// a header or a parameter means after the object around the schema: that object
+// decides what is deprecated, and so what a member can fill. A key both write is
+// one entry, the object's, so the schema's is not read (GitHub #396).
 func PromoteUse(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], unmodeled ir.Unmodeled, dep **ir.Deprecation, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
 	from := referentOf(c, js)
 	diags := c.Promoter().Deprecation(unmodeled, from, dep, prov)
@@ -131,7 +131,7 @@ func PromoteUse(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], unmodel
 // referentOf returns what a carrier of js may read of the schema its $ref ends
 // on, and nothing for a js that is no $ref. The end of the chain is the one
 // annotations fall back to, so a schema between the two lends nothing here
-// either.
+// either (GitHub #1029).
 func referentOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) lowering.Referent {
 	ref := annotation.SchemaOf(js)
 	tgt, at := c.RefScope().TargetAt(js, ref)

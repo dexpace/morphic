@@ -122,7 +122,7 @@ Designs this replaced, each with the fact it fails on:
   A format that states a tier there keeps it under `no_ir_home` until a field lands for it.
 
 `irverify` reports a value outside the declared tiers (`ir/unknown-stability`), wherever the field
-sits.
+sits. What a target does with a tier is not stated yet (#1222).
 
 ## Design notes
 
@@ -137,7 +137,8 @@ sits.
   for it: 8,325 of the 11,915 parameters in the golden spec own no node (spec @319dc756), and a node
   minted for a key on an OpenAPI Parameter Object would sit at a schema pointer a `$ref` can name, the
   collision invariant 3 forbids. `Secret` is the per-use form a property already has, and TypeSpec's
-  `@secret` on a property bound to a header or query lowers to it.
+  `@secret` on a property bound to a header or query lowers to it. No refine step reads it yet, as
+  none reads `Sensitive` (#895).
 
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is

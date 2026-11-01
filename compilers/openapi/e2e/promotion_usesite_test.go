@@ -226,7 +226,8 @@ paths:
 // type's, onto the carrier (docs/emitters/refine/decorators.md), so what the
 // $ref's carrier holds has to be what that fold reads off the nodes. The second
 // and third rows are why a target has to be deprecated to lend a member: a fold
-// has no Deprecation to take Dated's date from.
+// has no Deprecation to take Dated's date from. A member key on the decorator and
+// its `deprecated: false` still part from the $ref (GitHub #1220, #1258).
 func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -370,9 +371,8 @@ func assertPromotionsAgree(t *testing.T, a, b *ir.Document) {
 }
 
 // TestPromotion_AReferentCostsItsUsesNothingMore holds the price of a mapped key's
-// value apart from how many uses name it. A read per use costs their product, so
-// a 200 KB document with a key of 20,000 items and 500 uses took seconds to do
-// what no read of it needs. Doubling the value at many uses has to cost what
+// value apart from how many uses name it: a read per use costs their product, and
+// no answer needs more than one. Doubling the value at many uses has to cost what
 // doubling it at one does. Not parallel: AllocsPerRun measures the process.
 func TestPromotion_AReferentCostsItsUsesNothingMore(t *testing.T) {
 	spec := func(uses, items int) string {
