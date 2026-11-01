@@ -69,9 +69,9 @@ const probeTimeout = 10 * time.Second
 
 // probeMaxStack bounds the helper's goroutine stacks, as load's crash oracle
 // bounds its own. At the runtime's default of 1 GB a stack overflow, under a
-// developer's -race run most of all, can take longer than probeTimeout and read
-// as a hang; these shapes are a few
-// references deep, so nothing short of a runaway recursion comes near 64 MB.
+// developer's -race run most of all, can take longer than probeTimeout
+// and read as a hang; these shapes are a few references deep, so nothing
+// short of a runaway recursion comes near 64 MB.
 const probeMaxStack = 64 << 20
 
 // helperTimeout is the helper's own -test.timeout. It is twice probeTimeout, so
