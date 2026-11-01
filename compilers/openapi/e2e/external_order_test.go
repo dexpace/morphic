@@ -8,7 +8,9 @@ package e2e_test // external test package — exercises only the public API
 
 import (
 	"encoding/json/v2"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -63,6 +65,24 @@ func TestExternalCorpus_DeclarationOrderDecidesNothing(t *testing.T) {
 	for name := range orderDecided {
 		assert.True(t, swept[name], "orderDecided names %s, which the sweep did not reach", name)
 	}
+}
+
+// TestExternalCorpus_RemoteReadsAreRefused holds the order oracle's reader
+// offline: a remote reference it meets fails with errOffline, so neither order
+// depends on the network.
+func TestExternalCorpus_RemoteReadsAreRefused(t *testing.T) {
+	t.Parallel()
+	// example.invalid never resolves (RFC 6761), so a regressed reader still
+	// contacts no third-party host.
+	const root = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {$ref: "https://example.invalid/a.yaml"}
+`
+	got := compiledThrough(t, t.TempDir(), root)
+	assert.Contains(t, strings.Join(got, "\n"), errOffline.Error(), "the oracle's reader sent a remote read")
 }
 
 // orderDecided holds the corpus specs whose report, compiled as another
@@ -151,15 +171,27 @@ func mappingKeys(n *yaml.Node) []string {
 	return out
 }
 
-// compiledThrough compiles root as root.yaml in dir with external references
-// allowed, and returns what an order comparison reads: each diagnostic, sorted,
-// and the types, encoded deterministically.
+// errOffline is the one failure every http(s) read of the sweep gets.
+var errOffline = errors.New("the order oracle reads no http(s) reference")
+
+// stubOffline is a RoundTripper that sends nothing and fails every request alike,
+// so both declaration orders see the same report for a remote reference
+// whatever the network does, and the suite reaches no third-party host.
+type stubOffline struct{}
+
+// RoundTrip implements http.RoundTripper.
+func (stubOffline) RoundTrip(*http.Request) (*http.Response, error) { return nil, errOffline }
+
+// compiledThrough compiles root as root.yaml in dir with external file
+// references allowed and every http(s) one refused, and returns what an order
+// comparison reads: each diagnostic, sorted, and the types, encoded
+// deterministically.
 func compiledThrough(t *testing.T, dir, root string) []string {
 	t.Helper()
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
-		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{Client: &http.Client{Transport: stubOffline{}}}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags)+1)
 	for _, d := range diags {
