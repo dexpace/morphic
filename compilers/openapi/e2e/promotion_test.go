@@ -1,10 +1,10 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// This file covers promotion: reading a vendor extension into the typed IR
-// field it is the only OpenAPI spelling for. It belongs to no single source
-// file — the policy is on the compiler's options, the reading is one function
-// beneath both walks, and it is applied at every carrier that can record it.
+// This file covers promotion: reading a vendor extension into a typed IR field.
+// It belongs to no single source file — the policy is on the compiler's options,
+// the reading is one type beneath both walks, and it is applied at every carrier
+// that can record it.
 package e2e_test // external test package — exercises only the public API
 
 import (

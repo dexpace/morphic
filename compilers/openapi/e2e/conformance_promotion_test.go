@@ -73,7 +73,7 @@ func assertExtensionStability(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 }
 
 // assertExtensionRedaction is x-sensitive at every position format: password
-// reaches: the two carriers, the node a position owns, and the hoisted nodes of
+// reaches: the three carriers, the node a position owns, and the hoisted nodes of
 // the positions with no carrier. secret-format holds the same positions for the
 // format, so the two are one rule at two spellings.
 func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
