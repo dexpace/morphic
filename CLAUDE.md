@@ -423,8 +423,10 @@ make gate
 That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
 `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI are the same commands; CI splits them across two jobs that run
-side by side. Read the `Makefile` for the step list rather than restating it here; `make coverage`,
-`make fuzz`, `make bench` and the rest are individually runnable while iterating.
+side by side. The fuzz search is outside it: the nightly job runs `make fuzz`, and the gate runs
+`make fuzz-check`, which holds the targets to their limits and searches nothing. Read the `Makefile`
+for the step list rather than restating it here; `make coverage`, `make fuzz`, `make bench` and the
+rest are individually runnable while iterating.
 
 **Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered
@@ -441,9 +443,10 @@ context-switch between repos.
 - No CODEOWNERS, PR/issue templates, or CODE_OF_CONDUCT.md exist in this repo — don't assume them
   or invent content for files that aren't there.
 - CI is one `gate` workflow (`.github/workflows/gate.yml`) of two jobs that run side by side, on PR
-  and on push to `main`. Keep it that way — add a check as a step of one of the two jobs rather than
-  a new job or workflow; both reference repos converge on one bundled gate over granular per-check
-  pipelines, and two jobs is as far as this one splits. The gate builds, vets and lints for the
+  and on push to `main`, and a third, the fuzz search, that runs on a schedule or by hand and never
+  beside them. Keep it that way — add a check as a step of one of the two jobs rather than a new job
+  or workflow; both reference repos converge on one bundled gate over granular per-check pipelines,
+  and two jobs is as far as a pull request's run splits. The gate builds, vets and lints for the
   host alone; Windows and wasm are not targets it checks.
 
 ## Commits & pull requests

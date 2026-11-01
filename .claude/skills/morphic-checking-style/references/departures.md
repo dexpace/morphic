@@ -97,7 +97,7 @@ the rule here rather than reading it across.
 
 - **Rule.** The go-styleguide skill ends on `gofmt`, `golangci-lint`, `go vet` and `go test`. Here a
   Go change is done at `make gate`, which adds the pinned linter version, the planted findings, the
-  repository's analyzers, fuzzing and exactly 100% coverage.
+  repository's analyzers and exactly 100% coverage.
 - **Why.** One uncovered statement fails CI while `go test` passes, which forced follow-up commits
   and falsified a PR body (#22, #373).
 - **Probe.** `grep -n '^gate:' Makefile`.
