@@ -40,6 +40,18 @@ yourself. These rules are the ways that reading still lies.
 - **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
   (#321, #322) and as "killed" with an empty failure list (#1100).
 
+## Rebuild a plant set nobody kept, rather than carrying its result over
+`rebuild-lost-plants`
+
+- **Rule.** A PR body cites plants by count and class, and the script that made them is gone. When
+  a merge or a review asks for them again, rebuild a set from the conditions the change adds and run
+  it once before merge, even after a merge that touched only comments. The old result stands for
+  nothing the new tree can show.
+- **Why.** A body cited 70 plants by class and the repository held none; a set rebuilt from the diff
+  found a check no test held, which none of them had planted (#1191, #1216).
+- **Probe.** `git grep -l '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt'` shows
+  whether a set survives, and the report lists each condition the diff adds beside its plant.
+
 ## Require a clean baseline and a control that must survive
 `mutation-controls`
 

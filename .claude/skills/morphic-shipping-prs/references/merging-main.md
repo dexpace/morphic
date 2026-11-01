@@ -8,8 +8,9 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 
 - **Rule.** Merge `origin/main` into the branch before a review round and before calling it
   ready. Then build, vet and run the whole suite on the merge, `internal/archtest`'s caps among it,
-  and re-plant each mutation the PR body cites: a clean merge can fail to compile, fail a test, or
-  leave a test green for a mechanism the merge removed.
+  and re-plant each mutation the PR body cites
+  (`.claude/skills/morphic-verifying-changes/references/mutation.md#rebuild-lost-plants`): a clean
+  merge can fail to compile, fail a test, or leave a test green for a mechanism the merge removed.
 - **Why.** After a base PR's final round stopped handing over cached bytes, a stacked PR's dedup
   test stayed green with the dedup deleted (#565, #562); a conflict-free merge failed the doc
   comment cap `main` had adopted meanwhile (#562).
@@ -21,7 +22,8 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 
 - **Rule.** A stacked PR lands on its base, not on `main`. Merge `origin/<base>` before
   `origin/main`, each as its own merge so that a defect shows against the merge causing it, and run
-  on each what `references/merging-main.md#merge-main-first` names.
+  on each what `references/merging-main.md#merge-main-first` names: the push checklist sees only a
+  conflict.
 - **Why.** A head green alone, and reported `MERGEABLE` and `CLEAN`, stopped compiling once merged
   with its base, which merging `main` could not show (#1183, #1179).
 - **Probe.** `gh pr view <N> --json baseRefName --jq .baseRefName`, then

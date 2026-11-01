@@ -34,7 +34,9 @@ Run all, fanning out only when asked (`references/review-probes.md#fan-out-a-pas
 2. **Code, before the claims.** Read the diff without the PR body. For each changed mechanism,
    diff old against new semantics at every bound, sweep every site of it
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-every-site-of-the-mechanism`),
-   re-plant the PR's mutants, plant your own, and ask which input class the corpus cannot contain
+   re-plant the PR's mutants
+   (`.claude/skills/morphic-verifying-changes/references/mutation.md#rebuild-lost-plants`), plant
+   your own, and ask which input class the corpus cannot contain
    (`references/review-probes.md#code-before-claims`).
 3. **Written rules.** Check each invariant in `CLAUDE.md` the diff could touch, and take
    `morphic-checking-style` for its Go. Question any added line nobody can explain.
