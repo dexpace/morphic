@@ -77,14 +77,16 @@ methods, so a Go release that changes how one of them encodes moves the descript
 describes them in `ir/testdata/names.golden.txt` and requires the file's SHA-256 to be the `names`
 its `generations` row records for `IRVersion`, so a name changed at an unmoved version fails and a
 reviewer reads it as that file's diff. The description holds `unicode.Version`, the canonical form of
-every spelling the grammar's conformance table names, that of every name of up to three runes over
-one rune of each class the Unicode tables tell apart, and the hint of every `Naming` in
+each ASCII rune between two letters, that of every name of up to three runes over one rune of each
+class the Unicode tables tell apart, and the hint of every `Naming` in
 `testdata/golden/openapi/hint_positions.golden.json`. Three runes are enough because the grammar
 decides at a rune from that rune and its two neighbours, so those names reach every decision it
-makes over those classes. A hint has no such closure, since it is composed per compiler from
-whatever position the compiler names: the pin reaches the positions `hint_positions.yaml` writes,
-all those one document can, and a position it does not write, such as a document a `$ref` reads
-whole, shows only in the corpus goldens, as the one bump no test requires.
+makes over those classes, and the ASCII runes pin which runes separate, which one class hides. The
+grammar's conformance table stays out of the description, so a row added to it moves nothing. A hint
+has no such closure, since it is composed per compiler from whatever position the compiler names:
+the pin reaches the positions `hint_positions.yaml` writes, all those one document can, and a
+position it does not write, such as a document a `$ref` reads whole, shows only in the corpus
+goldens, as the one bump no test requires.
 
 **Bumping.** A bump sets `IRVersion` to the next MINOR, appends the row the failing test prints,
 and adds an entry to the [history](./version-history.md), which

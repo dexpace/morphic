@@ -64,17 +64,19 @@ func TestIRVersion_PinsTheNames(t *testing.T) {
 }
 
 // describeNames renders what a generation's names are: the Unicode tables the
-// grammar reads, the canonical form of every spelling canonicalCases names and
+// grammar reads, the canonical form of each ASCII rune between two letters and
 // of every name of up to three runes over witnesses, and hints.
 //
 // The grammar decides at each rune from that rune and its two neighbours, so
 // those names reach every decision it makes over the classes the witnesses
-// stand for. The spellings name it for a reader, and pin the separators.
+// stand for. The ASCII runes pin which runes separate, which one class hides.
+// canonicalCases stays out: a row added there changes no name, so it moves no
+// hash.
 func describeNames(witnesses []rune, hints []string) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "unicode %s\n\n# spellings\n", unicode.Version)
-	for _, tc := range canonicalCases {
-		writeCanonical(&b, tc.in)
+	fmt.Fprintf(&b, "unicode %s\n\n# every ASCII rune between two letters\n", unicode.Version)
+	for r := rune(0); r <= unicode.MaxASCII; r++ {
+		writeCanonical(&b, "a"+string(r)+"b")
 	}
 	b.WriteString("\n# every name of up to three runes, over one rune of each class\n")
 	for _, name := range namesOver(witnesses) {
@@ -210,7 +212,8 @@ func namesFindings(rows []generation, version, names string) []string {
 		return []string{fmt.Sprintf("the names a document renders changed, which renames generated symbols, "+
 			"but IRVersion is still %s, published with other names (docs/ir/ir-version.md). Set IRVersion to %s, "+
 			"append its row with names: %q and the meaning that changed, and say what changed under %s in "+
-			"docs/ir/version-history.md. A row this branch appended takes the hash in place",
+			"docs/ir/version-history.md. A row this branch appended takes the hash in place, "+
+			"and a position only added to the hint spec lands with whichever change bumps next",
 			version, next, names, next)}
 	}
 }
@@ -236,7 +239,8 @@ func TestNamesFindings(t *testing.T) {
 			`the names a document renders changed, which renames generated symbols, but IRVersion is still 0.3.0, ` +
 				`published with other names (docs/ir/ir-version.md). Set IRVersion to 0.4.0, append its row with ` +
 				`names: "` + shapeA + `" and the meaning that changed, and say what changed under 0.4.0 in ` +
-				`docs/ir/version-history.md. A row this branch appended takes the hash in place`},
+				`docs/ir/version-history.md. A row this branch appended takes the hash in place, ` +
+				`and a position only added to the hint spec lands with whichever change bumps next`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
