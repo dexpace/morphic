@@ -4,6 +4,10 @@
 package main
 
 import (
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -29,9 +33,9 @@ const (
 	countersPrefix = "covcounters."
 )
 
-// command returns a command running name with args as a child of the CLI,
-// which childContext kills when the test ends. It is the one way these tests
-// start a child, so none shares a coverage directory with another.
+// command returns a command running name with args in a child that runs as
+// the CLI, which childContext kills when the test ends. It is the one way
+// these tests start a child, so none shares a coverage directory with another.
 func command(t *testing.T, name string, args ...string) *exec.Cmd {
 	t.Helper()
 	cmd := exec.CommandContext(childContext(t), name, args...)
@@ -42,9 +46,10 @@ func command(t *testing.T, name string, args ...string) *exec.Cmd {
 // childEnv returns the environment of a child of this process. When this
 // binary is built for coverage, the child gets a directory of its own, whose
 // files the test's cleanup moves into this process's. Children sharing one
-// directory race: the runtime names the meta-data file it creates there from
-// the clock, and two children that read the same value, as a clock ticking in
-// microseconds makes likely, create one file and fail renaming it.
+// directory race: the runtime names the temporary file it writes the
+// meta-data to from the clock, and two children that read the same value, as
+// a clock ticking in microseconds makes likely, create one file, so the
+// second fails to rename it.
 func childEnv(t *testing.T) []string {
 	t.Helper()
 	env := os.Environ()
@@ -203,4 +208,77 @@ func TestChild_ACoveredChildsCountersReachTheParentDir(t *testing.T) {
 		}
 	}
 	assert.Len(t, mine, 1, "the child's counter file")
+}
+
+// childStartsOutside returns, for each file of the package that starts a
+// child with the os/exec package anywhere but in command, the position of
+// the call, and whether command was among the declarations it read. It finds
+// the package through the file's import of os/exec, so an alias does not hide
+// a call, and reads package-level declarations as well as functions.
+func childStartsOutside(t *testing.T, fset *token.FileSet, files []*ast.File) (starts []string, sawCommand bool) {
+	t.Helper()
+	for _, f := range files {
+		name, imported := execName(f)
+		if !imported {
+			continue
+		}
+		require.NotEqual(t, ".", name, "%s dot-imports os/exec", fset.Position(f.Pos()).Filename)
+		for _, decl := range f.Decls {
+			if fn, ok := decl.(*ast.FuncDecl); ok && fn.Recv == nil && fn.Name.Name == "command" {
+				sawCommand = true
+				continue
+			}
+			in := "package level"
+			if fn, ok := decl.(*ast.FuncDecl); ok {
+				in = fn.Name.Name
+			}
+			ast.Inspect(decl, func(n ast.Node) bool {
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok || (sel.Sel.Name != "Command" && sel.Sel.Name != "CommandContext") {
+					return true
+				}
+				if id, ok := sel.X.(*ast.Ident); ok && id.Name == name {
+					starts = append(starts, fmt.Sprintf("%s: %s starts a child outside command", fset.Position(sel.Pos()), in))
+				}
+				return true
+			})
+		}
+	}
+	return starts, sawCommand
+}
+
+// execName returns the name f gives the os/exec package, and whether f
+// imports it.
+func execName(f *ast.File) (string, bool) {
+	for _, spec := range f.Imports {
+		if spec.Path.Value != `"os/exec"` {
+			continue
+		}
+		if spec.Name != nil {
+			return spec.Name.Name, true
+		}
+		return "exec", true
+	}
+	return "", false
+}
+
+// TestChild_EveryChildStartsThroughCommand holds every child these tests
+// start to command, in any file of the package: a child started elsewhere
+// inherits the parent's coverage directory again.
+func TestChild_EveryChildStartsThroughCommand(t *testing.T) {
+	names, err := filepath.Glob("*.go")
+	require.NoError(t, err)
+	require.NotEmpty(t, names, "the package's files are read")
+	fset := token.NewFileSet()
+	files := make([]*ast.File, 0, len(names))
+	for _, name := range names {
+		f, err := parser.ParseFile(fset, name, nil, parser.SkipObjectResolution)
+		require.NoError(t, err)
+		files = append(files, f)
+	}
+
+	starts, sawCommand := childStartsOutside(t, fset, files)
+
+	assert.True(t, sawCommand, "command is declared, so the check reaches what it holds")
+	assert.Empty(t, starts)
 }
