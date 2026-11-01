@@ -51,7 +51,9 @@ func TestConformance(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseCorpus(t, tc.file)
 			assertOnlyErrorDiags(t, diags, invalidCases()[tc.file])
-			tc.assert(t, doc, diags)
+			// A subtest returns once its own parallel subtests have finished, so
+			// the check below sees a failure in any an assertion starts.
+			t.Run("assert", func(t *testing.T) { tc.assert(t, doc, diags) })
 			// A failed capability assertion must not reach the golden. require
 			// aborts, but assert does not, and under -update a non-fatal failure
 			// would rewrite the snapshot with the regressed document — leaving a
