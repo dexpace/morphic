@@ -169,7 +169,9 @@ no emitter has to re-derive this from `Unmodeled` and no two derive it different
 ### What a promotion can fill
 
 The fields a promotion can fill, the node each one's extension is kept on, and the field that node
-records it in. `TestPromotionTable_EveryNodeCanRecord` holds each row to what `ir` declares.
+records it in. `TestPromotionTable_EveryNodeCanRecord` holds each row to what `ir` declares, and
+`TestExtensionTarget_EveryTargetIsInThePromotionTable` each target the OpenAPI compiler declares to
+a row.
 
 | Field | Kept on | Recorded in |
 |---|---|---|

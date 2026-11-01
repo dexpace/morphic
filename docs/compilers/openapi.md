@@ -2864,6 +2864,7 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
   `lowering.TestPromoteEnumOpenness_WritesNothing`,
+  `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
 - Status: partly built: the default mapping covers only deprecation and extensible enums (#656); two
   keys mapped to one field resolve by sort order in silence (#655); a mapping cannot say which

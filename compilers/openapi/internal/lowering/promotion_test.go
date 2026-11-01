@@ -6,6 +6,8 @@ package lowering_test
 import (
 	"encoding/json/jsontext"
 	"go/types"
+	"os"
+	"strings"
 	"sync"
 	"testing"
 
@@ -301,6 +303,56 @@ func TestExtensionTarget_EveryDeclaredTargetHasAnApplier(t *testing.T) {
 		assert.True(t, applied,
 			"%s is declared in the vocabulary but no applier fills it, so a policy naming it "+
 				"promotes nothing and says nothing", target)
+	}
+}
+
+// targetFields names the field each target fills, as the table in promotionDoc
+// spells it.
+var targetFields = map[lowering.ExtensionTarget]string{
+	lowering.TargetDeprecationMessage:        "Deprecation.Message",
+	lowering.TargetDeprecationSince:          "Deprecation.Since",
+	lowering.TargetDeprecationRemovalVersion: "Deprecation.RemovalVersion",
+	lowering.TargetDeprecationRemovalDate:    "Deprecation.RemovalDate",
+	lowering.TargetEnumOpen:                  "Enum.Closed",
+}
+
+// promotionDoc is the document whose table says what a promotion can fill.
+const promotionDoc = "../../../../docs/ir/unmodeled.md"
+
+// promotionTableFields returns the first column of the table in doc: the cells
+// alone, so a field the prose around the table names does not count as a row.
+func promotionTableFields(t *testing.T, doc string) string {
+	t.Helper()
+	_, section, found := strings.Cut(doc, "### What a promotion can fill\n")
+	require.True(t, found, "%s has no table of what a promotion can fill", promotionDoc)
+	section, _, _ = strings.Cut(section, "\n#")
+
+	var fields strings.Builder
+	for line := range strings.Lines(section) {
+		if cells := strings.Split(line, "|"); len(cells) == 5 {
+			fields.WriteString(cells[1])
+		}
+	}
+	return fields.String()
+}
+
+// TestExtensionTarget_EveryTargetIsInThePromotionTable holds the vocabulary to
+// the table, the direction ir's TestPromotionTable_EveryNodeCanRecord does not
+// read: that test holds each row to the structs, so a target with no row would
+// promote a fact nothing says which node records. A list of targets kept apart
+// from the code is how the table's predecessor drifted (GitHub #674).
+func TestExtensionTarget_EveryTargetIsInThePromotionTable(t *testing.T) {
+	t.Parallel()
+	doc, err := os.ReadFile(promotionDoc)
+	require.NoError(t, err)
+	fields := promotionTableFields(t, string(doc))
+
+	for _, target := range declaredTargets(t) {
+		field, named := targetFields[target]
+		if assert.True(t, named, "%s fills a field targetFields does not name", target) {
+			assert.Contains(t, fields, "`"+field+"`",
+				"%s fills a field %s lists no row for, so nothing says which node records it", target, promotionDoc)
+		}
 	}
 }
 
