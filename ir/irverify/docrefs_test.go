@@ -31,6 +31,7 @@ func TestVerify_DocRefs(t *testing.T) {
 		{name: "the whole text", docs: ir.Docs{Description: pet, Refs: []ir.DocRef{span(0, 7)}}},
 		{name: "adjacent spans", docs: ir.Docs{Description: pet, Refs: []ir.DocRef{span(0, 4), span(4, 7)}}},
 		{name: "a span on a multi-byte rune", docs: ir.Docs{Description: accented, Refs: []ir.DocRef{span(0, 2), span(7, 10)}}},
+		{name: "a byte that decodes as nothing is no rune to split", docs: ir.Docs{Description: "\xffx", Refs: []ir.DocRef{span(0, 1)}}},
 
 		{"a span before the text", ir.Docs{Description: pet, Refs: []ir.DocRef{span(-1, 3)}},
 			map[string]int{"ir/doc-ref-span": 1}},
@@ -45,6 +46,8 @@ func TestVerify_DocRefs(t *testing.T) {
 		{"a span starting inside a rune", ir.Docs{Description: accented, Refs: []ir.DocRef{span(1, 5)}},
 			map[string]int{"ir/doc-ref-span": 1}},
 		{"a span ending inside a rune", ir.Docs{Description: accented, Refs: []ir.DocRef{span(0, 1)}},
+			map[string]int{"ir/doc-ref-span": 1}},
+		{"a stray continuation byte at an edge reads as inside a rune", ir.Docs{Description: "\x80x", Refs: []ir.DocRef{span(0, 1)}},
 			map[string]int{"ir/doc-ref-span": 1}},
 		{"overlapping spans", ir.Docs{Description: pet, Refs: []ir.DocRef{span(0, 5), span(4, 7)}},
 			map[string]int{"ir/doc-ref-order": 1}},

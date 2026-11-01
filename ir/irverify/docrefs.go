@@ -77,9 +77,10 @@ func docRefPath(at ir.WalkPath, i int) string {
 	return at.String() + ".Refs[" + strconv.Itoa(i) + "]"
 }
 
-// isSpanOf reports whether ref marks a non-empty run of whole runes of text. A
-// byte that does not decode is checkUTF8's to report, so it counts as a
-// boundary here: utf8.RuneStart rejects only a continuation byte.
+// isSpanOf reports whether ref marks a non-empty run of whole runes of text. It
+// reads only the bytes at the span's edges and decodes nothing, since text that
+// does not decode is checkUTF8's to report: utf8.RuneStart rejects a
+// continuation byte, so a stray one at an edge reads as a split rune.
 func isSpanOf(ref ir.DocRef, text string) bool {
 	return 0 <= ref.Start && ref.Start < ref.End && ref.End <= len(text) &&
 		utf8.RuneStart(text[ref.Start]) && (ref.End == len(text) || utf8.RuneStart(text[ref.End]))
