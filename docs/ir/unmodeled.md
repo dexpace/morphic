@@ -80,6 +80,12 @@ with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:call
 only after such a keyword. The same gap separates both from the non-extension entries a shared
 carrier holds under those scopes, such as `openapi:encoding/<part>/prefixEncoding`.
 
+An entry that belongs to a declaration no node stands for has no carrier to scope it, so it is the
+document's, keyed by the declaration's coordinate rather than a scope:
+`openapi:/components/parameters/P/content/text~1plain`. A coordinate is a pointer, behind a qualifier
+naming the document where that is not the source, so one pointer in two documents is two keys, and
+every use of the declaration reaches one entry. It opens with no keyword, so it meets no scope.
+
 ## Reasons
 
 | Reason | Meaning |

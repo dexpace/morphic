@@ -172,6 +172,15 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	assert.True(t, openapitest.HasDiag(diags, "openapi/degraded-construct"),
 		"the unelected element type is reported; got %+v", diags)
 
+	feed, ok := opByName(doc, "streamFeed")
+	require.True(t, ok)
+	require.NotNil(t, feed.ResponseStream)
+	require.NotNil(t, feed.ResponseStream.Events, "a list and its element name one frame")
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), feed.ResponseStream.Events.Target)
+	require.NotNil(t, feed.Responses[0].Payload)
+	listBody := feed.Responses[0].Payload.Contents[0].Type.Target
+	assert.IsType(t, &ir.List{}, doc.Types[listBody], "the content keeps the whole body's type")
+
 	negotiated, ok := opByName(doc, "streamNegotiated")
 	require.True(t, ok)
 	assert.Equal(t, ir.StreamingServer, negotiated.Streaming)
@@ -183,4 +192,12 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.NotNil(t, negotiated.Responses[0].Payload)
 	assert.Len(t, negotiated.Responses[0].Payload.Contents, 2,
 		"and both media types are still kept, as they are for the unelected case")
+
+	sequence, ok := opByName(doc, "streamSequence")
+	require.True(t, ok)
+	assert.Equal(t, ir.StreamingServer, sequence.Streaming, "application/json-seq is a sequence")
+
+	suffix, ok := opByName(doc, "uploadSequence")
+	require.True(t, ok)
+	assert.Equal(t, ir.StreamingClient, suffix.Streaming, "and so is whatever carries its suffix")
 }

@@ -45,6 +45,16 @@ func scalarTypeID(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, 
 	return hoistScalar(c, ts, depth, s, prim, "", nil, pointer)
 }
 
+// formatPrimitive returns the primitive that s's one declared type and its
+// format select, when the table has that pairing.
+func formatPrimitive(s *oas3.Schema) (ir.PrimKind, bool) {
+	types := effectiveTypes(s)
+	if len(types) != 1 {
+		return "", false
+	}
+	return spelling.Lookup(string(types[0]) + "/" + s.GetFormat())
+}
+
 // baseForType returns the base primitive for an unknown-format scalar of type st.
 func baseForType(st oas3.SchemaType) ir.PrimKind {
 	switch st {
