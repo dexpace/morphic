@@ -512,13 +512,13 @@ context-switch between repos.
     grep -vE '^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: '
   ```
 
-- **Budget the appended number inside the 72-char cap.** GitHub appends ` (#NNN)` to the squashed
-  subject automatically — never type it yourself, but do count it: a three-digit PR leaves the title
-  65 characters, not 72. Measure before opening, don't eyeball —
-  `printf '%s (#999)' "<title>" | wc -c`. Most over-length subjects in this history were *within*
-  the cap until the number was appended, which is the whole failure mode; to see that split rather
-  than trust it, pipe the log above through `awk 'length($0) > 72'` and then through
-  `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
+- **Budget the appended number inside the 72-char cap.** GitHub appends ` (#N)` to the squashed
+  subject automatically — never type it yourself, but do count it, at the number the PR will get.
+  Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with `N` one
+  past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
+  over-length subjects in this history were *within* the cap until the number was appended, which
+  is the whole failure mode; to see that split rather than trust it, pipe the log above through
+  `awk 'length($0) > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
 - **Never rewrite a pushed PR branch.** Every change to an open PR, whether a review round's fixes
   or `main` merged in, goes on as new commits pushed as a fast-forward. Never amend, squash, rebase
   or force-push it, not even to keep it at one commit. A force-push deletes the per-round diffs a

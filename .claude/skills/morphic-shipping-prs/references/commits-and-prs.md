@@ -41,14 +41,25 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** Every commit subject and the PR title are Conventional Commits, imperative, at most 72
   characters, the title counted with the ` (#N)` the squash appends. A breaking commit carries `!`
-  and explains the break in its own body. Every commit body could stand on `main`, since the
-  default squash pastes them all. No text carries tool attribution or session artifacts.
+  and explains the break in its own body. No text carries tool attribution or session artifacts.
 - **Why.** Over-length subjects and prose titles land on main via squash and cannot be fixed without
   rewriting a pushed branch; a break marked only in the PR title is invisible in branch history
   (#834, #157).
 - **Probe.** The push checklist in `.claude/skills/morphic-shipping-prs/SKILL.md` prints each
   subject, and the title as it lands, off the form or over the cap, and each possible artifact; a
   reviewer runs it on the PR's tree.
+
+## Hold a commit body when it is pushed and the landing body at merge
+`body-lands-at-merge`
+
+- **Rule.** A commit body could stand on `main` when it is pushed. A later commit making it stale is
+  no finding, as a pushed branch is never rewritten and the body that lands is the one set at merge.
+  A merge keeping the default paste edits a stale body out.
+- **Why.** The repository's setting pastes every branch body while merges set their own, and a
+  pushed body cannot change: `1b22933d` on #1233 went stale, and a review had to work out whether to
+  report it.
+- **Probe.** `git log -25 --first-parent --format=%b origin/main` shows the bodies merges set, and
+  `gh api 'repos/{owner}/{repo}' --jq .squash_merge_commit_message` what an unedited squash pastes.
 
 ## Keep the diff to in-scope files and keep scratch notes out of the tree
 `diff-contains-only-in-scope-files`
