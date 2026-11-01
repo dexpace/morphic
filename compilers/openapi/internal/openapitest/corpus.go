@@ -126,11 +126,13 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 	var tokens []string
 	switch n.Kind {
 	case yaml.MappingNode:
+		// The raw pairs: a `<<` key is a token of its own here, and the keys it
+		// merges are asked about only below it (#1188).
 		for i := 0; i+1 < len(n.Content); i += 2 {
-			key, value := n.Content[i], n.Content[i+1]
+			key, value := deref(n.Content[i]), n.Content[i+1]
 			children, tokens = append(children, value), append(tokens, key.Value)
-			if key.Value == "$ref" && value.Kind == yaml.ScalarNode {
-				*refs = append(*refs, written{site: at, value: value.Value})
+			if target := deref(value); key.Value == "$ref" && target.Kind == yaml.ScalarNode {
+				*refs = append(*refs, written{site: at, value: target.Value})
 			}
 		}
 	case yaml.SequenceNode:
@@ -138,7 +140,8 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 			children, tokens = append(children, c), append(tokens, strconv.Itoa(i))
 		}
 	default:
-		// A scalar or an alias holds no path below it.
+		// A scalar holds no path below it, and an alias's are not asked about
+		// (#1195).
 	}
 	for i, c := range children {
 		// The library's escaper keeps a byte that is no UTF-8, which AppendToken
@@ -150,4 +153,12 @@ func treePaths(t TB, n *yaml.Node, at jsontext.Pointer, out *[]jsontext.Pointer,
 		}
 	}
 	return true
+}
+
+// deref returns the node n reads as: the one it names, if it is an alias.
+func deref(n *yaml.Node) *yaml.Node {
+	if n.Kind == yaml.AliasNode {
+		return n.Alias
+	}
+	return n
 }

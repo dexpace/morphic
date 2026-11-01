@@ -250,11 +250,8 @@ func wrapsAllOf(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 func compositionRequired(own []string, comp allOfComposition) []string {
 	var out []string
 	for _, e := range comp.branches {
-		bs := e.schema.GetSchema() // the branch's own local schema; nil for a bare `false`
-		if bs == nil {
-			continue
-		}
-		out = append(out, bs.GetRequired()...)
+		// A boolean branch's schema is nil, and GetRequired is nil-safe.
+		out = append(out, e.schema.GetSchema().GetRequired()...)
 	}
 	return append(out, own...)
 }
