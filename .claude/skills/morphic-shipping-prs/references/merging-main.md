@@ -109,6 +109,17 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Probe.** `git diff --stat origin/main...HEAD`, read from the merge base, lists only files the
   branch changed; a two-dot diff against `origin/main` also lists what `main` gained since.
 
+## Confirm a trial merge happened before reading its tests
+`trial-merge-happened`
+
+- **Rule.** Merge a trial by SHA, and confirm it with
+  `git merge-base --is-ancestor <pr head> HEAD` before reading a result. `FETCH_HEAD` belongs to the
+  worktree that fetched, so in a new one the merge fails, the tree stays the branch alone, and its
+  tests pass.
+- **Why.** A loop over the open PRs printed `ok` for each while every merge had ended in `fatal`
+  (#1210).
+- **Probe.** `git rev-list --parents -n1 HEAD` lists both heads.
+
 ## Trial-merge the open PRs after a change they may not survive
 `trial-merge-open-prs`
 
