@@ -406,6 +406,25 @@ paths:
   - `annotation.UnknownKeysNamed` grades keys the caller found itself, for a path item.
   - `operation.undeclaredPathItemKeys` finds them in the operations map and the raw mapping.
 
+### `requirement-scopes`
+
+A Security Requirement Object's model holds a member only when its value reads as a list of strings.
+A name written with `null`, a scalar, a mapping, or a list holding a `null` or anything but a scalar
+is gone from `All`, `Keys` and `Get`, so `{key: null}` reads as `{}`, the empty option. The core
+still holds the name, with `Present` false, and a `<<` merge is already applied there.
+
+```yaml
+security:
+  - key:                     # the model holds no member, the core holds key
+  - key: 5                   # the same
+  - key: [read, {}]          # the same
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/requirement-scopes`
+- Code:
+  - `auth.Registry.requirement` reads an option's names from the core.
+
 ### `duplicate-key`
 
 A key written twice is read as its last occurrence through the model, which skips the earlier ones

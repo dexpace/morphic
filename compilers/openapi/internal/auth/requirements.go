@@ -17,14 +17,13 @@ import (
 
 // Requirements lowers an OR-of-ANDs security list (docs/ir/auth.md) declared
 // under base: "" at the root, else an operation's own declaration, never its
-// mount. A nil list inherits the enclosing default; an empty one stays []. A
-// non-nil list yields one AuthRequirement per option, diagnosed at
-// base+/security/<index>; an empty option {} means "no auth is one acceptable
-// choice".
+// mount. A nil list, which a security written as no list also reaches here as,
+// inherits the enclosing default; an empty one stays []. A non-nil list yields
+// one AuthRequirement per option, diagnosed at base+/security/<index>; an empty
+// option {} means "no auth is one acceptable choice".
 //
-// Only a list holding nothing but entries that are no object is left with no
-// option. It collapses to nil, not to [], which would read as explicitly public:
-// such an entry names nothing to keep, and the loader's error stands beside it.
+// A list of entries that are no object is left with no option, and collapses to
+// nil, not to [], which would read as public. The loader reports either shape.
 func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {
 	if reqs == nil {
 		return nil, nil
@@ -46,11 +45,14 @@ func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement,
 	return out, diags
 }
 
-// requirement lowers one option declared at pointer: each member is a scheme
-// reference plus its scopes. A requirement is a conjunction, so a member naming
-// no mechanism stays in it: dropping it would demand less than the source does,
-// and dropping the option would read as no requirement or, beside others, as one
-// way fewer to authenticate. Every such member is diagnosed.
+// requirement lowers one option declared at pointer. A requirement is a
+// conjunction, so a member naming no mechanism stays, diagnosed: dropping it would
+// demand less than the source does, and dropping the option would leave no
+// requirement or one way fewer.
+//
+// Names come from the core: the model holds only a member whose scopes it could
+// read (docs/parser-library.md#requirement-scopes), and one it left out still
+// demands its scheme.
 //
 // A name is read as a securitySchemes key at every minor, a 3.2 URI included
 // (#1212), and matched exactly, so a typo is reported and never guessed at.
@@ -58,7 +60,7 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 ) (ir.AuthRequirement, []ir.Diagnostic) {
 	var uses []ir.SchemeUse
 	var diags []ir.Diagnostic
-	for name, scopes := range req.All() {
+	for name := range req.GetCore().Keys() {
 		id := ids.Auth(name)
 		if _, declared := r.byID[id]; !declared {
 			id = r.unresolved(name)
@@ -67,7 +69,7 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedSecurityScheme, pointer,
 				"security requirement references unresolved scheme %q: the requirement is kept, and the scheme has no mechanism", name))
 		}
-		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
+		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: req.GetOrZero(name)})
 	}
 	return ir.AuthRequirement{Schemes: uses}, diags
 }
@@ -82,7 +84,7 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 // alias. Being library behavior, it is tested through compiled documents.
 //
 // A nil req is unreachable from a parsed document; that guard is for a
-// hand-built slice, as in unresolvableSchemeDiags.
+// hand-built slice, as in unresolvableScheme.
 func writtenAsObject(req *soa.SecurityRequirement) bool {
 	return req != nil && req.GetRootNode() != nil
 }

@@ -469,6 +469,61 @@
                 "source": 0,
                 "pointer": "/paths/~1broken-ref/get"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1no-scopes/get",
+              "name": {
+                "source": "noScopesOp",
+                "canonical": "no_scopes_op"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/apiKeyAuth"
+                    },
+                    {
+                      "scheme": "auth/unresolved/components/securitySchemes/undeclaredAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/no-scopes",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1no-scopes/get"
+              }
             }
           ]
         },
@@ -588,9 +643,50 @@
       "docs": {
         "description": "Issued by the account service."
       },
+      "unmodeled": {
+        "openapi:$ref": {
+          "reason": "degraded_lowering",
+          "value": "#/components/securitySchemes/missingAuth",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/brokenRefAuth/$ref"
+          }
+        }
+      },
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/brokenRefAuth"
+      }
+    },
+    "auth/unresolved/components/securitySchemes/httpNoSchemeAuth": {
+      "id": "auth/unresolved/components/securitySchemes/httpNoSchemeAuth",
+      "name": {
+        "source": "httpNoSchemeAuth",
+        "canonical": "http_no_scheme_auth"
+      },
+      "kind": "unresolved",
+      "docs": {},
+      "unmodeled": {
+        "openapi:bearerFormat": {
+          "reason": "degraded_lowering",
+          "value": "JWT",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/httpNoSchemeAuth/bearerFormat"
+          }
+        },
+        "openapi:type": {
+          "reason": "degraded_lowering",
+          "value": "http",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/httpNoSchemeAuth/type"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/httpNoSchemeAuth"
       }
     },
     "auth/unresolved/components/securitySchemes/noMechanismAuth": {
@@ -674,6 +770,32 @@
   },
   "diagnostics": [
     {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Security Requirement Object field \"apiKeyAuth\" must be a list of strings in OpenAPI 3.1 (Security Requirement Object); it is null, which is read as listing no scopes",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1no-scopes/get/security/0/apiKeyAuth",
+        "position": {
+          "line": 76,
+          "column": 22
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Security Requirement Object field \"undeclaredAuth\" must be a list of strings in OpenAPI 3.1 (Security Requirement Object); it is null, which is read as listing no scopes",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1no-scopes/get/security/0/undeclaredAuth",
+        "position": {
+          "line": 77,
+          "column": 26
+        }
+      }
+    },
+    {
       "severity": "error",
       "code": "openapi/unresolved-ref",
       "message": "unresolved $ref \"#/components/securitySchemes/missingAuth\": not found -- key missingAuth not found in sequencedmap.Map",
@@ -707,6 +829,33 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/securitySchemes/noMechanismAuth/name"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/incomplete-security-scheme",
+      "message": "security scheme \"httpNoSchemeAuth\" has no scheme, so it names no authentication mechanism: it is kept without one, and every requirement naming it is kept",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/httpNoSchemeAuth"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "security scheme bearerFormat belongs to no mechanism the entry names; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/httpNoSchemeAuth/bearerFormat"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "security scheme type belongs to no mechanism the entry names; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/httpNoSchemeAuth/type"
       }
     },
     {
@@ -775,6 +924,15 @@
     {
       "severity": "error",
       "code": "openapi/unresolved-security-scheme",
+      "message": "security requirement references unresolved scheme \"undeclaredAuth\": the requirement is kept, and the scheme has no mechanism",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1no-scopes/get/security/0"
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/unresolved-security-scheme",
       "message": "security requirement references unresolved scheme \"uploadAuth\": the requirement is kept, and the scheme has no mechanism",
       "provenance": {
         "source": 0,
@@ -786,7 +944,7 @@
     {
       "format": "openapi@3.1",
       "path": "security-unresolved.yaml",
-      "hash": "21b9902f57feddd72b8425fcada40368e139ba7d30a27b6e7360331f3bf6ecc1"
+      "hash": "70776703d0d905e1e5778ce4a895f01776435447d3c74c871e798a30e52502db"
     }
   ]
 }

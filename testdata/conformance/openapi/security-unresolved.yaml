@@ -69,6 +69,15 @@ paths:
       responses:
         "200":
           description: ok
+  /no-scopes:
+    get:
+      operationId: noScopesOp
+      security:
+        - apiKeyAuth:
+          undeclaredAuth:
+      responses:
+        "200":
+          description: ok
 webhooks:
   created:
     post:
@@ -89,6 +98,9 @@ components:
       in: header
       name: X-Upload-Token
       x-rotation-days: 30
+    httpNoSchemeAuth:
+      type: http
+      bearerFormat: JWT
     brokenRefAuth:
       $ref: '#/components/securitySchemes/missingAuth'
       description: Issued by the account service.

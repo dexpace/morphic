@@ -30,6 +30,7 @@ func canaries() map[string]func(t *testing.T) {
 		"recoverable-panic":      recoverablePanic,
 		"anchored-entry-dropped": anchoredEntryDropped,
 		"embedded-map-keys":      embeddedMapKeys,
+		"requirement-scopes":     requirementScopes,
 		"duplicate-key":          duplicateKey,
 		"merge-keys":             mergeKeys,
 		"non-scalar-key":         nonScalarKey,

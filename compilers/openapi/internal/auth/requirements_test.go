@@ -64,6 +64,40 @@ components:
 		"a requirement is no $ref, and nothing it names is lost")
 }
 
+// TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption pins that
+// an option keeps every name it writes, whatever is beside the name. The library's
+// model leaves such a member out (docs/parser-library.md#requirement-scopes), which
+// would turn `- key:` into the empty option, no auth needed, and an AND into less
+// than the source demands.
+func TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"", "~", "null", "5", "read", "{a: b}", "[null]", "[read, {}]"} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+security:
+  - key: `+value+`
+  - ghost: `+value+`
+    other: [read]
+paths: {}
+components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+    other: {type: oauth2, flows: {implicit: {authorizationUrl: 'https://a', scopes: {read: r}}}}
+`)
+			require.Len(t, svc.Auth, 2, "%+v", diags)
+			assert.Equal(t, []ir.SchemeUse{{Scheme: ids.Auth("key")}}, svc.Auth[0].Schemes, "no option reads as no auth")
+			assert.Equal(t, []ir.SchemeUse{
+				{Scheme: ids.UnresolvedAuth("ghost")},
+				{Scheme: ids.Auth("other"), Scopes: []string{"read"}},
+			}, svc.Auth[1].Schemes, "both members of the AND, in source order")
+			assert.Contains(t, doc.Auth, ids.UnresolvedAuth("ghost"))
+			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedSecurityScheme, ir.SeverityError), "%+v", diags)
+		})
+	}
+}
+
 // TestSecurityRequirement_EveryUnresolvedMemberOfAnOptionIsReported pins that a
 // reader fixing the document sees every scheme to declare, not only the first
 // the walk reached, read in the source order the IR promises.
@@ -504,6 +538,33 @@ paths:
 `)
 	assert.Nil(t, svc.Auth, "the document's sole option is not an option; the list is not [{}] or []")
 	assert.Nil(t, onlyOperation(t, svc).Auth, "nor is the operation's own override")
+}
+
+// TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut pins the limit
+// Requirements states: the library reads such a value as nil, so the carrier
+// inherits, and the rule table's error is what keeps a run from reading that as
+// the document's meaning.
+func TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut(t *testing.T) {
+	t.Parallel()
+	for _, value := range []string{"{key: []}", "{}", "5", "key"} {
+		t.Run(value, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: x
+      security: `+value+`
+      responses: {"200": {description: ok}}
+components:
+  securitySchemes:
+    key: {type: apiKey, in: header, name: X-Key}
+`)
+			assert.Nil(t, onlyOperation(t, svc).Auth)
+			assert.Contains(t, strings.Join(loaderErrors(diags), "\n"), "/paths/~1x/get/security: ", "%+v", diags)
+		})
+	}
 }
 
 // onlyOperation returns svc's single operation, failing if it has any other

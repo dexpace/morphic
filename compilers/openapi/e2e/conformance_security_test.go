@@ -5,6 +5,8 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -181,11 +183,12 @@ func assertOAuthFlowFields(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // when a name reaches no mechanism, and what the scheme it names holds.
 func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	const (
-		declared    ir.AuthID = "auth/openapi/components/securitySchemes/apiKeyAuth"
-		undeclared  ir.AuthID = "auth/unresolved/components/securitySchemes/undeclaredAuth"
-		upload      ir.AuthID = "auth/unresolved/components/securitySchemes/uploadAuth"
-		noMechanism ir.AuthID = "auth/unresolved/components/securitySchemes/noMechanismAuth"
-		brokenRef   ir.AuthID = "auth/unresolved/components/securitySchemes/brokenRefAuth"
+		declared     ir.AuthID = "auth/openapi/components/securitySchemes/apiKeyAuth"
+		undeclared   ir.AuthID = "auth/unresolved/components/securitySchemes/undeclaredAuth"
+		upload       ir.AuthID = "auth/unresolved/components/securitySchemes/uploadAuth"
+		noMechanism  ir.AuthID = "auth/unresolved/components/securitySchemes/noMechanismAuth"
+		brokenRef    ir.AuthID = "auth/unresolved/components/securitySchemes/brokenRefAuth"
+		httpNoScheme ir.AuthID = "auth/unresolved/components/securitySchemes/httpNoSchemeAuth"
 	)
 	require.Len(t, doc.Services, 1)
 	assert.Empty(t, cmp.Diff([]ir.AuthRequirement{
@@ -202,6 +205,7 @@ func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"createdOp":     {{Schemes: []ir.SchemeUse{{Scheme: upload}}}},
 		"noMechanismOp": {{Schemes: []ir.SchemeUse{{Scheme: noMechanism}}}},
 		"brokenRefOp":   {{Schemes: []ir.SchemeUse{{Scheme: brokenRef}}}},
+		"noScopesOp":    {{Schemes: []ir.SchemeUse{{Scheme: declared}, {Scheme: undeclared}}}},
 	}
 	for name, want := range byOp {
 		op, ok := opByName(doc, name)
@@ -216,7 +220,7 @@ func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Empty(t, public.Auth)
 	assert.NotNil(t, public.Auth, "and security: [] is still explicitly public")
 
-	require.Len(t, doc.Auth, 5, "one scheme per name, however many requirements use it")
+	require.Len(t, doc.Auth, 6, "one scheme per name, however many requirements use it")
 	for id, scheme := range doc.Auth {
 		if id != declared {
 			assert.Equal(t, ir.AuthKindUnresolved, scheme.Kind, id)
@@ -228,6 +232,9 @@ func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, "Issued by the upload endpoint.", entry.Docs.Description)
 	assert.Contains(t, entry.Unmodeled, "openapi:in", "what the entry wrote is kept: %v", entry.Unmodeled)
 	assert.Equal(t, "Issued by the account service.", doc.Auth[brokenRef].Docs.Description)
+	assert.Contains(t, doc.Auth[brokenRef].Unmodeled, "openapi:$ref", "and where its mechanism was to be found")
+	assert.Equal(t, []string{"openapi:bearerFormat", "openapi:type"},
+		slices.Sorted(maps.Keys(doc.Auth[httpNoScheme].Unmodeled)), "named by no requirement, and kept all the same")
 
 	var pointers []jsontext.Pointer
 	for _, d := range diags {
@@ -236,7 +243,7 @@ func assertSecurityUnresolved(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 			pointers = append(pointers, d.Provenance.Pointer)
 		}
 	}
-	assert.Len(t, pointers, 8, "one report at each requirement: %v", pointers)
+	assert.Len(t, pointers, 9, "one report at each requirement: %v", pointers)
 }
 
 func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {

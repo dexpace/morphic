@@ -197,6 +197,8 @@ as a schema entry, which is another object's `schema`, a component, or an entry 
 of schemas, is an error, since that lowering reads it as the empty schema, a value, and a list
 counts it among its entries; so is one for a Schema Object's other keywords. One written for a field
 whose requirement another rule reports is left to that rule.
+A security requirement's name is no field to leave out: its `null` lists no scopes, and the name
+stands ([`security-requirements`](#security-requirements)).
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -2693,7 +2695,10 @@ Nothing else about the requirement changes: the option keeps its other schemes, 
 place in the list, so an operation stating its own requirement does not read as inheriting, and an
 option naming nothing does not vanish from the options beside it. The error stands however the rest
 lowers, since the specification requires the name to correspond to a scheme and what it means is
-missing ([`validation`](#validation)).
+missing ([`validation`](#validation)). A name stands whatever is beside it, whether or not it reaches
+a mechanism, since an option demands every scheme it names: a value that reads as no list of strings
+lists no scopes, a warning from the rule table for a `null` and an error for any other
+([`requirement-scopes`](../parser-library.md#requirement-scopes)).
 
 A name reaches no mechanism in three ways. No entry declares it, and the scheme records no pointer,
 since no position writes it. Or its entry omits the field naming the mechanism — `type`, or for
@@ -2702,12 +2707,15 @@ the entry. Or its entry resolves to no object, whose `$ref` is reported as an `o
 error at the entry, and whose other shapes the rule table reports
 ([`minor-required-fields`](#minor-required-fields)). An entry lowers to that kind whether or not a
 requirement names it, recording its pointer and keeping what it wrote: its `description` and
-`deprecated`, what a Reference Object writes beside its `$ref`, each mechanism field verbatim in
-`Unmodeled` under `openapi:<field>` (`degraded_lowering`), reported as an info
-`openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's
-are. A `security` entry written as no object names nothing, so a list holding nothing else is the
-one list that lowers to no option: it collapses to nil, beside the rule table's error, since `[]`
-would read as public.
+`deprecated`, what a Reference Object writes beside its `$ref`, its `type` and each mechanism field
+verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each reported as an info
+`openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
+A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error. An
+entry written as no object holds no field to keep. A `security` entry written as no object names
+nothing, so a list holding nothing else is the one list that lowers to no option: it collapses to
+nil, beside the rule table's error, since `[]` would read as public. A `security` that is no list
+lowers as one left out, beside the rule table's finding, a warning for a `null` and otherwise an
+error.
 
 3.2's device flow lowers to `Flows` beside the other flows, and `oauth2MetadataUrl` to
 `OAuth2MetadataURL`. An `oauth2` scheme whose `flows` declares no flow — `flows: {}`, only `x-*` and
@@ -2723,7 +2731,11 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved`,
   `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsWhatItWrote`,
+  `auth.TestLowerSecuritySchemes_AKeptTypeIsTheEntrysOwn`, `auth.TestLowerSecuritySchemes_ABrokenRefIsKept`,
   `auth.TestSecurityRequirement_AnUnresolvedMemberKeepsItsOption`,
+  `auth.TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption`,
+  `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
+  `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
   `auth.TestSecurityRequirement_AnOperationsOwnUnresolvedListDoesNotInherit`,
   `auth.TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil`,
   `auth.TestAuth_RequirementsOrOfAnds`

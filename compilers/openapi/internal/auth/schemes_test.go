@@ -237,7 +237,13 @@ func TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsWhatItWrote(t *testin
 			entry: `{in: header, name: X-Key, flows: {implicit: {scopes: {}}}, x-note: n, bogus: b}`,
 			want:  []string{"openapi:bogus", "openapi:flows", "openapi:in", "openapi:name", "openapi:x-note"},
 		},
-		{name: "http with no scheme", entry: `{type: http, bearerFormat: JWT}`, want: []string{"openapi:bearerFormat"}},
+		{
+			name:  "http with no scheme",
+			entry: `{type: http, bearerFormat: JWT}`,
+			want:  []string{"openapi:bearerFormat", "openapi:type"},
+		},
+		{name: "a type written empty", entry: `{type: ""}`, want: []string{"openapi:type"}},
+		{name: "a type written null", entry: `{type: null, in: header}`, want: []string{"openapi:in", "openapi:type"}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -254,6 +260,29 @@ components:
 			assert.Equal(t, tc.want, unmodeledKeys(scheme.Unmodeled))
 			assert.Empty(t, scheme.BearerFormat+scheme.In+scheme.KeyName, "no mechanism field fills")
 		})
+	}
+}
+
+// TestLowerSecuritySchemes_AKeptTypeIsTheEntrysOwn pins what a kept type holds:
+// the value written, where it is written, and for an alias the declaration's
+// position, so `http` survives the kind that cannot say it.
+func TestLowerSecuritySchemes_AKeptTypeIsTheEntrysOwn(t *testing.T) {
+	t.Parallel()
+	doc, _, _ := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    alias: {$ref: '#/components/securitySchemes/ghost'}
+    ghost: {type: http}
+`)
+	for _, name := range []string{"alias", "ghost"} {
+		scheme, ok := doc.Auth[ids.UnresolvedAuth(name)]
+		require.True(t, ok, "%+v", doc.Auth)
+		kept := scheme.Unmodeled["openapi:type"]
+		assert.JSONEq(t, `"http"`, string(kept.Value), name)
+		assert.Equal(t, ir.ReasonDegradedLowering, kept.Reason, name)
+		assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost/type"), kept.Provenance.Pointer, name)
 	}
 }
 
@@ -332,6 +361,32 @@ components:
 	scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
 	require.True(t, ok, "%+v", doc.Auth)
 	assert.Equal(t, "Issued by the upload endpoint.", scheme.Docs.Description)
+}
+
+// TestLowerSecuritySchemes_ABrokenRefIsKept pins that an entry whose $ref reaches
+// nothing keeps that $ref, the one thing it says of where its mechanism is, with
+// no second report beside the error it already drew. An entry that is no object
+// has no $ref to keep.
+func TestLowerSecuritySchemes_ABrokenRefIsKept(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: {$ref: './auth.yaml#/components/securitySchemes/Missing'}
+    scalar: 5
+`)
+	ghost := doc.Auth[ids.UnresolvedAuth("ghost")].Unmodeled["openapi:$ref"]
+	assert.JSONEq(t, `"./auth.yaml#/components/securitySchemes/Missing"`, string(ghost.Value))
+	assert.Equal(t, ir.ReasonDegradedLowering, ghost.Reason)
+	const at = "/components/securitySchemes/ghost/$ref"
+	assert.Equal(t, jsontext.Pointer(at), ghost.Provenance.Pointer)
+	assert.Empty(t, messagesAtPointer(diags, at))
+
+	scalar, ok := doc.Auth[ids.UnresolvedAuth("scalar")]
+	require.True(t, ok, "%+v", doc.Auth)
+	assert.Empty(t, scalar.Unmodeled)
 }
 
 // TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive pins that no field

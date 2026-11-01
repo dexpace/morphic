@@ -27,23 +27,14 @@ import (
 // An entry that yields no mechanism lowers all the same, keyed by
 // ids.UnresolvedAuth(name), so nothing can reach it as a declared scheme: one
 // whose $ref resolves to nothing, reported at its own components pointer (see
-// unresolvableSchemeDiags), and one naming no mechanism, reported the same way
-// (see noMechanismDiag). Every other diagnostic from here concerns a scheme with
-// a mechanism.
+// unresolvableScheme), and one naming no mechanism, reported the same way (see
+// noMechanismDiag). Every other diagnostic from here concerns a scheme with a
+// mechanism.
 func LowerSecuritySchemes(c lowering.Ctx) (*Registry, []ir.Diagnostic) {
 	reg := &Registry{byID: map[ir.AuthID]ir.AuthScheme{}, root: c.ProvenanceAt("")}
 	var diags []ir.Diagnostic
 	for name, rs := range c.Doc.Components.GetSecuritySchemes().All() {
-		entry := ids.Ptr("components", "securitySchemes", name)
-		var scheme ir.AuthScheme
-		var schemeDiags []ir.Diagnostic
-		ss, dc, decl := lowering.Declared[soa.SecurityScheme](c, rs, entry)
-		if ss == nil {
-			scheme = unresolvedScheme(name, c.ProvenanceAt(entry))
-			schemeDiags = unresolvableSchemeDiags(c, name, rs, entry)
-		} else {
-			scheme, schemeDiags = lowerSecurityScheme(c, dc, name, ss, entry, decl)
-		}
+		scheme, schemeDiags := lowerEntry(c, name, rs)
 		diags = append(diags, schemeDiags...)
 		// A summary or description beside a $ref of the entry's chain documents
 		// this entry rather than the scheme it names (GitHub #610).
@@ -53,6 +44,33 @@ func LowerSecuritySchemes(c lowering.Ctx) (*Registry, []ir.Diagnostic) {
 	return reg, diags
 }
 
+// lowerEntry lowers the securitySchemes entry called name, as written in rs.
+func lowerEntry(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme) (ir.AuthScheme, []ir.Diagnostic) {
+	entry := ids.Ptr("components", "securitySchemes", name)
+	ss, dc, decl := lowering.Declared[soa.SecurityScheme](c, rs, entry)
+	if ss == nil {
+		return unresolvableScheme(c, name, rs, entry)
+	}
+	return lowerSecurityScheme(c, dc, name, ss, entry, decl)
+}
+
+// unresolvableScheme lowers a securitySchemes entry that resolved to no object:
+// a scheme of no mechanism at the entry, keeping the $ref that reached nothing,
+// the one thing the source says of where its mechanism is. The $ref's own error
+// is the one report of it, so keeping it announces nothing. rs is the entry as
+// written; a nil rs is unreachable from a parsed document, so that guard is for a
+// hand-built node.
+func unresolvableScheme(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme, entry jsontext.Pointer,
+) (ir.AuthScheme, []ir.Diagnostic) {
+	scheme := unresolvedScheme(name, c.ProvenanceAt(entry))
+	if rs == nil {
+		return scheme, nil
+	}
+	_, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:$ref", rs.GetCore().Reference.ValueNode,
+		ir.ReasonDegradedLowering, c.ProvenanceAt(entry+ids.Ptr("$ref")))
+	return scheme, append(unresolvableSchemeDiags(c, name, rs, entry), keptDiags...)
+}
+
 // unresolvableSchemeDiags reports a securitySchemes entry that resolved to no
 // object, but only when it was written as a $ref that resolves to nothing. The
 // compiler keeps the load phase's report at that pointer instead, which has the
@@ -60,14 +78,10 @@ func LowerSecuritySchemes(c lowering.Ctx) (*Registry, []ir.Diagnostic) {
 // got that far, as when a resolver panic ends its walk.
 //
 // An entry not written as an object already draws the loader's type-mismatch,
-// which names it and its fault. rs is the entry as written; a nil rs is
-// unreachable from a parsed document, so that guard is for a hand-built node.
+// which names it and its fault.
 func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
 	entry jsontext.Pointer,
 ) []ir.Diagnostic {
-	if rs == nil {
-		return nil
-	}
 	ref := rs.GetReference().String()
 	if ref == "" {
 		return nil
@@ -113,8 +127,10 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 	// meaning to, while this keeps the keys OpenAPI defines for no securityScheme
 	// at all.
 	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, dc.ProvenanceAt, decl)...)
-	// After the extensions, whose entries are what a promotion reads.
-	return scheme, append(diags, c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
+	// After the extensions, whose entries are what a promotion reads. A statement
+	// of its own, since it writes the provenance of the scheme returned.
+	diags = append(diags, c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
+	return scheme, diags
 }
 
 // applySchemeAnnotations keeps what the securitySchemes entry and, for an oauth2
@@ -260,7 +276,7 @@ func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
 
 // preserveUnreadFields keeps verbatim under Unmodeled every mechanism field the
 // entry declared that its own type gives no meaning to (#294), and every such
-// field of an entry naming no mechanism, which has none to read them.
+// field of an entry naming no mechanism, with its type, which no kind can say.
 //
 // ir.AuthScheme has a field of each name, but filling one would give the
 // mechanism a property it does not define, so the field is kept beside the
@@ -272,12 +288,12 @@ func preserveUnreadFields(c lowering.Ctx, scheme *ir.AuthScheme, ss *soa.Securit
 	decl jsontext.Pointer,
 ) []ir.Diagnostic {
 	unresolved := scheme.Kind == ir.AuthKindUnresolved
-	defined := fieldsDefinedBy(ss.GetType())
+	defined, fields := fieldsDefinedBy(ss.GetType()), mechanismFieldNames()
 	if unresolved {
-		defined = nil
+		defined, fields = nil, append(fields, "type")
 	}
 	var diags []ir.Diagnostic
-	for _, field := range mechanismFieldNames() {
+	for _, field := range fields {
 		if slices.Contains(defined, field) {
 			continue
 		}
