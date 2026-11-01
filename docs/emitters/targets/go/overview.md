@@ -21,7 +21,7 @@ lowerings use what that release provides:
   over with `for item, err := range`.
 - **Runtime templates are tested with `testing/synctest` and `httptest.NewTestServer`**
   ([T-13](../../testing/mandatory-tests.md)), and the transport template leaves draining unread
-  bodies to `net/http` ([structure and boilerplate](../../emit/templates.md)).
+  bodies to `net/http` ([runtime templates](emit.md#runtime-templates)).
 
 The cost is the SDK users still on Go 1.26. Go supports each major release until two newer ones
 exist, so 1.26 leaves support when 1.28 ships; from then on every supported release meets the floor.

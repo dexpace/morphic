@@ -17,10 +17,10 @@ formatting](../targets/kotlin/overview.md#formatting)).
 
 Emit walks the AST in source order and any map in sorted-key order (INV7); identical `IR + options`
 ⇒ byte-identical output ([T-6](../testing/mandatory-tests.md)), which is what makes golden snapshots
-and the ID-keyed manifest meaningful. On velocity: a new *language* is expensive (node set + printer
-+ pipeline), but a new *non-SDK emitter* (docs, mock) is cheap because it reuses the shared plan and
-most of the refine step library ([docs and mocks](../docs-and-mock.md)); and the per-language cost
-buys compiler-enforced correctness, a free surface model, and identity-based merge that a template
-pack cannot. The `Emit` seam remaining per-emitter means a target may opt into
+and the ID-keyed manifest meaningful. On velocity: a new *language* is expensive (node set +
+printer + pipeline), but a new *non-SDK emitter* (docs, mock) is cheap because it reuses the shared
+plan and most of the refine step library ([docs and mocks](../docs-and-mock.md)); and the
+per-language cost buys compiler-enforced correctness, a free surface model, and identity-based merge
+that a template pack cannot. The `Emit` seam remaining per-emitter means a target may opt into
 templates-for-structure if it ever needs to — the design does not mandate typed-AST emit, it
 defaults to it.
