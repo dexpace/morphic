@@ -71,7 +71,7 @@ func TestRefinementOf_ReadsAPositionOnce(t *testing.T) {
 	assert.False(t, refined, "another pointer is another answer")
 }
 
-// TestAdmission_ReadsAValueSetOnce pins that an enum is rendered once a run however
+// TestAdmission_ReadsAValueSetOnce pins that an enum is read once a run however
 // many positions read it, which is what keeps positions times members from being
 // the cost of a shared enum: a member changes after the first read, which no
 // lowering does, so only a remembered set stays.
@@ -85,7 +85,7 @@ func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	s.GetEnum()[0].Value = "z"
 	second := newAdmission(l.Ctx)
 	read := second.written(s)
-	assert.Contains(t, read.values, "s:a", "the second read takes what the first rendered")
+	assert.Contains(t, read.values, "s:a", "the second read takes what the first remembered")
 	assert.NotContains(t, read.values, "s:z")
 }
 
@@ -148,7 +148,7 @@ func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 
 // TestAdmission_ARememberedSetStillSpends pins why a remembered set costs its
 // budget: a read's verdict turns on what it spent, so a set a first reader
-// rendered must cut a later one exactly as rendering it would, or which position
+// read must cut a later one exactly as reading it would, or which position
 // lowered first would decide what another lowers to.
 func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 	t.Parallel()
@@ -165,7 +165,7 @@ func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 }
 
 // TestAdmission_AnUnreadableSetIsRememberedAsUnread pins that a set no reader could
-// render cuts every read of it, the first and those after.
+// read cuts every read of it, the first and those after.
 func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))

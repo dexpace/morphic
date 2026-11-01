@@ -383,36 +383,36 @@ type valueSetOf struct {
 	keyword string
 }
 
-// renderedSet is a value set as a run remembers it, unread where a member would
-// not render.
-type renderedSet struct {
+// memberSet is a value set as a run remembers it, unread where a member has no
+// reading.
+type memberSet struct {
 	values map[string]kindSet
 	kinds  kindSet
 	unread bool
 }
 
-// valueSet reads the members of an enum or a const. Rendering them is remembered,
+// valueSet reads the members of an enum or a const. Reading them is remembered,
 // so a shared enum costs its members once and not at each position naming it, but
 // spending is not: a read's verdict turns on what it spends, so a remembered set
-// must cut a read as rendering it would, or lowering order would decide.
+// must cut a read as reading it would, or lowering order would decide.
 func (w *admission) valueSet(key valueSetOf, members []values.Value) admitted {
 	if !w.members.Spend(len(members)) {
 		return admitted{fixed: true}
 	}
-	set := lowering.Remembered(w.c, key, func() renderedSet { return renderSet(members) })
+	set := lowering.Remembered(w.c, key, func() memberSet { return readMembers(members) })
 	if set.unread {
 		w.members.Exhaust()
 	}
 	return admitted{kinds: set.kinds, fixed: true, values: set.values}
 }
 
-// renderSet reads each member's key with its kind.
-func renderSet(members []values.Value) renderedSet {
-	out := renderedSet{values: make(map[string]kindSet, len(members))}
+// readMembers reads each member's key with its kind.
+func readMembers(members []values.Value) memberSet {
+	out := memberSet{values: make(map[string]kindSet, len(members))}
 	for _, m := range members {
 		key, kind, ok := memberOf(m)
 		if !ok {
-			return renderedSet{unread: true}
+			return memberSet{unread: true}
 		}
 		out.values[key] = kind
 		out.kinds |= kind
