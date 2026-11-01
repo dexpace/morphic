@@ -7,13 +7,24 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** A limit left out of scope, a library limitation relied on, a known defect whose
   reproducer is removed, or a part of an issue declined is stated in a comment at the function or
-  call that has it, or in the skill rule prescribing the mechanism, naming its tracking issue, and
-  in the PR body, in the same commit. A partly addressed issue is referenced, not closed.
+  call that has it, or in the skill rule prescribing the mechanism, naming its tracking issue
+  (`references/commits-and-prs.md#limitation-searched-on-what-it-names`), and in the PR body, in the
+  same commit. A partly addressed issue is referenced, not closed.
 - **Why.** Readers reach the code first; a limitation recorded only in a PR body, commit or tracker
-  is invisible to the next person editing that function (#239, #270). A skill rule named one of two
+  is invisible to whoever next edits that function (#239, #270). A skill rule named one of two
   gaps its PR body recorded (#1153).
 - **Probe.** Quote, from where the Rule places it, the sentence stating each limitation the body or
   commits state; an issue number alone is none.
+
+## Search the tracker on what a limitation names
+`limitation-searched-on-what-it-names`
+
+- **Rule.** Search for each limitation a body states on the tool or behaviour it names, not on the
+  construct the change decides, and have it cite what turns up or say no issue exists.
+- **Why.** A gap in `--explain` read as a decision while #693 tracked it, which searches on the
+  construct do not return (#1191).
+- **Probe.** List each limitation beside its
+  `gh issue list --state all --limit 1000 --search "<tool or behaviour>"`.
 
 ## Run the coverage gate on the final tree before claiming it
 `coverage-gate-on-final-tree`

@@ -109,7 +109,9 @@ defect, keep a `main` control.
 
 - **Rule.** For each construct a change's rule decides, run
   `gh issue list --state all --limit 1000 --search "<construct>"`. Each open issue on it is closed
-  by the change, cited as left open, or answered with why the change departs from it.
+  by the change, cited as left open, or answered with why the change departs from it. A limitation
+  the body states is searched on what it names
+  (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#limitation-searched-on-what-it-names`).
 - **Why.** A stream rule keyed on a content having no `Item` while #601 expects `Item` on each
   content classified as a stream, and an element rule left #630 unnamed. The PR named neither until
   a later revision, and no pass would have looked for them (#1167, #1170).
