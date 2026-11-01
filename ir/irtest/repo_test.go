@@ -100,6 +100,49 @@ func TestRequireOpensModuleFiles_MarksTheChildItStarts(t *testing.T) {
 	irtest.RequireOpensModuleFiles(t, "TestMarkedChild_OpensTheModuleFilesOnlyWhenMarked")
 }
 
+// parentDeadlineEnv carries the deadline of the test that starts a child to the
+// child, which cannot read it from its parent.
+const parentDeadlineEnv = "IRTEST_TEST_PARENT_DEADLINE"
+
+// childStartupSlack is how far past its parent's deadline a child's own may
+// fall, since the child's clock starts when the process does.
+const childStartupSlack = time.Minute
+
+// TestBoundedChild_OpensTheModuleFilesOnlyWithinItsParentsTime opens the
+// module's files only in a marked child whose own deadline exists and falls
+// within childStartupSlack of its parent's, so the log of
+// TestRequireOpensModuleFiles_BoundsTheChildByItsParent shows whether the child
+// was bounded by it. A child with no limit, or a longer one, leaves the log bare.
+func TestBoundedChild_OpensTheModuleFilesOnlyWithinItsParentsTime(t *testing.T) {
+	t.Parallel()
+	if os.Getenv(irtest.OpensChildEnv) == "" {
+		return
+	}
+	parent, err := time.Parse(time.RFC3339Nano, os.Getenv(parentDeadlineEnv))
+	if err != nil {
+		return
+	}
+	own, bounded := t.Deadline()
+	if !bounded || own.After(parent.Add(childStartupSlack)) {
+		return
+	}
+	irtest.ReadModuleFiles(t)
+}
+
+// TestRequireOpensModuleFiles_BoundsTheChildByItsParent holds the deadline
+// RequireOpensModuleFiles reads from t to the child it starts: the test above
+// opens the files only if the child's -test.timeout ends it with its parent,
+// so one given none, or a longer one, fails here. It is not parallel, as
+// t.Setenv forbids, and skips when the run has no deadline to pass on.
+func TestRequireOpensModuleFiles_BoundsTheChildByItsParent(t *testing.T) {
+	deadline, bounded := t.Deadline()
+	if !bounded {
+		t.Skip("the run has no deadline (-timeout 0) for the child to inherit")
+	}
+	t.Setenv(parentDeadlineEnv, deadline.Format(time.RFC3339Nano))
+	irtest.RequireOpensModuleFiles(t, "TestBoundedChild_OpensTheModuleFilesOnlyWithinItsParentsTime")
+}
+
 // TestUnopened_NamesTheModuleFilesTheLogLacks pins the log's reading: only an
 // exact open line under the root counts, so a stat, another file and another
 // root do not.
