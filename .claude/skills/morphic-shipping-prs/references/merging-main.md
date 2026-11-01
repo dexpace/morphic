@@ -9,14 +9,15 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Rule.** Merge `origin/main` into the branch before a review round and before calling it
   ready, a stacked branch's base first (`references/merging-main.md#merge-the-base-first`). Then
   build, vet and run the whole suite on the merge, `internal/archtest`'s caps among it, and re-plant
-  each mutation the PR body cites
-  (`.claude/skills/morphic-verifying-changes/references/mutation.md#rebuild-lost-plants`): a clean
-  merge can fail to compile, fail a test, or leave a test green for a mechanism the merge removed.
+  what the merge can have changed
+  (`.claude/skills/morphic-verifying-changes/references/mutation.md#verdict-outlives-unchanged-files`):
+  a clean merge can fail to compile, fail a test, or leave a test green for a mechanism the merge
+  removed.
 - **Why.** After a base PR's final round stopped handing over cached bytes, a stacked PR's dedup
   test stayed green with the dedup deleted (#565, #562); a conflict-free merge failed the doc
   comment cap `main` had adopted meanwhile (#562).
 - **Probe.** `git merge --no-commit --no-ff origin/main`, then `go build ./...`, `go vet ./...`,
-  `go test ./...`, and the PR's listed mutants.
+  `go test ./...`, and the plants that rule leaves to rerun.
 
 ## Merge a stacked branch's base first, as a merge of its own
 `merge-the-base-first`

@@ -57,12 +57,37 @@ yourself. These rules are the ways that reading still lies.
 
 - **Rule.** A PR body cites plants by count and class, and the script that made them is gone. When
   a merge or a review asks for them again, rebuild a set from the conditions the change adds and run
-  it once before merge, even after a merge that touched only comments. An old result says nothing
-  of the new tree.
+  it once before merge, even after a merge that touched only comments: a count carries nothing
+  over.
 - **Why.** A body cited 70 plants by class and the repository held none; a set rebuilt from the diff
   found a check no test held, which none of them had planted (#1191, #1216).
 - **Probe.** `git grep -l '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt'` shows
   whether a set survives, and the report lists each condition the diff adds beside its plant.
+
+## Rerun only the plants a merge can have changed
+`verdict-outlives-unchanged-files`
+
+- **Rule.** A plant at hand keeps its verdict across a merge that changed neither the file it
+  mutates nor the test that killed it, with the fixtures it reads. Rerun the rest, and every plant
+  after a merge rewriting what lies between them, and name each verdict's revision in the body. A
+  set nobody kept has no verdicts (`references/mutation.md#rebuild-lost-plants`).
+- **Why.** A merge that changed no lowering left 79 plants at 100 to 170 s each, about 3.5 hours,
+  where a diff left 23 (#1191, #1216). A diff of production files alone misses a merge removing the
+  test that held a kill.
+- **Probe.** `git diff --stat <verdict's revision> <head> -- <mutated file> <test's file>` prints
+  nothing for each verdict carried over.
+
+## Plant through an overlay only where no test reads the source
+`overlay-reaches-the-compiler-alone`
+
+- **Rule.** `go test -overlay=<file>`, with `{"Replace": {"<absolute path>": "<planted copy>"}}`,
+  writes no tree, so several plants run at once beside a control. It reaches the compiler alone: a
+  test reading sources at run time, as `internal/archtest` and `internal/decls` do, reads the disk
+  and passes. Re-plant in a worktree before calling such a survivor untested.
+- **Why.** Six at once took 48 to 121 s a plant on a loaded machine (#1216), and a `//nolint` line
+  and a new `TypeKind` each passed through an overlay and failed on disk (#1216).
+- **Probe.** Plant `//nolint:errcheck` above `package pass` in `pass/doc.go` through an overlay:
+  `TestSuppressions_NoDirectiveStandsInTheSource` passes, and fails with the same line on disk.
 
 ## Require a clean baseline and a control that must survive
 `mutation-controls`
@@ -78,8 +103,9 @@ yourself. These rules are the ways that reading still lies.
 `mutation-survivor-scope`
 
 - **Rule.** Before calling a survivor untested, run it over `go test ./...` and ask whether anything
-  can observe it. An unobservable mutant is equivalent: record it with the reason. An arm's removal
-  alone does not make it equivalent: plant a changed result too. For a helper in a `_test.go` file,
+  can observe it. An unobservable mutant is equivalent
+  (`references/mutation.md#equivalent-means-every-input`). An arm's removal alone does not make it
+  so: plant a changed result too. For a helper in a `_test.go` file,
   `go test` on its directory and on `./internal/archtest` is that run: no other package compiles the
   file, `export_test.go` included, and archtest reads it as text.
 - **Why.** Two of three "untested" survivors were killed in another package, and the third was
@@ -87,6 +113,18 @@ yourself. These rules are the ways that reading still lies.
   `go test ./internal/archtest` settled three (#1233), yet a `t.Helper()` deleted in
   `pass/validate_payloads_test.go` passes `go test ./pass` and fails archtest. Two arms recorded
   equivalent by removal alone had results a row saw (#1233).
+
+## Equivalence is a claim about every input
+`equivalent-means-every-input`
+
+- **Rule.** Record a survivor as equivalent only with the reason no input can observe it. A green
+  suite answers for the inputs it holds, so first compile inputs across the construct's domain, in
+  both orders where order could matter, and diff a build holding the mutant against a clean one.
+- **Why.** A guard's removal passed `go test ./...` and was recorded as equivalent, while
+  `{allOf: [{format: int32}, {type: integer}]}` then lowered to `any` and the swapped order to
+  `integer` (#1254, #1269).
+- **Probe.** Each equivalent the report lists states its reason, and names the inputs swept beside
+  the diff that came back empty.
 
 ## A kill by panic hides whether the pinning test pins
 `mutation-crash-kill`
