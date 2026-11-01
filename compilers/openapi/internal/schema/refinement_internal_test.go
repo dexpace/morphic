@@ -80,13 +80,13 @@ func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := declared(t, l, "E")
 	first := newAdmission(l.Ctx)
-	require.Contains(t, first.written(s).values, `"a"`)
+	require.Contains(t, first.written(s).values, "s:a")
 
 	s.GetEnum()[0].Value = "z"
 	second := newAdmission(l.Ctx)
 	read := second.written(s)
-	assert.Contains(t, read.values, `"a"`, "the second read takes what the first rendered")
-	assert.NotContains(t, read.values, `"z"`)
+	assert.Contains(t, read.values, "s:a", "the second read takes what the first rendered")
+	assert.NotContains(t, read.values, "s:z")
 }
 
 // TestAdmission_AnEnumAndAConstAreTwoSets pins that one schema's two value sets are
@@ -95,7 +95,7 @@ func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
 	w := newAdmission(l.Ctx)
-	assert.Equal(t, map[string]kindSet{`"a"`: kindString}, w.written(declared(t, l, "E")).values)
+	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(declared(t, l, "E")).values)
 }
 
 // TestAdmission_ANullableBesideARefAdmitsNoNull pins a 3.0 $ref's siblings: the
