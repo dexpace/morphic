@@ -35,6 +35,7 @@ func canaries() map[string]func(t *testing.T) {
 		"merge-keys":             mergeKeys,
 		"non-scalar-key":         nonScalarKey,
 		"scalar-resolution":      scalarResolution,
+		"undecoded-scalar":       undecodedScalar,
 		"unmodeled-keywords":     unmodeledKeywords,
 		"null-schema-is-false":   nullSchemaIsFalse,
 		"overlay-alias-clone":    overlayAliasClone,

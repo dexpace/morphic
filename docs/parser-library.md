@@ -409,21 +409,23 @@ paths:
 ### `requirement-scopes`
 
 A Security Requirement Object's model holds a member only when its value reads as a list of strings.
-A name written with `null`, a scalar, a mapping, or a list holding a `null` or anything but a scalar
-is gone from `All`, `Keys` and `Get`, so `{key: null}` reads as `{}`, the empty option. The core
-still holds the name, with `Present` false, and a `<<` merge is already applied there.
+A name written with `null`, a scalar, a mapping, or a list holding a `null`, anything but a scalar
+or a scalar it does not decode ([`undecoded-scalar`](#undecoded-scalar)) is gone from `All`, `Keys`
+and `Get`, so `{key: null}` reads as `{}`, the empty option. The core still holds the name, with
+`Present` false, and a `<<` merge is already applied there.
 
 ```yaml
 security:
   - key:                     # the model holds no member, the core holds key
   - key: 5                   # the same
   - key: [read, {}]          # the same
+  - key: [read, 2021-01-01]  # the same
 ```
 
 - Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/requirement-scopes`
 - Code:
-  - `auth.Registry.requirement` reads an option's names from the core.
+  - `auth.Registry.requirement` reads an option's names and scopes from the core.
 
 ### `duplicate-key`
 
@@ -521,6 +523,27 @@ components:
 - Code:
   - `value.Classify` reads a scalar by the tag the parser gave it.
   - `value.NumericLiteral` gives an `!!int` the number its prefix means.
+
+### `undecoded-scalar`
+
+The model decodes a string from a scalar the YAML decoder takes for one: a string, or a number or
+boolean, as its text. A `!!timestamp`, which any plain date is
+([`scalar-resolution`](#scalar-resolution)), a `!!binary` and a local tag are none of these. A string
+field so written reads as empty, with no finding, and a Reference Object's `$ref` as no reference,
+so the load phase meets none. The core keeps the node.
+
+```yaml
+info: {title: 2021-01-01}    # GetTitle is empty
+components:
+  securitySchemes:
+    s: {$ref: 2021-01-01}    # IsReference is false, and the core holds the node
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/undecoded-scalar`
+- Code:
+  - `nodeview.Strings` reads a list's items by their text.
+  - `auth.unresolvableSchemeDiags` reads a broken `$ref` from its node.
 
 ### `unmodeled-keywords`
 

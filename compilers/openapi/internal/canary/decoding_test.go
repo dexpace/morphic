@@ -645,6 +645,26 @@ func nonScalarKey(t *testing.T) {
 		"the mapping key reads as the empty string: %s", revisit(t, result{}))
 }
 
+// undecodedScalar pins undecoded-scalar: a scalar the decoder takes for no string
+// reads as empty through the model, a $ref as no reference, while the core keeps
+// the node.
+func undecodedScalar(t *testing.T) {
+	for written, text := range map[string]string{
+		"2021-01-01":    "2021-01-01",
+		"!!binary aGk=": "aGk=",
+		"!local tagged": "tagged",
+	} {
+		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(
+			"openapi: 3.1.0\ninfo: {title: "+written+", version: '1'}\npaths: {}\n"+
+				"components:\n  securitySchemes:\n    s: {$ref: "+written+"}\n"))
+		require.NoError(t, err, written)
+		assert.Empty(t, doc.GetInfo().GetTitle(), "the title of %s: %s", written, revisit(t, result{}))
+		rs := doc.Components.SecuritySchemes.GetOrZero("s")
+		assert.False(t, rs.IsReference(), "the $ref of %s: %s", written, revisit(t, result{}))
+		assert.Equal(t, text, rs.GetCore().Reference.ValueNode.Value, "the core of %s: %s", written, revisit(t, result{}))
+	}
+}
+
 // requirementScopes pins requirement-scopes: a security requirement's model
 // holds only a member whose value reads as a list of strings, while its core
 // holds every name the object writes, a merged one included.
@@ -658,6 +678,7 @@ func requirementScopes(t *testing.T) {
 		{written: `{a: read}`, core: []string{"a"}},
 		{written: `{a: {x: y}}`, core: []string{"a"}},
 		{written: `{a: [read, {}]}`, core: []string{"a"}},
+		{written: `{a: [read, 2021-01-01]}`, core: []string{"a"}},
 		{written: `{a: [1], b: ~}`, model: []string{"a"}, core: []string{"a", "b"}},
 		{written: `{<<: *base, c: []}`, model: []string{"merged", "c"}, core: []string{"merged", "c"}},
 		{written: `{<<: 5}`},

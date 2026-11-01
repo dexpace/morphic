@@ -2702,7 +2702,8 @@ however the rest lowers, since the specification requires the name to correspond
 what it means is missing ([`validation`](#validation)). A name stands whatever is beside it, whether
 or not it reaches a mechanism, since an option demands every scheme it names: a value that reads as
 no list of strings lists no scopes, a warning from the rule table for a `null` and an error for any
-other ([`requirement-scopes`](../parser-library.md#requirement-scopes)).
+other ([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
+writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)).
 
 A name reaches no mechanism in three ways. No entry declares it, and the scheme records no pointer,
 since no position writes it. Or its entry omits the field naming the mechanism — `type`, or for
@@ -2740,6 +2741,8 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   `auth.TestLowerSecuritySchemes_AKeptTypeIsTheEntrysOwn`, `auth.TestLowerSecuritySchemes_ABrokenRefIsKept`,
   `auth.TestSecurityRequirement_AnUnresolvedMemberKeepsItsOption`,
   `auth.TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption`,
+  `auth.TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope`,
+  `auth.TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported`,
   `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
   `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
   `e2e.TestSecurityUnresolved_ANameTwoDocumentsUseIsOneSchemeOfTheSource`,

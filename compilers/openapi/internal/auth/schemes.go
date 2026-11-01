@@ -71,22 +71,22 @@ func unresolvableScheme(c lowering.Ctx, name string, rs *soa.ReferencedSecurityS
 }
 
 // unresolvableSchemeDiags reports a securitySchemes entry that resolved to no
-// object, but only when it was written as a $ref that resolves to nothing. The
-// compiler keeps the load phase's report at that pointer instead, which has the
-// resolver's reason (GitHub #385); this one stands where the load phase never
-// got that far, as when a resolver panic ends its walk.
+// object, but only when it was written as a $ref naming something. The compiler
+// keeps the load phase's report at that pointer instead, which has the resolver's
+// reason (GitHub #385); this one stands where the load phase met no reference, as
+// when a resolver panic ends its walk or the model did not read the $ref, which
+// is why the $ref is read from its node (docs/parser-library.md#undecoded-scalar).
 //
-// An entry not written as an object already draws the loader's type-mismatch,
-// which names it and its fault.
+// An entry or a $ref of any other shape is the load phase's to report.
 func unresolvableSchemeDiags(c lowering.Ctx, name string, rs *soa.ReferencedSecurityScheme,
 	entry jsontext.Pointer,
 ) []ir.Diagnostic {
-	ref := rs.GetReference().String()
-	if ref == "" {
+	ref := nodeview.Deref(rs.GetCore().Reference.ValueNode)
+	if ref == nil || ref.Value == "" {
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef, entry,
-		"security scheme %q has a $ref that resolves to nothing: %q", name, ref)}
+		"security scheme %q has a $ref that resolves to nothing: %q", name, ref.Value)}
 }
 
 // lowerSecurityScheme lowers one named security scheme into its AuthScheme, of

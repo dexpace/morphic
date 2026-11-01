@@ -98,6 +98,39 @@ components:
 	}
 }
 
+// TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope pins that a scope
+// is the text a list writes, whatever tag the parser gave it. A plain date is a
+// string to OpenAPI, and the model, which decodes no such item
+// (docs/parser-library.md#undecoded-scalar), would lose every scope beside it
+// with nothing reported.
+func TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope(t *testing.T) {
+	t.Parallel()
+	for written, want := range map[string][]string{
+		"[read, 2021-01-01]":    {"read", "2021-01-01"},
+		"[!!binary aGk=, read]": {"aGk=", "read"},
+		"[read, !local tagged]": {"read", "tagged"},
+		"[*date, read]":         {"2021-01-01", "read"},
+		"*dates":                {"2021-01-01"},
+	} {
+		t.Run(written, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-date: &date 2021-01-01
+x-dates: &dates [2021-01-01]
+security:
+  - key: `+written+`
+paths: {}
+components:
+  securitySchemes:
+    key: {type: oauth2, flows: {implicit: {authorizationUrl: 'https://a', scopes: {read: r}}}}
+`)
+			assert.Empty(t, diags)
+			assert.Equal(t, []ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: ids.Auth("key"), Scopes: want}}}}, svc.Auth)
+		})
+	}
+}
+
 // TestSecurityRequirement_EveryUnresolvedMemberOfAnOptionIsReported pins that a
 // reader fixing the document sees every scheme to declare, not only the first
 // the walk reached, read in the source order the IR promises.

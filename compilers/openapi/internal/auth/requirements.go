@@ -12,6 +12,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -50,9 +51,9 @@ func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement,
 // demand less than the source does, and dropping the option would leave no
 // requirement or one way fewer.
 //
-// Names come from the core: the model holds only a member whose scopes it could
-// read (docs/parser-library.md#requirement-scopes), and one it left out still
-// demands its scheme.
+// Names and scopes come from the core: the model holds only a member whose
+// scopes it could read (docs/parser-library.md#requirement-scopes), and one it
+// left out still demands its scheme.
 //
 // A name is read as a securitySchemes key at every minor, a 3.2 URI included
 // (#1212), and matched exactly, so a typo is reported and never guessed at.
@@ -60,7 +61,7 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 ) (ir.AuthRequirement, []ir.Diagnostic) {
 	var uses []ir.SchemeUse
 	var diags []ir.Diagnostic
-	for name := range req.GetCore().Keys() {
+	for name, member := range req.GetCore().All() {
 		id := ids.Auth(name)
 		if _, declared := r.byID[id]; !declared {
 			id = r.unresolved(name)
@@ -69,7 +70,8 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedSecurityScheme, pointer,
 				"security requirement references unresolved scheme %q: the requirement is kept, and the scheme has no mechanism", name))
 		}
-		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: req.GetOrZero(name)})
+		scopes, _ := nodeview.Strings(member.ValueNode)
+		uses = append(uses, ir.SchemeUse{Scheme: id, Scopes: scopes})
 	}
 	return ir.AuthRequirement{Schemes: uses}, diags
 }

@@ -389,6 +389,86 @@ components:
 	assert.Empty(t, scalar.Unmodeled)
 }
 
+// TestLowerSecuritySchemes_ABrokenRefThatCannotBeKeptIsReported pins the third
+// outcome of keeping a $ref: one JSON cannot hold reaches the IR in no form, which
+// its own error says beside the one the reference draws.
+func TestLowerSecuritySchemes_ABrokenRefThatCannotBeKeptIsReported(t *testing.T) {
+	t.Parallel()
+	doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: {$ref: .nan}
+`)
+	assert.Empty(t, doc.Auth[ids.UnresolvedAuth("ghost")].Unmodeled, "nothing was kept, so nothing claims to have been")
+
+	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)
+	require.True(t, ok, "the loss is reported: %+v", diags)
+	assert.Equal(t, jsontext.Pointer("/components/securitySchemes/ghost/$ref"), d.Provenance.Pointer)
+}
+
+// TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported pins that no scheme
+// of kind unresolved goes unreported, with no requirement naming it to draw an
+// error instead. The model holds no reference for such a $ref
+// (docs/parser-library.md#undecoded-scalar), so the load phase meets none and this
+// report is the only one.
+func TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported(t *testing.T) {
+	t.Parallel()
+	for written, text := range map[string]string{
+		"2021-01-01":    "2021-01-01",
+		"!!binary aGk=": "aGk=",
+		"!local tagged": "tagged",
+		"*date":         "2021-01-01",
+	} {
+		t.Run(written, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+x-date: &date 2021-01-01
+paths: {}
+components:
+  securitySchemes:
+    ghost: {$ref: `+written+`}
+`)
+			scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
+			require.True(t, ok, "%+v", doc.Auth)
+			assert.Contains(t, scheme.Unmodeled, "openapi:$ref")
+
+			got := messagesAtPointer(diags, "/components/securitySchemes/ghost")
+			require.Len(t, got, 1, "%+v", diags)
+			assert.Equal(t, `security scheme "ghost" has a $ref that resolves to nothing: "`+text+`"`, got[0])
+			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.UnresolvedRef, ir.SeverityError), "%+v", diags)
+		})
+	}
+}
+
+// TestLowerSecuritySchemes_ARefHoldingNoTextDrawsOneReport pins the other side of
+// reading the node: a $ref written as no scalar is the rule table's to report, and
+// an empty one the load phase's, so this package adds neither a second one.
+func TestLowerSecuritySchemes_ARefHoldingNoTextDrawsOneReport(t *testing.T) {
+	t.Parallel()
+	for written, want := range map[string]string{
+		"{a: b}": "openapi/validation/validation-type-mismatch",
+		"[a]":    "openapi/validation/validation-type-mismatch",
+		`""`:     diag.UnresolvedRef,
+	} {
+		t.Run(written, func(t *testing.T) {
+			t.Parallel()
+			doc, _, diags := serviceSpec(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  securitySchemes:
+    ghost: {$ref: `+written+`}
+`)
+			require.Contains(t, doc.Auth, ids.UnresolvedAuth("ghost"))
+			require.Len(t, diags, 1, "%+v", diags)
+			assert.Equal(t, want, diags[0].Code)
+		})
+	}
+}
+
 // TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive pins that no field
 // a securityScheme entry declares is dropped: `in` on an oauth2 scheme or
 // `flows` on an apiKey must reach Unmodeled, as "lossless by default" requires
