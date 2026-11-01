@@ -105,11 +105,14 @@ how to measure so the number means what the claim says.
 
 - **Rule.** When a change adds a walk, index or per-position reader, time `main` against the branch
   on generated shapes no corpus holds: a spine a few hundred levels deep with a wide leaf, many
-  parallel deep chains, and many `$ref`s into distinct entries of one wide mapping. Rerun the
-  reproducers of closed cost issues whose tests the change deletes.
+  parallel deep chains, many `$ref`s into distinct entries of one wide mapping, and many `$ref`s to
+  one wide component, growing both together. Rerun the reproducers of closed cost issues whose tests
+  the change deletes.
 - **Why.** A pointer builder quadratic in depth passed a corpus of real specs and the full gate, and
-  three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778).
-- **Probe.** Instructions retired on each generated shape at n and 2n, on both builds
+  three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778). Those shapes
+  ran linear past a references-by-size product in output bytes, which doubling either alone hides
+  (#1191, #1240).
+- **Probe.** Instructions retired and output bytes on each shape at n and 2n, on both builds
   (`references/finding-cost.md#instructions-not-wall-clock`).
 
 ## Do not take main's fast failure as the baseline for a fix
