@@ -54,8 +54,10 @@ func TestIRVersion_PinsTheNames(t *testing.T) {
 	}
 	want, err := os.ReadFile(namesGolden)
 	require.NoError(t, err, "go test ./ir -run TestIRVersion -update writes it")
-	assert.Empty(t, cmp.Diff(string(want), desc),
-		"%s is stale: go test ./ir -run TestIRVersion -update rewrites it, then review its diff", namesGolden)
+	if diff := cmp.Diff(string(want), desc); diff != "" {
+		t.Errorf("%s is stale: go test ./ir -run TestIRVersion -update rewrites it, then review its diff (-golden +got):\n%s",
+			namesGolden, diff)
+	}
 
 	sum := sha256.Sum256([]byte(desc))
 	for _, finding := range namesFindings(generations, ir.IRVersion, hex.EncodeToString(sum[:])) {

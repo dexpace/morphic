@@ -200,5 +200,7 @@ func TestPromotionRows_ReadsTheTableOnly(t *testing.T) {
 	doc := "| `Before.Table` | `A` | `Inferred` |\n" + promotionTable + "\n\n| Field | Kept on | Recorded in |\n|---|---|---|\n" +
 		"| `A.B`, `A.C` | the `D`, or `E` | `Inferred` |\n\n### Next\n\n| `After.Table` | `A` | `Inferred` |\n"
 	want := []promotionRow{{fields: []string{"A.B", "A.C"}, kept: []string{"D", "E"}, record: "Inferred"}}
-	assert.Empty(t, cmp.Diff(want, promotionRows(doc), cmp.AllowUnexported(promotionRow{})))
+	if diff := cmp.Diff(want, promotionRows(doc), cmp.AllowUnexported(promotionRow{})); diff != "" {
+		t.Errorf("promotionRows (-want +got):\n%s", diff)
+	}
 }

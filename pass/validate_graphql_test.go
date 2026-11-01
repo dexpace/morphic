@@ -68,11 +68,14 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
 	t.Parallel()
 	mention := ir.Docs{Description: "see Mentioned", Refs: []ir.DocRef{{Start: 4, End: 13, Type: "t/mentioned"}}}
-	for name, annotate := range map[string]func(op *ir.Operation, root *ir.Model){
-		"an operation's docs":     func(op *ir.Operation, _ *ir.Model) { op.Docs = mention },
-		"a reachable type's docs": func(_ *ir.Operation, root *ir.Model) { root.Docs = mention },
+	for _, tc := range []struct {
+		name     string
+		op, root ir.Docs
+	}{
+		{name: "an operation's docs", op: mention},
+		{name: "a reachable type's docs", root: mention},
 	} {
-		t.Run(name, func(t *testing.T) {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := validDoc()
 			doc.Types["t/mentioned"] = &ir.Model{ID: "t/mentioned", Properties: []ir.Property{{
@@ -80,14 +83,13 @@ func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
 				Type: ir.TypeRef{Target: "t/prim/string"},
 				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
 			}}}
-			root := &ir.Model{ID: "t/root"}
-			doc.Types[root.ID] = root
+			doc.Types["t/root"] = &ir.Model{ID: "t/root", Docs: tc.root}
 			op := ir.Operation{
 				ID:       "q",
-				Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: root.ID}}},
+				Docs:     tc.op,
+				Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/root"}}},
 				Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
 			}
-			annotate(&op, root)
 			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
 			assert.Contains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
 		})
