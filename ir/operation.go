@@ -303,6 +303,10 @@ type ErrorCase struct {
 	Docs Docs `json:"docs"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Inferred lists the heuristics that read a fact out of Unmodeled, as
+	// Provenance.Inferred does on a node with a Provenance; empty means none did
+	// (docs/ir/unmodeled.md#promotion).
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // StreamingMode is the protocol-independent streaming direction of an Operation

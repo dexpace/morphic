@@ -31,10 +31,9 @@ const extensionKeyPrefix = "openapi:"
 type ExtensionTarget string
 
 // The typed fields promotion can fill today. Every other field an extension is
-// the only OpenAPI spelling for — Pagination, LongRunning, Idempotency,
-// ErrorCase.Retryable/Throttling, Enum.Flags, EnumMember.Name, Sensitive and
-// Secret — is a target this vocabulary is meant to grow, not a decision against
-// it (GitHub #252).
+// the only OpenAPI spelling for is a target this vocabulary is meant to grow,
+// not a decision against it (GitHub #252): docs/ir/unmodeled.md#promotion lists
+// them with the node each promotion records itself on.
 const (
 	// TargetDeprecationMessage fills ir.Deprecation.Message.
 	TargetDeprecationMessage ExtensionTarget = "deprecation.message"

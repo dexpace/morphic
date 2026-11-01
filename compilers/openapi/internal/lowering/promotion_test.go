@@ -413,8 +413,8 @@ func TestPromoteEnumOpenness_WritesNothing(t *testing.T) {
 
 // TestPromoteEnumOpenness_NonEnumCarrierIsTheWholeAnswer pins the nil cases,
 // which are the ordinary shape rather than a guard: most nodes an x-* key can
-// sit on are not enums, and a node with no provenance could not record the
-// guess (promotion rule 4).
+// sit on are not enums, and a node with nowhere to record the guess is not
+// promoted from (promotion rule 4).
 func TestPromoteEnumOpenness_NonEnumCarrierIsTheWholeAnswer(t *testing.T) {
 	t.Parallel()
 	c := promotionCtx(lowering.ExtensionPromotions{})

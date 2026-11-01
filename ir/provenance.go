@@ -51,8 +51,8 @@ type Provenance struct {
 	// the document it was handed. Spelling is the producer's; nothing parses it.
 	Node string `json:"node,omitempty"`
 	// Inferred is empty for a declared fact; otherwise it lists the heuristics
-	// that produced this node, in the order they applied ([Inferred]), e.g.
-	// "group-path-prefix,extension-promotion".
+	// that produced this node or read a fact out of its Unmodeled, in the order
+	// they applied ([Inferred]), e.g. "group-path-prefix,extension-promotion".
 	Inferred Inferred `json:"inferred,omitempty"`
 }
 

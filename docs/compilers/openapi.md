@@ -2833,7 +2833,7 @@ policy is `Options.Promotions`, on by default: its `Targets` replace the default
 `x-sunset` to `Deprecation.RemovalDate`, and `x-extensible-enum` to an `Enum`'s openness — and its
 `Disabled` turns it off. A deprecation member is filled on an operation, a parameter, a header, a
 property, a type node or a security scheme that is deprecated; on one that is not, the key annotates
-nothing and stays where it is. A node a promotion writes into lists the marker `extension-promotion`
+nothing and stays where it is. The node keeping the extension lists the marker `extension-promotion`
 in its `Provenance.Inferred`, and the extension stays in `Unmodeled` untouched.
 
 A value the mapped field cannot hold — anything but text, for the four `Deprecation` members — is
