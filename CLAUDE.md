@@ -195,7 +195,7 @@ cmd/morphic-covergate/
 cmd/morphic-vet/
              Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census,
-             conformance, ctxtest, decls, jsonshape, keydoc, leakcheck, lintrules, testspec).
+             conformance, ctxtest, decls, exectest, jsonshape, keydoc, leakcheck, lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
