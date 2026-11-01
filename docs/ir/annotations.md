@@ -54,7 +54,8 @@ as in that SDK, where the same words copied into a doc comment go stale (Kiota's
 **`Docs.Refs` marks such a span and leaves the prose as the source wrote it.** A `DocRef` says that
 a run of `Description`'s bytes names a type. An emitter replaces the span with a link to whatever
 the type renders as, and one that does not resolve references reads text that still says what the
-author meant.
+author meant, as does a reader where the type renders as nothing a link can reach, such as a
+primitive: the span stays text.
 
 A span counts bytes of UTF-8, the encoding every string a document holds is in
 ([names](./naming.md)), so a reader in another language converts from it rather than counting in

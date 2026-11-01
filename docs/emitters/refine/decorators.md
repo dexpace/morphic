@@ -32,9 +32,10 @@ decorator it passed collapses nowhere, and each of its nodes lowers as it would 
 alias, once that pass exists, is followed the same way.
 
 **What refine does.** `CollapseAliases` runs before every other step. An aliased type emits no
-declaration, and each reference to it — a `TypeRef`, or a `TypeID` a discriminator's mapping or
-default names — is lowered as a reference to its `Alias`, keeping the referring reference's
-`Nullable`, which answers for the whole decorator
+declaration, and each reference to it — a `TypeRef`, a `TypeID` a discriminator's mapping or default
+names, or the type a [`DocRef`](../../ir/annotations.md#references-in-prose) marks — is lowered as a
+reference to its `Alias`, keeping the referring reference's `Nullable`, which answers for the whole
+decorator
 ([type-graph](../../ir/type-graph.md#type-references)). The decorators' annotations fold onto the
 carrier holding the reference — a property, a parameter, a header or a union variant, each of which
 has a field for all three — so the reference documents its input exactly as the 3.1 `$ref` it stands
