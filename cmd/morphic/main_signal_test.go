@@ -327,12 +327,11 @@ func firstOf(t *testing.T, sigs []syscall.Signal) int {
 	return first
 }
 
-// morphic returns a command running the CLI with args in a child, which ctx
-// kills when it ends.
-func morphic(ctx context.Context, args ...string) *exec.Cmd {
-	cmd := exec.CommandContext(ctx, os.Args[0], args...)
-	cmd.Env = append(os.Environ(), asMorphic+"=1")
-	return cmd
+// morphic returns a command running the CLI with args in a child, which the
+// test's childContext kills when it ends.
+func morphic(t *testing.T, args ...string) *exec.Cmd {
+	t.Helper()
+	return command(t, os.Args[0], args...)
 }
 
 // childContext returns the context a test's children run under: its own,
@@ -489,7 +488,7 @@ func signalDuringWrite(t *testing.T, spec string, sig syscall.Signal) bool {
 	dir, dest := destination(t)
 	written, err := os.Stat(dest)
 	require.NoError(t, err)
-	cmd := morphic(childContext(t), "compile", spec, "-o", dest)
+	cmd := morphic(t, "compile", spec, "-o", dest)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	require.NoError(t, cmd.Start())
@@ -554,7 +553,7 @@ func TestMain_LaterSignalsDoNotEndARunThatIsStopping(t *testing.T) {
 	t.Parallel()
 	const schemas = 1000
 	dir, dest := destination(t)
-	cmd := morphic(childContext(t), "compile", reportingSpec(t, schemas), "-o", dest)
+	cmd := morphic(t, "compile", reportingSpec(t, schemas), "-o", dest)
 	report := holdIn(t, cmd, &cmd.Stderr)
 	waited := make(chan error, 1)
 	go func() { waited <- cmd.Wait() }()
@@ -589,7 +588,7 @@ func TestMain_LaterSignalsDoNotEndARunThatIsStopping(t *testing.T) {
 // though none had come.
 func TestMain_AStopSignalDuringTheStdoutWriteComesTooLate(t *testing.T) {
 	t.Parallel()
-	cmd := morphic(childContext(t), "compile", specOf(t, 200))
+	cmd := morphic(t, "compile", specOf(t, 200))
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	doc := holdIn(t, cmd, &cmd.Stdout)
@@ -616,7 +615,7 @@ func TestMain_AStopSignalAfterTheRunComesTooLate(t *testing.T) {
 		t.Run(sig.String(), func(t *testing.T) {
 			t.Parallel()
 			skipIfIgnored(t, sig)
-			cmd := morphic(childContext(t), "compile", spec)
+			cmd := morphic(t, "compile", spec)
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%d", signalAtExit, sig))
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &stdout, &stderr
@@ -637,9 +636,8 @@ func TestMain_AStopSignalAfterTheRunComesTooLate(t *testing.T) {
 func TestMain_AnIgnoredSIGINTOrSIGHUPStaysIgnored(t *testing.T) {
 	t.Parallel()
 	const schemas = 1000
-	cmd := exec.CommandContext(childContext(t), "/bin/sh", "-c", `trap '' INT HUP; exec "$0" "$@"`,
+	cmd := command(t, "/bin/sh", "-c", `trap '' INT HUP; exec "$0" "$@"`,
 		os.Args[0], "compile", reportingSpec(t, schemas))
-	cmd.Env = append(os.Environ(), asMorphic+"=1")
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout
 	report := holdIn(t, cmd, &cmd.Stderr)
