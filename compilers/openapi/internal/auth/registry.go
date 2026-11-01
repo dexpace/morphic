@@ -13,8 +13,9 @@ import (
 
 // Registry is every security scheme of one compile, keyed by ID: what the
 // document's securitySchemes entries lower to, and a scheme for each name a
-// requirement uses that no entry declares. The zero value is not usable;
-// LowerSecuritySchemes builds one.
+// requirement uses that no entry declares. A requirement can add to it, so it is
+// not safe for concurrent use. The zero value is not usable; LowerSecuritySchemes
+// builds one.
 type Registry struct {
 	byID map[ir.AuthID]ir.AuthScheme
 	// root is where a scheme no entry declares is placed: the source's, whichever
