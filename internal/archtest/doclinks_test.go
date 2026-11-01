@@ -18,6 +18,7 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -78,20 +79,21 @@ func TestDocuments_LinksResolve(t *testing.T) {
 func linkProblems(root string) ([]string, int, error) {
 	var problems []string
 	links := 0
+	headings := headingIndex{}
 	err := keydoc.Walk(root, ".", func(path string) error {
 		rel := keydoc.Rel(root, path)
 		var found []string
 		var err error
 		switch ext := filepath.Ext(path); {
 		case ext == ".yaml", ext == ".yml":
-			found, err = commentCitationProblems(root, path, rel)
+			found, err = commentCitationProblems(root, path, rel, headings)
 		case slices.Contains(strings.Split(rel, "/"), "testdata"):
 		case ext == ".md":
 			var n int
-			found, n, err = documentLinkProblems(root, path, rel)
+			found, n, err = documentLinkProblems(root, path, rel, headings)
 			links += n
 		case ext == ".go":
-			found, err = goCitationProblems(root, path, rel)
+			found, err = goCitationProblems(root, path, rel, headings)
 		}
 		problems = append(problems, found...)
 		return err
@@ -99,11 +101,31 @@ func linkProblems(root string) ([]string, int, error) {
 	return problems, links, err
 }
 
+// headingIndex holds the fragments of each Markdown document read so far, by
+// path, so a run reads a document's headings once however many citations name
+// it. Each run owns one: a document one test plants is not another's, and they
+// run in parallel.
+type headingIndex map[string]map[string]bool
+
+// fragments returns the fragment of each heading of the document at path.
+func (h headingIndex) fragments(path string) (map[string]bool, error) {
+	if slugs, ok := h[path]; ok {
+		return slugs, nil
+	}
+	text, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	slugs := headingSlugs(string(text))
+	h[path] = slugs
+	return slugs, nil
+}
+
 // documentLinkProblems reports each relative link of the Markdown file at path
 // that resolves to nothing, and each document a line cites by its path from the
 // root, as a fence or a span of code must, where a link does not render, and
 // counts the relative links it read.
-func documentLinkProblems(root, path, rel string) ([]string, int, error) {
+func documentLinkProblems(root, path, rel string, headings headingIndex) ([]string, int, error) {
 	text, err := os.ReadFile(path)
 	if err != nil {
 		return nil, 0, err
@@ -112,7 +134,7 @@ func documentLinkProblems(root, path, rel string) ([]string, int, error) {
 	links := 0
 	raw := strings.Split(string(text), "\n")
 	for i, line := range linkLines(string(text)) {
-		found, err := citationProblems(root, rel, i+1, raw[i], docPath)
+		found, err := citationProblems(root, rel, i+1, raw[i], docPath, headings)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -122,7 +144,7 @@ func documentLinkProblems(root, path, rel string) ([]string, int, error) {
 				continue
 			}
 			links++
-			why, broken, err := brokenLink(path, m[1])
+			why, broken, err := brokenLink(path, m[1], headings)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -137,7 +159,7 @@ func documentLinkProblems(root, path, rel string) ([]string, int, error) {
 // brokenLink says whether target, a relative link from the document at doc,
 // resolves to nothing, and why. A fragment is held to the headings of a Markdown
 // target only, since another file has none.
-func brokenLink(doc, target string) (why string, broken bool, err error) {
+func brokenLink(doc, target string, headings headingIndex) (why string, broken bool, err error) {
 	file, fragment, _ := strings.Cut(target, "#")
 	resolved := doc
 	if file != "" {
@@ -153,11 +175,11 @@ func brokenLink(doc, target string) (why string, broken bool, err error) {
 	if fragment == "" || filepath.Ext(resolved) != ".md" {
 		return "", false, nil
 	}
-	text, err := os.ReadFile(resolved)
+	slugs, err := headings.fragments(resolved)
 	if err != nil {
 		return "", false, err
 	}
-	if !headingSlugs(string(text))[fragment] {
+	if !slugs[fragment] {
 		return "whose file has no such heading", true, nil
 	}
 	return "", false, nil
@@ -167,8 +189,8 @@ func brokenLink(doc, target string) (why string, broken bool, err error) {
 // at path, and in a string naming a design document or a compiler's
 // specification. A test of the citations plants broken ones in its strings, so
 // its own are left unread.
-func goCitationProblems(root, path, rel string) ([]string, error) {
-	problems, err := commentCitationProblems(root, path, rel)
+func goCitationProblems(root, path, rel string, headings headingIndex) ([]string, error) {
+	problems, err := commentCitationProblems(root, path, rel, headings)
 	if err != nil || rel == citationTest {
 		return problems, err
 	}
@@ -183,7 +205,7 @@ func goCitationProblems(root, path, rel string) ([]string, error) {
 		if !ok || lit.Kind != token.STRING || walkErr != nil {
 			return walkErr == nil
 		}
-		found, err := citationProblems(root, rel, fset.Position(lit.Pos()).Line, lit.Value, designPath)
+		found, err := citationProblems(root, rel, fset.Position(lit.Pos()).Line, lit.Value, designPath, headings)
 		problems, walkErr = append(problems, found...), err
 		return false
 	})
@@ -192,14 +214,14 @@ func goCitationProblems(root, path, rel string) ([]string, error) {
 
 // commentCitationProblems reports each broken citation in a comment of the Go
 // or YAML file at path.
-func commentCitationProblems(root, path, rel string) ([]string, error) {
+func commentCitationProblems(root, path, rel string, headings headingIndex) ([]string, error) {
 	comments, err := keydoc.Comments(path)
 	if err != nil {
 		return nil, err
 	}
 	var problems []string
 	for _, c := range comments {
-		found, err := citationProblems(root, rel, c.Line, c.Text, docPath)
+		found, err := citationProblems(root, rel, c.Line, c.Text, docPath, headings)
 		if err != nil {
 			return nil, err
 		}
@@ -210,10 +232,10 @@ func commentCitationProblems(root, path, rel string) ([]string, error) {
 
 // citationProblems reports each citation cite finds in text, written at line of
 // the file rel, that names no document under root or no heading of it.
-func citationProblems(root, rel string, line int, text string, cite *regexp.Regexp) ([]string, error) {
+func citationProblems(root, rel string, line int, text string, cite *regexp.Regexp, headings headingIndex) ([]string, error) {
 	var problems []string
 	for _, cited := range cite.FindAllString(text, -1) {
-		why, broken, err := brokenLink(filepath.Join(root, rel), filepath.Join(citedFrom(rel), cited))
+		why, broken, err := brokenLink(filepath.Join(root, rel), filepath.Join(citedFrom(rel), cited), headings)
 		if err != nil {
 			return nil, err
 		}
@@ -321,6 +343,23 @@ func TestHeadingSlug_FollowsTheRendering(t *testing.T) {
 	for _, tt := range tests {
 		assert.Equal(t, tt.want, headingSlug(tt.title), tt.title)
 	}
+}
+
+// TestHeadingIndex_ReadsADocumentOnce removes a document between two questions
+// about it, so the second can be answered only from what the first read.
+func TestHeadingIndex_ReadsADocumentOnce(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "doc.md")
+	writeDocFile(t, path, "# Title\n")
+	headings := headingIndex{}
+
+	_, err := headings.fragments(path)
+	require.NoError(t, err)
+	require.NoError(t, os.Remove(path))
+
+	fragments, err := headings.fragments(path)
+	require.NoError(t, err)
+	assert.Empty(t, cmp.Diff(map[string]bool{"title": true}, fragments))
 }
 
 // TestLinkProblems_ReportsALinkThatResolvesToNothing plants a link of each form
