@@ -25,19 +25,22 @@ const osExecImport = `"os/exec"`
 // itself, as walkGoFiles names it.
 const exectestFile = "internal/exectest/exectest.go"
 
-// The two things childCommandViolations reports, which the planted files'
-// "// want" and "// want dot" markers stand for.
+// The three things childCommandViolations reports, which the planted files'
+// "// want", "// want dot" and "// want env" markers stand for.
 const (
 	buildsMessage = "builds a command outside exectest.Command"
 	dotMessage    = "dot-imports os/exec, which hides the commands it builds"
+	envMessage    = "assigns Env other than by append(cmd.Env, …), which hands the child the parent's coverage directory or drops its own"
 )
 
 // TestChildCommand_EveryTestBuildsItsCommandThroughExectest holds every Go file
 // of the module, production files included, to exectest.Command for the
 // commands it starts: a command built any other way starts a child that
 // inherits the parent's coverage directory, where two children finishing
-// together fail to write the meta-data file. It also requires the walk to meet
-// a file importing os/exec, so a walk that reaches none fails rather than
+// together fail to write the meta-data file. It holds a site to extending
+// cmd.Env with append(cmd.Env, …) alone, since resetting it from os.Environ
+// hands the child that directory again. It also requires the walk to meet a
+// file importing os/exec, so a walk that reaches none fails rather than
 // passing on nothing.
 func TestChildCommand_EveryTestBuildsItsCommandThroughExectest(t *testing.T) {
 	t.Parallel()
@@ -51,8 +54,9 @@ func TestChildCommand_EveryTestBuildsItsCommandThroughExectest(t *testing.T) {
 
 // TestChildCommandViolations_PlantedBuildsAreCaught proves the detector both
 // ways on one planted file per row. A line ending in "// want" must be
-// reported as building a command, and one ending in "// want dot" as a dot
-// import, exactly those lines and no other. wantSeen is the number of files
+// reported as building a command, one ending in "// want dot" as a dot
+// import and one ending in "// want env" as resetting Env, exactly those lines
+// and no other. wantSeen is the number of files
 // importing os/exec the walk met.
 func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 	t.Parallel()
@@ -90,6 +94,25 @@ func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 		{"file under testdata", "p/testdata/a_test.go", execFile(`var _ = exec.Command("x")`), 0},
 		{"exec that is not os/exec", "p/a_test.go",
 			"package p\n\nfunc f(exec fake) { exec.Command(\"x\") }\n", 0},
+		{"Env reset from os.Environ", "p/a_test.go",
+			envFile(`cmd.Env = append(os.Environ(), "X=1") // want env`), 1},
+		{"Env replaced by a fresh list", "p/a_test.go",
+			envFile(`cmd.Env = []string{"X=1"} // want env`), 1},
+		{"Env cleared", "p/a_test.go", envFile(`cmd.Env = nil // want env`), 1},
+		{"Env extended by append", "p/a_test.go", envFile(`cmd.Env = append(cmd.Env, "X=1")`), 1},
+		{"Env extended by nested appends", "p/a_test.go",
+			envFile(`cmd.Env = append(append(cmd.Env, "X=1"), "Y=2")`), 1},
+		{"Env appended to another list", "p/a_test.go",
+			envFile(`cmd.Env = append(other, "X=1") // want env`), 1},
+		{"Env assigned beside another target", "p/a_test.go",
+			envFile("var n int\n\tcmd.Env, n = nil, 1 // want env"), 1},
+		{"Env of a file not importing os/exec", "p/a_test.go",
+			"package p\n\nfunc f(cmd *struct{ Env []string }) {\n\tcmd.Env = []string{\"X=1\"} // want env\n}\n", 0},
+		{"Env given in a literal", "p/a_test.go",
+			"package p\n\nvar _ = struct{ Env []string }{Env: []string{\"X=1\"}}\n", 0},
+		{"Env of the helper itself", exectestFile, envFile(`cmd.Env = os.Environ()`), 0},
+		{"Env of another file of the helper's package", "internal/exectest/other.go",
+			envFile(`cmd.Env = os.Environ() // want env`), 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -113,6 +136,12 @@ func execFile(body string) string {
 	return "package p\n\nimport \"os/exec\"\n\n" + body + "\n"
 }
 
+// envFile returns a source file importing os/exec as exec, declaring a
+// function whose parameter cmd is a command and whose body is body.
+func envFile(body string) string {
+	return execFile("func f(cmd *exec.Cmd, other []string) {\n\t" + body + "\n}")
+}
+
 // wantedLines returns the violation reported in file for each line of src
 // that ends in a want marker, in line order.
 func wantedLines(file, src string) []string {
@@ -123,23 +152,27 @@ func wantedLines(file, src string) []string {
 			want = append(want, fmt.Sprintf("%s:%d: %s", file, i+1, buildsMessage))
 		case strings.HasSuffix(line, "// want dot"):
 			want = append(want, fmt.Sprintf("%s:%d: %s", file, i+1, dotMessage))
+		case strings.HasSuffix(line, "// want env"):
+			want = append(want, fmt.Sprintf("%s:%d: %s", file, i+1, envMessage))
 		}
 	}
 	return want
 }
 
-// childCommandViolations walks root for the Go files that import os/exec,
-// bar exectest's own, and returns one message per command they build any way
-// but exectest.Command, with the number of such files it met. It reports a
-// call of Command or CommandContext, and every selection of Cmd that is not the
-// target of a pointer type: a literal, new, a var, a slice, an array, a field
-// or an alias. A dot import is reported too, since it hides what the file
-// builds. It does not report os.StartProcess or a syscall, which nothing uses.
+// childCommandViolations walks root and returns one message per command a Go
+// file builds any way but exectest.Command, with the number of files importing
+// os/exec it met. Of those files, bar exectest's own, it reports a call of
+// Command or CommandContext, and every selection of Cmd that is not the target
+// of a pointer type: a literal, new, a var, a slice, an array, a field or an
+// alias. A dot import is reported too. Of every file, it reports an assignment
+// to an Env field unless it is append(cmd.Env, …), since a caller of a helper
+// imports no os/exec.
 func childCommandViolations(root string) (violations []string, importers int, err error) {
 	err = walkGoFiles(root, func(rel string, fset *token.FileSet, f *ast.File) {
 		if rel == exectestFile {
 			return
 		}
+		violations = append(violations, envViolations(rel, fset, f)...)
 		spec := osExecSpec(f)
 		if spec == nil {
 			return
@@ -148,6 +181,56 @@ func childCommandViolations(root string) (violations []string, importers int, er
 		violations = append(violations, fileChildCommands(rel, fset, f, spec)...)
 	})
 	return violations, importers, err
+}
+
+// envViolations returns one message per assignment in f to a selection of Env
+// that does not extend an Env with append, each naming rel and its line. A
+// composite literal's Env key is not an assignment and is left alone.
+func envViolations(rel string, fset *token.FileSet, f *ast.File) []string {
+	var out []string
+	ast.Inspect(f, func(n ast.Node) bool {
+		assign, ok := n.(*ast.AssignStmt)
+		if !ok {
+			return true
+		}
+		for i, lhs := range assign.Lhs {
+			if !isEnvSelection(lhs) {
+				continue
+			}
+			if len(assign.Lhs) == len(assign.Rhs) && extendsEnv(assign.Rhs[i]) {
+				continue
+			}
+			out = append(out, fmt.Sprintf("%s:%d: %s", rel, fset.Position(lhs.Pos()).Line, envMessage))
+		}
+		return true
+	})
+	return out
+}
+
+// isEnvSelection reports whether e selects a field named Env.
+func isEnvSelection(e ast.Expr) bool {
+	sel, ok := ast.Unparen(e).(*ast.SelectorExpr)
+	return ok && sel.Sel.Name == "Env"
+}
+
+// extendsEnv reports whether e is append(x.Env, …), where the first argument
+// may itself be such an append. The walk down the first arguments ends at the
+// innermost call, which the syntax tree bounds.
+func extendsEnv(e ast.Expr) bool {
+	for {
+		call, ok := ast.Unparen(e).(*ast.CallExpr)
+		if !ok || len(call.Args) == 0 {
+			return false
+		}
+		fn, ok := call.Fun.(*ast.Ident)
+		if !ok || fn.Name != "append" {
+			return false
+		}
+		if isEnvSelection(call.Args[0]) {
+			return true
+		}
+		e = call.Args[0]
+	}
 }
 
 // osExecSpec returns f's import of os/exec, or nil when f has none.

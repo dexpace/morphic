@@ -40,7 +40,7 @@ const copyPerm = 0o644
 // one directory race: a test-binary child writes its meta-data file from an
 // exit hook, through a temporary name taken from the clock, and two children
 // finishing together on a clock ticking in microseconds read one value, so
-// the second fails to rename. A site appends its own variables to cmd.Env.
+// the second fails to rename. A site extends cmd.Env only with append(cmd.Env, …).
 func Command(ctx context.Context, t testing.TB, name string, args ...string) *exec.Cmd {
 	t.Helper()
 	if ctx == nil {
