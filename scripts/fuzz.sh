@@ -151,6 +151,12 @@ prune_corpus() {
 # finding in one target must not cost the rest of the night's search.
 search() {
 	local fuzztime="$1" import target _dir fuzzed=0 failed=""
+
+	# go test handles an interrupt and exits, which reads as a failed target, so
+	# without this the loop would carry on to the next one. The shell runs it once
+	# go test has gone.
+	trap 'echo "fuzz.sh: interrupted" >&2; exit 130' INT
+
 	while read -r import target _dir; do
 		if is_quarantined "$target"; then
 			printf '=== skip %s (quarantined — see scripts/fuzz.sh)\n' "$target"
