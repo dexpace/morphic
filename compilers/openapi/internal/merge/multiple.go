@@ -45,10 +45,10 @@ func isMultipleOf(v, m ir.Decimal) (multiple, ok bool) {
 const maxStepDigits = 1024
 
 // commonStep returns the step whose multiples are exactly the multiples of both
-// x and y: whichever of them is a multiple of the other, or else their least
-// common multiple, a number neither wrote. It returns false where no such step
-// can be read: a literal no Decimal holds, a step that is not positive, a pair
-// past maxStepDigits, or a multiple past what a Decimal holds.
+// x and y: one literal written twice, whichever of them is a multiple of the
+// other, or else their least common multiple, a number neither wrote. It returns
+// false where no such step can be read: a literal no Decimal holds, a step that is
+// not positive, a pair past maxStepDigits, or a multiple past what a Decimal holds.
 func commonStep(x, y ir.BigVal) (ir.BigVal, bool) {
 	if x == y {
 		return x, true

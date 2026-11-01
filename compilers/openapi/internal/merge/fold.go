@@ -127,6 +127,8 @@ type note struct {
 	sev  ir.Severity
 	code string
 	msg  string
+	// detail is what a disagreement is over, and empty on any other note.
+	detail string
 }
 
 // newFolding judges every pair of decls once, picks the winner (widestCone) or
@@ -253,12 +255,16 @@ func (f *folding) drop(i int) {
 // lost. Warning, not info: the two cannot both hold, or no one value states
 // them, which may loosen what the spec intended. It says "declarations", not
 // "allOf branches", because a declaration can sit beside allOf rather than
-// inside a branch.
+// inside a branch. A keyword a position writes on its node and its property is
+// met twice, and said once.
 func (f *folding) disagree(i, kept int, detail string) {
 	f.lost[i] = true
-	f.note(i, ir.SeverityWarning, diag.ConflictingRedecl,
+	if slices.ContainsFunc(f.notes[i], func(n note) bool { return n.detail == detail }) {
+		return
+	}
+	f.notes[i] = append(f.notes[i], note{sev: ir.SeverityWarning, code: diag.ConflictingRedecl, detail: detail, msg: fmt.Sprintf(
 		"declarations of field %q disagree: %s; kept what the declaration at %s says over the one at %s, "+
-			"which is kept verbatim under Unmodeled", f.merged.WireName, detail, f.at(kept), f.at(i))
+			"which is kept verbatim under Unmodeled", f.merged.WireName, detail, f.at(kept), f.at(i))})
 }
 
 // at is where decls[i] was written.
@@ -435,14 +441,9 @@ func firstWritten[T any](f *folding, detail string, of func(i int, p *ir.Propert
 	return kept
 }
 
-// note records a diagnostic for decls[i], reported when the fold finishes. One
-// keyword a Scalar's position writes stands on the node and on the property, so
-// the fold meets it twice and says so once.
+// note records a diagnostic for decls[i], reported when the fold finishes.
 func (f *folding) note(i int, sev ir.Severity, code, format string, args ...any) {
-	n := note{sev: sev, code: code, msg: fmt.Sprintf(format, args...)}
-	if !slices.Contains(f.notes[i], n) {
-		f.notes[i] = append(f.notes[i], n)
-	}
+	f.notes[i] = append(f.notes[i], note{sev: sev, code: code, msg: fmt.Sprintf(format, args...)})
 }
 
 // foldUnmodeled unions every declaration's Unmodeled into the field's. The keys

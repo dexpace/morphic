@@ -570,7 +570,10 @@ type extras struct {
 
 // boundedNodes compares two nodes of a kind that holds bounds: two Scalars alike
 // but for them by those bounds, two lists or two maps with an equal key by their
-// element or value, recursively, and two tuples position by position.
+// element or value, recursively, and two tuples position by position. Only a
+// field's own tuples compare: every other node has one member to follow, while a
+// tuple has one per position, and $refs to a sibling position add width at no
+// cost in document size, so tuples nested to depth d would cost width^d.
 func (j typeJudge) boundedNodes(at, bt ir.TypeDef, depth int) relation {
 	switch a := at.(type) {
 	case *ir.Scalar:
@@ -595,7 +598,7 @@ func (j typeJudge) boundedNodes(at, bt ir.TypeDef, depth int) relation {
 			extras{b.Constraints, nil, b.Docs, b.Examples, b.Unmodeled}, depth)
 	case *ir.Tuple:
 		b, ok := bt.(*ir.Tuple)
-		if !ok {
+		if !ok || depth > 0 {
 			return relUnrelated
 		}
 		return j.tuples(a, b, depth)

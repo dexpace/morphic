@@ -4,7 +4,9 @@
 package merge
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -373,6 +375,20 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(1)))
 	})
 
+	t.Run("one more declaration sets it on the property alone", func(t *testing.T) {
+		t.Parallel()
+		reg := narrowingRegistry()
+		nodes := mirrored(reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
+		bare := nthDecl(2, primRef(ir.PrimInt32).Target)
+		bare.prop.Constraints = &ir.Constraints{Pattern: "^a$"}
+		g, recorded := stubMerger(reg)
+
+		g.fold([]declaration{bare, nodes[0], nodes[1]})
+
+		require.Len(t, *recorded, 1, "the node and the property each meet the one disagreement, whoever each kept it from")
+		assert.Equal(t, declaredAt(1), (*recorded)[0].Provenance.Pointer)
+	})
+
 	t.Run("a bound meets beside it", func(t *testing.T) {
 		t.Parallel()
 		reg := narrowingRegistry()
@@ -533,6 +549,54 @@ func TestFold_AValueOfABroaderMemberIsJudgedByTheField(t *testing.T) {
 	assert.Nil(t, got.Default)
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
+}
+
+// TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth pins the bound on
+// the one node with a member per position. Each level's positions name one tuple
+// of the next, so a judgment reading them all would read width^depth nodes from
+// a document as small as width times depth, as $refs to a sibling position write.
+// A tuple another type holds is not compared, so this reads a handful.
+func TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth(t *testing.T) {
+	t.Parallel()
+	const width, depth = 4, maxJudgeDepth
+	reg := map[ir.TypeID]ir.TypeDef{}
+	for _, side := range []string{"a", "b"} {
+		for level := range depth {
+			next := ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("t/%s/%d", side, level+1))}
+			id := ir.TypeID(fmt.Sprintf("t/%s/%d", side, level))
+			reg[id] = &ir.Tuple{ID: id, Anonymous: true, Provenance: ptrAt(jsontext.Pointer("/" + side)), Elems: slices.Repeat([]ir.TypeRef{next}, width)}
+		}
+		leaf := ir.TypeID(fmt.Sprintf("t/%s/%d", side, depth))
+		reg[leaf] = &ir.Primitive{ID: leaf, Prim: ir.PrimString}
+	}
+	reads := 0
+	j := typeJudge{
+		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) {
+			reads++
+			td, ok := reg[id]
+			return td, ok
+		},
+		written: [2]ir.Provenance{ptrAt("/a"), ptrAt("/b")},
+	}
+
+	rel := j.relate(ref("t/a/0"), ref("t/b/0"))
+
+	assert.Equal(t, relUnrelated, rel, "a tuple holding tuples is compared by no position")
+	assert.LessOrEqual(t, reads, 2*width*depth, "the reads grow with the document, not with its width to the depth")
+}
+
+// TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth pins the two sides of
+// that bound: a field's own tuples relate by their positions, and the same pair
+// held by a list does not.
+func TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth(t *testing.T) {
+	t.Parallel()
+	reg := judgeRegistry()
+	reg["t/held-min"] = &ir.List{ID: "t/held-min", Elem: ref("t/tuple-min")}
+	reg["t/held-bare"] = &ir.List{ID: "t/held-bare", Elem: ref("t/tuple")}
+	j := typeJudge{Resolve: stubResolve(reg)}
+
+	assert.Equal(t, relANarrower, j.relate(ref("t/tuple-min"), ref("t/tuple")), "as a field's own type")
+	assert.Equal(t, relUnrelated, j.relate(ref("t/held-min"), ref("t/held-bare")), "as what a list holds")
 }
 
 // TestFold_ATypeTheRegistryDoesNotHoldHoldsNoBounds pins the guard behind a

@@ -1095,7 +1095,10 @@ by element or value, nested up to a bound, and the narrower one wins only where 
 more widely than the other, its bounds say all the other's do, and the other holds no encoding,
 documentation, examples or `Unmodeled` the winner lacks; disjoint members still overlap where both
 admit null, or where both containers admit the empty one. Two tuples compare position by position,
-and relate only where every position, and what may follow the last, is one type. Two lists, maps or
+and relate only where every position, and what may follow the last, is one type; a tuple that a
+container or another tuple holds is not compared, since a tuple has a member per position where any
+other node has one, and comparing them nested would cost its width to the power of the depth. Two
+lists, maps or
 tuples alike in every member and in that detail are judged as two equal enums are: one type where
 both were written inline, the one declared elsewhere winning over an inline copy in either order,
 and two declared elsewhere overlapping. Two `Scalar`s, lists, maps or tuples alike in all but their
