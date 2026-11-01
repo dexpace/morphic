@@ -72,7 +72,7 @@ SECTION = re.compile(r"(architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
 NAMED_SECTION = re.compile(r"(?:architecture(?:\.md)?|RFC \d+)\s?§")
 KEY = re.compile(r"(parser-library|compilers/openapi)\.md#([a-z0-9-]+)")
 # A section of a design tree, cited as GitHub anchors its heading.
-DESIGN_SECTION = re.compile(r"docs/((?:ir|emitters)/[a-z0-9/-]+\.md)#([a-z0-9-]+)")
+DESIGN_SECTION = re.compile(r"docs/((?:ir|emitters)/[A-Za-z0-9_/-]+\.md)#([A-Za-z0-9_-]+)")
 # A design tree's name from when it was a single page, which names nothing now.
 RETIRED = re.compile(r"(?:ir|emitter)-design")
 HEADING = re.compile(r"#{1,6} +(.+)")

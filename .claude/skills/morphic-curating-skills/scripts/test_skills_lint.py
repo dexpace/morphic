@@ -58,6 +58,7 @@ def fixture(root: Path) -> None:
     write(root, "docs/parser-library.md", "### `known`\n")
     write(root, "docs/architecture.md", "## 4. Types\n\n### 4.3 Unions\n")
     write(root, "docs/ir/models.md", "# Models\n\n```\n# not a heading\n```\n\n## The flattening\n")
+    write(root, "docs/ir/README.md", "# IR\n\n## Design rules\n\n## snake_case names\n")
     write(root, "ir/a.go", "package ir\n")
     write(root, "cmd/morphic-harness/main.go", "package main\n")
     skill = ".claude/skills/good-skill/"
@@ -327,6 +328,14 @@ class LintTest(unittest.TestCase):
                 f"{skill}:{n + 2}: docs/ir/gone.md#x does not exist",
                 f"{skill}:{n + 2}: docs/ir/gone.md has no heading x"]
         self.assertEqual(sorted(self.lint()[1]), sorted(want))
+
+    def test_a_design_citation_is_read_in_the_root_and_past_an_underscore(self):
+        skill = ".claude/skills/good-skill/SKILL.md"
+        write(self.root, skill, GOOD_SKILL + "See `docs/ir/README.md#design-rules`,\n"
+              "`docs/ir/README.md#snake_case-names`, and\n"
+              "`docs/ir/README.md#gone`.\n")
+        n = GOOD_SKILL.count("\n") + 1
+        self.assertEqual(self.lint()[1], [f"{skill}:{n + 2}: docs/ir/README.md has no heading gone"])
 
     def test_a_scalar_is_read_as_yaml_reads_it(self):
         cases = {"Use when: plain": "Use when: plain", "'it''s'": "it's",
