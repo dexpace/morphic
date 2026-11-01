@@ -67,8 +67,8 @@ have one (TypeScript `never`); none may widen it to the top type.
 
 **The member count never decides an enumeration's kind.** An enumeration whose members an `Enum` can
 hold is an `Enum`, with one member as with many. One it cannot hold — a list or object member as
-above, members of different kinds, or only `null` — lowers to an exclusive `Union` of `Literal`s
-whatever its count, with a diagnostic. In particular, one member does not make an enumeration a
+above, members of different kinds, or only `null` — lowers to a `Union` of `Literal`s whatever its
+count, with a diagnostic. In particular, one member does not make an enumeration a
 `Literal` ([containers](./containers.md)), which is for a source's *constant*: JSON Schema `const`,
 a TypeSpec literal type, an Erlang atom. The count is the wrong thing to decide the kind on:
 

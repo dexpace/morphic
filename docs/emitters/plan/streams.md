@@ -48,10 +48,10 @@ counting as a server side: `server`, or `bidi` beside a `Send`. A `StreamSide` h
   `Element`. Nor does a side framed by its media type, with no `Item`, whose content `Type`'s root
   is `string` or `bytes`: such a schema says the body is text and declares no item, and decoding
   each line as a JSON string would fail on every line that is not one. Each frame reaches the caller
-  as its text, an SSE frame as its `data`. The compiler names the content's `Type` as `Events` all
-  the same ([`streaming-media`](../../compilers/openapi.md#streaming-media)), and keeps it, since
-  what it means is the plan's to read; #630 would name a list's `Elem` there, which this rule reads
-  already. `Variant.Event` applies where `Element`, read through `Alias`, is a union.
+  as its text, an SSE frame as its `data`. The compiler names such a `Type` as `Events` all the same
+  ([`streaming-media`](../../compilers/openapi.md#streaming-media)), and keeps it, since what it
+  means is the plan's to read. `Variant.Event` applies where `Element`, read through `Alias`, is a
+  union.
 - **`FrameMembers`**, on an `sse` side with an `Element`. An item of `text/event-stream` is the
   event itself, its `data`, `event`, `id` and `retry` (OpenAPI 3.2 §4.14.4), so a declared `Item`
   sets it, whatever its kind. Below 3.2 a schema may be the event or only what `data` holds, and

@@ -324,11 +324,11 @@ func decorates(td ir.TypeDef) bool {
 }
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
-// exclusive, untagged union with one variant per declared type.
-//
-// KNOWN GAP (GitHub #868): every integer is a number, so a type array naming
-// both admits values that match two variants, which Exclusive rejects; with an
-// integer width both variants are the same primitive.
+// untagged union with one variant per declared type, exclusive unless two of
+// them overlap (typesDisjoint). A type array asks for one of its types, not for
+// exactly one, so overlapping variants must not exclude each other; with an
+// integer width, integer and number name the same primitive, and the two
+// variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
@@ -345,10 +345,20 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		return &ir.Union{
 			TypeCommon: common,
 			Variants:   variants,
-			Exclusive:  true,
+			Exclusive:  typesDisjoint(types),
 		}
 	})
 	return id, diags
+}
+
+// typesDisjoint reports whether no instance has two of types. A type listed
+// twice overlaps itself, and JSON's types are otherwise disjoint but for one
+// pair: every integer is a number.
+func typesDisjoint(types []oas3.SchemaType) bool {
+	if len(slices.Compact(slices.Sorted(slices.Values(types)))) != len(types) {
+		return false
+	}
+	return !slices.Contains(types, oas3.SchemaTypeInteger) || !slices.Contains(types, oas3.SchemaTypeNumber)
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural

@@ -4,7 +4,7 @@
 package merge
 
 import (
-	"math/big"
+	"strconv"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -25,26 +25,24 @@ const (
 	uint64Max ir.BigVal = "18446744073709551615"
 )
 
-// The IEEE 754 formats admits judges against: decimal128's digit budget and
-// exponent range, and the mantissa width and top exponent of each binary float.
+// The IEEE 754 formats Admits judges against: decimal128's digit budget and
+// exponent range, and the width of each binary float.
 const (
 	decimal128Digits    = 34
 	decimal128MaxMsdExp = 6144
 	decimal128MinLowExp = -6176
-	float32Mantissa     = 24
-	float32MaxExp       = 128
-	float64Mantissa     = 53
-	float64MaxExp       = 1024
+	float32Bits         = 32
+	float64Bits         = 64
 )
 
-// admits reports whether v is a value of the primitive kind k, judged exactly:
+// Admits reports whether v is a value of the primitive kind k, judged exactly:
 // a bounded read of a number rather than a conversion, so an exponent no
 // machine type holds is refused, not overflowed. A kind with no judge admits
 // nothing, which keeps a value off a field it cannot be shown to fit.
 //
 // A null is not judged here: whether null is a value depends on the merged
 // field's nullability, not on a kind.
-func admits(k ir.PrimKind, v ir.Value) bool {
+func Admits(k ir.PrimKind, v ir.Value) bool {
 	switch k {
 	case ir.PrimAny:
 		return true
@@ -77,9 +75,9 @@ func admits(k ir.PrimKind, v ir.Value) bool {
 	case ir.PrimDecimal128:
 		return admitsDecimal128(v)
 	case ir.PrimFloat32:
-		return admitsFloat(v, float32Mantissa, float32MaxExp)
+		return admitsFloat(v, float32Bits)
 	case ir.PrimFloat64:
-		return admitsFloat(v, float64Mantissa, float64MaxExp)
+		return admitsFloat(v, float64Bits)
 	case ir.PrimDate:
 		return v.Kind == ir.ValueString && parses("2006-01-02", v.Str)
 	case ir.PrimTime:
@@ -134,18 +132,16 @@ func admitsDecimal128(v ir.Value) bool {
 	return digits <= decimal128Digits && d.Exponent() <= decimal128MaxMsdExp && lowest >= decimal128MinLowExp
 }
 
-// admitsFloat reports whether v rounds to a finite value of a binary float
-// with the given mantissa bits and top exponent: its magnitude is below
-// 2^maxExp - 2^(maxExp-mantissa-1), the point at which round-to-nearest
-// overflows. Rounding is allowed, as OpenAPI floats round.
-func admitsFloat(v ir.Value, mantissa, maxExp uint) bool {
+// admitsFloat reports whether v rounds to a finite value of a binary float of
+// the given width, which strconv settles exactly: rounding is allowed, as
+// OpenAPI floats round, and a magnitude at or past the point where
+// round-to-nearest overflows is a range error. The float it returns is not kept,
+// so no value passes through one.
+func admitsFloat(v ir.Value, bits int) bool {
 	d, ok := decimalOf(v)
-	limit := new(big.Int).Lsh(big.NewInt(1), maxExp)
-	limit.Sub(limit, new(big.Int).Lsh(big.NewInt(1), maxExp-mantissa-1))
-	text := limit.String()
-	// The limits are plain digit runs and always read. The guards keep a failed read
-	// from passing as the zero Decimal, which would put the limit at zero.
-	up, upErr := ir.ParseDecimal(text)
-	down, downErr := ir.ParseDecimal("-" + text)
-	return ok && upErr == nil && downErr == nil && d.Cmp(up) < 0 && d.Cmp(down) > 0
+	if !ok {
+		return false
+	}
+	_, err := strconv.ParseFloat(d.String(), bits)
+	return err == nil
 }

@@ -116,7 +116,7 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, mt string, media *soa.Media
 	switch {
 	case isBinaryBody(c, mt, media.GetSchema()):
 		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
-		content.Type = ts.PrimRef(ir.PrimBytes)
+		content.Type = fileBodyType(ts, content.Type)
 	case isFormContent(mt):
 		enc, encUnmodeled, encDiags := partEncodings(c, ts, media, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
@@ -134,6 +134,16 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, mt string, media *soa.Media
 	diags = append(diags, keepMediaTypeFields(c, &content.Unmodeled, media, mediaPtr, "")...)
 	return content, append(diags,
 		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr)...)
+}
+
+// fileBodyType is the type of a file body that lowered to declared: the
+// declaration itself, so its docs, bounds and examples stay reachable, unless
+// it states nothing, where the media type alone says the body is bytes.
+func fileBodyType(ts *compile.Types, declared ir.TypeRef) ir.TypeRef {
+	if declared.Target == ir.PrimTypeID(ir.PrimAny) {
+		return ts.PrimRef(ir.PrimBytes)
+	}
+	return declared
 }
 
 // isFormContent reports whether a media type is multipart or url-encoded form

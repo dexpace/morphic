@@ -93,7 +93,7 @@
                   {
                     "mediaType": "application/octet-stream",
                     "type": {
-                      "target": "t/prim/bytes",
+                      "target": "t/anon/paths/~1zones~1{zone_id}/post/requestBody/content/application~1octet-stream/schema",
                       "nullable": false
                     },
                     "file": {
