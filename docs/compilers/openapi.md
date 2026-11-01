@@ -2849,14 +2849,15 @@ stays where it is. `Message` reads `x-deprecated-reason`, `x-stainless-deprecati
 A property, header or parameter naming a `$ref` reads the target's mapped keys beneath its own, as
 [`ref-use-site`](#ref-use-site) merges the target's other annotations: a key beside the `$ref` wins
 field by field and without a report, and the target is the end of the chain, so a schema between
-the two lends nothing. A key on the target stating a deprecation counts as the target's `deprecated`,
-so a `deprecated` beside the `$ref` decides over it as it does over the keyword, and a key beside the
-`$ref`, being the use's own, is not stopped by one. A target lends a member only where it is
-deprecated itself, by a keyword or a key: on a live target the member annotates nothing, as it does
-anywhere, and a use deprecated on its own does not change that. So the target's `Deprecation` is all
-a use reads of it, which is what the [fold](../emitters/refine/decorators.md) of a 3.0 decorator over
-the same target reads, and what the target's key cannot hold is reported where that key is written
-and read, once, with a use reading past it in silence.
+the two lends nothing, as it lends no keyword (#1029). A key on the target stating a deprecation
+counts as the target's `deprecated`, so a `deprecated` beside the `$ref` decides over it as it does
+over the keyword, and a key beside the `$ref`, being the use's own, is not stopped by one. A target
+lends a member only where it is deprecated itself, by a keyword or a key: on a live target the
+member annotates nothing, as it does anywhere, and a use deprecated on its own does not change that.
+So the target's `Deprecation` is all a use reads of it, which is what the
+[fold](../emitters/refine/decorators.md) of a 3.0 decorator over the same target reads, and what the
+target's key cannot hold is reported where that key is written and read, once, with a use reading
+past it in silence.
 
 A value a member cannot hold, anything but text, is reported as an info `openapi/degraded-construct`
 at the extension and not coerced, since the document means something else by the key. Empty text
@@ -2918,8 +2919,9 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   fact, so a stability key's `true` reads as a deprecation (#654); an unknown key under a prefix the
   policy owns is kept in silence (#657); a key on an `allOf` branch reaches no field, and one beside
   an `allOf` reaches another than it does beside a `$ref` (#1220); a key on a path item, a tag or a
-  content entry, kept under a scope, reaches no field (#1221); and a key inside a `oneOf` kept
-  verbatim beside structure waits for those branches to lower (#661).
+  content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
+  its schema write shares one entry, so the object's is all that is read (#396); and a key inside a
+  `oneOf` kept verbatim beside structure waits for those branches to lower (#661).
 
 ### `mutually-exclusive-parameters`
 

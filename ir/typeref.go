@@ -11,9 +11,9 @@ package ir
 //
 // A TypeRef carries nothing of its target. Without resolving Target, a use site
 // can read only what a compiler merged onto the carrier from a $ref's target,
-// with use-site precedence: a Property's or Parameter's Docs, Deprecation and
-// Default, and a Property's Visibility. Everything else, Constraints above all,
-// is read from the target node
+// with use-site precedence: a Property's or Parameter's Docs, Deprecation,
+// Secret and Default, and a Property's Visibility. Everything else, Constraints
+// above all, is read from the target node
 // (docs/ir/annotations.md#what-a-reference-carries-down).
 type TypeRef struct {
 	// Target identifies the referenced TypeDef in Document.Types. It is never
