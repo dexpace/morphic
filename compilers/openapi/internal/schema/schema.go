@@ -404,13 +404,17 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 // none: `type: null` is the keyword left out, unlike `type: "null"`
 // (docs/compilers/openapi.md#null-keywords).
 func declaredTypes(s *oas3.Schema) []oas3.SchemaType {
-	return slices.DeleteFunc(slices.Clone(s.GetType()), func(t oas3.SchemaType) bool { return t == "" })
+	types := s.GetType()
+	if !slices.Contains(types, "") {
+		return types
+	}
+	return slices.DeleteFunc(slices.Clone(types), func(t oas3.SchemaType) bool { return t == "" })
 }
 
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
 // member removed; nullability is normalized onto the TypeRef, not the type set.
 func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
-	return slices.DeleteFunc(declaredTypes(s), func(t oas3.SchemaType) bool { return t == oas3.SchemaTypeNull })
+	return slices.DeleteFunc(slices.Clone(declaredTypes(s)), func(t oas3.SchemaType) bool { return t == oas3.SchemaTypeNull })
 }
 
 // declaresShape reports whether a schema declares data shape — a type, a

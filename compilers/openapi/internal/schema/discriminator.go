@@ -206,11 +206,10 @@ const maxTypePositionHops = 64
 // typePosition returns the position, in whichever document, whose type a
 // mapping target naming at names, and the schema held there, starting from
 // decl, unread at a source component. It is at unless the position reads
-// through (readsThrough): a $ref holding nothing an alias would only uses its
-// target's type, so it names the position the $ref does, as a union variant
-// there does (GitHub #758). A keyword beside a property's $ref stops it
-// (GitHub #764), and so does a $ref landing on nothing a type is read at,
-// whose own position, lowered as an alias that reports why, is named.
+// through (readsThrough): a $ref only uses its target's type, so it names the
+// position the $ref does, as a union variant there does (GitHub #758). A $ref
+// landing on nothing a type is read at stops it, and its own position, lowered
+// as an alias that reports why, is named.
 func typePosition(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
 	variantTypes map[ir.TypeID]bool,
 ) (bind.Position, *oas3.JSONSchema[oas3.Referenceable]) {
@@ -243,14 +242,13 @@ func sourceComponent(at bind.Position) bool {
 
 // readsThrough reports whether a mapping target naming at, where decl is
 // declared, names the position decl's $ref names instead (typePosition): not at
-// a component, nor where a keyword beside the $ref gives the position an alias
-// (refSiteHomesNothing).
+// a component, whose node is a type of its own.
 //
 // Nor where the node at pointer is in variantTypes, the types a union's
-// variants name, nil for a model. That variant is a $ref to the position, which
-// hoisted an alias there as a $ref to any position does, and the mapping must
-// name what the variant names. Read through, it named a type no variant names
-// (GitHub #758).
+// variants name, nil for a model: that variant is a $ref to the position, and
+// the mapping must name what the variant names (GitHub #758). Any other
+// position is no variant or subtype, whatever is written beside its $ref, so
+// the mapping means what the $ref names (GitHub #764).
 func readsThrough(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
 	variantTypes map[ir.TypeID]bool,
 ) bool {
@@ -258,8 +256,7 @@ func readsThrough(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.R
 	if named || ids.ComponentSchemaNamedEmpty(at.Pointer) || decl == nil {
 		return false
 	}
-	s := decl.GetSchema()
-	if !resolve.IsRefSite(decl, s) || !refSiteHomesNothing(c, s) {
+	if !resolve.IsRefSite(decl, decl.GetSchema()) {
 		return false
 	}
 	if len(variantTypes) == 0 {

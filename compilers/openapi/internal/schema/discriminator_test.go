@@ -126,3 +126,54 @@ components:
 		assert.Contains(t, irtest.DiagCodes(validated(t, doc)), "pass/discriminator-missing-variant")
 	}
 }
+
+// TestDiscriminatorMapping_ReadsThroughWhateverIsBesideAPositionsRef pins that a
+// target naming a position that writes a $ref means what the $ref names,
+// whatever is written beside it, in a carried position and at one holding an
+// alias, for a union's variants and a model's subtypes alike: the position is
+// no variant or subtype, so stopping at it reports a mapping the document
+// meant (GitHub #764).
+func TestDiscriminatorMapping_ReadsThroughWhateverIsBesideAPositionsRef(t *testing.T) {
+	t.Parallel()
+	for _, beside := range []string{"description: d", "k-beside: 1", "minLength: 1"} {
+		t.Run(beside, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Cat: {type: object, properties: {kind: {type: string}}}
+    Dog: {type: object, properties: {kind: {type: string}}}
+    Holder: {type: object, properties: {p: {$ref: '#/components/schemas/Cat', `+beside+`}}}
+    Dogs: {type: array, items: {$ref: '#/components/schemas/Dog', `+beside+`}}
+    Pet:
+      oneOf: [{$ref: '#/components/schemas/Cat'}, {$ref: '#/components/schemas/Dog'}]
+      discriminator:
+        propertyName: kind
+        mapping: {c: '#/components/schemas/Holder/properties/p', d: '#/components/schemas/Dogs/items'}
+    Base:
+      type: object
+      properties: {kind: {type: string}}
+      discriminator:
+        propertyName: kind
+        mapping: {s: '#/components/schemas/Subs/items'}
+    Sub: {allOf: [{$ref: '#/components/schemas/Base'}]}
+    Subs: {type: array, items: {$ref: '#/components/schemas/Sub', `+beside+`}}
+`)
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, validated(t, doc))
+			pet, ok := typeByName(doc, "Pet").(*ir.Union)
+			require.True(t, ok)
+			assert.Empty(t, cmp.Diff(map[string]ir.TypeID{
+				"c": "t/openapi/components/schemas/Cat", "d": "t/openapi/components/schemas/Dog",
+			}, pet.Discriminator.Mapping))
+			base, ok := typeByName(doc, "Base").(*ir.Model)
+			require.True(t, ok)
+			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Sub"), base.Discriminator.Mapping["s"])
+			sub, ok := typeByName(doc, "Sub").(*ir.Model)
+			require.True(t, ok)
+			assert.Equal(t, "s", sub.DiscriminatorValue)
+		})
+	}
+}

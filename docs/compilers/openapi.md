@@ -1577,7 +1577,9 @@ written with structure is [`union-beside-structure`](#union-beside-structure)'s.
 names a variant, what `pass/discriminator-missing-variant` holds it to and what an emitter routes
 by, so a target naming a type that one variant's branch aliases, for a keyword written beside that
 branch's `$ref`, lowers to that variant. A type two variants alias stays the target, since nothing
-in the mapping says which, and that is reported as any target that is no variant is.
+in the mapping says which, and that is reported as any target that is no variant is. A target naming
+a position that writes a `$ref`, other than a component or a variant, is read through to what the
+`$ref` names, whatever is written beside it: an alias there is neither a variant nor a subtype.
 
 - Cases: `oneof-discriminated`, `discriminator-inheritance`, `discriminator-default-mapping`,
   `discriminator-alias-mapping`, `nullable-union-discriminator`, `discriminator-aliased-branch`
@@ -1588,8 +1590,7 @@ in the mapping says which, and that is reported as any target that is no variant
   `schema.TestDiscriminatorMapping_RoutesToTheVariantAliasingItsTarget`,
   `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
-  mapping to a component that is a `$ref` to a subtype fails validation (#844), and a mapping to a
-  property whose `$ref` has a sibling names an unused alias (#764). Open: inferring a discriminator from pinned tag
+  mapping to a component that is a `$ref` to a subtype fails validation (#844). Open: inferring a discriminator from pinned tag
   values, as an injectable policy (#659).
 
 ### `discriminator-value`
