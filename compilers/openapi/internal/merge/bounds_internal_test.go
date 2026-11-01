@@ -280,6 +280,33 @@ func TestFold_TheBoundsOfEveryDeclarationMeetInEveryOrder(t *testing.T) {
 	}
 }
 
+// TestFold_ADroppedDeclarationsBoundsStayOffAMintedNode pins whose bounds a mint
+// reads: only the declarations meeting the winner. A list of strings beside lists
+// of int32 loses its type, and its bound went with it, since it describes the
+// shape that lost.
+func TestFold_ADroppedDeclarationsBoundsStayOffAMintedNode(t *testing.T) {
+	t.Parallel()
+	reg := narrowingRegistry()
+	i32 := primRef(ir.PrimInt32)
+	decls := nodeDecls(t, reg, func(n int, c *ir.Constraints) ir.TypeDef {
+		return &ir.List{ID: ir.TypeID(fmt.Sprintf("t/lists/%d", n)), Anonymous: true, Provenance: ptrAt(declaredAt(n)), Elem: i32, Constraints: c}
+	}, &ir.Constraints{MinItems: new(int64(1))}, &ir.Constraints{MaxItems: new(int64(5))})
+	reg["t/strings"] = &ir.List{ID: "t/strings", Anonymous: true, Provenance: ptrAt(declaredAt(2)), Elem: primRef(ir.PrimString),
+		Constraints: &ir.Constraints{MaxItems: new(int64(2))}}
+	dropped := nthDecl(2, "t/strings")
+	inOrders(t, append(decls, dropped), func(t *testing.T, ordered []declaration) {
+		t.Helper()
+		g, recorded := stubMerger(reg)
+
+		got := g.fold(ordered)
+
+		assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(5))}, boundsOf(reg[got.Type.Target]))
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))
+		require.Len(t, *recorded, 1, "only the dropped declaration is reported")
+		assert.Equal(t, declaredAt(2), (*recorded)[0].Provenance.Pointer)
+	})
+}
+
 // TestFold_ANodeHoldingEveryBoundIsNotMinted pins that a declared node holding
 // what they all say is the field's type, whichever declaration wrote it: minting
 // beside it would lose nothing and add a node the source never wrote.

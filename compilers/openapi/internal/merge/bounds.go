@@ -166,7 +166,7 @@ func meetConstraints(sets []*ir.Constraints, disagree func(i, kept int, detail s
 func (f *folding) foldNodeBounds() ir.TypeID {
 	target := f.decls[f.winner].prop.Type.Target
 	node, ok := f.g.Resolve(target)
-	if !ok || !slices.Contains(f.rel[f.winner], relMeet) {
+	if !ok {
 		return target
 	}
 	judge := typeJudge{Resolve: f.g.Resolve}

@@ -74,6 +74,7 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/list-int-min2"] = &ir.List{ID: "t/list-int-min2", Elem: integer, Constraints: bound(2, 0)}
 	reg["t/list-int-max"] = &ir.List{ID: "t/list-int-max", Elem: integer, Constraints: bound(0, 5)}
 	reg["t/list-i32-described"] = &ir.List{ID: "t/list-i32-described", Elem: i32, Docs: ir.Docs{Description: "d"}}
+	reg["t/list-int-described"] = &ir.List{ID: "t/list-int-described", Elem: integer, Docs: ir.Docs{Description: "d"}}
 	reg["t/lists-min"] = &ir.List{ID: "t/lists-min", Elem: ref("t/list-i32-min")}
 	reg["t/lists-min2"] = &ir.List{ID: "t/lists-min2", Elem: ref("t/list-i32-min2")}
 	reg["t/lists-max"] = &ir.List{ID: "t/lists-max", Elem: ref("t/list-i32-max")}
@@ -198,6 +199,9 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a narrower element and looser bounds", "t/list-i32-min", "t/list-int-min2", relOverlap},
 		{"a narrower element and a bound only the broader says", "t/list-i32-min", "t/list-int-max", relOverlap},
 		{"two lists of one element differing beside a bound", "t/list-i32-described", "t/list-i32-max", relOverlap},
+		{"a narrower element holding detail the broader lacks", "t/list-i32-described", "t/list-int", relANarrower},
+		{"a narrower element holding the detail the broader holds", "t/list-i32-described", "t/list-int-described", relANarrower},
+		{"a narrower element lacking detail the broader holds", "t/list-i32", "t/list-int-described", relOverlap},
 		{"two lists of lists whose elements meet", "t/lists-min", "t/lists-max", relOverlap},
 		{"two lists of lists, one element tighter", "t/lists-min2", "t/lists-min", relANarrower},
 		{"two maps of one value, each adding a bound", "t/map-min", "t/map-max", relMeet},
