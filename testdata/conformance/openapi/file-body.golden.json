@@ -136,6 +136,87 @@
                 "source": 0,
                 "pointer": "/paths/~1blob/put"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1documented/put",
+              "name": {
+                "source": "putDocumented",
+                "canonical": "put_documented"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/octet-stream",
+                    "type": {
+                      "target": "t/openapi/components/schemas/Blob",
+                      "nullable": false
+                    },
+                    "file": {
+                      "isText": false,
+                      "contentTypes": [
+                        "application/octet-stream"
+                      ]
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/octet-stream",
+                        "type": {
+                          "target": "t/anon/paths/~1documented/put/responses/200/content/application~1octet-stream/schema",
+                          "nullable": false
+                        },
+                        "file": {
+                          "isText": false,
+                          "contentTypes": [
+                            "application/octet-stream"
+                          ]
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/documented",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/octet-stream"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1documented/put"
+              }
             }
           ]
         }
@@ -149,6 +230,51 @@
     }
   ],
   "types": {
+    "t/anon/paths/~1documented/put/responses/200/content/application~1octet-stream/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1documented/put/responses/200/content/application~1octet-stream/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "The stored object."
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1documented/put/responses/200/content/application~1octet-stream/schema"
+      },
+      "base": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Blob": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Blob",
+      "name": {
+        "source": "Blob",
+        "canonical": "blob"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "Raw bytes"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Blob"
+      },
+      "base": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 99,
+        "uniqueItems": false
+      }
+    },
     "t/prim/any": {
       "kind": "primitive",
       "id": "t/prim/any",
@@ -191,7 +317,7 @@
     {
       "format": "openapi@3.1",
       "path": "file-body.yaml",
-      "hash": "706aad3cd3de8c1ec7e8866b00a30d27b4d38d67cd8723d4755ca91965f92753"
+      "hash": "681994abb2aaa16cca756284d392df8dec98d1dfcac0981c7716fd33139197bb"
     }
   ]
 }

@@ -166,6 +166,14 @@ func messageCases() []messageCase {
 			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {ID: "auth/x/a", Name: named("a"), Kind: ir.AuthKind(illFormed)}}
 			return doc
 		}, "ir/unknown-auth-kind", fmt.Sprintf("auth scheme names undeclared mechanism %q", illFormed)},
+		{"streaming mode", func() *ir.Document {
+			doc := typesDoc()
+			doc.Services = []ir.Service{{ID: "s/x/s", Name: named("s"), Groups: []ir.OperationGroup{{
+				ID: "g/x/g", Name: named("g"),
+				Operations: []ir.Operation{{ID: "op/x/a", Name: named("a"), Streaming: ir.StreamingMode(illFormed)}},
+			}}}}
+			return doc
+		}, "ir/unknown-streaming-mode", fmt.Sprintf("operation carries undeclared streaming mode %q", illFormed)},
 		{"oauth scope repeated", func() *ir.Document {
 			doc := typesDoc()
 			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {ID: "auth/x/a", Name: named("a"), Kind: ir.AuthKindOAuth2,

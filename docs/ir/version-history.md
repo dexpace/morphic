@@ -178,7 +178,28 @@ it sees. Changes made together in one bump are listed together under it.
     `Style` and `Explode` beside its members, which encode flat ([responses](./responses.md)). The
     compiler had kept each verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to
     0.21.0 that reads those entries no longer finds them.
-- **0.23.0** — a security requirement keeps a scheme the compiler resolved no mechanism for
+- **0.23.0** — what these facts say changed:
+  - `StreamingNone` is `""`, where it was `"none"`, the state every operation that does not stream
+    already encoded by having no `streaming` member, and `irverify` holds `Streaming` to the
+    declared modes (`ir/unknown-streaming-mode`)
+    ([interaction-patterns](./interaction-patterns.md)). No compiler wrote `"none"`, so no compiled
+    document changes; one that writes it, or a consumer comparing against it, is out of date.
+  - A file body's `Content.Type` holds what its schema lowered to ([payloads](./payloads.md)). The
+    OpenAPI compiler had written `bytes` over it, which left the schema on a node nothing
+    referenced. `File` still says the body is a file, so a consumer pinned to 0.22.0 that reads
+    `File` first is unaffected, and one that expects `Type` to be `bytes` finds a reference to the
+    schema instead.
+  - `Enum.ValueType` holds the primitive a declared type and format select, where every member is
+    a value of it ([enums](./enums.md)): `int64` where the compiler had written `integer` and kept
+    the format verbatim under `Unmodeled`, an entry such a consumer no longer finds.
+  - `StreamDetail.Events` holds what one frame holds where a compiler reads a stream from a media
+    type ([interaction-patterns](./interaction-patterns.md)): a list's `Elem`, where the OpenAPI
+    compiler had named the list, which describes the whole body. `Content.Type` keeps the list.
+  - `Union.Exclusive` is false on a union whose variants can match one instance, which the source
+    did not ask to exclude ([unions](./unions.md)): a type array naming `integer` and `number` or
+    repeating a type, and an enum whose entry repeats or lowers to the top type. The compiler had
+    set it, leaving such a union to refuse what its schema admits.
+- **0.24.0** — a security requirement keeps a scheme the compiler resolved no mechanism for
   ([auth](./auth.md#unresolved-schemes)). `AuthKind` gained `unresolved`, and auth IDs the
   `unresolved` namespace ([identity](./identity.md#unresolved-schemes)), which every OpenAPI document
   declares under `idSpaces.auth`, whether or not it mints there. The OpenAPI compiler had dropped
@@ -186,5 +207,5 @@ it sees. Changes made together in one bump are listed together under it.
   lost the option. It also read a name whose value reads as no list of strings as not written, so
   `{name: null}` read as the empty option, and such a name now stands. A `securitySchemes` entry
   yielding no mechanism had lowered to nothing, and now lowers to that kind whether or not a
-  requirement names it. A consumer pinned to 0.22.0 finds those operations naming a kind it has no
+  requirement names it. A consumer pinned to 0.23.0 finds those operations naming a kind it has no
   reading for, where it read them as inheriting the service's credentials.

@@ -1,0 +1,295 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ContentSeveralEntries",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ContentSeveralEntries",
+        "canonical": "content_several_entries"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1x/get",
+              "name": {
+                "source": "getX",
+                "canonical": "get_x"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1x/get/parameters/p/query",
+                  "name": {
+                    "source": "p",
+                    "canonical": "p"
+                  },
+                  "type": {
+                    "target": "t/prim/integer",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1x/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1x/get/responses/200/headers/X-H",
+                      "name": {
+                        "source": "X-H",
+                        "canonical": "x_h"
+                      },
+                      "wireName": "X-H",
+                      "type": {
+                        "target": "t/prim/integer",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "encoding": {
+                        "mediaType": "application/json"
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1x/get/responses/200/headers/X-H"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/x",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1x/get/parameters/p/query",
+                        "location": "query",
+                        "wireName": "p",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false,
+                        "contentType": "application/json"
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1x/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "unmodeled": {
+    "openapi:/paths/~1x/get/parameters/0/content/text~1plain": {
+      "reason": "degraded_lowering",
+      "value": {
+        "example": "hi",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/parameters/0/content/text~1plain"
+      }
+    },
+    "openapi:/paths/~1x/get/responses/200/headers/X-H/content/application~1xml": {
+      "reason": "degraded_lowering",
+      "value": {
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/responses/200/headers/X-H/content/application~1xml"
+      }
+    },
+    "openapi:/paths/~1x/get/responses/200/headers/X-H/content/text~1plain": {
+      "reason": "degraded_lowering",
+      "value": {
+        "schema": {
+          "type": "string"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/responses/200/headers/X-H/content/text~1plain"
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-entry-count",
+      "message": "Parameter Object field \"content\" must hold at most 1 entry in OpenAPI 3.1 (Parameter Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/parameters/0/content",
+        "position": {
+          "line": 18,
+          "column": 13
+        }
+      }
+    },
+    {
+      "severity": "error",
+      "code": "openapi/validation/validation-entry-count",
+      "message": "Header Object field \"content\" must hold at most 1 entry in OpenAPI 3.1 (Header Object)",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/responses/200/headers/X-H/content",
+        "position": {
+          "line": 26,
+          "column": 17
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and \"text/plain\" kept verbatim under the document's Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/parameters/0/content"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and \"application/xml\", \"text/plain\" kept verbatim under the document's Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/responses/200/headers/X-H/content"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "content-several-entries.yaml",
+      "hash": "0790309267987fd5737a52a79a3d1998ca87c9ca9f8a834db2da88ade1378d72"
+    }
+  ]
+}

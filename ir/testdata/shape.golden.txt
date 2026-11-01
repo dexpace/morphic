@@ -744,9 +744,9 @@ type StreamDetail struct
 	"requiresLength" bool
 
 type StreamingMode string
+	const ""
 	const "bidi"
 	const "client"
-	const "none"
 	const "server"
 
 type TagDef struct

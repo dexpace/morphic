@@ -56,7 +56,8 @@ var generations = []generation{
 		meaning: "an encoding key or a discriminator's Property names the declaration the model's flattening takes"},
 	{version: "0.21.0", format: 1, shape: "93e13e68b0e2c6a8623109d342c08353a4209cbc57d8f3828705646f51d50bf0"},
 	{version: "0.22.0", format: 1, shape: "28c69354fd5e99549277dc63910f3ac5e2968fc56c1f1397b87e53215a834622"},
-	{version: "0.23.0", format: 1, shape: "9b887e665e395b70b8b74056a490d011b23c333c7eccc21369a15860b442a8ee"},
+	{version: "0.23.0", format: 1, shape: "987429c948fd6468abae5000a5caa84a23fe8d4ae18403da219b3e4e4b99bd13"},
+	{version: "0.24.0", format: 1, shape: "51769eadc4bf85f679be08a744327079cb1c9089b3d156f791bbdea3965aed43"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
