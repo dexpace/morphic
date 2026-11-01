@@ -22,11 +22,11 @@ and the differ/compat/verify subsystems added since the original survey).
 - **Nullability as an explicit node**, not a boolean scattered across every type.
 - **Models referenced by name/handle, never embedded** — a flat registry makes deduplication,
   traversal, and serialization trivial and makes recursive types a non-issue.
-- **A "resolved plan" layer between IR and templates**: semantic rendering decisions
-  (is-paginated, has-body, idempotent-post, primary-response selection, return-shape
-  classification, parameter-passing shape…) are computed once, language-neutrally, so string
-  templates contain no policy. Morphic keeps the layer less what its IR states outright and the
-  parameter-passing shape, which varies by language (emitter-design §3.6).
+- **A "resolved plan" layer between IR and templates**: semantic rendering decisions (is-paginated,
+  has-body, idempotent-post, primary-response selection, return-shape classification,
+  parameter-passing shape…) are computed once, language-neutrally, so string templates contain no
+  policy. Morphic keeps the layer less what its IR states outright and the parameter-passing shape,
+  which varies by language ([plan fact or refine fact](./emitters/plan/plan-or-refine.md)).
 - **Runtime SDK policy (retry, telemetry, error taxonomy) kept in a separate tree** from the
   structural API description.
 - **Policy addressed by wire identity, not derived names** — consumer operation hints are keyed

@@ -655,26 +655,26 @@ the word sequence §3.2 derives from it, at every position that spells one — `
 `operationId`, a parameter, response-header or property name, a component schema or security scheme
 key, an enum member's value as text, a 3.2 server `name`, and under `grouping=path-prefix` a first
 path segment. A name with no letter or digit (`***`, `>=`) keeps its `Source` and has no
-`Canonical`; an emitter names it by its characters (emitter-design §4.12). A name spelled as the
-empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an `operationId`
-of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a property's wire name
-stays `""`. A component schema keyed `""` earns no named `TypeID`: it hoists anonymously at its own
-pointer (`t/anon/components/schemas/`) with that hint. An entity the document gives no name — an
-inline schema, a union variant, a response ([`response-conditions`](#response-conditions)), a server
-with no `name` (its URL's words, else `server`), the synthesized `default` and `webhooks` groups —
-carries a `Hint` alone, in the same word grammar and composed from its position, each half
-neutralized first so an empty parent gives `empty_item`, never `_item`. A request body or header
-that references reach is named for its declaration, never for whichever reference lowered first: a
-component's name, a header's own key, the `operationId` of the operation declaring the body, in this
-document or another and whether or not that operation is lowered, or `request` for a body no
-operation with an `operationId` declares. A schema is named for the nearest object holding it, so
-one a parameter, request body or response holds is named for that object even where the object is
-kept under an extension and read through a `$ref`, and a document a `$ref` reads whole as a schema
-is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such name is a function of
-the documents and the position alone, read where the position is written, so no lowering order
-changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
-`$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
-is never set.
+`Canonical`; an emitter names it by its characters ([naming](../emitters/refine/naming.md)). A name
+spelled as the empty string is minted `Hint: "empty"` and no `Source` rather than passed through (an
+`operationId` of `""` is read as absent instead, [`operation-ids`](#operation-ids)), and a
+property's wire name stays `""`. A component schema keyed `""` earns no named `TypeID`: it hoists
+anonymously at its own pointer (`t/anon/components/schemas/`) with that hint. An entity the document
+gives no name — an inline schema, a union variant, a response
+([`response-conditions`](#response-conditions)), a server with no `name` (its URL's words, else
+`server`), the synthesized `default` and `webhooks` groups — carries a `Hint` alone, in the same
+word grammar and composed from its position, each half neutralized first so an empty parent gives
+`empty_item`, never `_item`. A request body or header that references reach is named for its
+declaration, never for whichever reference lowered first: a component's name, a header's own key,
+the `operationId` of the operation declaring the body, in this document or another and whether or
+not that operation is lowered, or `request` for a body no operation with an `operationId` declares.
+A schema is named for the nearest object holding it, so one a parameter, request body or response
+holds is named for that object even where the object is kept under an extension and read through a
+`$ref`, and a document a `$ref` reads whole as a schema is named for the document (`./Cat.yaml`
+names its root `cat_yaml`). Every such name is a function of the documents and the position alone,
+read where the position is written, so no lowering order changes it: a union variant, or a
+composition branch holding a `$ref`, is named as the position the `$ref` lands on, in whichever
+document, and keeps its own name where that names nothing. `Aliases` is never set.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
@@ -2518,14 +2518,14 @@ below `4XX`, or to an `ErrorCase`, for a status from 400 or a `4XX` or `5XX` ran
 states what the key means. `default` lowers to `Operation.Default`, in neither list: it answers
 every status the map does not name, successes and failures alike, and is the operation's only
 description of success where the map names none, so the compiler classes it neither way and leaves
-the reading to the plan's policy (emitter-design §3.5). The `Conditions` of each state the statuses
-its key names: a code as that code, a range, in either case, as its hundred codes, and `default` as
-the catch-all alone. The key, as declared and then neutralized, is the `Name.Hint` of each (`404`,
-`5_xx`, `default`), which records the spelling a range cannot state, though neutralizing a range
-folds its case (`5XX` and `5xx` both give `5_xx`). A key naming no status — not a code from 100 to
-599, not a range, not `default` — lowers to a `Response` with no status condition, rather than the
-catch-all `default` alone denotes, reported as an `openapi/invalid-status-key` warning at the
-operation's entry for it.
+the reading to the plan's policy ([plan policy](../emitters/plan/policy.md)). The `Conditions` of
+each state the statuses its key names: a code as that code, a range, in either case, as its hundred
+codes, and `default` as the catch-all alone. The key, as declared and then neutralized, is the
+`Name.Hint` of each (`404`, `5_xx`, `default`), which records the spelling a range cannot state,
+though neutralizing a range folds its case (`5XX` and `5xx` both give `5_xx`). A key naming no
+status — not a code from 100 to 599, not a range, not `default` — lowers to a `Response` with no
+status condition, rather than the catch-all `default` alone denotes, reported as an
+`openapi/invalid-status-key` warning at the operation's entry for it.
 
 - Cases: `per-status-errors`, `default-response`
 - Codes: `openapi/invalid-status-key`
