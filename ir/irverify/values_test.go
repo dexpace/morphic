@@ -37,9 +37,9 @@ func valueDoc(v ir.Value) *ir.Document {
 const valueDocPath = "doc.Types[t/x/M].Properties[0].Default"
 
 // exampleDoc embeds ex as the one documentation example of an otherwise sound
-// model — the Examples carrier ir-design §6 names beside Default. Each of an
-// example's value fields is a carrier of its own, so the caller says which one
-// holds the value.
+// model — the Examples carrier docs/ir/values.md names beside Default. Each of
+// an example's value fields is a carrier of its own, so the caller says which
+// one holds the value.
 func exampleDoc(ex ir.Example) *ir.Document {
 	m := &ir.Model{
 		ID:       "t/x/M",

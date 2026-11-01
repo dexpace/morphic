@@ -23,8 +23,8 @@ import (
 const NoSource = -1
 
 // Provenance records where a node came from and whether it was declared or
-// inferred (ir-design §13). Everything heuristic is auditable; everything
-// broken is reportable with an exact source location.
+// inferred (docs/ir/provenance.md). Everything heuristic is auditable;
+// everything broken is reportable with an exact source location.
 //
 // Each kind of locator has a field of its own, because a consumer holding one
 // cannot tell which kind it is from its spelling: a renderer printed a line and
@@ -32,8 +32,9 @@ const NoSource = -1
 // to RFC 6901 while the same field admitted the other two (GitHub #511).
 type Provenance struct {
 	// Source indexes into Document.Sources, or for a refused compile's finding
-	// into the table that document would have carried (ir-design §13), or is
-	// NoSource for a node that addresses no input file. Nothing else is in range.
+	// into the table that document would have carried (docs/ir/provenance.md),
+	// or is NoSource for a node that addresses no input file. Nothing else is
+	// in range.
 	Source int `json:"source"`
 	// Pointer is the RFC 6901 pointer to the construct inside Source. Empty
 	// locates nothing finer than the source itself: it is the pointer to the

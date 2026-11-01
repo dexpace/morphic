@@ -91,8 +91,8 @@ func assertErrorCaseIsAResponse(t *testing.T, byRange map[ir.StatusRange]ir.Erro
 // Default, whole, in the three shapes it takes: the operation's only response,
 // the fallback beside a success, and a bare one with no body. In none is the
 // catch-all among Errors, since `default` answers successes and failures alike
-// and the compiler classes it as neither (ir-design §7.2). The control is the
-// 200 beside the default, which stays a Response.
+// and the compiler classes it as neither (docs/ir/responses.md). The control is
+// the 200 beside the default, which stays a Response.
 func assertDefaultResponse(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	catchAll := []ir.StatusRange{{From: 0, To: 0}}
 	byOp := map[string]ir.Operation{}

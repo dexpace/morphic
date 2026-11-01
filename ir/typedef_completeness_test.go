@@ -24,7 +24,8 @@ type typeKindConst struct {
 
 // TestTypeDef_EveryDeclaredKindIsRegistered fails when a declared TypeKind has no
 // newTypeDefByKind entry, is registered to a type reporting another kind, or shares
-// its concrete type with another kind (one concrete struct per kind, ir-design §4).
+// its concrete type with another kind (one concrete struct per kind,
+// docs/ir/type-graph.md).
 func TestTypeDef_EveryDeclaredKindIsRegistered(t *testing.T) {
 	t.Parallel()
 	byConcrete := map[string]string{}

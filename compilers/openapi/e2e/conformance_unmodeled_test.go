@@ -28,11 +28,12 @@ import (
 // lowering produced has nowhere to carry (GitHub #148, #151).
 //
 // Two source shapes reach it. A contradictory schema takes one half and keeps the
-// other beside it, which is ir-design §4.8's rule about a degraded lowering
-// (docs/compilers/openapi.md#shape-applicator). And an applicator with no
-// `type` beside it still constrains an instance — {items: {type: string}}
-// constrains every array — where the position lowers to the top type, which
-// understates it entirely.
+// other beside it, the rule about a degraded lowering in
+// docs/ir/boundaries.md#degraded-constructs and
+// docs/compilers/openapi.md#shape-applicator. And an applicator with no `type`
+// beside it still constrains an instance — {items: {type: string}} constrains
+// every array — where the position lowers to the top type, which understates it
+// entirely.
 func assertUnhomedKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	untyped := map[string]struct{ keyword, raw string }{
 		"UntypedItems":         {"items", `{"type":"string"}`},
@@ -309,7 +310,7 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 // no IR combinator, so the merge keeps the first declaration and, under
 // docs/compilers/openapi.md#allof-redeclared-property, the loser verbatim
 // (GitHub #424). The entry holds the declaration as written, not the dropped IR
-// value, because ir-design §12 defines an Unmodeled value as the source
+// value, because docs/ir/unmodeled.md defines an Unmodeled value as the source
 // construct; that keeps the nullable bit a target ID would lose (GitHub #445).
 //
 // Described is the same event where the types agree but both branches fill the
@@ -369,6 +370,82 @@ func assertAllOfConflictingType(t *testing.T, doc *ir.Document, diags []ir.Diagn
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", overlapPtr),
 		"overlapping widths are reported as info")
 	assert.Empty(t, diagsAt(diags, "openapi/conflicting-redeclaration", overlapPtr), "and are no conflict")
+}
+
+// assertAllOfRedeclaredModels pins that a field declared as several models names
+// one minted model composing each declaration, in either branch order, with
+// nothing kept but the one value no declaration's own type can answer for. The
+// composition sits at the declaration naming the field in the composed space,
+// and the conjuncts stay the nodes the source wrote.
+func assertAllOfRedeclaredModels(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const schemas = "/components/schemas/"
+	meeting, recording := ir.TypeID("t/openapi"+schemas+"Meeting"), ir.TypeID("t/openapi"+schemas+"Recording")
+	anon := func(model, branch string) ir.TypeID {
+		return ir.TypeID("t/anon" + schemas + model + "/allOf/" + branch + "/properties/data")
+	}
+	for _, tc := range []struct {
+		model, field string
+		naming       string // the allOf branch of the declaration naming the field
+		base         ir.TypeID
+		mixins       []ir.TypeID
+		nullable     bool
+	}{
+		{model: "RefFirst", field: "data", naming: "1", base: meeting, mixins: []ir.TypeID{anon("RefFirst", "1")}},
+		{model: "InlineFirst", field: "data", naming: "1", base: meeting, mixins: []ir.TypeID{anon("InlineFirst", "0")}},
+		{model: "TwoInline", field: "data", naming: "1", mixins: []ir.TypeID{anon("TwoInline", "0"), anon("TwoInline", "2")}},
+		{model: "TwoComponents", field: "data", naming: "1", mixins: []ir.TypeID{meeting, recording}, nullable: true},
+		{model: "DiscriminatedBase", field: "pet", naming: "1", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
+		{model: "DiscriminatedFirst", field: "pet", naming: "1", base: "t/openapi" + schemas + "Pet", mixins: []ir.TypeID{recording}},
+		{model: "KeptDefault", field: "data", naming: "1", mixins: []ir.TypeID{meeting, recording}},
+	} {
+		owner, ok := doc.Types[ir.TypeID("t/openapi"+schemas+tc.model)].(*ir.Model)
+		require.True(t, ok, tc.model)
+		require.Len(t, owner.Properties, 1, tc.model)
+		p := owner.Properties[0]
+		assert.Equal(t, tc.field, p.WireName, tc.model)
+		assert.Equal(t, tc.nullable, p.Type.Nullable, tc.model)
+		want := ir.TypeID("t/composed" + schemas + tc.model + "/allOf/" + tc.naming + "/properties/" + tc.field)
+		require.Equal(t, want, p.Type.Target, tc.model)
+		m, ok := doc.Types[want].(*ir.Model)
+		require.True(t, ok, tc.model)
+		assert.True(t, m.Anonymous, tc.model)
+		assert.Empty(t, m.Properties, "%s: the composition stays in source form", tc.model)
+		if tc.base == "" {
+			assert.Nil(t, m.Base, tc.model)
+		} else if assert.NotNil(t, m.Base, tc.model) {
+			assert.Equal(t, tc.base, m.Base.Target, tc.model)
+		}
+		mixins := make([]ir.TypeID, 0, len(m.Mixins))
+		for _, r := range m.Mixins {
+			assert.False(t, r.Nullable, "%s: a conjunct carries no null bit", tc.model)
+			mixins = append(mixins, r.Target)
+		}
+		assert.Equal(t, tc.mixins, mixins, tc.model)
+		if tc.model != "KeptDefault" {
+			assert.Empty(t, p.Unmodeled, "%s: nothing is kept", tc.model)
+		}
+	}
+
+	for model, want := range map[string]ir.TypeID{
+		"AliasAndModel":  componentID("MeetingAlias"),
+		"SubtypeAndBase": componentID("Dog"),
+		"BareAndModel":   meeting,
+	} {
+		owner, ok := doc.Types[componentID(model)].(*ir.Model)
+		require.True(t, ok, model)
+		require.Len(t, owner.Properties, 1, model)
+		assert.Equal(t, want, owner.Properties[0].Type.Target, "%s: one type holds the other, so nothing composes", model)
+		assert.Empty(t, owner.Properties[0].Unmodeled, model)
+	}
+
+	owner, ok := doc.Types[componentID("KeptDefault")].(*ir.Model)
+	require.True(t, ok)
+	kept, ok := propByWire(owner, "data")
+	require.True(t, ok)
+	assert.Nil(t, kept.Default, "a value is not adopted as the composition's")
+	assert.Contains(t, kept.Unmodeled, "openapi:conflicting-redeclaration"+schemas+"KeptDefault/allOf/0/properties/data")
+	require.Len(t, diags, 1, "only the kept default is reported")
+	assert.Equal(t, schemas+"KeptDefault/allOf/0/properties/data", string(diags[0].Provenance.Pointer))
 }
 
 // assertAllOfNarrowingRedeclaration pins that a redeclaration narrowing a bare
@@ -640,9 +717,9 @@ func assertParamXMLResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	}
 }
 
-// assertDependentRequired pins dependentRequired as a §4.7 validation-only
-// keyword. The library binds no field for it, which is why it was the one member
-// of that family being dropped silently (GitHub #125).
+// assertDependentRequired pins dependentRequired as a validation-only keyword.
+// The library binds no field for it, which is why it was the one member of that
+// family being dropped silently (GitHub #125).
 func assertDependentRequired(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	card, ok := doc.Types[componentID("Card")].(*ir.Model)
 	require.True(t, ok, "the structural body still lowers")
@@ -688,7 +765,7 @@ func assertContentVocabulary(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	// The outside $ref reaches the contentSchema position first, and what is
 	// under it is still spelled from the declaration: the order-invariance oracle
 	// is what proves the two orders agree, and this is what says which spelling
-	// won (§4.3).
+	// won (docs/ir/models.md#composition-beside-a-union).
 	feed, ok := doc.Types[componentID("Feed")].(*ir.Scalar)
 	require.True(t, ok)
 	require.NotNil(t, feed.Encoding)

@@ -111,11 +111,11 @@ func TestVerify_NilTypeBesideAUnionDoesNotPanic(t *testing.T) {
 	}
 }
 
-// TestVerify_UnionTagModes holds unions to the tag modes ir-design §4.4 defines:
-// a discriminator routes only a WireTagged union, whether it locates its tag by
-// property name or by tuple position. Each other combination of the two fields
-// is a mode of its own and passes: untagged, key-tagged (WireTagged with no
-// discriminator), and payload-tagged (both).
+// TestVerify_UnionTagModes holds unions to the tag modes docs/ir/unions.md
+// defines: a discriminator routes only a WireTagged union, whether it locates
+// its tag by property name or by tuple position. Each other combination of the
+// two fields is a mode of its own and passes: untagged, key-tagged (WireTagged
+// with no discriminator), and payload-tagged (both).
 func TestVerify_UnionTagModes(t *testing.T) {
 	t.Parallel()
 	head := 0

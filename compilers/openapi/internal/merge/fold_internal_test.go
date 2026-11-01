@@ -336,7 +336,9 @@ func TestFold_DeclarationsPastTheBoundAreKeptUnjudged(t *testing.T) {
 func TestFold_ANarrowerTypeThatLosesIsAnOverlap(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(narrowingRegistry())
-	f := newFolding(g, []declaration{stringAt("/allOf/0/properties/p", `{}`), stringAt("/allOf/1/properties/p", `{}`)})
+	decls := []declaration{stringAt("/allOf/0/properties/p", `{}`), stringAt("/allOf/1/properties/p", `{}`)}
+	_, field := fieldSpan(decls)
+	f := newFolding(g, decls, field)
 	f.rel[f.winner][1] = relBNarrower
 
 	f.drop(1)
@@ -389,7 +391,7 @@ func TestFold_ExamplesAreJudgedAsOneKeyword(t *testing.T) {
 		}
 		assert.Nil(t, got.Examples, "%s: refused whole", tc.name)
 		require.Len(t, *recorded, 1, tc.name)
-		assert.Contains(t, (*recorded)[0].Message, "does not admit the examples", tc.name)
+		assert.Contains(t, (*recorded)[0].Message, "admits the examples this declaration gives", tc.name)
 		assert.Contains(t, got.Unmodeled, losingDeclarationKey+"/b", "%s: the writer is kept", tc.name)
 	}
 }

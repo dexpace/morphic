@@ -8,8 +8,8 @@ import (
 )
 
 // checkMaps asserts no model in the type registry is a map and nothing else
-// (ir-design §4.6). Such a shape is a MapT whichever format spelled it, so a
-// compiler keeping one a Model gives one construct two shapes, and every
+// (docs/ir/containers.md). Such a shape is a MapT whichever format spelled it,
+// so a compiler keeping one a Model gives one construct two shapes, and every
 // emitter would have to recognize the map itself. ir.AsMap states the rule, and
 // it is the same reading a compiler converts by, so the two cannot disagree.
 func checkMaps(doc *ir.Document) []Violation {
@@ -32,10 +32,11 @@ func checkMaps(doc *ir.Document) []Violation {
 }
 
 // checkMapKeys asserts no map or catch-all names the string primitive as its
-// key. A nil Key is how both state string keys (ir-design §4.6), and naming the
-// primitive spells that one key type a second way, which every consumer
-// comparing keys would have to know. A nullable string key is another type and
-// stays. checkPrimIDs holds the primitive to its one ID, so the ID decides.
+// key. A nil Key is how both state string keys (docs/ir/containers.md), and
+// naming the primitive spells that one key type a second way, which every
+// consumer comparing keys would have to know. A nullable string key is another
+// type and stays. checkPrimIDs holds the primitive to its one ID, so the ID
+// decides.
 func checkMapKeys(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {

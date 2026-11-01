@@ -78,13 +78,13 @@ func PreserveSchemaKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 	return PreserveNodeInto(p, EntryKey("", keyword), node, reason, locate(pointer+ids.Ptr(keyword)))
 }
 
-// PreserveValidationOnlyKeyword is PreserveSchemaKeyword for a §4.7 keyword: it
-// keeps the keyword under ReasonValidationOnly, at its own node, which is what a
-// validation emitter reports against, and announces it at pointer, the schema
-// that wrote it. What PreserveSchemaKeyword keeps nothing of, it announces
-// nothing of. A §4.7 entry combining several keywords has no such node and is
-// not kept here but by Read, which attributes it by the keywords it holds
-// (GitHub #534).
+// PreserveValidationOnlyKeyword is PreserveSchemaKeyword for a validation-only
+// keyword: it keeps the keyword under ReasonValidationOnly, at its own node,
+// which is what a validation emitter reports against, and announces it at
+// pointer, the schema that wrote it. What PreserveSchemaKeyword keeps nothing
+// of, it announces nothing of. A validation-only entry combining several
+// keywords has no such node and is not kept here but by Read, which attributes
+// it by the keywords it holds (GitHub #534).
 func PreserveValidationOnlyKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string,
 	pointer jsontext.Pointer, locate Locator,
 ) []ir.Diagnostic {
@@ -128,8 +128,8 @@ func preserveValidationOnlyInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 	return []ir.Diagnostic{validationOnlyNote(note, label)}
 }
 
-// validationOnlyNote announces the §4.7 entry named label at note, the schema
-// that wrote it: one info per entry kept, whichever keeper kept it.
+// validationOnlyNote announces the validation-only entry named label at note,
+// the schema that wrote it: one info per entry kept, whichever keeper kept it.
 func validationOnlyNote(note ir.Provenance, label string) ir.Diagnostic {
 	return diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
 		"validation-only keyword %q kept verbatim under Unmodeled", label)

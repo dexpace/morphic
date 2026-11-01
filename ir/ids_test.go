@@ -22,8 +22,8 @@ import (
 // as an object or array. If any of these were ever changed to a struct (to
 // carry, say, a cached hash alongside the pointer), every consumer that treats
 // an ID as a map key or does string equality would silently break, and this is
-// the test that would catch the change at the wire-format boundary (ir-design
-// §3.1: IDs are opaque but deterministic strings).
+// the test that would catch the change at the wire-format boundary
+// (docs/ir/identity.md: IDs are opaque but deterministic strings).
 func TestIDTypes_MarshalAsPlainJSONStrings(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

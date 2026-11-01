@@ -288,3 +288,17 @@ components:
         - type: object
           properties:
             p: {type: integer}
+    # A $ref into the broad branch makes a model carrying that declaration alone,
+    # so the narrowed field is another property.
+    NarrowedPastARef:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number}
+        - type: object
+          properties:
+            p: {type: integer}
+    NarrowedBranchUser:
+      type: object
+      properties:
+        branch: {$ref: '#/components/schemas/NarrowedPastARef/allOf/0'}

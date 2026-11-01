@@ -23,7 +23,7 @@ import (
 )
 
 // generation is one IR generation: an IRVersion and the shape of the JSON it
-// was published with (ir-design §2.1).
+// was published with (docs/ir/ir-version.md).
 type generation struct {
 	// version is the IRVersion.
 	version string
@@ -62,8 +62,8 @@ var generations = []generation{
 // to the shape reviews as a diff of it.
 const shapeGolden = "testdata/shape.golden.txt"
 
-// irDesign is the document whose version history records each generation.
-const irDesign = "../docs/ir-design.md"
+// versionLog is the document whose history records each generation.
+const versionLog = "../docs/ir/version-history.md"
 
 // TestIRVersion_PinsTheEncodedShape holds IRVersion to the shape of the JSON a
 // Document encodes: the description of every type it reaches must hash to the
@@ -99,12 +99,12 @@ func TestIRVersion_GenerationsAppendInOrder(t *testing.T) {
 	}
 }
 
-// TestIRVersion_HistoryRecordsEachGeneration requires ir-design §2.1's version
-// history to end at IRVersion and to name every generation the table does, so
-// a bump cannot land without saying what it changed.
+// TestIRVersion_HistoryRecordsEachGeneration requires
+// docs/ir/version-history.md to end at IRVersion and to name every generation
+// the table does, so a bump cannot land without saying what it changed.
 func TestIRVersion_HistoryRecordsEachGeneration(t *testing.T) {
 	t.Parallel()
-	doc, err := os.ReadFile(irDesign)
+	doc, err := os.ReadFile(versionLog)
 	require.NoError(t, err)
 	history, err := versionHistory(string(doc))
 	require.NoError(t, err)
@@ -117,7 +117,7 @@ func TestIRVersion_HistoryRecordsEachGeneration(t *testing.T) {
 // shape, described in format, hashes to shape. Each finding says what to do.
 func pinFindings(rows []generation, version string, format int, shape string) []string {
 	if _, ok := parseVersion(version); !ok {
-		return []string{fmt.Sprintf("IRVersion %q is not MAJOR.MINOR.PATCH (ir-design §2.1)", version)}
+		return []string{fmt.Sprintf("IRVersion %q is not MAJOR.MINOR.PATCH (docs/ir/ir-version.md)", version)}
 	}
 	if len(rows) == 0 {
 		return []string{"generations is empty: it holds a row for IRVersion " + version}
@@ -131,7 +131,7 @@ func pinFindings(rows []generation, version string, format int, shape string) []
 		finding := fmt.Sprintf("IRVersion is %s, but generations ends at %s: append %s", version, last.version, row(version))
 		if format == last.format && shape == last.shape {
 			finding += fmt.Sprintf(". The shape is still %s's, so set meaning to what changed, "+
-				"or revert the bump (ir-design §2.1)", last.version)
+				"or revert the bump (docs/ir/ir-version.md)", last.version)
 		}
 		return []string{finding}
 	case last.version != version:
@@ -144,8 +144,8 @@ func pinFindings(rows []generation, version string, format int, shape string) []
 	case shape != last.shape:
 		next := nextGeneration(version)
 		return []string{fmt.Sprintf("the encoded shape changed, but IRVersion is still %s, "+
-			"published with another shape (ir-design §2.1). Set IRVersion to %s, append %s, "+
-			"and say what changed under %s in the ir-design §2.1 version history. "+
+			"published with another shape (docs/ir/ir-version.md). Set IRVersion to %s, append %s, "+
+			"and say what changed under %s in docs/ir/version-history.md. "+
 			"If a merge brought in another change that claimed %s, that version is taken: the next is yours. "+
 			"If only jsonshape changed how it spells a shape, move jsonshape.Format instead",
 			version, next, row(next), next, version)}
@@ -204,7 +204,7 @@ func stepFinding(prev, r generation) string {
 			prev.format, prev.version, r.format)
 	case r.shape == prev.shape && r.meaning == "":
 		return fmt.Sprintf("%s has %s's shape: a bump that changes no shape states the meaning it "+
-			"changes (ir-design §2.1); without one, revert the bump", r.version, prev.version)
+			"changes (docs/ir/ir-version.md); without one, revert the bump", r.version, prev.version)
 	case r.shape != prev.shape && r.meaning != "":
 		return fmt.Sprintf("%s changes %s's shape, so it states no meaning: "+
 			"its version history entry says what changed", r.version, prev.version)
@@ -217,13 +217,12 @@ func stepFinding(prev, r generation) string {
 // with the version in bold.
 var historyEntry = regexp.MustCompile(`^- \*\*([^*]+)\*\* — `)
 
-// versionHistory returns the versions ir-design §2.1's version history lists,
-// in the order it lists them: the entries between its heading and the next
-// heading or rule.
+// versionHistory returns the versions versionLog lists, in the order it lists
+// them: the entries between its heading and the next heading or rule.
 func versionHistory(doc string) ([]string, error) {
-	_, section, found := strings.Cut(doc, "\n#### Version history\n")
+	_, section, found := strings.Cut(doc, "\n## Generations\n")
 	if !found {
-		return nil, fmt.Errorf("%s has no #### Version history heading", irDesign)
+		return nil, fmt.Errorf("%s has no ## Generations heading", versionLog)
 	}
 	var out []string
 	for line := range strings.Lines(section) {
@@ -241,7 +240,7 @@ func versionHistory(doc string) ([]string, error) {
 // it must ascend, end at version, and name every version rows does.
 func historyFindings(history []string, rows []generation, version string) []string {
 	if len(history) == 0 {
-		return []string{"the ir-design §2.1 version history lists no generation"}
+		return []string{"docs/ir/version-history.md lists no generation"}
 	}
 	var out []string
 	for i := 1; i < len(history); i++ {
@@ -251,7 +250,7 @@ func historyFindings(history []string, rows []generation, version string) []stri
 		}
 	}
 	if last := history[len(history)-1]; last != version {
-		out = append(out, fmt.Sprintf("the ir-design §2.1 version history ends at %s, but IRVersion is %s: "+
+		out = append(out, fmt.Sprintf("docs/ir/version-history.md ends at %s, but IRVersion is %s: "+
 			"add an entry saying what %s changed", last, version, version))
 	}
 	for _, r := range rows {
@@ -260,7 +259,7 @@ func historyFindings(history []string, rows []generation, version string) []stri
 			continue
 		}
 		if !slices.Contains(history, r.version) {
-			out = append(out, fmt.Sprintf("generation %s has no entry in the ir-design §2.1 version history", r.version))
+			out = append(out, fmt.Sprintf("generation %s has no entry in docs/ir/version-history.md", r.version))
 		}
 	}
 	return slices.Compact(out)
@@ -288,23 +287,23 @@ func TestPinFindings(t *testing.T) {
 	}{
 		{"the pinned shape", pinned, "0.3.0", 1, shapeA, ""},
 		{"a shape change at an unmoved version", pinned, "0.3.0", 1, shapeB,
-			`the encoded shape changed, but IRVersion is still 0.3.0, published with another shape (ir-design §2.1). ` +
+			`the encoded shape changed, but IRVersion is still 0.3.0, published with another shape (docs/ir/ir-version.md). ` +
 				`Set IRVersion to 0.4.0, append {version: "0.4.0", format: 1, shape: "` + shapeB + `"}, ` +
-				`and say what changed under 0.4.0 in the ir-design §2.1 version history. ` +
+				`and say what changed under 0.4.0 in docs/ir/version-history.md. ` +
 				`If a merge brought in another change that claimed 0.3.0, that version is taken: the next is yours. ` +
 				`If only jsonshape changed how it spells a shape, move jsonshape.Format instead`},
 		{"a bump with no row", pinned, "0.4.0", 1, shapeB,
 			`IRVersion is 0.4.0, but generations ends at 0.3.0: append {version: "0.4.0", format: 1, shape: "` + shapeB + `"}`},
 		{"a bump with no row and no shape change", pinned, "0.4.0", 1, shapeA,
 			`IRVersion is 0.4.0, but generations ends at 0.3.0: append {version: "0.4.0", format: 1, shape: "` + shapeA + `"}. ` +
-				`The shape is still 0.3.0's, so set meaning to what changed, or revert the bump (ir-design §2.1)`},
+				`The shape is still 0.3.0's, so set meaning to what changed, or revert the bump (docs/ir/ir-version.md)`},
 		{"a row with no bump", pinned, "0.2.0", 1, shapeA,
 			`generations ends at 0.3.0, past IRVersion 0.2.0: a row is appended by the bump that moves IRVersion to it`},
 		{"a new description format", pinned, "0.3.0", 2, shapeB,
 			`jsonshape.Format is 2, but 0.3.0 was described in format 1: append {version: "0.3.0", format: 2, shape: "` +
 				shapeB + `"}, describing it anew. If the shape changed too, the bump is a row after that one`},
 		{"an empty table", nil, "0.3.0", 1, shapeA, "generations is empty: it holds a row for IRVersion 0.3.0"},
-		{"a version that is no version", pinned, "v0.3", 1, shapeA, `IRVersion "v0.3" is not MAJOR.MINOR.PATCH (ir-design §2.1)`},
+		{"a version that is no version", pinned, "v0.3", 1, shapeA, `IRVersion "v0.3" is not MAJOR.MINOR.PATCH (docs/ir/ir-version.md)`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -358,7 +357,7 @@ func TestRowFindings(t *testing.T) {
 		{"a bump in a new format", []generation{a, with(b, func(g *generation) { g.format = 2 })},
 			"row 1: 0.4.0 is described in format 2 and 0.3.0 in format 1: describe 0.3.0 anew in format 2 first, so the bump compares with it"},
 		{"a bump that changes no shape", []generation{a, with(b, func(g *generation) { g.shape = shapeA })},
-			"row 1: 0.4.0 has 0.3.0's shape: a bump that changes no shape states the meaning it changes (ir-design §2.1); without one, revert the bump"},
+			"row 1: 0.4.0 has 0.3.0's shape: a bump that changes no shape states the meaning it changes (docs/ir/ir-version.md); without one, revert the bump"},
 		{"a meaning claimed by a shape change", []generation{a, with(b, func(g *generation) { g.meaning = "x" })},
 			"row 1: 0.4.0 changes 0.3.0's shape, so it states no meaning: its version history entry says what changed"},
 	} {
@@ -379,19 +378,19 @@ func TestRowFindings(t *testing.T) {
 // generations.
 func TestVersionHistory(t *testing.T) {
 	t.Parallel()
-	doc := "# T\n\n#### Version history\n\nIntro.\n\n" +
+	doc := "# T\n\n## Generations\n\nIntro.\n\n" +
 		"- **0.2.0** — first.\n  - **0.9.0** — a nested item is no entry.\n- **0.3.0** — second,\n  wrapped.\n" +
 		"- **bold** without a dash is no entry\n\n---\n\n- **0.4.0** — past the rule.\n"
 	got, err := versionHistory(doc)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"0.2.0", "0.3.0"}, got)
 
-	got, err = versionHistory("x\n#### Version history\n- **0.2.0** — first.\n### 2.2 Next\n- **0.3.0** — past the heading.\n")
+	got, err = versionHistory("x\n## Generations\n- **0.2.0** — first.\n## Next\n- **0.3.0** — past the heading.\n")
 	require.NoError(t, err)
 	assert.Equal(t, []string{"0.2.0"}, got)
 
 	got, err = versionHistory("# T\n\n- **0.2.0** — under no history heading.\n")
-	require.ErrorContains(t, err, "has no #### Version history heading")
+	require.ErrorContains(t, err, "has no ## Generations heading")
 	assert.Nil(t, got)
 }
 
@@ -407,17 +406,17 @@ func TestHistoryFindings(t *testing.T) {
 		want    []string
 	}{
 		{"a history recording each generation", []string{"0.2.0", "0.3.0", "0.4.0"}, "0.4.0", nil},
-		{"an empty history", nil, "0.4.0", []string{"the ir-design §2.1 version history lists no generation"}},
+		{"an empty history", nil, "0.4.0", []string{"docs/ir/version-history.md lists no generation"}},
 		{"a history out of order", []string{"0.3.0", "0.2.0", "0.4.0"}, "0.4.0",
 			[]string{"the version history lists 0.2.0 after 0.3.0, but its entries ascend"}},
 		{"a history listing a version twice", []string{"0.3.0", "0.3.0", "0.4.0"}, "0.4.0",
 			[]string{"the version history lists 0.3.0 after 0.3.0, but its entries ascend"}},
 		{"a bump the history does not record", []string{"0.3.0", "0.4.0"}, "0.5.0",
-			[]string{"the ir-design §2.1 version history ends at 0.4.0, but IRVersion is 0.5.0: add an entry saying what 0.5.0 changed"}},
+			[]string{"docs/ir/version-history.md ends at 0.4.0, but IRVersion is 0.5.0: add an entry saying what 0.5.0 changed"}},
 		{"a bump the table records and the history does not", []string{"0.2.0", "0.3.0"}, "0.4.0",
-			[]string{"the ir-design §2.1 version history ends at 0.3.0, but IRVersion is 0.4.0: add an entry saying what 0.4.0 changed"}},
+			[]string{"docs/ir/version-history.md ends at 0.3.0, but IRVersion is 0.4.0: add an entry saying what 0.4.0 changed"}},
 		{"a generation the history skips", []string{"0.2.0", "0.4.0"}, "0.4.0",
-			[]string{"generation 0.3.0 has no entry in the ir-design §2.1 version history"}},
+			[]string{"generation 0.3.0 has no entry in docs/ir/version-history.md"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

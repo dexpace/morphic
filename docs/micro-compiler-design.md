@@ -112,10 +112,10 @@ of invariant 4 — and was silent on the "neutral canonical word sequence" half.
 lowercase, so both passed.
 
 **The grammar and its check landed ahead of this plan** (#161), because the divergence is a live
-invariant-4 violation rather than an architecture question. `ir-design.md` §3.2 now fixes the
-segmentation — a word is letters and digits, every other character separates — `compilers/openapi`
-implements it, and `irverify` rejects a canonical that is not a word sequence, so a compiler
-disagreeing about `.` is caught wherever the corpus reaches it.
+invariant-4 violation rather than an architecture question. [naming](./ir/naming.md) now
+fixes the segmentation — a word is letters and digits, every other character separates —
+`compilers/openapi` implements it, and `irverify` rejects a canonical that is not a word sequence,
+so a compiler disagreeing about `.` is caught wherever the corpus reaches it.
 
 Two boundaries were listed here as beyond that check and are no longer. The letter/digit split
 (`foo2bar` against `foo_2_bar`) is decidable from the neutral name alone. The camel-case split is

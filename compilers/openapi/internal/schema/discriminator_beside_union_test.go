@@ -71,7 +71,8 @@ func TestDiscriminatorBesideUnion_MovesWhenARouteIsNoSubtype(t *testing.T) {
 
 // TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves pins that a discriminator
 // moving off a body whose one other member fact is its catch-all leaves a map,
-// which is a MapT, as it is when no discriminator is written (ir-design §4.6).
+// which is a MapT, as it is when no discriminator is written
+// (docs/ir/containers.md).
 func TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves(t *testing.T) {
 	t.Parallel()
 	for _, doc := range discriminatedOrders(t, "3.1.0", mapPet, cat+dog) {

@@ -1,7 +1,7 @@
 # Prior Art — Lessons from oagen, Kiota, and TypeSpec
 
 Condensed findings from studying three reference codebases, and the decisions Morphic takes from
-each. This is the evidence base behind `architecture.md` and `ir-design.md`.
+each. This is the evidence base behind `architecture.md` and the [IR design](./ir/README.md).
 
 ---
 
@@ -22,11 +22,11 @@ and the differ/compat/verify subsystems added since the original survey).
 - **Nullability as an explicit node**, not a boolean scattered across every type.
 - **Models referenced by name/handle, never embedded** — a flat registry makes deduplication,
   traversal, and serialization trivial and makes recursive types a non-issue.
-- **A "resolved plan" layer between IR and templates**: semantic rendering decisions
-  (is-paginated, has-body, idempotent-post, primary-response selection, return-shape
-  classification, parameter-passing shape…) are computed once, language-neutrally, so string
-  templates contain no policy. Morphic keeps the layer less what its IR states outright and the
-  parameter-passing shape, which varies by language (emitter-design §3.6).
+- **A "resolved plan" layer between IR and templates**: semantic rendering decisions (is-paginated,
+  has-body, idempotent-post, primary-response selection, return-shape classification,
+  parameter-passing shape…) are computed once, language-neutrally, so string templates contain no
+  policy. Morphic keeps the layer less what its IR states outright and the parameter-passing shape,
+  which varies by language ([plan fact or refine fact](./emitters/plan/plan-or-refine.md)).
 - **Runtime SDK policy (retry, telemetry, error taxonomy) kept in a separate tree** from the
   structural API description.
 - **Policy addressed by wire identity, not derived names** — consumer operation hints are keyed
@@ -91,7 +91,8 @@ and a self-correcting overlay loop. Three structural lessons:
   reinvents a spec-level identity (`conceptualChangeId`). Morphic's pointer-derived IDs make
   rename detection a lookup; the compat experience adds one refinement — when both pointer
   *and* name churn, a third *structural* correlation tier (content-hash / field-set
-  similarity, shared with the `dedup` pass) is the fallback (see ir-design.md open question 5).
+  similarity, shared with the `dedup` pass) is the fallback (see [open question
+  5](./ir/open-questions.md)).
 - **Breaking-ness is per-language policy, not a property of a change.** The same spec change
   is breaking in PHP (param names are public API), soft-risk in Kotlin, invisible in Node.
   oagen's two-stage split — neutral change records, then `(change × language) → severity`

@@ -47,12 +47,12 @@ func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 }
 
 // objectNode is the node an object lowering yields: the MapT m is when it is a
-// map and nothing else, else m (ir-design §4.6). It reads the built Model
-// rather than the schema, so a keyword that comes to fill a Model field keeps
-// the position a Model without a second predicate to update. A composed union
-// variant and a false schema skip it: one always holds its branch as a Base or
-// Mixin, and the other is closed. An inert `unevaluatedProperties: false`
-// beside a catch-all still closes a model, keeping it one until #862.
+// map and nothing else, else m (docs/ir/containers.md). It reads the built
+// Model rather than the schema, so a keyword that comes to fill a Model field
+// keeps the position a Model without a second predicate to update. A composed
+// union variant and a false schema skip it: one always holds its branch as a
+// Base or Mixin, and the other is closed. An inert `unevaluatedProperties:
+// false` beside a catch-all still closes a model, keeping it one until #862.
 func objectNode(m *ir.Model) ir.TypeDef {
 	if mt, ok := ir.AsMap(m); ok {
 		return mt
@@ -65,7 +65,7 @@ func objectNode(m *ir.Model) ir.TypeDef {
 // (merge.PropIndex), as a completion (compile.Types.Complete): a settlement
 // that reads the merged field, such as a form part's flags, finds it folded.
 func propIndex(c lowering.Ctx, ts *compile.Types, m *ir.Model) *merge.PropIndex {
-	return merge.NewPropIndex(m, func(fold merge.Settle) { ts.Complete(settledMerge{c: c, fold: fold}) })
+	return merge.NewPropIndex(m, func(fold merge.Settle) { ts.Complete(settledMerge{c: c, ts: ts, fold: fold}) })
 }
 
 // settledMerge is the folds of one model's redeclared fields, taken once every
@@ -73,18 +73,39 @@ func propIndex(c lowering.Ctx, ts *compile.Types, m *ir.Model) *merge.PropIndex 
 // name, so mid-walk it would follow the order they lower in (GitHub #898).
 type settledMerge struct {
 	c    lowering.Ctx
+	ts   *compile.Types
 	fold merge.Settle
 }
 
 // Settle takes the fold against reg and returns what it reports. The fold
-// rewrites the model's property and interns nothing, so the registry keeps its
-// node count.
+// rewrites the model's property, and adds a node only through mint.
 func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	var diags []ir.Diagnostic
-	s.fold(reg, func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
-		diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
+	s.fold(&merge.Merger{
+		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
+		Mint:    s.mint,
+		Interned: func(pointer jsontext.Pointer) bool {
+			_, ok := s.ts.Lookup(s.c.IDs().Coordinate(pointer))
+			return ok
+		},
+		PropAt: s.c.IDs().ComposedProp,
+		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
+			diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
+		},
 	})
 	return diags
+}
+
+// mint registers m, the composition of the field the declaration at pointer
+// names. That pointer denotes the declaration's own schema, so m takes the ID of
+// a node no schema occupies (ids.ComposedType) and points back at it, as a
+// distributed variant points at its branch. The variants of one distributed
+// union fold the same declarations, so each mints this one node, alike.
+func (s settledMerge) mint(pointer jsontext.Pointer, m *ir.Model) ir.TypeID {
+	id := s.c.IDs().ComposedType(pointer)
+	m.TypeCommon = commonFor(s.c, id, pointer)
+	s.ts.Register(id, m)
+	return id
 }
 
 // fillModelProperties lowers a model's own properties in source order, each with
@@ -138,8 +159,9 @@ func redeclarationSource(js *oas3.JSONSchema[oas3.Referenceable]) merge.Source {
 // property: as Required on the property of that wire name, never cleared once
 // set, and otherwise in m.Requires, once, in the order required names it. A
 // name no own property declares is one a Base or Mixin declares, or one only
-// the catch-all governs, and JSON Schema requires it all the same (ir-design
-// §4.3). Each object lowering calls it once, on a model that lists none yet.
+// the catch-all governs, and JSON Schema requires it all the same
+// (docs/ir/models.md). Each object lowering calls it once, on a model that
+// lists none yet.
 func requireMembers(m *ir.Model, required []string) {
 	byWire := merge.WireNameIndex(m.Properties)
 	listed := make(map[string]bool, len(required))

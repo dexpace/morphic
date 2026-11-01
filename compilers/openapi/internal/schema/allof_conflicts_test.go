@@ -6,6 +6,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -912,4 +913,347 @@ func TestAllOf_PropertyAlongsideAllOfConflictMessageIsAccurate(t *testing.T) {
 		"the redeclaration site is a co-declared property, not an allOf branch")
 	assert.Equal(t, jsontext.Pointer("/components/schemas/Along/properties/id"), d.Provenance.Pointer,
 		"the diagnostic's own site is the co-declared property, not an allOf branch")
+}
+
+// redeclaredModelsSpec declares Meeting, then T and U, which compose it with an
+// inline object in each order.
+const redeclaredModelsSpec = `    Meeting:
+      type: object
+      properties:
+        id: {type: string}
+    T:
+      allOf:
+        - {type: object, properties: {data: {$ref: '#/components/schemas/Meeting'}}}
+        - {type: object, properties: {data: {type: object, properties: {ai: {type: string}}}}}
+    U:
+      allOf:
+        - {type: object, properties: {data: {type: object, properties: {ai: {type: string}}}}}
+        - {type: object, properties: {data: {$ref: '#/components/schemas/Meeting'}}}
+`
+
+// composedField returns the model the field wire of the component name composes
+// to, and asserts its ID is the pointer of the declaration naming the field, the
+// component's second allOf branch here, in the composed space, and that it is
+// anonymous and points back at that declaration.
+func composedField(t *testing.T, doc *ir.Document, name, wire string) *ir.Model {
+	t.Helper()
+	p := propertyOf(t, doc, name, wire)
+	field := "/components/schemas/" + name + "/allOf/1/properties/" + wire
+	want := ir.TypeID("t/composed" + field)
+	require.Equal(t, want, p.Type.Target)
+	m, ok := doc.Types[want].(*ir.Model)
+	require.True(t, ok, "%s should hold a registered model", want)
+	assert.Equal(t, field, string(m.Provenance.Pointer), "it points back at the declaration")
+	assert.True(t, m.Anonymous)
+	return m
+}
+
+// TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem pins GitHub #1085 in both
+// branch orders: the field names one minted model holding both declarations, so
+// neither the component's properties nor the inline object's are lost, and the
+// branch order decides nothing but the order inline nodes are named in. The
+// component stays the Base as the sole $ref does in a written allOf, and each
+// declaration keeps the node its own pointer denotes.
+func TestAllOf_AFieldRedeclaredAsTwoModelsComposesThem(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(redeclaredModelsSpec))
+	assert.Empty(t, diags, "nothing is lost, so nothing is reported")
+
+	for _, tc := range []struct {
+		name, inline string
+	}{
+		{"T", "t/anon/components/schemas/T/allOf/1/properties/data"},
+		{"U", "t/anon/components/schemas/U/allOf/0/properties/data"},
+	} {
+		m := composedField(t, doc, tc.name, "data")
+		require.NotNil(t, m.Base, tc.name)
+		assert.Equal(t, componentID("Meeting"), m.Base.Target, tc.name)
+		require.Len(t, m.Mixins, 1, tc.name)
+		assert.Equal(t, ir.TypeID(tc.inline), m.Mixins[0].Target, tc.name)
+		assert.Empty(t, m.Properties, "%s: the composition stays in source form", tc.name)
+		assert.Empty(t, propertyOf(t, doc, tc.name, "data").Unmodeled, "%s: nothing is kept", tc.name)
+
+		inline, ok := doc.Types[ir.TypeID(tc.inline)].(*ir.Model)
+		require.True(t, ok, tc.name)
+		require.Len(t, inline.Properties, 1, tc.name)
+		assert.Equal(t, "ai", inline.Properties[0].WireName, tc.name)
+	}
+}
+
+// TestAllOf_AComposedFieldKeepsADiscriminatedBase pins the Base a minted model
+// takes as a written allOf would: among several $ref declarations, the one
+// carrying a discriminator, wherever it is written.
+func TestAllOf_AComposedFieldKeepsADiscriminatedBase(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    Plain:
+      type: object
+      properties:
+        note: {type: string}
+    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator: {propertyName: kind}
+    Owner:
+      allOf:
+        - {type: object, properties: {pet: {$ref: '#/components/schemas/Plain'}}}
+        - {type: object, properties: {pet: {$ref: '#/components/schemas/Pet'}}}
+`))
+	assert.Empty(t, diags)
+	m := composedField(t, doc, "Owner", "pet")
+	require.NotNil(t, m.Base)
+	assert.Equal(t, componentID("Pet"), m.Base.Target)
+	require.Len(t, m.Mixins, 1)
+	assert.Equal(t, componentID("Plain"), m.Mixins[0].Target)
+}
+
+// TestAllOf_EveryDistributedVariantSharesOneComposedField pins the mint across
+// variants. A distributed union's variants each fold the body's declarations,
+// and each keeps the field's one PropID, so each names the one node.
+func TestAllOf_EveryDistributedVariantSharesOneComposedField(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    A:
+      type: object
+      properties:
+        a: {type: string}
+    B:
+      type: object
+      properties:
+        b: {type: string}
+    C:
+      type: object
+      properties:
+        c: {type: string}
+    D:
+      type: object
+      properties:
+        d: {type: string}
+    S:
+      allOf:
+        - {type: object, properties: {data: {$ref: '#/components/schemas/A'}}}
+        - {type: object, properties: {data: {$ref: '#/components/schemas/B'}}}
+      oneOf:
+        - {$ref: '#/components/schemas/C'}
+        - {$ref: '#/components/schemas/D'}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	const shared = ir.TypeID("t/composed/components/schemas/S/allOf/1/properties/data")
+	for _, variant := range []ir.TypeID{
+		"t/composed/components/schemas/S/oneOf/0",
+		"t/composed/components/schemas/S/oneOf/1",
+	} {
+		m, ok := doc.Types[variant].(*ir.Model)
+		require.True(t, ok, variant)
+		require.Len(t, m.Properties, 1, variant)
+		assert.Equal(t, shared, m.Properties[0].Type.Target, variant)
+	}
+	body, ok := doc.Types[shared].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, body.Base)
+	require.Len(t, body.Mixins, 2)
+	assert.Equal(t, componentID("A"), body.Mixins[0].Target)
+	assert.Equal(t, componentID("B"), body.Mixins[1].Target)
+}
+
+// TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor pins the judgment through an alias
+// component, in either order: an alias of a model composes as that model does,
+// and against a kind it is the conflict that model would be.
+func TestAllOf_AnAliasIsJudgedAsTheTypeItStandsFor(t *testing.T) {
+	t.Parallel()
+	alias, other, kind := "{$ref: '#/components/schemas/Z'}", "{$ref: '#/components/schemas/B'}", "{type: string}"
+	for _, tc := range []struct {
+		first, second string
+		mixins        []ir.TypeID // nil where the pair conflicts
+	}{
+		{first: alias, second: other, mixins: []ir.TypeID{componentID("Z"), componentID("B")}},
+		{first: other, second: alias, mixins: []ir.TypeID{componentID("B"), componentID("Z")}},
+		{first: alias, second: kind},
+		{first: kind, second: alias},
+	} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(`    A:
+      type: object
+      properties:
+        a: {type: string}
+    B:
+      type: object
+      properties:
+        b: {type: string}
+    Z:
+      $ref: '#/components/schemas/A'
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`, tc.first, tc.second)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		name := tc.first + " then " + tc.second
+		if tc.mixins == nil {
+			assert.Len(t, conflictDiags(diags), 1, name)
+			continue
+		}
+		assert.Empty(t, diags, name)
+		m := composedField(t, doc, "T", "v")
+		require.Len(t, m.Mixins, 2, name)
+		assert.Equal(t, tc.mixins, []ir.TypeID{m.Mixins[0].Target, m.Mixins[1].Target}, name)
+	}
+}
+
+// TestAllOf_ATypeHoldingAnotherTakesTheField pins that a field composes only what
+// no other declaration holds, in either order: a model and an alias of it, a
+// model and what composes it, a model and a bare object, and a bare object and
+// an alias of it each name one type, which is the narrower, with nothing kept
+// and nothing reported. Two aliases of one model each may say more than the
+// model, and two bare objects declared apart are two types, so those compose.
+func TestAllOf_ATypeHoldingAnotherTakesTheField(t *testing.T) {
+	t.Parallel()
+	const spec = `    A:
+      type: object
+      properties:
+        a: {type: string}
+    Z:
+      $ref: '#/components/schemas/A'
+      description: an alias
+    Y:
+      $ref: '#/components/schemas/A'
+      description: another alias
+    D:
+      allOf:
+        - {$ref: '#/components/schemas/A'}
+        - {type: object, properties: {d: {type: string}}}
+    Bare:
+      type: object
+    Twin:
+      type: object
+    MinTwo:
+      $ref: '#/components/schemas/Bare'
+      minProperties: 2
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`
+	ref := func(name string) string { return "{$ref: '#/components/schemas/" + name + "'}" }
+	for _, tc := range []struct {
+		name, a, b string
+		want       ir.TypeID
+	}{
+		{"a model and its alias", ref("A"), ref("Z"), componentID("Z")},
+		{"a model and what composes it", ref("A"), ref("D"), componentID("D")},
+		{"a model and a bare object", ref("A"), "{type: object}", componentID("A")},
+		{"a bare object and its alias", ref("Bare"), ref("MinTwo"), componentID("MinTwo")},
+	} {
+		for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, diags, tc.name)
+			p := propertyOf(t, doc, "T", "v")
+			assert.Empty(t, p.Unmodeled, tc.name)
+			assert.Equal(t, tc.want, p.Type.Target, tc.name)
+		}
+	}
+
+	for _, pair := range [][2]string{{"Z", "Y"}, {"Bare", "Twin"}} {
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, ref(pair[0]), ref(pair[1]))))
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, diags, pair[0])
+		assert.Equal(t, []ir.TypeRef{{Target: componentID(pair[0])}, {Target: componentID(pair[1])}},
+			composedField(t, doc, "T", "v").Mixins, pair[0])
+	}
+}
+
+// TestAllOf_AnObjectSayingMoreThanItsTypeComposes pins what keeps a declaration
+// from being taken for a bare object. A type the winner composes stays reachable
+// through it, and a bare object it narrows does not, so a declaration saying
+// anything else, or an alias that may, composes with a model in either order,
+// and the composition reaches what it says.
+func TestAllOf_AnObjectSayingMoreThanItsTypeComposes(t *testing.T) {
+	t.Parallel()
+	const spec = `    A:
+      type: object
+      properties:
+        a: {type: string}
+    Bare:
+      type: object
+    MinTwo:
+      $ref: '#/components/schemas/Bare'
+      minProperties: 2
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`
+	model := "{$ref: '#/components/schemas/A'}"
+	inline := func(branch int) ir.TypeID {
+		return ir.TypeID(fmt.Sprintf("t/anon/components/schemas/T/allOf/%d/properties/v", branch))
+	}
+	for _, tc := range []struct {
+		name, decl string
+		says       func(branch int) ir.TypeID
+	}{
+		{"a constrained alias", "{$ref: '#/components/schemas/MinTwo'}", func(int) ir.TypeID { return componentID("MinTwo") }},
+		{"a title", "{type: object, title: Held}", inline},
+		{"a description", "{type: object, description: Held}", inline},
+		{"a deprecation", "{type: object, deprecated: true}", inline},
+		{"a redaction", "{type: object, format: password}", inline},
+		{"an XML name", "{type: object, xml: {name: held}}", inline},
+		{"an example", "{type: object, example: {a: held}}", inline},
+	} {
+		for branch, order := range [][2]string{{tc.decl, model}, {model, tc.decl}} {
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(spec, order[0], order[1])))
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Empty(t, diags, tc.name)
+			assert.Empty(t, propertyOf(t, doc, "T", "v").Unmodeled, tc.name)
+			m := composedField(t, doc, "T", "v")
+			parts := m.Mixins
+			if m.Base != nil {
+				parts = append(slices.Clip(parts), *m.Base)
+			}
+			assert.ElementsMatch(t, []ir.TypeRef{{Target: componentID("A")}, {Target: tc.says(branch)}}, parts, tc.name)
+		}
+	}
+}
+
+// TestAllOf_RelatedStructuresAreNotCalledAConflict pins the warning to pairs
+// that cannot both hold (GitHub #899). `["a"]` satisfies a list and a tuple, a
+// union may hold the very model it meets, and a `const` object may be a value of
+// a model, so each draws an info saying the merge does not compare them, in
+// either order.
+func TestAllOf_RelatedStructuresAreNotCalledAConflict(t *testing.T) {
+	t.Parallel()
+	list := "{type: array, items: {type: string}}"
+	tuple := "{type: array, prefixItems: [{type: string}]}"
+	model := "{$ref: '#/components/schemas/A'}"
+	union := "{oneOf: [{$ref: '#/components/schemas/A'}, {$ref: '#/components/schemas/B'}]}"
+	object := "{const: {a: x}}"
+	for _, tc := range []struct{ name, a, b string }{
+		{"a list, then a tuple", list, tuple},
+		{"a tuple, then a list", tuple, list},
+		{"a model, then a union", model, union},
+		{"a union, then a model", union, model},
+		{"a model, then a const object", model, object},
+		{"a const object, then a model", object, model},
+	} {
+		spec := openapitest.ComponentSpec(fmt.Sprintf(`    A:
+      type: object
+      properties:
+        a: {type: string}
+    B:
+      type: object
+      properties:
+        b: {type: string}
+    T:
+      allOf:
+        - {type: object, properties: {v: %s}}
+        - {type: object, properties: {v: %s}}
+`, tc.a, tc.b))
+		doc, diags := schema.LowerSpec(t, spec)
+		openapitest.RequireNoErrorDiags(t, diags)
+		assert.Empty(t, conflictDiags(diags), tc.name)
+		merged := withCode(diags, diag.DegradedConstruct)
+		require.Len(t, merged, 1, tc.name)
+		assert.Contains(t, merged[0].Message, "that the merge does not compare", tc.name)
+		assert.Contains(t, propertyOf(t, doc, "T", "v").Unmodeled,
+			"openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v", tc.name)
+	}
 }

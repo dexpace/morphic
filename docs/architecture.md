@@ -3,7 +3,7 @@
 Morphic turns any API specification — OpenAPI/Swagger, TypeSpec, Smithy, GraphQL, AsyncAPI,
 Protobuf, Erlang/OTP module specs — into idiomatic SDKs and docs through a single spec-agnostic
 intermediate representation (IR). This document defines the pipeline, the package layout, and the contracts
-between stages. The IR itself is specified in [`ir-design.md`](./ir-design.md).
+between stages. The IR itself is specified in the [IR design](./ir/README.md).
 
 ```
                  ┌────────────── compilers ──────────────┐
@@ -224,11 +224,11 @@ and the IR is designed against all eight; §2.5 says how it changes where a comp
 ### 2.2 IR passes (IR → IR)
 
 Small, composable, order-explicit transformations. A pass is a `pass.Pass`: a stable `Name()` and a
-`Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input.
-A transform returns a new document, which may share whatever it left unchanged; an analysis such as
+`Run(context.Context, *ir.Document) (*ir.Document, []ir.Diagnostic)` that never mutates its input. A
+transform returns a new document, which may share whatever it left unchanged; an analysis such as
 `validate` returns its input beside its diagnostics. `Run` has no error result, for the reason an
-emitter's `Generate` has none (emitter-design.md §2): whatever a pass cannot handle in the document
-is a diagnostic, and anything else is a bug in the pass.
+emitter's `Generate` has none ([the emitter contract](./emitters/contract/emitter.md)): whatever a
+pass cannot handle in the document is a diagnostic, and anything else is a bug in the pass.
 
 `Run` takes the run's context, though a pass works on a document already in memory, because that
 work grows with the document: `validate` alone walks the whole of it, under half a second on the
@@ -348,8 +348,9 @@ Built, and in the default list:
   that, such as discriminator mappings that point at actual variants, wire names and aliases unique
   within a model, a one-way operation that declares no response, and binding completeness: a
   parameter an HTTP binding places twice at one non-host location is an error, one it places nowhere
-  is a warning, and a `host` binding is additive (ir-design §8.1). Structural problems are errors,
-  which fail the run at the default threshold (§4); style issues are warnings.
+  is a warning, and a `host` binding is additive ([http-binding](./ir/http-binding.md)).
+  Structural problems are errors, which fail the run at the default threshold (§4); style issues are
+  warnings.
 
 Designed, not yet built:
 
@@ -392,12 +393,12 @@ Emitters are plugins (SDK-per-language, docs, mock servers…). Out of scope for
 except for the boundary they impose on the IR; the internal shape mirrors what Kiota and oagen
 converged on independently:
 
-1. **Plan** — compute language-*neutral* per-operation and per-type decisions once
-   (is-paginated, error taxonomy, primary-content/response selection, return-shape
-   classification (a success body read as a value / void / raw bytes / a stream), pagination
-   item-type unwrap) so templates contain no policy. This list is the decision set oagen's
-   emitters demonstrably needed, computed once and shared across all languages, less two kinds of
-   entry (emitter-design.md §3.6): what the IR already states, such as body presence and
+1. **Plan** — compute language-*neutral* per-operation and per-type decisions once (is-paginated,
+   error taxonomy, primary-content/response selection, return-shape classification (a success body
+   read as a value / void / raw bytes / a stream), pagination item-type unwrap) so templates contain
+   no policy. This list is the decision set oagen's emitters demonstrably needed, computed once and
+   shared across all languages, less two kinds of entry ([plan fact or refine
+   fact](./emitters/plan/plan-or-refine.md)): what the IR already states, such as body presence and
    idempotency, which a refiner reads there; and what varies by language, such as oagen's
    parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
@@ -457,17 +458,17 @@ construct the IR has no place for, and the surface grows when one does. Two rule
 it verbatim under `ReasonNoIRHome` rather than lowering it to a weaker shape, so nothing is lost
 while the gap is open, and the gap is an issue of its own, where the shape of its home is decided.
 The change that closes it adds the field, moves the construct out of `Unmodeled` and bumps
-`IRVersion`, as any change to the JSON shape does (ir-design §2.1).
+`IRVersion`, as any change to the JSON shape does ([ir-version](./ir/ir-version.md)).
 
 **Once an emitter reads a field, a change to it lands whole.** A change to a field the plan layer
 or an emitter reads — renamed, removed, or given another meaning — lands in the same change as the
 plan, refiner and golden updates it forces, for every target, under one `IRVersion` bump. None of
 it is left to a follow-up: an emitter is built against exactly one generation and has no mode for
-reading another (ir-design §2.1), so a `main` whose compiler writes one generation while an emitter
-reads the last would drop constructs without a word. Several changes made on one line of work are
-batched under one bump where they land, as §2.1 of ir-design already has it. A field no emitter
-reads yet is added by the compiler change that fills it, and the emitter that first reads it adopts
-it in its own change.
+reading another ([ir-version](./ir/ir-version.md)), so a `main` whose compiler writes one
+generation while an emitter reads the last would drop constructs without a word. Several changes
+made on one line of work are batched under one bump where they land, as
+[ir-version](./ir/ir-version.md) already has it. A field no emitter reads yet is added by the
+compiler change that fills it, and the emitter that first reads it adopts it in its own change.
 
 ## 3. Go package layout
 
@@ -475,7 +476,7 @@ it in its own change.
 morphic/
 ├── barrier/                # Layer 0 — turns a panic in code the caller does not own into an error.
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
-│   ├── irfacts/            #           Derived facts of a document, never stored (ir-design §4.9).
+│   ├── irfacts/            #           Derived facts of a document, never stored (docs/ir/derived-facts.md).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
 ├── compilers/              # Layer 1 — compiler contract + registry.
@@ -671,7 +672,7 @@ something a caller asks for with `none`, never a default.
    format-version-normalization seam.
 3. **First emitters** — Go, Kotlin/JVM and Kotlin Multiplatform end-to-end from one plan; proves the
    plan/refine/emit boundary, the plan's neutrality across three targets, and that the IR retains
-   everything a refiner needs (emitter-design.md §14).
+   everything a refiner needs ([the milestone plan](./emitters/milestones.md)).
 4. **Second family compiler (TypeSpec or Smithy)** — proves the spec-agnostic claim: richer-than-
    OpenAPI concepts (interfaces, custom scalars, lifecycle visibility, declared pagination) flow
    through untouched IR code.

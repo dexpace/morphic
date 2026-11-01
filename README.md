@@ -40,7 +40,7 @@ language are independent pieces of work.
 ## Design principles
 
 Each of these is a load-bearing decision, not a preference. [Architecture](docs/architecture.md)
-and [IR design](docs/ir-design.md) give the reasoning.
+and [IR design](docs/ir/README.md) give the reasoning.
 
 - **The IR is the contract.** A compiler's only output is an IR document plus diagnostics, and an
   emitter's only input is an IR document plus its own options.
@@ -372,7 +372,7 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   included: each member of its structs, the emptiness of a member whose empty value differs from
   its absence, and each value of its enumerations. The facts no committed spec sets are held to
   `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
-  which scopes the first emitters (`docs/emitter-design.md` §14.1). Run it from inside the module:
+  which scopes the first emitters (`docs/emitters/milestones.md`). Run it from inside the module:
   it reads the IR's declarations through the go command.
 - **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
@@ -387,10 +387,11 @@ change needs.
 | Document | Description |
 |---|---|
 | [Architecture](docs/architecture.md) | Pipeline stages, package layout, layering rules, milestones. |
-| [IR design](docs/ir-design.md) | The intermediate representation: node catalog and semantics, and how each format without a lowering specification of its own is planned to lower. Its field shapes are the contract. |
+| [IR design](docs/ir/README.md) | The intermediate representation, one document per domain: node catalog and semantics. Its field shapes are the contract. |
 | [OpenAPI lowering](docs/compilers/openapi.md) | How the OpenAPI compiler lowers each construct, one keyed rule each, with the cases, codes and tests that pin it. |
+| [Planned lowerings](docs/compilers/planned-lowerings.md) | How each format without a lowering specification of its own is planned to lower. |
 | [Spec capability matrix](docs/ir-spec-matrix.md) | What each source format can express: the union the IR is designed against. |
-| [Emitter design](docs/emitter-design.md) | The emitter contract and the plan / refine / emit boundary. |
+| [Emitter design](docs/emitters/README.md) | The emitter contract, the plan / refine / emit boundary, and what each target decides. |
 
 ## License
 

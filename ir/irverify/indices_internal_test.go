@@ -135,7 +135,7 @@ var integerFields = map[string]string{
 	// Deliberately unchecked. Index selects an element of the tuple a variant or
 	// subtype happens to be, so the slice it addresses is not fixed by the
 	// discriminator's own node: variants that are not tuples have no element list
-	// at all. Bounding it needs a rule for that case which ir-design does not
+	// at all. Bounding it needs a rule for that case which docs/ir does not
 	// state, so it is left out rather than guessed at.
 	"Discriminator.Index": "tuple element position; addresses no one slice, see comment",
 

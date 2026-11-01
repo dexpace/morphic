@@ -22,7 +22,7 @@ components:
     UntypedDiscriminator: {discriminator: {propertyName: kind}}
     # A contradictory schema: an instance cannot be both a two-member string
     # enum and an object. The enum is taken and the property set kept beside it,
-    # so which half the IR describes stays recoverable (ir-design §4.8,
+    # so which half the IR describes stays recoverable (docs/ir/boundaries.md#degraded-constructs,
     # docs/compilers/openapi.md#shape-applicator).
     EnumWithProperties:
       type: string

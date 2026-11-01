@@ -4,7 +4,7 @@
 package ir
 
 // Docs is the human-readable documentation attached to a named entity
-// (ir-design §12).
+// (docs/ir/annotations.md#docs-deprecation-examples).
 type Docs struct {
 	// Summary is a short single-line description.
 	Summary string `json:"summary,omitempty"`
