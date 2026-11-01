@@ -365,15 +365,21 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 
 // foldUse settles who sends the field and sees it: required and secret where
 // any declaration says so, and visible only in the lifecycles every
-// declaration admits (mergeVisibility). Declarations that empty a set none had
-// emptied on its own are reported where the last of them is written; nothing
-// is discarded, so nothing is kept.
+// declaration admits (mergeVisibility). The field holds the first declaration's
+// provenance, so a later one's redaction brings its marker: a promotion may have
+// read it (lowering.Promoter.Redaction), and the join leaves the answer alike in
+// either order. Declarations that empty a set none had emptied on its own are
+// reported where the last of them is written; nothing is discarded, so nothing
+// is kept.
 func (f *folding) foldUse() {
 	for i, d := range f.decls {
 		f.merged.Required = f.merged.Required || d.prop.Required
 		f.merged.Secret = f.merged.Secret || d.prop.Secret
 		if i == 0 {
 			continue
+		}
+		if d.prop.Secret {
+			f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, d.prop.Provenance.Inferred)
 		}
 		visibility := mergeVisibility(f.merged.Visibility, d.prop.Visibility)
 		if visibility.None && !f.merged.Visibility.None && !d.prop.Visibility.None {
@@ -402,10 +408,10 @@ func (f *folding) foldDocs() {
 }
 
 // foldAnnotations settles the field's deprecation and XML hints as foldDocs
-// settles its docs: neither is bound to a shape. A property's provenance names
-// a heuristic only for a deprecation one promoted from an extension
-// (lowering.Promoter.Deprecation), so the field takes the marker of the
-// declaration whose deprecation it keeps, whichever declaration that is.
+// settles its docs: neither is bound to a shape. A promotion marks the
+// declaration it read (lowering.Promoter.Deprecation), so the field takes the
+// marker of the declaration whose deprecation it keeps, whichever declaration
+// that is.
 func (f *folding) foldAnnotations() {
 	f.merged.Deprecation = firstWritten(f, "deprecation", func(_ int, p *ir.Property) (*ir.Deprecation, bool) {
 		return p.Deprecation, p.Deprecation != nil
