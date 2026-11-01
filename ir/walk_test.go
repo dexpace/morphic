@@ -99,13 +99,13 @@ func TestWalkValues_NestedMapsAreWalkedEntryByEntry(t *testing.T) {
 
 // listVisits is a visitor for a walk of a [irtest.NestedListValue], too deep to
 // render a path per visit, which is quadratic in the depth. It prunes nothing
-// and counts the visits to a []ir.Value, one for each level. It renders two
-// paths only: the first such visit's, which is shallow, and the one numbered
-// deepestAt, which the caller learns from a walk before.
+// and counts the visits to a []ir.Value, one for each level. It renders three
+// paths only: the first two such visits', which are shallow, and the one
+// numbered deepestAt, which the caller learns from a walk before.
 type listVisits struct {
-	deepestAt      int
-	seen           int
-	first, deepest string
+	deepestAt              int
+	seen                   int
+	first, second, deepest string
 }
 
 func (l *listVisits) Visit(v reflect.Value, at ir.WalkPath) bool {
@@ -116,6 +116,9 @@ func (l *listVisits) Visit(v reflect.Value, at ir.WalkPath) bool {
 	if l.seen == 1 {
 		l.first = at.String()
 	}
+	if l.seen == 2 {
+		l.second = at.String()
+	}
 	if l.seen == l.deepestAt {
 		l.deepest = at.String()
 	}
@@ -123,42 +126,52 @@ func (l *listVisits) Visit(v reflect.Value, at ir.WalkPath) bool {
 }
 
 // deepList is what walking a nested list told: whether the walk was truncated,
-// how many levels it visited, and the paths of the first and the deepest.
+// how many levels it visited, and the paths of the first two levels and the
+// deepest.
 type deepList struct {
-	truncated      bool
-	levels         int
-	first, deepest string
+	truncated              bool
+	levels                 int
+	first, second, deepest string
 }
 
 // walkDeepList walks twice, linear each time: once to count the levels the walk
-// reaches, and once to render the path of the deepest. A walk is one call of
-// walk with the visitor it is given, so a caller picks the root and what else
-// the visitor is.
+// reaches, and once to render the first two levels' paths and the deepest. A
+// walk is one call of walk with the visitor it is given, so a caller picks the
+// root and what else the visitor is.
 func walkDeepList(walk func(*listVisits) bool) deepList {
 	counted := &listVisits{}
 	truncated := walk(counted)
 	rendered := &listVisits{deepestAt: counted.seen}
 	walk(rendered)
-	return deepList{truncated: truncated, levels: counted.seen, first: rendered.first, deepest: rendered.deepest}
+	return deepList{
+		truncated: truncated,
+		levels:    counted.seen,
+		first:     rendered.first,
+		second:    rendered.second,
+		deepest:   rendered.deepest,
+	}
 }
 
 // requireDeepestRendered holds the path rendered at the deepest visit to the
 // depth that visit was at, in what a caller may rely on: it is not empty, and
-// it spells one more index than the first level's for each level below the
-// first, since a path brackets its indices.
+// it is the first level's path followed by the spelling of one level, as the
+// second level's path shows it, once for each level below the first.
 func (d deepList) requireDeepestRendered(t *testing.T) {
 	t.Helper()
 	require.NotEmpty(t, d.deepest, "the deepest visit's path must render")
-	indices := func(path string) int { return strings.Count(path, "[0]") }
-	assert.Equal(t, d.levels-1, indices(d.deepest)-indices(d.first),
-		"the deepest path must spell an index for each level below the first")
+	level, ok := strings.CutPrefix(d.second, d.first)
+	require.True(t, ok, "the second level's path must begin with the first's")
+	require.NotEmpty(t, level, "the second level's path must spell a step past the first's")
+	assert.Equal(t, d.first+strings.Repeat(level, d.levels-1), d.deepest,
+		"each level below the first must be spelled in the deepest path as the second is")
 }
 
 // TestWalkValues_DeepValueTreeIsTruncated drives the depth cap from both sides:
 // a document nested past it must report truncation rather than be under-checked
 // in silence, and one nested deep but within the bound must not. Its visitor
-// renders one path, the deepest, since rendering one per visit is quadratic in
-// the depth.
+// renders the first two levels' paths and the deepest, since rendering one per
+// visit is quadratic in the depth, and the deepest path must spell every level
+// below the first as the second does.
 func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 	t.Parallel()
 	walkDoc := func(depth int) deepList {
