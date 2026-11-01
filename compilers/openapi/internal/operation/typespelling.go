@@ -61,7 +61,8 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 		scope := ids.Scope("content", mt)
 		examples, residue, residueDiags := contentEntryFields(c, media, mediaPtr, scope, carrier, home)
 		diags = append(diags, residueDiags...)
-		diags = append(diags, passedOverEntries(c, &residue, content, mt, root, at)...)
+		written := nodeview.Pairs(nodeview.Child(root, "content"))
+		diags = append(diags, passedOverEntries(c, &residue, written, mt, at)...)
 		elected := typeSpelling{
 			js:        media.GetSchema(),
 			pointer:   mediaPtr + ids.Ptr("schema"),
@@ -124,31 +125,29 @@ func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (strin
 	return elected, chosen, chosen != nil
 }
 
-// passedOverEntries keeps each entry of content but elected verbatim under
-// openapi:content/<key>, the key escaped as a pointer segment, and reports them
-// once at the map, sorted so the report does not follow declaration order
-// either. root is the object content was written on.
+// passedOverEntries keeps each entry of written, a content map's pairs, but
+// elected verbatim under openapi:content/<key>, the key escaped as a pointer
+// segment, and reports them once at the map, sorted so the report does not
+// follow declaration order either.
 //
-// The reason and severity are passedOverSpelling's: OpenAPI forbids the entries
-// and an election passed them over, so the document's own error is visible
-// rather than absorbed. An entry interns no node, and --explain does not read
-// Unmodeled (GitHub #693), so it finds nothing at the entry's pointer; the
-// warning at the map is what names it.
-func passedOverEntries(c lowering.Ctx, u *ir.Unmodeled, content *sequencedmap.Map[string, *soa.MediaType],
-	elected string, root *yaml.Node, at jsontext.Pointer,
-) []ir.Diagnostic {
-	written := nodeview.Child(root, "content")
+// It takes the pairs read once: looking each key up costs a scan per entry,
+// quadratic in what a document can write. No test counts that, as nodeview.Child
+// has no step to count.
+//
+// The reason and severity are passedOverSpelling's. An entry interns no node, and
+// --explain does not read Unmodeled (GitHub #693), so only the warning names it.
+func passedOverEntries(c lowering.Ctx, u *ir.Unmodeled, written []nodeview.Pair, elected string, at jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	var kept []string
-	for _, mt := range slices.Sorted(content.Keys()) {
-		if mt == elected {
+	for _, entry := range slices.SortedFunc(slices.Values(written), byKey) {
+		if entry.Key == elected {
 			continue
 		}
-		ok, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey("content", mt),
-			nodeview.Child(written, mt), ir.ReasonDegradedLowering, c.ProvenanceAt(at+ids.Ptr("content", mt)))
+		ok, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey("content", entry.Key),
+			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(at+ids.Ptr("content", entry.Key)))
 		diags = append(diags, keptDiags...)
 		if ok {
-			kept = append(kept, mt)
+			kept = append(kept, entry.Key)
 		}
 	}
 	if len(kept) == 0 {
@@ -158,6 +157,9 @@ func passedOverEntries(c lowering.Ctx, u *ir.Unmodeled, content *sequencedmap.Ma
 		"a content-style header or parameter must declare exactly one media type; "+
 			"%q is lowered and %s kept verbatim under Unmodeled", elected, strings.Join(kept, ", ")))
 }
+
+// byKey orders two pairs of one mapping, whose keys differ.
+func byKey(a, b nodeview.Pair) int { return strings.Compare(a.Key, b.Key) }
 
 // contentEntryFields returns everything a Media Type Object declares at a
 // parameter's or header's elected `content` position beyond the one type that
