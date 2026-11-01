@@ -32,7 +32,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 	ref := &oas3.Schema{Description: new("SiteDesc")}
 	tgt := &oas3.Schema{Description: new("TargetDesc"), Deprecated: new(true)}
 
-	got, diags := Read(Site{Kind: Reference, Node: ref, Referent: tgt}, "/p", sourced(0))
+	got, diags := Read(Site{Kind: Reference, Node: ref, Referents: []*oas3.Schema{tgt}}, "/p", sourced(0))
 
 	assert.Empty(t, diags)
 	assert.Equal(t, "SiteDesc", got.Docs.Description, "the site's own description wins")
@@ -40,7 +40,7 @@ func TestAnnotations_SiteOverridesReferent(t *testing.T) {
 }
 
 // TestAnnotations_DeclarationIgnoresAnyReferent is the other half of the fork: a
-// declaration has no target, so a Referent handed to it is not consulted.
+// declaration has no target, so a referent handed to it is not consulted.
 // Without this the kind field could be dropped and the site test above would
 // still pass.
 func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
@@ -48,11 +48,63 @@ func TestAnnotations_DeclarationIgnoresAnyReferent(t *testing.T) {
 	node := &oas3.Schema{Description: new("OwnDesc")}
 	stray := &oas3.Schema{Title: new("StraySummary"), Deprecated: new(true)}
 
-	got, _ := Read(Site{Kind: Declaration, Node: node, Referent: stray}, "/p", sourced(0))
+	got, _ := Read(Site{Kind: Declaration, Node: node, Referents: []*oas3.Schema{stray}}, "/p", sourced(0))
 
 	assert.Equal(t, "OwnDesc", got.Docs.Description)
 	assert.Empty(t, got.Docs.Summary, "a declaration inherits nothing, whatever it is handed")
 	assert.False(t, got.Deprecated)
+}
+
+// TestAnnotations_AVoiceReadsAsTheSiteDoes pins what a voice lends a site: each
+// annotation it writes, read at its own pointer, under what the site writes
+// itself, and over its referents.
+func TestAnnotations_AVoiceReadsAsTheSiteDoes(t *testing.T) {
+	t.Parallel()
+	node := schemaFromYAML(t, "description: site\n")
+	voice := Voice{At: "/p/allOf/1", Node: schemaFromYAML(t, `description: voice
+title: voice
+deprecated: true
+format: password
+xml: {name: voiced}
+example: 1
+x-kept: 1
+not: {type: string}
+`)}
+	second := Voice{At: "/p/allOf/2", Node: schemaFromYAML(t, `example: 2
+xml: {name: other}
+x-kept: 2
+$id: 'https://example.com/s'
+discriminator: {propertyName: kind, x-d: 1}
+`)}
+	referent := schemaFromYAML(t, "title: referent\nexternalDocs: {url: 'https://x'}\n")
+
+	got, _ := Read(Site{Kind: Reference, Node: node, Voices: []Voice{voice, second},
+		Referents: []*oas3.Schema{referent}}, "/p", sourced(0))
+
+	assert.Equal(t, "site", got.Docs.Description, "the site writes one")
+	assert.Equal(t, "voice", got.Docs.Summary, "a voice is nearer than a referent")
+	assert.Len(t, got.Docs.ExternalDocs, 1, "and a referent speaks where neither does")
+	assert.True(t, got.Deprecated)
+	assert.True(t, got.Sensitive)
+	require.NotNil(t, got.XML)
+	assert.Equal(t, "voiced", got.XML.Name, "the first to write it")
+	require.Len(t, got.Examples, 1, "the first to write them")
+	assert.Equal(t, jsontext.Pointer("/p/allOf/1/x-kept"), got.Unmodeled["openapi:x-kept"].Provenance.Pointer,
+		"at the pointer it is written at, the first to write it")
+	assert.Contains(t, got.Unmodeled, "openapi:not")
+	assert.NotContains(t, got.Unmodeled, "openapi:$id", "a voice's residue keeps what no fold reads")
+	assert.NotContains(t, got.Unmodeled, "openapi:discriminator/x-d")
+}
+
+// TestSite_ChainIsNearestFirst pins the order everything a site falls back to is
+// read in, and that a declaration has no referent in it.
+func TestSite_ChainIsNearestFirst(t *testing.T) {
+	t.Parallel()
+	node, voice, referent := &oas3.Schema{}, &oas3.Schema{}, &oas3.Schema{}
+	st := Site{Kind: Reference, Node: node, Voices: []Voice{{Node: voice}}, Referents: []*oas3.Schema{referent}}
+	assert.Equal(t, []*oas3.Schema{node, voice, referent}, st.Chain())
+	st.Kind = Declaration
+	assert.Equal(t, []*oas3.Schema{node, voice}, st.Chain())
 }
 
 // TestAnnotations_RedactionFromTheSiteOrItsReferent pins how Read decides
@@ -68,11 +120,11 @@ func TestAnnotations_RedactionFromTheSiteOrItsReferent(t *testing.T) {
 		want bool
 	}{
 		{"the site writes it", Site{Kind: Reference, Node: password}, true},
-		{"the referent writes it", Site{Kind: Reference, Node: &oas3.Schema{}, Referent: password}, true},
-		{"another format at the site", Site{Kind: Reference, Node: byteFormat, Referent: password}, true},
-		{"a declaration's stray referent", Site{Kind: Declaration, Node: &oas3.Schema{}, Referent: password}, false},
+		{"the referent writes it", Site{Kind: Reference, Node: &oas3.Schema{}, Referents: []*oas3.Schema{password}}, true},
+		{"another format at the site", Site{Kind: Reference, Node: byteFormat, Referents: []*oas3.Schema{password}}, true},
+		{"a declaration's stray referent", Site{Kind: Declaration, Node: &oas3.Schema{}, Referents: []*oas3.Schema{password}}, false},
 		{"another format alone", Site{Kind: Reference, Node: byteFormat}, false},
-		{"neither", Site{Kind: Reference, Node: &oas3.Schema{}, Referent: &oas3.Schema{}}, false},
+		{"neither", Site{Kind: Reference, Node: &oas3.Schema{}, Referents: []*oas3.Schema{{}}}, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -299,7 +351,7 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 			got := At(openapitest.SchemaFromYAML(t.Context(), t, tc.body))
 			assert.Equal(t, tc.wantKind, got.Kind)
 			assert.Equal(t, tc.wantNode, got.Node != nil, "Node presence")
-			assert.Nil(t, got.Referent, "At fills no Referent")
+			assert.Nil(t, got.Referents, "At fills no referent")
 		})
 	}
 
@@ -308,7 +360,7 @@ func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 		got := At(nil)
 		assert.Equal(t, Declaration, got.Kind)
 		assert.Nil(t, got.Node)
-		assert.Nil(t, got.Referent)
+		assert.Nil(t, got.Referents)
 	})
 }
 
@@ -323,7 +375,7 @@ func TestAt_ReferenceSiteKeepsTheBodyWrittenBesideTheRef(t *testing.T) {
 	require.Equal(t, Reference, got.Kind)
 	require.NotNil(t, got.Node, "the body written beside the $ref is the site's own")
 	assert.Equal(t, "fromSite", got.Node.GetDescription())
-	assert.Nil(t, got.Referent, "and the schema the $ref names is not read here")
+	assert.Nil(t, got.Referents, "and the schema the $ref names is not read here")
 }
 
 // TestSchemaOf_ReturnsOnlyAWrittenBody pins the one nil-safe reader every site
@@ -463,7 +515,7 @@ func TestEffectiveVisibility_MapsTheFlagsToLifecycles(t *testing.T) {
 			if tc.tgt != "" {
 				tgt = schemaFromYAML(t, tc.tgt)
 			}
-			got, disjoint := EffectiveVisibility(ref, tgt)
+			got, disjoint := EffectiveVisibility([]*oas3.Schema{ref, tgt})
 			assert.Equal(t, tc.want, got)
 			assert.Equal(t, tc.wantDisjoint, disjoint, "whether the flags left no lifecycle at all")
 		})
@@ -497,7 +549,7 @@ func TestEffectiveDefault_UseSiteOverridesReferent(t *testing.T) {
 			if tc.tgt != "" {
 				tgt = schemaFromYAML(t, tc.tgt)
 			}
-			got, diags := EffectiveDefault(ref, tgt, "/p", sourced(0))
+			got, diags := EffectiveDefault([]*oas3.Schema{ref, tgt}, "/p", sourced(0))
 			assert.Empty(t, diags)
 			if tc.want == "" {
 				assert.Nil(t, got)
@@ -518,7 +570,7 @@ func TestEffectiveDefault_UnconvertibleIsReportedAtTheSchema(t *testing.T) {
 	t.Parallel()
 	ref := schemaFromYAML(t, "type: number\ndefault: .nan\n")
 
-	got, diags := EffectiveDefault(ref, nil, "/p", sourced(2))
+	got, diags := EffectiveDefault([]*oas3.Schema{ref}, "/p", sourced(2))
 
 	assert.Nil(t, got)
 	require.Len(t, diags, 1)
@@ -554,7 +606,7 @@ func TestEffectiveDeprecated_UseSiteOverridesReferent(t *testing.T) {
 			if tc.tgt != "" {
 				tgt = schemaFromYAML(t, tc.tgt)
 			}
-			assert.Equal(t, tc.want, EffectiveDeprecated(ref, tgt))
+			assert.Equal(t, tc.want, EffectiveDeprecated([]*oas3.Schema{ref, tgt}))
 		})
 	}
 }
@@ -596,8 +648,10 @@ func TestFillCarrierDocs_MergesFieldByField(t *testing.T) {
 	t.Parallel()
 	var d ir.Docs
 
-	FillCarrierDocs(&d, schemaFromYAML(t, "description: fromSite\n"),
-		schemaFromYAML(t, "title: fromTarget\ndescription: fromTarget\n"))
+	FillCarrierDocs(&d, []*oas3.Schema{
+		schemaFromYAML(t, "description: fromSite\n"),
+		schemaFromYAML(t, "title: fromTarget\ndescription: fromTarget\n"),
+	})
 
 	assert.Equal(t, "fromTarget", d.Summary, "the title has no site-local answer")
 	assert.Equal(t, "fromSite", d.Description, "the site wrote one, so it wins")

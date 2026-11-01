@@ -30,9 +30,10 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 		return nil
 	}
 	tgt := c.RefScope().TargetSchema(js, ref)
-	def, diags := annotation.EffectiveDefault(ref, tgt, pointer, c.ProvenanceAt)
+	chain := []*oas3.Schema{ref, tgt}
+	def, diags := annotation.EffectiveDefault(chain, pointer, c.ProvenanceAt)
 	p.Default = def
-	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
+	diags = append(diags, fillPropertyVisibility(c, p, chain, pointer)...)
 	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
 	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, tgt, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
@@ -47,8 +48,8 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 // the caller that knows the position being filled. It is the same finding under
 // the same code as the allOf spelling, so a consumer filtering on
 // diag.DisjointVisibility sees both.
-func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	visibility, disjoint := annotation.EffectiveVisibility(ref, tgt)
+func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	visibility, disjoint := annotation.EffectiveVisibility(chain)
 	p.Visibility = visibility
 	if !disjoint {
 		return nil
@@ -90,7 +91,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referents: []*oas3.Schema{tgt}}, pointer, c.ProvenanceAt)
 
 	p.Docs = a.Docs
 	if a.Deprecated {

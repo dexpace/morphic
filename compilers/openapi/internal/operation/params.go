@@ -152,7 +152,7 @@ func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js 
 	// would take the default and description off an intermediate reference
 	// instead of the schema that declares them.
 	tgt := c.RefScope().TargetSchema(js, s)
-	def, diags := annotation.EffectiveDefault(s, tgt, pointer, c.ProvenanceAt)
+	def, diags := annotation.EffectiveDefault([]*oas3.Schema{s, tgt}, pointer, c.ProvenanceAt)
 	param.Default = def
 
 	cons, consDiags := schema.ConstraintsOf(c, &param.Unmodeled, s, pointer)
@@ -188,7 +188,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
-	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referent: tgt}, pointer, c.ProvenanceAt)
+	a, readDiags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: s, Referents: []*oas3.Schema{tgt}}, pointer, c.ProvenanceAt)
 	diags = append(diags, readDiags...)
 
 	param.Docs = a.Docs

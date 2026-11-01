@@ -86,7 +86,7 @@ func declaresAnnotations(s *oas3.Schema) bool {
 	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
 		return true
 	}
-	if annotation.EffectiveDeprecated(s, nil) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
+	if annotation.EffectiveDeprecated([]*oas3.Schema{s}) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
 		return true
 	}
 	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
