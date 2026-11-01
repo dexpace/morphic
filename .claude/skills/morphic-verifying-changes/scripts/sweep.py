@@ -179,7 +179,7 @@ def write_table(results: list[Result], table: Path, rel) -> str:
         table.write_text("n\tbase\thead\tdiffers\tspec\n" + rows)
     except OSError as e:
         with contextlib.suppress(OSError):  # a table cut short reads as a sweep of fewer specs
-            table.unlink(missing_ok=True)
+            table.unlink()
         return f"no rows written: {e}"
     return f"a row per spec in {table}"
 
@@ -196,8 +196,8 @@ def report(results: list[Result], root: Path, out: Path) -> int:
         print(f"  {side} exit codes: {codes}; IR bytes: {size}")
     for (old, new), count in sorted(Counter(r.stamps for r in results if r.stamps).items()):
         alone = sum(r.stamps == (old, new) and r.what == STAMP_ALONE for r in results)
-        print(f"sweep: irVersion {old} -> {new} on {count} specs, set aside below; {alone} of them "
-              "differ in nothing else")
+        print(f"sweep: irVersion {old} -> {new} on {count} of {len(results)} specs, set aside "
+              f"below; {alone} of them differ in nothing else")
     differ = [r for r in results if r.what not in ("", STAMP_ALONE)]
     if not differ:
         print("sweep: no spec's exit code, IR or diagnostics differ")

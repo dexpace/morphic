@@ -153,12 +153,16 @@ class SweepTest(unittest.TestCase):
         self.assertEqual(sweep.compile_one(self.bins["head"], slow, [], 1).code, sweep.KILLED)
 
     def test_a_killed_compile_keeps_what_it_wrote(self):
-        slow = self.root / "partial"
-        slow.write_text(f"#!{sys.executable}\nimport sys, time\nprint('part', flush=True)\n"
-                        "sys.stderr.write('warned\\n')\nsys.stderr.flush()\ntime.sleep(30)\n")
-        slow.chmod(0o755)
+        # The timeout is raised here rather than reached, as how much a real compile writes before
+        # a limit depends on the machine's load. A side that wrote nothing can stay None.
         spec = self.corpus / "same.yaml"
-        self.assertEqual(sweep.compile_one(slow, spec, [], 1), (sweep.KILLED, b"part\n", b"warned\n"))
+        for written, want in (((b"part\n", b"warned\n"), (b"part\n", b"warned\n")),
+                              ((None, None), (b"", b""))):
+            with self.subTest(written=written):
+                killed = subprocess.TimeoutExpired("morphic", 1, *written)
+                with unittest.mock.patch.object(subprocess, "run", side_effect=killed):
+                    got = sweep.compile_one(self.bins["head"], spec, [], 1)
+                self.assertEqual(got, (sweep.KILLED, *want))
 
     def test_specs_that_fail_alike_agree_and_their_codes_are_printed(self):
         # The sweep judges nothing: a spec neither build finished agrees, and only its codes,
@@ -312,8 +316,8 @@ class StampTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual([r.what for r in results], [sweep.STAMP_ALONE] * 2)
         self.assertEqual(text.splitlines()[3:], [
-            "sweep: irVersion 0.1.0 -> 0.2.0 on 2 specs, set aside below; 2 of them differ in "
-            "nothing else",
+            "sweep: irVersion 0.1.0 -> 0.2.0 on 2 of 2 specs, set aside below; 2 of them differ "
+            "in nothing else",
             "sweep: no spec's exit code, IR or diagnostics differ"])
         self.assertFalse((self.root / "out" / "runs").exists())
         rows = (self.root / "out" / "results.tsv").read_text().splitlines()
@@ -324,7 +328,7 @@ class StampTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual([r.what for r in results],
                          [sweep.STAMP_ALONE, "ir", "diagnostics", "ir", "exit(0->1) ir", ""])
-        self.assertIn("on 3 specs, set aside below; 1 of them differ in nothing else\n", text)
+        self.assertIn("on 3 of 6 specs, set aside below; 1 of them differ in nothing else\n", text)
         self.assertIn("sweep: 4 of 6 specs differ", text)
         self.assertNotIn("plain.yaml", text)
         self.assertEqual(sorted((self.root / "out" / "runs").iterdir()),
@@ -334,11 +338,31 @@ class StampTest(unittest.TestCase):
         for ir, want in {b'{\n  "irVersion": "1",\n  "x": 1\n}\n': ("1", b',\n  "x": 1\n}\n'),
                          b'{"irVersion":"1"}': ("1", b"}"),
                          b'{"irVersion": ""}': ("", b"}"),
+                         b'{"irVersion": "\xff"}': ("\ufffd", b"}"),
                          b'{"x": {"irVersion": "1"}}': (None, b'{"x": {"irVersion": "1"}}'),
                          b'[{"irVersion": "1"}]': (None, b'[{"irVersion": "1"}]'),
                          b"": (None, b"")}.items():
             with self.subTest(ir=ir):
                 self.assertEqual(sweep.split_stamp(ir), want)
+
+    def test_one_version_on_both_sides_is_no_change_of_stamp(self):
+        self.bins["head"] = self.bins["base"]
+        code, results, text = self.sweep("plain")
+        self.assertEqual(code, 0)
+        self.assertEqual([(r.what, r.stamps) for r in results], [("", None)])
+        self.assertNotIn("irVersion", text)
+
+    def test_each_pair_of_versions_is_counted_on_its_own(self):
+        def result(n, what, stamps):
+            return sweep.Result(n, self.root / f"{n}.yaml", (0, 0), (0, 0), what, stamps, "")
+
+        results = [result(1, sweep.STAMP_ALONE, ("1", "2")), result(2, "ir", ("1", "2")),
+                   result(3, sweep.STAMP_ALONE, ("1", "3"))]
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            sweep.report(results, self.root, self.root)
+        self.assertIn("1 -> 2 on 2 of 3 specs, set aside below; 1 of them", buf.getvalue())
+        self.assertIn("1 -> 3 on 1 of 3 specs, set aside below; 1 of them", buf.getvalue())
 
     def test_an_output_with_no_stamp_on_one_side_is_compared_whole(self):
         stamped = sweep.Output(0, b'{"irVersion": "1"}', b"")
