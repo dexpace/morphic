@@ -41,18 +41,19 @@ gives. A clock does none of that reliably; a counter does.
   cost failed its ratio test (#1125).
 - **Probe.** Plant a quadratic, such as a walk per question, and see the averaged test redden.
 
-## Count allocations in the build the gate runs, and take the fewest
+## Count allocations in the builds the gate runs, and take the fewest
 `count-in-the-gates-build`
 
-- **Rule.** Run an allocation or byte-count test with `-race -covermode=atomic` before claiming it,
-  as `make coverage` runs it. Under `-race`, `sync.Pool` drops one `Put` in four, so anything
-  touching a pool allocates at random: build every input before the measured call, take the
-  fewest of single measurements, and where one visit makes many pool round trips, take the pool
-  off the hot path instead.
+- **Rule.** Run an allocation or byte-count test in the gate's builds before claiming it:
+  `-covermode=set -coverprofile=…` always, and `-race` too when `make race` lists the package.
+  Under `-race`, `sync.Pool` drops one `Put` in four, so anything touching a pool allocates at
+  random: build every input before the measured call, take the fewest of single measurements, and
+  where one visit makes many pool round trips, take the pool off the hot path instead.
 - **Why.** Allocation tests that passed `go test` failed the coverage step (#1137); a byte count
   flaked under `-race` until its inputs were formatted outside it (#1006); fewest-of-twenty failed
   for a visit with a pool round trip per entry (#1147).
-- **Probe.** `go test ./<pkg> -race -covermode=atomic -coverprofile=/dev/null -count=50 -run '<Test>'`.
+- **Probe.** `go test ./<pkg> -covermode=set -coverprofile=/dev/null -count=50 -run '<Test>'`, then
+  the same with `-race` for a package `make race` lists.
 
 ## Expect instrumentation to move what escapes
 `what-allocates-when-instrumented`
@@ -65,7 +66,7 @@ gives. A clock does none of that reliably; a counter does.
 - **Why.** Iterator closures and an embedded stack allocated only under `-race` and coverage
   (#1137); a size hint made a one-name map allocate (#1142).
 - **Probe.** `go build -gcflags=-m=1 ./<pkg>` for "moved to heap" and "leaking param content" on
-  the types involved, then the allocation test in the gate's build.
+  the types involved, then the allocation test in the gate's builds (`#count-in-the-gates-build`).
 
 ## Give an optimization a counting seam
 `counting-seam-for-optimizations`
