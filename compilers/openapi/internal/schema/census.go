@@ -121,7 +121,7 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 	// The redaction format names no shape, so no node kind is its home: the
 	// annotation readers hold it, as Sensitive on the node the position owns or
-	// Secret on its carrier, and verbatim at a parameter, which has no field.
+	// Secret on its carrier.
 	if annotation.DeclaresRedaction(s) {
 		return true
 	}

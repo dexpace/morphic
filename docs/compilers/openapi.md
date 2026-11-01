@@ -1839,13 +1839,12 @@ primitive narrower than `integer` holds. A pairing the table does not name lower
 `format: password` is a redaction request rather than a pairing of type and format, so the shape
 lowers without it, and it lands where a declaration's annotations do: on the node the position owns,
 whatever its kind, as `Sensitive`, an alias hoisted where the shape alone would own none; or, at a
-property or header that owns none, as `Property.Secret`, inherited from a `$ref` target as
-`deprecated` is. At a parameter that owns none it is kept verbatim in the parameter's `Unmodeled`
-under `openapi:format` (`no_ir_home`), with an info `openapi/degraded-construct` at the `format`.
+property, header or parameter that owns none, as `Secret`, inherited from a `$ref` target as
+`deprecated` is.
 
 - Cases: `secret-format`, `scalar-format`
-- Codes: `openapi/degraded-construct`
-- Status: partly built: `ir.Parameter` has no field to mark a parameter for redaction (#578).
+- Tests: `operation.TestParams_SchemaRedactionReachesTheParameter`,
+  `operation.TestParams_SchemaRedactionStaysOnANode`
 
 ### `whole-schema-fallbacks`
 

@@ -39,6 +39,8 @@ type OperationGroup struct {
     Operations []Operation
     Resource   *ResourceInfo      // Smithy resource semantics when declared
     Availability *Availability    // groups (TypeSpec interfaces) are versionable
+    Stability  Stability          // the tier of every member stating none, nearest group first; read
+                                  // through the group, never copied down (docs/ir/operations.md)
     Unmodeled  Unmodeled
 }
 

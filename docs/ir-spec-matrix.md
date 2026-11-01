@@ -68,6 +68,7 @@ rows no spec names yet, which are the ones the next compiler will be first to bi
 | `protocol-bindings` | Protocol bindings (kafka/amqp/…) | — | — | — | — | — | ✅ bindings | — | ✅ behaviours |
 | `versioning` | Versioning (added/removed) | — | — | ✅ @added/@removed | ⚠ @since | — | — | — | — |
 | `deprecation` | Deprecation w/ message | ✅ deprecated | ✅ | ✅ #deprecated | ✅ @deprecated | ✅ @deprecated(reason) | ✅ | ✅ | ✅ -deprecated |
+| `stability` | Stability tier (alpha/beta/stable) | ⚠ x-* | ⚠ x-* | ⚠ @extension | ✅ @unstable | — | ⚠ x-* | ⚠ launch stages (AIP-181) | — |
 | `examples` | Examples | ✅ | ✅ | ✅ @example/@opExample | ✅ trait (input/output/error scenarios) | — | ✅ (header+payload pairs) | — | — |
 | `docs-summary-description` | Docs: summary + description | ✅ | ✅ | ✅ @doc/@summary | ✅ @documentation | ✅ description | ✅ | ✅ comments | ✅ -doc/EDoc |
 | `vendor-extensions` | Vendor extensions / traits / directives | ✅ x-* | ✅ x-* | ✅ decorators | ✅ traits | ✅ directives (ordered, repeatable) | ✅ x-* | ✅ options | ⚠ module attributes |

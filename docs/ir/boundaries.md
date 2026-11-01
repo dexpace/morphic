@@ -101,7 +101,8 @@ simply absent from the IR and preserve nothing.
 - **Smithy waiters** (`smithy.waiters#waitable`) — preserved verbatim in `Operation.Unmodeled`,
   never folded into `LongRunning`; promoted to a typed node only if a second format lands.
 - **TCGC-style client-shaping decorators** (`@clientName`, `@access`, `@usage`, `@scope`, …) —
-  per-language SDK-surface policy, preserved as namespaced entries for emitter policy layers.
+  per-language SDK-surface policy, preserved as namespaced entries for emitter policy layers
+  ([access](#access) says why `@access` is one and `TypeCommon.Access` is not).
 - **Arbitrary GraphQL persisted queries** — the type graph and entry points are retained; query
   composition is a emitters/runtime feature.
 - **Capability/interface-typed fields** (Cap'n Proto capability passing) — requires
@@ -120,3 +121,23 @@ simply absent from the IR and preserve nothing.
   referent, and kept verbatim under `ReasonDegradedLowering` in the five residual shapes
   [`union-beside-structure`](../compilers/openapi.md#union-beside-structure) lists. A second format
   that declares a genuine intersection — not a model-only `&` — is what would reopen this.
+
+## Access
+
+`TypeCommon.Access` and a client-shaping `@access` share a word and state different things. One test
+decides each, whatever it sits on: **a fact true for every target is IR, and one SDK's surface is
+not.** A stability tier passes it ([operations](./operations.md#stability)), and the sources of an
+access fact divide by it:
+
+- **Protobuf editions' `export`/`local`** says which files may use a message or an enum, whatever is
+  generated from it. It passes, and exists on types alone, so `Access` has no operation side for it.
+- **Smithy `@internal`** says a shape is meant only for internal use, and applies to any shape. It
+  passes, and on a type it reaches `Access` by compiler policy. On an operation or a member the IR
+  has no field yet: that is a gap and not a boundary, so the Smithy compiler is to keep the trait
+  under `no_ir_home` there, and the field lands as a versioned change when that compiler needs it
+  (invariant 9).
+- **TCGC `@access`** decides what one client exposes, scoped by language. It fails on a type and on
+  an operation alike, so it is `out_of_scope` at both and `Access` does not hold it.
+
+So types and operations do not differ in kind: a gap on the operation side is one source's trait
+waiting for its compiler, and the client-shaping exclusion holds on both.

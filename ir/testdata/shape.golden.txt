@@ -464,6 +464,7 @@ type Operation struct
 	"responses" []Response omitempty
 	"returnTypeVisibility" []string omitempty
 	"servers" []ServerID omitempty
+	"stability" Stability omitempty
 	"streaming" StreamingMode omitempty
 	"tags" []string omitempty
 	"unmodeled" Unmodeled omitempty
@@ -476,6 +477,7 @@ type OperationGroup struct
 	"name" Naming
 	"operations" []Operation omitempty
 	"resource" *ResourceInfo omitzero
+	"stability" Stability omitempty
 	"unmodeled" Unmodeled omitempty
 
 type PageStrategy string
@@ -516,6 +518,7 @@ type Parameter struct
 	"name" Naming
 	"provenance" Provenance
 	"required" bool
+	"secret" bool omitzero
 	"type" TypeRef
 	"unmodeled" Unmodeled omitempty
 	"valueFrom" *PropPath omitzero
@@ -732,6 +735,12 @@ type SourceInfo struct
 	"hash" string
 	"path" string
 	"selfURI" string omitempty
+
+type Stability string
+	const ""
+	const "alpha"
+	const "beta"
+	const "stable"
 
 type StatusRange struct
 	"from" int

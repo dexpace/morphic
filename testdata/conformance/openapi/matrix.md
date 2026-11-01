@@ -189,6 +189,11 @@ witnessing it.
 
 - Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`
 
+### `stability`
+
+- Uncovered: no spec witnesses it until the compiler reads a stability extension into `Stability`; a
+  conformance case of that rule retires this.
+
 ### `examples`
 
 - Witnesses: `examples`, `examples-32`

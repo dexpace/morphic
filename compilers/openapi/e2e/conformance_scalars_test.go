@@ -288,13 +288,13 @@ func assertSecretOperation(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), token.Type.Target, "a parameter owns no node for it")
 	assert.Equal(t, "the session token", token.Docs.Description)
-	require.Contains(t, token.Unmodeled, "openapi:format", "ir.Parameter has no field (GitHub #578)")
-	assert.Equal(t, ir.ReasonNoIRHome, token.Unmodeled["openapi:format"].Reason)
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
-		diagsAt(diags, "openapi/degraded-construct", "/paths/~1login/post/parameters/0/schema/format"))
+	assert.True(t, token.Secret, "a parameter is a property's kind of carrier (GitHub #578)")
+	assert.NotContains(t, token.Unmodeled, "openapi:format", "the field holds it")
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/paths/~1login/post/parameters/0/schema/format"))
 	key, ok := openapitest.ParamBySource(op, "api_key")
 	require.True(t, ok)
-	assert.Equal(t, componentID("Pw"), key.Type.Target, "a referent's redaction is its own node's")
+	assert.Equal(t, componentID("Pw"), key.Type.Target, "the redaction names no shape")
+	assert.True(t, key.Secret, "inherited from the referent, as at a property")
 	assert.NotContains(t, key.Unmodeled, "openapi:format")
 
 	str := ir.PrimTypeID(ir.PrimString)

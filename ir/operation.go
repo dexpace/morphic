@@ -17,6 +17,9 @@ type Operation struct {
 	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the operation's versioning timeline.
 	Availability *Availability `json:"availability,omitzero"`
+	// Stability is the tier the source states for the operation. Unset, a group
+	// the operation sits in may state one (docs/ir/operations.md#stability).
+	Stability Stability `json:"stability,omitempty"`
 	// Params are all logical inputs, protocol-unbound.
 	Params []Parameter `json:"params,omitempty"`
 	// Request is the body/message content; nil = none.
@@ -115,6 +118,11 @@ type Parameter struct {
 	Deprecation *Deprecation `json:"deprecation,omitzero"`
 	// Availability records the parameter's versioning timeline.
 	Availability *Availability `json:"availability,omitzero"`
+	// Secret requests that this use's value be redacted in logs and docs, as
+	// Property.Secret does: a parameter never hoists a node of its own, so its
+	// redaction has no type to sit on. A value whose type is
+	// TypeCommon.Sensitive is redacted whether or not it is set.
+	Secret bool `json:"secret,omitzero"`
 	// Examples are parameter-level example values.
 	Examples []Example `json:"examples,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -339,6 +347,38 @@ type StreamDetail struct {
 	// length up front (Smithy @requiresLength) — changes the generated parameter
 	// type.
 	RequiresLength bool `json:"requiresLength"`
+}
+
+// Stability is how far a source commits to an operation's contract
+// (docs/ir/operations.md#stability). Like Deprecation it describes the API and
+// holds for every target, and the two are separate facts: one says what a
+// caller may rely on, the other that a caller should leave.
+type Stability string
+
+// Stability tiers.
+const (
+	// StabilityUnstated means the source states no tier. It is no statement
+	// about the contract, and in particular never reads as stable.
+	StabilityUnstated Stability = ""
+	// StabilityAlpha means breaking changes are expected.
+	StabilityAlpha Stability = "alpha"
+	// StabilityBeta means breaking changes are possible but not expected.
+	StabilityBeta Stability = "beta"
+	// StabilityStable means the source commits to the contract.
+	StabilityStable Stability = "stable"
+)
+
+// Valid reports whether s is one of the values declared above. Stability is a
+// bare string enum, so nothing rejects a misspelled tier on the wire, and a
+// tier no consumer's switch has an arm for is dropped in silence; irverify
+// calls this so such a value is reported as the compiler bug it is.
+func (s Stability) Valid() bool {
+	switch s {
+	case StabilityUnstated, StabilityAlpha, StabilityBeta, StabilityStable:
+		return true
+	default:
+		return false
+	}
 }
 
 // IdempotencyKind names the idempotency class of an Operation

@@ -44,6 +44,7 @@ per-op-servers	Servers scoped to one operation
 protocol-bindings	Protocol bindings (kafka/amqp/…)
 versioning	Versioning (added/removed)
 deprecation	Deprecation w/ message
+stability	Stability tier (alpha/beta/stable)
 examples	Examples
 docs-summary-description	Docs: summary + description
 vendor-extensions	Vendor extensions / traits / directives
