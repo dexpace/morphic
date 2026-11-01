@@ -1098,10 +1098,10 @@ admit null, or where both containers admit the empty one. Two tuples compare pos
 and relate only where every position, and what may follow the last, is one type; a tuple that a
 container or another tuple holds is not compared, since a tuple has a member per position where any
 other node has one, and comparing them nested would cost its width to the power of the depth. Two
-lists, maps or
-tuples alike in every member and in that detail are judged as two equal enums are: one type where
-both were written inline, the one declared elsewhere winning over an inline copy in either order,
-and two declared elsewhere overlapping. Two `Scalar`s, lists, maps or tuples alike in all but their
+lists, maps or tuples alike in every member and in that detail are judged as two equal enums are:
+one type where both were written inline, the one declared elsewhere winning over an inline copy in
+either order, and two declared elsewhere overlapping. Two `Scalar`s, lists, maps or tuples alike in
+all but their
 bounds are judged by those bounds, wherever each was declared: the one whose bounds say all the
 other's do is narrower, and where neither does, or a keyword with no order differs, the two meet.
 Two that meet as a container's members overlap, since a fold builds a node for a field's own type
@@ -1186,13 +1186,14 @@ bit says, and one folded under another type says nothing of null. A `default` or
 broader declaration gives is taken only where the winning type admits it, judged per keyword and all
 or nothing. The winning type admits a value by its kind and by the constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
-`uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every declaration's
-value is held by the same checks to each bound the field keeps that another declaration brought, on
-the property or on a node. A value is its declaration's own to answer for against a bound it states
-itself at the value the field keeps, so a default its own bound refuses stays, and against its own
-type, which is the field's where the two differ only in bounds. Nothing judges a value against a
-model, and no declaration's type is a composed field's own, so a composed field takes no value but a
-null it admits. A value the field does not take is reported in an info `openapi/degraded-construct` at
+`uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
+declaration's value is held by the same checks to each bound the field keeps that another
+declaration brought, on the property or on a node. A value is its declaration's own to answer for
+against a bound it states itself at the value the field keeps, so a default its own bound refuses
+stays, and against its own type, which is the field's where the two differ only in bounds. Nothing
+judges a value against a model, and no declaration's type is a composed field's own, so a composed
+field takes no value but a null it admits. A value the field does not take is reported in an info
+`openapi/degraded-construct` at
 each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
 first written is kept, and a declaration giving another is reported and kept; two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
@@ -1200,18 +1201,18 @@ Values are refused before one is kept, so a value the field takes is never lost 
 written before it.
 
 Constraint keywords fold over the declarations folded into the field, each taking the value that
-says what they all do, so no order decides it. `minimum`, `exclusiveMinimum`, `minLength`, `minItems`
-and `minProperties` take their largest value and `maximum`, `exclusiveMaximum`, `maxLength`,
-`maxItems` and `maxProperties` their smallest, by magnitude, a number written two ways keeping the
-first spelling; `uniqueItems` holds where any declaration sets it. A bound and its exclusive form are
-two keywords, each folding alone, and both apply. `multipleOf` takes whichever value is a multiple of
-the other, and otherwise their least common multiple, a number no declaration wrote, whose multiples
-are exactly those both admit. `pattern`, `patternMessage`, `precision` and `scale` have no order and
-no one value saying two of them, so the first declaration to set one keeps it, as does `multipleOf`
-for two steps past 1,024 significant digits between them or a multiple past what a `BigVal` holds.
-The title, description, external links, deprecation, XML hints and each `Unmodeled` key fold over
-every declaration, the first to give one keeping it, and a declaration giving one differently is
-reported and kept.
+says what they all do, so no order decides it. `minimum`, `exclusiveMinimum`, `minLength`,
+`minItems` and `minProperties` take their largest value and `maximum`, `exclusiveMaximum`,
+`maxLength`, `maxItems` and `maxProperties` their smallest, by magnitude, a number written two ways
+keeping the first spelling; `uniqueItems` holds where any declaration sets it. A bound and its
+exclusive form are two keywords, each folding alone, and both apply. `multipleOf` takes whichever
+value is a multiple of the other, and otherwise their least common multiple, a number no
+declaration wrote, whose multiples are exactly those both admit. `pattern`, `patternMessage`,
+`precision` and `scale` have no order and no one value saying two of them, so the first declaration
+to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
+or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
+hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
+declaration giving one differently is reported and kept.
 
 A field keeping the first declaration's identity keeps that declaration's provenance, and either way
 it names the heuristic that promoted its deprecation from an extension, wherever the deprecation it
@@ -1259,11 +1260,11 @@ diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
 would leave one field asserting two contradictory things, with nothing downstream comparing a
 value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
-called a conflict. A declaration folded into the field is reported as well where it pins a
-constraint keyword to a value no one value states beside the one the field keeps, an
-`openapi/conflicting-redeclaration` warning naming the declaration the value was kept from, or gives
-a detail differently from the one kept, an info `openapi/degraded-construct`; differing only in
-nullability, it takes no entry: the merged
+called a conflict. A declaration folded into the field is reported as well where no one value says
+what it and the field say of a constraint keyword, an `openapi/conflicting-redeclaration` warning
+naming the declaration the value was kept from, or where it gives a detail differently from the one
+kept, an info `openapi/degraded-construct`; differing only in nullability, it takes no entry: the
+merged
 field admits null only where every folded declaration does, which is the conjunction a single
 schema's null verdicts fold under ([`nullable`](#nullable)).
 
