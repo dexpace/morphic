@@ -238,8 +238,7 @@ func TestUnplacedDiscriminator_IsKeptAtEveryUnionSite(t *testing.T) {
 // TestHomelessDiscriminator_IsKeptBesideEveryOtherNode pins that a
 // discriminator is a census keyword: wherever the position lowered to a node
 // that does not route by it, the census keeps it verbatim and says so, as it
-// keeps any keyword the node has no field for. Each was dropped in silence. A
-// multi-typed schema runs no census yet (GitHub #852).
+// keeps any keyword the node has no field for. Each was dropped in silence.
 func TestHomelessDiscriminator_IsKeptBesideEveryOtherNode(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, homelessSpec)

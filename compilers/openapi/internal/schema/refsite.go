@@ -46,9 +46,9 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
-// $ref position declared that the alias it resolves to cannot hold, and those a
-// collapsed union declared, which resolves to a reference the same way. It is
-// refSiteRef's and schemaBody's other half: the same census, recorded where an
+// $ref position declared that the alias it resolves to cannot hold, and those
+// of what resolves to a reference the same way (referenceOutcomeKeywords). It
+// is refSiteRef's and schemaBody's other half: the same census, recorded where an
 // annotation.HomeCarrier position keeps everything else its schema declared —
 // oneOf/anyOf/allOf included, through the same keepers refSiteRef calls
 // (GitHub #406).
@@ -66,8 +66,8 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
-		// A collapsed union lowers to a reference just as a $ref site does.
-		return recordUnhomedAt(c, p, s, collapsedUnhomedKeywords(s), collapsedShape, pointer)
+		unhomed, shape := referenceOutcomeKeywords(c, s, pointer)
+		return recordUnhomedAt(c, p, s, unhomed, shape, pointer)
 	}
 	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
@@ -220,6 +220,6 @@ func onLoop(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 // one (refSiteUnhomedKeywords, declaresUnion), and none hoistDeclarationHome
 // homes on one (declaresPositionScoped). Such a position lowers to its
 // target's type alone.
-func refSiteHomesNothing(s *oas3.Schema) bool {
-	return len(refSiteUnhomedKeywords(s, nil)) == 0 && !declaresUnion(s) && !declaresPositionScoped(s)
+func refSiteHomesNothing(c lowering.Ctx, s *oas3.Schema) bool {
+	return len(refSiteUnhomedKeywords(s, nil)) == 0 && !declaresUnion(s) && !declaresPositionScoped(c, s)
 }

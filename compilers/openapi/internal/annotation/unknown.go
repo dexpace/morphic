@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/speakeasy-api/openapi/yml"
@@ -75,6 +76,10 @@ const MaxUnknownKeys = 64
 //     would say a resolved reference was ignored.
 var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
 
+// modellessKeywords are the keywords of the dialect the schema model names no
+// field for that a reader keeps, so the census meets them with the rest.
+var modellessKeywords = []string{"$vocabulary", "dependentRequired"}
+
 // UnknownKeywordsIn records on p the keywords s writes that no field of the
 // JSON Schema model names, and announces each.
 //
@@ -88,14 +93,46 @@ var DecidedKeywords = []string{"$comment", "$dynamicAnchor", "$dynamicRef"}
 // readers with more to say take `$vocabulary` and `dependentRequired`. A
 // keyword no reader leaves a trace of needs naming in DecidedKeywords.
 func UnknownKeywordsIn(p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, locate Locator) []ir.Diagnostic {
-	keys, root := undeclaredKeys(s)
+	keys, root := unknownSchemaKeys(s)
 	return census(p, keys, root, locate, pointer, "", keyClass{
 		code:     diag.UnknownSchemaKeyword,
 		severity: ir.SeverityInfo,
-		skip:     DecidedKeywords,
 		message: "keyword %q has no field in the schema model this compiler lowers and no IR " +
 			"position of its own; kept verbatim under Unmodeled",
 	})
+}
+
+// WritesUnknownKeyword reports whether s writes a keyword UnknownKeywordsIn
+// would consider keeping, so a position can tell whether it needs a node of its
+// own for one to land on.
+func WritesUnknownKeyword(s *oas3.Schema) bool {
+	keys, _ := unknownSchemaKeys(s)
+	return len(keys) > 0
+}
+
+// WritesKeywordLeftOut reports whether s writes key as a null that reads as the
+// keyword left out (RawPropertyNode), for a reader that lists the keys s writes
+// rather than asking for one. A null is a value in an extension, and in a key
+// the census keeps.
+func WritesKeywordLeftOut(s *oas3.Schema, key string) bool {
+	if !IsNullNode(nodeview.Child(s.GetRootNode(), key)) || holdsInstance(key) || strings.HasPrefix(key, "x-") {
+		return false
+	}
+	keys, _ := unknownSchemaKeys(s)
+	return !slices.Contains(keys, key)
+}
+
+// unknownSchemaKeys returns the keys s writes that UnknownKeywordsIn answers
+// for, and the mapping holding them: those the model names no field for, but
+// the ones decided about (DecidedKeywords) and a null for a keyword the dialect
+// defines, which reads as left out (RawPropertyNode). A key of no vocabulary
+// has no type a null could break, so it is kept with the null it wrote.
+func unknownSchemaKeys(s *oas3.Schema) ([]string, *yaml.Node) {
+	keys, root := undeclaredKeys(s)
+	return slices.DeleteFunc(slices.Clone(keys), func(key string) bool {
+		return slices.Contains(DecidedKeywords, key) ||
+			slices.Contains(modellessKeywords, key) && IsNullNode(nodeview.Child(root, key))
+	}), root
 }
 
 // UndefinedKeywordsIn records on p each of keys, keywords s writes that the

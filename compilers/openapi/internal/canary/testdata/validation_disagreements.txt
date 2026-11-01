@@ -233,6 +233,10 @@ testdata/conformance/openapi/later-version-constructs.yaml	106:19	later-version-
 testdata/conformance/openapi/later-version-constructs.yaml	109:11	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	109:35	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/nested-encoding-32.yaml	19:17	validation-mutually-exclusive-fields	compiler	analogy
+testdata/conformance/openapi/null-keywords.yaml	16:7	validation-type-mismatch	library	null-keyword
+testdata/conformance/openapi/null-keywords.yaml	19:7	validation-invalid-schema	library	null-keyword
+testdata/conformance/openapi/null-keywords.yaml	19:7	validation-type-mismatch	library	null-keyword
+testdata/conformance/openapi/null-keywords.yaml	21:7	validation-type-mismatch	library	null-keyword
 testdata/conformance/openapi/numeric-precision.yaml	7:7	validation-invalid-syntax	library	numeric-literal
 testdata/conformance/openapi/numeric-precision.yaml	13:20	validation-type-mismatch	library	numeric-literal
 testdata/conformance/openapi/numeric-precision.yaml	66:20	validation-type-mismatch	library	numeric-literal
