@@ -659,10 +659,10 @@ promotion pass from mistaking one for an oversight.
 A name the document spells lowers to `Naming{Source, Canonical}`: the spelling as written, beside
 the word sequence [naming](../ir/naming.md) derives from it, at every position that spells one —
 `info.title`, a tag, an `operationId`, a parameter, response-header or property name, a component
-schema or security scheme key, an enum member's value as text, a 3.2 server `name`, and under
-`grouping=path-prefix` a first path segment. A name with no letter or digit (`***`, `>=`) keeps its
-`Source` and has no `Canonical`; an emitter names it by its characters
-([naming](../emitters/refine/naming.md)). A name spelled as the empty string is minted
+schema or security scheme key, a scheme a security requirement names, an enum member's value as
+text, a 3.2 server `name`, and under `grouping=path-prefix` a first path segment. A name with no
+letter or digit (`***`, `>=`) keeps its `Source` and has no `Canonical`; an emitter names it by its
+characters ([naming](../emitters/refine/naming.md)). A name spelled as the empty string is minted
 `Hint: "empty"` and no `Source` rather than passed through (an `operationId` of `""` is read as
 absent instead, [`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A
 component schema keyed `""` earns no named `TypeID`: it hoists anonymously at its own pointer
@@ -2697,12 +2697,12 @@ holds the requirement, matched exactly. A name that reaches no mechanism lowers 
 `openapi/unresolved-security-scheme` error at each requirement.
 Nothing else about the requirement changes: the option keeps its other schemes, its scopes and its
 place in the list, so an operation stating its own requirement does not read as inheriting, and an
-option naming nothing does not vanish from the options beside it. The error stands however the rest
-lowers, since the specification requires the name to correspond to a scheme and what it means is
-missing ([`validation`](#validation)). A name stands whatever is beside it, whether or not it reaches
-a mechanism, since an option demands every scheme it names: a value that reads as no list of strings
-lists no scopes, a warning from the rule table for a `null` and an error for any other
-([`requirement-scopes`](../parser-library.md#requirement-scopes)).
+option whose name reaches no mechanism does not vanish from the options beside it. The error stands
+however the rest lowers, since the specification requires the name to correspond to a scheme and
+what it means is missing ([`validation`](#validation)). A name stands whatever is beside it, whether
+or not it reaches a mechanism, since an option demands every scheme it names: a value that reads as
+no list of strings lists no scopes, a warning from the rule table for a `null` and an error for any
+other ([`requirement-scopes`](../parser-library.md#requirement-scopes)).
 
 A name reaches no mechanism in three ways. No entry declares it, and the scheme records no pointer,
 since no position writes it. Or its entry omits the field naming the mechanism — `type`, or for
