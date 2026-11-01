@@ -8,7 +8,6 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/anchors"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -133,12 +132,6 @@ type Ctx struct {
 	// Nil in a zero context.
 	typePositions map[scopedPosition]bind.Position
 
-	// anchors is the source's $dynamicAnchor index, built on first use
-	// (DynamicAnchorSites). Copies share it on purpose, as typePositions: it
-	// reads only the document. Nil in a zero context, which builds it on
-	// every ask.
-	anchors *anchorMemo
-
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: only the document's lowering reads it,
 	// once every other lowering has returned (Reached), so it cannot change their
@@ -180,9 +173,6 @@ type scopedPosition struct {
 // a component declared later. The streaming policy is normalized here so
 // readers cannot disagree about a media type, and the promotion policy is
 // copied so no lowering can write through the context into the caller's map.
-//
-// The $dynamicAnchor index is built on first use instead (GitHub #172): its
-// bounds diagnostic would warn about documents that never write $dynamicRef.
 func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
 	return Ctx{
 		Doc:              doc,
@@ -197,7 +187,6 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		overlay:          origin,
 
 		typePositions: map[scopedPosition]bind.Position{},
-		anchors:       &anchorMemo{},
 		reached:       resolve.NewReached(),
 	}
 }
@@ -545,37 +534,15 @@ func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir
 	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: pointer}
 }
 
-// anchorMemo holds the source's $dynamicAnchor index once it is built.
-type anchorMemo struct {
-	built bool
-	index anchors.Index
+// Position returns where pointer is in the bindings' table, and false where c
+// reads what another document holds at the source's coordinates (InScope), which
+// no position of the table places.
+func (c Ctx) Position(pointer jsontext.Pointer) (bind.Position, bool) {
+	return bind.Position{Doc: c.homeDoc, Pointer: pointer}, !c.foreign || c.home != 0
 }
 
-// DynamicAnchorSites returns the pointers of the source declaring the
-// $dynamicAnchor name (anchors.Build), and, the first time any copy of c asks,
-// a warning when the index walk stopped at a bound. It is built on first use
-// rather than at entry because that warning would report on documents that
-// never write $dynamicRef (GitHub #172). A context holding no document finds
-// none. Building the index reads no context.Context, which the schema lowering
-// asking for it does not hold, so a cancel waits for the walk
-// (docs/architecture.md §2.1).
-func (c Ctx) DynamicAnchorSites(name string) ([]jsontext.Pointer, []ir.Diagnostic) {
-	if c.Doc == nil {
-		return nil, nil
-	}
-	memo := c.anchors
-	if memo == nil {
-		memo = &anchorMemo{}
-	}
-	if memo.built {
-		return memo.index.Sites(name), nil
-	}
-	memo.index, memo.built = anchors.Build(c.Doc.GetRootNode()), true
-	if memo.index.Complete() {
-		return memo.index.Sites(name), nil
-	}
-	return memo.index.Sites(name), []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "",
-		"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
-			"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
-		anchors.MaxDepth, anchors.MaxNodes)}
+// DynamicAnchorSites returns the positions of c's document declaring the
+// $dynamicAnchor name, and whether that is every one (bind.Table.DynamicAnchors).
+func (c Ctx) DynamicAnchorSites(name string) ([]bind.Position, bool) {
+	return c.Bindings().Table().DynamicAnchors(c.homeDoc, name)
 }

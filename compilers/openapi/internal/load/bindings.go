@@ -228,7 +228,8 @@ func bindingDiags(place func(bind.Position) ir.Provenance, table *bind.Table) []
 	if table.Truncated() {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"a mapping merges through `<<` deeper than %d levels, which resolving the schema $refs does not "+
-				"expand; a $ref past that, or one that reads a key past it, is left unresolved", nodeview.MergeDepthLimit))
+				"expand; a $ref past that, or one that reads a key past it, is left unresolved, and a $dynamicRef in "+
+				"that document is not expanded", nodeview.MergeDepthLimit))
 	}
 	return diags
 }

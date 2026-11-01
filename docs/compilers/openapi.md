@@ -338,8 +338,8 @@ on the order references are read in. In either mode a `$ref` naming a URL whose 
 directory; a file whose name holds a colon is written `./a:b.yaml`. A document outside fails each
 reference naming it, and with no reader no document is read.
 
-Each document read is a `Document.Sources` entry after the source and its overlay, ordered by its
-location from the source's directory, and what it declares lowers there, as the source's own lowers
+Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
+ordered by its location from the source's directory, and what it declares lowers there, as the source's own lowers
 where the source declares it: a schema a `$ref` lands on, and a parameter, request body, response,
 header, example, callback, path item or security scheme a reference brings in, with the schemas
 inline in it. A reference object written in what another document brings in is resolved against that
@@ -361,12 +361,18 @@ read from the root of that resource, as RFC 6901 reads one: an index is a decima
 zero, a pointer ending in `/` names a member whose key is empty, and a fragment holding a second `#`
 names nothing. Under an `$id` a pointer names a position of the resource, with no fallback, and `#`
 names the schema writing the `$id`; under none, `#` names the document's root. A plain-name
-fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, and a
-URI an `$id` declares names that schema, as one a `$ref`'s document part names; a name or a URI two
-schemas declare names neither, and a name 2020-12's grammar refuses is declared by none
-([`validation`](#validation) reports it). Identifiers are read only where the OpenAPI grammar places
-a schema in the source, so one in an example, an extension, the fields beside a reference object's
-`$ref`, or another document declares none. An `$id` names the URI its part before the `#` resolves
+fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, in the
+source or another document, so a name under an `$id` is that `$id`'s resource's and not its
+document's, and a URI an `$id` declares names that schema, as one a `$ref`'s document part names; a
+name or a URI two schemas declare names neither, and a name 2020-12's grammar refuses is declared by
+none ([`validation`](#validation) reports it). Identifiers are read only where a schema is placed: by
+the OpenAPI grammar in the source and in another document whose root names an `openapi` version, so
+one in an example, an extension or the fields beside a reference object's `$ref` declares none. A
+document that names none has no grammar, so it is read as a document of schemas: its root and any
+key of no schema vocabulary hold schemas, and within one a keyword reads as it does in the source, so
+one in a literal, a value or an extension declares none, and the document's root may be a schema or
+a map of them. An `$id` gives its base to what is written below it by the same reading, wherever it
+is read. An `$id` names the URI its part before the `#` resolves
 to against the base above it, by RFC 3986 where that base is a URI and as a `$ref`'s document is
 placed where it is a file's path, and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
@@ -374,7 +380,13 @@ holding it starts no resource, and one naming the source, however spelled, retur
 document's. A URI no schema declares names the document at that URI, read as any other is: one read
 against an `$id` is the URI the `$id` makes of it, never the file of that name beside the source,
 and is judged for refusal as written while only relative paths moved its base, and as that URI once
-an absolute `$id` did. A pointer passing a reference object reads on where the resolver resolved
+an absolute `$id` did. Every document a reached reference names is parsed before any reference is
+deemed unresolvable, as OAS 3.1.1 §4.3.1 requires, so a URI a document declares answers as that
+identifier whichever reference comes first, is never fetched, and is never refused. References are
+read in passes over the same set, each against the URIs the last one's documents declared, and only
+the last pass's answers stand, so no declaration order reaches an answer. A pass reads a document
+on the network only once no other document it can read is left to declare that URI, and one a later
+identifier made unnecessary is read but lowers nothing and is no `Document.Sources` entry. A pointer passing a reference object reads on where the resolver resolved
 that, in whichever document, and a `$ref` written in another document's content is read in that
 document. What a `$ref` lands on in another document lowers where that document declares it; one in
 the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
@@ -426,7 +438,8 @@ are expanded to (`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded
 and a `$ref` past it is left unresolved, as is one that reads a key past it: a key its pointer
 names, an `$id` that may give the base it is read against, or, for a `#/$defs/...` pointer, a
 definition the rule reads before the one that would answer. So is a plain name no schema declares
-where a schema merging past the bound may; a URI is read as a location all the same. A chain of
+where a schema merging past the bound may; a URI is read as a location all the same, and a
+`$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A chain of
 references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 
 - Cases: `schema-identifiers`
@@ -466,6 +479,9 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
   `e2e.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,
   `load.TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`,
+  `bind.TestBind_ReadsWhatAnotherDocumentDeclares`, `bind.TestBind_ReadsBelowAnIDOfAnotherDocument`,
+  `bind.TestBind_AnIdentifierIsNoLocationToFetch`, `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
+  `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`, `bind.TestBind_DeclarationOrderReachesNoAnswer`,
   `e2e.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
@@ -475,8 +491,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder`,
   `e2e.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). Another document's identifiers are not read, so a plain name naming one of its resources
-  is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
+  (#604). An absolute-path `$ref` in a remote document is read as a local
   path (#936); a remote document can make the compiler request a private address (#937); and a
   remote document reaching a local file is refused naming only its last such `$ref` (#940). A
   reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
@@ -682,7 +697,7 @@ changes it: a union variant, or a composition branch holding a `$ref`, is named 
 is never set.
 
 - Cases: `neutral-naming`, `empty-names`
-- Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
+- Tests: `ids.TestComponentSchema_ClassifiesEveryPointer`,
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
   `schema.TestInlinePosition_HintIsTheSameInBothOrders`,
   `operation.TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration`,
@@ -1981,33 +1996,41 @@ anywhere on the path between a reference and a candidate anchor makes the refere
 
 A reference is irreducible — and is then kept verbatim under `openapi:$dynamicRef`
 (`degraded_lowering`) with an info `openapi/degraded-construct` at it naming which case it was —
-when the name is declared more than once (the target is back under the evaluation path's control),
-when it is unresolvable, names another document, or is not a plain fragment, when its value is not a
-string at all, when a resource boundary stands between it and the anchor as above, when expanding it
+when the name is declared more than once in its document (the target is back under the evaluation
+path's control), when it is unresolvable, names another document, or is not a plain fragment, when
+its value is not a string at all, when a resource boundary stands between it and the anchor as above, when expanding it
 would close a cycle of aliases (a `$ref` cycle is refused outright for the same reason, and
 expansion must not mint one the refusal cannot see), or when it is co-declared with a `$ref`, a
 `oneOf`/`anyOf`, a shape of its own, or one of `items`/`prefixItems`/`required` — an expansion takes
 its target whole, so it has nowhere to put a sibling applicator. One further case is irreducible in
-the OpenAPI compiler specifically: an anchor declared anywhere but the top level of
+the OpenAPI compiler specifically: in the source, an anchor declared anywhere but the top level of
 `components/schemas` has no ID that is stable without consulting the registry, and resolving it
 would make the reference depend on which position happened to lower first
 ([models](../ir/models.md#composition-beside-a-union)), so it is preserved instead.
 
-Anchors are counted through YAML aliases and merge keys, so an anchor reached only by an alias still
-makes its name a duplicate. The walk is bounded by depth and by node count, and says so when it
-truncates, once, with an `openapi/degraded-construct` warning at the document, since a truncated
-index undercounts declarations and an undercount is what turns "irreducible" into a confident
-expansion.
+A `$dynamicRef` is read against the anchors of the document it is written in, by this same rule, so
+one in another document expands to the type lowered where that document declares its anchor, in that
+document's namespace ([identity](../ir/identity.md#across-documents)), never to a source anchor of
+that name. There any position may hold the anchor, since a reference hoists what it reaches
+([`references`](#references)). What a reference resolved to where no position of its document
+places it reads no anchors, so a `$dynamicRef` in it is kept.
+
+Anchors are the identifiers [`references`](#references) reads, where it reads them, so one in an
+example or an extension declares nothing, and one read through a YAML alias or a merge key is a
+declaration where it is placed, so an anchor reached only by an alias still makes its name a
+duplicate. A resource boundary is read the same way, so a property named `$id` is none. A document
+read short of the whole, by the budget or by a merge past
+[`references`](#references)' bound, may hide a second declaration, and a merge past it may hide an
+`$id`, so a `$dynamicRef` resting on either is kept, since an undercount is what would turn
+"irreducible" into a confident expansion; the warning that reports the bound says so.
 
 - Cases: `dynamic-ref`
 - Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
-  `anchors.TestBuild_CountsWhatAnAliasBringsIn`,
-  `lowering.TestDynamicAnchorSites_ReportsATruncatedWalkOnce`
-- Status: partly built: a merge chain past the view's merge bound hides an `$id`, so a `$dynamicRef`
-  can expand across a resource boundary (#401), and the truncation warning names the walk's own
-  bounds when the merge bound stopped it (#454). A `$dynamicRef` written in another document is not
-  expanded, since only the source's anchors are indexed (#1031).
+  `schema.TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn`,
+  `bind.TestDynamicAnchors_CountsWhatADocumentDeclares`,
+  `bind.TestDynamicAnchors_SaysWhenTheCountProvesNothing`,
+  `bind.TestInOwnResource_ReadsTheResourceAPositionIsIn`
 
 ### `content-vocabulary`
 

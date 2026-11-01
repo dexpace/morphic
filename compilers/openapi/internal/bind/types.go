@@ -127,9 +127,6 @@ const (
 	// DuplicateAnchor is a plain-name fragment two or more schemas of the
 	// resource it names declare, so it names none.
 	DuplicateAnchor
-	// AnchorUnread is a plain-name fragment naming a resource of another
-	// document, whose identifiers are not read (GitHub #1049).
-	AnchorUnread
 	// DuplicateID is a URI two or more schemas declare as their $id, so it
 	// names none; Hop.Detail is the URI.
 	DuplicateID
@@ -171,6 +168,10 @@ const (
 	// Unpassable is a pointer through a reference object, in whichever
 	// document, that resolves to nothing the compiler reads.
 	Unpassable
+	// Held is a reference to a document an absolute URI names, whose read waits
+	// for the pass to end. A later pass answers it, unless the budget cuts it
+	// first.
+	Held
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the
 	// bound: one the pointer names, an $id that may give the base it is read
@@ -255,7 +256,7 @@ type Mapping struct {
 // Why says why h, a hop that did not resolve, lands on no schema, in one
 // phrasing for every report of it.
 func (h Hop) Why() string {
-	if h.Status == OverBudget {
+	if h.Status == OverBudget || h.Reason == Held {
 		return "it was not read within the budget"
 	}
 	switch h.Reason {
@@ -272,8 +273,6 @@ func (h Hop) Why() string {
 	case DuplicateAnchor:
 		return "two or more schemas of the resource it names declare that name as their $anchor or " +
 			"$dynamicAnchor, so it names none of them"
-	case AnchorUnread:
-		return "it names a plain name in another document, whose identifiers are not read (GitHub #1049)"
 	case DuplicateID:
 		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
 	case BadPointer:

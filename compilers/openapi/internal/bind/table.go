@@ -121,7 +121,9 @@ func (w *work) over() bool { return w.steps.Exhausted() || w.cancelled() }
 // its context stopped reports nothing, the budget included.
 func (w *work) cancelled() bool { return w.ctx.Err() != nil }
 
-// binder is the state of one table's building.
+// binder is the state of one pass of a table's building: every reference read
+// once against the URIs its identifiers hold (identifiers.commit). held is each
+// document an absolute URI named that the pass has not read.
 type binder struct {
 	cfg       Config
 	docs      *docs
@@ -130,27 +132,82 @@ type binder struct {
 	resources resources
 	find      *finder
 	ids       *identifiers
+	held      map[string]bool
 	hops      map[Position]Hop
 	chains    map[Position]Chain
 	loops     []Loop
+	stopped   bool
 }
 
 // Bind reads every schema reference the source tree src holds, and every
 // position a reference reaches through it, into a table, within the budget. It
 // stops once ctx is done, leaving a table its caller must not read.
+//
+// It reads in passes, each a set operation, since whether a URI is an identifier
+// depends on what the documents read declare, and which are read depends on
+// what the URIs name. Only the last pass's answers stand, so no declaration
+// order reaches one (reread). Each turn but the last adds a URI or reads a
+// document.
 func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
 	d := newDocs(src, cfg, w)
-	b := &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
-		find: newFinder(d, w), hops: map[Position]Hop{}, chains: map[Position]Chain{}}
+	ids := newIdentifiers(resources{d}.document(Source))
+	for {
+		b := newBinder(cfg, d, w, ids)
+		t := run(b)
+		if !reread(b) {
+			return b.table(t)
+		}
+	}
+}
+
+// newBinder returns a pass over d, knowing what ids holds and nothing else.
+func newBinder(cfg Config, d *docs, w *work, ids *identifiers) *binder {
+	d.reached = map[DocID]bool{Source: true}
+	return &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
+		find: newFinder(d, w, ids), ids: ids, held: map[string]bool{}, hops: map[Position]Hop{},
+		chains: map[Position]Chain{}}
+}
+
+// run answers every reference the pass b reaches.
+func run(b *binder) *Table {
 	b.find.walk(rootOf(Source, sDocument), false)
-	b.ids = b.find.ids
+	b.ids.commit()
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
-	for more := true; more && !w.over(); more = b.find.walkPending() {
+	for more := true; more; more = b.find.walkPending() {
+		if b.stopped = b.work.over(); b.stopped {
+			break
+		}
 		b.settle(t)
 	}
 	b.placeLoops()
-	return b.table(t)
+	return t
+}
+
+// reread reports whether the pass b, ended, must be run again: a document it
+// read declares a URI it asked for, so an answer it gave is not the final index's,
+// or it held back a document an absolute URI names, which it now reads, since
+// no document left unread could answer for it. OAS 3.1 §4.3.1 has every document
+// parsed before a reference is deemed unresolvable, and a URI an identifier
+// answers is no location to fetch.
+func reread(b *binder) bool {
+	if b.stopped {
+		return false
+	}
+	b.find.identifyAll()
+	if b.ids.commit() {
+		return true
+	}
+	if len(b.held) == 0 {
+		return false
+	}
+	for _, name := range slices.Sorted(maps.Keys(b.held)) {
+		// Its failure is kept for the pass that asks for it again (docs.open).
+		_, _ = b.docs.open(name)
+	}
+	b.find.identifyAll()
+	b.ids.commit()
+	return true
 }
 
 // rootOf is the root at the root of document id, read at s.
@@ -186,6 +243,7 @@ func (b *binder) settle(t *Table) {
 		}
 		t.mappings[k] = b.mapping(k)
 	}
+	b.find.landOnAnchors()
 }
 
 // table finishes t: an entry for each position a chain passed that no walk
@@ -198,9 +256,9 @@ func (b *binder) table(t *Table) *Table {
 		}
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
-	t.ends, t.roots = b.find.ends, b.find.roots
-	for _, d := range b.docs.list {
-		t.docs = append(t.docs, Document{Name: d.name, Root: d.root})
+	t.ends, t.roots, t.res, t.ids = b.find.ends, b.find.roots, b.resources, b.ids
+	for id, d := range b.docs.list {
+		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !b.docs.reached[DocID(id)]})
 		t.truncated = t.truncated || d.view.Exhausted()
 	}
 	reach := b.attribute(t)
@@ -256,10 +314,14 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 	return reach
 }
 
-// Document is a document a table read: its name and its root node.
+// Document is a document a table read: its name and its root node. Unreached
+// reports that only a pass that did not stand asked for it, so that nothing the
+// table holds is in it: a reference read it as a location before a later
+// document declared that URI.
 type Document struct {
-	Name string
-	Root *yaml.Node
+	Name      string
+	Root      *yaml.Node
+	Unreached bool
 }
 
 // Table is every schema reference a source holds, where each lands and where
@@ -277,6 +339,8 @@ type Table struct {
 	limit     budget.Limit
 	exhausted bool
 	truncated bool
+	res       resources
+	ids       *identifiers
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
@@ -334,6 +398,30 @@ func (t *Table) Documents() int { return len(t.docs) }
 func (t *Table) Through(site Position) (Position, bool) {
 	at, ok := t.ends[site]
 	return at, ok
+}
+
+// DynamicAnchors returns the positions of document id declaring the
+// $dynamicAnchor name, and whether that is every one: false where the budget or
+// a merge past the bound may have hidden one, so a count of one proves nothing.
+// A nil table knows of none.
+func (t *Table) DynamicAnchors(id DocID, name string) ([]Position, bool) {
+	if t == nil {
+		return nil, true
+	}
+	sites := slices.SortedFunc(slices.Values(t.ids.dynamic[dynamicKey{doc: id, name: name}]), comparePositions)
+	return sites, !t.exhausted && !t.ids.truncated[id]
+}
+
+// InOwnResource reports whether the schema at p, its own $id counted, lies in a
+// resource an $id names rather than in its document's, and whether that is
+// known: false where a schema on the way may hide an $id past the merge bound.
+func (t *Table) InOwnResource(p Position) (own, known bool) {
+	if t == nil {
+		return false, true
+	}
+	path, _ := t.res.docs.path(p)
+	res, known := t.res.holding(p, path, true)
+	return res.id, known
 }
 
 // Steps reports the work the table cost.

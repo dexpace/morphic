@@ -189,8 +189,8 @@ func typePosition(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.R
 // sourceComponent reports whether at is one of the source's components, which
 // is named by name rather than fetched where it is declared.
 func sourceComponent(at bind.Position) bool {
-	_, named := ids.ComponentSchemaName(at.Pointer)
-	return named && at.Doc == bind.Source
+	_, state := ids.ComponentSchema(at.Pointer)
+	return state == ids.NamedComponent && at.Doc == bind.Source
 }
 
 // readsThrough reports whether a mapping target naming at, where decl is
@@ -206,8 +206,7 @@ func sourceComponent(at bind.Position) bool {
 func readsThrough(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
 	variantTypes map[ir.TypeID]bool,
 ) bool {
-	_, named := ids.ComponentSchemaName(at.Pointer)
-	if named || ids.ComponentSchemaNamedEmpty(at.Pointer) || decl == nil {
+	if _, state := ids.ComponentSchema(at.Pointer); state != ids.NotComponent || decl == nil {
 		return false
 	}
 	s := decl.GetSchema()
@@ -258,8 +257,8 @@ func mappingTargetID(c lowering.Ctx, scope resolve.Scope, d *oas3.Discriminator,
 		return "", false
 	}
 	if in.IDs() == (ids.Document{}) {
-		if id, resolved, handled := scope.ComponentRef(at.Pointer); handled {
-			return id, resolved
+		if id, state := scope.ComponentRef(at.Pointer); state.ByName() {
+			return id, state == ids.NamedComponent
 		}
 	}
 	return in.IDs().ForPointer(at.Pointer), true
@@ -308,10 +307,9 @@ func subtypeDiscriminatorValue(c lowering.Ctx, s *oas3.Schema, id ir.TypeID, poi
 				"discriminatorValue holds the smallest in byte order, and the base's mapping keeps them all",
 			len(tags), strings.Join(tags, ", "))}
 	}
-	// Read ok, not only the name: for a top-level entry of another kind, such as
-	// components/x-shared/Cat, ComponentSchemaName still returns a name, and it
-	// is no component schema's (GitHub #572).
-	if name, ok := ids.ComponentSchemaName(pointer); ok {
+	// Read the state, not only the name: a top-level entry of another kind, such
+	// as components/x-shared/Cat, has none to read (GitHub #572).
+	if name, state := ids.ComponentSchema(pointer); state == ids.NamedComponent {
 		return name, nil
 	}
 	return "", nil
@@ -447,7 +445,7 @@ func namedBranches(c lowering.Ctx, s *oas3.Schema) []ir.TypeID {
 		if !ok || at.Doc != bind.Source {
 			continue
 		}
-		if id, declared, component := scope.ComponentRef(at.Pointer); component && declared {
+		if id, state := scope.ComponentRef(at.Pointer); state == ids.NamedComponent {
 			named = append(named, id)
 		}
 	}

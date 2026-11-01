@@ -147,6 +147,17 @@ func (r *externalReads) once(key string, read func() answer) answer {
 	return rd.answer
 }
 
+// keys returns the key of every document read so far.
+func (r *externalReads) keys() map[string]bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	keys := make(map[string]bool, len(r.data))
+	for key := range r.data {
+		keys[key] = true
+	}
+	return keys
+}
+
 // charge charges the read of the document under key to the document budget,
 // and returns the document's refusal where the budget has no room for it.
 func (r *externalReads) charge(key string) error {

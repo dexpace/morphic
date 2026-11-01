@@ -35,9 +35,9 @@ type frame struct {
 
 // finder finds the positions a table answers for: the schema sites, the
 // discriminator mapping values, the landings, and where each reference object
-// resolves to, walking each root as it is noted, and, in the source's own
-// walk, the identifiers its schemas declare. It keeps what it has found, and
-// which of that is new since the table last settled.
+// resolves to, walking each root as it is noted, and the identifiers each
+// document's schemas declare. It keeps what it has found, and which of that is
+// new since the table last settled.
 type finder struct {
 	docs          *docs
 	ids           *identifiers
@@ -47,15 +47,17 @@ type finder struct {
 	mappingSites  map[mappingKey]bool
 	fresh         []Position
 	freshMappings []mappingKey
+	freshDynamic  []dynamicKey
 	landings      map[Position]bool
 	pending       []root
 	covered       map[root]bool
 	roots         map[Position]state
 }
 
-// newFinder returns a finder over docs that has found nothing.
-func newFinder(d *docs, w *work) *finder {
-	return &finder{docs: d, ids: newIdentifiers(resources{d}.document(Source)), work: w, ends: map[Position]Position{},
+// newFinder returns a finder over docs that has found nothing, noting what the
+// documents declare in ids.
+func newFinder(d *docs, w *work, ids *identifiers) *finder {
+	return &finder{docs: d, ids: ids, work: w, ends: map[Position]Position{},
 		sites: map[Position]bool{}, mappingSites: map[mappingKey]bool{}, landings: map[Position]bool{},
 		covered: map[root]bool{}, roots: map[Position]state{}}
 }
@@ -66,11 +68,13 @@ func newFinder(d *docs, w *work) *finder {
 // walk in turn). A node an alias places at several positions is read at each,
 // as the parser reads it. With mark, each position read at a state is noted, so
 // a later root inside one already read is not read again; the source's own walk
-// from its root, which reads identifiers, notes none.
+// from its root notes none, and reads its identifiers the first time it runs.
 func (w *finder) walk(r root, mark bool) {
 	if prev, seen := w.roots[r.at]; !seen || r.state < prev {
 		w.roots[r.at] = r.state
 	}
+	declaring := !mark && !w.ids.read[r.at.Doc]
+	w.ids.read[r.at.Doc] = w.ids.read[r.at.Doc] || declaring
 	stack := []frame{{node: w.docs.node(r.at), at: r.at, state: r.state}}
 	for len(stack) > 0 && w.work.spend(1) {
 		f := stack[len(stack)-1]
@@ -86,21 +90,57 @@ func (w *finder) walk(r root, mark bool) {
 			w.covered[root{f.at, f.state}] = true
 		}
 		w.visit(n, f)
-		if !mark {
+		if declaring {
 			f = w.declared(n, f)
 		}
 		stack = append(stack, w.children(n, f)...)
 	}
 }
 
-// declared notes the identifiers the source's schema at f, holding n,
-// declares, and returns f as its children read it: in the resource its
-// content is in, and inert below a reference object's $ref other than a path
-// item's, whose fields beside it are read (Config.Beside).
+// identify reads what the schemas of document id declare, the first time it is
+// asked, whole: OAS 3.1 §4.3.1 has a document parsed complete before a reference
+// to it is deemed unresolvable, so what a reference names of it depends on
+// nothing read before. It notes no site, as a position of another document
+// answers only for what a reference reaches.
+func (w *finder) identify(id DocID) {
+	if w.ids.read[id] {
+		return
+	}
+	w.ids.read[id] = true
+	res := w.ids.document(id, resources{w.docs}.document(id))
+	stack := []frame{{node: w.docs.list[id].root, at: Position{Doc: id}, state: w.docs.identityState(id), res: res}}
+	for len(stack) > 0 && w.work.spend(1) {
+		f := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		n := nodeview.Deref(f.node)
+		if n == nil || !modelled(f.state) {
+			continue
+		}
+		stack = append(stack, w.children(n, w.declared(n, f))...)
+	}
+}
+
+// identifyAll reads what each document opened so far declares.
+func (w *finder) identifyAll() {
+	for id := range DocID(len(w.docs.list)) {
+		if w.ids.read[id] {
+			continue
+		}
+		if w.work.over() {
+			return
+		}
+		w.identify(id)
+	}
+}
+
+// declared notes the identifiers the schema at f, holding n, declares, and
+// returns f as its children read it: in the resource its content is in, and
+// inert below a reference object's $ref other than a path item's, whose fields
+// beside it are read (Config.Beside).
 func (w *finder) declared(n *yaml.Node, f frame) frame {
 	switch {
 	case f.inert:
-	case f.state == sSchema:
+	case f.state == sSchema || f.state == sLoose:
 		f.res = w.ids.declare(resources{w.docs}, f.res, f.at, n)
 	case referenceKinds[f.state] && f.state != sPathItem:
 		_, f.inert = w.docs.refOf(f.at.Doc, n)
@@ -117,10 +157,43 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 			w.fresh = append(w.fresh, f.at)
 		}
 		w.mappingsOf(n, f.at)
+		w.dynamicOf(n, f.at)
 	case referenceKinds[f.state]:
 		if r, reason := w.docs.through(reading{at: f.at, node: n, state: f.state}, 0); reason == NoReason && r.at != f.at {
 			w.ends[f.at] = r.at
 			w.pending = append(w.pending, root{at: r.at, state: f.state})
+		}
+	}
+}
+
+// dynamicOf notes the anchor the $dynamicRef the schema at at, holding n, names,
+// where another document holds it. Nothing but a reference builds a schema of
+// another document (landed), and an expansion is one, so settle lands on the
+// anchor. The source's are the model's own.
+func (w *finder) dynamicOf(n *yaml.Node, at Position) {
+	if at.Doc == Source {
+		return
+	}
+	ref, ok := scalarOf(w.docs.list[at.Doc].view.ChildByToken(n, "$dynamicRef"))
+	if !ok {
+		return
+	}
+	if name, _, ok := DynamicFragment(ref); ok {
+		w.freshDynamic = append(w.freshDynamic, dynamicKey{doc: at.Doc, name: name})
+	}
+}
+
+// landOnAnchors lands on the one schema declaring each anchor a $dynamicRef in
+// another document names, as a reference would, for the schema an expansion
+// takes to be built and read. It waits for no later pass: a name is only asked
+// of a document open, whose identifiers it reads whole.
+func (w *finder) landOnAnchors() {
+	dynamic := w.freshDynamic
+	w.freshDynamic = nil
+	for _, k := range dynamic {
+		w.identify(k.doc)
+		if at := w.ids.dynamic[k]; len(at) == 1 {
+			w.landed(Hop{Target: at[0], Role: Raw})
 		}
 	}
 }
