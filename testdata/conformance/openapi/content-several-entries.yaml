@@ -1,0 +1,28 @@
+openapi: 3.1.0
+info: {title: ContentSeveralEntries, version: "1.0.0"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      parameters:
+        # OpenAPI requires a parameter's content, and a header's, to hold exactly
+        # one entry. A document writing more is invalid, and each position holds
+        # one type, so one entry lowers and every other is kept whole beside it.
+        #
+        # The lowest key wins, so the entries are declared highest first: taking
+        # the first would elect text/plain, and a reordered map would change the
+        # type.
+        - name: p
+          in: query
+          content:
+            text/plain: {schema: {type: string}, example: hi}
+            application/json: {schema: {type: integer}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H:
+              content:
+                text/plain: {schema: {type: string}}
+                application/xml: {schema: {type: boolean}}
+                application/json: {schema: {type: integer}}

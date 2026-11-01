@@ -39,14 +39,21 @@ func assertDefaults(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 // assertNonScalarDefaults pins the Value payloads a default reaches beyond string
-// and number: a boolean, a base64 !!binary scalar, and a sequence. Each selects a
-// different payload field, and Kind is what says which one carries meaning.
+// and number: a boolean, a null, a base64 !!binary scalar, and a sequence. Each
+// but the null, which has none, selects a different payload field, and Kind is
+// what says which one carries meaning.
 func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 	t.Helper()
 	flag, ok := propByWire(m, "flag")
 	require.True(t, ok)
 	require.NotNil(t, flag.Default)
 	assert.Equal(t, ir.Value{Kind: ir.ValueBool, Bool: true}, *flag.Default)
+
+	cleared, ok := propByWire(m, "cleared")
+	require.True(t, ok)
+	require.NotNil(t, cleared.Default, "a written null is a default, not the absence of one")
+	assert.Equal(t, ir.Value{Kind: ir.ValueNull}, *cleared.Default)
+	assert.True(t, cleared.Type.Nullable, "and the type admits it")
 
 	blob, ok := propByWire(m, "blob")
 	require.True(t, ok)
@@ -73,25 +80,20 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 // ir.Value one, and the raw-JSON one went on rewriting a date to RFC 3339 with
 // this fixture green (GitHub #242); assertRawPreservedDates is the other half.
 func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	// R's `not` announces the validation-only carve-out, and D's `format: date`
-	// announces that an ir.Enum has no Encoding field to put it in, so it is
-	// kept verbatim beside the enum rather than dropped. Those two are the only
-	// notices any site here is allowed to say, and neither is about a date: one
-	// that was dropped or degraded reports itself as a warning, which is what
-	// this fixture exists to catch.
+	// R's `not` announces the validation-only carve-out. That is the only notice
+	// any site here is allowed to say, and it is not about a date: one that was
+	// dropped or degraded reports itself as a warning, which is what this fixture
+	// exists to catch.
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityInfo, d.Severity,
 			"every unquoted date converts cleanly; nothing is dropped or degraded: %+v", d)
-		if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == "/components/schemas/D" {
-			continue
-		}
 		assert.Equal(t, "openapi/validation-only-keyword", d.Code,
 			"the validation-only carve-out is the only other notice this fixture expects: %+v", d)
 	}
 
 	d, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum of the real dates, not a union of null literals")
-	assert.Equal(t, ir.PrimString, d.ValueType)
+	assert.Equal(t, ir.PrimDate, d.ValueType)
 	require.Len(t, d.Members, 2)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, d.Members[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, d.Members[1].Value)

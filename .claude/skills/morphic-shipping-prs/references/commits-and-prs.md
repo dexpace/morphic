@@ -7,13 +7,24 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 
 - **Rule.** A limit left out of scope, a library limitation relied on, a known defect whose
   reproducer is removed, or a part of an issue declined is stated in a comment at the function or
-  call that has it, or in the skill rule prescribing the mechanism, naming its tracking issue, and
-  in the PR body, in the same commit. A partly addressed issue is referenced, not closed.
+  call that has it, or in the skill rule prescribing the mechanism, naming its tracking issue
+  (`references/commits-and-prs.md#limitation-searched-on-what-it-names`), and in the PR body, in the
+  same commit. A partly addressed issue is referenced, not closed.
 - **Why.** Readers reach the code first; a limitation recorded only in a PR body, commit or tracker
-  is invisible to the next person editing that function (#239, #270). A skill rule named one of two
+  is invisible to whoever next edits that function (#239, #270). A skill rule named one of two
   gaps its PR body recorded (#1153).
 - **Probe.** Quote, from where the Rule places it, the sentence stating each limitation the body or
   commits state; an issue number alone is none.
+
+## Search the tracker on what a limitation names
+`limitation-searched-on-what-it-names`
+
+- **Rule.** Search for each limitation a body states on the tool or behaviour it names, not on the
+  construct the change decides, and have it cite what turns up or say no issue exists.
+- **Why.** A gap in `--explain` read as a decision while #693 tracked it, which searches on the
+  construct do not return (#1191).
+- **Probe.** List each limitation beside its
+  `gh issue list --state all --limit 1000 --search "<tool or behaviour>"`.
 
 ## Run the coverage gate on the final tree before claiming it
 `coverage-gate-on-final-tree`
@@ -29,15 +40,27 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `commit-and-pr-message-form`
 
 - **Rule.** Every commit subject and the PR title are Conventional Commits, imperative, at most 72
-  characters, the title counted with the ` (#N)` the squash appends. A breaking commit carries `!`
-  and explains the break in its own body. Every commit body could stand on `main`, since the
-  default squash pastes them all. No text carries tool attribution or session artifacts.
+  characters counted with the ` (#N)` the squash appends, as a branch's one commit lands under its
+  own subject. A breaking commit carries `!`
+  and explains the break in its own body. No text carries tool attribution or session artifacts.
 - **Why.** Over-length subjects and prose titles land on main via squash and cannot be fixed without
   rewriting a pushed branch; a break marked only in the PR title is invisible in branch history
-  (#834, #157).
+  (#834, #157). A one-commit branch landed at 73 (#1232).
 - **Probe.** The push checklist in `.claude/skills/morphic-shipping-prs/SKILL.md` prints each
   subject, and the title as it lands, off the form or over the cap, and each possible artifact; a
   reviewer runs it on the PR's tree.
+
+## Hold a commit body when it is pushed and the landing body at merge
+`body-lands-at-merge`
+
+- **Rule.** A commit body could stand on `main` when it is pushed. A later commit making it stale is
+  no finding, as a pushed branch is never rewritten and the body that lands is the one set at merge.
+  A merge keeping the default paste edits a stale body out.
+- **Why.** The repository's setting pastes every branch body while merges set their own, and a
+  pushed body cannot change: `1b22933d` on #1233 went stale, and a review had to work out whether to
+  report it.
+- **Probe.** `git log -25 --first-parent --format=%b origin/main` shows the bodies merges set, and
+  `gh api 'repos/{owner}/{repo}' --jq .squash_merge_commit_message` what an unedited squash pastes.
 
 ## Keep the diff to in-scope files and keep scratch notes out of the tree
 `diff-contains-only-in-scope-files`
@@ -63,14 +86,14 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 `closing-keywords`
 
 - **Rule.** On merge, GitHub closes each issue that `close`, `fix` or `resolve`, in any tense and
-  case, a colon after it or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body, and a
+  case, colon or not, precedes as `#N` or `<owner>/<repo>#N` anywhere in the body, and a
   keyword reaches only the reference after it. Write one `Closes #N` line per finished issue,
   narrate other work with other verbs ("landed"), and give a stack landing through one PR every
   child's `Closes #N`: a keyword links only in a PR based on `main`.
 - **Why.** "closed #907", written about another PR, made #948 claim #907; #1016 wrote a line per
   issue, since a list after one keyword closes its first alone; #464 left its stack's issues open.
-- **Probe.** After each body edit, compare `gh pr view <N> --json closingIssuesReferences` with
-  what this finds in the body:
+- **Probe.** Seconds after each body edit, as the field lags, compare
+  `gh pr view <N> --json closingIssuesReferences` with what the body holds:
   `grep -noiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? +([[:alnum:]_.-]+/[[:alnum:]_.-]+)?#[0-9]+'`.
 
 ## Check the tracker for a recorded decision before changing what it covers

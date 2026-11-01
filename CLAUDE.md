@@ -370,12 +370,13 @@ departs from it, with what holds each difference.
 - **Naming:** MixedCaps; scope-proportional length; no `Get` prefix on getters; initialisms in
   one consistent case; package names short lowercase nouns; never shadow builtins or imports.
 - **Testing:** table-driven and flat; `TestFunc_Scenario` names; `testify/require` for
-  preconditions, `assert` for values; compare with `cmp.Diff`, never `reflect.DeepEqual`; golden
-  files for complex expected output; `t.Helper()` in helpers; `t.Cleanup()` over `defer`; external
-  test packages (`package foo_test`) preferred, reaching internals through the package's
-  `export_test.go`, and an in-package test file named `foo_internal_test.go` (CONTRIBUTING's "Where
-  a test goes"); where goroutines exist, the goroutine leak check under Testing strategy above (the
-  styleguide names `goleak`; #568).
+  preconditions, `assert` for values; compare with `cmp.Diff`, or `assert.Equal` on a value holding
+  no unexported field or `Equal` method, never `reflect.DeepEqual`; golden files for complex
+  expected output; `t.Helper()` in helpers; `t.Cleanup()` over `defer`; external test packages
+  (`package foo_test`) preferred, reaching internals through the package's `export_test.go`, and an
+  in-package test file named `foo_internal_test.go` (CONTRIBUTING's "Where a test goes"); where
+  goroutines exist, the goroutine leak check under Testing strategy above (the styleguide names
+  `goleak`; #568).
 - **Packages:** one package per directory; `internal/` aggressively for implementation detail;
   no `utils`/`helpers`/`common`; `doc.go` for package docs; imports in three `gci` groups
   (stdlib, external, local); no dot imports.
@@ -500,25 +501,28 @@ context-switch between repos.
   when it narrows things down — omit it when the change is repo-wide.
 - **Breaking changes** mark the type with `!` (`feat!:`, `refactor!:`) and explain the break in the
   commit body — don't bury it in the subject line alone.
-- **The PR title is the commit subject.** PRs are squash-merged, so the *title* — not the branch's
-  commit subjects — is what lands on `main`. It takes the same Conventional Commits form and the
-  same rules: `type(scope): subject`, imperative, no trailing period. A well-formed commit under a
-  prose PR title still merges as a non-conforming commit, and since the squashed subject *is* the
-  title, every non-conforming subject in this history arrived exactly that way. To see the current
-  state rather than trust this sentence:
+- **The PR title is the commit subject, unless the branch has one commit.** PRs are squash-merged,
+  so the *title* — not the branch's commit subjects — is what lands on `main`. A branch with one
+  commit of its own lands under that commit's subject instead, a merge of `main` being no second
+  commit: `gh api repos/dexpace/morphic --jq .squash_merge_commit_title` names the setting, and PR
+  #1232 shows it. Both take the same Conventional Commits form and the same rules:
+  `type(scope): subject`, imperative, no trailing period. A well-formed commit under a prose PR
+  title still merges as a non-conforming commit, and every non-conforming subject in this history
+  arrived exactly that way. To see the current state rather than trust this sentence:
 
   ```bash
   git log --format='%s' origin/main | grep -E '\(#[0-9]+\)$' |
     grep -vE '^(feat|fix|refactor|docs|test|build|chore|ci|perf)(\(.+\))?!?: '
   ```
 
-- **Budget the appended number inside the 72-char cap.** GitHub appends ` (#NNN)` to the squashed
-  subject automatically — never type it yourself, but do count it: a three-digit PR leaves the title
-  65 characters, not 72. Measure before opening, don't eyeball —
-  `printf '%s (#999)' "<title>" | wc -c`. Most over-length subjects in this history were *within*
-  the cap until the number was appended, which is the whole failure mode; to see that split rather
-  than trust it, pipe the log above through `awk 'length($0) > 72'` and then through
-  `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
+- **Budget the appended number inside the 72-char cap.** GitHub appends ` (#N)` to the squashed
+  subject automatically — never type it yourself, but do count it, at the number the PR will get,
+  on the title and on each commit subject, as a branch with one commit lands under its subject.
+  Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with `N` one
+  past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
+  over-length subjects in this history were *within* the cap until the number was appended, which
+  is the whole failure mode; to see that split rather than trust it, pipe the log above through
+  `awk 'length($0) > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
 - **Never rewrite a pushed PR branch.** Every change to an open PR, whether a review round's fixes
   or `main` merged in, goes on as new commits pushed as a fast-forward. Never amend, squash, rebase
   or force-push it, not even to keep it at one commit. A force-push deletes the per-round diffs a

@@ -4,6 +4,7 @@
 package operation_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -152,6 +153,77 @@ func TestContent_BinaryOctetStreamBody(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
 }
 
+// TestContent_AFileBodyKeepsTheSchemaItWrites holds a file body's Type to what
+// its schema lowered to, on both sides of an operation, so what the schema says
+// beyond its format stays reachable (GitHub #600). Only a schema stating nothing
+// leaves the media type to say the body is bytes.
+func TestContent_AFileBodyKeepsTheSchemaItWrites(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		schema   string
+		want     ir.TypeRef // an empty Target names the position's own node
+		wantDesc string
+	}{
+		{"no schema", "", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"a true schema", "schema: true", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"a bare binary string", "schema: {type: string, format: binary}", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"a binary string that says more", "schema: {type: string, format: binary, description: raw}", ir.TypeRef{}, "raw"},
+		{
+			"a $ref", `schema: {$ref: "#/components/schemas/Blob"}`,
+			ir.TypeRef{Target: "t/openapi/components/schemas/Blob"}, "Raw bytes",
+		},
+		{
+			"a $ref through a $ref", `schema: {$ref: "#/components/schemas/Chain"}`,
+			ir.TypeRef{Target: "t/openapi/components/schemas/Chain"}, "",
+		},
+		{
+			"a nullable binary string", `schema: {type: [string, "null"], format: binary}`,
+			ir.TypeRef{Target: "t/prim/bytes", Nullable: true}, "",
+		},
+		{"a false schema", "schema: false", ir.TypeRef{}, ""},
+		{"a type array", "schema: {type: [string, object], format: binary}", ir.TypeRef{}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := compileService(t, openapitest.PathsSpec(fmt.Sprintf(`  /raw:
+    post:
+      operationId: putRaw
+      requestBody:
+        content:
+          application/octet-stream: {%[1]s}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/octet-stream: {%[1]s}
+components:
+  schemas:
+    Blob: {type: string, format: binary, maxLength: 99, description: Raw bytes}
+    Chain: {$ref: "#/components/schemas/Blob"}
+`, tc.schema)))
+			openapitest.RequireNoErrorDiags(t, diags)
+			op := openapitest.FirstOp(t, svc)
+			for side, content := range map[string]ir.Content{
+				"requestBody":   op.Request.Contents[0],
+				"responses/200": op.Responses[0].Payload.Contents[0],
+			} {
+				want := tc.want
+				if want.Target == "" {
+					want.Target = ir.TypeID("t/anon/paths/~1raw/post/" + side + "/content/application~1octet-stream/schema")
+				}
+				assert.Equal(t, want, content.Type, side)
+				require.NotNil(t, content.File, side)
+				assert.Equal(t, ir.FileInfo{ContentTypes: []string{"application/octet-stream"}}, *content.File, side)
+				node, ok := doc.Types[want.Target]
+				require.True(t, ok, side)
+				assert.Equal(t, tc.wantDesc, node.Common().Docs.Description, side)
+			}
+		})
+	}
+}
+
 // TestContent_MixedCaseOctetStreamBodyIsFile drives the binary arm with
 // spellings RFC 6838 §4.2 treats as identical to application/octet-stream: the
 // body without a schema is a file, and FileInfo.ContentTypes keeps the declared
@@ -210,7 +282,7 @@ components:
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.File, "binary body behind a $ref lowers to a FileInfo")
 	assert.False(t, content.File.IsText)
-	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Blob"), content.Type.Target)
 }
 
 const contentSpec = `openapi: 3.2.0
