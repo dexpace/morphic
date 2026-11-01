@@ -119,7 +119,8 @@ Designs this replaced, each with the fact it fails on:
 - **`Availability`** is a version timeline no emitter interprets, and has no tier in it.
 - **A field on `TypeDef` and `Property` as well.** The golden spec states a tier on no type, property
   or parameter: its 2 such values both say `deprecated`, beside `deprecated: true` (spec @319dc756).
-  A format that states a tier there keeps it under `no_ir_home` until a field lands for it.
+  A tier stated there stays verbatim until a field lands for it: a format's own trait under
+  `no_ir_home`, and an OpenAPI key under the `vendor_extension` every key has.
 
 `irverify` reports a value outside the declared tiers (`ir/unknown-stability`), wherever the field
 sits. What a target does with a tier is not stated yet (#1222).

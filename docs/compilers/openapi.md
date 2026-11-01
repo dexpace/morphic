@@ -2891,8 +2891,10 @@ let it audit that.
 
 `x-sensitive` asks for redaction as `format: password` does ([`password`](#password)), and lands
 where that does: `Sensitive` on the node a position owns, `Secret` on a property, header or parameter
-that owns none, the target of a `$ref` lending it to the use. `true` writes it, `false` states nothing
-and never clears what another declaration asks for, and any other shape is reported.
+that owns none, the target of a `$ref` lending it to the use. `true` writes it, `false` states
+nothing, and any other shape is reported. A `false` clears neither a `format: password` nor what a
+`$ref`'s target asks for, though on a parameter or a header it hides a `true` on its own schema, as
+the two share one entry.
 
 `Enum.Closed` is the one target whose fact is stated by a key being *present* rather than by a
 value, so a value is not read as a statement there. Its default key, `x-extensible-enum`, writes the

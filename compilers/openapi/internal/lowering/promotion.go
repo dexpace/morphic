@@ -75,8 +75,9 @@ const (
 
 	// TargetRedaction asks for a value to be redacted, as `format: password`
 	// does: ir.TypeCommon.Sensitive on a type node, Secret on a property or a
-	// parameter. A boolean true states it, and false states nothing, so it never
-	// clears what another declaration asks for.
+	// parameter. A boolean true states it and false states nothing, so a false
+	// clears no keyword and no $ref target's key. It can hide a true on the schema
+	// of its own parameter or header, as the two share one entry (GitHub #396).
 	TargetRedaction ExtensionTarget = "redaction"
 )
 
