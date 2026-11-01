@@ -196,6 +196,8 @@ func TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional(t *testing.T) {
 	assert.Equal(t, ir.SeverityWarning, severity(oas.Schema, `{maximum: ~}`))
 	assert.Equal(t, ir.SeverityWarning, severity(oas.Schema, `{type: ~}`))
 	assert.Empty(t, run(t, "3.1.0", oas.Schema, `{const: ~, default: ~, example: ~}`), "a null there is a value")
+	assert.Equal(t, ir.SeverityWarning, severity(oas.Schema, `{$ref: ~, title: t}`), "a null $ref is no reference")
+	assert.Equal(t, ir.SeverityError, severity(oas.Parameter, `{$ref: ~}`), "only in a Schema Object")
 	assert.Equal(t, ir.SeverityError, severity(oas.Info, `{title: t, version: v, contact: x}`))
 	assert.Equal(t, ir.SeverityError, severity(oas.Info, `{title: t, version: v, contact: []}`))
 	for _, d := range run(t, "3.1.0", oas.Info, `{title: t, version: v, description: ~}`) {

@@ -97,6 +97,32 @@ components:
 		"the type itself is a variant, so the mapping stays on it")
 }
 
+// TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget pins that a
+// defaultMapping is routed as a mapping's target is, so it names a variant
+// where a keyword beside the branch's $ref gave the branch an alias.
+func TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, `openapi: 3.2.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Cat: {type: object, properties: {kind: {type: string}}}
+    Dog: {type: object, properties: {kind: {type: string}}}
+    Pet:
+      oneOf:
+        - {$ref: '#/components/schemas/Cat', description: a cat}
+        - {$ref: '#/components/schemas/Dog'}
+      discriminator: {propertyName: kind, defaultMapping: '#/components/schemas/Cat'}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	assert.Empty(t, validated(t, doc))
+	pet, ok := typeByName(doc, "Pet").(*ir.Union)
+	require.True(t, ok)
+	assert.NotEqual(t, ir.TypeID("t/openapi/components/schemas/Cat"), pet.Variants[0].Type.Target)
+	assert.Equal(t, pet.Variants[0].Type.Target, pet.Discriminator.Default)
+}
+
 // TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither pins the rule
 // for a target that two branches alias, each with its own keyword beside its
 // $ref: nothing in the mapping says which variant it means, so it stays on the

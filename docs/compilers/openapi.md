@@ -1593,6 +1593,7 @@ a position that writes a `$ref`, other than a component or a variant, is read th
   `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`,
   `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`,
   `schema.TestDiscriminatorMapping_RoutesToTheVariantAliasingItsTarget`,
+  `schema.TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget`,
   `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
   mapping to a component that is a `$ref` to a subtype fails validation (#844). Open: inferring a discriminator from pinned tag
