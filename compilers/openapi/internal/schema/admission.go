@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
+	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -71,22 +72,25 @@ func kindOfType(t oas3.SchemaType) kindSet {
 	}
 }
 
-// kindOfJSON returns the kind of the value raw renders, by what a JSON value of
-// each kind opens with.
-func kindOfJSON(raw ir.RawValue) kindSet {
-	switch string(raw[:min(1, len(raw))]) {
-	case "\"":
+// kindOfValue returns the JSON kind of v.
+func kindOfValue(v ir.Value) kindSet {
+	switch v.Kind {
+	case ir.ValueString, ir.ValueSymbol, ir.ValueBytes:
 		return kindString
-	case "t", "f":
+	case ir.ValueBool:
 		return kindBoolean
-	case "n":
+	case ir.ValueNull:
 		return kindNull
-	case "[":
+	case ir.ValueList:
 		return kindArray
-	case "{":
+	case ir.ValueObject:
 		return kindObject
+	case ir.ValueNumber:
+		return kindOfNumber(string(v.Num))
+	case ir.ValueRefKind, ir.ValueCtor:
+		return 0
 	default:
-		return kindOfNumber(string(raw))
+		return 0
 	}
 }
 
@@ -236,15 +240,15 @@ func (a admitted) takes(v values.Value) bool {
 }
 
 // memberOf returns the key v compares by, as an enum compares its own entries
-// (entryKey), so 1 and 1.0 are one value, with its kind, and false for a value
-// with no key.
+// (valueKey), so 1 and 1.0 are one value, with its kind, and false for a value
+// it cannot read.
 func memberOf(v values.Value) (string, kindSet, bool) {
-	key, keyed := entryKey(v)
-	raw, err := annotation.RawFromNode(v)
-	if !keyed || err != nil {
+	val, err := value.FromNode(v)
+	if err != nil {
 		return "", 0, false
 	}
-	return key, kindOfJSON(raw), true
+	key, keyed := valueKey(val, 0)
+	return key, kindOfValue(val), keyed
 }
 
 // admission reads what schemas admit, across each $ref along its chain and each

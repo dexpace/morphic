@@ -89,6 +89,32 @@ func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	assert.NotContains(t, read.values, "s:z")
 }
 
+// TestKindOfValue_NamesEachValuesKind pins each kind of value to the JSON kind an
+// instance of it is, and what is no instance to none.
+func TestKindOfValue_NamesEachValuesKind(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		v    ir.Value
+		want kindSet
+	}{
+		{ir.Value{Kind: ir.ValueString}, kindString},
+		{ir.Value{Kind: ir.ValueSymbol}, kindString},
+		{ir.Value{Kind: ir.ValueBytes}, kindString},
+		{ir.Value{Kind: ir.ValueBool}, kindBoolean},
+		{ir.Value{Kind: ir.ValueNull}, kindNull},
+		{ir.Value{Kind: ir.ValueList}, kindArray},
+		{ir.Value{Kind: ir.ValueObject}, kindObject},
+		{ir.Value{Kind: ir.ValueNumber, Num: "1.0"}, kindInteger},
+		{ir.Value{Kind: ir.ValueNumber, Num: "1.5"}, kindFraction},
+		{ir.Value{Kind: ir.ValueNumber, Num: "1e2"}, kindNumber},
+		{ir.Value{Kind: ir.ValueRefKind}, 0},
+		{ir.Value{Kind: ir.ValueCtor}, 0},
+		{ir.Value{Kind: "no kind"}, 0},
+	} {
+		assert.Equal(t, tc.want, kindOfValue(tc.v), tc.v.Kind)
+	}
+}
+
 // TestAdmission_AnEnumAndAConstAreTwoSets pins that one schema's two value sets are
 // remembered apart: each is read and conjoined, so an instance is held to both.
 func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
