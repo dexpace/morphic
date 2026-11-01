@@ -128,6 +128,17 @@ def listing(root: Path, *args: str) -> list[str]:
     return [f for f in git(root, "ls-files", "-z", *args).split("\0") if f]
 
 
+def checkout_root(cwd: Path) -> Path:
+    """Return the root of the checkout holding cwd. The lint reads the tree from git, so a copy git
+    cannot list leaves it nothing to hold a path or a test name to, which it says rather than guess
+    at a tree from what is on disk."""
+    try:
+        return Path(git(cwd, "rev-parse", "--show-toplevel").strip())
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"{cwd} is in no git checkout, and the tree is read from git: "
+                           "run this in a checkout, or run git init in a full copy") from e
+
+
 def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
     """Return the first segment of every tracked path, every declared Go test name with each
     family prefix of it, as TestA_B declares TestA, and the path of every file the tree holds:
@@ -584,8 +595,7 @@ def main(argv: list[str] | None = None) -> int:
     argparse.ArgumentParser(description=__doc__.split("\n\n")[0].replace("\n", " ")).parse_args(
         sys.argv[1:] if argv is None else argv)
     try:
-        root = Path(git(Path.cwd(), "rev-parse", "--show-toplevel").strip())
-        n, found = findings(root)
+        n, found = findings(checkout_root(Path.cwd()))
     except (subprocess.CalledProcessError, RuntimeError, OSError) as e:
         print(f"skills_lint: {e}", file=sys.stderr)
         return 2
