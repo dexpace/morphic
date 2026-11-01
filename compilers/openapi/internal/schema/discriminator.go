@@ -256,9 +256,6 @@ func readsThrough(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.R
 	if named || ids.ComponentSchemaNamedEmpty(at.Pointer) || decl == nil {
 		return false
 	}
-	if !resolve.IsRefSite(decl, decl.GetSchema()) {
-		return false
-	}
 	if len(variantTypes) == 0 {
 		return true
 	}

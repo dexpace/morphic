@@ -559,7 +559,8 @@ components:
 - Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/null-type-is-empty`
 - Code:
-  - `schema.declaredTypes` drops the `""`, so no reader takes it for a type written.
+  - `schema.writesType` and `schema.effectiveTypes` pass over the `""`, so no reader takes it for a
+    type written.
 
 ### `context-unread`
 

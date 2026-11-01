@@ -129,6 +129,9 @@ func WritesKeywordLeftOut(s *oas3.Schema, key string) bool {
 // has no type a null could break, so it is kept with the null it wrote.
 func unknownSchemaKeys(s *oas3.Schema) ([]string, *yaml.Node) {
 	keys, root := undeclaredKeys(s)
+	if len(keys) == 0 {
+		return nil, root // the common case: every position that lowers asks
+	}
 	return slices.DeleteFunc(slices.Clone(keys), func(key string) bool {
 		return slices.Contains(DecidedKeywords, key) ||
 			slices.Contains(modellessKeywords, key) && IsNullNode(nodeview.Child(root, key))

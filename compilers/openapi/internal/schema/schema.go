@@ -399,22 +399,27 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 		skipped, d.won, d.won, skipped))
 }
 
-// declaredTypes returns the types s writes. A YAML null, which the parser reads
+// writesType reports whether s writes a type. A YAML null, which the parser reads
 // as a type spelled "" (docs/parser-library.md#null-type-is-empty), declares
 // none: `type: null` is the keyword left out, unlike `type: "null"`
 // (docs/compilers/openapi.md#null-keywords).
-func declaredTypes(s *oas3.Schema) []oas3.SchemaType {
-	types := s.GetType()
-	if !slices.Contains(types, "") {
-		return types
-	}
-	return slices.DeleteFunc(slices.Clone(types), func(t oas3.SchemaType) bool { return t == "" })
+func writesType(s *oas3.Schema) bool {
+	return slices.ContainsFunc(s.GetType(), func(t oas3.SchemaType) bool { return t != "" })
 }
 
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
-// member removed; nullability is normalized onto the TypeRef, not the type set.
+// member removed, and any null that declares none (writesType); nullability is
+// normalized onto the TypeRef, not the type set.
 func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
-	return slices.DeleteFunc(slices.Clone(declaredTypes(s)), func(t oas3.SchemaType) bool { return t == oas3.SchemaTypeNull })
+	types := s.GetType()
+	out := make([]oas3.SchemaType, 0, len(types))
+	for _, t := range types {
+		if t == oas3.SchemaTypeNull || t == "" {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 // declaresShape reports whether a schema declares data shape — a type, a
