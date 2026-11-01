@@ -6,7 +6,7 @@ description: Use when changing code in this repository for speed or memory, writ
 # Measuring performance in morphic
 
 The styleguide ranks performance second, after correctness, so a cost claim is held like any
-other: measured, against `main`, and in the build the gate runs. A number read off one run on a
+other: measured, against `main`, and in the builds the gate runs. A number read off one run on a
 busy machine measures the machine.
 
 ## Claim → measure
@@ -17,7 +17,7 @@ busy machine measures the machine.
 | a stage after the compile is cheap | a throwaway program over a saved document, less a run that only decodes (`references/finding-cost.md#cost-of-a-later-stage`) |
 | no cost on the common path | the same over the golden spec and a large input of the old shape (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#price-common-path`) |
 | linear in the input | count steps through a budget (`references/cost-tests.md#count-work-not-wall-clock`) at n, 2n and 4n and assert the marginal growth (`references/cost-tests.md#marginal-growth-on-one-path`) |
-| allocation-free | `testing.AllocsPerRun` in the gate's builds, set-mode coverage and `-race`, the fewest of single runs (`references/cost-tests.md#count-in-the-gates-build`); a map reused to get there, timed on one huge collection before many small ones (`references/finding-cost.md#clear-never-shrinks`) |
+| allocation-free | `testing.AllocsPerRun` in each build the gate runs, set-mode coverage and a separate `-race` run, the fewest of single runs (`references/cost-tests.md#count-in-the-gates-build`); a map reused to get there, timed on one huge collection before many small ones (`references/finding-cost.md#clear-never-shrinks`) |
 | an optimization holds | a counting seam the test reads, since an optimization changes no output (`references/cost-tests.md#counting-seam-for-optimizations`) |
 | bounded on any input | generated shapes, deep and wide, on both builds (`references/finding-cost.md#deep-generated-shapes`) |
 
