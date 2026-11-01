@@ -615,6 +615,38 @@ components:
 	}
 }
 
+// TestParameter_APrincipalOwningANodeKeepsItsVisibility pins readOnly and writeOnly
+// on the branch a refinement lowers from: a node holds neither, so the parameter
+// keeps them as it does written on its schema, at the keyword that wrote them.
+func TestParameter_APrincipalOwningANodeKeepsItsVisibility(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get:
+      operationId: get
+      parameters:
+        - name: list
+          in: query
+          schema: {allOf: [{type: array, items: {type: string}, readOnly: true}]}
+        - name: narrowed
+          in: query
+          schema: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a], writeOnly: true}]}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Mode: {type: string, enum: [a, b]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for source, key := range map[string]string{"list": "openapi:readOnly", "narrowed": "openapi:writeOnly"} {
+		param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), source)
+		require.True(t, ok, source)
+		entry, kept := param.Unmodeled[key]
+		if assert.True(t, kept, "%s: got %v", source, param.Unmodeled) {
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, source)
+			assert.Contains(t, string(entry.Provenance.Pointer), "/allOf/", source)
+		}
+	}
+}
+
 // TestParameter_ADefaultReadsOnlyWhereTheNarrowingTakesIt pins a parameter's default
 // across a value set narrowing its $ref, as a property's reads.
 func TestParameter_ADefaultReadsOnlyWhereTheNarrowingTakesIt(t *testing.T) {

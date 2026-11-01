@@ -27,9 +27,16 @@ type Use struct {
 	// Referents is what the position falls back to, nearest first
 	// (docs/compilers/openapi.md#ref-use-site).
 	Referents []*oas3.Schema
+	// Principal is a refinement's inline principal where it owns a node, and nil
+	// otherwise: it is also the first of Referents.
+	Principal *annotation.Voice
 	// narrowed is what the position admits where a referent may say more, and nil
 	// where every referent's default stands.
 	narrowed *admitted
+	// narrowedFrom is the first of Referents past the value set narrowing the
+	// position: one before it writes that set or stands beside it, so its default
+	// is the position's own, as a plain enum's is.
+	narrowedFrom int
 }
 
 // Site is u as annotation.Read takes it, for s, the schema written at the
@@ -39,19 +46,29 @@ func (u Use) Site(s *oas3.Schema) annotation.Site {
 	return annotation.Site{Kind: annotation.Reference, Node: s, Voices: u.Voices, Referents: u.Referents}
 }
 
-// DefaultChain is u.Site(s)'s chain less each referent whose default the
-// position does not admit: a default is a value, so unlike a description it
-// binds only where the narrowed type takes it. An example never does: a target's
-// stay on its node (docs/compilers/openapi.md#schema-examples).
+// DefaultChain is u.Site(s)'s chain less each referent past the narrowing whose
+// default the position does not admit: a default is a value, so unlike a
+// description it binds only where the narrowed type takes it. An example never
+// does: a target's stay on its node (docs/compilers/openapi.md#schema-examples).
 func (u Use) DefaultChain(s *oas3.Schema) []*oas3.Schema {
 	chain := u.Site(s).Chain()
 	if u.narrowed == nil {
 		return chain
 	}
-	own := len(chain) - len(u.Referents)
+	own := len(chain) - len(u.Referents) + u.narrowedFrom
 	return slices.Concat(chain[:own], slices.DeleteFunc(slices.Clone(chain[own:]), func(r *oas3.Schema) bool {
 		return !u.narrowed.takes(r.GetDefault())
 	}))
+}
+
+// Written returns the inline branches written for the position that a keeper of
+// what only the position can hold reads beside its schema: u's voices, then a
+// principal owning a node, which holds no such keyword itself.
+func (u Use) Written() []annotation.Voice {
+	if u.Principal == nil {
+		return u.Voices
+	}
+	return append(slices.Clone(u.Voices), *u.Principal)
 }
 
 // passage is how a use of a schema reads past it, into the one $ref its allOf
@@ -128,11 +145,13 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Reference
 		return u
 	}
 	if p.ownsNode(c, ts, t) {
-		u.Referents = append(u.Referents, p.principal.schema.GetSchema())
+		u.Principal = &annotation.Voice{Node: p.principal.schema.GetSchema(), At: p.principal.pointer}
+		u.Referents = append(u.Referents, u.Principal.Node)
 	}
 	if p.ref == nil {
 		return u
 	}
+	u.narrowedFrom = len(u.Referents)
 	u.Referents = append(u.Referents, p.ref.GetSchema())
 	u.Referents = append(u.Referents, lentBy(c, c.RefScope().TargetSchema(p.ref, p.ref.GetSchema())).Referents...)
 	u.narrowed = &p.admits
@@ -153,13 +172,14 @@ func nodeUse(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext
 // lentBy reads what s, the schema a $ref names, lends a use of it, nearest first:
 // s, the branches of its allOf that fold, and past a refinement, a decorator or a
 // narrowing enum whatever its own $ref lends in turn. Only s itself is read for
-// what it admits, the narrowest of the chain. A chain of $refs is read as
-// resolve.Scope.TargetSchema reads it, to its end, past what an alias on it
-// writes (GitHub #1029).
+// what it admits, the narrowest of the chain, so the narrowing starts past its
+// branches. A chain of $refs is read as resolve.Scope.TargetSchema reads it, to
+// its end, past what an alias on it writes (GitHub #1029).
 func lentBy(c lowering.Ctx, s *oas3.Schema) Use {
 	var u Use
 	if p, ok := passageOf(c, s, ""); ok && p.ref != nil {
 		u.narrowed = &p.admits
+		u.narrowedFrom = 1 + len(foldingBranches(s))
 	}
 	for range maxLentHops {
 		if s == nil {

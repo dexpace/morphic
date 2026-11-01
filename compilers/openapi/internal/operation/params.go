@@ -184,7 +184,7 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
 	diags := preserveParamVisibility(c, param, s, pointer)
-	for _, v := range use.Voices {
+	for _, v := range use.Written() {
 		diags = append(diags, preserveParamVisibility(c, param, v.Node, v.At)...)
 	}
 	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {

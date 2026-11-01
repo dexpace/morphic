@@ -55,6 +55,35 @@ func TestUse_ADefaultReadsOnlyWhereThePositionTakesIt(t *testing.T) {
 	assert.Nil(t, propertyOf(t, unread, "Holder", "f").Default, "a value it cannot read is none it takes")
 }
 
+// TestUse_ADefaultBesideItsValueSetStands pins that a narrowing judges only what
+// lies past it: a default written with the value set is the position's own, in or
+// out of the set, as a plain enum's is, and it stands ahead of what the $ref says.
+func TestUse_ADefaultBesideItsValueSetStands(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Mode: {type: string, enum: [a, b], default: a}
+    Plain: {enum: [a], default: other}
+    OnBranch: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a], default: other}]}
+    Beside: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a]}], default: other}
+    Lost: {enum: [a], default: other, allOf: [{$ref: '#/components/schemas/Mode'}]}
+    Holder:
+      type: object
+      properties:
+        plain: {$ref: '#/components/schemas/Plain'}
+        onBranch: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a], default: other}]}
+        beside: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a]}], default: other}
+        viaOnBranch: {$ref: '#/components/schemas/OnBranch'}
+        viaBeside: {$ref: '#/components/schemas/Beside'}
+        viaLost: {$ref: '#/components/schemas/Lost'}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, wire := range []string{"plain", "onBranch", "beside", "viaOnBranch", "viaBeside", "viaLost"} {
+		got := propertyOf(t, doc, "Holder", wire).Default
+		if assert.NotNil(t, got, wire) {
+			assert.Equal(t, "other", got.Str, wire)
+		}
+	}
+}
+
 // TestUse_ACarrierReadsThroughADecorator pins the object spelling of a read-only
 // use: a decorator over an object keeps its node, and the carrier holding it reads
 // what its $ref binds as the 3.1 spelling does. A composition adding a member says

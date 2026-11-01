@@ -793,7 +793,8 @@ one reads its target by this rule, and one holding a `$ref` to a refinement read
 visibility and redaction, on the carrier or else on the alias keeping it, and so does one an `enum`
 or a `const` beside its `allOf` passes over ([`competing-keywords`](#competing-keywords)), on the node
 that lowers to; its `default` counts only where the narrowed type takes it, and its examples stay on
-its node, as any target's do ([`schema-examples`](#schema-examples)). A sole `$ref` that a
+its node, as any target's do ([`schema-examples`](#schema-examples)). A `default` written with the
+value set is the position's own, in the set or not, as a plain `enum`'s is. A sole `$ref` that a
 decorator wraps ([annotations](../ir/annotations.md#decorators)) lends a carrier what it would lend
 written alone, since the visibility and `default` of the use have no other home. A composition
 saying anything else holds what it composes as `Base` and `Mixins`, which lends a carrier nothing.
@@ -803,6 +804,7 @@ saying anything else holds what it composes as `Base` and `Mixins`, which lends 
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
+  `schema.TestUse_ADefaultBesideItsValueSetStands`,
   `schema.TestUse_ACarrierReadsThroughADecorator`,
   `schema.TestUse_ALoopOfNarrowingEnumsEnds`
 
@@ -923,10 +925,10 @@ policy, on by default, reads such a null as widening what it is written on rathe
 with it: `nullable: true` admits null for the whole schema it is written on, whatever else that
 schema says, and keywords beside a `$ref` that admit null by themselves admit it for the whole
 reference, and a `nullable: true` on an inline `allOf` branch writing no `properties` admits it for
-the whole `allOf`, as beside the `allOf` it does ([`allof-inline-residue`](#allof-inline-residue)). A
-`type` without `null` beside a `$ref` still narrows what it lands on, and a `type: [T, "null"]` on a
-conjunct of an `allOf` conjoins with the rest. A reference whose
-null only that reading admits names `nullable-widening` in `TypeRef.Inferred` (invariant 6), so
+the whole schema holding the `allOf`, a `type` beside the `allOf` included, as beside the `allOf` it
+does ([`allof-inline-residue`](#allof-inline-residue)). A `type` without `null` beside a `$ref` still
+narrows what it lands on, and a `type: [T, "null"]` on a conjunct of an `allOf` conjoins with the
+rest. A reference whose null only that reading admits names `nullable-widening` in `TypeRef.Inferred` (invariant 6), so
 `Nullable` with no marker is the declared reading, and each such null is reported once as an info
 `openapi/inferred-nullable`, at the `nullable` keyword or, for keywords beside a `$ref`, at the
 schema that writes them, saying why its version does not admit it, whatever references its schema.
@@ -1078,7 +1080,8 @@ as if no `allOf` were written. A principal lowers at the pointer it is written a
 at a pointer naming its schema: a `$ref` as any `$ref` branch does, what is written beside it on the
 alias [models](../ir/models.md#composition-entries) describes, and an inline branch as a schema
 carried by the position. A branch that reduces to a shared node reads as written beside the `allOf`,
-and one owning a node keeps there what it writes.
+and one owning a node keeps there what it writes, a parameter keeping its `readOnly` and `writeOnly`
+as it keeps its schema's.
 
 What the conjuncts say lands where the position keeps what it writes: on the carrier
 ([`ref-use-site`](#ref-use-site)), else on an alias hoisted at the position only if it writes

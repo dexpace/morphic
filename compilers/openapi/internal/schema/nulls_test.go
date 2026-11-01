@@ -362,6 +362,15 @@ func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	doc, _ = compileNullable(t, besideEnum, false)
 	assert.False(t, holderP(t, doc).Nullable, "a branch the election passed over speaks for nothing")
 
+	besideType := openapitest.HolderSpec("3.0.3", "{type: string, allOf: [{description: d}, {nullable: true}]}", "")
+	doc, diags = compileNullable(t, besideType, false)
+	assert.True(t, holderP(t, doc).Nullable, "a type beside the allOf is what a branch speaking for it widens")
+	assert.NotEmpty(t, holderP(t, doc).Inferred)
+	assert.Len(t, withCode(diags, diag.InferredNullable), 1)
+	doc, _ = compileNullable(t, besideType, true)
+	assert.False(t, holderP(t, doc).Nullable)
+	assert.Contains(t, propertyOf(t, doc, "Holder", "p").Unmodeled, "openapi:allOf/1", "and with the policy off it stays kept")
+
 	besideUnion := openapitest.HolderSpec("3.0.3",
 		"{oneOf: [{type: string}, {type: integer}], allOf: [{$ref: '#/components/schemas/Plain'}, {nullable: true}]}", "")
 	doc, _ = compileNullable(t, besideUnion, false)

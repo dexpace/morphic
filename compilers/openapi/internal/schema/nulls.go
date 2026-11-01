@@ -191,12 +191,12 @@ func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
 
 // schema reads a whole schema that writes no $ref, by conjoining what each of
 // its keyword families says (keywords), then widening it where it writes
-// `nullable: true`.
+// `nullable: true` or an inline allOf branch speaking for it does.
 func (n *nulls) schema(s *oas3.Schema, site nullSite) nullReading {
 	if s == nil || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
-	return n.widen(s, n.keywords(s, site), site)
+	return n.widenByBranch(s, n.widen(s, n.keywords(s, site), site), site)
 }
 
 // ref reads a $ref usage as JSON Schema reads it: the keywords beside the $ref
@@ -429,16 +429,16 @@ func (n *nulls) allOf(s *oas3.Schema, site nullSite) nullReading {
 	for i, b := range s.GetAllOf() {
 		out = foldNullReadings(out, n.conjunct(b, site.child("allOf", strconv.Itoa(i))))
 	}
-	return n.widenByBranch(s, out, site)
+	return out
 }
 
 // widenByBranch is the lenient reading of a `nullable: true` that folds: written
 // on an inline branch that speaks for the position, it says what the keyword
-// beside the allOf says, and widens the composition (widen), where the declared
-// reading leaves it conjoined. A branch with a `type` of its own admitted the
-// null by itself, so widen said nothing of it, and it is noted here. A 3.1
-// `type: [T, "null"]` on a conjunct stays conjoined, which beside a $ref it does
-// not (docs/compilers/openapi.md#allof-refinement).
+// beside the allOf says, and widens all of s (widen), a `type` beside the allOf
+// included, where the declared reading leaves it conjoined. A branch with a `type`
+// of its own admitted the null by itself, so widen said nothing of it, and it is
+// noted here. A 3.1 `type: [T, "null"]` on a conjunct stays conjoined, which
+// beside a $ref it does not (docs/compilers/openapi.md#allof-refinement).
 func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) nullReading {
 	if !widensAny(s) || !allOfDecides(s) {
 		return r
