@@ -148,14 +148,14 @@ func TestVoices_AgreeingConjunctsSayItOnce(t *testing.T) {
 // TestVoices_ADisagreementIsReportedAsOne pins the words a kept branch draws: its
 // keywords have homes, so the report names the disagreement that kept them from
 // folding, in a composition and in a refinement, and says neither that the node
-// has no home nor that only a merge reads a branch. A branch with nothing to fold
-// keeps the wording of what it does keep.
+// has no home nor that nothing reads it. A branch with nothing to fold keeps the
+// wording of what it does keep.
 func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	t.Parallel()
 	const disagreed = "the conjuncts of this allOf disagree on a keyword this inline branch writes"
 	for name, tc := range map[string]struct{ schema, unsaid string }{
 		"a composition": {
-			"{allOf: [{$ref: '#/components/schemas/Obj'}, {description: one}, {description: two}]}", "only its properties",
+			"{allOf: [{$ref: '#/components/schemas/Obj'}, {description: one}, {description: two}]}", "nothing reads",
 		},
 		"a refinement": {
 			"{allOf: [{$ref: '#/components/schemas/Str'}, {description: one}, {description: two}]}", "has no home",

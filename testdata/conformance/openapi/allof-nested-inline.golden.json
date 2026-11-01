@@ -717,7 +717,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, so only its properties, required list and nested allOf compose; the branch (additionalProperties) is kept verbatim under Unmodeled",
+      "message": "inline allOf branch is merged in place, its nested allOf composes, and nothing reads the rest of it; the branch (additionalProperties) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/0"

@@ -417,26 +417,26 @@ func keptKeywords(residue []string, e allOfBranch) []string {
 	return slices.DeleteFunc(slices.Clone(residue), func(k string) bool { return k == "allOf" })
 }
 
-// unmergedWhy words why a branch with residue is kept. A flattened branch's
-// nested allOf composes too. A capped one is kept for its depth, not for allOf
-// being a keyword the merge declines, so allOf is left out of the keywords it
-// lists.
+// unmergedWhy words why a branch with residue is kept: what merges and folds is
+// gone from residue, which is the rest. A flattened branch's nested allOf composes
+// too. A capped one is kept for its depth, not for allOf being a keyword the merge
+// declines, so allOf is left out of the keywords it lists.
 func unmergedWhy(residue []string, e allOfBranch) string {
 	const keptTail = " is kept verbatim under Unmodeled"
 	switch {
 	case e.wrapper:
-		return "inline allOf branch is merged in place, so only its properties, required list and nested allOf compose; the branch (" +
+		return "inline allOf branch is merged in place, its nested allOf composes, and nothing reads the rest of it; the branch (" +
 			strings.Join(residue, ", ") + ")" + keptTail
 	case e.capped:
 		rest := keptKeywords(residue, e)
 		why := "inline allOf branch is nested past the flattening depth of " + strconv.Itoa(MaxAllOfFlattenDepth) +
-			", so its own allOf was not flattened; only its properties and required list compose, and the branch"
+			", so its own allOf was not flattened, and the branch"
 		if len(rest) > 0 {
 			why += " (" + strings.Join(rest, ", ") + ")"
 		}
 		return why + keptTail
 	default:
-		return "inline allOf branch is merged in place, so only its properties and required list compose; the branch (" +
+		return "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (" +
 			strings.Join(residue, ", ") + ")" + keptTail
 	}
 }

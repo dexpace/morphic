@@ -419,7 +419,7 @@ func TestAllOf_NestedEmptyAllOfKeptVerbatim(t *testing.T) {
 		assert.Contains(t,
 			openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/allOf/0"),
-			"only its properties and required list compose; the branch (allOf) is kept verbatim")
+			"nothing reads the rest of it; the branch (allOf) is kept verbatim")
 	}
 	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...),
 		"declaration order must not change the types")
