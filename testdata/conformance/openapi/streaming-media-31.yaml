@@ -20,6 +20,17 @@ paths:
                 type: object
                 properties:
                   ack: {type: string}
+  # A request that streams beside a response that does not.
+  /upload:
+    post:
+      operationId: uploadRows
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema: {$ref: '#/components/schemas/Frame'}
+      responses:
+        "204":
+          description: ingested
   /mixed:
     get:
       operationId: streamEither

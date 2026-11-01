@@ -165,12 +165,8 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.True(t, token.Secret)
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), token.Type.Target)
 
-	// An integer width selects its primitive whichever numeric type carries it.
-	for wire, want := range map[string]ir.PrimKind{"small": ir.PrimInt8, "count": ir.PrimUint32} {
-		p, ok := propByWire(h, wire)
-		require.True(t, ok)
-		assert.Equal(t, ir.PrimTypeID(want), p.Type.Target, "%s selects the shared primitive", wire)
-	}
+	assertSelectedPrimitives(t, doc, h)
+
 	// A float format on an integer admits only integral values, which no
 	// primitive narrower than integer holds, so it hoists over integer.
 	whole, ok := propByWire(h, "whole")
@@ -181,6 +177,40 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), ws.Base.Target)
 	require.NotNil(t, ws.Encoding)
 	assert.Equal(t, "double", ws.Encoding.Name)
+}
+
+// assertSelectedPrimitives pins the table's pairings this spec writes: each
+// selects a shared primitive, an integer width whichever numeric type carries
+// it, and so holds no node of its own. The primitive node has to be interned
+// too, or the reference would dangle.
+func assertSelectedPrimitives(t *testing.T, doc *ir.Document, h *ir.Model) {
+	t.Helper()
+	for wire, want := range map[string]ir.PrimKind{
+		"small":  ir.PrimInt8,
+		"count":  ir.PrimUint32,
+		"i16":    ir.PrimInt16,
+		"i32":    ir.PrimInt32,
+		"i64":    ir.PrimInt64,
+		"u8":     ir.PrimUint8,
+		"u16":    ir.PrimUint16,
+		"u64":    ir.PrimUint64,
+		"f32":    ir.PrimFloat32,
+		"f64":    ir.PrimFloat64,
+		"amount": ir.PrimDecimal,
+		"big":    ir.PrimDecimal128,
+		"at":     ir.PrimDatetimeOffset,
+		"opens":  ir.PrimTime,
+		"ttl":    ir.PrimDuration,
+	} {
+		t.Run(wire, func(t *testing.T) {
+			p, ok := propByWire(h, wire)
+			require.True(t, ok, "the property is declared")
+			assert.Equal(t, ir.PrimTypeID(want), p.Type.Target, "it selects the shared primitive")
+			prim, ok := doc.Types[p.Type.Target].(*ir.Primitive)
+			require.True(t, ok, "the primitive is interned")
+			assert.Equal(t, want, prim.Prim, "the node is the primitive it selects")
+		})
+	}
 }
 
 // assertSecretFormat pins where `format: password` lands at every position the

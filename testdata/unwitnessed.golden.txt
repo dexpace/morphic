@@ -184,7 +184,6 @@ member 0 0 Server.bindings
 member 0 0 Server.protocol
 member 0 0 Server.protocolVersion
 member 0 0 Server.tags
-empty 0 0 Service.auth
 member 0 0 Service.commonErrors
 member 0 0 Service.extends
 member 0 0 Service.namespace
@@ -252,16 +251,8 @@ value 0 0 PresenceKind "explicit"
 value 0 0 PresenceKind "implicit"
 value 0 0 PresenceKind "required"
 value 0 0 PrimKind "datetime"
-value 0 0 PrimKind "decimal"
-value 0 0 PrimKind "decimal128"
-value 0 0 PrimKind "duration"
 value 0 0 PrimKind "float"
-value 0 0 PrimKind "float32"
-value 0 0 PrimKind "time"
-value 0 0 PrimKind "uint16"
-value 0 0 PrimKind "uint64"
 value 0 0 TypeKind "external"
 value 0 0 ValueKind "ctor"
-value 0 0 ValueKind "null"
 value 0 0 ValueKind "ref"
 value 0 0 ValueKind "symbol"
