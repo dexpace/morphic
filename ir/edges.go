@@ -13,7 +13,8 @@ import (
 // reaches them, apart from td's own ID. A self-reference counts and an empty
 // target does not. It yields bare IDs, inventing no Nullable bit, and covers
 // positions that are not TypeRef fields: discriminator targets, a value's ref
-// and constructor types. A nil or typed-nil td yields nothing.
+// and constructor types. A [DocRef] is no edge: prose naming a type holds nothing
+// of it. A nil or typed-nil td yields nothing.
 //
 // A value nested past [MaxWalkDepth] levels is not entered; the reflection
 // walk is cut sooner, and pass.Validate reports that. A pointer two fields
