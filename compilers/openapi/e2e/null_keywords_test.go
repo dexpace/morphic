@@ -29,18 +29,22 @@ import (
 // since residue keeps the whole branch as written, the null included.
 func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
+	const noPaths = "paths: {}\n"
+	const parameter = "paths:\n  /a:\n    get:\n      parameters: [{name: q, in: query, schema: {%s}}]\n" +
+		"      responses: {'200': {description: ok}}\n"
 	positions := []struct {
-		name, format string
-		contexts     []string
+		name, paths, format string
+		contexts            []string
 	}{
-		{"component", "{%s}", []string{"", "type: object, ", "type: string, ", "type: array, items: {}, ", "const: null, "}},
-		{"property", "{type: object, properties: {p: {%s}}}", []string{"", "const: null, ", "nullable: true, "}},
-		{"allOf branch", "{allOf: [{%s}]}", []string{"", "type: object, "}},
+		{"component", noPaths, "{%s}", []string{"", "type: object, ", "type: string, ", "type: array, items: {}, ", "const: null, "}},
+		{"property", noPaths, "{type: object, properties: {p: {%s}}}", []string{"", "const: null, ", "nullable: true, "}},
+		{"allOf branch", noPaths, "{allOf: [{%s}]}", []string{"", "type: object, "}},
+		{"parameter", parameter, "{}", []string{"", "type: string, "}},
 	}
 	versions := []struct {
 		name  string
 		minor oas.Minor
-	}{{"3.0.3", oas.V30}, {"3.1.0", oas.V31}}
+	}{{"3.0.3", oas.V30}, {"3.1.0", oas.V31}, {"3.2.0", oas.V32}}
 	for _, version := range versions {
 		for _, keyword := range nullableKeywords(t, version.minor) {
 			for _, position := range positions {
@@ -51,12 +55,19 @@ func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 					t.Run(version.name+"/"+position.name+"/"+context+keyword, func(t *testing.T) {
 						t.Parallel()
 						spec := func(schema string) string {
-							return fmt.Sprintf("openapi: %s\ninfo: {title: t, version: \"1\"}\npaths: {}\n"+
-								"components:\n  schemas:\n    S: %s\n", version.name, fmt.Sprintf(position.format, schema))
+							paths, component := position.paths, position.format
+							if position.paths == parameter {
+								paths = fmt.Sprintf(parameter, schema)
+							} else {
+								component = fmt.Sprintf(position.format, schema)
+							}
+							return fmt.Sprintf("openapi: %s\ninfo: {title: t, version: \"1\"}\n%s"+
+								"components:\n  schemas:\n    S: %s\n", version.name, paths, component)
 						}
 						removed, removedDiags := compileSpecText(t, spec(strings.TrimSuffix(context, ", ")))
 						written, writtenDiags := compileSpecText(t, spec(context+fmt.Sprintf("%q: null", keyword)))
 						assert.Empty(t, cmp.Diff(removed.Types, written.Types), "a null keyword is the keyword left out")
+						assert.Empty(t, cmp.Diff(removed.Services, written.Services), "and so at a carrier")
 						assert.Empty(t, cmp.Diff(removedDiags, withoutNullWarning(t, writtenDiags, keyword), cmpopts.EquateEmpty()))
 					})
 				}

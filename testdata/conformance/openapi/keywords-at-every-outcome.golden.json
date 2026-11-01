@@ -56,6 +56,24 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/BesideAUnion/type/1": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BesideAUnion/type/1",
+      "name": {
+        "hint": "beside_a_union"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideAUnion/type/1"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/anon/components/schemas/Homed/type/1": {
       "kind": "model",
       "id": "t/anon/components/schemas/Homed/type/1",
@@ -393,6 +411,72 @@
           },
           "type": {
             "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/openapi/components/schemas/BesideAUnion": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/BesideAUnion",
+      "name": {
+        "source": "BesideAUnion",
+        "canonical": "beside_a_union"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:discriminator": {
+          "reason": "degraded_lowering",
+          "value": {
+            "propertyName": "kind"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideAUnion/discriminator"
+          }
+        },
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BesideAUnion/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideAUnion"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "array"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/BesideAUnion/type/1",
             "nullable": false
           },
           "docs": {}
@@ -960,13 +1044,31 @@
         "source": 0,
         "pointer": "/components/schemas/NoBound"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to a node of kind \"union\", which has no home for discriminator declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideAUnion"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the body is not a model, so it carries no composition to distribute into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BesideAUnion"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "keywords-at-every-outcome.yaml",
-      "hash": "6ffeb9d019d0ef247262262130ef08f1c679f1c7ae2075cedee84ae3b55ba15d"
+      "hash": "72993f311169e6424412c4baaa96bf878ddece7ed5e16e4ed8efc6e16423a059"
     }
   ]
 }

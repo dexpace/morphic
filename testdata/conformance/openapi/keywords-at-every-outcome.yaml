@@ -64,6 +64,15 @@ components:
     NoBound:
       type: [string, integer]
       pattern: ""
+    # A union beside the type array is kept, and so is what it was written for.
+    BesideAUnion:
+      type: [string, array]
+      items: {type: string}
+      oneOf:
+        - type: string
+        - type: integer
+      discriminator:
+        propertyName: kind
     Homed:
       type: [string, object]
       properties:

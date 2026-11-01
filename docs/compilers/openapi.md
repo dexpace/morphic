@@ -2378,11 +2378,14 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 A parameter schema's `xml`, and its `readOnly` and `writeOnly`, are kept verbatim in the parameter's
 `Unmodeled` (`no_ir_home`), reported as an info `openapi/degraded-construct` at the keyword, since
 `ir.Parameter` has no field for either. The `xml` of a schema that owns a node of its own stays on
-that node's `XMLHints` instead.
+that node's `XMLHints` instead. A schema with no node of its own keeps there too what any carrier
+keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that did
+not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads ([`unknown-keys`](#unknown-keys)).
 
 - Cases: `param-xml-residue`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestParams_SchemaVisibilityKeptUnderUnmodeled`,
+  `operation.TestParams_KeepWhatAnyCarrierKeeps`,
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
   `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`
 

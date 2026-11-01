@@ -1277,6 +1277,11 @@ func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Dia
 	assert.Equal(t, componentID("Node"), dyn.Type.Target, "a carrier keeps the reference, not an alias")
 	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, dyn.Unmodeled, "openapi:maxItems").Reason)
 
+	beside := typeByName(doc, "BesideAUnion").Common().Unmodeled
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, beside, "openapi:oneOf").Reason)
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, beside, "openapi:discriminator").Reason,
+		"no variant routes by the discriminator written for the union")
+
 	assert.Empty(t, typeByName(doc, "Homed").Common().Unmodeled, "each keyword reached a variant")
 	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Homed"))
 }
