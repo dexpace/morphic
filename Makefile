@@ -49,6 +49,10 @@ RACE_PACKAGES := $(shell sed -e '/^[[:space:]]*\#/d' -e '/^[[:space:]]*$$/d' scr
 # does not weaken it.
 RACE_SKIP := ^(TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly|TestLoad_DoesNextToNothingOnceItRefusesACancel)$$
 
+# The command `make race` runs over the listed packages, and over the planted race
+# that scripts/race-reach.sh requires it to report.
+RACE_TEST = $(GO) test -race -timeout 300s -skip '$(RACE_SKIP)'
+
 # A GOTOOLCHAIN already set in the environment wins, as an override should. It is
 # reported rather than refused, exactly as a local golangci-lint of the wrong
 # version is: a developer running the gate on another toolchain should know the
@@ -164,10 +168,15 @@ coverage:
 # The two tests skipped test cancellation one step at a time, which is
 # sequential, so the detector learns nothing from them and they are slow under
 # it. They still run at full size in `coverage`.
+#
+# scripts/race-reach.sh then runs the same command over the race planted in
+# internal/archtest/testdata/racereach and requires it to be reported, which
+# shows the command still runs the detector.
 race:
 	@test -n "$(strip $(RACE_PACKAGES))" || { \
 		echo "make race: scripts/race-packages.txt lists no package" >&2; exit 1; }
-	$(GO) test -race -timeout 300s -skip '$(RACE_SKIP)' $(RACE_PACKAGES)
+	$(RACE_TEST) $(RACE_PACKAGES)
+	./scripts/race-reach.sh $(RACE_TEST)
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)
