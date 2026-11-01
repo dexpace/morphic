@@ -5,7 +5,9 @@ package irverify
 
 import (
 	"go/types"
+	"maps"
 	"reflect"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -200,9 +202,11 @@ var integerFields = map[string]string{
 }
 
 // TestIntegerFields_AreAllClassified fails when ir declares an integer-typed
-// struct field that integerFields does not account for. A new index reference
-// added to the IR is invisible to every reflection walk in both checkers, so
-// nothing else would notice it going unchecked.
+// struct field that integerFields does not account for, or when integerFields
+// still classifies one ir no longer declares. A new index reference added to
+// the IR is invisible to every reflection walk in both checkers, so nothing
+// else would notice it going unchecked; a stale entry would leave the table
+// describing a field that is gone.
 func TestIntegerFields_AreAllClassified(t *testing.T) {
 	t.Parallel()
 	found := declaredIntegerFields(t)
@@ -211,6 +215,12 @@ func TestIntegerFields_AreAllClassified(t *testing.T) {
 		assert.Contains(t, integerFields, name,
 			"ir.%s is an integer field that integerFields does not classify: "+
 				"say whether it indexes a slice (and bounds-check it) or not", name)
+	}
+
+	for _, name := range slices.Sorted(maps.Keys(integerFields)) {
+		assert.True(t, slices.Contains(found, name),
+			"integerFields classifies %s, which ir does not declare as an integer field: "+
+				"drop the entry, or fix its name", name)
 	}
 }
 

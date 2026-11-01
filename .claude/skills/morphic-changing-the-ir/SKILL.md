@@ -35,8 +35,7 @@ cannot be turned off.
 - **Other PRs.** Before claiming a version, and after each merge of `main`, list the open PRs
   that claim one (`references/ir-lessons.md#version-collisions`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
-  `ir/irverify`; `references/ir-lessons.md` says which test reaches each, and which one lets a stale
-  entry for a deleted field pass.
+  `ir/irverify`; `references/ir-lessons.md` says which test reaches each.
 - **Census.** A fact no committed spec sets is a line of `testdata/unwitnessed.golden.txt`, which
   `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.
