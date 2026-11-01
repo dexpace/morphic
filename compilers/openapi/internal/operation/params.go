@@ -83,9 +83,9 @@ func lowerParameter(c lowering.Ctx, ts *compile.Types, id ir.ParamID, p *soa.Par
 		// it outside in: query, and warns where the style gives it no effect.
 		AllowEmptyValue: p.GetAllowEmptyValue(),
 	}
-	media, diags := fillParamType(c, ts, &param, &binding, p, pptr)
+	elected, diags := fillParamType(c, ts, &param, &binding, p, pptr)
 	diags = append(diags, reservedHeaderParamDiag(c, name, in, pptr)...)
-	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr, media)...)
+	return param, binding, append(diags, fillParamDetail(c, &param, p, pptr, elected)...)
 }
 
 // reservedHeaderParamDiag reports a header parameter OpenAPI §4.8.12 reserves —
@@ -117,7 +117,7 @@ func reservedHeaderParamDiag(c lowering.Ctx, name string, in soa.ParameterIn, pp
 // parameter, whose media type goes on the binding. Constraints come from that
 // same schema position; the default comes from it too, falling back to its $ref
 // target (docs/compilers/openapi.md#ref-use-site).
-func fillParamType(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) ([]ir.Example, []ir.Diagnostic) {
+func fillParamType(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, binding *ir.HTTPParamBinding, p *soa.Parameter, pptr jsontext.Pointer) (typeSpelling, []ir.Diagnostic) {
 	elected, diags := electTypeSpelling(c, p.GetSchema(), p.GetContent(), p.GetRootNode(), pptr,
 		"parameter", "ir.Parameter")
 	paramType, typeDiags := schema.CarriedRef(c, ts, schema.TopLevelDepth, elected.js, elected.pointer)
@@ -125,7 +125,7 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, bindi
 	param.Type = paramType
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, elected.unmodeled)
 	binding.ContentType = elected.mediaType
-	return elected.examples, append(diags, fillParamSchema(c, ts, param, elected.js, elected.pointer)...)
+	return elected, append(diags, fillParamSchema(c, ts, param, elected.js, elected.pointer)...)
 }
 
 // fillParamSchema reads a parameter schema's default value and scalar
@@ -273,7 +273,7 @@ func paramHoldsResidue(keyword string) bool {
 // been preserved: a promotion reads the kept Unmodeled entries rather
 // than the source node, so a parameter whose x-* keys are not in the map yet
 // has nothing to promote from (GitHub #423).
-func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, media []ir.Example) []ir.Diagnostic {
+func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, elected typeSpelling) []ir.Diagnostic {
 	if d := p.GetDescription(); d != "" {
 		param.Docs.Description = d
 	}
@@ -281,15 +281,14 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 		param.Deprecation = &ir.Deprecation{}
 	}
 	own, diags := exampleList(c, p.GetExample(), p.GetExamples(), pptr)
-	if ex := positionExamples(own, media); len(ex) > 0 {
+	if ex := positionExamples(own, elected.examples); len(ex) > 0 {
 		param.Examples = ex
 	}
 	pExt, extDiags := annotation.ExtensionsFrom(p.GetExtensions(), c.ProvenanceAt, pptr)
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
 	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.ProvenanceAt, pptr)...)
-	diags = append(diags, c.Promoter().Deprecation(param.Unmodeled, &param.Deprecation, &param.Provenance)...)
-	return append(diags, c.Promoter().Redaction(param.Unmodeled, &param.Secret, &param.Provenance)...)
+	return append(diags, schema.PromoteUse(c, elected.js, param.Unmodeled, &param.Deprecation, &param.Secret, &param.Provenance)...)
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

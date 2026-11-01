@@ -103,6 +103,7 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name stri
 	}
 	diags = append(diags, schema.FillPropertyDetail(dc, ts, &p, elected.js, elected.pointer)...)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
+	diags = append(diags, schema.PromoteUse(dc, elected.js, p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
 	lowered := ir.Header{Property: p, Explode: h.Explode}
 	if h.Style != nil {
 		lowered.Style = string(*h.Style)
@@ -128,7 +129,5 @@ func applyHeaderAnnotations(c lowering.Ctx, p *ir.Property, h *soa.Header, hdecl
 	hExt, extDiags := annotation.ExtensionsFrom(h.GetExtensions(), c.ProvenanceAt, hdecl)
 	diags = append(diags, extDiags...)
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, hExt)
-	diags = append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.ProvenanceAt, hdecl)...)
-	diags = append(diags, c.Promoter().Deprecation(p.Unmodeled, &p.Deprecation, &p.Provenance)...)
-	return append(diags, c.Promoter().Redaction(p.Unmodeled, &p.Secret, &p.Provenance)...)
+	return append(diags, annotation.UnknownKeysIn(&p.Unmodeled, h, c.ProvenanceAt, hdecl)...)
 }

@@ -6,6 +6,7 @@ package lowering_test
 import (
 	"encoding/json/jsontext"
 	"go/types"
+	"slices"
 	"sync"
 	"testing"
 
@@ -40,12 +41,12 @@ func vendorExtension(rawJSON string) ir.UnmodeledEntry {
 	}
 }
 
-// TestPromoteDeprecation_FillsTheFieldsThePolicyNames pins what each mapping
+// TestPromoterDeprecation_FillsTheFieldsThePolicyNames pins what each mapping
 // writes, one field at a time, because they share a struct and a promotion
 // writing the wrong member of it would still look filled. The removal pair is
 // why that matters most: a date written into the version field is the defect
 // GitHub #417 records, and it reads as a filled Deprecation either way.
-func TestPromoteDeprecation_FillsTheFieldsThePolicyNames(t *testing.T) {
+func TestPromoterDeprecation_FillsTheFieldsThePolicyNames(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name   string
@@ -63,7 +64,7 @@ func TestPromoteDeprecation_FillsTheFieldsThePolicyNames(t *testing.T) {
 			dep := new(ir.Deprecation)
 			var prov ir.Provenance
 			diags := promoter(mapping(tc.target, lowering.ExtensionSource{Key: "x-k"})).
-				Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"why"`)}, &dep, &prov)
+				Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"why"`)}, lowering.Referent{}, &dep, &prov)
 
 			assert.Empty(t, diags)
 			assert.Equal(t, tc.want, *dep)
@@ -72,16 +73,16 @@ func TestPromoteDeprecation_FillsTheFieldsThePolicyNames(t *testing.T) {
 	}
 }
 
-// TestPromoteDeprecation_LeavesTheEntryItRead is the losslessness half: the
+// TestPromoterDeprecation_LeavesTheEntryItRead is the losslessness half: the
 // promotion is a second reading of a preserved entry, never a move, so a
 // consumer that disagrees with the guess can still read what the document
 // actually wrote.
-func TestPromoteDeprecation_LeavesTheEntryItRead(t *testing.T) {
+func TestPromoterDeprecation_LeavesTheEntryItRead(t *testing.T) {
 	t.Parallel()
 	unmodeled := ir.Unmodeled{"openapi:x-deprecated-reason": vendorExtension(`"why"`)}
 	dep := new(ir.Deprecation)
 	var prov ir.Provenance
-	promoter(lowering.ExtensionPromotions{}).Deprecation(unmodeled, &dep, &prov)
+	promoter(lowering.ExtensionPromotions{}).Deprecation(unmodeled, lowering.Referent{}, &dep, &prov)
 
 	entry, kept := unmodeled["openapi:x-deprecated-reason"]
 	require.True(t, kept, "the entry survives its own promotion")
@@ -89,11 +90,11 @@ func TestPromoteDeprecation_LeavesTheEntryItRead(t *testing.T) {
 	assert.JSONEq(t, `"why"`, string(entry.Value))
 }
 
-// TestPromoteDeprecation_WritesNothing pins every shape that must leave the
+// TestPromoterDeprecation_WritesNothing pins every shape that must leave the
 // node exactly as it was. Each is a different reason, and a promotion that
 // answered any of them by writing would put a value in the IR that the document
 // did not say.
-func TestPromoteDeprecation_WritesNothing(t *testing.T) {
+func TestPromoterDeprecation_WritesNothing(t *testing.T) {
 	t.Parallel()
 	filled := ir.Unmodeled{"openapi:x-deprecated-reason": vendorExtension(`"why"`)}
 	tests := []struct {
@@ -117,7 +118,7 @@ func TestPromoteDeprecation_WritesNothing(t *testing.T) {
 			t.Parallel()
 			dep := new(ir.Deprecation)
 			var prov ir.Provenance
-			diags := promoter(tc.policy).Deprecation(tc.unmodeled, &dep, &prov)
+			diags := promoter(tc.policy).Deprecation(tc.unmodeled, lowering.Referent{}, &dep, &prov)
 			assert.Empty(t, diags)
 			assert.Equal(t, ir.Deprecation{}, *dep)
 			assert.Empty(t, prov.Inferred, "nothing was inferred, so nothing is marked")
@@ -125,32 +126,32 @@ func TestPromoteDeprecation_WritesNothing(t *testing.T) {
 	}
 }
 
-// TestPromoteDeprecation_UndeprecatedNodeIsTheWholeAnswer pins the nil cases,
+// TestPromoterDeprecation_UndeprecatedNodeIsTheWholeAnswer pins the nil cases,
 // which are not an oversight to guard against but the ordinary shape: a node
 // that never said it was deprecated has no Deprecation to fill, and its
 // extension stays where it is.
-func TestPromoteDeprecation_UndeprecatedNodeIsTheWholeAnswer(t *testing.T) {
+func TestPromoterDeprecation_UndeprecatedNodeIsTheWholeAnswer(t *testing.T) {
 	t.Parallel()
 	c := promoter(lowering.ExtensionPromotions{})
 	unmodeled := ir.Unmodeled{"openapi:x-deprecated-reason": vendorExtension(`"why"`)}
-	assert.Empty(t, c.Deprecation(unmodeled, nil, &ir.Provenance{}))
+	assert.Empty(t, c.Deprecation(unmodeled, lowering.Referent{}, nil, &ir.Provenance{}))
 
 	var undeprecated *ir.Deprecation
 	var prov ir.Provenance
-	assert.Empty(t, c.Deprecation(unmodeled, &undeprecated, &prov))
+	assert.Empty(t, c.Deprecation(unmodeled, lowering.Referent{}, &undeprecated, &prov))
 	assert.Nil(t, undeprecated, "a member states no deprecation")
 	assert.Empty(t, prov.Inferred)
 
 	dep := new(ir.Deprecation)
-	assert.Empty(t, c.Deprecation(unmodeled, &dep, nil))
+	assert.Empty(t, c.Deprecation(unmodeled, lowering.Referent{}, &dep, nil))
 	assert.Equal(t, ir.Deprecation{}, *dep, "with nowhere to record the guess, none is made")
 }
 
-// TestPromoteDeprecation_ValueThatIsNotTextIsReported pins the one thing a
+// TestPromoterDeprecation_ValueThatIsNotTextIsReported pins the one thing a
 // promotion reports. Every Deprecation field is prose or a version, so a value
 // of another shape means the document uses the key for something else — which
 // is a reason to leave the field empty and say so, not to coerce.
-func TestPromoteDeprecation_ValueThatIsNotTextIsReported(t *testing.T) {
+func TestPromoterDeprecation_ValueThatIsNotTextIsReported(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, value string
@@ -166,7 +167,7 @@ func TestPromoteDeprecation_ValueThatIsNotTextIsReported(t *testing.T) {
 			unmodeled := ir.Unmodeled{"openapi:x-deprecated-reason": vendorExtension(tc.value)}
 			dep := new(ir.Deprecation)
 			var prov ir.Provenance
-			diags := promoter(lowering.ExtensionPromotions{}).Deprecation(unmodeled, &dep, &prov)
+			diags := promoter(lowering.ExtensionPromotions{}).Deprecation(unmodeled, lowering.Referent{}, &dep, &prov)
 
 			require.Len(t, diags, 1)
 			assert.Equal(t, ir.SeverityInfo, diags[0].Severity)
@@ -179,22 +180,22 @@ func TestPromoteDeprecation_ValueThatIsNotTextIsReported(t *testing.T) {
 	}
 }
 
-// TestPromoteDeprecation_MarksOnceBesideWhateverWasAlreadyThere pins the two
+// TestPromoterDeprecation_MarksOnceBesideWhateverWasAlreadyThere pins the two
 // halves of the marker. A heuristic already recorded must survive, since
 // Provenance.Inferred holds one string; and a node annotated twice — which a
 // component reached by two references is — must not accumulate the same name
 // per reference.
-func TestPromoteDeprecation_MarksOnceBesideWhateverWasAlreadyThere(t *testing.T) {
+func TestPromoterDeprecation_MarksOnceBesideWhateverWasAlreadyThere(t *testing.T) {
 	t.Parallel()
 	c := promoter(lowering.ExtensionPromotions{})
 	unmodeled := ir.Unmodeled{"openapi:x-deprecated-reason": vendorExtension(`"why"`)}
 	dep := new(ir.Deprecation)
 	prov := ir.Provenance{Inferred: "group-path-prefix"}
 
-	c.Deprecation(unmodeled, &dep, &prov)
+	c.Deprecation(unmodeled, lowering.Referent{}, &dep, &prov)
 	assert.Equal(t, ir.Inferred("group-path-prefix,extension-promotion"), prov.Inferred)
 
-	c.Deprecation(unmodeled, &dep, &prov)
+	c.Deprecation(unmodeled, lowering.Referent{}, &dep, &prov)
 	assert.Equal(t, ir.Inferred("group-path-prefix,extension-promotion"), prov.Inferred,
 		"a second reading of the same node adds no second marker")
 }
@@ -229,7 +230,7 @@ func TestPromoter_PolicyIsCopiedIntoTheContext(t *testing.T) {
 
 	dep := new(ir.Deprecation)
 	var prov ir.Provenance
-	c.Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"why"`)}, &dep, &prov)
+	c.Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"why"`)}, lowering.Referent{}, &dep, &prov)
 	assert.Equal(t, "why", dep.Message, "the policy the context read is the one it was given")
 }
 
@@ -257,7 +258,7 @@ func TestPromoter_ReadsSourcesInPolicyOrder(t *testing.T) {
 			diags := promoter(mapping(lowering.TargetDeprecationMessage, tc.order...)).Deprecation(ir.Unmodeled{
 				"openapi:x-alpha-msg": {Value: ir.RawValue(`"FROM-ALPHA"`), Provenance: ir.Provenance{Pointer: "/x-alpha-msg"}},
 				"openapi:x-zulu-msg":  {Value: ir.RawValue(`"FROM-ZULU"`), Provenance: ir.Provenance{Pointer: "/x-zulu-msg"}},
-			}, &dep, &prov)
+			}, lowering.Referent{}, &dep, &prov)
 
 			assert.Equal(t, tc.want, dep.Message)
 			require.Len(t, diags, 1, "the loser is reported")
@@ -282,7 +283,7 @@ func TestPromoter_SourcesThatAgreeReportNothing(t *testing.T) {
 	diags := promoter(policy).Deprecation(ir.Unmodeled{
 		"openapi:x-b": vendorExtension(`"same"`),
 		"openapi:x-c": vendorExtension(`"same"`),
-	}, &dep, &prov)
+	}, lowering.Referent{}, &dep, &prov)
 	assert.Empty(t, diags)
 	assert.Equal(t, "same", dep.Message, "a source the document does not write is passed over")
 }
@@ -315,14 +316,14 @@ func TestPromoter_MemberReadsOneFactOfAnObject(t *testing.T) {
 			var prov ir.Provenance
 			diags := promoter(policy).Deprecation(ir.Unmodeled{
 				"openapi:x-k": {Value: ir.RawValue(tc.value), Provenance: ir.Provenance{Pointer: "/k"}},
-			}, &dep, &prov)
+			}, lowering.Referent{}, &dep, &prov)
 
 			assert.Equal(t, tc.want, *dep)
-			var at []jsontext.Pointer
+			at := make([]jsontext.Pointer, 0, len(diags))
 			for _, d := range diags {
 				at = append(at, d.Provenance.Pointer)
 			}
-			assert.Equal(t, tc.at, at, "each report names the key or member at fault")
+			assert.ElementsMatch(t, tc.at, at, "each report names the key or member at fault")
 			if tc.want == (ir.Deprecation{}) {
 				assert.Empty(t, prov.Inferred, "nothing was read, so nothing is marked")
 			}
@@ -341,7 +342,7 @@ func TestPromoter_NotAnObjectReportsOnceAcrossItsMembers(t *testing.T) {
 	}}
 	dep := new(ir.Deprecation)
 	var prov ir.Provenance
-	diags := promoter(policy).Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"why"`)}, &dep, &prov)
+	diags := promoter(policy).Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(`"why"`)}, lowering.Referent{}, &dep, &prov)
 	require.Len(t, diags, 2)
 	assert.Equal(t, diags[0], diags[1], "identical, so the compile's list holds one")
 }
@@ -423,13 +424,13 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var dep *ir.Deprecation
 			var prov ir.Provenance
-			diags := p.Deprecation(unmodeled, &dep, &prov)
+			diags := p.Deprecation(unmodeled, lowering.Referent{}, &dep, &prov)
 			return dep != nil, diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			dep := new(ir.Deprecation)
 			var prov ir.Provenance
-			diags := p.Deprecation(unmodeled, &dep, &prov)
+			diags := p.Deprecation(unmodeled, lowering.Referent{}, &dep, &prov)
 			return *dep != (ir.Deprecation{}), diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
@@ -447,7 +448,7 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var redact bool
 			var prov ir.Provenance
-			diags := p.Redaction(unmodeled, &redact, &prov)
+			diags := p.Redaction(unmodeled, lowering.Referent{}, &redact, &prov)
 			return redact, diags
 		},
 	}
@@ -478,11 +479,11 @@ func TestExtensionTarget_EveryDeclaredTargetHasAnApplier(t *testing.T) {
 	}
 }
 
-// TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode pins the promotion the
+// TestPromoterEnumOpenness_ClearsClosedAndMarksTheNode pins the promotion the
 // vocabulary's one non-Deprecation target performs. Every enum the compiler
 // builds is closed, so the write here is the whole of what x-extensible-enum
 // buys a consumer, and the marker is what says a heuristic made it.
-func TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
+func TestPromoterEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
@@ -509,10 +510,10 @@ func TestPromoteEnumOpenness_ClearsClosedAndMarksTheNode(t *testing.T) {
 	}
 }
 
-// TestPromoteEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere is the marker
+// TestPromoterEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere is the marker
 // pin its deprecation twin makes, at this carrier: a name already in the list
 // survives the promotion, and a second reading of the node adds none.
-func TestPromoteEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere(t *testing.T) {
+func TestPromoterEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere(t *testing.T) {
 	t.Parallel()
 	c := promoter(lowering.ExtensionPromotions{})
 	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`true`)}
@@ -527,11 +528,11 @@ func TestPromoteEnumOpenness_MarksOnceBesideWhateverWasAlreadyThere(t *testing.T
 		"a second reading of the same node adds no second marker")
 }
 
-// TestPromoteEnumOpenness_LeavesTheEntryItRead is the losslessness half, for
+// TestPromoterEnumOpenness_LeavesTheEntryItRead is the losslessness half, for
 // the same reason its deprecation twin is: the promotion is a second reading of
 // a preserved entry, so a consumer that disagrees still has what was written —
 // which for this key is the member list itself.
-func TestPromoteEnumOpenness_LeavesTheEntryItRead(t *testing.T) {
+func TestPromoterEnumOpenness_LeavesTheEntryItRead(t *testing.T) {
 	t.Parallel()
 	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
 	promoter(lowering.ExtensionPromotions{}).EnumOpenness(unmodeled, new(ir.Enum{Closed: true}), &ir.Provenance{})
@@ -542,11 +543,11 @@ func TestPromoteEnumOpenness_LeavesTheEntryItRead(t *testing.T) {
 	assert.JSONEq(t, `["a","b"]`, string(entry.Value))
 }
 
-// TestPromoteEnumOpenness_WritesNothing pins every shape that must leave the
+// TestPromoterEnumOpenness_WritesNothing pins every shape that must leave the
 // enum closed. The last row is the one that is not an absence: a document
 // writing the key with a boolean false says the set is *not* extensible, and
 // reading presence alone there would record the opposite of what it said.
-func TestPromoteEnumOpenness_WritesNothing(t *testing.T) {
+func TestPromoterEnumOpenness_WritesNothing(t *testing.T) {
 	t.Parallel()
 	filled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
 	tests := []struct {
@@ -583,11 +584,11 @@ func TestPromoteEnumOpenness_WritesNothing(t *testing.T) {
 	}
 }
 
-// TestPromoteEnumOpenness_NonEnumCarrierIsTheWholeAnswer pins the nil cases,
+// TestPromoterEnumOpenness_NonEnumCarrierIsTheWholeAnswer pins the nil cases,
 // which are the ordinary shape rather than a guard: most nodes an x-* key can
 // sit on are not enums, and a node with no provenance could not record the
 // guess (promotion rule 4).
-func TestPromoteEnumOpenness_NonEnumCarrierIsTheWholeAnswer(t *testing.T) {
+func TestPromoterEnumOpenness_NonEnumCarrierIsTheWholeAnswer(t *testing.T) {
 	t.Parallel()
 	c := promoter(lowering.ExtensionPromotions{})
 	unmodeled := ir.Unmodeled{"openapi:x-extensible-enum": vendorExtension(`["a","b"]`)}
@@ -598,10 +599,10 @@ func TestPromoteEnumOpenness_NonEnumCarrierIsTheWholeAnswer(t *testing.T) {
 	assert.True(t, enum.Closed, "with nowhere to record the guess, none is made")
 }
 
-// TestPromoteEnumOpenness_FirstStatedDecides holds the enum to the order every
+// TestPromoterEnumOpenness_FirstStatedDecides holds the enum to the order every
 // other target reads in: the explicit false a policy reads first declines, and
 // a later key stating the set open loses and is reported.
-func TestPromoteEnumOpenness_FirstStatedDecides(t *testing.T) {
+func TestPromoterEnumOpenness_FirstStatedDecides(t *testing.T) {
 	t.Parallel()
 	enum := ir.Enum{Closed: true}
 	var prov ir.Provenance
@@ -617,11 +618,11 @@ func TestPromoteEnumOpenness_FirstStatedDecides(t *testing.T) {
 	assert.Contains(t, diags[0].Message, "x-b")
 }
 
-// TestPromoteDeprecation_KeyStatesIt pins the one target that creates what the
+// TestPromoterDeprecation_KeyStatesIt pins the one target that creates what the
 // others fill. Text and a boolean are the two shapes such a key takes, a key
 // holding other words states nothing with them, and any other shape is reported
 // because the document means something else by the key.
-func TestPromoteDeprecation_KeyStatesIt(t *testing.T) {
+func TestPromoterDeprecation_KeyStatesIt(t *testing.T) {
 	t.Parallel()
 	policy := mapping(lowering.TargetDeprecation, lowering.ExtensionSource{Key: "x-k"})
 	for _, tc := range []struct {
@@ -642,7 +643,7 @@ func TestPromoteDeprecation_KeyStatesIt(t *testing.T) {
 			t.Parallel()
 			var dep *ir.Deprecation
 			var prov ir.Provenance
-			diags := promoter(policy).Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(tc.value)}, &dep, &prov)
+			diags := promoter(policy).Deprecation(ir.Unmodeled{"openapi:x-k": vendorExtension(tc.value)}, lowering.Referent{}, &dep, &prov)
 
 			assert.Equal(t, tc.deprecated, dep != nil)
 			if tc.deprecated {
@@ -655,34 +656,34 @@ func TestPromoteDeprecation_KeyStatesIt(t *testing.T) {
 	}
 }
 
-// TestPromoteDeprecation_KeyLeavesADeclaredDeprecationUnmarked pins what a key
+// TestPromoterDeprecation_KeyLeavesADeclaredDeprecationUnmarked pins what a key
 // beside the keyword adds: nothing. The Deprecation stays the keyword's, and a
 // node the promotion wrote nothing into carries no marker, which is what tells
 // the 267 golden operations writing both from the ones the key alone deprecates.
-func TestPromoteDeprecation_KeyLeavesADeclaredDeprecationUnmarked(t *testing.T) {
+func TestPromoterDeprecation_KeyLeavesADeclaredDeprecationUnmarked(t *testing.T) {
 	t.Parallel()
 	declared := new(ir.Deprecation)
 	dep := declared
 	var prov ir.Provenance
 	diags := promoter(lowering.ExtensionPromotions{}).Deprecation(
-		ir.Unmodeled{"openapi:x-fern-availability": vendorExtension(`"deprecated"`)}, &dep, &prov)
+		ir.Unmodeled{"openapi:x-fern-availability": vendorExtension(`"deprecated"`)}, lowering.Referent{}, &dep, &prov)
 
 	assert.Empty(t, diags)
 	assert.Same(t, declared, dep)
 	assert.Empty(t, prov.Inferred)
 }
 
-// TestPromoteDeprecation_KeyGivesTheMembersSomethingToFill pins the order of the
+// TestPromoterDeprecation_KeyGivesTheMembersSomethingToFill pins the order of the
 // two readings: the deprecation a key creates is what the members then fill, so
 // a member read first would find nothing and be dropped.
-func TestPromoteDeprecation_KeyGivesTheMembersSomethingToFill(t *testing.T) {
+func TestPromoterDeprecation_KeyGivesTheMembersSomethingToFill(t *testing.T) {
 	t.Parallel()
 	var dep *ir.Deprecation
 	var prov ir.Provenance
 	diags := promoter(lowering.ExtensionPromotions{}).Deprecation(ir.Unmodeled{
 		"openapi:x-fern-availability": vendorExtension(`"deprecated"`),
 		"openapi:x-sunset":            vendorExtension(`"2030-01-01"`),
-	}, &dep, &prov)
+	}, lowering.Referent{}, &dep, &prov)
 
 	assert.Empty(t, diags)
 	require.NotNil(t, dep)
@@ -690,10 +691,10 @@ func TestPromoteDeprecation_KeyGivesTheMembersSomethingToFill(t *testing.T) {
 	assert.Equal(t, lowering.ExtensionPromotionHeuristic, prov.Inferred)
 }
 
-// TestPromoteStability_ReadsEachWord is the vocabulary, one row a word, under a
+// TestPromoterStability_ReadsEachWord is the vocabulary, one row a word, under a
 // key only this target reads. Every word the IR does not hold is reported there,
 // since nothing else takes it up.
-func TestPromoteStability_ReadsEachWord(t *testing.T) {
+func TestPromoterStability_ReadsEachWord(t *testing.T) {
 	t.Parallel()
 	policy := mapping(lowering.TargetStability, lowering.ExtensionSource{Key: "x-k"})
 	for _, tc := range []struct {
@@ -759,7 +760,7 @@ func TestPromoter_OneKeyTwoTargetsReportsOnce(t *testing.T) {
 			var dep *ir.Deprecation
 			var tier ir.Stability
 			var prov ir.Provenance
-			diags := append(p.Deprecation(unmodeled, &dep, &prov), p.Stability(unmodeled, &tier, &prov)...)
+			diags := append(p.Deprecation(unmodeled, lowering.Referent{}, &dep, &prov), p.Stability(unmodeled, &tier, &prov)...)
 
 			assert.Equal(t, tc.deprecated, dep != nil)
 			assert.Equal(t, ir.StabilityUnstated, tier)
@@ -768,11 +769,11 @@ func TestPromoter_OneKeyTwoTargetsReportsOnce(t *testing.T) {
 	}
 }
 
-// TestPromoteRedaction_OnlyTrueWrites pins the reading of a boolean key. A false
+// TestPromoterRedaction_OnlyTrueWrites pins the reading of a boolean key. A false
 // states nothing and is no defect, and any other shape is reported, since a
 // redaction read from a value that does not say so would hide what was not
 // asked to be hidden.
-func TestPromoteRedaction_OnlyTrueWrites(t *testing.T) {
+func TestPromoterRedaction_OnlyTrueWrites(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		value    string
@@ -791,7 +792,7 @@ func TestPromoteRedaction_OnlyTrueWrites(t *testing.T) {
 			var redact bool
 			var prov ir.Provenance
 			diags := promoter(lowering.ExtensionPromotions{}).Redaction(
-				ir.Unmodeled{"openapi:x-sensitive": vendorExtension(tc.value)}, &redact, &prov)
+				ir.Unmodeled{"openapi:x-sensitive": vendorExtension(tc.value)}, lowering.Referent{}, &redact, &prov)
 
 			assert.Equal(t, tc.redacted, redact)
 			assert.Equal(t, tc.redacted, prov.Inferred == lowering.ExtensionPromotionHeuristic)
@@ -800,15 +801,15 @@ func TestPromoteRedaction_OnlyTrueWrites(t *testing.T) {
 	}
 }
 
-// TestPromoteRedaction_LeavesADeclaredRedactionUnmarked pins the marker to what
+// TestPromoterRedaction_LeavesADeclaredRedactionUnmarked pins the marker to what
 // the promotion wrote: a value `format: password` already redacts takes no guess
 // from a key beside it.
-func TestPromoteRedaction_LeavesADeclaredRedactionUnmarked(t *testing.T) {
+func TestPromoterRedaction_LeavesADeclaredRedactionUnmarked(t *testing.T) {
 	t.Parallel()
 	redact := true
 	var prov ir.Provenance
 	diags := promoter(lowering.ExtensionPromotions{}).Redaction(
-		ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, &redact, &prov)
+		ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}, lowering.Referent{}, &redact, &prov)
 	assert.Empty(t, diags)
 	assert.True(t, redact)
 	assert.Empty(t, prov.Inferred)
@@ -840,11 +841,100 @@ func TestPromoter_OffWritesNothing(t *testing.T) {
 			var tier ir.Stability
 			var redact bool
 			assert.Empty(t, tc.p.Stability(tc.unmodeled, &tier, tc.prov))
-			assert.Empty(t, tc.p.Redaction(tc.unmodeled, &redact, tc.prov))
+			assert.Empty(t, tc.p.Redaction(tc.unmodeled, lowering.Referent{}, &redact, tc.prov))
 			assert.Equal(t, ir.StabilityUnstated, tier)
 			assert.False(t, redact)
 		})
 	}
 	assert.Empty(t, on.Stability(stating, nil, &ir.Provenance{}))
-	assert.Empty(t, on.Redaction(stating, nil, &ir.Provenance{}))
+	assert.Empty(t, on.Redaction(stating, lowering.Referent{}, nil, &ir.Provenance{}))
+}
+
+// TestPromoter_ReferentLendsBeneathOwnKeys pins the merge a use site makes, a
+// key on the carrier winning field by field and the rest coming from the
+// referent. A referent's misfit reports nothing here, since it reports where it
+// is written, and a carrier's own still does.
+func TestPromoter_ReferentLendsBeneathOwnKeys(t *testing.T) {
+	t.Parallel()
+	own := ir.Unmodeled{
+		"openapi:x-deprecated-reason": vendorExtension(`"mine"`),
+		"openapi:x-sunset":            vendorExtension(`7`),
+	}
+	from := lowering.Referent{Entries: ir.Unmodeled{
+		"openapi:x-deprecated-reason": vendorExtension(`"theirs"`),
+		"openapi:x-deprecated-since":  vendorExtension(`9`),
+		"openapi:x-sunset":            vendorExtension(`"2030-01-01"`),
+	}}
+	dep := new(ir.Deprecation)
+	var prov ir.Provenance
+	diags := promoter(lowering.ExtensionPromotions{}).Deprecation(own, from, &dep, &prov)
+
+	assert.Equal(t, ir.Deprecation{Message: "mine", RemovalDate: "2030-01-01"}, *dep)
+	assert.Equal(t, lowering.ExtensionPromotionHeuristic, prov.Inferred)
+	require.Len(t, diags, 1, "a carrier reports its own misfit, and no referent's")
+	assert.Contains(t, diags[0].Message, "x-sunset")
+}
+
+// TestPromoter_AReferentAloneFillsAnEmptyCarrier is why neither reader's guard
+// asks only of own: a bare $ref keeps no entry of its own, and it is the shape
+// most use sites have.
+func TestPromoter_AReferentAloneFillsAnEmptyCarrier(t *testing.T) {
+	t.Parallel()
+	p := promoter(lowering.ExtensionPromotions{})
+
+	dep := new(ir.Deprecation)
+	var prov ir.Provenance
+	p.Deprecation(nil, lowering.Referent{Entries: ir.Unmodeled{"openapi:x-sunset": vendorExtension(`"2030-01-01"`)}}, &dep, &prov)
+	assert.Equal(t, "2030-01-01", dep.RemovalDate)
+
+	var redact bool
+	var marked ir.Provenance
+	p.Redaction(nil, lowering.Referent{Entries: ir.Unmodeled{"openapi:x-sensitive": vendorExtension(`true`)}}, &redact, &marked)
+	assert.True(t, redact)
+	assert.Equal(t, lowering.ExtensionPromotionHeuristic, marked.Inferred)
+}
+
+// TestPromoter_AKeywordBesideTheRefDecidesOverAReferentsKey pins the pairing the
+// use-site merge makes of a referent's key with its keyword: a key on the
+// referent counts as the referent's `deprecated`, so a `deprecated` beside the
+// $ref, which would win over that, wins over the key too. A key beside the $ref
+// is not stopped by it, since it is the carrier's own.
+func TestPromoter_AKeywordBesideTheRefDecidesOverAReferentsKey(t *testing.T) {
+	t.Parallel()
+	referent := ir.Unmodeled{"openapi:x-fern-availability": vendorExtension(`"deprecated"`)}
+	for _, tc := range []struct {
+		name     string
+		own      ir.Unmodeled
+		inherits bool
+		want     bool
+	}{
+		{"the use writes no keyword", nil, true, true},
+		{"the use writes one", nil, false, false},
+		{"the use writes one and a key", referent, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var dep *ir.Deprecation
+			var prov ir.Provenance
+			promoter(lowering.ExtensionPromotions{}).Deprecation(tc.own,
+				lowering.Referent{Entries: referent, InheritsDeprecated: tc.inherits}, &dep, &prov)
+			assert.Equal(t, tc.want, dep != nil)
+		})
+	}
+}
+
+// TestPromoter_KeysListsWhatThePolicyReads pins the list a use site looks up on
+// its referent: one entry per key however many sources read it, so a lookup is
+// not repeated, in an order of its own and not the map's. A disabled policy
+// reads nothing, so a use site looks up nothing.
+func TestPromoter_KeysListsWhatThePolicyReads(t *testing.T) {
+	t.Parallel()
+	got := slices.Collect(promoter(lowering.ExtensionPromotions{
+		Targets: map[lowering.ExtensionTarget][]lowering.ExtensionSource{
+			lowering.TargetDeprecationMessage:     {{Key: "x-b", Member: "text"}, {Key: "x-a"}},
+			lowering.TargetDeprecationRemovalDate: {{Key: "x-b", Member: "date"}},
+		},
+	}).Keys())
+	assert.Equal(t, []string{"x-a", "x-b"}, got)
+	assert.Empty(t, slices.Collect(promoter(lowering.ExtensionPromotions{Disabled: true}).Keys()))
 }

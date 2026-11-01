@@ -79,9 +79,9 @@ such a schema can hoist holds them: an object lowers to a `Model` and a formatte
 A `$ref` divides the declarations at its target in two, and the line falls between annotations and
 constraints.
 
-**Annotations merge onto the use site.** Documentation, deprecation, visibility and `default` are
-read off the referent and written onto the referencing `Property`/`Parameter` with **use-site
-precedence** ([`ref-use-site`](../compilers/openapi.md#ref-use-site)), field by field. Each is a
+**Annotations merge onto the use site.** Documentation, deprecation, redaction, visibility and
+`default` are read off the referent and written onto the referencing `Property`/`Parameter` with
+**use-site precedence** ([`ref-use-site`](../compilers/openapi.md#ref-use-site)), field by field. Each is a
 single value that one position may restate for another — a `description` beside the `$ref` says what
 *this* input is, replacing the target's — so the two can never both be true at once, and any
 consumer reading both would need this precedence rule anyway. Applying it once, in the compiler, is

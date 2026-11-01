@@ -397,6 +397,89 @@ func filledWhen(promoted bool) string {
 	return ""
 }
 
+// TestPromotion_TwoKeysResolveByThePolicyNotTheirSpelling is the public face of
+// the precedence a mapping states: on one document, naming two keys in either
+// order fills the field from the first, and reports the other at its key. It
+// was the key that sorted last, in silence.
+func TestPromotion_TwoKeysResolveByThePolicyNotTheirSpelling(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      deprecated: true
+      x-alpha-msg: FROM-ALPHA
+      x-zulu-msg: FROM-ZULU
+      responses:
+        "200":
+          description: ok
+`
+	alpha, zulu := openapi.ExtensionSource{Key: "x-alpha-msg"}, openapi.ExtensionSource{Key: "x-zulu-msg"}
+	for _, tc := range []struct {
+		order []openapi.ExtensionSource
+		want  string
+		loser string
+	}{
+		{[]openapi.ExtensionSource{alpha, zulu}, "FROM-ALPHA", "/paths/~1x/get/x-zulu-msg"},
+		{[]openapi.ExtensionSource{zulu, alpha}, "FROM-ZULU", "/paths/~1x/get/x-alpha-msg"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+				compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+					Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+						openapi.TargetDeprecationMessage: tc.order,
+					},
+				}}})
+			require.NoError(t, err)
+			op, ok := opByName(doc, "getX")
+			require.True(t, ok)
+			require.NotNil(t, op.Deprecation)
+			assert.Equal(t, tc.want, op.Deprecation.Message)
+			assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", tc.loser))
+			assert.Len(t, diags, 1)
+		})
+	}
+}
+
+// TestPromotion_AnEnumsKeysReportWhatTheyLoseToo holds the enum carrier to the
+// reports every other carrier makes. The reading reports here as anywhere, and
+// a declaration has to pass that on, so a disagreement or a key with no member
+// to read reaches the compile's list rather than ending at the node.
+func TestPromotion_AnEnumsKeysReportWhatTheyLoseToo(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Disagrees: {type: string, enum: [a, b], x-first: false, x-second: true}
+    NotAnObject: {type: string, enum: [a, b], x-holder: open}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+				openapi.TargetEnumOpen: {{Key: "x-first"}, {Key: "x-second"}, {Key: "x-holder", Member: "open"}},
+			},
+		}}})
+	require.NoError(t, err)
+
+	for _, name := range []string{"Disagrees", "NotAnObject"} {
+		enum, ok := doc.Types[componentID(name)].(*ir.Enum)
+		require.True(t, ok, name)
+		assert.True(t, enum.Closed, name)
+		assert.Empty(t, enum.Provenance.Inferred, name)
+	}
+	info := []ir.Severity{ir.SeverityInfo}
+	assert.Equal(t, info, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Disagrees/x-second"))
+	assert.Equal(t, info, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/NotAnObject/x-holder"))
+	assert.Len(t, diags, 2)
+}
+
 // TestPromotion_RemovalDateAndVersionAreSeparateFacts pins why a scheduled
 // removal is two fields rather than one field carrying which spelling it holds
 // (GitHub #417). A document can state both — a sunset date and the release it

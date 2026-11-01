@@ -4,6 +4,9 @@
 package e2e_test // external test package — exercises only the public API
 
 import (
+	"encoding/json/v2"
+	"maps"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -147,11 +150,52 @@ func assertExtensionRedaction(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		assert.Contains(t, node.Common().Unmodeled, "openapi:x-sensitive", tc.position)
 	}
 	assert.False(t, doc.Types[componentID("Plain")].Common().Sensitive, "a referent beside which a use wrote it")
+	assert.Greater(t, assertEveryRedactionLanded(t, doc), 10, "the spec states it at every position above")
 
 	info := []ir.Severity{ir.SeverityInfo}
 	assert.Equal(t, info, degradedAt(diags, "/paths/~1keys/post/parameters/5/schema/x-sensitive"), "text")
 	assert.Equal(t, info, degradedAt(diags, "/components/schemas/Login/properties/misread/x-sensitive"), "a number")
 	assert.Len(t, diags, 2, "false states nothing, and a key read reports nothing: %+v", diags)
+}
+
+// assertEveryRedactionLanded is the join of the entries and the fields, with no
+// list of positions to go stale: every node of the encoded document keeping a
+// true x-sensitive entry has to say so in a field, so a carrier a promotion does
+// not reach fails here. It returns how many it met.
+func assertEveryRedactionLanded(t *testing.T, doc *ir.Document) int {
+	t.Helper()
+	raw, err := json.Marshal(doc)
+	require.NoError(t, err)
+	var tree any
+	require.NoError(t, json.Unmarshal(raw, &tree))
+	met := 0
+	pending := []any{tree}
+	for len(pending) > 0 {
+		node := pending[len(pending)-1]
+		pending = pending[:len(pending)-1]
+		switch n := node.(type) {
+		case []any:
+			pending = append(pending, n...)
+		case map[string]any:
+			pending = slices.AppendSeq(pending, maps.Values(n))
+			entry, kept := redactionEntry(n)
+			if kept && entry["value"] == true {
+				met++
+				assert.True(t, n["secret"] == true || n["sensitive"] == true, "%v", n["id"])
+			}
+		}
+	}
+	return met
+}
+
+// redactionEntry returns the x-sensitive entry an encoded node keeps.
+func redactionEntry(node map[string]any) (map[string]any, bool) {
+	unmodeled, ok := node["unmodeled"].(map[string]any)
+	if !ok {
+		return nil, false
+	}
+	entry, ok := unmodeled["openapi:x-sensitive"].(map[string]any)
+	return entry, ok
 }
 
 // mapOf returns the component name as a MapT.

@@ -129,6 +129,7 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
+		diags = append(diags, PromoteUse(c, js, p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
 		idx.MergeProperty(p, redeclarationSource(js))
 	}
 	return diags

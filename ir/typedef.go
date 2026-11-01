@@ -80,7 +80,7 @@ type TypeCommon struct {
 	Tags []string `json:"tags,omitempty"`
 	// Sensitive requests whole-type redaction (Smithy @sensitive on shapes,
 	// OpenAPI `format: password`), shared by every type whose Base reaches this
-	// one; Property.Secret is the per-use form.
+	// one; Secret on a Property or a Parameter is the per-use form.
 	Sensitive bool `json:"sensitive"`
 	// Access is "" for public or "internal" for a type the source declares
 	// outside its public surface, for every target (protobuf editions

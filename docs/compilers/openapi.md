@@ -774,13 +774,14 @@ lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node w
 
 The keywords written beside a schema's `$ref`, which 3.1 admits and which are read the same way in a
 3.0 document ([`later-version-construct`](#later-version-construct)), and the annotations its target
-declares — documentation, deprecation, visibility and `default` — merge onto the property, parameter
-or header that references the target, field by field, a keyword the use site writes winning over the
-target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by the same
-rule at every carrier. At a position that carries no property, parameter or header — an `allOf`,
-`oneOf` or `anyOf` branch, an `items`, a component — the keywords beside the `$ref` bind an alias
-hoisted at that position instead ([models](../ir/models.md#composition-entries)). Constraints
-are the exception: bounds conjoin rather than override, so each position keeps the ones it declared
+declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
+parameter or header that references the target, field by field, a keyword the use site writes
+winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
+the same rule at every carrier. An extension the promotion policy maps is read the same way
+([`extension-promotion`](#extension-promotion)). At a position that carries no property, parameter or
+header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a component — the keywords beside the
+`$ref` bind an alias hoisted at that position instead ([models](../ir/models.md#composition-entries)).
+Constraints are the exception: bounds conjoin rather than override, so each position keeps the ones it declared
 and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
 
@@ -2843,6 +2844,15 @@ stays where it is. `Message` reads `x-deprecated-reason`, `x-stainless-deprecati
 `description` of `x-cfDeprecation`; `Since` reads `x-deprecated-since`; and `RemovalDate` reads
 `x-sunset`, the `date` of `x-forge-sunset` and the `eol` of `x-cfDeprecation`.
 
+A property, header or parameter naming a `$ref` reads the target's mapped keys beneath its own, as
+[`ref-use-site`](#ref-use-site) merges the target's other annotations: a key beside the `$ref` wins
+field by field and without a report, and the target is the end of the chain, so a schema between
+the two lends nothing. A key on the target stating a deprecation counts as the target's `deprecated`,
+so a `deprecated` beside the `$ref` decides over it as it does over the keyword, and a key beside the
+`$ref`, being the use's own, is not stopped by one. What a target's key cannot hold is reported where
+that key is written and read, once, and a use reads past it without a report. The deprecation a use
+gains on its own, by a keyword or a key beside the `$ref`, gives the target's members a home.
+
 A value a member cannot hold, anything but text, is reported as an info `openapi/degraded-construct`
 at the extension and not coerced, since the document means something else by the key. Text of the
 right JSON shape is taken as written: `x-sunset` fills `RemovalDate` and not `RemovalVersion` because
@@ -2852,9 +2862,9 @@ confirm it. No default key names `RemovalVersion`: a document stating a removal 
 own key, per rule 1 of [unmodeled](../ir/unmodeled.md#promotion).
 
 `Operation.Stability` reads `x-stability`, then `x-fern-availability`. `alpha` is `alpha`, `beta` and
-`preview` are `beta`, and `stable` and `generally-available` are `stable`. `deprecated` names no
-tier and is not reported, as a key the deprecation also reads; `legacy`, any other word and any
-other shape are reported, and leave the field unset. Where the two keys disagree the less stable
+`preview` are `beta`, and `stable` and `generally-available` are `stable`. What the deprecation
+reads of a key, `deprecated` or `true`, names no tier and is not reported here; `legacy`, any other
+word and any other shape are reported, once, and leave the field unset. Where the two keys disagree the less stable
 statement wins, which is what reading `x-stability` first gives: in the golden spec every
 disagreement is `beta` against `generally-available`, 47 operations (spec @319dc756). It is the right
 call where the text can tell, as the 2 of them whose own description says beta show, and none of the
@@ -2866,8 +2876,8 @@ report on each disagreement and the kept entries are what let it audit that.
 
 `x-sensitive` asks for redaction as `format: password` does ([`password`](#password)), and lands
 where that does: `Sensitive` on the node a position owns, `Secret` on a property, header or parameter
-that owns none. `true` writes it, `false` states nothing and never clears what another declaration
-asks for, and any other shape is reported.
+that owns none, the target of a `$ref` lending it to the use. `true` writes it, `false` states nothing
+and never clears what another declaration asks for, and any other shape is reported.
 
 `Enum.Closed` is the one target whose fact is stated by a key being *present* rather than by a
 value, so a value is not read as a statement there. Its default key, `x-extensible-enum`, writes the
@@ -2882,17 +2892,24 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 
 - Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
-- Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
-  `lowering.TestPromoteDeprecation_KeyStatesIt`,
-  `lowering.TestPromoteStability_ReadsEachWord`,
-  `lowering.TestPromoteRedaction_OnlyTrueWrites`,
-  `lowering.TestPromoteEnumOpenness_WritesNothing`,
+- Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
+  `lowering.TestPromoterDeprecation_KeyStatesIt`,
+  `lowering.TestPromoterStability_ReadsEachWord`,
+  `lowering.TestPromoterRedaction_OnlyTrueWrites`,
+  `lowering.TestPromoterEnumOpenness_WritesNothing`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
   `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
-  `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
+  `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
+  `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
+  `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
+  `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`
 - Status: partly built: the default mapping leaves pagination, open enums stated by value, reserved
   expansion and server names to come (#656); a mapping cannot say which extension values state the
-  fact (#654); and an unknown key under a prefix the policy owns is kept in silence (#657).
+  fact (#654); an unknown key under a prefix the policy owns is kept in silence (#657); a key on an
+  `allOf` branch reaches no field, and one beside an `allOf` reaches another than it does beside a
+  `$ref` (#1220); a key on a path item, a tag or a content entry, kept under a scope, reaches no
+  field (#1221); and a key inside a `oneOf` kept verbatim beside structure waits for those branches
+  to lower (#661).
 
 ### `mutually-exclusive-parameters`
 

@@ -166,7 +166,8 @@ this from `Unmodeled` and no two derive it differently:
    this rule's only named instance until it gained the `Provenance` [operations](./operations.md)
    now gives it. `Variant` ([unions](./unions.md)) and `EnumMember` ([enums](./enums.md)) are the
    instances today: each carries a `Deprecation` and no provenance of its own, so no key maps into
-   either until one of them gains one.
+   either until one of them gains one. `OperationGroup` ([services](./services.md)) is a third, for
+   its `Stability`.
 
 What the OpenAPI compiler's default mapping reads, and what it does with a value the field cannot
 hold, is its rule [`extension-promotion`](../compilers/openapi.md#extension-promotion). Others of

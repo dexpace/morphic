@@ -112,8 +112,8 @@ a word `deprecated` in a stability list does, and a compiler then fills `Depreca
 Designs this replaced, each with the fact it fails on:
 
 - **A `Stable` bool** cannot give the badge: a docs emitter tells `alpha` from `beta`.
-- **`preview` as a fourth tier** has one source, and 0 uses in the golden spec. A compiler reads the
-  word as `beta`.
+- **`preview` as a fourth tier** is one vocabulary's word among the sources above, with 0 uses in the
+  golden spec. A compiler reads it as `beta`.
 - **An open string** leaves each emitter to interpret the vocabulary, the outcome this field exists
   to prevent.
 - **`Availability`** is a version timeline no emitter interprets, and has no tier in it.

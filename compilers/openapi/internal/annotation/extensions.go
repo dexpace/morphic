@@ -5,6 +5,7 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"iter"
 
 	"github.com/speakeasy-api/openapi/extensions"
 
@@ -65,6 +66,33 @@ func ExtensionsUnder(ext *extensions.Extensions, locate Locator, owner jsontext.
 		return nil, diags
 	}
 	return out, diags
+}
+
+// ExtensionsNamed lowers the extensions names lists out of ext, in the form
+// ExtensionsFrom gives them, for a reader of another object's keys: a carrier
+// reading its $ref's referent. Looking up each name leaves the rest of ext
+// unserialized, which is every key of nearly every referent. A value that does
+// not serialize is left out, as ExtensionsFrom reports it where it is written.
+func ExtensionsNamed(ext *extensions.Extensions, names iter.Seq[string]) ir.Unmodeled {
+	if ext == nil || ext.Len() == 0 {
+		return nil
+	}
+	var out ir.Unmodeled
+	for name := range names {
+		node, written := ext.Get(name)
+		if !written {
+			continue
+		}
+		raw, err := RawFromNode(node)
+		if err != nil {
+			continue
+		}
+		if out == nil {
+			out = ir.Unmodeled{}
+		}
+		out["openapi:"+name] = ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Value: raw}
+	}
+	return out
 }
 
 // ExtensionSite is one object's x-* map paired with where it was written: Owner

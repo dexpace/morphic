@@ -106,13 +106,42 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 		p.Examples = a.Examples
 	}
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, a.Unmodeled)
-	diags = append(diags, c.Promoter().Deprecation(p.Unmodeled, &p.Deprecation, &p.Provenance)...)
-	diags = append(diags, c.Promoter().Redaction(p.Unmodeled, &p.Secret, &p.Provenance)...)
 	// nil node: this arm runs only when the schema lowered to no node of its own,
 	// so nothing here can be carrying an Encoding.
 	diags = append(diags, recordUnplacedContent(c, &p.Unmodeled, ref, nil, pointer)...)
 	diags = append(diags, recordUnexpandedDynamicRef(c, &p.Unmodeled, ref, pointer)...)
 	return append(diags, PreserveUnknownKeywords(c, &p.Unmodeled, ref, pointer)...)
+}
+
+// PromoteUse reads the vendor extensions into the deprecation and redaction of a
+// carrier of the schema js: a property, a header or a parameter. Its own keys are
+// the ones kept in unmodeled, and its $ref's referent lends its own beneath them,
+// as every other annotation it declares
+// (docs/compilers/openapi.md#ref-use-site).
+//
+// A caller runs it once the carrier's own keywords and keys are all on it, which
+// for a header or a parameter means after the object around the schema: what
+// that object says decides what is deprecated, and so what a member can fill.
+func PromoteUse(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], unmodeled ir.Unmodeled, dep **ir.Deprecation, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
+	from := referentOf(c, js)
+	diags := c.Promoter().Deprecation(unmodeled, from, dep, prov)
+	return append(diags, c.Promoter().Redaction(unmodeled, from, redact, prov)...)
+}
+
+// referentOf returns what a carrier of js may read of the schema its $ref ends
+// on, and nothing for a js that is no $ref. The end of the chain is the one
+// annotations fall back to, so a schema between the two lends nothing here
+// either.
+func referentOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) lowering.Referent {
+	ref := annotation.SchemaOf(js)
+	tgt := c.RefScope().TargetSchema(js, ref)
+	if tgt == nil {
+		return lowering.Referent{}
+	}
+	return lowering.Referent{
+		Entries:            annotation.ExtensionsNamed(tgt.GetExtensions(), c.Promoter().Keys()),
+		InheritsDeprecated: ref.Deprecated == nil,
+	}
 }
 
 // LoweredToOwnNode reports whether the declaration at pointer, in c's
