@@ -145,11 +145,12 @@ type Ctx struct {
 	// answers. Nil in a zero context, which records nothing.
 	reached *resolve.Reached
 
-	// kept holds what the run keeps for the Document rather than a node. Copies
+	// Kept holds what the run keeps for the Document rather than a node. Copies
 	// share it on purpose, as reached: only run reads what it keeps, once every
-	// lowering has returned, so it cannot change their answers. Nil in a zero
-	// context, which keeps nothing.
-	kept *KeptOnce
+	// lowering has returned, so it cannot change their answers. Its own fields are
+	// private, so a lowering writes it only through Once. Nil in a zero context,
+	// which keeps nothing.
+	Kept *KeptOnce
 }
 
 // loadResult holds what a context reads of the load phase (see WithLoaded): the
@@ -205,7 +206,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		typePositions: map[scopedPosition]bind.Position{},
 		anchors:       &anchorMemo{},
 		reached:       resolve.NewReached(),
-		kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
+		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
 	}
 }
 

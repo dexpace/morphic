@@ -17,9 +17,6 @@ type KeptOnce struct {
 	entries ir.Unmodeled
 }
 
-// Kept returns the run's KeptOnce, shared by every copy of the context.
-func (c Ctx) Kept() *KeptOnce { return c.kept }
-
 // Once runs keep the first time a lowering reaches the declaration at coordinate,
 // holds what it keeps for the Document (Entries), and returns its report. A later
 // reach returns nothing, so a declaration a $ref lowers once per reference costs

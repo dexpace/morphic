@@ -62,7 +62,7 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 		scope := ids.Scope("content", mt)
 		examples, residue, residueDiags := contentEntryFields(c, media, mediaPtr, scope, carrier, home)
 		diags = append(diags, residueDiags...)
-		diags = append(diags, c.Kept().Once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
+		diags = append(diags, c.Kept.Once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
 			return passedOverEntries(c, nodeview.Pairs(nodeview.Child(root, "content")), mt, at)
 		})...)
 		elected := typeSpelling{

@@ -237,12 +237,12 @@ func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
 		}
 	}
 
-	assert.Len(t, c.Kept().Once("/a", keep("a")), 1, "the first reach reports")
-	assert.Empty(t, c.WithAuth(nil).Kept().Once("/a", keep("a")), "a copy shares what was read")
-	assert.Len(t, c.Kept().Once("/b", keep("b")), 1)
+	assert.Len(t, c.Kept.Once("/a", keep("a")), 1, "the first reach reports")
+	assert.Empty(t, c.WithAuth(nil).Kept.Once("/a", keep("a")), "a copy shares what was read")
+	assert.Len(t, c.Kept.Once("/b", keep("b")), 1)
 
 	assert.Equal(t, 2, reads)
-	assert.Equal(t, []string{"a", "b"}, slices.Sorted(maps.Keys(c.Kept().Entries())))
+	assert.Equal(t, []string{"a", "b"}, slices.Sorted(maps.Keys(c.Kept.Entries())))
 }
 
 // TestKeptOnce_AZeroContextKeepsNothing is the state New never leaves: with nowhere
@@ -250,13 +250,13 @@ func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
 func TestKeptOnce_AZeroContextKeepsNothing(t *testing.T) {
 	t.Parallel()
 	asked := false
-	diags := lowering.Ctx{}.Kept().Once("/a", func() (ir.Unmodeled, []ir.Diagnostic) {
+	diags := lowering.Ctx{}.Kept.Once("/a", func() (ir.Unmodeled, []ir.Diagnostic) {
 		asked = true
 		return nil, nil
 	})
 	assert.False(t, asked)
 	assert.Empty(t, diags)
-	assert.Nil(t, lowering.Ctx{}.Kept().Entries())
+	assert.Nil(t, lowering.Ctx{}.Kept.Entries())
 }
 
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
