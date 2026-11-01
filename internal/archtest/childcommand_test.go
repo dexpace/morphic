@@ -131,6 +131,8 @@ func TestChildCommandViolations_PlantedRowsAreReportedExactly(t *testing.T) {
 		{"file under testdata", "p/testdata/a_test.go", execFile(`var _ = exec.Command("x")`), 0},
 		{"exec that is not os/exec", "p/a_test.go",
 			"package p\n\nfunc f(exec fake) { exec.Command(\"x\") }\n", 0},
+		{"named import before a blank one", "p/a_test.go",
+			"package p\n\nimport (\n\te \"os/exec\"\n\t_ \"os/exec\"\n)\n\nvar _ = e.Command(\"x\") // want\n", 1},
 		{"exec imported from another path", "p/a_test.go",
 			"package p\n\nimport exec \"example.com/exec\"\n\nvar _ = exec.Command(\"x\")\n", 0},
 		{"elided literal of another type of the package", "p/a_test.go",
@@ -155,6 +157,10 @@ func TestChildCommandViolations_PlantedRowsAreReportedExactly(t *testing.T) {
 			envFile(`cmd.Env = append(cmd.Env, os.Environ()[1:]...) // want env`), 1},
 		{"Env assigned from a call returning two values", "p/a_test.go",
 			envFile("var n int\n\tn, cmd.Env = g() // want env"), 1},
+		{"Env as a range value", "p/a_test.go",
+			envFile("for _, cmd.Env = range [][]string{{\"X=1\"}} { // want env\n\t}"), 1},
+		{"Env as a range key", "p/a_test.go",
+			envFile("for cmd.Env = range make(chan []string) { // want env\n\t}"), 1},
 		{"Env target in parentheses", "p/a_test.go", envFile(`(cmd.Env) = nil // want env`), 1},
 		{"Env extended by append in parentheses", "p/a_test.go",
 			envFile(`cmd.Env = (append((cmd.Env), "X=1"))`), 1},
@@ -238,12 +244,20 @@ func childCommandViolations(root string) (violations []string, importers int, er
 }
 
 // envViolations returns one message per assignment in f to a selection of Env
-// that does not extend an Env with append, or that calls Environ, each naming
-// rel and its line. A composite literal's Env key is not an assignment and is
-// left alone.
+// that does not extend an Env with append, or that calls Environ, a range
+// clause's key or value included, each naming rel and its line. A composite
+// literal's Env key is not an assignment and is left alone.
 func envViolations(rel string, fset *token.FileSet, f *ast.File) []string {
 	var out []string
 	ast.Inspect(f, func(n ast.Node) bool {
+		if rng, ok := n.(*ast.RangeStmt); ok && rng.Tok == token.ASSIGN {
+			for _, e := range []ast.Expr{rng.Key, rng.Value} {
+				if isEnvSelection(e) {
+					out = append(out, fmt.Sprintf("%s:%d: %s", rel, fset.Position(e.Pos()).Line, envMessage))
+				}
+			}
+			return true
+		}
 		assign, ok := n.(*ast.AssignStmt)
 		if !ok {
 			return true
