@@ -156,40 +156,32 @@ func drawnFindings(t *testing.T, analyzers []*analysis.Analyzer, patterns ...str
 	return got
 }
 
-// readDeclarers reads the sources of the packages declaring what the rules key
-// on, then the module's go.mod and go.sum, and returns the paths read. go list
-// reads the sources in a process go test's cache does not see, and the
-// library's sit in the module cache, which the cache never rechecks. So a
-// dependency that moves reruns the tests only through the go.mod and go.sum
-// opened here, which change with it.
-func readDeclarers(t *testing.T) []string {
+// readDeclarers reads the module's go.mod and go.sum and the sources of the
+// packages declaring what the rules key on. go list reads the sources in a
+// process go test's cache does not see, and the library's sit in the module
+// cache, which the cache never rechecks. So a dependency that moves reruns the
+// tests only through the go.mod and go.sum opened here, which change with it.
+func readDeclarers(t *testing.T) {
 	t.Helper()
+	irtest.ReadModuleFiles(t)
 	cfg := &packages.Config{Mode: packages.NeedName | packages.NeedFiles, Env: append(os.Environ(), "GOPACKAGESDRIVER=off")}
 	pkgs, err := packages.Load(cfg, irPath, compilePath, referencesPath, "github.com/speakeasy-api/openapi/expression")
 	require.NoError(t, err)
 	require.Len(t, pkgs, 4)
-	read := irtest.ReadModuleFiles(t)
 	for _, p := range pkgs {
 		require.NotEmpty(t, p.GoFiles, "%s lists no file to read", p.PkgPath)
 		for _, f := range p.GoFiles {
 			_, err := os.ReadFile(f)
 			require.NoError(t, err)
-			read = append(read, f)
 		}
 	}
-	return read
 }
 
-// TestReadDeclarers_OpensTheModuleFiles holds the reads to the module's go.mod
-// and go.sum. The library's sources sit in the module cache, which go test
-// never rechecks, so these are what reruns the rules when a dependency moves.
-func TestReadDeclarers_OpensTheModuleFiles(t *testing.T) {
+// TestDrawnFindings_OpenTheModuleFiles holds readDeclarers to the module's
+// go.mod and go.sum in go test's log, through the cheapest test that reaches it.
+func TestDrawnFindings_OpenTheModuleFiles(t *testing.T) {
 	t.Parallel()
-	root := irtest.RepoRoot(t)
-	read := readDeclarers(t)
-	for _, name := range []string{"go.mod", "go.sum"} {
-		assert.True(t, slices.Contains(read, filepath.Join(root, name)), "readDeclarers did not open the module's %s", name)
-	}
+	irtest.RequireOpensModuleFiles(t, "TestAnalyzers_ReadTheModulesLayout")
 }
 
 // listPackages returns the import paths the patterns, relative to this

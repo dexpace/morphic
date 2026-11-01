@@ -370,6 +370,13 @@ func libraryMembers(t *testing.T) []resolutionMember {
 	return members
 }
 
+// TestLibraryMembers_OpensTheModuleFiles holds libraryMembers to the module's
+// go.mod and go.sum in go test's log, through the cheapest test that calls it.
+func TestLibraryMembers_OpensTheModuleFiles(t *testing.T) {
+	t.Parallel()
+	irtest.RequireOpensModuleFiles(t, "TestResolutionAPI_IsTheReviewedSet")
+}
+
 // deriveResolutionAPI reads the library's sources and derives the API from its
 // two anchors.
 func deriveResolutionAPI() ([]resolutionMember, error) {

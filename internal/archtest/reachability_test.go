@@ -168,6 +168,13 @@ func moduleProgram(t *testing.T) program {
 	return p
 }
 
+// TestModuleProgram_OpensTheModuleFiles holds moduleProgram to the module's
+// go.mod and go.sum in go test's log, through the test that calls it.
+func TestModuleProgram_OpensTheModuleFiles(t *testing.T) {
+	t.Parallel()
+	irtest.RequireOpensModuleFiles(t, "TestReachability_OnlyTestsReachNoFunction")
+}
+
 // builtPackage is one package as buildPackage leaves it: its syntax, what the
 // type checker recorded of it, and its SSA form, still to be built.
 type builtPackage struct {
