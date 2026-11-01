@@ -70,13 +70,13 @@ func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool
 }
 
 // diffOrderInvariants compares what a declaration-order permutation must leave
-// untouched: the type and server registries and the diagnostics.
+// untouched: the type, server and auth registries and the diagnostics.
 //
-// A registry is ID-keyed, so a permutation leaves it unchanged, while
-// every interning collision shows up as a difference in it: a node minted at
-// the wrong pointer, a hint kept from whichever lowering arrived first, a body
-// that lost what a second declaration wrote. Operations, responses and content
-// types follow source order (invariant #7), so are not compared.
+// A registry is ID-keyed, so a permutation leaves it unchanged, while every
+// interning collision shows as a difference in it: a node minted at the wrong
+// pointer, a hint kept from whichever lowering came first, a body that lost what
+// a second declaration wrote. Operations, responses and content types follow
+// source order (invariant #7), so go uncompared.
 //
 // The collections whose order follows the source's (sourceOrderedCollections)
 // are compared regardless of order, not ignored: a changed property still
@@ -90,6 +90,9 @@ func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic
 	}
 	if d := cmp.Diff(first.Servers, second.Servers, sourceOrderedCollections()...); d != "" {
 		return "server registry depends on declaration order (-as-written +reversed):\n" + d, false
+	}
+	if d := cmp.Diff(first.Auth, second.Auth, sourceOrderedCollections()...); d != "" {
+		return "auth registry depends on declaration order (-as-written +reversed):\n" + d, false
 	}
 	if d := cmp.Diff(diagnosticSet(first.Diagnostics), diagnosticSet(secondDiags)); d != "" {
 		return "diagnostics depend on declaration order (-as-written +reversed):\n" + d, false
@@ -137,6 +140,7 @@ func sourceOrderedCollections() []cmp.Option {
 		cmpopts.SortSlices(func(a, b ir.PatternProps) bool { return a.Pattern < b.Pattern }),
 		cmpopts.SortSlices(func(a, b ir.Field) bool { return a.Name < b.Name }),
 		cmpopts.SortSlices(func(a, b ir.ServerVariable) bool { return a.Name < b.Name }),
+		cmpopts.SortSlices(func(a, b ir.OAuthScope) bool { return a.Name < b.Name }),
 	}
 	return []cmp.Option{keyed, cmp.Comparer(func(a, b []ir.Example) bool { return sameExamples(a, b, keyed) })}
 }
