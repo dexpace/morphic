@@ -97,6 +97,7 @@ func TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef(t *testing.T) {
         reopened: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}], nullable: true}
         viaNarrow: {$ref: '#/components/schemas/Narrow', nullable: true}
         byValue: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a, c]}]}
+        byValueOrNull: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a, c]}], nullable: true}
     Wrapper: {allOf: [{$ref: '#/components/schemas/Bare'}], description: d}
     Narrow: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}]}
     Mode: {type: string, enum: [a, b], default: b}
@@ -107,6 +108,7 @@ func TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef(t *testing.T) {
 	}
 	assert.Nil(t, propertyOf(t, doc, "Holder", "narrowed").Default, "a string takes no null its $ref admits")
 	assert.Nil(t, propertyOf(t, doc, "Holder", "byValue").Default, "the conjuncts together leave only a")
+	assert.Nil(t, propertyOf(t, doc, "Holder", "byValueOrNull").Default, "a null is all that nullable adds")
 }
 
 // TestUse_ADefaultBesideItsValueSetStands pins that a narrowing judges only what
