@@ -382,7 +382,7 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   which scopes the first emitters (`docs/emitters/milestones.md`). Run it from inside the module:
   it reads the IR's declarations through the go command.
 - **Fuzzing.** Every target's seeds run in `go test ./...`; the search runs nightly in CI. By hand,
-  `make fuzz` searches every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a longer search).
+  `make fuzz` searches every fuzz target for 5s each (`make fuzz FUZZTIME=5m` for a longer search).
   One target runs on its own with, for example,
   `go test ./compilers/openapi/e2e -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
 

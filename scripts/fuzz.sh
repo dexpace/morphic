@@ -11,14 +11,14 @@
 # The search runs nightly and by hand, not on a pull request. The gate runs
 # `check`, which holds the targets to the limits below and searches nothing.
 #
-# Usage: fuzz.sh [fuzztime]    search each target (default 10s, or $FUZZTIME)
+# Usage: fuzz.sh [fuzztime]    search each target (default 5s, or $FUZZTIME)
 #        fuzz.sh check         hold the targets to the limits, searching nothing
 #        fuzz.sh prune         bound the corpus Go keeps under $GOCACHE/fuzz
 set -euo pipefail
 
 cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 
-mode="${1:-${FUZZTIME:-10s}}"
+mode="${1:-${FUZZTIME:-5s}}"
 
 # A search's budget is a duration or a count above zero, with an optional
 # leading plus, as go test reads -fuzztime. Anything else is refused here, before
@@ -60,10 +60,11 @@ quarantined=""
 # search takes, not something a new target does by accident.
 readonly max_targets=16
 
-# Minimizing a found crash is bounded too. Left at its 60s default it would
-# dominate the run on the one occasion it matters, and the reproducer is written
-# out either way.
-readonly minimize_time=10s
+# Minimizing is bounded tightly. The flag governs every new input that adds
+# coverage as well as a found crash, a worker minimizing runs no search, and left
+# at its 60s default it would dominate the run. The reproducer of a crash is
+# written out either way, so a shorter bound costs at most a larger reproducer.
+readonly minimize_time=1s
 
 # What prune keeps of each target's corpus. Go never trims the directory, so
 # these two bound what a search restores and what the cache holds: at most

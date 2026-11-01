@@ -10,7 +10,7 @@
 #   make race       the packages in scripts/race-packages.txt, under -race
 #   make filetimes  date tracked files by content, so a checkout reuses test results
 #   make bench      benchmark timings (the gate only smoke-runs them)
-#   make fuzz       the search the gate leaves to the nightly job, 10s a target
+#   make fuzz       the search the gate leaves to the nightly job, 5s a target
 #   make fuzz FUZZTIME=5m    a longer one
 
 GO ?= go
@@ -84,7 +84,7 @@ GOLANGCI_LINT_VERSION ?= v2.14.0
 # Per-target fuzz budget of a search run by hand. The gate searches nothing: every
 # target's seeds run in the suite, and the nightly job in gate.yml sets its own
 # budget. A campaign is what `make fuzz FUZZTIME=5m` is for.
-FUZZTIME ?= 10s
+FUZZTIME ?= 5s
 
 .DEFAULT_GOAL := gate
 
