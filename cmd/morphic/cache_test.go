@@ -40,11 +40,7 @@ func (c *compileCounter) Compile(ctx context.Context, sources []compilers.Source
 func countCompiles(t *testing.T) *compileCounter {
 	t.Helper()
 	counter := &compileCounter{Compiler: openapi.New()}
-	orig := newEngine
-	t.Cleanup(func() { newEngine = orig })
-	newEngine = func(opts ...engine.Option) (*engine.Engine, error) {
-		return engine.New(append(opts, engine.WithCompilers(counter))...)
-	}
+	useEngine(t, engine.WithCompilers(counter))
 	return counter
 }
 
@@ -64,9 +60,9 @@ func specFile(t *testing.T) string {
 	return spec
 }
 
-// TestCacheDir_ASecondRunWritesWhatTheFirstDid runs each output a command has
+// TestRun_CacheDirASecondRunWritesWhatTheFirstDid runs each output a command has
 // twice, the counter telling a hit from a compile, and requires the same bytes.
-func TestCacheDir_ASecondRunWritesWhatTheFirstDid(t *testing.T) {
+func TestRun_CacheDirASecondRunWritesWhatTheFirstDid(t *testing.T) {
 	for name, args := range map[string][]string{
 		"compile":  {"compile"},
 		"explain":  {"compile", "--explain", ""},
@@ -88,9 +84,9 @@ func TestCacheDir_ASecondRunWritesWhatTheFirstDid(t *testing.T) {
 	}
 }
 
-// TestCacheDir_EitherCommandAnswersTheOther shares one entry between the commands,
+// TestRun_CacheDirEitherCommandAnswersTheOther shares one entry between the commands,
 // in both orders, as their help says: they build the same pipeline.
-func TestCacheDir_EitherCommandAnswersTheOther(t *testing.T) {
+func TestRun_CacheDirEitherCommandAnswersTheOther(t *testing.T) {
 	for name, order := range map[string][2]string{
 		"validate after compile": {"compile", "validate"},
 		"compile after validate": {"validate", "compile"},
@@ -107,9 +103,9 @@ func TestCacheDir_EitherCommandAnswersTheOther(t *testing.T) {
 	}
 }
 
-// TestCacheDir_OutputFileIsTheSameEitherWay writes the compact form, the one
+// TestRun_CacheDirOutputFileIsTheSameEitherWay writes the compact form, the one
 // that passes through the document's own encoder after a hit decodes it.
-func TestCacheDir_OutputFileIsTheSameEitherWay(t *testing.T) {
+func TestRun_CacheDirOutputFileIsTheSameEitherWay(t *testing.T) {
 	counter := countCompiles(t)
 	spec, dir := specFile(t), t.TempDir()
 	plain := filepath.Join(t.TempDir(), "plain.json")
@@ -130,9 +126,9 @@ func TestCacheDir_OutputFileIsTheSameEitherWay(t *testing.T) {
 	assert.Equal(t, string(want), string(got))
 }
 
-// TestCacheDir_NoFlagNoCache leaves the directory the flag would have named
+// TestRun_CacheDirNoFlagNoCache leaves the directory the flag would have named
 // empty, and compiles each run.
-func TestCacheDir_NoFlagNoCache(t *testing.T) {
+func TestRun_CacheDirNoFlagNoCache(t *testing.T) {
 	counter := countCompiles(t)
 	spec := specFile(t)
 	for range 2 {
@@ -142,9 +138,9 @@ func TestCacheDir_NoFlagNoCache(t *testing.T) {
 	assert.EqualValues(t, 2, counter.compiles.Load())
 }
 
-// TestCacheDir_VerifyRunsItsStages holds --verify, which exists to run them, to
+// TestRun_CacheDirVerifyRunsItsStages holds --verify, which exists to run them, to
 // compiling though an entry would answer.
-func TestCacheDir_VerifyRunsItsStages(t *testing.T) {
+func TestRun_CacheDirVerifyRunsItsStages(t *testing.T) {
 	counter := countCompiles(t)
 	spec, dir := specFile(t), t.TempDir()
 	for range 2 {
@@ -156,10 +152,11 @@ func TestCacheDir_VerifyRunsItsStages(t *testing.T) {
 	assert.EqualValues(t, 2, counter.compiles.Load())
 }
 
-// TestCacheDir_AnUnusableDirectoryWarns names a path that cannot be a directory,
+// TestRun_CacheDirAnUnusableDirectoryWarns names a path that cannot be a directory,
 // which fails the lookup and the store both. The run keeps its output and its
 // exit status, and says why on one line of stderr, which is all that may differ.
-func TestCacheDir_AnUnusableDirectoryWarns(t *testing.T) {
+func TestRun_CacheDirAnUnusableDirectoryWarns(t *testing.T) {
+	t.Parallel()
 	blocked := filepath.Join(t.TempDir(), "file")
 	require.NoError(t, os.WriteFile(blocked, nil, 0o600))
 	spec := specFile(t)
@@ -170,13 +167,14 @@ func TestCacheDir_AnUnusableDirectoryWarns(t *testing.T) {
 
 	assert.Equal(t, code, codeBlocked)
 	assert.Equal(t, stdout, stdoutBlocked)
-	assert.Regexp(t, `^morphic: warning: cache: load: [^\n]+; cache: store: [^\n]+\n$`, stderrBlocked)
+	assert.Regexp(t, `^morphic: warning: engine: cache: load: [^\n]+; engine: cache: store: [^\n]+\n$`, stderrBlocked)
 }
 
 // TestEngineFor_NoBuildNoEngine stops where the build would be named: with no
 // identity no key is sound, and the flag asked for one. It calls engineFor
 // because a run under a cancelled ctx fails anyway, whatever engine it got.
 func TestEngineFor_NoBuildNoEngine(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	eng, err := engineFor(ctx, specOptions{cacheDir: t.TempDir()})
@@ -187,6 +185,7 @@ func TestEngineFor_NoBuildNoEngine(t *testing.T) {
 // TestRunPipeline_ABuildFailureEndsTheRun reports it as any failure outside the
 // spec is.
 func TestRunPipeline_ABuildFailureEndsTheRun(t *testing.T) {
+	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	res, _, err := runPipeline(ctx, specFile(t), specOptions{cacheDir: t.TempDir()}, io.Discard)

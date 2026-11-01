@@ -26,7 +26,7 @@ import (
 // formats reported, a format collision) can actually fire — and a stub engine
 // that returns a nil Document. A stub is handed what the flags asked for, so it
 // can compose with them.
-var newEngine = func(opts ...engine.Option) (*engine.Engine, error) { return engine.New(opts...) }
+var newEngine = engine.New
 
 // compileLong is compile's description. cobra prints it as written, so it is
 // wrapped by hand.

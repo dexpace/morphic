@@ -191,6 +191,21 @@ func TestDir_LoadFailures(t *testing.T) {
 	})
 }
 
+// TestDir_NamingNoDirectoryIsRefused holds what would otherwise read and write
+// the working directory, for an empty path and for the zero Dir alike.
+func TestDir_NamingNoDirectoryIsRefused(t *testing.T) {
+	t.Parallel()
+	for name, dir := range map[string]*cache.Dir{"an empty path": cache.NewDir(""), "the zero Dir": {}} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			_, ok, err := dir.Load(t.Context(), keyN(0))
+			require.ErrorContains(t, err, "no directory")
+			assert.False(t, ok)
+			require.ErrorContains(t, dir.Store(t.Context(), keyN(0), []byte("x")), "no directory")
+		})
+	}
+}
+
 func TestDir_StoreFailures(t *testing.T) {
 	t.Parallel()
 	t.Run("a file where the directory would be", func(t *testing.T) {
@@ -301,27 +316,27 @@ func TestDir_StoreLeavesAStoreInProgress(t *testing.T) {
 	assert.FileExists(t, fileOf(path, keyN(2)))
 }
 
-// fakeEntry is a directory entry whose Info answers as a test says.
-type fakeEntry struct {
+// listedEntry is a directory entry whose Info answers as a test says.
+type listedEntry struct {
 	name    string
 	size    int64
 	infoErr error
 }
 
-func (e fakeEntry) Name() string               { return e.name }
-func (fakeEntry) IsDir() bool                  { return false }
-func (fakeEntry) Type() fs.FileMode            { return 0 }
-func (e fakeEntry) Info() (fs.FileInfo, error) { return fakeInfo(e), e.infoErr }
+func (e listedEntry) Name() string               { return e.name }
+func (listedEntry) IsDir() bool                  { return false }
+func (listedEntry) Type() fs.FileMode            { return 0 }
+func (e listedEntry) Info() (fs.FileInfo, error) { return listedInfo(e), e.infoErr }
 
-// fakeInfo is the fs.FileInfo of a fakeEntry.
-type fakeInfo fakeEntry
+// listedInfo is the fs.FileInfo of a listedEntry.
+type listedInfo listedEntry
 
-func (i fakeInfo) Name() string     { return i.name }
-func (i fakeInfo) Size() int64      { return i.size }
-func (fakeInfo) Mode() fs.FileMode  { return 0 }
-func (fakeInfo) ModTime() time.Time { return time.Unix(0, 0) }
-func (fakeInfo) IsDir() bool        { return false }
-func (fakeInfo) Sys() any           { return nil }
+func (i listedInfo) Name() string     { return i.name }
+func (i listedInfo) Size() int64      { return i.size }
+func (listedInfo) Mode() fs.FileMode  { return 0 }
+func (listedInfo) ModTime() time.Time { return time.Unix(0, 0) }
+func (listedInfo) IsDir() bool        { return false }
+func (listedInfo) Sys() any           { return nil }
 
 func listing(entries ...fs.DirEntry) func(string) ([]fs.DirEntry, error) {
 	return func(string) ([]fs.DirEntry, error) { return entries, nil }
@@ -340,17 +355,17 @@ func TestPrune_Failures(t *testing.T) {
 	})
 	t.Run("a file that will not stat", func(t *testing.T) {
 		t.Parallel()
-		require.ErrorIs(t, cache.Prune("d", 1, listing(fakeEntry{name: own(0), infoErr: boom}), keep), boom)
+		require.ErrorIs(t, cache.Prune("d", 1, listing(listedEntry{name: own(0), infoErr: boom}), keep), boom)
 	})
 	t.Run("a file another process removed is no failure", func(t *testing.T) {
 		t.Parallel()
-		gone := fakeEntry{name: own(0), size: 9, infoErr: fs.ErrNotExist}
+		gone := listedEntry{name: own(0), size: 9, infoErr: fs.ErrNotExist}
 		require.NoError(t, cache.Prune("d", 1, listing(gone), func(string) error { return boom }),
 			"it counts for nothing, so nothing is removed")
 	})
 	t.Run("a file that will not go", func(t *testing.T) {
 		t.Parallel()
-		err := cache.Prune("d", 1, listing(fakeEntry{name: own(0), size: 9}), func(string) error { return boom })
+		err := cache.Prune("d", 1, listing(listedEntry{name: own(0), size: 9}), func(string) error { return boom })
 		require.ErrorIs(t, err, boom)
 	})
 	t.Run("a file another process removed first still counts as gone", func(t *testing.T) {
@@ -360,7 +375,7 @@ func TestPrune_Failures(t *testing.T) {
 			removed = append(removed, filepath.Base(name))
 			return fs.ErrNotExist
 		}
-		files := listing(fakeEntry{name: own(0), size: 9}, fakeEntry{name: own(1), size: 9})
+		files := listing(listedEntry{name: own(0), size: 9}, listedEntry{name: own(1), size: 9})
 		require.NoError(t, cache.Prune("d", 9, files, remove))
 		assert.Len(t, removed, 1, "one removal brings the rest under the limit")
 	})

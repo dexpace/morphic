@@ -43,10 +43,15 @@ const staleAfter = time.Hour
 // else is touched, so a directory shared with other files loses none of them.
 var ownName = regexp.MustCompile(`^\.?[0-9a-f]{64}` + regexp.QuoteMeta(entrySuffix) + `[0-9]*$`)
 
+// errNoDirectory reports a Dir naming no directory: its entries would land in
+// whatever the working directory is.
+var errNoDirectory = errors.New("no directory to keep entries in")
+
 // Dir stores entries as files in a directory, created on the first Store. It
 // implements engine.Cache, and overlapping calls are safe, from several
 // processes too: a Store publishes by rename, so a Load sees a whole entry or
-// none. Past MaxBytes a Store removes the oldest entries first.
+// none. Past MaxBytes a Store removes the oldest entries first. The zero Dir
+// names no directory, and refuses every call.
 type Dir struct {
 	path  string
 	limit int
@@ -65,15 +70,18 @@ func (d *Dir) fileOf(key Key) string {
 // Load returns the entry named key, and false when there is none. An entry past
 // the limit is an error: no Store wrote one, so something else did.
 func (d *Dir) Load(ctx context.Context, key Key) ([]byte, bool, error) {
+	if d.path == "" {
+		return nil, false, errNoDirectory
+	}
 	entry, err := reader.ReadSource(ctx, d.fileOf(key), d.limit)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, false, nil
 	}
 	if err != nil {
-		return nil, false, fmt.Errorf("cache: load: %w", err)
+		return nil, false, fmt.Errorf("read entry: %w", err)
 	}
 	if len(entry) > d.limit {
-		return nil, false, fmt.Errorf("cache: load %s: past the limit of %d bytes", key, d.limit)
+		return nil, false, fmt.Errorf("entry %s: past the limit of %d bytes", key, d.limit)
 	}
 	return entry, true, nil
 }
@@ -82,18 +90,21 @@ func (d *Dir) Load(ctx context.Context, key Key) ([]byte, bool, error) {
 // past the limit. An entry past the limit alone is refused, since keeping it
 // would mean removing every other.
 func (d *Dir) Store(ctx context.Context, key Key, entry []byte) error {
+	if d.path == "" {
+		return errNoDirectory
+	}
 	if len(entry) > d.limit {
-		return fmt.Errorf("cache: store %s: %d bytes, past the limit of %d", key, len(entry), d.limit)
+		return fmt.Errorf("entry %s: %d bytes, past the limit of %d", key, len(entry), d.limit)
 	}
 	if err := os.MkdirAll(d.path, dirPerm); err != nil {
-		return fmt.Errorf("cache: store: %w", err)
+		return fmt.Errorf("make directory: %w", err)
 	}
 	err := atomicfile.Replace(ctx, d.fileOf(key), func(w io.Writer) error {
 		_, err := w.Write(entry)
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("cache: store: %w", err)
+		return fmt.Errorf("write entry: %w", err)
 	}
 	return prune(d.path, d.limit, time.Now(), os.ReadDir, os.Remove)
 }
@@ -113,7 +124,7 @@ func prune(dir string, limit int, now time.Time, list func(string) ([]fs.DirEntr
 ) error {
 	listed, err := list(dir)
 	if err != nil {
-		return fmt.Errorf("cache: prune: %w", err)
+		return fmt.Errorf("prune: %w", err)
 	}
 	files, err := heldIn(listed, now)
 	if err != nil {
@@ -128,7 +139,7 @@ func prune(dir string, limit int, now time.Time, list func(string) ([]fs.DirEntr
 			return nil
 		}
 		if err := remove(filepath.Join(dir, f.name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("cache: prune: %w", err)
+			return fmt.Errorf("prune: %w", err)
 		}
 		total -= f.size
 	}
@@ -148,7 +159,7 @@ func heldIn(listed []fs.DirEntry, now time.Time) ([]held, error) {
 			continue
 		}
 		if err != nil {
-			return nil, fmt.Errorf("cache: prune: %w", err)
+			return nil, fmt.Errorf("prune: %w", err)
 		}
 		if strings.HasPrefix(entry.Name(), ".") && now.Sub(info.ModTime()) < staleAfter {
 			continue

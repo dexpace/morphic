@@ -23,6 +23,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+var _ Cache = (*cache.Dir)(nil)
+
 // Cache keeps what runs compiled, for WithCache. It holds opaque bytes, and
 // overlapping calls must be safe; cache.Dir is the implementation on disk. An
 // entry may be lost or damaged at any time, which costs a compile and never a
@@ -144,7 +146,9 @@ type keyInputs struct {
 // keyFor frames in as cache.KeyOf wants: the passes after their count, then the
 // settings, last and so needing none, in sorted order.
 func keyFor(in keyInputs) cache.Key {
-	fields := []string{in.build, in.irVersion, in.dir, in.path, in.specHash, strconv.Itoa(len(in.passes))}
+	const leading = 6 // the fields before the passes
+	fields := make([]string, 0, leading+len(in.passes)+2*len(in.settings))
+	fields = append(fields, in.build, in.irVersion, in.dir, in.path, in.specHash, strconv.Itoa(len(in.passes)))
 	fields = append(fields, in.passes...)
 	for _, name := range slices.Sorted(maps.Keys(in.settings)) {
 		fields = append(fields, name, in.settings[name])
@@ -202,9 +206,12 @@ func (b *cacheBinding) load(ctx context.Context, key cache.Key) ([]byte, bool, e
 		err   error
 	)
 	if perr := barrier.Catch(func() { entry, ok, err = b.store.Load(ctx, key) }); perr != nil {
-		return nil, false, fmt.Errorf("engine: cache: load: %w", perr)
+		err = perr
 	}
-	return entry, ok, err
+	if err != nil {
+		return nil, false, fmt.Errorf("engine: cache: load: %w", err)
+	}
+	return entry, ok, nil
 }
 
 // keep stores what a run compiled. A run that compiled nothing, or that read
@@ -219,9 +226,12 @@ func (b *cacheBinding) keep(ctx context.Context, key cache.Key, res *Result, rea
 		return fmt.Errorf("engine: cache: %w", err)
 	}
 	if perr := barrier.Catch(func() { err = b.store.Store(ctx, key, entry) }); perr != nil {
-		return fmt.Errorf("engine: cache: store: %w", perr)
+		err = perr
 	}
-	return err
+	if err != nil {
+		return fmt.Errorf("engine: cache: store: %w", err)
+	}
+	return nil
 }
 
 // encodeEntry writes res as an entry: the head, then the compact document.
@@ -283,7 +293,7 @@ type recorder struct {
 // ReadDocument implements compilers.DocumentReader.
 func (r *recorder) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
 	data, err := r.docs.ReadDocument(ctx, req)
-	hash := ""
+	var hash string
 	if err == nil {
 		hash = ir.SourceHash(data)
 	}

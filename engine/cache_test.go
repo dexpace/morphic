@@ -162,7 +162,9 @@ func encodedOf(t *testing.T, res *engine.Result) encoded {
 		require.NoError(t, err)
 		doc = string(data)
 	}
-	return encoded{doc, res.Diagnostics, res.Sources, res.Format, res.Failed}
+	return encoded{
+		Document: doc, Diagnostics: res.Diagnostics, Sources: res.Sources, Format: res.Format, Failed: res.Failed,
+	}
 }
 
 // assertSameRun fails unless the two results tell a consumer the same thing.
@@ -489,11 +491,12 @@ func TestWithCache_ADocumentADocumentReadsIsAnInput(t *testing.T) {
 func TestWithCache_ARemoteDocumentIsFetchedAgain(t *testing.T) {
 	t.Parallel()
 	var fetches atomic.Int32
-	var body atomic.Value
-	body.Store(otherDoc("name"))
+	var body atomic.Pointer[string]
+	serve := func(doc string) { body.Store(&doc) }
+	serve(otherDoc("name"))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		fetches.Add(1)
-		_, err := io.WriteString(w, body.Load().(string))
+		_, err := io.WriteString(w, *body.Load())
 		assert.NoError(t, err)
 	}))
 	t.Cleanup(server.Close)
@@ -514,7 +517,7 @@ func TestWithCache_ARemoteDocumentIsFetchedAgain(t *testing.T) {
 	assert.EqualValues(t, 1, counter.compiles.Load())
 	assert.Greater(t, fetches.Load(), fetched, "a hit asks the server again")
 
-	body.Store(otherDoc("title"))
+	serve(otherDoc("title"))
 	_, err = eng.Run(t.Context(), spec, opts)
 	require.NoError(t, err)
 	assert.EqualValues(t, 2, counter.compiles.Load())
@@ -816,12 +819,14 @@ func TestWithCache_AFailingStoreCostsOnlyTheWork(t *testing.T) {
 					require.ErrorIs(t, res.CacheErr, want)
 				}
 			}
+			assert.Contains(t, res.CacheErr.Error(), "engine: cache: ", "a store's error says what the run was doing")
 			assert.Equal(t, 1, store.stores, "a failed lookup still tries to keep the compile")
 		})
 	}
 }
 
-// panickyCache panics in the step a test names.
+// panickyCache panics in the one step a test names, so a row reports that step's
+// panic and no other's.
 type panickyCache struct {
 	onLoad bool
 }
@@ -833,7 +838,12 @@ func (c panickyCache) Load(context.Context, cache.Key) ([]byte, bool, error) {
 	return nil, false, nil
 }
 
-func (panickyCache) Store(context.Context, cache.Key, []byte) error { panic("store") }
+func (c panickyCache) Store(context.Context, cache.Key, []byte) error {
+	if !c.onLoad {
+		panic("store")
+	}
+	return nil
+}
 
 // TestWithCache_APanicIsACacheFailure holds a Cache as the engine holds any code
 // it does not own, and the nil pointer in an interface among the ways to panic,
