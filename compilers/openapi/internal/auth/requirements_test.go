@@ -110,9 +110,9 @@ components:
 // TestSecurityRequirement_SoleOptionCollapsesListToNil reproduces issue #41
 // directly: a document-level security list whose only option names an
 // undeclared scheme must not leave behind AuthRequirement{Schemes: nil}, which
-// ir-design §9 reads as "no auth is one acceptable choice" — the opposite of
+// docs/ir/auth.md reads as "no auth is one acceptable choice" — the opposite of
 // what a demanded-but-undeclared scheme means. Nor may it surface as [], which
-// ir-design §9 reserves for a deliberate "explicitly public" declaration
+// docs/ir/auth.md reserves for a deliberate "explicitly public" declaration
 // (Service.Auth's doc comment). The list collapses to nil instead: no usable
 // default was declared, so operations fall back exactly as if security had
 // never been written.
@@ -282,9 +282,9 @@ func operationsByDeclaration(svc ir.Service) map[string]ir.Operation {
 //
 // ir.Service.Auth and ir.Operation.Auth are omitzero, so the IR spells the two
 // apart — an absent key for "inherit whatever encloses this", [] for
-// "explicitly public" (ir-design §9). Collapsing them makes an explicitly public
-// operation read as one that never mentioned security, which is the opposite
-// claim.
+// "explicitly public" (docs/ir/auth.md). Collapsing them makes an explicitly
+// public operation read as one that never mentioned security, which is the
+// opposite claim.
 func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
@@ -301,8 +301,8 @@ func TestSecurityRequirements_AnEmptyListIsNotAnAbsentOne(t *testing.T) {
 
 // TestSecurityRequirement_ANonObjectEntryIsNotTheEmptyOption pins that a
 // security-list entry not written as an object is dropped whole rather than
-// lowered to AuthRequirement{}, which ir-design §9 reserves for "no auth is one
-// acceptable choice" and which, beside a real requirement, would make auth
+// lowered to AuthRequirement{}, which docs/ir/auth.md reserves for "no auth is
+// one acceptable choice" and which, beside a real requirement, would make auth
 // optional (GitHub #284).
 //
 // The `{}` an author writes on purpose is a row too: refusing every memberless
@@ -409,7 +409,7 @@ components:
 
 // TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil pins the
 // solo spelling at both levels. It is the worse half of #284: `security: [null]`
-// lowered to [{}], which ir-design §9 reads as an explicit "no auth is one
+// lowered to [{}], which docs/ir/auth.md reads as an explicit "no auth is one
 // acceptable choice" — a document that says nothing usable about security
 // instead declaring the API public. Dropping the entry leaves an originally
 // non-empty list empty, which the enclosing collapse turns into nil, so the

@@ -21,8 +21,8 @@ import (
 
 // LowerService lowers one document into a single Service: its identity, docs
 // and servers, the declared tag registry, and every path, webhook, and callback
-// operation placed into groups per the configured grouping strategy (ir-design
-// §7.1), registering every server it meets in reg.
+// operation placed into groups per the configured grouping strategy
+// (docs/ir/services.md), registering every server it meets in reg.
 //
 // ctx bounds the walk in time, for the reason LowerComponentSchemas takes one:
 // a document mounts as many paths and webhooks as it likes. Cancellation stops
@@ -121,7 +121,8 @@ func (o opContext) keyFields() (uriTemplate, webhookName string) {
 
 // lowerOperation lowers one source operation into the neutral core plus its HTTP
 // binding. It returns the operation and any callback operations that must be
-// registered alongside it in the same group (ir-design §7.2, §8.1).
+// registered alongside it in the same group (docs/ir/operations.md,
+// docs/ir/http-binding.md).
 func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext) (ir.Operation, []ir.Operation, []ir.Diagnostic) {
 	mount, decl := opCtx.ptrs.mount, opCtx.ptrs.decl
 	// Built through the context so the source index is spelled in one place. Its
@@ -138,8 +139,9 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 		// The ID is the mount — two mounts of one $ref'd path item are two
 		// operations — but provenance is where the operation is written, which
 		// for those two is one component. A mount pointer under a $ref'd path
-		// item addresses no node at all, and ir-design §13 defines Pointer as a
-		// pointer into the source, so it has to name the declaration.
+		// item addresses no node at all, and docs/ir/provenance.md defines
+		// Pointer as a pointer into the source, so it has to name the
+		// declaration.
 		Provenance: opProv,
 	}
 	fillOperationDocs(&op.Docs, src)

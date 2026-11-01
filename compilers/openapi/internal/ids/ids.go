@@ -13,8 +13,8 @@ import (
 )
 
 // Ptr joins tokens into an RFC 6901 JSON pointer, escaping each one. IDs are
-// derived from the pointers it builds (ir-design §3.1); the grammar wrapped
-// around a pointer to make an ID belongs to the framework.
+// derived from the pointers it builds (docs/ir/identity.md); the grammar
+// wrapped around a pointer to make an ID belongs to the framework.
 //
 // A position beneath another is base + Ptr(tokens...): joining two valid
 // pointers yields a valid pointer, so extending one never takes it apart.
@@ -32,13 +32,14 @@ func Ptr(tokens ...string) jsontext.Pointer {
 
 // Scope joins segments into an Unmodeled key scope: Ptr's escaping without the
 // leading separator, since a scope is a relative path rather than a pointer
-// (ir-design §12).
+// (docs/ir/unmodeled.md#keys).
 //
 // It exists for the scopes holding a segment the document chooses — a form
 // part's name, a callback's — where an unescaped "/" makes one segment read as
 // two. Two parts named "q" and "q/x-a" then wrote one key between them and the
-// surviving entry followed declaration order, silently, which is what §4.3
-// forbids a minted node and §12 promises a scoped key.
+// surviving entry followed declaration order, silently, which is what
+// docs/ir/models.md#composition-beside-a-union forbids a minted node and
+// docs/ir/unmodeled.md#keys promises a scoped key.
 func Scope(segments ...string) string {
 	return strings.TrimPrefix(string(Ptr(segments...)), "/")
 }
@@ -54,21 +55,22 @@ const (
 	OpenAPISpace compile.Space = "openapi"
 	AnonSpace    compile.Space = "anon"
 	// ComposedSpace holds what no schema or declaration in the source occupies:
-	// the Models synthesized for distributed union variants (§4.3) and for a field
-	// redeclared as several models, and the identity of a field whose first
-	// declaration another model carries
-	// (docs/compilers/openapi.md#allof-redeclared-property). A $ref naming the
-	// pointer must keep resolving to what is written there. A variant's path ends
-	// in oneOf or anyOf and an index, and a field's in properties and a name, so
-	// the two never meet. ForPointer yields only the openapi and anon spaces, so
-	// resolveSchemaRef can never hand a composed ID to a reference.
+	// the Models synthesized for distributed union variants
+	// (docs/ir/models.md#composition-beside-a-union) and for a field redeclared
+	// as several models, and the identity of a field whose first declaration
+	// another model carries (docs/compilers/openapi.md#allof-redeclared-property).
+	// A $ref naming the pointer must keep resolving to what is written there. A
+	// variant's path ends in oneOf or anyOf and an index, and a field's in
+	// properties and a name, so the two never meet. ForPointer yields only the
+	// openapi and anon spaces, so resolveSchemaRef can never hand a composed ID
+	// to a reference.
 	ComposedSpace compile.Space = "composed"
 )
 
 // The spaces an operation group is addressed in. No OpenAPI construct is a
 // group: a Tag Object is metadata about a name, and an operation may tag itself
 // with a name no Tag Object declares. The grouping rule mints the group, so each
-// rule takes a namespace of its own (ir-design §3.1), distinct from
+// rule takes a namespace of its own (docs/ir/identity.md), distinct from
 // OpenAPISpace, which addresses source coordinates. The first two are named for
 // the strategy that forms the group, the last two for the one group they hold.
 const (
@@ -84,8 +86,8 @@ const (
 
 // DefaultServerSpace names the one server OpenAPI supplies, at "/", for a
 // document that declares none. No position in the source writes it, so it is
-// minted rather than found, in a space of its own (ir-design §3.1), apart from
-// OpenAPISpace, where a declared server is addressed by its pointer.
+// minted rather than found, in a space of its own (docs/ir/identity.md), apart
+// from OpenAPISpace, where a declared server is addressed by its pointer.
 const DefaultServerSpace compile.Space = "default"
 
 // TagGroup returns the stable ID of the group of operations whose first tag is
@@ -178,8 +180,9 @@ func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
 }
 
 // ComposedType returns the stable ID of the Model synthesized at pointer in d:
-// a distributed union variant's branch (§4.3), or the declaration naming a field
-// redeclared as several models.
+// a distributed union variant's branch
+// (docs/ir/models.md#composition-beside-a-union), or the declaration naming a
+// field redeclared as several models.
 func (d Document) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(pointer))
 }

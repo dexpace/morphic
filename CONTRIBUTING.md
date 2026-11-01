@@ -28,11 +28,11 @@ Read the documents for your layer, and skip the rest until you need them.
 
 | You are changing | Read first | Read when you need it |
 |---|---|---|
-| A lowering rule of the OpenAPI compiler | the rules near yours in [`docs/compilers/openapi.md`](docs/compilers/openapi.md), and the [`ir-design.md`](docs/ir-design.md) section of the shape it fills | [`micro-compiler-design.md`](docs/micro-compiler-design.md), for why the compiler's packages split where they do; [`parser-library.md`](docs/parser-library.md), before relying on what the parser library returns |
-| A pass | [`architecture.md`](docs/architecture.md) §2.2 | the `ir-design.md` sections of the nodes it reads |
-| A compiler | `architecture.md` §2 and §3, `ir-design.md`, [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) | [`prior-art.md`](docs/prior-art.md), [`reference-learnings.md`](docs/reference-learnings.md) |
-| The IR | `ir-design.md`, `architecture.md` §2.5, `prior-art.md` | `reference-learnings.md` |
-| An emitter (none exists yet) | [`emitter-design.md`](docs/emitter-design.md), `architecture.md` §2.3 to §2.5 | `prior-art.md` |
+| A lowering rule of the OpenAPI compiler | the rules near yours in [`docs/compilers/openapi.md`](docs/compilers/openapi.md), and the [IR design](docs/ir/README.md) document of the shape it fills | [`micro-compiler-design.md`](docs/micro-compiler-design.md), for why the compiler's packages split where they do; [`parser-library.md`](docs/parser-library.md), before relying on what the parser library returns |
+| A pass | [`architecture.md`](docs/architecture.md) §2.2 | the IR design documents of the nodes it reads |
+| A compiler | `architecture.md` §2 and §3, the IR design, [`ir-spec-matrix.md`](docs/ir-spec-matrix.md) | [`prior-art.md`](docs/prior-art.md), [`reference-learnings.md`](docs/reference-learnings.md) |
+| The IR | the IR design, `architecture.md` §2.5, `prior-art.md` | `reference-learnings.md` |
+| An emitter (none exists yet) | [`emitters/`](docs/emitters/README.md), `architecture.md` §2.3 to §2.5 | `prior-art.md` |
 
 ### Where a test goes
 
@@ -252,7 +252,8 @@ needless; a verified run catches one.
    pass's own in `cmd/morphic`, both added with the pass (architecture.md §2.2).
 5. **Record it** in `architecture.md` §2.2 under "Built, and in the default list", moving it from
    "Designed, not yet built" where it is listed there, and in the two other places that name the
-   built passes: the README's Passes bullet and `emitter-design.md` §1.1. No test reads any of them.
+   built passes: the README's Passes bullet and `docs/emitters/README.md`. No test reads any of
+   them.
 6. **Run the gate:** `make gate`.
 
 ## Add a compiler
@@ -279,7 +280,7 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    production file the rule audits imports.
 3. **Mint IDs and names through the framework.** Intern types through `compile.Types`, derive IDs
    and canonical names with `compilers/compile`, declare in `Document.IDSpaces` every namespace an
-   ID lives in, source-addressed as well as minted (`ir-design.md` §3.1), and stamp
+   ID lives in, source-addressed as well as minted (`docs/ir/identity.md`), and stamp
    `ir.IRVersion`. Once the last lowering returns, take the registry from `compile.Types.Finish` and
    report the diagnostics it returns beside it, as the OpenAPI compiler's `run` does: they carry a
    `compile/registry-refused` error for each entry the registry refused. Take the `*compile.Types`
@@ -316,10 +317,10 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    fixture in it to be listed, so one that no registered compiler recognizes fails there instead of
    dropping out of the sweep, and `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.
 6. **Write its lowering specification** at `docs/compilers/<format>.md`, and link it from
-   `ir-design.md` §14: move the format's list there into the new document, or add a row for a
-   format §14 does not list. The `TestLoweringSpec` tests read `docs/compilers/openapi.md` alone, so
-   give the new specification tests of its own, reading it through `internal/keydoc` as they do.
-   Nothing fails if this step is missed.
+   `docs/compilers/planned-lowerings.md`: move the format's list there into the new document, or add
+   a row for a format that page does not list. The `TestLoweringSpec` tests read
+   `docs/compilers/openapi.md` alone, so give the new specification tests of its own, reading it
+   through `internal/keydoc` as they do. Nothing fails if this step is missed.
 7. **Run the gate:** `make gate`.
 
 ## Merge a dependency update

@@ -4,16 +4,17 @@
 package ir
 
 // Constraints restricts the admissible values of a scalar, model, list, tuple,
-// map, string, or numeric type (ir-design §5.3). Numeric bounds are
-// arbitrary-precision decimal strings, never float64.
+// map, string, or numeric type (docs/ir/constraints.md#constraints). Numeric
+// bounds are arbitrary-precision decimal strings, never float64.
 //
 // A Constraints is position-scoped: it holds only what its position declared,
 // and nothing is copied across a TypeRef. Bounds conjoin, so the effective
 // restriction is this struct and the Constraints of every node its TypeRef
 // reaches; an absent Constraints means no bound was declared, never that the
-// value is unbounded (ir-design §12.2). Documentation, deprecation, visibility
-// and Default are the opposite: a compiler merges them from a $ref's target
-// onto the referencing carrier, with use-site precedence.
+// value is unbounded (docs/ir/annotations.md#what-a-reference-carries-down).
+// Documentation, deprecation, visibility and Default are the opposite: a
+// compiler merges them from a $ref's target onto the referencing carrier, with
+// use-site precedence.
 type Constraints struct {
 	// Min is the inclusive lower numeric bound (JSON Schema minimum): an
 	// admissible value is >= it. nil = this position declared none.
@@ -67,8 +68,9 @@ type Constraints struct {
 
 // Encoding is the logical-type / encoding-name / wire-type triple that reifies
 // TypeSpec @encode and absorbs OpenAPI format and Protobuf wire variants, plus
-// the media type and decoded shape of an encoded payload (ir-design §5.3).
-// Property encoding overrides scalar encoding.
+// the media type and decoded shape of an encoded payload
+// (docs/ir/constraints.md#encodings). Property encoding overrides scalar
+// encoding.
 type Encoding struct {
 	// Name is the encoding scheme ("rfc3339", "base64", "zigzag", "packed",
 	// "delimited", format strings, ...).
@@ -87,8 +89,8 @@ type Encoding struct {
 }
 
 // XMLHints describes an XML wire shape that diverges from the JSON-implied one
-// (ir-design §5.4). Hints attach at TypeCommon (root shape) and Property (per-use
-// overrides; property wins).
+// (docs/ir/constraints.md#xml-hints). Hints attach at TypeCommon (root shape)
+// and Property (per-use overrides; property wins).
 type XMLHints struct {
 	// Name is the element/attribute name override.
 	Name string `json:"name,omitempty"`

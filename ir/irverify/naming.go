@@ -101,8 +101,8 @@ func namingChannels(naming reflect.Value) (source, canon, hint string, aliases r
 // since until then it names nothing to compare. Canonical and Hint are never
 // compared: the IR derived them, and no writer schema spelled them.
 //
-// Collisions with other entities' names are no rule of the list (ir-design
-// §3.2).
+// Collisions with other entities' names are no rule of the list
+// (docs/ir/naming.md).
 func appendAliasViolations(vs []Violation, source string, aliases reflect.Value, at ir.WalkPath,
 	read *reusedMap[string, int],
 ) []Violation {

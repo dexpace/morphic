@@ -29,9 +29,9 @@ func TestTypeRef_JSONContract(t *testing.T) {
 // four-state test (the Property half lives in property_test.go as
 // TestProperty_RequiredNullableFourStates). Nullability lives on the
 // reference, not the target type, because the same type is nullable in one
-// position and not another (ir-design §3.3); collapsing "false" and "absent"
-// into one wire representation would make that per-usage distinction
-// unrecoverable from a decoded document.
+// position and not another (docs/ir/type-graph.md#type-references); collapsing
+// "false" and "absent" into one wire representation would make that per-usage
+// distinction unrecoverable from a decoded document.
 func TestTypeRef_NullableNeverOmitted(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

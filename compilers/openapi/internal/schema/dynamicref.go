@@ -31,9 +31,10 @@ import (
 // irreducible (dynamicChainVerdict).
 //
 // Only an anchor on a top-level component schema resolves, since only its
-// TypeID is stable whatever lowers first (ir-design §4.3). A $dynamicRef
-// co-declared with a $ref, oneOf/anyOf or a shape is irreducible too, as is
-// one another document holds.
+// TypeID is stable whatever lowers first
+// (docs/compilers/openapi.md#dynamic-ref). A $dynamicRef co-declared with a
+// $ref, oneOf/anyOf or a shape is irreducible too, as is one another document
+// holds.
 func dynamicExpansion(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (target ir.TypeID, why string, ok bool, diags []ir.Diagnostic) {
 	name, why, ok := dynamicRefName(s)
 	if !ok {

@@ -68,11 +68,12 @@ func TestDocument_ConstructRepresentative(t *testing.T) {
 	assert.False(t, model.Properties[0].Type.Nullable)
 }
 
-// TestCompatibleVersion pins the pre-1.0 compatibility policy (ir-design §2.1):
-// a document is readable only when its stamp is character-for-character the
-// version this build was compiled against. Every recorded bump so far changed
-// the JSON shape, so nothing licenses accepting a neighbouring one — not a
-// differing patch, not the same version spelled differently.
+// TestCompatibleVersion pins the pre-1.0 compatibility policy
+// (docs/ir/ir-version.md): a document is readable only when its stamp is
+// character-for-character the version this build was compiled against. Every
+// recorded bump so far changed the JSON shape, so nothing licenses accepting a
+// neighbouring one — not a differing patch, not the same version spelled
+// differently.
 //
 // The neighbours are derived from IRVersion, so a bump moves them with it: a
 // literal left behind once asserted that a build rejects its own documents.

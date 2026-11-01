@@ -40,9 +40,9 @@ func schemaOf(pointer jsontext.Pointer) jsontext.Pointer { return pointer.Parent
 // identify gives merged an identity of its own, named for field, where a model
 // holding its first declaration without the others would otherwise share it: a
 // $ref to an allOf branch makes one. That is a minted identity, so it takes a
-// namespace of its own (ir-design §3.1). Otherwise the field keeps the first
-// declaration's, which the walk has already handed out. schema holds every
-// declaration (fieldSpan).
+// namespace of its own (docs/ir/identity.md#the-id-grammar). Otherwise the field
+// keeps the first declaration's, which the walk has already handed out. schema
+// holds every declaration (fieldSpan).
 func (g *Merger) identify(merged *ir.Property, schema, field jsontext.Pointer) {
 	if !g.carriedApart(merged.Provenance.Pointer, schema) {
 		return

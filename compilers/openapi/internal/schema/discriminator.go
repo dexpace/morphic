@@ -26,12 +26,12 @@ import (
 // resolves to a target TypeID (a bare name implies
 // #/components/schemas/<name>; nil stays nil, preserving infer-by-name
 // semantics), and the tag is located via exactly one of Property /
-// PropertyName / Index (ir-design §4.3). m is the model declaring it, a plain
-// object or an allOf composition, whose declaring property's PropID locates
-// the tag, else PropertyName if undeclared; a nil m, for a oneOf/anyOf union
-// with no single model, names it by PropertyName alone. variants are a
-// union's, and nil for a model: what each names decides what the mapping names
-// (readsThrough).
+// PropertyName / Index (docs/ir/models.md#discriminator). m is the model
+// declaring it, a plain object or an allOf composition, whose declaring
+// property's PropID locates the tag, else PropertyName if undeclared; a nil m,
+// for a oneOf/anyOf union with no single model, names it by PropertyName alone.
+// variants are a union's, and nil for a model: what each names decides what the
+// mapping names (readsThrough).
 func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir.Model, variants []ir.Variant, pointer jsontext.Pointer) (*ir.Discriminator, []ir.Diagnostic) {
 	d := s.GetDiscriminator()
 	if d == nil {
@@ -281,10 +281,10 @@ func propIDByName(m *ir.Model, name string) (ir.PropID, bool) {
 }
 
 // subtypeDiscriminatorValue returns the wire tag this allOf subtype carries in
-// its discriminator hierarchy, or "" when no ancestor anchors one (ir-design
-// §4.3): the mapping key naming the subtype, else its schema name as declared,
-// not as its escaped pointer token spells it (GitHub #505). An inline subtype
-// has no name, so only a mapping entry can tag it (GitHub #517).
+// its discriminator hierarchy, or "" when no ancestor anchors one
+// (docs/ir/models.md): the mapping key naming the subtype, else its schema name
+// as declared, not as its escaped pointer token spells it (GitHub #505). An
+// inline subtype has no name, so only a mapping entry can tag it (GitHub #517).
 //
 // Every discriminated ancestor is asked, since an intermediate may declare none
 // (GitHub #305). Of several mapping keys for the subtype the smallest in byte

@@ -9,10 +9,10 @@ import "strings"
 // name holds none.
 const inferredSeparator = ","
 
-// Inferred lists the heuristics that produced a fact (ir-design §12): each
-// heuristic's name once, comma-separated, in the order first written, none
-// empty. The empty list marks a declared fact. Names compare exactly, and the IR
-// declares no set of them.
+// Inferred lists the heuristics that produced a fact
+// (docs/ir/unmodeled.md#promotion): each heuristic's name once,
+// comma-separated, in the order first written, none empty. The empty list marks
+// a declared fact. Names compare exactly, and the IR declares no set of them.
 //
 // [JoinInferred] writes the form and [Inferred.IsCanonical] reads it. A
 // conversion from a string skips both, and so does a decoded document, so

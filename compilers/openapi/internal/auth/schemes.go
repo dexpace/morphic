@@ -21,7 +21,7 @@ import (
 )
 
 // LowerSecuritySchemes interns every declared security scheme into the auth
-// registry keyed by ids.Auth(name) (ir-design §9). Run it before the service
+// registry keyed by ids.Auth(name) (docs/ir/auth.md). Run it before the service
 // walk so requirements reference registered IDs.
 //
 // An entry whose $ref resolves to nothing is reported at its own components
@@ -173,9 +173,10 @@ func mechanismRefusalDiag(c lowering.Ctx, name, missing string, entry jsontext.P
 			"no scheme is interned for it, and every requirement naming it is dropped", name, missing)
 }
 
-// fillSchemeKind sets the mechanism kind and its per-kind fields (ir-design §9).
-// An unrecognized type degrades to a custom scheme carrying the raw type, which
-// a later OpenAPI version's own type reaches as readily as a typo does.
+// fillSchemeKind sets the mechanism kind and its per-kind fields
+// (docs/ir/auth.md). An unrecognized type degrades to a custom scheme carrying
+// the raw type, which a later OpenAPI version's own type reaches as readily as
+// a typo does.
 //
 // ok reports whether the entry named a mechanism; missing is the field it had
 // to declare to name one and did not. An absent type names nothing at all, and
@@ -209,7 +210,7 @@ func fillSchemeKind(scheme *ir.AuthScheme, ss *soa.SecurityScheme) (missing stri
 
 // fillHTTPScheme classifies an HTTP scheme by its RFC 7235 scheme token: basic
 // and bearer get first-class kinds; any other scheme is custom with the token
-// preserved. BearerFormat rides along regardless (ir-design §9).
+// preserved. BearerFormat rides along regardless (docs/ir/auth.md).
 //
 // `type: http` without a scheme is the second shape that names no mechanism: a
 // custom kind carrying an empty token says no more than a typeless entry. A

@@ -420,8 +420,8 @@ func TestIsNullLiteral_TellsANullFromFalse(t *testing.T) {
 }
 
 // TestEffectiveVisibility_MapsTheFlagsToLifecycles pins the readOnly/writeOnly
-// mapping of ir-design §5.2, the precedence a site holds over its referent, and
-// the answer for the pairing that admits nothing.
+// mapping of docs/ir/properties.md#visibility, the precedence a site holds over
+// its referent, and the answer for the pairing that admits nothing.
 //
 // Precedence is per flag (the uniform merge of
 // docs/compilers/openapi.md#ref-use-site): a site's readOnly settles readOnly

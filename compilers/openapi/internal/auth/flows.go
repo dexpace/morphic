@@ -62,7 +62,7 @@ func oauthFlows(flows *soa.OAuthFlows) []ir.OAuthFlow {
 
 // oauthFlow lowers one OAuth2 flow, reading only the fields of flowFields its
 // kind defines; preserveUndefinedFlowFields keeps the rest. The device flow's
-// deviceAuthorizationUrl rides OAuthFlow.AuthorizationURL (ir-design §9).
+// deviceAuthorizationUrl rides OAuthFlow.AuthorizationURL (docs/ir/auth.md).
 func oauthFlow(f sourceFlow) ir.OAuthFlow {
 	fl := ir.OAuthFlow{
 		Kind:       f.kind,

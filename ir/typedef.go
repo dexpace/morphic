@@ -5,7 +5,7 @@ package ir
 
 import "reflect"
 
-// TypeKind names one variant of the sealed TypeDef sum (ir-design §4).
+// TypeKind names one variant of the sealed TypeDef sum (docs/ir/type-graph.md).
 type TypeKind string
 
 // Type kinds: the closed set of type-graph node variants.
@@ -34,9 +34,9 @@ const (
 	KindAny TypeKind = "any"
 )
 
-// TypeDef is the sealed sum of all type-graph nodes (ir-design §4). Concrete
-// kinds: Primitive, Scalar, Model, Union, Enum, List, MapT, Tuple, Literal,
-// External, Any. JSON encodes the sum with an adjacent "kind" tag.
+// TypeDef is the sealed sum of all type-graph nodes (docs/ir/type-graph.md).
+// Concrete kinds: Primitive, Scalar, Model, Union, Enum, List, MapT, Tuple,
+// Literal, External, Any. JSON encodes the sum with an adjacent "kind" tag.
 type TypeDef interface {
 	typeDef() // sealed: only this package's types implement TypeDef
 	Kind() TypeKind
@@ -59,8 +59,8 @@ func IsNilTypeDef(td TypeDef) bool {
 }
 
 // TypeCommon carries the identity, documentation, and cross-cutting metadata
-// shared by every type-graph node (ir-design §4). It is embedded in each
-// concrete kind, and its fields sit beside the kind's own in JSON.
+// shared by every type-graph node (docs/ir/type-graph.md). It is embedded in
+// each concrete kind, and its fields sit beside the kind's own in JSON.
 type TypeCommon struct {
 	// ID is the type's stable synthetic identity in Document.Types.
 	ID TypeID `json:"id"`
@@ -68,7 +68,8 @@ type TypeCommon struct {
 	Name Naming `json:"name"`
 	// Namespace is the type's declared logical namespace (proto package, Avro
 	// namespace, Thrift/XSD/Cap'n Proto scopes); independent of Service.Namespace.
-	// It is a path: no segment is blank, and one may repeat (ir-design §4).
+	// It is a path: no segment is blank, and one may repeat
+	// (docs/ir/type-graph.md).
 	Namespace []string `json:"namespace,omitempty"`
 	// Anonymous reports that this is a hoisted inline type.
 	Anonymous bool `json:"anonymous"`
@@ -108,7 +109,7 @@ type TypeCommon struct {
 }
 
 // TemplateInstantiation records the template and arguments a monomorphized
-// generic type was produced from (ir-design §4).
+// generic type was produced from (docs/ir/type-graph.md).
 type TemplateInstantiation struct {
 	// Template names the source template.
 	Template string `json:"template,omitempty"`

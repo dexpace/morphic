@@ -1,0 +1,40 @@
+# The canonical step list
+
+| Step | Reads (un-lowered IR fact) | Lowers to | IR design |
+|---|---|---|---|
+| `CollapseAliases` | `TypePlan.Alias`; the decorator chain's `Docs`, `Deprecation`, `Examples` | no declaration for an aliased type; each reference to it lowered as one to its `Alias`, its annotations folded onto the carrier ([decorators](decorators.md)) | [models](../../ir/models.md); [annotations](../../ir/annotations.md#what-a-reference-carries-down) |
+| `ResolveScalarChains` | `plan.ScalarChain` (the `Base` chain walked once, constraints merged), `Ctx.Types` | a declaration over the root ([scalars](scalars.md)), the root typed by the type table ([type table](../contract/type-table.md)), + merged constraints; nil-base → the opaque-scalar strategy | [scalars](../../ir/scalars.md) |
+| `LowerContainers` | `List/MapT/Tuple` nodes (with IDs) | list, map and positional forms, a positional form's members past `MinItems` optional and a `Rest` trailing; a nil `MapT.Key` is a string key, and a non-string key → custom-key map or diagnostic | [containers](../../ir/containers.md) |
+| `LowerLiterals` | `Literal{Value}` | typed constant / single-value type (incl. `symbol`) | [containers](../../ir/containers.md) |
+| `LowerModels` | `TypePlan.Flattened`, `Required`, `Undeclared`, `Unflattened`, `Base`/`Implements`/`Mixins`, `AdditionalProps`, `Additional`, `Positional` | a declaration over the flattened properties, an `Undeclared` member a required field typed as the catch-all types it, the catch-all holding the undeclared members, unknown members rejected on `closed`, an `Unflattened` conjunct lowered or degraded with a code | [models](../../ir/models.md) |
+| `ProjectVisibilityShapes` | `plan.ModelShape` per lifecycle | one declaration per shape, such as `User` / `UserCreate` / `UserPatch` | [properties](../../ir/properties.md#visibility) |
+| `LowerOptionality` | `TypePlan.Required` (a member's wire presence, [TypePlan](../plan/types.md)) ⊥ `TypeRef.Nullable` ⊥ `Property.Presence`; `Facts.Component` | the four+ states in the target's forms; a reference on a cycle the target holds by value broken as its type system requires ([recursive references](models.md#recursive-references)) | [properties](../../ir/properties.md); INV8 |
+| `LowerConstraints` | `Constraints` on properties/scalars/lists/maps | field-level validation metadata + a refine-built validation method structure | [constraints](../../ir/constraints.md) |
+| `LowerUnions` | `Union{Variants, Exclusive, WireTagged, Discriminator}`, a polymorphic base's `Discriminator` or `Abstract` with `Facts.Subtypes`, `TypePlan.Union`, `TypePlan.Open` | the target's closed sum, one member per variant or subtype + a fallback on an open one | [unions](../../ir/unions.md); INV2 |
+| `LowerDiscriminator` | `Discriminator{Property/PropertyName/Index, Mapping→TypeID, Default, Envelope}` | a tag-dispatched decoder + typed factories | [models](../../ir/models.md)–[unions](../../ir/unions.md) |
+| `LowerOpenEnums` | `Enum.Closed`, `ValueType`, `Members`, `Flags`, `FallbackMember` | the target's closed, open and flags forms; an open one keeps an unknown value | [enums](../../ir/enums.md) |
+| `ExtractInterfaces` | `Implements`, `OperationGroup` | interfaces / client interfaces for testability | [models](../../ir/models.md) |
+| `MapExternalTypes` | `External{Identity, Package, MinVersion}`, `Ctx.Types` | the type table's row for the identity ([type table](../contract/type-table.md)): imported library type + dependency-manifest entry; no row → opaque strategy + diagnostic | [containers](../../ir/containers.md) |
+| `MaterializeValues` | `Value{Kind, Num BigVal, Ref, Ctor}` | literals; `Num` → bignum/decimal, never float64; `Ctor` → call; `symbol` → string explicitly; a default documented, never written onto a request ([values](values.md)) | [values](../../ir/values.md) |
+| `BuildRequestShaping` | `plan.BindingView`, `RequestContent`, the target's parameter shape ([request shaping](requests.md)) | request builders, per-protocol param binding, each operation's request type | [bindings](../../ir/bindings.md) |
+| `LowerHeaders` | `ResponsePlan.Headers` | a type with a field per declared header, each optional, read from the raw headers by wire name; a `WithResponse` method on a success ([return shapes](../operations/returns.md)), the failure value's and an `OtherResponse`'s `Headers` ([failures](../operations/errors.md), [return shapes](../operations/returns.md)) | [responses](../../ir/responses.md) |
+| `LowerPagination` | `plan.PagePlan` (item unwrap, cursor paths) | an auto-pager; pacing left to policy | [interaction-patterns](../../ir/interaction-patterns.md) |
+| `LowerStreaming` | `plan.StreamPlan` (direction; each side's content, framing and element) | a method per shape the operation offers; a stream over an element of any kind; a `bytes` side lowered as a file; terminal ends | [interaction-patterns](../../ir/interaction-patterns.md) |
+| `LowerLRO` | `plan.LROPlan` (final-state-via, poll/final ops, result path) | poller type + one poll and a poll until done, which returns the final type | [interaction-patterns](../../ir/interaction-patterns.md) |
+| `LowerErrors` | `plan.PlannedError` | no error type: each entry's conditions, body decoder and declared facts in the operation's response decoder, which fills the runtime's failure value ([failures](../operations/errors.md)) | [responses](../../ir/responses.md) |
+| `LowerOtherResponses` | `OpPlan.Others` | each entry's conditions in the operation's response decoder: `AsReturn` and a 2xx no entry answers read as `Return`, no body a nullable return or an ended pager or stream, any other a body decoder filling the runtime's `OtherResponse`, as a body that does not decode does ([return shapes](../operations/returns.md)) | [responses](../../ir/responses.md) |
+| `PlaceDeclarations` | `Provenance.Source`, `TypePlan.Reach`, the target's placement options | the output unit each declaration lands in: one package unless a partition or a group split moves it ([output units](output-units.md)) | [provenance](../../ir/provenance.md) |
+| `ComputeImports` | what each file's declarations reference: another unit's declarations, a type-table row's `Imports`, the runtime | per-file import sets, each import by its path; the name a file gives it is settled with every other name ([reserved names](reserved-names.md)) | — |
+| `RenderCasing` | neutral `Ident` (= `naming.Words`: the canonical words beside their source spellings; a name with none named by its characters) + the options' naming tables | cased identifiers, the units' among them — the ONLY place names get cased ([naming](naming.md)) | [naming](../../ir/naming.md); INV4 |
+| `EscapeReservedWords` | cased `Ident` + each scope's reserved set: keywords, what the generated code binds there, what its file imports, what a unit cannot be named ([reserved names](reserved-names.md)) | keyword-safe identifiers; NEVER touches `WireName`/`WireID` | [naming](../../ir/naming.md); INV4 |
+| `ResolveCollisions` | `Ctx.Syms` (ID-keyed symbol table) | deterministic disambiguation in every scope, the units and each file's imports among them, an import yielding to a declaration ([reserved names](reserved-names.md)); never mutates IR identity | [identity](../../ir/identity.md); INV3 |
+
+A step's Go forms are in [Go's step table](../targets/go/lowering.md#the-step-list-in-go).
+
+Every `ir.TypeKind` has a dispatch here: `primitive` and `any` map through the type table ([type
+table](../contract/type-table.md)) in `ResolveScalarChains`/type-reference lowering, `literal` in
+`LowerLiterals`, the rest in the named steps above. The switch-completeness test ([mandatory
+tests](../testing/mandatory-tests.md)) proves the coverage in the suite. A kind no compiler produces
+yet dispatches to a coded degrade instead of a lowering ([what M3
+lowers](../milestones.md#what-m3-lowers)), which keeps the coverage without a lowering nothing could
+test. The concrete lowering strategies for the load-bearing axes are the documents beside this one.

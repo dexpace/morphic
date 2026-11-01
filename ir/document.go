@@ -8,17 +8,17 @@ package ir
 // CompatibleVersion and refuse any other.
 //
 // It names a schema generation, not a commit: any change to the JSON shape
-// bumps it, once, where the change lands on main. ir-design §2.1 holds that
-// policy and the history of what each bump changed, and
+// bumps it, once, where the change lands on main. docs/ir/ir-version.md holds
+// that policy, docs/ir/version-history.md what each bump changed, and
 // TestIRVersion_PinsTheEncodedShape holds it to the shape.
 const IRVersion = "0.22.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
-// this build: exact equality with IRVersion, per ir-design §2.1. A differing
-// patch, a prerelease suffix and a non-version are equally unreadable, since
-// accepting a neighbouring version would claim to know what changed between the
-// two. A consumer asks it before interpreting any other field of a decoded
-// document.
+// this build: exact equality with IRVersion, per docs/ir/ir-version.md. A
+// differing patch, a prerelease suffix and a non-version are equally
+// unreadable, since accepting a neighbouring version would claim to know what
+// changed between the two. A consumer asks it before interpreting any other
+// field of a decoded document.
 //
 // An empty version is incompatible too, but a caller that can act on the
 // difference should test for it separately: absence is a producer that never
@@ -28,12 +28,12 @@ func CompatibleVersion(version string) bool {
 }
 
 // TypeRegistry is the flat, ID-keyed owner of every TypeDef in a Document
-// (ir-design §2, §4); every other node references types by TypeID. JSON
-// (un)marshaling of the sealed sum is defined with the rest of the sum-type
-// codec.
+// (docs/ir/document.md, docs/ir/type-graph.md); every other node references
+// types by TypeID. JSON (un)marshaling of the sealed sum is defined with the
+// rest of the sum-type codec.
 type TypeRegistry map[TypeID]TypeDef
 
-// Document is the root of a Morphic IR document (ir-design §2). It is
+// Document is the root of a Morphic IR document (docs/ir/document.md). It is
 // self-contained: no node references anything outside it.
 type Document struct {
 	// IRVersion is the version of the IR schema itself (semver).
@@ -75,9 +75,9 @@ type Document struct {
 	Auth map[AuthID]AuthScheme `json:"auth,omitempty"`
 	// Servers is the server registry, keyed by ID: the servers the source
 	// declares, whichever object declares them. The services, channels and
-	// operations a server serves name it by ID, in their own order (ir-design
-	// §10), so one declared for a scope every member of which overrides it is held
-	// here and named by none.
+	// operations a server serves name it by ID, in their own order
+	// (docs/ir/servers.md), so one declared for a scope every member of which
+	// overrides it is held here and named by none.
 	Servers map[ServerID]Server `json:"servers,omitempty"`
 	// TagDefs is the tag metadata registry; tag membership stays []string on the
 	// tagged nodes.
@@ -131,6 +131,6 @@ type TagDef struct {
 	// — "nav", "badge", or any other string a document writes. It is kept as a
 	// fact rather than interpreted: whether a kind is navigational is grouping
 	// policy, not a property of the document, so no meaning is read into a
-	// value here (ir-design §7.1).
+	// value here (docs/ir/services.md).
 	Kind string `json:"kind,omitempty"`
 }

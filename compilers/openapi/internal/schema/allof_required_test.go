@@ -115,10 +115,10 @@ func TestAllOf_CompositionRequiredAttaches(t *testing.T) {
 
 // TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires pins an
 // allOf composed of a sole $ref (its Base) and a required-only branch naming a
-// property only the base declares. ir-design §4.3 stores a model's own
-// properties, never a flattened view, so the name lands in Model.Requires: the
-// composed model makes the inherited property required, and nothing is
-// misattached to an unrelated property or reported as lost.
+// property only the base declares. docs/ir/models.md#composition stores a
+// model's own properties, never a flattened view, so the name lands in
+// Model.Requires: the composed model makes the inherited property required, and
+// nothing is misattached to an unrelated property or reported as lost.
 func TestAllOf_RequiredOnlyBranchNamingBaseOwnedPropertyLandsInRequires(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Human:

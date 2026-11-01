@@ -2,7 +2,8 @@
 
 Synthesis of seven reference-generator deep-dives (ogen, openapi-generator, oagen, TypeSpec,
 openapi-python-client, datamodel-code-generator, fastapi-code-generator) against Morphic's
-`ir-design.md`, `architecture.md`, and `prior-art.md`. De-duplicated and ranked by leverage.
+the [IR design](./ir/README.md), `architecture.md`, and `prior-art.md`. De-duplicated and
+ranked by leverage.
 
 **How to read the verdicts.** *CONFIRMS* = a shipped generator independently arrived at Morphic's
 design (or paid dearly for not having it). *CHALLENGES* = something Morphic's plan should reconsider
@@ -129,17 +130,19 @@ operation; `extractModelName` walks the TypeRef collapsing nullable→inner, arr
 model variant (a lossy ergonomic shortcut correctly made *in the plan layer*, not the IR). TypeSpec/
 TCGC keep paging as *metadata* (property **paths** from response root, not top-level names) so next-
 links/items can live inside envelopes. **Recommendation:** Morphic's `Pagination` (path-based
-`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropPath`s, multiple strategies) is richer than all
-references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never pre-flatten
-in IR. Add oagen's two plan predicates Morphic's §2.3 list omits: **`pathParamsInOptions`**
-(positional-vs-options-bag: `pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and
-**`isArrayResponse`** (unpaginated array→`Model[]` + elementwise decode, distinct from the pagination
-wrapper). Streaming stays on the operation core (`StreamDetail`/`Variant.Event`) — Kiota's lack of any
-streaming concept is the counterexample. *Superseded in part:* `pathParamsInOptions` is not a plan
-predicate — how a target passes its inputs varies by language, so emitter-design §3.6 makes the shape
-each target's (§4.13) — and `isArrayResponse` is not a shape of its own: an unpaginated array is a
-`value` of `BodyShape`, decoded as any type is, since the typed targets decode a list whole
-(emitter-design §3.1).
+`InputCursor`/`NextCursor`/`NextLink`/`Items` as `PropPath`s, multiple strategies) is richer than
+all references — keep it; do the primary-model TypeRef walk in **plan** (like oagen §A2), never
+pre-flatten in IR. Add oagen's two plan predicates Morphic's §2.3 list omits:
+**`pathParamsInOptions`** (positional-vs-options-bag:
+`pathParams>1 || (pathParams>0 && (hasBody||hasQuery))`) and **`isArrayResponse`** (unpaginated
+array→`Model[]` + elementwise decode, distinct from the pagination wrapper). Streaming stays on the
+operation core (`StreamDetail`/`Variant.Event`) — Kiota's lack of any streaming concept is the
+counterexample. *Superseded in part:* `pathParamsInOptions` is not a plan predicate — how a target
+passes its inputs varies by language, so [plan fact or refine
+fact](./emitters/plan/plan-or-refine.md) makes the shape each target's ([request
+shaping](./emitters/refine/requests.md)) — and `isArrayResponse` is not a shape of its own: an
+unpaginated array is a `value` of `BodyShape`, decoded as any type is, since the typed targets
+decode a list whole ([body shapes](./emitters/plan/responses.md#body-shapes)).
 
 ## A6. Naming / casing / reserved words: neutral in IR, rendered in refine — STRONGLY CONFIRMS #3/#4
 
@@ -255,10 +258,10 @@ lacks (the strongest validation the oagen audit produced).
   context)`; it splits **lexical vs reference context** (decl-site context stays, use-site context
   propagates across ref edges) — Morphic's plan hits this the moment one model is used under two
   lifecycles/media-types. Key visibility/shape projections on `(TypeID, lifecycle-set, options-hash)`
-  and intern the option set (answers ir-design open-question #4: derive Usage once per document in
-  `ir/irfacts`, do not store it, key by interned context). Support `manuallyTrack`-style usage
-  injection for emitter-synthesized types (envelopes, page wrappers) or you get mis-scoped
-  duplicate declarations.
+  and intern the option set (answers [open question 4](./ir/open-questions.md): derive Usage
+  once per document in `ir/irfacts`, do not store it, key by interned context). Support
+  `manuallyTrack`-style usage injection for emitter-synthesized types (envelopes, page wrappers) or
+  you get mis-scoped duplicate declarations.
 
 ## A11. Error-response collapse, dedup equality, encode/decode pairing — plan-layer patterns to steal
 
@@ -300,21 +303,23 @@ reference. Harvest the merge algorithms as **emitter-refiner** material (below).
 simplification lives in `pass/` (composable, order-explicit, default OFF, provenance-recording), never
 a default compiler mutation.
 
-## B1. Nullable normalization: fold every spelling to one bit — CONFIRMS #8/§3.3
+## B1. Nullable normalization: fold every spelling to one bit — CONFIRMS #8/[type-graph](./ir/type-graph.md#type-references)
 
 ogen (`extendInfo`, `handleNullableEnum`), oagen (`schemas.ts:1110`), openapi-python
 (`Schema.handle_nullable` pydantic validator rewriting 3.0 `nullable`→3.1 `[T,"null"]`), TypeSpec
 (reverse: OpenAPI emitter collapses `T|null` back to a bit) all normalize 3.0 `nullable` / 3.1
 `type:[T,"null"]` / `x-nullable` to one internal signal. A `oneOf/anyOf` whose only extra arm is
-`null` collapses to a plain nullable — **Morphic already legislates this (§3.3), and it's the exact
-spot ogen left unfinished** (its TODO "convert oneOf+null into generic"). Do the 3.0↔3.1 reconciliation
-*inside the compiler before IR lowering*, emit an `info` diagnostic recording the original spelling.
-**Guard:** openapi-python's `allOf`→`oneOf[null,allOf]` trick mixes null with composition — Morphic
-must instead set `TypeRef.Nullable=true` on the reference to the composed model and invent **no union**
-(§3.3). **Edge case from TypeSpec (B4):** a union whose *only* member is `null` (bare-null) has no
-nullable-bit home — lower it to `Literal{Value:null}` (or `Any`+Nullable) + diagnostic, or the compiler
-emits a `TypeRef` with no non-null target. Cover the full four-state matrix (required×nullable) in the
-conformance corpus — datamodel needing `strict_nullable` years late is the argument for day-one.
+`null` collapses to a plain nullable — **Morphic already legislates this
+([type-graph](./ir/type-graph.md#type-references)), and it's the exact spot ogen left
+unfinished** (its TODO "convert oneOf+null into generic"). Do the 3.0↔3.1 reconciliation *inside the
+compiler before IR lowering*, emit an `info` diagnostic recording the original spelling. **Guard:**
+openapi-python's `allOf`→`oneOf[null,allOf]` trick mixes null with composition — Morphic must
+instead set `TypeRef.Nullable=true` on the reference to the composed model and invent **no union**
+([type-graph](./ir/type-graph.md#type-references)). **Edge case from TypeSpec (B4):** a union
+whose *only* member is `null` (bare-null) has no nullable-bit home — lower it to
+`Literal{Value:null}` (or `Any`+Nullable) + diagnostic, or the compiler emits a `TypeRef` with no
+non-null target. Cover the full four-state matrix (required×nullable) in the conformance corpus —
+datamodel needing `strict_nullable` years late is the argument for day-one.
 
 ## B2. No float64 anywhere — CONFIRMS the BigVal rule, with a subtle warning
 
@@ -447,13 +452,14 @@ for parameters only and loses target defaults on $ref-typed fields — the bug).
   expansion because a document's dynamic scope is static. Port the anchor-index logic; add Morphic's
   promised "irreducible cases preserved verbatim + diagnostic" fallback (datamodel just best-effort
   resolves).
-- **Validation-only (`not`/`if-then-else`/`dependentSchemas`)**: §4.7 carve-out — keep **verbatim
-  in `Unmodeled`** under `ReasonValidationOnly` + one `info` diagnostic; do **not** model
-  structurally. datamodel's
-  `_merge_conditional_properties` (folds then/else props up as optional) and openapi-generator's ad-hoc
-  mix (some fields, some extensions, some dropped) both **silently change the shape** — Morphic's
-  verbatim approach is cleaner. Keep the one carve-back: `unevaluatedProperties:false` →
-  `Additional=closed_after_composition`. Corpus: assert "preserved-not-modeled".
+- **Validation-only (`not`/`if-then-else`/`dependentSchemas`)**:
+  [boundaries](./ir/boundaries.md#validation-only-constructs) carve-out — keep **verbatim in
+  `Unmodeled`** under `ReasonValidationOnly` + one `info` diagnostic; do **not** model structurally.
+  datamodel's `_merge_conditional_properties` (folds then/else props up as optional) and
+  openapi-generator's ad-hoc mix (some fields, some extensions, some dropped) both **silently change
+  the shape** — Morphic's verbatim approach is cleaner. Keep the one carve-back:
+  `unevaluatedProperties:false` → `Additional=closed_after_composition`. Corpus: assert
+  "preserved-not-modeled".
 
 ## B10. Latent compiler bug #1 — named scalar component registering no node → dangling $ref
 
@@ -477,15 +483,16 @@ dangling ref (`ir/dangling-type-ref` fires, or worse, silently).
   The alias need not be a `CodegenModel`, but it *is* in the alias table, so resolution never fails.
 
 **Fix for Morphic (and it's the clean one given the IR):** the compiler must **register a `Scalar`
-node (§4.2) at every named component's pointer-derived TypeID**, even when it trivially aliases a
-primitive — `Scalar{Base: <primitive TypeRef>}`. Do **not** resolve-through in the compiler; resolving
-a scalar chain "to the nearest representable base" is explicitly a **emitter refiner** job (§4.2). This
-matches ogen and datamodel (register the node) and is cleaner than openapi-generator's side alias-table
-(Morphic gets the alias-table's guarantee for free because every pointer maps to a registered node).
+node ([scalars](./ir/scalars.md)) at every named component's pointer-derived TypeID**, even
+when it trivially aliases a primitive — `Scalar{Base: <primitive TypeRef>}`. Do **not**
+resolve-through in the compiler; resolving a scalar chain "to the nearest representable base" is
+explicitly a **emitter refiner** job ([scalars](./ir/scalars.md)). This matches ogen and
+datamodel (register the node) and is cleaner than openapi-generator's side alias-table (Morphic gets
+the alias-table's guarantee for free because every pointer maps to a registered node).
 Belt-and-suspenders: keep the `validate` pass's `ir/dangling-type-ref` check so any future
 resolve-through regression is caught by a golden/corpus test. **Corpus item:** a named
-`{type:string,format:uuid}` component referenced from two sites — assert a `Scalar` node exists at its
-pointer and both refs resolve to it.
+`{type:string,format:uuid}` component referenced from two sites — assert a `Scalar` node exists at
+its pointer and both refs resolve to it.
 
 ## B11. Latent compiler bug #2 — allOf + oneOf co-occurrence dropping allOf
 
@@ -511,9 +518,9 @@ losing the base/mixin composition entirely.
   complex allOf+oneOf combinations it can't reconcile hit `ErrNotImplemented` rather than silently
   dropping — a hard stop, not silent loss.
 
-**Fix for Morphic (lossless, per §4.3/§4.4):** when allOf and oneOf/anyOf co-occur, the compiler must
-process **both** — never return early on the combinator. Two lossless representations, in preference
-order:
+**Fix for Morphic (lossless, per [models](./ir/models.md)/[unions](./ir/unions.md)):**
+when allOf and oneOf/anyOf co-occur, the compiler must process **both** — never return early on the
+combinator. Two lossless representations, in preference order:
 1. **Distribute the allOf composition across the Union variants** (datamodel's semantics, kept
    lossless not merged): emit a `Union` whose each `Variant.Type` references a `Model` carrying the
    allOf classification (`Base`/`Mixins`/inline-`Properties` per
@@ -522,12 +529,12 @@ order:
    the `∧`-of-`∨` semantics.
 2. If the allOf is pure inheritance and the oneOf is the *discriminated subtype set* of that base
    (the common `allOf:[base] + oneOf:[subtypes]` idiom), classify allOf → `Base` on the enclosing
-   `Model` and attach the `Discriminator` + subtype mapping (§4.3), so it's one polymorphic model, not
-   a synthetic union.
-Either way the allOf is **classified, never merged and never dropped**. Emit an `info` diagnostic
-recording the co-occurrence lowering chosen (provenance). **Corpus item (this is the exact regression):**
-`{allOf: [{$ref: Base}], oneOf: [{$ref: A}, {$ref: B}]}` — assert both the Base composition and both
-union variants survive in the IR; a second case with a discriminator to exercise shape #2.
+   `Model` and attach the `Discriminator` + subtype mapping ([models](./ir/models.md)), so
+   it's one polymorphic model, not a synthetic union. Either way the allOf is **classified, never
+   merged and never dropped**. Emit an `info` diagnostic recording the co-occurrence lowering chosen
+   (provenance). **Corpus item (this is the exact regression):**
+   `{allOf: [{$ref: Base}], oneOf: [{$ref: A}, {$ref: B}]}` — assert both the Base composition and
+   both union variants survive in the IR; a second case with a discriminator to exercise shape #2.
 
 > **Correction, from implementing this.** Shape #1 shipped and is right. **Shape #2 is not
 > implementable as written and was rejected.** Folding the branches into a Model's discriminator

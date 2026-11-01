@@ -144,10 +144,11 @@ func TestJSONObject_PropagatesAQuoteFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid UTF-8")
 }
 
-// TestValidationOnlyAt_KeepsEveryKeywordItClaims pins the §4.7 family as a set.
-// A keyword missing from this list is one the IR neither models nor keeps, which
-// is the silent-drop class of defect the family exists to prevent. Each entry is
-// announced once, by the name it was kept under, whichever keeper kept it.
+// TestValidationOnlyAt_KeepsEveryKeywordItClaims pins the validation-only
+// family as a set. A keyword missing from this list is one the IR neither
+// models nor keeps, which is the silent-drop class of defect the family exists
+// to prevent. Each entry is announced once, by the name it was kept under,
+// whichever keeper kept it.
 func TestValidationOnlyAt_KeepsEveryKeywordItClaims(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\n"+
@@ -308,11 +309,11 @@ func TestValidationOnlyAt_AttributesAnUnkeptCombinedEntryByItsKeywords(t *testin
 }
 
 // TestValidationOnlyAt_NeedsTheRawNode records a real limit of reading these
-// purely: the §4.7 keywords are preserved byte-faithfully from the source YAML,
-// so the facet reads the schema's raw root node rather than its parsed fields. A
-// schema built in Go carries no root node, so there is nothing to preserve —
-// which is the correct answer, not a gap. The parsed-source path is covered by
-// the retention suite.
+// purely: the validation-only keywords are preserved byte-faithfully from the
+// source YAML, so the facet reads the schema's raw root node rather than its
+// parsed fields. A schema built in Go carries no root node, so there is nothing
+// to preserve — which is the correct answer, not a gap. The parsed-source path
+// is covered by the retention suite.
 func TestValidationOnlyAt_NeedsTheRawNode(t *testing.T) {
 	t.Parallel()
 	built := &oas3.Schema{Not: oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{})}
@@ -324,9 +325,9 @@ func TestValidationOnlyAt_NeedsTheRawNode(t *testing.T) {
 }
 
 // TestValidationOnlyAt_DependentRequiredJoinsItsSiblings pins the keyword the
-// §4.7 family was missing. dependentRequired is pure validation logic exactly as
-// dependentSchemas is, and oas3.Schema has no field for it, which is the whole
-// reason it was dropped where its sibling was kept.
+// validation-only family was missing. dependentRequired is pure validation
+// logic exactly as dependentSchemas is, and oas3.Schema has no field for it,
+// which is the whole reason it was dropped where its sibling was kept.
 func TestValidationOnlyAt_DependentRequiredJoinsItsSiblings(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "type: object\ndependentRequired:\n  a: [b]\n")

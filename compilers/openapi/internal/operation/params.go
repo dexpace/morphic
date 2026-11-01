@@ -23,12 +23,13 @@ import (
 
 // lowerParameters lowers an operation's merged parameter list (path-item plus
 // operation) into logical Parameters and their HTTP wire bindings, in source
-// order (ir-design §7.2, §8.1). The logical side carries the protocol-neutral
-// input; the binding side carries the location, style, and explode facts.
-// Each parameter lowers at its declaration: the $ref target for a referenced
-// entry, else the list entry itself (issue #107). Its ID is rooted at mount, the
-// operation's mount pointer, not at the declaration it was copied from; a
-// repeat of one name and location keeps an ID of its own (paramLedger).
+// order (docs/ir/operations.md, docs/ir/http-binding.md). The logical side
+// carries the protocol-neutral input; the binding side carries the location,
+// style, and explode facts. Each parameter lowers at its declaration: the $ref
+// target for a referenced entry, else the list entry itself (issue #107). Its
+// ID is rooted at mount, the operation's mount pointer, not at the declaration
+// it was copied from; a repeat of one name and location keeps an ID of its own
+// (paramLedger).
 func lowerParameters(c lowering.Ctx, ts *compile.Types, mount jsontext.Pointer, params []sourcedParam) ([]ir.Parameter, []ir.HTTPParamBinding, []ir.Diagnostic) {
 	if len(params) == 0 {
 		return nil, nil, nil
@@ -138,7 +139,7 @@ func fillParamType(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, bindi
 // use-site-only, as fillPropertyConstraints keeps them: the referent's bounds
 // are left where declared, since bounds conjoin rather than override and
 // copying one down under use-site precedence would publish the wider bound as
-// the whole truth (ir-design §12.2).
+// the whole truth (docs/ir/annotations.md#what-a-reference-carries-down).
 func fillParamSchema(c lowering.Ctx, ts *compile.Types, param *ir.Parameter, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	if js == nil || !js.IsSchema() {
 		return nil

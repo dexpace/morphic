@@ -17,9 +17,10 @@ import (
 
 // TestFlattenedProperties_MatchesTheRulesOnAcyclicCompositions holds every
 // flattening of a composition with no cycle to reference, which states the
-// rules of ir-design §4.3 as directly as they read: order included, which the
-// order-free reading cannot check. Its roots are those flatRandom gives no
-// cycle and every root of dagRandom, which never builds one.
+// rules of docs/ir/models.md#the-flattening as directly as they read: order
+// included, which the order-free reading cannot check. Its roots are those
+// flatRandom gives no cycle and every root of dagRandom, which never builds
+// one.
 func TestFlattenedProperties_MatchesTheRulesOnAcyclicCompositions(t *testing.T) {
 	t.Parallel()
 	compared := 0

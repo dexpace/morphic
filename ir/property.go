@@ -4,7 +4,7 @@
 package ir
 
 // PresenceKind is the wire-presence discipline of a property where the format
-// distinguishes more than required/optional (protobuf) (ir-design §5.1).
+// distinguishes more than required/optional (protobuf) (docs/ir/properties.md).
 type PresenceKind string
 
 // Presence disciplines.
@@ -27,7 +27,7 @@ const (
 // Lifecycle names a visibility lifecycle class. It is an OPEN set; canonical
 // values are "create", "read", "update", "delete", and "query". TypeSpec custom
 // visibility classes lower as "<class>:<member>" strings so nothing is dropped
-// (ir-design §5.2).
+// (docs/ir/properties.md#visibility).
 type Lifecycle = string
 
 // Canonical lifecycle values.
@@ -45,7 +45,8 @@ const (
 )
 
 // Visibility is the set of lifecycles in which a property is visible
-// (ir-design §5.2). The zero value is visible in all lifecycles.
+// (docs/ir/properties.md#visibility). The zero value is visible in all
+// lifecycles.
 type Visibility struct {
 	// Only lists the lifecycles the property is visible in; empty = visible in
 	// all (unless None). It is a set: no entry is blank or repeated.
@@ -55,8 +56,8 @@ type Visibility struct {
 	None bool `json:"none"`
 }
 
-// Property is one member of a Model (ir-design §5.1). Required (wire presence) is
-// orthogonal to Type.Nullable (this usage admits null).
+// Property is one member of a Model (docs/ir/properties.md). Required (wire
+// presence) is orthogonal to Type.Nullable (this usage admits null).
 type Property struct {
 	// ID is the property's stable synthetic identity.
 	ID PropID `json:"id"`
@@ -96,7 +97,8 @@ type Property struct {
 	// stays on the node Type points at and is never copied here, unlike Docs,
 	// Deprecation and Default, which merge from that target with use-site
 	// precedence: bounds conjoin rather than override, so nil means this
-	// position declared none, not that the value is unbounded (ir-design §12.2).
+	// position declared none, not that the value is unbounded
+	// (docs/ir/annotations.md#what-a-reference-carries-down).
 	Constraints *Constraints `json:"constraints,omitzero"`
 	// Encoding overrides the property's wire encoding.
 	Encoding *Encoding `json:"encoding,omitzero"`
@@ -134,8 +136,9 @@ type Property struct {
 }
 
 // EffectiveWireName returns the name p travels under on the wire: its
-// WireName, or its source name where it sets none (ir-design §5.1). It is what
-// tells one member of a model from another, across composition too (§4.3).
+// WireName, or its source name where it sets none (docs/ir/properties.md). It
+// is what tells one member of a model from another, across composition too
+// (docs/ir/models.md#the-flattening).
 func (p *Property) EffectiveWireName() string {
 	if p.WireName != "" {
 		return p.WireName
@@ -147,7 +150,7 @@ func (p *Property) EffectiveWireName() string {
 // Headers: a Property, which names and types the value, and how it is written
 // into its field, which a property elsewhere has no use for. A response header
 // has no binding to hold that, as a parameter's HTTPParamBinding does
-// (ir-design §7.2).
+// (docs/ir/responses.md).
 type Header struct {
 	Property
 	// Style is how the value is written into the field, in

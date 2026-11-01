@@ -9,7 +9,7 @@ components:
         id: {type: string}
     # JSON Schema conjoins keywords, so a schema may write several that the IR
     # can only lower one of. Every case here lowers the one the dispatch elects
-    # and keeps the rest verbatim beside it (ir-design 4.8); none of them may
+    # and keeps the rest verbatim beside it (docs/ir/boundaries.md#degraded-constructs); none of them may
     # lower in silence.
     #
     # allOf beside enum is the narrowing idiom: a Base whose value set this
