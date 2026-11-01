@@ -158,7 +158,7 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, "double", ws.Encoding.Name)
 }
 
-// assertSelectedPrimitives pins the pairings the format table names: each
+// assertSelectedPrimitives pins the table's pairings this spec writes: each
 // selects a shared primitive, an integer width whichever numeric type carries
 // it, and so holds no node of its own. The primitive node has to be interned
 // too, or the reference would dangle.
@@ -181,12 +181,14 @@ func assertSelectedPrimitives(t *testing.T, doc *ir.Document, h *ir.Model) {
 		"opens":  ir.PrimTime,
 		"ttl":    ir.PrimDuration,
 	} {
-		p, ok := propByWire(h, wire)
-		require.True(t, ok, "%s is declared", wire)
-		assert.Equal(t, ir.PrimTypeID(want), p.Type.Target, "%s selects the shared primitive", wire)
-		prim, ok := doc.Types[p.Type.Target].(*ir.Primitive)
-		require.True(t, ok, "%s's primitive is interned", wire)
-		assert.Equal(t, want, prim.Prim, "%s's node is the primitive it selects", wire)
+		t.Run(wire, func(t *testing.T) {
+			p, ok := propByWire(h, wire)
+			require.True(t, ok, "the property is declared")
+			assert.Equal(t, ir.PrimTypeID(want), p.Type.Target, "it selects the shared primitive")
+			prim, ok := doc.Types[p.Type.Target].(*ir.Primitive)
+			require.True(t, ok, "the primitive is interned")
+			assert.Equal(t, want, prim.Prim, "the node is the primitive it selects")
+		})
 	}
 }
 
