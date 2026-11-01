@@ -80,8 +80,8 @@ paths:
 // the context lowering.Within gives that item, and the one-entry slice. A scope that Hops or
 // a sibling layer keeps takes its closure over a copy of the context with it,
 // so building one for every mount cost each that much more. The item is inline,
-// since Within's walk through a $ref allocates a varying count under the race
-// detector.
+// since Within's walk through a $ref allocates a varying count under a
+// developer's -race run.
 func TestPathItemLayers_AOneLayerMountCostsItsLayerAlone(t *testing.T) {
 	l, diags := loweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}

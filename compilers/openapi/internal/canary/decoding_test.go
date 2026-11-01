@@ -237,8 +237,9 @@ func nestedCost(t *testing.T, depth int) [2]uint64 {
 const nodeCount = 1000
 
 // aliveShare is the share of a map's or a sequence's goroutines that must be
-// alive at once, as one over it: a fifth, under half what the race detector's
-// slower scheduling leaves, and far past any cap an errgroup limit sets.
+// alive at once, as one over it: a fifth, under half what the slower
+// scheduling of a developer's -race run leaves, and far past any cap an
+// errgroup limit sets.
 const aliveShare = 5
 
 // schemaKeywords are keywords the schema model holds a field for, each written

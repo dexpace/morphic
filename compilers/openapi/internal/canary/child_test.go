@@ -54,8 +54,8 @@ const childStack = 64 << 20
 const memoryCeiling = 256 << 20
 
 // childTimeout bounds one child. Every input here ends within a second or two
-// at the pinned version, even under the race detector, so only a child that
-// hangs waits it out. It is short so that a canary whose every child hangs
+// at the pinned version, with room to spare for a developer's -race run, so
+// only a child that hangs waits it out. It is short so that a canary whose every child hangs
 // still fails with its own message inside the gate's -timeout.
 const childTimeout = 10 * time.Second
 
