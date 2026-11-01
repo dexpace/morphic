@@ -359,7 +359,7 @@ func TestHeadingIndex_ReadsADocumentOnce(t *testing.T) {
 
 	fragments, err := headings.fragments(path)
 	require.NoError(t, err)
-	assert.Empty(t, cmp.Diff(map[string]bool{"title": true}, fragments))
+	assert.Empty(t, cmp.Diff(map[string]bool{"title": true}, fragments), "fragments of the document (-want +got)")
 }
 
 // TestLinkProblems_ReportsALinkThatResolvesToNothing plants a link of each form
