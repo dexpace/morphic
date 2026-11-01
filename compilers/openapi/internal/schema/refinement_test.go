@@ -765,6 +765,7 @@ func TestRefinement_AValueComparesAsAnEnumEntryDoes(t *testing.T) {
     Narrowed: {allOf: [{$ref: '#/components/schemas/Level'}, {enum: [1.0]}]}
     Meet: {allOf: [{type: number, enum: [1.0, 2.0]}, {type: integer, enum: [1, 2]}]}
     Lists: {allOf: [{enum: [[1.0, 2]]}, {enum: [[1, 2.0], [3]]}]}
+    Exponent: {allOf: [{enum: [15.0e-1]}, {enum: [1.5]}]}
     Holder:
       type: object
       properties:
@@ -772,7 +773,7 @@ func TestRefinement_AValueComparesAsAnEnumEntryDoes(t *testing.T) {
         whole: {allOf: [{$ref: '#/components/schemas/Whole'}, {enum: [1]}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, name := range []string{"Narrowed", "Meet", "Lists"} {
+	for _, name := range []string{"Narrowed", "Meet", "Lists", "Exponent"} {
 		assert.NotEqual(t, ir.KindModel, typeByName(doc, name).Kind(), name)
 	}
 	for _, wire := range []string{"level", "whole"} {
