@@ -5,6 +5,7 @@ package merge
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
@@ -35,6 +36,10 @@ const (
 	relANarrower
 	// relBNarrower says the second type is within the first.
 	relBNarrower
+	// relMeet is a pair of nodes alike but for their bounds, neither of which
+	// says all the other does: a value of both is one of a node holding both, so
+	// each folds into the field (foldNodeBounds).
+	relMeet
 )
 
 // flipped is the relation seen from the other side.
@@ -105,10 +110,10 @@ func (j typeJudge) relateAt(a, b ir.TypeRef, depth int) relation {
 
 // arms relates two resolved types, neither the top type nor degraded, that it
 // can narrow: two bare primitives (spelling.Relate); a Scalar, Enum or Literal
-// against a bare primitive; two identical such nodes; two lists or two maps,
-// two alike in every member and detail taking the copy rule identical nodes
-// take (sameNodes); and a structure against one it says it is (structures).
-// Any other pair is unrelated here.
+// against a bare primitive; two identical such nodes; two nodes that hold bounds
+// (boundedNodes), two alike in every member and detail taking the copy rule
+// identical nodes take (sameNodes); and a structure against one it says it is
+// (structures). Any other pair is unrelated here.
 func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef, depth int) relation {
 	ap, aBare := at.(*ir.Primitive)
 	bp, bBare := bt.(*ir.Primitive)
@@ -122,10 +127,10 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 	case sameNode(at, bt):
 		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
 	}
-	rel := j.containers(at, bt, depth)
+	rel := j.boundedNodes(at, bt, depth)
 	if rel == relSame {
-		// Two distinct containers alike in member and detail: copies, by the
-		// rule sameNodes states for the other nodes.
+		// Two distinct nodes alike in member and detail: copies, by the rule
+		// sameNodes states for the others.
 		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
 	}
 	if rel == relUnrelated {
@@ -554,7 +559,7 @@ func (j typeJudge) enumMisses(ref ir.TypeRef, kind ir.PrimKind, nullable bool) b
 	return ok && isEnum && noMemberMeets(en, kind, nullable)
 }
 
-// extras is what a list or map node holds beyond its element.
+// extras is what a list, map or tuple node holds beyond its members.
 type extras struct {
 	Constraints *ir.Constraints
 	Encoding    *ir.Encoding
@@ -563,10 +568,17 @@ type extras struct {
 	Unmodeled   ir.Unmodeled
 }
 
-// containers compares two lists or two maps with an equal key by their element
-// or value, recursively.
-func (j typeJudge) containers(at, bt ir.TypeDef, depth int) relation {
+// boundedNodes compares two nodes of a kind that holds bounds: two Scalars alike
+// but for them by those bounds, two lists or two maps with an equal key by their
+// element or value, recursively, and two tuples position by position.
+func (j typeJudge) boundedNodes(at, bt ir.TypeDef, depth int) relation {
 	switch a := at.(type) {
+	case *ir.Scalar:
+		b, ok := bt.(*ir.Scalar)
+		if !ok || !sameNode(withBounds(a, nil), withBounds(b, nil)) {
+			return relUnrelated
+		}
+		return boundsRelation(a.Constraints, b.Constraints)
 	case *ir.List:
 		b, ok := bt.(*ir.List)
 		if !ok {
@@ -581,18 +593,43 @@ func (j typeJudge) containers(at, bt ir.TypeDef, depth int) relation {
 		}
 		return j.contained(a.Value, b.Value, extras{a.Constraints, nil, a.Docs, a.Examples, a.Unmodeled},
 			extras{b.Constraints, nil, b.Docs, b.Examples, b.Unmodeled}, depth)
+	case *ir.Tuple:
+		b, ok := bt.(*ir.Tuple)
+		if !ok {
+			return relUnrelated
+		}
+		return j.tuples(a, b, depth)
 	default:
 		return relUnrelated
 	}
+}
+
+// tuples compares two tuples: unrelated unless every position, and what may follow
+// the last, is one type admitting null alike, so a tuple narrows only by its
+// bounds, and otherwise by what else they hold.
+func (j typeJudge) tuples(a, b *ir.Tuple, depth int) relation {
+	same := func(x, y ir.TypeRef) bool { return j.relateAt(x, y, depth+1) == relSame && byNull(x, y) == relSame }
+	if !slices.EqualFunc(a.Elems, b.Elems, same) || (a.Rest == nil) != (b.Rest == nil) {
+		return relUnrelated
+	}
+	if a.Rest != nil && !same(*a.Rest, *b.Rest) {
+		return relUnrelated
+	}
+	return detailRelation(extras{a.Constraints, nil, a.Docs, a.Examples, a.Unmodeled},
+		extras{b.Constraints, nil, b.Docs, b.Examples, b.Unmodeled})
 }
 
 // contained is the verdict on two containers whose members are ae and be. A
 // narrower member narrows the container only when the winner admits null no
 // more widely than the loser, and the loser holds nothing the winner lacks.
 // Disjoint members still overlap in a shared value: the empty container, or a
-// null both members admit.
+// null both members admit. Two members that meet overlap too, since a fold
+// builds a node for a field's own type and none for a member.
 func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relation {
 	rel := j.relateAt(ae, be, depth+1)
+	if rel == relMeet {
+		return relOverlap
+	}
 	if rel == relDisjoint && (ae.Nullable && be.Nullable || admitsEmpty(ax) && admitsEmpty(bx)) {
 		// An empty list or map, or one of nulls where both members admit null, is a
 		// value of both, so disjoint members overlap.
@@ -607,8 +644,8 @@ func (j typeJudge) contained(ae, be ir.TypeRef, ax, bx extras, depth int) relati
 	if rel == relBNarrower {
 		return narrowedBy(be, ae, bx, ax, rel)
 	}
-	if rel == relSame && !reflect.DeepEqual(ax, bx) {
-		return relOverlap
+	if rel == relSame {
+		return detailRelation(ax, bx)
 	}
 	return rel
 }
@@ -643,7 +680,7 @@ func narrowedBy(win, lose ir.TypeRef, wx, lx extras, rel relation) relation {
 	if win.Nullable && !lose.Nullable {
 		return relOverlap
 	}
-	if !reflect.DeepEqual(lx, extras{}) && !reflect.DeepEqual(lx, wx) {
+	if !holdsDetail(wx, lx) {
 		return relOverlap
 	}
 	return rel

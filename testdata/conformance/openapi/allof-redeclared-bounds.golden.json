@@ -1,0 +1,1843 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "AllOfRedeclaredBounds",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfRedeclaredBounds",
+        "canonical": "all_of_redeclared_bounds"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/BareListFirst/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BareListFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareListFirst/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/BareListFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BareListFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareListFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BareMapFirst/allOf/0/properties/p": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/BareMapFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareMapFirst/allOf/0/properties/p"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/BareMapFirst/allOf/1/properties/p": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/BareMapFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareMapFirst/allOf/1/properties/p"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "maxProps": 5
+      }
+    },
+    "t/anon/components/schemas/BareScalarFirst/allOf/0/properties/p": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/BareScalarFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareScalarFirst/allOf/0/properties/p"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "x-custom"
+      }
+    },
+    "t/anon/components/schemas/BareScalarFirst/allOf/1/properties/p": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/BareScalarFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareScalarFirst/allOf/1/properties/p"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 5,
+        "uniqueItems": false
+      },
+      "encoding": {
+        "name": "x-custom"
+      }
+    },
+    "t/anon/components/schemas/BareTupleFirst/allOf/0/properties/p": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/BareTupleFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareTupleFirst/allOf/0/properties/p"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/BareTupleFirst/allOf/1/properties/p": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/BareTupleFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareTupleFirst/allOf/1/properties/p"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BothMapBounds/allOf/0/properties/p": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/BothMapBounds/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothMapBounds/allOf/0/properties/p"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 1
+      }
+    },
+    "t/anon/components/schemas/BothMapBounds/allOf/1/properties/p": {
+      "kind": "map",
+      "id": "t/anon/components/schemas/BothMapBounds/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothMapBounds/allOf/1/properties/p"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "maxProps": 5
+      }
+    },
+    "t/anon/components/schemas/BothScalarBounds/allOf/0/properties/p": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/BothScalarBounds/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothScalarBounds/allOf/0/properties/p"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 1,
+        "uniqueItems": false
+      },
+      "encoding": {
+        "name": "x-custom"
+      }
+    },
+    "t/anon/components/schemas/BothScalarBounds/allOf/1/properties/p": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/BothScalarBounds/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothScalarBounds/allOf/1/properties/p"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 5,
+        "uniqueItems": false
+      },
+      "encoding": {
+        "name": "x-custom"
+      }
+    },
+    "t/anon/components/schemas/BothTupleBounds/allOf/0/properties/p": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/BothTupleBounds/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothTupleBounds/allOf/0/properties/p"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BothTupleBounds/allOf/1/properties/p": {
+      "kind": "tuple",
+      "id": "t/anon/components/schemas/BothTupleBounds/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothTupleBounds/allOf/1/properties/p"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BoundedListFirst/allOf/0/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BoundedListFirst/allOf/0/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BoundedListFirst/allOf/0/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/BoundedListFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/BoundedListFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BoundedListFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p": {
+      "kind": "list",
+      "id": "t/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/composed/components/schemas/BothMapBounds/allOf/1/properties/p": {
+      "kind": "map",
+      "id": "t/composed/components/schemas/BothMapBounds/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothMapBounds/allOf/1/properties/p"
+      },
+      "value": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": false,
+        "minProps": 1,
+        "maxProps": 5
+      }
+    },
+    "t/composed/components/schemas/BothScalarBounds/allOf/1/properties/p": {
+      "kind": "scalar",
+      "id": "t/composed/components/schemas/BothScalarBounds/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothScalarBounds/allOf/1/properties/p"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minLength": 1,
+        "maxLength": 5,
+        "uniqueItems": false
+      },
+      "encoding": {
+        "name": "x-custom"
+      }
+    },
+    "t/composed/components/schemas/BothTupleBounds/allOf/1/properties/p": {
+      "kind": "tuple",
+      "id": "t/composed/components/schemas/BothTupleBounds/allOf/1/properties/p",
+      "name": {
+        "hint": "p"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothTupleBounds/allOf/1/properties/p"
+      },
+      "elems": [
+        {
+          "target": "t/prim/string",
+          "nullable": false
+        }
+      ],
+      "rest": {
+        "target": "t/prim/any",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "maxItems": 5,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/BareListFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BareListFirst",
+      "name": {
+        "source": "BareListFirst",
+        "canonical": "bare_list_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareListFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BareListFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/BareListFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BareListFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BareMapFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BareMapFirst",
+      "name": {
+        "source": "BareMapFirst",
+        "canonical": "bare_map_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareMapFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BareMapFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/BareMapFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "uniqueItems": false,
+            "maxProps": 5
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BareMapFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BareScalarFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BareScalarFirst",
+      "name": {
+        "source": "BareScalarFirst",
+        "canonical": "bare_scalar_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareScalarFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BareScalarFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/BareScalarFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "maxLength": 5,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BareScalarFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BareTupleFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BareTupleFirst",
+      "name": {
+        "source": "BareTupleFirst",
+        "canonical": "bare_tuple_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BareTupleFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BareTupleFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/BareTupleFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BareTupleFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BothListBoundsLowerFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BothListBoundsLowerFirst",
+      "name": {
+        "source": "BothListBoundsLowerFirst",
+        "canonical": "both_list_bounds_lower_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothListBoundsLowerFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/BothListBoundsLowerFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BothListBoundsLowerFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BothListBoundsUpperFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BothListBoundsUpperFirst",
+      "name": {
+        "source": "BothListBoundsUpperFirst",
+        "canonical": "both_list_bounds_upper_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothListBoundsUpperFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/BothListBoundsUpperFirst/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BothListBoundsUpperFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BothMapBounds": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BothMapBounds",
+      "name": {
+        "source": "BothMapBounds",
+        "canonical": "both_map_bounds"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothMapBounds"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BothMapBounds/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/BothMapBounds/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "uniqueItems": false,
+            "minProps": 1,
+            "maxProps": 5
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BothMapBounds/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BothScalarBounds": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BothScalarBounds",
+      "name": {
+        "source": "BothScalarBounds",
+        "canonical": "both_scalar_bounds"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothScalarBounds"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BothScalarBounds/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/BothScalarBounds/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "minLength": 1,
+            "maxLength": 5,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BothScalarBounds/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BothTupleBounds": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BothTupleBounds",
+      "name": {
+        "source": "BothTupleBounds",
+        "canonical": "both_tuple_bounds"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BothTupleBounds"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BothTupleBounds/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/composed/components/schemas/BothTupleBounds/allOf/1/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BothTupleBounds/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/BoundedListFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/BoundedListFirst",
+      "name": {
+        "source": "BoundedListFirst",
+        "canonical": "bounded_list_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/BoundedListFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/BoundedListFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/anon/components/schemas/BoundedListFirst/allOf/0/properties/p",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/BoundedListFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst",
+      "name": {
+        "source": "DefaultPastAnotherBoundBoundFirst",
+        "canonical": "default_past_another_bound_bound_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DefaultPastAnotherBoundBoundFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "maxLength": 3,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/1/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": "hello",
+                "type": "string"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/1/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst",
+      "name": {
+        "source": "DefaultPastAnotherBoundDefaultFirst",
+        "canonical": "default_past_another_bound_default_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DefaultPastAnotherBoundDefaultFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "maxLength": 3,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "default": "hello",
+                "type": "string"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/DefaultPastItsOwnBound": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/DefaultPastItsOwnBound",
+      "name": {
+        "source": "DefaultPastItsOwnBound",
+        "canonical": "default_past_its_own_bound"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DefaultPastItsOwnBound"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/DefaultPastItsOwnBound/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "string",
+            "str": "hello"
+          },
+          "constraints": {
+            "maxLength": 3,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/DefaultPastItsOwnBound/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NumberBoundsLooserFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NumberBoundsLooserFirst",
+      "name": {
+        "source": "NumberBoundsLooserFirst",
+        "canonical": "number_bounds_looser_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NumberBoundsLooserFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NumberBoundsLooserFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "2",
+            "exclusiveMax": "10",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NumberBoundsLooserFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NumberBoundsTighterFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NumberBoundsTighterFirst",
+      "name": {
+        "source": "NumberBoundsTighterFirst",
+        "canonical": "number_bounds_tighter_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NumberBoundsTighterFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NumberBoundsTighterFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "min": "2",
+            "exclusiveMax": "10",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NumberBoundsTighterFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/PatternsAThenB": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/PatternsAThenB",
+      "name": {
+        "source": "PatternsAThenB",
+        "canonical": "patterns_a_then_b"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PatternsAThenB"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/PatternsAThenB/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "pattern": "^a",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/PatternsAThenB/allOf/1/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "pattern": "^b",
+                "type": "string"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/PatternsAThenB/allOf/1/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/PatternsAThenB/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/PatternsBThenA": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/PatternsBThenA",
+      "name": {
+        "source": "PatternsBThenA",
+        "canonical": "patterns_b_then_a"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PatternsBThenA"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/PatternsBThenA/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "pattern": "^b",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:conflicting-redeclaration/components/schemas/PatternsBThenA/allOf/1/properties/p": {
+              "reason": "degraded_lowering",
+              "value": {
+                "pattern": "^a",
+                "type": "string"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/PatternsBThenA/allOf/1/properties/p"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/PatternsBThenA/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/StepsLooserFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StepsLooserFirst",
+      "name": {
+        "source": "StepsLooserFirst",
+        "canonical": "steps_looser_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StepsLooserFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StepsLooserFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "multipleOf": "12",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StepsLooserFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/StepsTighterFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StepsTighterFirst",
+      "name": {
+        "source": "StepsTighterFirst",
+        "canonical": "steps_tighter_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StepsTighterFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StepsTighterFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "multipleOf": "12",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StepsTighterFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/StringBoundsLooserFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StringBoundsLooserFirst",
+      "name": {
+        "source": "StringBoundsLooserFirst",
+        "canonical": "string_bounds_looser_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StringBoundsLooserFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StringBoundsLooserFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "minLength": 2,
+            "maxLength": 10,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StringBoundsLooserFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/StringBoundsTighterFirst": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/StringBoundsTighterFirst",
+      "name": {
+        "source": "StringBoundsTighterFirst",
+        "canonical": "string_bounds_tighter_first"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/StringBoundsTighterFirst"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/StringBoundsTighterFirst/allOf/0/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "minLength": 2,
+            "maxLength": 10,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/StringBoundsTighterFirst/allOf/0/properties/p"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/conflicting-redeclaration",
+      "message": "declarations of field \"p\" disagree: conflicting pattern (\"^a\" and \"^b\"); kept what the declaration at /components/schemas/PatternsAThenB/allOf/0/properties/p says over the one at /components/schemas/PatternsAThenB/allOf/1/properties/p, which is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PatternsAThenB/allOf/1/properties/p"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/conflicting-redeclaration",
+      "message": "declarations of field \"p\" disagree: conflicting pattern (\"^b\" and \"^a\"); kept what the declaration at /components/schemas/PatternsBThenA/allOf/0/properties/p says over the one at /components/schemas/PatternsBThenA/allOf/1/properties/p, which is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PatternsBThenA/allOf/1/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DefaultPastAnotherBoundDefaultFirst/allOf/0/properties/p"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the merge cannot show that the type the declarations of field \"p\" merge to admits the default this declaration gives; not adopted, with this declaration verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/DefaultPastAnotherBoundBoundFirst/allOf/1/properties/p"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "allof-redeclared-bounds.yaml",
+      "hash": "310e6e80d9710a1ad8022930f0e5af050b85050b03febe1425824b2c86236fe7"
+    }
+  ]
+}

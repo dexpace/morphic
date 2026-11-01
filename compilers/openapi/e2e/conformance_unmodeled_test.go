@@ -581,6 +581,84 @@ func assertInadmissibleDefault(t *testing.T, doc *ir.Document, diags []ir.Diagno
 }
 
 // narrowedProp returns property p of the named component model.
+// assertAllOfRedeclaredBounds pins what a field keeps of the bounds its
+// declarations write, each order a model of its own, since the order oracle never
+// swaps a sequence. The fixture declares the looser bound first as well as last:
+// the first declaration's bound used to be kept, so a tighter one declared first
+// shows nothing. A bound the field implies draws no report and leaves no entry, a
+// pattern stays kept and reported, and a default another declaration's bound
+// refuses stays off the field while one its own bound refuses stands.
+func assertAllOfRedeclaredBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	lo, hi, step := new(int64(2)), new(int64(10)), new(ir.BigVal("12"))
+	for _, tc := range []struct {
+		model string
+		want  *ir.Constraints
+	}{
+		{"StringBounds", &ir.Constraints{MinLength: lo, MaxLength: hi}},
+		{"NumberBounds", &ir.Constraints{Min: new(ir.BigVal("2")), ExclusiveMax: new(ir.BigVal("10"))}},
+		{"Steps", &ir.Constraints{MultipleOf: step}},
+	} {
+		for _, order := range []string{"LooserFirst", "TighterFirst"} {
+			model := tc.model + order
+			p := narrowedProp(t, doc, model)
+			assert.Equal(t, tc.want, p.Constraints, model)
+			assert.Empty(t, p.Unmodeled, "%s: nothing is lost", model)
+			assert.Empty(t, diagsUnder(diags, "/components/schemas/"+model+"/"), "%s: nothing is reported", model)
+		}
+	}
+
+	maxFive := new(int64(5))
+	for _, tc := range []struct {
+		model  string
+		want   *ir.Constraints
+		minted bool
+	}{
+		{"BareListFirst", &ir.Constraints{MaxItems: maxFive}, false},
+		{"BoundedListFirst", &ir.Constraints{MaxItems: maxFive}, false},
+		{"BareScalarFirst", &ir.Constraints{MaxLength: maxFive}, false},
+		{"BareMapFirst", &ir.Constraints{MaxProps: maxFive}, false},
+		{"BareTupleFirst", &ir.Constraints{MaxItems: maxFive}, false},
+		{"BothListBoundsLowerFirst", &ir.Constraints{MinItems: new(int64(1)), MaxItems: maxFive}, true},
+		{"BothListBoundsUpperFirst", &ir.Constraints{MinItems: new(int64(1)), MaxItems: maxFive}, true},
+		{"BothMapBounds", &ir.Constraints{MinProps: new(int64(1)), MaxProps: maxFive}, true},
+		{"BothScalarBounds", &ir.Constraints{MinLength: new(int64(1)), MaxLength: maxFive}, true},
+		{"BothTupleBounds", &ir.Constraints{MinItems: new(int64(1)), MaxItems: maxFive}, true},
+	} {
+		p := narrowedProp(t, doc, tc.model)
+		td, ok := doc.Types[p.Type.Target]
+		require.True(t, ok, tc.model)
+		assert.Equal(t, tc.want, openapitest.NodeConstraints(t, td), tc.model)
+		assert.Equal(t, tc.minted, strings.HasPrefix(string(p.Type.Target), "t/composed/"), "%s: %s", tc.model, p.Type.Target)
+		assert.Empty(t, p.Unmodeled, "%s: nothing is lost", tc.model)
+		assert.Empty(t, diagsUnder(diags, "/components/schemas/"+tc.model+"/"), "%s: nothing is reported", tc.model)
+	}
+
+	for _, tc := range []struct{ model, pattern, lost string }{
+		{"PatternsAThenB", "^a", "allOf/1"},
+		{"PatternsBThenA", "^b", "allOf/1"},
+	} {
+		p := narrowedProp(t, doc, tc.model)
+		lost := "/components/schemas/" + tc.model + "/" + tc.lost + "/properties/p"
+		assert.Equal(t, tc.pattern, p.Constraints.Pattern, "%s: the first stands", tc.model)
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+lost, tc.model)
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/conflicting-redeclaration", lost), tc.model)
+	}
+
+	for _, tc := range []struct{ model, wrote string }{
+		{"DefaultPastAnotherBoundDefaultFirst", "allOf/0"},
+		{"DefaultPastAnotherBoundBoundFirst", "allOf/1"},
+	} {
+		p := narrowedProp(t, doc, tc.model)
+		wrote := "/components/schemas/" + tc.model + "/" + tc.wrote + "/properties/p"
+		assert.Nil(t, p.Default, "%s: the field does not take it", tc.model)
+		assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration"+wrote, tc.model)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", wrote), tc.model)
+	}
+	own := narrowedProp(t, doc, "DefaultPastItsOwnBound")
+	require.NotNil(t, own.Default, "a default its own bound refuses is its own to answer for")
+	assert.Equal(t, "hello", own.Default.Str)
+}
+
 func narrowedProp(t *testing.T, doc *ir.Document, model string) ir.Property {
 	t.Helper()
 	m, ok := doc.Types[componentID(model)].(*ir.Model)

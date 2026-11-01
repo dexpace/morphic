@@ -25,7 +25,7 @@ type Merger struct {
 	// Resolve looks a type up in the registry. The judgment compares what two
 	// references point at, not the references themselves.
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
-	// Mint registers the model a field's declarations compose to.
+	// Mint registers the node a field's declarations compose or meet to.
 	Mint Mint
 	// Interned reports whether a node stands at a pointer.
 	Interned func(jsontext.Pointer) bool
@@ -106,8 +106,9 @@ type folding struct {
 	// rel[i][j] is the judgment of decls[i]'s type against decls[j]'s.
 	rel [][]relation
 	// winner is the declaration whose type the field takes, and cone marks
-	// each declaration whose type is the same as the winner's or broader: the
-	// field's type holds every one of them, so it adopts their shape detail.
+	// each declaration whose type is the same as the winner's, broader, or
+	// meets it: the field's type holds every one of them, so it adopts their
+	// shape detail.
 	winner int
 	cone   []bool
 	// conjuncts lists the models the field composes, which puts every
@@ -156,10 +157,11 @@ func newFolding(g *Merger, decls []declaration, field jsontext.Pointer) *folding
 	return f
 }
 
-// holds reports whether decls[i]'s type is the same as decls[j]'s or narrower:
-// a field of decls[i]'s type loses nothing decls[j] says of its type.
+// holds reports whether decls[i]'s type is the same as decls[j]'s or narrower,
+// or meets it: a field of decls[i]'s type, with the bounds a meeting adds, loses
+// nothing decls[j] says of its type.
 func (f *folding) holds(i, j int) bool {
-	return f.rel[i][j] == relSame || f.rel[i][j] == relANarrower
+	return f.rel[i][j] == relSame || f.rel[i][j] == relANarrower || f.rel[i][j] == relMeet
 }
 
 // widestCone returns the declaration whose type holds the most declarations'
@@ -182,7 +184,8 @@ func (f *folding) widestCone() int {
 	return best
 }
 
-// foldType settles the field's type: the winner's target or the model composing
+// foldType settles the field's type: the winner's target, a node holding the
+// bounds of the declarations meeting it (foldNodeBounds), or the model composing
 // the conjuncts, admitting null only where every declaration in the cone does
 // (intersectNull), as foldNullVerdicts states for a single schema. The top type
 // admits null whatever its bit says, so a cone member that is the top type below
@@ -202,9 +205,10 @@ func (f *folding) foldType() {
 			merged = intersectNull(merged, d.prop.Type)
 		}
 	}
-	merged.Target = f.decls[f.winner].prop.Type.Target
 	if len(f.conjuncts) > 0 {
 		merged.Target = f.compose()
+	} else {
+		merged.Target = f.foldNodeBounds()
 	}
 	f.merged.Type = merged
 }
@@ -246,10 +250,10 @@ func (f *folding) drop(i int) {
 
 // disagree notes the conflicting-redeclaration warning at decls[i], which says
 // something of the field, detail, that decls[kept] says otherwise, and marks it
-// lost. Warning, not info: the two cannot both hold, or the merge kept one over
-// the true intersection (#10), which may loosen what the spec intended. It says
-// "declarations", not "allOf branches", because a declaration can sit beside
-// allOf rather than inside a branch.
+// lost. Warning, not info: the two cannot both hold, or no one value states
+// them, which may loosen what the spec intended. It says "declarations", not
+// "allOf branches", because a declaration can sit beside allOf rather than
+// inside a branch.
 func (f *folding) disagree(i, kept int, detail string) {
 	f.lost[i] = true
 	f.note(i, ir.SeverityWarning, diag.ConflictingRedecl,
@@ -260,36 +264,15 @@ func (f *folding) disagree(i, kept int, detail string) {
 // at is where decls[i] was written.
 func (f *folding) at(i int) jsontext.Pointer { return f.decls[i].prop.Provenance.Pointer }
 
-// foldConstraints merges the constraint keywords of the cone in declaration
-// order: the first declaration to set a keyword keeps it (mergeConstraints),
-// and one pinning a kept keyword to another value is reported against the
-// declaration it was kept from, and kept. The merge starts from a copy, so no
-// declaration's constraints are written to.
+// foldConstraints meets the constraints the cone writes on the property.
 func (f *folding) foldConstraints() {
-	keywords := constraintKeywords()
-	setBy := make([]int, len(keywords))
-	var kept *ir.Constraints
+	sets := make([]*ir.Constraints, len(f.decls))
 	for i, d := range f.decls {
-		c := d.prop.Constraints
-		if !f.cone[i] || c == nil {
-			continue
+		if f.cone[i] {
+			sets[i] = d.prop.Constraints
 		}
-		if k, detail, conflict := constraintsConflict(kept, c); conflict {
-			f.disagree(i, setBy[k], detail)
-		}
-		for k, kw := range keywords {
-			if kw.set(c) && (kept == nil || !kw.set(kept)) {
-				setBy[k] = i
-			}
-		}
-		if kept == nil {
-			own := *c
-			kept = &own
-			continue
-		}
-		kept = mergeConstraints(kept, c)
 	}
-	f.merged.Constraints = kept
+	f.merged.Constraints = meetConstraints(sets, f.disagree)
 }
 
 // foldValues settles the default and the examples from the cone. A value the
@@ -347,20 +330,26 @@ func sameExamples(a, b []ir.Example) bool {
 
 // takes reports whether the field takes v, which decls[i] wrote: a null where
 // the field admits null, which the top type always does (nullable), and any
-// other value where decls[i]'s own type is the field's or the field's type
-// admits it. A value a declaration writes against its own type is that
+// other value every bound another declaration brought admits, where decls[i]'s
+// own type is the field's, but for those bounds, or the field's type admits it. A
+// value a declaration writes against its own type and bounds is that
 // declaration's to answer for, not the fold's, and a composed field has no
 // declaration whose type it is.
 func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if v.Kind == ir.ValueNull {
 		return nullable
 	}
-	if len(f.conjuncts) == 0 && f.rel[f.winner][i] == relSame {
+	judge := typeJudge{Resolve: f.g.Resolve}
+	own := allBounds(judge, &f.decls[i].prop)
+	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), own), v, 0) {
+		return false
+	}
+	if len(f.conjuncts) == 0 && (f.rel[f.winner][i] == relSame || alike(judge, f.decls[f.winner].prop.Type, f.decls[i].prop.Type)) {
 		return true
 	}
 	ref := f.merged.Type
 	ref.Nullable = nullable
-	return typeJudge{Resolve: f.g.Resolve}.admits(ref, v)
+	return judge.admits(ref, v)
 }
 
 // foldUse settles who sends the field and sees it: required and secret where
@@ -446,9 +435,14 @@ func firstWritten[T any](f *folding, detail string, of func(i int, p *ir.Propert
 	return kept
 }
 
-// note records a diagnostic for decls[i], reported when the fold finishes.
+// note records a diagnostic for decls[i], reported when the fold finishes. One
+// keyword a Scalar's position writes stands on the node and on the property, so
+// the fold meets it twice and says so once.
 func (f *folding) note(i int, sev ir.Severity, code, format string, args ...any) {
-	f.notes[i] = append(f.notes[i], note{sev: sev, code: code, msg: fmt.Sprintf(format, args...)})
+	n := note{sev: sev, code: code, msg: fmt.Sprintf(format, args...)}
+	if !slices.Contains(f.notes[i], n) {
+		f.notes[i] = append(f.notes[i], n)
+	}
 }
 
 // foldUnmodeled unions every declaration's Unmodeled into the field's. The keys
