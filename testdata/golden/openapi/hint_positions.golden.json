@@ -257,6 +257,10 @@
               },
               "oneWay": false,
               "idempotency": {},
+              "servers": [
+                "server/openapi/paths/~1pets~1{petId}/servers/0",
+                "server/openapi/paths/~1pets~1{petId}/servers/1"
+              ],
               "tags": [
                 "pets"
               ],
@@ -550,6 +554,399 @@
               }
             },
             {
+              "id": "op/openapi/paths/~1subscriptions/post",
+              "name": {
+                "source": "subscribe",
+                "canonical": "subscribe"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "201"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 201,
+                        "to": 201
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "subscribed"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/subscriptions",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false,
+                    "callbacks": [
+                      {
+                        "expression": "{$request.body#/url}",
+                        "operations": [
+                          "op/openapi/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post"
+                        ]
+                      },
+                      {
+                        "expression": "{$request.body#/shared}",
+                        "operations": [
+                          "op/openapi/paths/~1subscriptions/post/callbacks/onShared/{$request.body#~1shared}/post"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1subscriptions/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post",
+              "name": {
+                "hint": "post_request_body_url"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "seen"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$request.body#/url}",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1subscriptions/post/callbacks/onShared/{$request.body#~1shared}/post",
+              "name": {
+                "hint": "post_request_body_shared"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "seen"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "{$request.body#/shared}",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/callbacks/Shared/{$request.body#~1shared}/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1forms/post",
+              "name": {
+                "source": "submitForm",
+                "canonical": "submit_form"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "multipart/form-data",
+                    "type": {
+                      "target": "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/schema",
+                      "nullable": false
+                    },
+                    "encoding": {
+                      "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/schema/properties/part": {
+                        "headers": [
+                          {
+                            "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part",
+                            "name": {
+                              "source": "X-Part",
+                              "canonical": "x_part"
+                            },
+                            "wireName": "X-Part",
+                            "type": {
+                              "target": "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part/schema",
+                              "nullable": false
+                            },
+                            "required": false,
+                            "clientOptional": false,
+                            "defaultAdded": false,
+                            "visibility": {
+                              "none": false
+                            },
+                            "flatten": false,
+                            "eventHeader": false,
+                            "eventPayload": false,
+                            "secret": false,
+                            "docs": {},
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part"
+                            }
+                          },
+                          {
+                            "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta",
+                            "name": {
+                              "source": "X-Meta",
+                              "canonical": "x_meta"
+                            },
+                            "wireName": "X-Meta",
+                            "type": {
+                              "target": "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema",
+                              "nullable": false
+                            },
+                            "required": false,
+                            "clientOptional": false,
+                            "defaultAdded": false,
+                            "visibility": {
+                              "none": false
+                            },
+                            "encoding": {
+                              "mediaType": "application/json"
+                            },
+                            "flatten": false,
+                            "eventHeader": false,
+                            "eventPayload": false,
+                            "secret": false,
+                            "docs": {},
+                            "provenance": {
+                              "source": 0,
+                              "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta"
+                            }
+                          }
+                        ],
+                        "multi": false,
+                        "filename": false,
+                        "allowReserved": false
+                      }
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "stored"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/forms",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "multipart/form-data"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1forms/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1shared/post",
+              "name": {
+                "hint": "post_shared"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1shared/post/parameters/scope/query",
+                  "name": {
+                    "source": "scope",
+                    "canonical": "scope"
+                  },
+                  "type": {
+                    "target": "t/anon/components/pathItems/Shared/parameters/0/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/components/pathItems/Shared/parameters/0"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/components/pathItems/Shared/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/components/pathItems/Shared/post/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/shared",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1shared/post/parameters/scope/query",
+                        "location": "query",
+                        "wireName": "scope",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/pathItems/Shared/post"
+              }
+            },
+            {
               "id": "op/openapi/paths/~1events/get",
               "name": {
                 "source": "events",
@@ -681,13 +1078,54 @@
                 "source": 0,
                 "pointer": "/webhooks/ping/post"
               }
+            },
+            {
+              "id": "op/openapi/webhooks/pong/post",
+              "name": {
+                "hint": "post_pong"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "seen"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": true,
+                    "webhookName": "pong"
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/webhooks/pong/post"
+              }
             }
           ]
         }
       ],
       "servers": [
-        "server/openapi/servers/0",
-        "server/openapi/servers/1"
+        "server/default"
       ],
       "provenance": {
         "source": 0
@@ -695,6 +1133,52 @@
     }
   ],
   "types": {
+    "t/anon/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema/properties/bd",
+          "name": {
+            "source": "bd",
+            "canonical": "bd"
+          },
+          "wireName": "bd",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/callbacks/Shared/{$request.body#~1shared}/post/requestBody/content/application~1json/schema/properties/bd"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/headers/Trace/schema": {
       "kind": "model",
       "id": "t/anon/components/headers/Trace/schema",
@@ -780,6 +1264,144 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/parameters/Limit/schema/properties/s"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/pathItems/Shared/parameters/0/schema": {
+      "kind": "model",
+      "id": "t/anon/components/pathItems/Shared/parameters/0/schema",
+      "name": {
+        "hint": "scope"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/pathItems/Shared/parameters/0/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/pathItems/Shared/parameters/0/schema/properties/ba",
+          "name": {
+            "source": "ba",
+            "canonical": "ba"
+          },
+          "wireName": "ba",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/pathItems/Shared/parameters/0/schema/properties/ba"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/pathItems/Shared/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/pathItems/Shared/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/pathItems/Shared/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/pathItems/Shared/post/requestBody/content/application~1json/schema/properties/bb",
+          "name": {
+            "source": "bb",
+            "canonical": "bb"
+          },
+          "wireName": "bb",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/pathItems/Shared/post/requestBody/content/application~1json/schema/properties/bb"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/pathItems/Shared/post/responses/200/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/components/pathItems/Shared/post/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/pathItems/Shared/post/responses/200/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/pathItems/Shared/post/responses/200/content/application~1json/schema/properties/bc",
+          "name": {
+            "source": "bc",
+            "canonical": "bc"
+          },
+          "wireName": "bc",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/pathItems/Shared/post/responses/200/content/application~1json/schema/properties/bc"
           }
         }
       ],
@@ -971,6 +1593,236 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/components/schemas/Keyed/$defs/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Keyed/$defs/items",
+      "name": {
+        "hint": "items"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed/$defs/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Keyed/$defs/items/properties/aa",
+          "name": {
+            "source": "aa",
+            "canonical": "aa"
+          },
+          "wireName": "aa",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/$defs/items/properties/aa"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Keyed/definitions/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Keyed/definitions/items",
+      "name": {
+        "hint": "items"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed/definitions/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Keyed/definitions/items/properties/ab",
+          "name": {
+            "source": "ab",
+            "canonical": "ab"
+          },
+          "wireName": "ab",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/definitions/items/properties/ab"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Keyed/dependencies/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Keyed/dependencies/items",
+      "name": {
+        "hint": "items"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed/dependencies/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Keyed/dependencies/items/properties/ad",
+          "name": {
+            "source": "ad",
+            "canonical": "ad"
+          },
+          "wireName": "ad",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/dependencies/items/properties/ad"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Keyed/dependentSchemas/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Keyed/dependentSchemas/items",
+      "name": {
+        "hint": "items"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed/dependentSchemas/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Keyed/dependentSchemas/items/properties/ac",
+          "name": {
+            "source": "ac",
+            "canonical": "ac"
+          },
+          "wireName": "ac",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/dependentSchemas/items/properties/ac"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Keyed/properties/items": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Keyed/properties/items",
+      "name": {
+        "hint": "items"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed/properties/items"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Keyed/properties/items/properties/ae",
+          "name": {
+            "source": "ae",
+            "canonical": "ae"
+          },
+          "wireName": "ae",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/properties/items/properties/ae"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/components/schemas/Positions/properties/composed": {
       "kind": "model",
       "id": "t/anon/components/schemas/Positions/properties/composed",
@@ -1017,6 +1869,52 @@
         "target": "t/openapi/components/schemas/Pet",
         "nullable": false
       },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/components/schemas/Positions/properties/composed/allOf/1": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Positions/properties/composed/allOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Positions/properties/composed/allOf/1"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/composed/allOf/1/properties/h",
+          "name": {
+            "source": "h",
+            "canonical": "h"
+          },
+          "wireName": "h",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/composed/allOf/1/properties/h"
+          }
+        }
+      ],
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -2356,6 +3254,144 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema",
+      "name": {
+        "hint": "x_meta"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema/properties/z",
+          "name": {
+            "source": "z",
+            "canonical": "z"
+          },
+          "wireName": "z",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Meta/content/application~1json/schema/properties/z"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part/schema",
+      "name": {
+        "hint": "x_part"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part/schema/properties/y",
+          "name": {
+            "source": "y",
+            "canonical": "y"
+          },
+          "wireName": "y",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/encoding/part/headers/X-Part/schema/properties/y"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1forms/post/requestBody/content/multipart~1form-data/schema",
+      "name": {
+        "hint": "submit_form_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1forms/post/requestBody/content/multipart~1form-data/schema/properties/part",
+          "name": {
+            "source": "part",
+            "canonical": "part"
+          },
+          "wireName": "part",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1forms/post/requestBody/content/multipart~1form-data/schema/properties/part"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/anon/paths/~1pets/post/requestBody/content/application~1json/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1pets/post/requestBody/content/application~1json/schema",
@@ -2625,6 +3661,52 @@
           "provenance": {
             "source": 0,
             "pointer": "/paths/~1pets~1{petId}/get/responses/200/headers/X-Rate/schema/properties/left"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema": {
+      "kind": "model",
+      "id": "t/anon/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema/properties/x",
+          "name": {
+            "source": "x",
+            "canonical": "x"
+          },
+          "wireName": "x",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post/requestBody/content/application~1json/schema/properties/x"
           }
         }
       ],
@@ -2907,6 +3989,214 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/***/properties/"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Keyed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Keyed",
+      "name": {
+        "source": "Keyed",
+        "canonical": "keyed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:definitions": {
+          "reason": "out_of_scope",
+          "value": {
+            "items": {
+              "properties": {
+                "ab": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/definitions"
+          }
+        },
+        "openapi:dependencies": {
+          "reason": "out_of_scope",
+          "value": {
+            "items": {
+              "properties": {
+                "ad": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/dependencies"
+          }
+        },
+        "openapi:dependentSchemas": {
+          "reason": "validation_only",
+          "value": {
+            "items": {
+              "properties": {
+                "ac": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/dependentSchemas"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Keyed/properties/items",
+          "name": {
+            "source": "items",
+            "canonical": "items"
+          },
+          "wireName": "items",
+          "type": {
+            "target": "t/anon/components/schemas/Keyed/properties/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/properties/items"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Keyed/properties/throughDefs",
+          "name": {
+            "source": "throughDefs",
+            "canonical": "through_defs"
+          },
+          "wireName": "throughDefs",
+          "type": {
+            "target": "t/anon/components/schemas/Keyed/$defs/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/properties/throughDefs"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Keyed/properties/throughDefinitions",
+          "name": {
+            "source": "throughDefinitions",
+            "canonical": "through_definitions"
+          },
+          "wireName": "throughDefinitions",
+          "type": {
+            "target": "t/anon/components/schemas/Keyed/definitions/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/properties/throughDefinitions"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Keyed/properties/throughDependentSchemas",
+          "name": {
+            "source": "throughDependentSchemas",
+            "canonical": "through_dependent_schemas"
+          },
+          "wireName": "throughDependentSchemas",
+          "type": {
+            "target": "t/anon/components/schemas/Keyed/dependentSchemas/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/properties/throughDependentSchemas"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Keyed/properties/throughDependencies",
+          "name": {
+            "source": "throughDependencies",
+            "canonical": "through_dependencies"
+          },
+          "wireName": "throughDependencies",
+          "type": {
+            "target": "t/anon/components/schemas/Keyed/dependencies/items",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Keyed/properties/throughDependencies"
           }
         }
       ],
@@ -3636,6 +4926,33 @@
             "source": 0,
             "pointer": "/components/schemas/Positions/properties/throughExtension"
           }
+        },
+        {
+          "id": "p/openapi/components/schemas/Positions/properties/throughAllOf",
+          "name": {
+            "source": "throughAllOf",
+            "canonical": "through_all_of"
+          },
+          "wireName": "throughAllOf",
+          "type": {
+            "target": "t/anon/components/schemas/Positions/properties/composed/allOf/1",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Positions/properties/throughAllOf"
+          }
         }
       ],
       "abstract": false,
@@ -3692,8 +5009,19 @@
     }
   },
   "servers": {
-    "server/openapi/servers/0": {
-      "id": "server/openapi/servers/0",
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    },
+    "server/openapi/paths/~1pets~1{petId}/servers/0": {
+      "id": "server/openapi/paths/~1pets~1{petId}/servers/0",
       "name": {
         "hint": "https_api_example_com_v_1"
       },
@@ -3701,11 +5029,11 @@
       "description": {},
       "provenance": {
         "source": 0,
-        "pointer": "/servers/0"
+        "pointer": "/paths/~1pets~1{petId}/servers/0"
       }
     },
-    "server/openapi/servers/1": {
-      "id": "server/openapi/servers/1",
+    "server/openapi/paths/~1pets~1{petId}/servers/1": {
+      "id": "server/openapi/paths/~1pets~1{petId}/servers/1",
       "name": {
         "hint": "server"
       },
@@ -3713,7 +5041,7 @@
       "description": {},
       "provenance": {
         "source": 0,
-        "pointer": "/servers/1"
+        "pointer": "/paths/~1pets~1{petId}/servers/1"
       }
     }
   },
@@ -3751,7 +5079,7 @@
         "source": 0,
         "pointer": "/components/schemas/***",
         "position": {
-          "line": 162,
+          "line": 220,
           "column": 7
         }
       }
@@ -3764,7 +5092,7 @@
         "source": 0,
         "pointer": "/components/schemas/",
         "position": {
-          "line": 166,
+          "line": 224,
           "column": 7
         }
       }
@@ -3795,13 +5123,40 @@
         "source": 0,
         "pointer": "/components/schemas/Positions/properties/negated"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"dependentSchemas\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/unknown-schema-keyword",
+      "message": "keyword \"definitions\" has no field in the schema model this compiler lowers and no IR position of its own; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed/definitions"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/unknown-schema-keyword",
+      "message": "keyword \"dependencies\" has no field in the schema model this compiler lowers and no IR position of its own; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Keyed/dependencies"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.2",
       "path": "hint_positions.yaml",
-      "hash": "e2cd83cd8f9d47ca17b522e12328738539929702885abb0257e081237ccad44f"
+      "hash": "b0a9016fa644bdff857575aee1fc15ace0aa61a2601078a98e6cecd2de7e387e"
     }
   ]
 }

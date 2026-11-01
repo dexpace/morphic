@@ -84,9 +84,9 @@ decides at a rune from that rune and its two neighbours, so those names reach ev
 makes over those classes, and the ASCII runes pin which runes separate, which one class hides. The
 grammar's conformance table stays out of the description, so a row added to it moves nothing. A hint
 has no such closure, since it is composed per compiler from whatever position the compiler names:
-the pin reaches the positions `hint_positions.yaml` writes, all those one document can, and a
-position it does not write, such as a document a `$ref` reads whole, shows only in the corpus
-goldens, as the one bump no test requires.
+the pin reaches the positions `hint_positions.yaml` writes, one for each decision the compiler's
+naming takes within a valid document, and a position it does not write, such as a document a `$ref`
+reads whole, shows only in the corpus goldens, as the one bump no test requires.
 
 **Bumping.** A bump sets `IRVersion` to the next MINOR, appends the row the failing test prints,
 and adds an entry to the [history](./version-history.md), which
@@ -97,10 +97,10 @@ TestGolden_HintPositions -update` where a hint moved, so a reviewer reads the ch
 The bump itself rewrites no other golden, though the change behind it moves every corpus golden
 holding what it changed. `TestIRVersion_PinsTheNames` prints the row's `names` once the row exists.
 Adding a position to `hint_positions.yaml` moves that hash as a renamed one does, so it lands with
-a bump. A row on `main` is never edited: two branches that claim one version append their rows in
-the same place, so whichever merges second meets the other's in a conflict and takes the next
-version. A change to how `jsonshape` spells a shape moves `jsonshape.Format` and appends a row
-describing the current generation anew, with no bump.
+whichever change bumps next. A row on `main` is never edited: two branches that claim one version
+append their rows in the same place, so whichever merges second meets the other's in a conflict and
+takes the next version. A change to how `jsonshape` spells a shape moves `jsonshape.Format` and
+appends a row describing the current generation anew, with no bump.
 
 **Goldens store no stamp.** `irtest.WriteGolden` and `irtest.CompareGolden` refuse a document not
 stamped with `ir.IRVersion`, then encode it without the stamp, and `irtest.ReadGolden` puts it back.

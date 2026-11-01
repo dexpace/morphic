@@ -264,8 +264,8 @@ testdata/conformance/openapi/yaml-merge-keys.yaml	41:30	validation-allowed-value
 testdata/dangling/openapi/f07-discriminator.yaml	13:10	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f31-discriminator-empty-name.yaml	17:7	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml	7:7	validation-invalid-syntax	compiler	component-names
-testdata/golden/openapi/hint_positions.yaml	162:7	validation-invalid-syntax	compiler	component-names
-testdata/golden/openapi/hint_positions.yaml	166:7	validation-invalid-syntax	compiler	component-names
+testdata/golden/openapi/hint_positions.yaml	220:7	validation-invalid-syntax	compiler	component-names
+testdata/golden/openapi/hint_positions.yaml	224:7	validation-invalid-syntax	compiler	component-names
 testdata/openapi/cycle_alias_dual_position.yaml	5:16	validation-type-mismatch	library	duplicate-report
 testdata/openapi/cycle_alias_dual_position.yaml	5:16	validation-type-mismatch	library	duplicate-report
 testdata/openapi/cycle_duplicate_key.yaml	12:5	validation-duplicate-key	library	position

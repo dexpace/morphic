@@ -1,17 +1,19 @@
-# Every position within one document that the OpenAPI compiler composes a hint
-# from. A hint is what an emitter renders an unnamed node's identifier from, so
-# ir/testdata/names.golden.txt lists each one here and IRVersion is pinned to that
-# list (docs/ir/ir-version.md). A document a $ref reads whole is named too, and
-# one file cannot write that position.
+# The positions within one valid document that the OpenAPI compiler composes a
+# hint from, written to take each decision the naming makes. A hint is what an
+# emitter renders an unnamed node's identifier from, so
+# ir/testdata/names.golden.txt lists each one here and IRVersion is pinned to
+# that list (docs/ir/ir-version.md). A document a $ref reads whole is named too,
+# and one file cannot write that position. The root declares no server because
+# the one OpenAPI then supplies is a position of its own.
 openapi: 3.2.0
 info: {title: Hint positions, version: 1.0.0}
-servers:
-  - url: https://api.example.com/v1
-  - url: /
 tags:
   - name: pets
 paths:
   /pets/{petId}:
+    servers:
+      - url: https://api.example.com/v1
+      - url: /
     get:
       tags: [pets]
       parameters:
@@ -68,6 +70,41 @@ paths:
           description: stored
           headers:
             X-Trace: {$ref: '#/components/headers/Trace'}
+  /subscriptions:
+    post:
+      operationId: subscribe
+      callbacks:
+        onEvent:
+          '{$request.body#/url}':
+            post:
+              requestBody:
+                content:
+                  application/json:
+                    schema: {type: object, properties: {x: {type: string}}}
+              responses:
+                '200': {description: seen}
+        onShared: {$ref: '#/components/callbacks/Shared'}
+      responses:
+        '201': {description: subscribed}
+  /forms:
+    post:
+      operationId: submitForm
+      requestBody:
+        content:
+          multipart/form-data:
+            schema: {type: object, properties: {part: {type: string}}}
+            encoding:
+              part:
+                headers:
+                  X-Part:
+                    schema: {type: object, properties: {y: {type: string}}}
+                  X-Meta:
+                    content:
+                      application/json:
+                        schema: {type: object, properties: {z: {type: string}}}
+      responses:
+        '204': {description: stored}
+  /shared: {$ref: '#/components/pathItems/Shared'}
   /events:
     get:
       operationId: events
@@ -85,6 +122,10 @@ webhooks:
         content:
           application/json:
             schema: {type: object, properties: {sent: {type: string}}}
+      responses:
+        '200': {description: seen}
+  pong:
+    post:
       responses:
         '200': {description: seen}
 x-library:
@@ -158,6 +199,23 @@ components:
         throughNot: {$ref: '#/components/schemas/Positions/properties/negated/not'}
         throughNotItems: {$ref: '#/components/schemas/Positions/properties/negated/not/items'}
         throughExtension: {$ref: '#/x-library/Shared'}
+        throughAllOf: {$ref: '#/components/schemas/Positions/properties/composed/allOf/1'}
+    Keyed:
+      type: object
+      $defs:
+        items: {type: object, properties: {aa: {type: string}}}
+      definitions:
+        items: {type: object, properties: {ab: {type: string}}}
+      dependentSchemas:
+        items: {type: object, properties: {ac: {type: string}}}
+      dependencies:
+        items: {type: object, properties: {ad: {type: string}}}
+      properties:
+        items: {type: object, properties: {ae: {type: string}}}
+        throughDefs: {$ref: '#/components/schemas/Keyed/$defs/items'}
+        throughDefinitions: {$ref: '#/components/schemas/Keyed/definitions/items'}
+        throughDependentSchemas: {$ref: '#/components/schemas/Keyed/dependentSchemas/items'}
+        throughDependencies: {$ref: '#/components/schemas/Keyed/dependencies/items'}
     '***':
       type: object
       properties:
@@ -165,6 +223,33 @@ components:
     '':
       type: object
       properties: {p: {type: string}}
+  pathItems:
+    Shared:
+      parameters:
+        - name: scope
+          in: query
+          schema: {type: object, properties: {ba: {type: string}}}
+      post:
+        requestBody:
+          content:
+            application/json:
+              schema: {type: object, properties: {bb: {type: string}}}
+        responses:
+          '200':
+            description: ok
+            content:
+              application/json:
+                schema: {type: object, properties: {bc: {type: string}}}
+  callbacks:
+    Shared:
+      '{$request.body#/shared}':
+        post:
+          requestBody:
+            content:
+              application/json:
+                schema: {type: object, properties: {bd: {type: string}}}
+          responses:
+            '200': {description: seen}
   requestBodies:
     Upload:
       content:

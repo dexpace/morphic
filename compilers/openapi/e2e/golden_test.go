@@ -36,8 +36,8 @@ func TestGolden(t *testing.T) {
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/petstore.golden.json", doc)
 }
 
-// TestGolden_HintPositions pins the IR of the spec that reaches every position
-// within one document that a hint is composed from. ir's
+// TestGolden_HintPositions pins the IR of the spec written to take each decision
+// a hint is composed by within one valid document. ir's
 // TestIRVersion_PinsTheNames lists the hints this golden holds, so a hint moved
 // here moves IRVersion (docs/ir/ir-version.md).
 func TestGolden_HintPositions(t *testing.T) {
