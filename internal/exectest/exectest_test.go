@@ -21,32 +21,32 @@ import (
 // coverDirEnv names the directory a coverage build writes its data to.
 const coverDirEnv = "GOCOVERDIR"
 
-// fatal is what a fakeTB's Fatal panics with, standing in for the goroutine
+// fatal is what a spyTB's Fatal panics with, standing in for the goroutine
 // exit the real one ends the test with.
 type fatal string
 
-// fakeTB records what Command asks of a test, so a test can run the cleanups
+// spyTB records what Command asks of a test, so a test can run the cleanups
 // itself and read what they reported. It embeds a real testing.TB for the rest.
-type fakeTB struct {
+type spyTB struct {
 	testing.TB
 	dir      string
 	cleanups []func()
 	errors   []string
 }
 
-func (f *fakeTB) Helper()         {}
-func (f *fakeTB) TempDir() string { return f.dir }
+func (f *spyTB) Helper()         {}
+func (f *spyTB) TempDir() string { return f.dir }
 
-func (f *fakeTB) Cleanup(fn func()) { f.cleanups = append(f.cleanups, fn) }
+func (f *spyTB) Cleanup(fn func()) { f.cleanups = append(f.cleanups, fn) }
 
-func (f *fakeTB) Errorf(format string, args ...any) {
+func (f *spyTB) Errorf(format string, args ...any) {
 	f.errors = append(f.errors, fmt.Sprintf(format, args...))
 }
 
-func (f *fakeTB) Fatal(args ...any) { panic(fatal(fmt.Sprint(args...))) }
+func (f *spyTB) Fatal(args ...any) { panic(fatal(fmt.Sprint(args...))) }
 
 // runCleanups runs the registered cleanups last in, first out, as a test does.
-func (f *fakeTB) runCleanups() {
+func (f *spyTB) runCleanups() {
 	for _, fn := range slices.Backward(f.cleanups) {
 		fn()
 	}
@@ -124,21 +124,21 @@ func TestCommand_RunsTheNamedCommandUnderTheContext(t *testing.T) {
 func TestCommand_RefusesANilContext(t *testing.T) {
 	t.Parallel()
 
-	fake := &fakeTB{TB: t, dir: t.TempDir()}
+	spy := &spyTB{TB: t, dir: t.TempDir()}
 	var none context.Context
 
 	assert.PanicsWithValue(t, fatal("exectest.Command: nil context"), func() {
-		exectest.Command(none, fake, os.Args[0])
+		exectest.Command(none, spy, os.Args[0])
 	})
 }
 
 func TestCommand_RefusesAnEmptyName(t *testing.T) {
 	t.Parallel()
 
-	fake := &fakeTB{TB: t, dir: t.TempDir()}
+	spy := &spyTB{TB: t, dir: t.TempDir()}
 
 	assert.PanicsWithValue(t, fatal("exectest.Command: empty command name"), func() {
-		exectest.Command(t.Context(), fake, "")
+		exectest.Command(t.Context(), spy, "")
 	})
 }
 
@@ -224,14 +224,14 @@ func TestCommand_ReportsWhatItCannotAdopt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(coverDirEnv, tt.parent(t))
-			fake := &fakeTB{TB: t, dir: t.TempDir()}
-			exectest.Command(t.Context(), fake, os.Args[0])
-			tt.plant(t, fake.dir)
+			spy := &spyTB{TB: t, dir: t.TempDir()}
+			exectest.Command(t.Context(), spy, os.Args[0])
+			tt.plant(t, spy.dir)
 
-			fake.runCleanups()
+			spy.runCleanups()
 
-			require.Len(t, fake.errors, 1)
-			assert.Contains(t, fake.errors[0], tt.want)
+			require.Len(t, spy.errors, 1)
+			assert.Contains(t, spy.errors[0], tt.want)
 		})
 	}
 }
