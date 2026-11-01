@@ -1425,9 +1425,10 @@ A `oneOf` or `anyOf` with exactly one branch that is not a bare `type: null`, be
 that are, lowers to a nullable reference to that branch's lowering rather than to a `Union`
 ([type-graph](../ir/type-graph.md#type-references)). The collapse is held to a `$ref` site's
 rule ([models](../ir/models.md#composition-entries)), since it too lowers to a reference: a
-keyword beside it that no reference holds — a `discriminator`, a `format` other than `password`, a
-collection bound — is kept verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or
-carrier owning the position, with an info `openapi/degraded-construct` at the position.
+collection bound beside it reaches what the position owns ([`constraints`](#constraints)), and a
+keyword beside it that no reference holds — a `discriminator`, a `format` other than `password` —
+is kept verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier owning the
+position, with an info `openapi/degraded-construct` at the position.
 
 - Cases: `nullable-union-discriminator`, `nullable-31-ref`
 - Codes: `openapi/degraded-construct`
@@ -1795,10 +1796,11 @@ an alias of its own first: a shared primitive must never carry one declaration's
 `type` declared, or an object, an array or an enum — since it is homed by pairing with a type rather
 than by a node kind, and `password` is never unhomed ([`password`](#password)). The census reads
 `type`, `const`, `enum`, `minItems`, `maxItems` and `uniqueItems` beside these, so a collection
-bound on an object is kept the same way, and a keyword the elected lowering of
-[`competing-keywords`](#competing-keywords) never reads is too. `discriminator` joins the list,
-homed by a `Model` or `Union` that routes by it and by nothing else, so one beside any other node —
-the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the same way. At a
+bound on an object, a scalar or a position with no type is kept the same way, and a keyword the
+elected lowering of [`competing-keywords`](#competing-keywords) never reads is too. `discriminator`
+joins the list, homed by a `Model` or `Union` that routes by it and by nothing else, so one beside
+any other node — the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the
+same way. At a
 `$ref` position the census runs on the alias the use-site rule of
 [models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
 than the referent. One limit is
@@ -1940,7 +1942,10 @@ verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing r
 `minimum`, `maximum` and `multipleOf` lower to `Min`, `Max` and `MultipleOf`, and `minLength`,
 `maxLength` and `pattern` to `MinLength`, `MaxLength` and `Pattern` as written, in the `Constraints`
 of the node or carrier the position owns (a `Scalar`, a `Property` or a `Parameter`); `minItems`,
-`maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples); and
+`maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), which its
+carrier does not restate, or, where the position lowers to a reference (a `$ref` site, a collapsed
+union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns, whatever
+the target is; and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
@@ -1956,19 +1961,31 @@ dialect's form (a boolean in 3.1 or 3.2, a number in 3.0) is dropped with an
 `openapi/invalid-exclusive-bound` error. A bound beside a node with no `Constraints` field to take
 it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
-[`shape-applicator`](#shape-applicator) keeps a collection bound on an object.
+[`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
+beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
+which a bool cannot tell from one never written, and a count that does not fit in 64 bits.
 
-- Cases: `constraints`, `numeric-precision`
+- Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
   `openapi/degraded-construct`
 - Tests: `schema.TestConstraints_ExclusiveBoolean30`,
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
   `schema.TestConstraints_LosslessNumericLiterals`,
-  `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`
+  `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`,
+  `schema.TestCollectionBound_BesideAReferenceReachesTheAlias`,
+  `schema.TestCollectionBound_BesideAReferenceReachesTheCarrier`,
+  `schema.TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState`,
+  `schema.TestCollectionBound_ACarrierLeavesItToTheNodeItsPositionOwns`,
+  `schema.TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim`,
+  `schema.TestCollectionBound_ReadsThePositionNotItsTarget`,
+  `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
+  `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`
 - Status: partly built: a bound beside a `oneOf` or `anyOf` that lowers to a `Union` is dropped in
   silence (#848), and so is one beside a multi-typed schema that no carrier holds
-  ([`type-arrays`](#type-arrays), #852); and an integer bound past what a 64-bit integer holds
-  lowers as `0`, unreported (#1050).
+  ([`type-arrays`](#type-arrays), #852); an integer bound past what a 64-bit integer holds lowers
+  as `0`, unreported, everywhere but the collection bounds beside a reference (#1050); and a
+  collection bound beside or on a branch of an `allOf` over a `$ref` stays verbatim, since that
+  `allOf` lowers to a `Model` rather than a reference (#1269).
 
 ### `validation-only`
 

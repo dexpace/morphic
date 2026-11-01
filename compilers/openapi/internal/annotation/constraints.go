@@ -5,6 +5,7 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"strconv"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -59,6 +60,24 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer
 		return nil, residue.kept, diags
 	}
 	return c, residue.kept, diags
+}
+
+// CountIsExact reports whether count, the parser's reading of the integer
+// keyword s writes, is the number the keyword's literal states. The model holds
+// an integer past int64 as 0 (GitHub #1050), so a caller able to keep the raw
+// keyword instead asks here before it trusts the model.
+func CountIsExact(s *oas3.Schema, keyword string, count *int64) bool {
+	node := RawPropertyNode(s, keyword)
+	if count == nil || node == nil {
+		return false
+	}
+	literal, err := value.NumericLiteral(node)
+	if err != nil {
+		return false
+	}
+	stated, statedErr := literal.Decimal()
+	read, readErr := ir.ParseDecimal(strconv.FormatInt(*count, 10))
+	return statedErr == nil && readErr == nil && stated.Cmp(read) == 0
 }
 
 // boundResidue is where a schema's bounds were written, and what became of a

@@ -74,6 +74,11 @@ and `Parameter.Constraints` are filled whether or not the schema hoisted a node,
 such a schema can hoist holds them: an object lowers to a `Model` and a formatted scalar to a
 `Scalar` carrying an `Encoding`, and neither has a field for the scalar bounds.
 
+Collection bounds take the rule without that exception. A schema that lowers to a `List` or a
+`Tuple` holds them on that node, so its carrier restates none, and a carrier holds one only where
+its position resolved to a reference and so owns no node
+([`constraints`](../compilers/openapi.md#constraints)).
+
 ## What a reference carries down
 
 A `$ref` divides the declarations at its target in two, and the line falls between annotations and

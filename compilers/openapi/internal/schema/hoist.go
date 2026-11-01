@@ -78,9 +78,25 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer json
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
 	cons, diags := ConstraintsOf(c, &kept, s, pointer)
-	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
+	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
+}
+
+// internReferenceAlias is internAlias for the home of a declaration whose census
+// left it no node, which also holds the collection bounds s writes. A position
+// that reached a shared node with one written had its alias hoisted by the
+// census first, so this reads none it also keeps.
+func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef,
+) (ir.TypeID, []ir.Diagnostic) {
+	var kept ir.Unmodeled
+	cons, diags := referenceConstraintsOf(c, &kept, s, pointer)
+	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
+}
+
+// internAliasHolding interns the alias over target with the bounds an internAlias
+// read, and the keyword kept beside them.
+func internAliasHolding(c lowering.Ctx, ts *compile.Types, cons *ir.Constraints, kept ir.Unmodeled, pointer jsontext.Pointer, target ir.TypeRef) ir.TypeID {
+	return internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
 		return &ir.Scalar{TypeCommon: common, Base: new(target), Constraints: cons}
 	})
-	return id, diags
 }

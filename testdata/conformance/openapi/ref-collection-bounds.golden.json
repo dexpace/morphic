@@ -1,0 +1,506 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "RefCollectionBounds",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "RefCollectionBounds",
+        "canonical": "ref_collection_bounds"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1tags~1{tags}/get",
+              "name": {
+                "source": "listTags",
+                "canonical": "list_tags"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1tags~1{tags}/get/parameters/tags/path",
+                  "name": {
+                    "source": "tags",
+                    "canonical": "tags"
+                  },
+                  "type": {
+                    "target": "t/openapi/components/schemas/Tags",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "constraints": {
+                    "minItems": 1,
+                    "uniqueItems": false
+                  },
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1tags~1{tags}/get/parameters/0"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1tags~1{tags}/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1tags~1{tags}/get/responses/200/headers/X-Tags",
+                      "name": {
+                        "source": "X-Tags",
+                        "canonical": "x_tags"
+                      },
+                      "wireName": "X-Tags",
+                      "type": {
+                        "target": "t/openapi/components/schemas/Tags",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "constraints": {
+                        "maxItems": 5,
+                        "uniqueItems": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1tags~1{tags}/get/responses/200/headers/X-Tags"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/tags/{tags}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1tags~1{tags}/get/parameters/tags/path",
+                        "location": "path",
+                        "wireName": "tags",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tags~1{tags}/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Element/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Element/items",
+      "name": {
+        "hint": "element_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Element/items"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Tags",
+        "nullable": false
+      },
+      "constraints": {
+        "maxItems": 3,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/components/schemas/Holder/properties/plain": {
+      "kind": "list",
+      "id": "t/anon/components/schemas/Holder/properties/plain",
+      "name": {
+        "hint": "plain"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/plain"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "minItems": 1,
+        "uniqueItems": false
+      }
+    },
+    "t/anon/paths/~1tags~1{tags}/get/responses/200/content/application~1json/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1tags~1{tags}/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1tags~1{tags}/get/responses/200/content/application~1json/schema"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Tags",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": true
+      }
+    },
+    "t/openapi/components/schemas/Element": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Element",
+      "name": {
+        "source": "Element",
+        "canonical": "element"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Element"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Element/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Holder": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Holder",
+      "name": {
+        "source": "Holder",
+        "canonical": "holder"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/plain",
+          "name": {
+            "source": "plain",
+            "canonical": "plain"
+          },
+          "wireName": "plain",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/plain",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/plain"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/beside",
+          "name": {
+            "source": "beside",
+            "canonical": "beside"
+          },
+          "wireName": "beside",
+          "type": {
+            "target": "t/openapi/components/schemas/Tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "minItems": 1,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/beside"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/nullable",
+          "name": {
+            "source": "nullable",
+            "canonical": "nullable"
+          },
+          "wireName": "nullable",
+          "type": {
+            "target": "t/openapi/components/schemas/Tags",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "maxItems": 3,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/nullable"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/unstated",
+          "name": {
+            "source": "unstated",
+            "canonical": "unstated"
+          },
+          "wireName": "unstated",
+          "type": {
+            "target": "t/openapi/components/schemas/Tags",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:uniqueItems": {
+              "reason": "degraded_lowering",
+              "value": false,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Holder/properties/unstated/uniqueItems"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/unstated"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Named": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Named",
+      "name": {
+        "source": "Named",
+        "canonical": "named"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Named"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Tags",
+        "nullable": false
+      },
+      "constraints": {
+        "uniqueItems": true
+      }
+    },
+    "t/openapi/components/schemas/Tags": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Tags",
+      "name": {
+        "source": "Tags",
+        "canonical": "tags"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tags"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this position lowered to an alias over its $ref target, which has no home for uniqueItems declared beside it; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/unstated"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "ref-collection-bounds.yaml",
+      "hash": "9a888e619993f061eaf4f2023bb1527d455a31e3217091770ca9021b3dee8fec"
+    }
+  ]
+}

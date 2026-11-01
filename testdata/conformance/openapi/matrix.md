@@ -79,7 +79,7 @@ witnessing it.
 
 ### `constraints`
 
-- Witnesses: `constraints`, `numeric-precision`
+- Witnesses: `constraints`, `numeric-precision`, `ref-collection-bounds`
 
 ### `visibility`
 

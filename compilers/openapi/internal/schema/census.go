@@ -41,11 +41,11 @@ var censusKeywords = []string{
 // rather than re-deriving lower()'s dispatch, so the two cannot drift apart.
 //
 // A nil td is a position lowered to a reference: a $ref site, or a collapsed
-// union (collapsedUnhomedKeywords). Its alias carries only the position's
-// constraints and annotations, and the target's fields are the referent's, so
-// a `format` beside a $ref must not read the referent's Encoding as its home.
-// Every keyword is homeless there but a null-only `type` and a redaction
-// `format`, which annotation readers hold.
+// union. Its alias carries only the position's constraints and annotations, and
+// the target's fields are the referent's, so a `format` beside a $ref must not
+// read the referent's Encoding as its home. All are homeless there but a
+// null-only `type`, a redaction `format` and a collection bound it holds
+// (referenceHolds).
 func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	switch keyword {
 	case "properties", "patternProperties", "additionalProperties":
@@ -63,7 +63,8 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// Either collection node, since collectionConstraints fills both. That is
 		// also why valueConstraintKeywords leaves them out, which puts them in this
 		// census rather than in declaredConstraints.
-		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
+		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple) ||
+			(ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read
@@ -248,7 +249,7 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
 // plus allOf. handled passes through so an allOf branch spelled as a $ref still
 // routes its own `required` to requireMembers.
 //
-// allOf is as homeless here as every census keyword, because none of the
+// allOf is as homeless here as a structural keyword, because none of the
 // $ref-site callers goes through dispatchOf, so it never wins an election.
 // Adding it to censusKeywords instead would also hit ordinarily composed
 // schemas, since keywordHome has no arm saying a Model built from a winning
@@ -269,12 +270,13 @@ func refSiteUnhomedKeywords(s *oas3.Schema, handled []string) []string {
 const collapsedShape = "a nullable reference to its one non-null branch"
 
 // collapsedUnhomedKeywords returns the census keywords s writes when its
-// oneOf/anyOf collapses to a nullable reference (lowerOneOfAnyOf), or nil when
-// it does not. Every one is homeless: the position lowers to a reference to its
-// branch's node, which belongs to the branch, as a $ref site's target belongs
-// to the referent (keywordHome's nil td). The census keywords such a schema can
-// write are the few neither declaresShape nor narrowsInstance counts, the
-// discriminator among them (GitHub #595). lowerSchemaBody's other outcomes
+// oneOf/anyOf collapses to a nullable reference (lowerOneOfAnyOf) and no alias
+// or carrier can hold, or nil when it does not collapse. The position lowers to
+// a reference to its branch's node, which belongs to the branch, as a $ref
+// site's target belongs to the referent (keywordHome's nil td). The census
+// keywords such a schema can write are the few neither declaresShape nor
+// narrowsInstance counts, the discriminator among them (GitHub #595).
+// lowerSchemaBody's other outcomes
 // that skip lower(), a Union and an expanded $dynamicRef, run no census yet
 // (GitHub #848).
 func collapsedUnhomedKeywords(s *oas3.Schema) []string {

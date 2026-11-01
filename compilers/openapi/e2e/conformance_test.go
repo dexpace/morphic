@@ -205,6 +205,7 @@ func conformanceCases() []conformanceCase {
 		{"yaml-timestamp-scalars", assertYAMLTimestampScalars},
 		{"constraints", assertConstraints},
 		{"numeric-precision", assertNumericPrecision},
+		{"ref-collection-bounds", assertRefCollectionBounds},
 		{"readonly-writeonly", assertReadOnlyWriteOnly},
 		{"recursive", assertRecursive},
 		{"maps", assertMaps},
