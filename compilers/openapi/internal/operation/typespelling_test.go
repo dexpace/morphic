@@ -213,7 +213,7 @@ func TestPassedOverEntries_KeepsTheLowestKeysUpToTheBudget(t *testing.T) {
 		for i := range passedOver + 1 {
 			keys = append(keys, fmt.Sprintf("text/%03d", i))
 		}
-		var wantKept []string
+		wantKept := make([]string, 0, annotation.MaxUnknownKeys)
 		for _, key := range keys[1 : annotation.MaxUnknownKeys+1] {
 			wantKept = append(wantKept, annotation.EntryKey("content", key))
 		}
