@@ -5,6 +5,7 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -199,6 +201,48 @@ func TestPassedOverEntries_QuotesWhatItNames(t *testing.T) {
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
 		"/paths/~1x/get/parameters/0/content"),
 		`"application/json" is lowered and "text/a,text/b", "text/c\nerror: forged" kept verbatim under Unmodeled`)
+}
+
+// TestPassedOverEntries_KeepsTheLowestKeysUpToTheBudget holds a map at the bound
+// and one past it, declared in both orders: what is cut must not follow the
+// document, and the count must exclude the elected entry, which spends no slot.
+func TestPassedOverEntries_KeepsTheLowestKeysUpToTheBudget(t *testing.T) {
+	t.Parallel()
+	for _, passedOver := range []int{annotation.MaxUnknownKeys, annotation.MaxUnknownKeys + 1} {
+		keys := make([]string, 0, passedOver+1)
+		for i := range passedOver + 1 {
+			keys = append(keys, fmt.Sprintf("text/%03d", i))
+		}
+		var wantKept []string
+		for _, key := range keys[1 : annotation.MaxUnknownKeys+1] {
+			wantKept = append(wantKept, annotation.EntryKey("content", key))
+		}
+		wantBudget := passedOver - annotation.MaxUnknownKeys
+		reversed := slices.Clone(keys)
+		slices.Reverse(reversed)
+		for _, declared := range [][]string{keys, reversed} {
+			var spec strings.Builder
+			spec.WriteString("  /x:\n    get:\n      operationId: getX\n      parameters:\n" +
+				"        - name: p\n          in: query\n          content:\n")
+			for _, key := range declared {
+				fmt.Fprintf(&spec, "            %s: {}\n", key)
+			}
+			spec.WriteString("      responses: {\"200\": {description: ok}}\n")
+			doc, diags := parseFull(t, openapitest.PathsSpec(spec.String()))
+
+			_, mediaType, unmodeled := electedParam(t, doc)
+			assert.Equal(t, keys[0], mediaType)
+			assert.Equal(t, wantKept, slices.Sorted(maps.Keys(unmodeled)))
+			const at = "/paths/~1x/get/parameters/0/content"
+			assert.Equal(t, wantBudget, openapitest.CountDiagsAt(diags, diag.UnknownKeyBudget, ir.SeverityWarning))
+			if wantBudget > 0 {
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.UnknownKeyBudget, ir.SeverityWarning, at),
+					fmt.Sprintf("passes over %d entries, past the %d", passedOver, annotation.MaxUnknownKeys))
+			}
+			warning := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
+			assert.Equal(t, annotation.MaxUnknownKeys, strings.Count(warning, `"text/`)-1, "the warning names only what was kept")
+		}
+	}
 }
 
 // TestElectContentEntry_OneEntryIsSilent is the control: the legal one-entry

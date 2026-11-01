@@ -131,19 +131,23 @@ func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (strin
 // segment, and reports them once at the map, sorted and quoted, so the report
 // follows no declaration order and stays one line.
 //
-// It takes the pairs read once: looking each key up costs a scan per entry,
-// quadratic in what a document can write. No test counts that, as nodeview.Child
-// has no step to count.
+// It keeps the lowest annotation.MaxUnknownKeys, as the census does: each costs
+// a copy per reference to the map (GitHub #1240) and a name in that line.
 //
 // The reason and severity are passedOverSpelling's. An entry interns no node, and
 // --explain does not read Unmodeled (GitHub #693), so only the warning names it.
 func passedOverEntries(c lowering.Ctx, u *ir.Unmodeled, written []nodeview.Pair, elected string, at jsontext.Pointer) []ir.Diagnostic {
+	passed := slices.DeleteFunc(slices.SortedFunc(slices.Values(written), byKey),
+		func(entry nodeview.Pair) bool { return entry.Key == elected })
 	var diags []ir.Diagnostic
+	if len(passed) > annotation.MaxUnknownKeys {
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.UnknownKeyBudget, at+ids.Ptr("content"),
+			"a content map passes over %d entries, past the %d this compiler keeps; "+
+				"the rest are represented in the IR in no form at all", len(passed), annotation.MaxUnknownKeys))
+		passed = passed[:annotation.MaxUnknownKeys]
+	}
 	var kept []string
-	for _, entry := range slices.SortedFunc(slices.Values(written), byKey) {
-		if entry.Key == elected {
-			continue
-		}
+	for _, entry := range passed {
 		ok, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey("content", entry.Key),
 			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(at+ids.Ptr("content", entry.Key)))
 		diags = append(diags, keptDiags...)

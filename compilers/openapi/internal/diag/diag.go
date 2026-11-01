@@ -355,8 +355,9 @@ const (
 	// diagnostic, which would hide every later finding.
 	UnknownObjectKey = "openapi/unknown-object-key"
 	// UnknownKeyBudget reports an object declaring more keys the model does not
-	// name than the compiler keeps, so the ones past the bound reached the IR in no
-	// form at all.
+	// name than the compiler keeps, or a parameter's or header's content map
+	// passing over more entries than that, so the ones past the bound reached the
+	// IR in no form at all.
 	//
 	// Every collection here is bounded, and this one is over a key set the document
 	// chooses the size of. The bound is far above what any document writes by

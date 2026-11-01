@@ -2288,6 +2288,8 @@ is the media type that serializes the value: `HTTPParamBinding.ContentType` on a
 lowers nothing and is kept whole under `openapi:content/<key>`, the key escaped as a pointer segment
 (`degraded_lowering`), reported as one `openapi/degraded-construct` warning at the `content` map
 naming them, beside the `openapi/validation` error ([`validation`](#validation)) such a map draws.
+A map keeps at most `annotation.MaxUnknownKeys` of them, the lowest keys, and the rest reach the IR
+in no form, reported as one `openapi/unknown-key-budget` warning at the map.
 What else the elected entry writes is kept: its `example` and `examples` follow the parameter's or
 header's own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the
 key escaped as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared
@@ -2300,13 +2302,14 @@ beside it stands, and the empty map is kept under `degraded_lowering` with an
 [`competing-keywords`](#competing-keywords)'.
 
 - Cases: `param-content-fields`, `header-content-schema`, `content-several-entries`
-- Codes: `openapi/degraded-construct`
+- Codes: `openapi/degraded-construct`, `openapi/unknown-key-budget`
 - Tests: `operation.TestParams_ContentStyleParameter`,
   `operation.TestPassedOverEntries_ReportsExtraMediaTypes`,
+  `operation.TestPassedOverEntries_KeepsTheLowestKeysUpToTheBudget`,
   `operation.TestElectContentEntry_DoesNotFollowDeclarationOrder`,
   `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
 - Status: partly built: a `style`, `explode` or `allowReserved` beside a parameter's `content` lowers
-  in silence (#887).
+  in silence (#887), and what a referenced parameter or header keeps is copied per reference (#1240).
 
 ### `allow-empty-value`
 
