@@ -174,13 +174,13 @@ func mappingKeys(n *yaml.Node) []string {
 // errOffline is the one failure every http(s) read of the sweep gets.
 var errOffline = errors.New("the order oracle reads no http(s) reference")
 
-// offline is a RoundTripper that sends nothing and fails every request alike,
+// stubOffline is a RoundTripper that sends nothing and fails every request alike,
 // so both declaration orders see the same report for a remote reference
 // whatever the network does, and the suite reaches no third-party host.
-type offline struct{}
+type stubOffline struct{}
 
 // RoundTrip implements http.RoundTripper.
-func (offline) RoundTrip(*http.Request) (*http.Response, error) { return nil, errOffline }
+func (stubOffline) RoundTrip(*http.Request) (*http.Response, error) { return nil, errOffline }
 
 // compiledThrough compiles root as root.yaml in dir with external file
 // references allowed and every http(s) one refused, and returns what an order
@@ -191,7 +191,7 @@ func compiledThrough(t *testing.T, dir, root string) []string {
 	path := filepath.Join(dir, "root.yaml")
 	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
 	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
-		compilers.Options{Reader: reader.Disk{Client: &http.Client{Transport: offline{}}}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		compilers.Options{Reader: reader.Disk{Client: &http.Client{Transport: stubOffline{}}}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
 	require.NoError(t, err)
 	out := make([]string, 0, len(diags)+1)
 	for _, d := range diags {
