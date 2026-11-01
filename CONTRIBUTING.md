@@ -310,12 +310,14 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    registered compiler takes it, with every oracle, so registering the compiler in step 4 is all
    it takes to be swept. Order-invariance permutes YAML and JSON mappings, so a source that is
    neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
-   the package's `TestMain`.
+   the package's `TestMain`, and its package a line in `scripts/race-packages.txt`, which `make race`
+   runs under `-race`.
    `morphic compile --verify <spec>` holds your compiler's document, and every pass's, to the same
    invariants while you write it.
    *Fails if missed:* `TestHarness_InRepoCorpus`, which sweeps the corpus and requires every
    fixture in it to be listed, so one that no registered compiler recognizes fails there instead of
-   dropping out of the sweep, and `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.
+   dropping out of the sweep, `TestGoroutineLeak_EveryGoStatementHasALeakCheck`, and
+   `TestRaceList_NamesEveryConcurrentPackage`.
 6. **Write its lowering specification** at `docs/compilers/<format>.md`, and link it from
    `docs/compilers/planned-lowerings.md`: move the format's list there into the new document, or add
    a row for a format that page does not list. The `TestLoweringSpec` tests read

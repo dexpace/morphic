@@ -92,7 +92,7 @@ type Result struct {
 // of compilers and passes: one holding mutable state breaks both.
 //
 // TestEngine_ConcurrentRunSharesOneEngine pins both properties: the second on
-// every run, the first only under -race, which the coverage gate uses.
+// every run, the first only under -race, which `make race` runs for engine/...
 type Engine struct {
 	registry *compilers.Registry
 	passes   []namedPass

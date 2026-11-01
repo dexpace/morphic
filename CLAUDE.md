@@ -299,7 +299,9 @@ These all exist already — extend them rather than building a parallel mechanis
   profile, and `internal/archtest` requires it wherever a `go` statement or a single-argument
   `.Go(...)` call (`sync.WaitGroup.Go`, `errgroup.Group.Go`) appears. It finds only a goroutine
   blocked on an unreachable primitive — not a running one, nor one a global still holds; whether
-  `goleak` should cover those too is #568.
+  `goleak` should cover those too is #568. Beside it, `make race` runs the packages on
+  `scripts/race-packages.txt` under `-race`, and `TestRaceList_NamesEveryConcurrentPackage` requires
+  every package that runs concurrently to be on that list or exempt with its reason.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
 assertion shapes:

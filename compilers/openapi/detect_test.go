@@ -48,10 +48,10 @@ func TestDetect_DeclinesASourcePastTheCallersByteBudget(t *testing.T) {
 // TestDetect_ReadsASourceWithinTheCallersByteBudget pins the other side,
 // including a caller who turned the budget off. That case is asserted on a
 // small source: the byte budget is the only bound on what detection reads, so
-// off means unbounded, but a source past the 64 MiB default costs 15 s and
-// 1.3 GB under -race, which is what the gate's only test step runs with. It
-// was measured by hand instead when the byte scan was deleted (GitHub #486):
-// with the budget off, a source past 64 MiB is recognized.
+// off means unbounded, but a source past the 64 MiB default costs about 2 s
+// and 430 MiB under `go test -covermode=set` (what `make coverage` runs), on
+// one machine. It was measured by hand instead when the byte scan was deleted
+// (GitHub #486): with the budget off, a source past 64 MiB is recognized.
 func TestDetect_ReadsASourceWithinTheCallersByteBudget(t *testing.T) {
 	t.Parallel()
 	src := compilers.Source{Path: "api.yaml", Data: []byte(budgetedSpec)}
