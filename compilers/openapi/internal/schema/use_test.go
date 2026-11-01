@@ -94,12 +94,15 @@ func TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef(t *testing.T) {
         widened: {allOf: [{$ref: '#/components/schemas/Bare'}, {nullable: true}]}
         viaRef: {$ref: '#/components/schemas/Wrapper'}
         narrowed: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}]}
+        reopened: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}], nullable: true}
+        viaNarrow: {$ref: '#/components/schemas/Narrow', nullable: true}
         byValue: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a, c]}]}
     Wrapper: {allOf: [{$ref: '#/components/schemas/Bare'}], description: d}
+    Narrow: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}]}
     Mode: {type: string, enum: [a, b], default: b}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
-	for _, wire := range []string{"plain", "wrapped", "widened", "viaRef"} {
+	for _, wire := range []string{"plain", "wrapped", "widened", "viaRef", "reopened", "viaNarrow"} {
 		assert.NotNil(t, propertyOf(t, doc, "Holder", wire).Default, wire)
 	}
 	assert.Nil(t, propertyOf(t, doc, "Holder", "narrowed").Default, "a string takes no null its $ref admits")

@@ -37,6 +37,8 @@ type Use struct {
 	// position: one before it writes that set or stands beside it, so its default
 	// is the position's own, as a plain enum's is.
 	narrowedFrom int
+	// nullable says the position's reference admits null, whatever narrowed says.
+	nullable bool
 }
 
 // Site is u as annotation.Read takes it, for s, the schema written at the
@@ -57,7 +59,7 @@ func (u Use) DefaultChain(s *oas3.Schema) []*oas3.Schema {
 	}
 	own := len(chain) - len(u.Referents) + u.narrowedFrom
 	return slices.Concat(chain[:own], slices.DeleteFunc(slices.Clone(chain[own:]), func(r *oas3.Schema) bool {
-		return !u.narrowed.takes(r.GetDefault())
+		return !u.narrowed.takes(r.GetDefault()) && !(u.nullable && isNullValue(r.GetDefault()))
 	}))
 }
 
@@ -147,9 +149,11 @@ func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool 
 func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) Use {
 	s := js.GetSchema()
 	if resolve.IsRefSite(js, s) {
-		return lentBy(c, c.RefScope().TargetSchema(js, s))
+		u := lentBy(c, c.RefScope().TargetSchema(js, s))
+		u.nullable = t.Nullable
+		return u
 	}
-	u := Use{Voices: positionVoices(c, ts, s, pointer, t)}
+	u := Use{Voices: positionVoices(c, ts, s, pointer, t), nullable: t.Nullable}
 	p, ok := passageOf(c, s, pointer)
 	if !ok {
 		return u
