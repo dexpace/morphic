@@ -2754,7 +2754,8 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
   the IR undeduplicated (#738), a requirement whose only key is a `<<` naming no mapping lowers to
   the empty option, beside the rule table's error (#1244), and a field written as the model does not
   decode it reads as left out with no finding, so `scheme: 2021-01-01` names no mechanism and a
-  `security` list under a local tag inherits (#1280).
+  `security` list under a local tag inherits (#1280), and a `$ref` written as null refuses the whole
+  document (#1284).
 
 ### `security-scheme-fields`
 
