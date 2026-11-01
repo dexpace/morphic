@@ -210,11 +210,13 @@ func TestChild_ACoveredChildsCountersReachTheParentDir(t *testing.T) {
 	assert.Len(t, mine, 1, "the child's counter file")
 }
 
-// childStartsOutside returns, for each file of the package that starts a
-// child with the os/exec package anywhere but in command, the position of
-// the call, and whether command was among the declarations it read. It finds
-// the package through the file's import of os/exec, so an alias does not hide
-// a call, and reads package-level declarations as well as functions.
+// childStartsOutside returns, for each file of the package that builds an
+// exec.Cmd anywhere but in command, the position of it, and whether command
+// was among the declarations it read. It reports exec.Command and
+// exec.CommandContext, an exec.Cmd literal, new(exec.Cmd) and a var of type
+// exec.Cmd, but not a *exec.Cmd type. It finds the package through the file's
+// import of os/exec, so an alias does not hide one, and reads package-level
+// declarations as well as functions.
 func childStartsOutside(t *testing.T, fset *token.FileSet, files []*ast.File) (starts []string, sawCommand bool) {
 	t.Helper()
 	for _, f := range files {
@@ -233,18 +235,43 @@ func childStartsOutside(t *testing.T, fset *token.FileSet, files []*ast.File) (s
 				in = fn.Name.Name
 			}
 			ast.Inspect(decl, func(n ast.Node) bool {
-				sel, ok := n.(*ast.SelectorExpr)
-				if !ok || (sel.Sel.Name != "Command" && sel.Sel.Name != "CommandContext") {
-					return true
-				}
-				if id, ok := sel.X.(*ast.Ident); ok && id.Name == name {
-					starts = append(starts, fmt.Sprintf("%s: %s starts a child outside command", fset.Position(sel.Pos()), in))
+				if buildsCmd(n, name) {
+					starts = append(starts, fmt.Sprintf("%s: %s starts a child outside command", fset.Position(n.Pos()), in))
 				}
 				return true
 			})
 		}
 	}
 	return starts, sawCommand
+}
+
+// buildsCmd reports whether n builds an exec.Cmd through the os/exec package
+// named pkg: a call of Command or CommandContext, a literal of Cmd, a call of
+// new(Cmd), or a var spec whose type is the bare Cmd.
+func buildsCmd(n ast.Node, pkg string) bool {
+	switch n := n.(type) {
+	case *ast.SelectorExpr:
+		return selects(n, pkg, "Command", "CommandContext")
+	case *ast.CompositeLit:
+		return selects(n.Type, pkg, "Cmd")
+	case *ast.CallExpr:
+		fn, ok := n.Fun.(*ast.Ident)
+		return ok && fn.Name == "new" && len(n.Args) == 1 && selects(n.Args[0], pkg, "Cmd")
+	case *ast.ValueSpec:
+		return selects(n.Type, pkg, "Cmd")
+	default:
+		return false
+	}
+}
+
+// selects reports whether e is pkg.Name for one of names.
+func selects(e ast.Expr, pkg string, names ...string) bool {
+	sel, ok := e.(*ast.SelectorExpr)
+	if !ok || !slices.Contains(names, sel.Sel.Name) {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == pkg
 }
 
 // execName returns the name f gives the os/exec package, and whether f
@@ -262,10 +289,11 @@ func execName(f *ast.File) (string, bool) {
 	return "", false
 }
 
-// TestChild_EveryChildStartsThroughCommand holds every child these tests
-// start to command, in any file of the package: a child started elsewhere
-// inherits the parent's coverage directory again.
-func TestChild_EveryChildStartsThroughCommand(t *testing.T) {
+// TestChild_EveryExecCmdIsBuiltInCommand holds every os/exec command these
+// tests build to command, in any file of the package: a command built
+// elsewhere starts a child that inherits the parent's coverage directory
+// again.
+func TestChild_EveryExecCmdIsBuiltInCommand(t *testing.T) {
 	names, err := filepath.Glob("*.go")
 	require.NoError(t, err)
 	require.NotEmpty(t, names, "the package's files are read")
