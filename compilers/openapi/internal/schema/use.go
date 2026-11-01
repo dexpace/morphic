@@ -126,6 +126,13 @@ func throughRef(s *oas3.Schema) *oas3.JSONSchema[oas3.Referenceable] {
 	return refs[0]
 }
 
+// speakers returns what p's $ref says of a use, nearest first: what is written
+// beside it, then what it lands on lends.
+func (p passage) speakers(c lowering.Ctx) []*oas3.Schema {
+	s := p.ref.GetSchema()
+	return append([]*oas3.Schema{s}, lentBy(c, c.RefScope().TargetSchema(p.ref, s)).Referents...)
+}
+
 // ownsNode reports whether p's principal lowered to a node of its own, which
 // keeps what it writes, t being what the position lowered to.
 func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool {
@@ -155,8 +162,7 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Reference
 		return u
 	}
 	u.narrowedFrom = len(u.Referents)
-	u.Referents = append(u.Referents, p.ref.GetSchema())
-	u.Referents = append(u.Referents, lentBy(c, c.RefScope().TargetSchema(p.ref, p.ref.GetSchema())).Referents...)
+	u.Referents = append(u.Referents, p.speakers(c)...)
 	if p.narrows {
 		u.narrowed = &p.admits
 	}
@@ -169,7 +175,7 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Reference
 func nodeUse(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) Use {
 	u := Use{Voices: positionVoices(c, ts, s, pointer, target)}
 	if p, ok := passageOf(c, s, pointer); ok && p.lost {
-		u.Referents = lentBy(c, c.RefScope().TargetSchema(p.ref, p.ref.GetSchema())).Referents
+		u.Referents = p.speakers(c)
 	}
 	return u
 }

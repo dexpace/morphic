@@ -55,6 +55,30 @@ func TestUse_ADefaultReadsOnlyWhereThePositionTakesIt(t *testing.T) {
 	assert.Nil(t, propertyOf(t, unread, "Holder", "f").Default, "a value it cannot read is none it takes")
 }
 
+// TestUse_ALostRefSpeaksWithWhatIsBesideIt pins a $ref its lowering lost: what is
+// written beside it speaks before its target, on a carrier and on a node alike.
+func TestUse_ALostRefSpeaksWithWhatIsBesideIt(t *testing.T) {
+	t.Parallel()
+	const lost = "{$ref: '#/components/schemas/Mode', description: beside, deprecated: true}"
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Mode: {type: string, enum: [a, b], description: target}
+    Narrow: {allOf: [`+lost+`, {enum: [a]}]}
+    Passed: {enum: [a], allOf: [`+lost+`]}
+    Holder:
+      type: object
+      properties:
+        f: {allOf: [`+lost+`, {enum: [a]}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	f := propertyOf(t, doc, "Holder", "f")
+	assert.Equal(t, "beside", f.Docs.Description)
+	assert.NotNil(t, f.Deprecation)
+	for _, name := range []string{"Narrow", "Passed"} {
+		common := typeByName(doc, name).Common()
+		assert.Equal(t, "beside", common.Docs.Description, name)
+		assert.NotNil(t, common.Deprecation, name)
+	}
+}
+
 // TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef pins that only a conjunct
 // narrowing the $ref judges its target's default: one the target's own type leaves
 // out reads as a plain $ref reads it, where a conjunct excluding it drops it.
