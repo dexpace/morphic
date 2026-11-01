@@ -27,10 +27,12 @@ import (
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
 func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed)
+	voices := positionVoices(c, ts, s, pointer, target)
+	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed || declaresScoped(voices))
 	if s != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer)...)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer, target)...)
 	}
+	diags = append(diags, recordVoicedResidue(c, ts, voices, pointer, home)...)
 	return ref, append(diags, recordDeclarationResidue(c, ts, s, pointer, home)...)
 }
 
@@ -123,16 +125,16 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // attachDeclaredAnnotations records every annotation s declares on the type
 // node pointer owns, the one structural home they have (ir.TypeCommon).
 //
-// It is the sole reader of declaration-scoped annotations and runs above
-// lower()'s dispatch: every declaration reaches it through homeDeclaration or
-// an alias fallback (lowerComponentSchema, hoistSubSchema), so a new lowering
+// It reads every declaration's annotations, above lower()'s dispatch: each
+// reaches it through homeDeclaration or an alias fallback, so a new lowering
 // destination cannot forget to read them (GitHub #114).
 //
 // A schema whose body reduced to a shared primitive owns no node; its
 // annotations stay with the declaring property (FillPropertyDetail). Ownership
 // is checked before conversion because callers cover a pointer in either order,
-// and only the one that finds a node may emit conversion diagnostics.
-func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+// and only the one that finds a node may emit conversion diagnostics. target
+// says what speaks there (nodeUse).
+func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) []ir.Diagnostic {
 	// No node here means a position that reduced to a shared primitive, or one
 	// still being built further up this walk, whose builder attaches the same
 	// declaration once its build returns (GitHub #749).
@@ -140,7 +142,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	if !ok {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(nodeUse(c, ts, s, pointer, target).Site(s), pointer, c.ProvenanceAt)
 
 	common := td.Common()
 	common.Docs = a.Docs

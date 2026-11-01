@@ -11,8 +11,9 @@
   Nil-base scalars (GraphQL custom) go to the opaque-scalar strategy (a Go newtype), never a
   fabricated chain.
 - **A declaration over a root keeps the root's codec.** A named scalar, an anonymous one that is no
-  decorator ([decorators](decorators.md)), and a `Model` whose `Base` is no model ([lowering
-  table](lowering-table.md)) each declare a type standing over their chain's root, and it must code
+  decorator ([decorators](decorators.md)), a named alias over the conjunct
+  deciding an `allOf` no object satisfies ([models](../../ir/models.md#an-allof-no-object-satisfies)) and a `Model` whose `Base` is no model
+  ([lowering table](lowering-table.md)) each declare a type standing over their chain's root, and it must code
   as the root does. So a target defines a new type only over a root whose codec that type keeps, and
   declares an alias over any other ([Go](../targets/go/types.md#a-declaration-over-a-root),
   [Kotlin](../targets/kotlin/types.md#a-declaration-over-a-root)). An alias declares no method, so

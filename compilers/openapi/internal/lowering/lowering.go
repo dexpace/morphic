@@ -162,6 +162,9 @@ type loadResult struct {
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
 	reads resolve.Scope
+	// readings remembers each answer Remembered read. It sits here for the
+	// reason loaded is a pointer, and copies share it as they do typePositions.
+	readings map[any]any
 }
 
 // scopedPosition is a position, the document it is in, and the scope it is
@@ -257,7 +260,7 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
 	c.loaded = &loadResult{siblings: doc.Siblings, others: doc.Others, names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-			Bindings: doc.Bindings}}
+			Bindings: doc.Bindings}, readings: map[any]any{}}
 	c.typePositions = map[scopedPosition]bind.Position{}
 	return c
 }
@@ -287,6 +290,25 @@ func (c Ctx) TypePosition(at bind.Position, read func() bind.Position) bind.Posi
 	named := read()
 	c.typePositions[key] = named
 	return named
+}
+
+// Remembered returns read's answer for key, read once and remembered for every
+// copy of c. read must turn only on the documents and their bindings, which no
+// lowering changes, and key on all else it turns on; a package's own key type
+// keeps its readings from another's. A key holding another type of answer reads
+// again, and a context given no load phase reads every time.
+func Remembered[V any](c Ctx, key any, read func() V) V {
+	if c.loaded == nil {
+		return read()
+	}
+	if held, seen := c.loaded.readings[key]; seen {
+		if answer, ok := held.(V); ok {
+			return answer
+		}
+	}
+	answer := read()
+	c.loaded.readings[key] = answer
+	return answer
 }
 
 // Siblings returns the fields the load phase modelled beside the document's

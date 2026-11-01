@@ -231,6 +231,9 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 		{"viaRef", componentID("Pw")},      // inherited from the referent, as deprecated is
 		{"viaAlias", componentID("Chain")}, // from the end of the $ref chain
 		{"beside", componentID("Plain")},   // written beside the $ref, binding the use
+		{"refined", componentID("Plain")},  // beside an allOf refining the $ref, or in a branch of it
+		{"inBranch", componentID("Plain")},
+		{"wrapped", componentID("Pw")}, // an allOf over a string is a use of it, inheriting as viaRef does
 	} {
 		p, ok := propByWire(login, tc.wire)
 		require.True(t, ok, tc.wire)
@@ -247,13 +250,6 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 	require.True(t, ok)
 	assert.False(t, nullable.Secret, "the node holds it, not a copy on the use")
 	assert.Equal(t, ir.TypeRef{Target: componentID("Pw"), Nullable: true}, nullable.Type)
-	wrapped, ok := propByWire(login, "wrapped")
-	require.True(t, ok)
-	assert.False(t, wrapped.Secret, "the node holds it, not a copy on the use")
-	m, ok := doc.Types[wrapped.Type.Target].(*ir.Model)
-	require.True(t, ok, "an allOf over one $ref is a model")
-	require.NotNil(t, m.Base)
-	assert.Equal(t, componentID("Pw"), m.Base.Target)
 	chain, ok := doc.Types[componentID("Chain")].(*ir.Scalar)
 	require.True(t, ok, "an alias component is a Scalar")
 	require.NotNil(t, chain.Base)

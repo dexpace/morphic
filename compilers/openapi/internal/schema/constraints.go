@@ -10,18 +10,32 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
 	"github.com/dexpace/morphic/ir"
 )
 
-// ConstraintsOf returns the value constraints s writes, or nil where it writes
-// none, for the node or carrier at pointer to hold, so a node a position owns,
-// a property and a parameter read them alike.
+// ConstraintsOf returns the value constraints s and its voices write, or nil
+// where they write none, for the node or carrier at pointer to hold, so a node a
+// position owns, a property and a parameter read them alike. A voice agrees with
+// s wherever both write a bound, so no bound is intersected
+// (docs/compilers/openapi.md#allof-inline-residue).
 //
 // p is the Unmodeled map of the node or carrier the constraints land on. A 3.0
 // exclusive modifier with no bound beside it to modify, which no ir.Constraints
 // field holds, is kept there, beside the constraints it did not reach (GitHub
 // #286).
-func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+	cons, diags := constraintsAt(c, p, s, pointer)
+	for _, v := range voices {
+		voiced, voicedDiags := constraintsAt(c, p, v.Node, v.At)
+		diags = append(diags, voicedDiags...)
+		cons = merge.Constraints(cons, voiced)
+	}
+	return cons, diags
+}
+
+// constraintsAt reads what s, written at pointer, bounds.
+func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}

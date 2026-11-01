@@ -53,10 +53,18 @@ var loweringRecursions = [][]string{
 	// holding operations of its own (docs/ir/http-binding.md), so the operation
 	// lowering reaches itself through them.
 	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem"},
+	// Whether one conjunct restates another. Two lists compare by their elements,
+	// each read the same way, down what `items` nests. Each step reads a schema,
+	// which spends the budget maxAdmissionReads holds it to.
+	{"admission.holds", "admission.itemsWithin", "admission.restates"},
 	// The key an enum entry is compared by when the enum repeats it. A list's or
 	// an object's key is built from its elements', each a value keyed the same
 	// way. Bounded by maxValueKeyDepth.
 	{"listKey", "objectKey", "valueKey"},
+	// What a schema admits. A union's branches and an allOf's conjuncts, and what
+	// a $ref lands on, are schemas read the same way, and one may name its own
+	// schema. Bounded by the budget maxAdmissionReads, which a cycle exhausts.
+	{"admission.union", "admission.whole"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.
@@ -79,7 +87,7 @@ var schemaRecursion = []string{
 	"lowerAllOf",
 	"lowerArray", "lowerBesideUnmodeledUnion", "lowerCoDeclaredUnion",
 	"lowerDiscriminator", "lowerDistributedUnion", "lowerModel",
-	"lowerOneOfAnyOf", "lowerSchemaBody", "lowerTyped", "lowerUnion",
+	"lowerOneOfAnyOf", "lowerPrincipal", "lowerSchemaBody", "lowerTyped", "lowerUnion",
 	"lowerUntyped", "patternProps", "refSiteRef", "refTypeRef",
 	"resolveAt", "resolveMappingTarget", "resolvePointer", "resolveSchemaRef",
 	"scalarEncoding", "scalarTypeID", "schemaBody", "schemaRefHomed",

@@ -29,6 +29,12 @@ func ContainsRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
 	return combine(s, "contains", "minContains", "maxContains")
 }
 
+// ExamplesRaw combines example and examples into one raw JSON object, and names
+// the keywords it combines: Set.Examples holds the two as one list.
+func ExamplesRaw(s *oas3.Schema) (ir.RawValue, []string, error) {
+	return combine(s, "example", "examples")
+}
+
 // UnevaluatedRaw combines a non-false unevaluatedProperties and any
 // unevaluatedItems into one raw JSON object (a false unevaluatedProperties is a
 // structural mode, handled in fillAdditional), and names the keywords it

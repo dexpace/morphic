@@ -577,3 +577,65 @@ components:
 	assert.Equal(t, "declared", without.Docs.Description,
 		"the other mount keeps the declaration's own description")
 }
+
+// TestParameter_ABranchSpeaksAsItsSchemaDoes pins a parameter's schema refining a
+// $ref: what its branches write lands as what the schema writes does, and what
+// ir.Parameter has no field for is kept verbatim at the keyword that wrote it.
+func TestParameter_ABranchSpeaksAsItsSchemaDoes(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get:
+      operationId: get
+      parameters:
+        - name: q
+          in: query
+          schema:
+            allOf:
+              - {$ref: '#/components/schemas/Str'}
+              - {description: mine, maxLength: 3, readOnly: true, format: password, xml: {name: q}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Str: {type: string, title: A string}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), "q")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Str"), param.Type.Target)
+	assert.Equal(t, "mine", param.Docs.Description)
+	assert.Equal(t, "A string", param.Docs.Summary)
+	require.NotNil(t, param.Constraints)
+	assert.Equal(t, new(int64(3)), param.Constraints.MaxLength)
+	for _, key := range []string{"openapi:readOnly", "openapi:format", "openapi:xml"} {
+		entry, kept := param.Unmodeled[key]
+		if assert.True(t, kept, "%s: got %v", key, param.Unmodeled) {
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, key)
+			assert.Contains(t, string(entry.Provenance.Pointer), "/allOf/1/", key)
+		}
+	}
+}
+
+// TestParameter_ADefaultReadsOnlyWhereTheNarrowingTakesIt pins a parameter's default
+// across a value set narrowing its $ref, as a property's reads.
+func TestParameter_ADefaultReadsOnlyWhereTheNarrowingTakesIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get:
+      operationId: get
+      parameters:
+        - {name: taken, in: query, schema: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a]}]}}
+        - {name: dropped, in: query, schema: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [b]}]}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Mode: {type: string, enum: [a, b], default: a}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "get")
+	taken, ok := openapitest.ParamBySource(op, "taken")
+	require.True(t, ok)
+	assert.NotNil(t, taken.Default)
+	dropped, ok := openapitest.ParamBySource(op, "dropped")
+	require.True(t, ok)
+	assert.Nil(t, dropped.Default)
+}

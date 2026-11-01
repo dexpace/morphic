@@ -678,8 +678,9 @@ kept under an extension and read through a `$ref`, and a document a `$ref` reads
 is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such name is a function of
 the documents and the position alone, read where the position is written, so no lowering order
 changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
-`$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
-is never set.
+`$ref` lands on, in whichever document, and keeps its own name where that names nothing. An inline
+`allOf` branch is a conjunct of the schema holding it, so a node built there
+([`allof-refinement`](#allof-refinement)) is named as that schema is. `Aliases` is never set.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
@@ -784,10 +785,26 @@ are the exception: bounds conjoin rather than override, so each position keeps t
 and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
 
+A refinement ([`allof-refinement`](#allof-refinement)) is a use of what it names, so a carrier holding
+one reads its target by this rule, and one holding a `$ref` to a refinement reads through it, up to 64
+`$ref`s: what the target declares, what its inline branches lend it
+([`allof-inline-residue`](#allof-inline-residue)), then what its own `$ref` declares, nearest first. A
+`$ref` that loses the type to a value set narrowing it still speaks, for documentation, deprecation,
+visibility and redaction, on the carrier or else on the alias keeping it, and so does one an `enum`
+or a `const` beside its `allOf` passes over ([`competing-keywords`](#competing-keywords)), on the node
+that lowers to; its `default` counts only where the narrowed type takes it, and its examples stay on
+its node, as any target's do ([`schema-examples`](#schema-examples)). A sole `$ref` that a
+decorator wraps ([annotations](../ir/annotations.md#decorators)) lends a carrier what it would lend
+written alone, since the visibility and `default` of the use have no other home. A composition
+saying anything else holds what it composes as `Base` and `Mixins`, which lends a carrier nothing.
+
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
-  `schema-ref-siblings-30`
+  `schema-ref-siblings-30`, `allof-refinement`
 - Tests: `e2e.TestAnnotationRetention`, `schema.TestModel_RefSiblingDescriptionWins`,
-  `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`
+  `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
+  `schema.TestRefinement_ACarrierReadsThroughARefinement`,
+  `schema.TestUse_ACarrierReadsThroughADecorator`,
+  `schema.TestUse_ALoopOfNarrowingEnumsEnds`
 
 ### `reference-object-siblings`
 
@@ -905,7 +922,10 @@ nullable reference that `{$ref: T, nullable: true}` was meant to be. So the null
 policy, on by default, reads such a null as widening what it is written on rather than conjoining
 with it: `nullable: true` admits null for the whole schema it is written on, whatever else that
 schema says, and keywords beside a `$ref` that admit null by themselves admit it for the whole
-reference. A `type` without `null` beside a `$ref` still narrows what it lands on. A reference whose
+reference, and a `nullable: true` on an inline `allOf` branch writing no `properties` admits it for
+the whole `allOf`, as beside the `allOf` it does ([`allof-inline-residue`](#allof-inline-residue)). A
+`type` without `null` beside a `$ref` still narrows what it lands on, and a `type: [T, "null"]` on a
+conjunct of an `allOf` conjoins with the rest. A reference whose
 null only that reading admits names `nullable-widening` in `TypeRef.Inferred` (invariant 6), so
 `Nullable` with no marker is the declared reading, and each such null is reported once as an info
 `openapi/inferred-nullable`, at the `nullable` keyword or, for keywords beside a `$ref`, at the
@@ -925,7 +945,8 @@ model does not name.
   `e2e.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
   `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
   `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
-  `merge.TestIntersectNull_TheMarkerFollowsTheBit`
+  `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
+  `schema.TestNullableWidening_ABranchWidensTheAllOfHoldingIt`
 - Status: partly built: a `nullable` its dialect does not define, read with the policy off, is kept
   nowhere at a position that lowers to a shared node and carries no property or parameter, as no
   keyword the schema model does not name is there (#1053), and a 3.0 `nullable` with no `type`
@@ -967,8 +988,9 @@ of a parameter's schema, which `ir.Parameter` has no field for, are
 
 ### `allof-classification`
 
-An `allOf` lowers to the composing `Model`'s `Base` and `Mixins`
-([models](../ir/models.md#composition)). An entry that is a `$ref` to a schema taking part in
+An `allOf` a conjunct can make an object lowers to the composing `Model`'s `Base` and `Mixins`
+([models](../ir/models.md#composition)); one no conjunct can is
+[`allof-refinement`](#allof-refinement)'s. An entry that is a `$ref` to a schema taking part in
 a discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; every other `$ref` entry
 becomes a `Mixin`; and an inline entry merges into the composing model's own `Properties`, each
 property keeping its own provenance ([`allof-inline-residue`](#allof-inline-residue),
@@ -981,8 +1003,8 @@ and depth first, each keeping the pointer it was written at, and its `properties
 merge after them, as a composing schema's own merge after its entries'. So `allOf: [{allOf: [A,
 B]}]` classifies as `allOf: [A, B]`, and nothing is reported. Whatever else the entry writes that
 the merge does not consume is kept beside the composition as residue
-([`allof-inline-residue`](#allof-inline-residue)), so `{description: d, allOf: [A, B]}` composes `A`
-and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside 32 flattened
+([`allof-inline-residue`](#allof-inline-residue)), so `{additionalProperties: false, allOf: [A, B]}`
+composes `A` and `B` and is also kept whole. Flattening stops 32 levels down: an entry nested inside 32 flattened
 entries is not flattened itself, so its `allOf` is residue, and it is reported as nested past the
 flattening depth of 32. This is not the flattening the
 [design rules](../ir/README.md#design-rules) leave to emitters: every `$ref` entry still composes as
@@ -997,6 +1019,118 @@ owns no node to keep ([`allof-inline-residue`](#allof-inline-residue)).
   `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`, `schema.TestAllOf_NestedLowersAsFlat`
 - Status: partly built: a `$ref` to a subtype of a discriminated base, which declares no
   discriminator itself, is composed as a `Mixin` rather than the `Base` (#986).
+
+### `allof-refinement`
+
+An `allOf` is a composition only where a conjunct can make the value an object: a `$ref` whose
+target admits one, or a conjunct writing `type: object` or one of `properties`, `patternProperties`,
+`additionalProperties`, `required` and `discriminator`, the keywords beside the `allOf` being a
+conjunct as much as a branch is. A `Model` anywhere else asserts an object the source rules out, so
+that `{allOf: [{type: integer}, {type: integer, format: int32}]}` reaches a consumer as an object with
+no fields, where it means `int32`. Any other `allOf` is a *refinement*: one use of the conjunct that
+decides it, its *principal*, with what the other conjuncts say read as said of that use.
+
+What the conjuncts admit is read from the source and the bindings, never the registry, so no
+lowering order decides it. Each conjunct's JSON kinds and value set are read across `$ref`, `allOf`,
+`oneOf`, `anyOf`, `type`, `enum` and `const`, a `properties` with no `type` beside it claiming an
+object, and the read takes in at most 256 schemas and 4096 `enum` members. An `allOf` stays the
+composition it would otherwise be, with nothing lost, where:
+
+1. the read does not finish: a cycle, either bound, a `$ref` landing on no schema, a `$dynamicRef`,
+   or a value it cannot convert;
+2. it writes more than 64 conjuncts, which the election below compares pairwise;
+3. a conjunct is `false` ([`allof-false-branch`](#allof-false-branch)), or nests past the flattening
+   depth ([`allof-classification`](#allof-classification));
+4. `oneOf` or `anyOf` is written on a branch or beside the `allOf`
+   ([`union-beside-structure`](#union-beside-structure));
+5. two conjuncts are `$ref`s: both keep composing, since keeping one reference typed would mean
+   dropping the other ([models](../ir/models.md#composition-entries));
+6. the conjuncts share no value, so that a warning at each contradicted branch says so
+   ([`allof-inline-residue`](#allof-inline-residue)), a null they all admit being no shared value
+   unless a conjunct admits nothing else.
+
+An `enum` or a `const` beside the `allOf` wins the election of
+[`competing-keywords`](#competing-keywords) first, so it is no refinement, though a `$ref` the
+`allOf` writes alone speaks for it as a narrowed one does below.
+
+The principal is chosen from the whole set:
+
+1. an inline value set, `enum` or `const`, within every other conjunct and more than a restatement of
+   what a `$ref` fixes: it says which values the position holds, and what it narrows cannot;
+2. else the `$ref`, since a narrower inline `type` replacing it would drop what its target says;
+3. else, of the conjuncts naming a kind by `type`, `enum` or `const`, the one within the most others,
+   the keywords beside the `allOf` among them, those first and then source order on a tie. A conjunct
+   is within another where its kinds, its values, its `format` and its `items` are. Two formats of the
+   table ([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)) compare by what
+   they select, a format narrows the bare kind it applies to, one the table does not list included,
+   `items` narrow none, and two `items` compare by what each says, so `uuid` beats `string`, `email`
+   beats `string` and a list of `uuid` beats a list of `string`, in either order, as a field
+   redeclared the same ways does ([`allof-redeclared-property`](#allof-redeclared-property)). A tie,
+   such as two formats neither of which narrows the other, is the one place order decides, and the
+   loser is kept and reported, again as such a field is.
+
+A `format` or `items` written with no `type` qualifies a kind and names none, so it decides nothing:
+`{allOf: [{type: integer}, {format: int32}]}` lowers to `integer` with the second branch kept, in
+either order, since no one conjunct says `int32` and a schema built from two would stand at a pointer
+naming neither. An `allOf` no conjunct names a kind in, `{allOf: [{description: d}]}`, has no
+principal and is the top type. Where the keywords beside the `allOf` win, the position lowers by them
+as if no `allOf` were written. A principal lowers at the pointer it is written at, so nothing is minted and each node stands
+at a pointer naming its schema: a `$ref` as any `$ref` branch does, what is written beside it on the
+alias [models](../ir/models.md#composition-entries) describes, and an inline branch as a schema
+carried by the position. A branch that reduces to a shared node reads as written beside the `allOf`,
+and one owning a node keeps there what it writes.
+
+What the conjuncts say lands where the position keeps what it writes: on the carrier
+([`ref-use-site`](#ref-use-site)), else on an alias hoisted at the position only if it writes
+something ([annotations](../ir/annotations.md#one-structural-home-per-declaration)), so a position
+that says nothing beyond its `$ref` is that `$ref`, with no node and no diagnostic. An inline branch's
+keywords fold as [`allof-inline-residue`](#allof-inline-residue) says. A `type`, a `format`, an `enum`,
+a `const` or `items`, on a branch or beside the `allOf`, that the principal already says is consumed,
+so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. One saying more is kept: a branch whole
+under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the `allOf` under
+`openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the branch or at the
+position. A `$ref` a value set beats is kept the same way, and its target still speaks for the
+position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set takes it.
+
+Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
+`K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
+verbatim reading no target ([`shape-applicator`](#shape-applicator)), and on `type: [T, "null"]`,
+which the nullable-widening policy reads as widening beside a `$ref` and which conjoins here, as JSON
+Schema says ([`nullable`](#nullable)).
+
+The IR's rule that compilers leave flattening to emitters
+([design rules](../ir/README.md#design-rules)) is not what this departs from, and the alternative of
+keeping such an `allOf` a decorator for emitters to collapse is weighed in
+[models](../ir/models.md#an-allof-no-object-satisfies).
+
+- Cases: `allof-refinement`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestRefinement_AnAnnotationOnlyBranchLandsTyped`,
+  `schema.TestRefinement_PrimitiveBranchesLowerToTheirMeet`,
+  `schema.TestRefinement_DisjointConjunctsStayAComposition`,
+  `schema.TestRefinement_NamesItsTargetAtEveryPosition`,
+  `schema.TestRefinement_KeywordsLandAtEveryPosition`,
+  `schema.TestRefinement_KeptKeywordsLandAtEveryPosition`,
+  `schema.TestRefinement_ASecondRefStaysAComposition`,
+  `schema.TestRefinement_ReachesNoFurtherThanItCanRead`,
+  `schema.TestRefinement_NothingSaidIsTheTopType`,
+  `schema.TestRefinement_ATypeBesideTheAllOfIsThePosition`,
+  `schema.TestRefinement_AValueSetNarrowsTheRefItBeats`,
+  `schema.TestRefinement_ANarrowingKeepsItsTargetOnANode`,
+  `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
+  `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
+  `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
+  `schema.TestRefinement_NoConjunctNamingAKindLeavesTheTopType`,
+  `schema.TestRefinement_DecidedByTheSetInEveryOrder`, `schema.TestRefinement_TwinsTheRefSpelling`,
+  `schema.TestRefinement_StructuralKeywordsPartFromTheRefSpelling`,
+  `schema.TestRefinement_ABranchHoldsWhatItsNodeDoes`,
+  `schema.TestRefinement_FlattensAsItsFlatSpelling`,
+  `schema.TestRefinement_PastItsBudgetStaysAComposition`,
+  `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
+  `schema.TestRefinement_ACappedBranchStaysAComposition`
+- Status: partly built: conjuncts sharing no value are reported only where an inline `type` says so
+  (#1215), a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition (#661), and a
+  structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes (#1067).
 
 ### `allof-beside-ref`
 
@@ -1014,14 +1148,30 @@ hold ([`shape-applicator`](#shape-applicator)) keeps the `allOf` verbatim under 
 
 A branch written inline rather than as a `$ref` owns no node, so composition has nowhere to point
 ([models](../ir/models.md#composition)) and the branch is merged into the composing model in place.
-That merge consumes the branch's `properties`, its
-`required` list, a `type` that is exactly `object` — which the composed `Model` already restates —
-and, for an entry flattened under [`allof-classification`](#allof-classification), its `allOf` — and
-nothing else. The IR could hold every other keyword a branch writes, and does hold them one level up
-— the same keywords on the composing schema lower to `Docs`, `Model.Additional`, `Model.Constraints`
-and `Unmodeled` — but attributing them to the composition means either giving the branch a node
-(changing the composition shape) or merging them upward with a precedence rule for branches that
-disagree. So a branch declaring anything the merge does not consume is kept verbatim in
+That merge consumes the branch's `properties`, its `required` list, a `type` that is exactly
+`object`, which the composed `Model` already restates, and, for an entry flattened under
+[`allof-classification`](#allof-classification), its `allOf`.
+
+JSON Schema conjoins an `allOf`'s keywords with those beside it, so what a branch writes for the
+position reads as written beside the `allOf`, in a composition and in a refinement
+([`allof-refinement`](#allof-refinement)) alike: its `title`, `description`, `externalDocs`,
+`deprecated`, `example`, `examples`, `xml`, `default`, `readOnly`, `writeOnly`, value constraints,
+`format: password` ([`password`](#password)), vendor extensions and validation-only keywords
+([`validation-only`](#validation-only)) land where the same keyword beside the `allOf` lands, each
+read at the branch's own pointer and reported as that keyword is there, which for most is not at
+all. A `nullable` folds only from a branch writing no `properties`, under the nullable-widening
+policy ([`nullable`](#nullable)). A `unevaluatedProperties: false` does not fold, being a composing
+model's openness; a value bound does not where the position owns a node with no field for one; and a
+composition distributed across a union keeps every branch on each variant
+([`union-beside-structure`](#union-beside-structure)).
+
+Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
+keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
+`allOf` stand, and each branch writing that keyword otherwise stays whole, with its report. Two
+keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Bounds are
+never intersected, so `maxLength: 3` beside `maxLength: 5` is a disagreement like any other.
+
+A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
 included, so the source stays reconstructable rather than having to be reassembled from two places —
 keyed by its path from the composed schema (`allOf/1`, or `allOf/1/allOf/0` for an entry of a
@@ -1032,10 +1182,10 @@ keyword the dialect gains later is residue without anyone maintaining an enumera
 read through YAML aliases and merge keys, so a branch written `[*shared]` or `[{<<: *shared}]`
 derives the same residue as one written out. The diagnostic is an info, and a warning where the
 branch declares a `type` that excludes `object`, because the composing `Model` then asserts a shape
-the source contradicts — `allOf: [{type: string, maxLength: 3}]` composes an empty model of kind
-`model` over a source that says `string`. Two branch kinds are outside this rule rather than limits
-of it: a `$ref` branch owns a node, so what is written beside the `$ref` is *modeled* on the branch
-alias [models](../ir/models.md#composition-entries) describes rather than kept as residue,
+the source contradicts: `{allOf: [{$ref: Pet}, {type: string, maxLength: 3}]}` composes a model over
+a source that says `string`, which no value satisfies. Two branch kinds are outside this rule rather
+than limits of it: a `$ref` branch owns a node, so what is written beside the `$ref` is *modeled* on
+the branch alias [models](../ir/models.md#composition-entries) describes rather than kept as residue,
 and a boolean branch declares no keywords at all, so there is no residue to derive — it is a
 decision about the composed node instead, stated with the `false`-schema rule
 [`allof-false-branch`](#allof-false-branch).
@@ -1054,10 +1204,13 @@ every entry reads that one twice.
   `schema.TestAllOf_NestedWrapperWithResidueKeptVerbatim`,
   `schema.TestAllOf_NestedEmptyAllOfKeptVerbatim`,
   `schema.TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth`,
-  `schema.TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice`
-- Status: partly built: an `allOf` of one `$ref` and an annotation-only branch keeps none of the
-  branch's annotations typed (#660). An `allOf` whose branches are all primitives lowers to a model
-  with no properties, each branch kept as residue (#1043).
+  `schema.TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice`,
+  `schema.TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt`,
+  `schema.TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder`,
+  `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
+  `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
+  `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`
+- Status: partly built: two conjuncts writing one bound differently stay kept, not intersected (#10).
 
 ### `allof-redeclared-property`
 
@@ -1384,7 +1537,8 @@ combinator ([`union-beside-structure`](#union-beside-structure),
 otherwise.
 
 Each variant's `Name.Hint` is its branch's: a `$ref` branch's is its target's name, and an inline
-branch's its position (`variant_1`). An inline branch whose node is a decorator
+branch's its position (`variant_1`). An inline branch that refines a `$ref`
+([`allof-refinement`](#allof-refinement)), or whose node is a decorator
 ([annotations](../ir/annotations.md#decorators)) over a `$ref` its `allOf` names, the one way
 3.0 annotates a branch, takes the hint that `$ref` takes as a branch of its own, as 3.1's spelling
 of the same branch, `{$ref: X, description: …}`, does, and the position's where that names nothing.
@@ -1392,7 +1546,8 @@ Its node keeps the positional hint, which an outside `$ref` to the branch derive
 renders it, since a decorator collapses into its reference.
 
 - Cases: `oneof-discriminated`, `anyof-discriminated`, `anyof-untagged`, `union-decorated-branch`
-- Tests: `schema.TestUnion_ADecoratedBranchIsHintedAsItsRef`
+- Tests: `schema.TestUnion_ADecoratedBranchIsHintedAsItsRef`,
+  `schema.TestRefinement_VariantNamedAsItsRef`
 
 ### `type-arrays`
 
@@ -1547,10 +1702,11 @@ asserts the position *is* nullable `X` while the co-declared `anyOf` conjoins wi
 collapsing would resolve the position to a shared primitive, which must never carry one
 declaration's keywords. Where a *structural* sibling is written as well,
 [`union-beside-structure`](#union-beside-structure) applies instead and both branch sets are kept. A
-keyword the *elected* lowering never reads — `type: string` beside an `allOf`, `format` beside a
-`const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which asks the node
-that was built: `type: object` beside an `allOf` is one the composed `Model` already asserts, and
-keeps nothing.
+keyword the *elected* lowering never reads — `type: string` beside an `allOf` composing an object,
+`format` beside a `const` — is kept by the census [`shape-applicator`](#shape-applicator) runs, which
+asks the node that was built: `type: object` beside an `allOf` is one the composed `Model` already
+asserts, and keeps nothing, and a `type` beside an `allOf` that refines is
+[`allof-refinement`](#allof-refinement)'s.
 
 - Cases: `codeclared-keywords`, `codeclared-schema-content`
 - Codes: `openapi/degraded-construct`
@@ -1725,12 +1881,15 @@ a union branch) and whatever it lowers to (a `Tuple`, an enum of arrays), since 
 declaration and not the node. Nothing is dropped or degraded, so no `openapi/degraded-construct`
 accompanies it. `items: {}` is silent, as is every schema at 3.1 and 3.2, where `items` is optional.
 Nor is a schema reported beside a `$ref`, whose siblings 3.0 ignores, an inline `allOf` branch,
-which merges in place, or a subschema kept verbatim, such as one under `not`.
+which merges in place or restates what a refinement names, or a subschema kept verbatim, such as one
+under `not`; the branch a refinement lowers from is reported as the position it is
+([`allof-refinement`](#allof-refinement)).
 
 - Cases: `missing-array-items`
 - Codes: `openapi/missing-array-items`
 - Tests: `schema.TestLower_MissingArrayItems`, `schema.TestLower_ListWithoutItems`,
-  `schema.TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce`
+  `schema.TestLower_MissingArrayItemsAtAReferencedPositionWarnsOnce`,
+  `schema.TestRefinement_MissingItemsIsAskedOfTheBranchThatLowers`
 
 ### `tuples`
 
@@ -1783,7 +1942,8 @@ homed by a `Model` or `Union` that routes by it and by nothing else, so one besi
 the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the same way. At a
 `$ref` position the census runs on the alias the use-site rule of
 [models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
-than the referent. One limit is
+than the referent, and an `allOf` that refines takes the same census, but for what its principal
+already says ([`allof-refinement`](#allof-refinement)). One limit is
 deliberate: a multi-typed schema (`type: [string, object]`) is exempt, because it lowers one variant
 per declared type from the same schema and the homes are the variants'.
 
@@ -1842,8 +2002,10 @@ primitive narrower than `integer` holds. A pairing the table does not name lower
 lowers without it, and it lands where a declaration's annotations do: on the node the position owns,
 whatever its kind, as `Sensitive`, an alias hoisted where the shape alone would own none; or, at a
 property or header that owns none, as `Property.Secret`, inherited from a `$ref` target as
-`deprecated` is. At a parameter that owns none it is kept verbatim in the parameter's `Unmodeled`
-under `openapi:format` (`no_ir_home`), with an info `openapi/degraded-construct` at the `format`.
+`deprecated` is. An inline `allOf` branch writing it folds as any annotation does
+([`allof-inline-residue`](#allof-inline-residue)). At a parameter that owns none it is kept verbatim
+in the parameter's `Unmodeled` under `openapi:format` (`no_ir_home`), with an info
+`openapi/degraded-construct` at the `format`.
 
 - Cases: `secret-format`, `scalar-format`
 - Codes: `openapi/degraded-construct`
@@ -2403,8 +2565,9 @@ all three and its `x-*`, reported as an `openapi/empty-request-content` warning 
 
 ### `file-bodies`
 
-A content entry whose schema is `type: string` with `format: binary`, read through a `$ref` and
-whatever its media type, or whose schema is absent or boolean on `application/octet-stream`, matched
+A content entry whose schema is `type: string` with `format: binary`, read through a `$ref` or a
+refinement ([`allof-refinement`](#allof-refinement)) and whatever its media type, or whose schema is
+absent or boolean on `application/octet-stream`, matched
 on the normalized key ([`media-types`](#media-types)), lowers to `Content.File` with `IsText` false
 and `ContentTypes` the key as written, and `Content.Type` the non-nullable `bytes` primitive in
 place of whatever the schema lowered to, so that a body to stream is not read as a model. No other
@@ -2415,7 +2578,8 @@ a schema-less entry on any other media type are ordinary Contents.
 - Cases: `file-body`
 - Tests: `operation.TestContent_BinaryOctetStreamBody`,
   `operation.TestContent_MixedCaseOctetStreamBodyIsFile`,
-  `operation.TestContent_BinaryRefBodyDetectedAsFile`
+  `operation.TestContent_BinaryRefBodyDetectedAsFile`,
+  `operation.TestContent_ARefinedBinaryBodyIsAFile`
 - Status: partly built: a binary body's schema keeps its docs and bounds on a node no Content
   references (#600), and the 3.1 idioms for a file, `contentMediaType` without `contentEncoding` and
   a schema-less entry on a media type other than `application/octet-stream`, are not recognized

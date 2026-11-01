@@ -69,7 +69,7 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}
 	return diags
 }
@@ -190,15 +190,17 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schem
 	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer)
 	diags = append(diags, bodyDiags...)
 	// A body's census ran inside lower(), against the node the walk actually
-	// built, which is the only thing that can answer it. A collapsed union built
-	// none, so it takes a $ref site's census, and its verdict homes an alias.
-	unhomed := collapsedUnhomedKeywords(schema)
-	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, len(unhomed) > 0)
+	// built, which is the only thing that can answer it. A collapsed union and a
+	// refinement built none, so they take a $ref site's census, and its verdict
+	// homes an alias.
+	keeps := keepsAtOutcome(c, ts, schema, target, pointer)
+	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, keeps.holdsAny())
 	diags = append(diags, homeDiags...)
-	if home != annotation.HomeOwnNode {
+	diags = append(diags, recordPrincipalResidue(c, ts, schema, pointer, home)...)
+	if !keeps.holdsAny() || (home != annotation.HomeOwnNode && !LoweredToOwnNode(c, ts, pointer, ref)) {
 		return ref, diags // the carrier keeps them (PreserveRefSiteKeywords)
 	}
-	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, schema, unhomed, collapsedShape, pointer)...)
+	return ref, append(diags, keeps.recordOn(c, ts, ref.Target, schema, pointer)...)
 }
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
@@ -247,9 +249,16 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		r, refines := refinementOf(c, s, pointer)
+		if !refines {
+			return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		}
+		if r.principal != nil {
+			return lowerPrincipal(c, ts, depth, r)
+		}
 	}
-	// won is "" — the schema declares no family, so the type set decides.
+	// won is "" — the schema declares no family, so the type set decides — or
+	// an allOf no branch of which decides what the position is.
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:

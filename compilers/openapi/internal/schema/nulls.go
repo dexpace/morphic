@@ -429,7 +429,47 @@ func (n *nulls) allOf(s *oas3.Schema, site nullSite) nullReading {
 	for i, b := range s.GetAllOf() {
 		out = foldNullReadings(out, n.conjunct(b, site.child("allOf", strconv.Itoa(i))))
 	}
-	return out
+	return n.widenByBranch(s, out, site)
+}
+
+// widenByBranch is the lenient reading of a `nullable: true` that folds: written
+// on an inline branch that speaks for the position, it says what the keyword
+// beside the allOf says, and widens the composition (widen), where the declared
+// reading leaves it conjoined. A branch with a `type` of its own admitted the
+// null by itself, so widen said nothing of it, and it is noted here. A 3.1
+// `type: [T, "null"]` on a conjunct stays conjoined, which beside a $ref it does
+// not (docs/compilers/openapi.md#allof-refinement).
+func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) nullReading {
+	if !widensAny(s) || !allOfDecides(s) {
+		return r
+	}
+	comp := allOfBranches(s, site.at)
+	for i, speaks := range voicesAmong(s, comp) {
+		bs := comp.branches[i].schema.GetSchema()
+		if !speaks || bs.Nullable == nil || !foldsNullable(bs) {
+			continue
+		}
+		if r.declared != nullAdmitted && site.ok && n.declaredTypeVerdict(bs) == nullAdmitted {
+			n.found = append(n.found, nullFinding{at: comp.branches[i].pointer + ids.Ptr("nullable"), message: "nullable: true " +
+				"is read as admitting null under the nullable-widening policy, though another conjunct of this allOf " +
+				"excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it " +
+				"is marked inferred"})
+		}
+		r.lenient = nullAdmitted
+	}
+	return r
+}
+
+// widensAny reports whether a branch of s's flattened allOf writes
+// `nullable: true`, the cheap question nearly every composition answers no to. A
+// branch folding `false` then disagrees with it, so widenByBranch asks no value.
+func widensAny(s *oas3.Schema) bool {
+	for st := range walkAllOf(s) {
+		if bs := st.schema.GetSchema(); bs != nil && bs.Nullable != nil && *bs.Nullable {
+			return true
+		}
+	}
+	return false
 }
 
 // conjunct reads one allOf branch, or what a $ref lands on. A `false` schema

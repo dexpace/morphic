@@ -321,12 +321,15 @@
         "canonical": "described"
       },
       "anonymous": false,
-      "docs": {},
+      "docs": {
+        "description": "grouped"
+      },
       "sensitive": false,
       "unmodeled": {
         "openapi:allOf/0": {
           "reason": "degraded_lowering",
           "value": {
+            "additionalProperties": false,
             "allOf": [
               {
                 "$ref": "#/components/schemas/A"
@@ -714,7 +717,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, so only its properties, required list and nested allOf compose; the branch (description) is kept verbatim under Unmodeled",
+      "message": "inline allOf branch is merged in place, so only its properties, required list and nested allOf compose; the branch (additionalProperties) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Described/allOf/0"
@@ -725,7 +728,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-nested-inline.yaml",
-      "hash": "0edb6fc49d06fddaa6a744411f868a411486db42fca56004e13aae29714c5da8"
+      "hash": "549a003a5e76ab47245f9f266b5d9f908712c395efa7d1772800888127bc12f0"
     }
   ]
 }

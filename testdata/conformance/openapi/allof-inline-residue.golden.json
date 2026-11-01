@@ -134,6 +134,10 @@
         "target": "t/openapi/components/schemas/Base",
         "nullable": false
       },
+      "constraints": {
+        "maxLength": 3,
+        "uniqueItems": false
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -146,12 +150,16 @@
         "canonical": "narrowed"
       },
       "anonymous": false,
-      "docs": {},
+      "docs": {
+        "description": "A narrowed base."
+      },
       "sensitive": false,
       "unmodeled": {
         "openapi:allOf/1": {
           "reason": "degraded_lowering",
           "value": {
+            "additionalProperties": false,
+            "description": "A narrowed base.",
             "maxProperties": 3,
             "properties": {
               "name": {
@@ -203,6 +211,10 @@
         "target": "t/openapi/components/schemas/Base",
         "nullable": false
       },
+      "constraints": {
+        "uniqueItems": false,
+        "maxProps": 3
+      },
       "abstract": false,
       "positional": false,
       "inputOnly": false
@@ -237,7 +249,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch is merged in place, so only its properties and required list compose; the branch (maxProperties) is kept verbatim under Unmodeled",
+      "message": "inline allOf branch is merged in place, so only its properties and required list compose; the branch (additionalProperties) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Narrowed/allOf/1"
@@ -246,7 +258,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type, maxLength) is kept verbatim under Unmodeled",
+      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Contradicted/allOf/1"
@@ -257,7 +269,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-inline-residue.yaml",
-      "hash": "e239cc77c43b685e2354919999edb066392b9412d90c2c2e9c049d8671fb66c4"
+      "hash": "31cb1febc3e112196f3da954baf526caf300d3d730c7fa1617a8a1d75293636b"
     }
   ]
 }

@@ -29,13 +29,12 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 	if ref == nil {
 		return nil
 	}
-	tgt := c.RefScope().TargetSchema(js, ref)
-	chain := []*oas3.Schema{ref, tgt}
-	def, diags := annotation.EffectiveDefault(chain, pointer, c.ProvenanceAt)
+	use := UseOf(c, ts, js, p.Type, pointer)
+	def, diags := annotation.EffectiveDefault(use.DefaultChain(ref), pointer, c.ProvenanceAt)
 	p.Default = def
-	diags = append(diags, fillPropertyVisibility(c, p, chain, pointer)...)
-	diags = append(diags, fillPropertyConstraints(c, p, ref, pointer)...)
-	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, tgt, pointer)...)
+	diags = append(diags, fillPropertyVisibility(c, p, use.Site(ref).Chain(), pointer)...)
+	diags = append(diags, fillPropertyConstraints(c, p, ref, use.Voices, pointer)...)
+	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
 
@@ -64,13 +63,13 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*oas3.Schema
 // ir.Property is the carrier at this position: a property's schema is read
 // through CarriedRef, so it hoists no node of its own to hold either.
 //
-// It reads ref alone and never the $ref target, which is why no tgt reaches it:
-// bounds conjoin rather than override, so a referent's bound merged here under
-// use-site precedence would publish the wider of the two as the whole truth. It
-// stays on the node the reference points at instead
+// It reads ref and its voices and never the $ref target, which is why no referent
+// reaches it: bounds conjoin rather than override, so a referent's bound merged
+// here under use-site precedence would publish the wider of the two as the whole
+// truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := ConstraintsOf(c, &p.Unmodeled, ref, pointer)
+func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
+	cons, diags := ConstraintsOf(c, &p.Unmodeled, ref, voices, pointer)
 	p.Constraints = cons
 	return diags
 }
@@ -87,11 +86,11 @@ func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, p
 //
 // A $ref position never hoists a node, so annotations written beside a
 // property's $ref land here (GitHub #114).
-func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
 	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referents: []*oas3.Schema{tgt}}, pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(use.Site(ref), pointer, c.ProvenanceAt)
 
 	p.Docs = a.Docs
 	if a.Deprecated {

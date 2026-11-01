@@ -199,6 +199,45 @@ source wrote, against invariant 2. What is *shaped* like `allOf` is the composit
 referent per conjunct, resolved by reference. Emitters that can only render model inheritance are
 the ones that must lower a non-`Model` conjunct to something their target can express.
 
+## An allOf no object satisfies
+
+A `Model` says its value is an object, and `allOf: [{type: integer}, {type: integer, format: int32}]`
+admits none, so it is no composition. An `allOf` no conjunct can make an object lowers to one use of
+the conjunct that decides it, by the OpenAPI compiler's rule
+[`allof-refinement`](../compilers/openapi.md#allof-refinement): a reference to its `$ref`, a node at
+an inline branch's own pointer, and an alias only where the position writes what no carrier holds.
+At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
+them a single `$ref` entry.
+
+Nothing here is the flattening the [design rules](./README.md#design-rules) leave to emitters. No
+member of one node is copied into another, and every conjunct stays reconstructible: it is the
+reference the position names, an annotation read where the same keyword beside the `allOf` is read,
+or kept whole under its path, as a `$ref` a value set narrows is. An `allOf` whose conjuncts can be
+objects composes as it always did, one sole `$ref` with nothing beside it a decorator
+([annotations](./annotations.md#decorators)) for emitters to collapse.
+
+The designs this was weighed against:
+
+- **A `Model` for emitters to collapse**, the decorator rule alone, which is how a wrapper around a
+  non-object lowered until now, on the reasoning that collapsing one is a target's ergonomics
+  (#255). That holds for a wrapper around an object, and a `Model` over a string is more than an
+  inconvenience: every consumer reading `Kind`, the docs emitter and `pass` among them, is told an
+  object the wire never carries. It also has nothing to collapse into where no `$ref` is written, as
+  above, and a narrowed enum has no decorator form, since its value set is what the `$ref` does not
+  say.
+- **Rewriting the `Model` once the registry settles**: the census and each carrier have already
+  read the position by then, as a node of its own.
+- **An alias per branch**: `readOnly` and `default` bind a use, and an alias has no field that
+  reaches a carrier.
+- **The field merge over conjuncts**
+  ([`allof-redeclared-property`](../compilers/openapi.md#allof-redeclared-property)): `items` and a
+  component hold no `Property` to fold into, and a target's own docs would read as a conflict with
+  the use's.
+- **A schema synthesized from the conjuncts**: its `items` would hoist at pointers the source never
+  wrote (invariant 3).
+- **An alias for a narrowing**, as `{$ref: Op, enum: [set]}` lowers beside a 3.1 `$ref`: the field
+  then keeps its value set only under `Unmodeled`, where the position has a typed `Enum` to hold it.
+
 ## Composition beside a union
 
 JSON Schema conjoins sibling keywords, so

@@ -261,7 +261,7 @@ func (f *folding) disagree(i, kept int, detail string) {
 func (f *folding) at(i int) jsontext.Pointer { return f.decls[i].prop.Provenance.Pointer }
 
 // foldConstraints merges the constraint keywords of the cone in declaration
-// order: the first declaration to set a keyword keeps it (mergeConstraints),
+// order: the first declaration to set a keyword keeps it (Constraints),
 // and one pinning a kept keyword to another value is reported against the
 // declaration it was kept from, and kept. The merge starts from a copy, so no
 // declaration's constraints are written to.
@@ -287,7 +287,7 @@ func (f *folding) foldConstraints() {
 			kept = &own
 			continue
 		}
-		kept = mergeConstraints(kept, c)
+		kept = Constraints(kept, c)
 	}
 	f.merged.Constraints = kept
 }

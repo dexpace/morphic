@@ -66,8 +66,9 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
-		// A collapsed union lowers to a reference just as a $ref site does.
-		return recordUnhomedAt(c, p, s, collapsedUnhomedKeywords(s), collapsedShape, pointer)
+		// A collapsed union and a refinement lower to a reference just as a $ref
+		// site does.
+		return keepsAtOutcome(c, ts, s, t, pointer).record(c, p, s, pointer)
 	}
 	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
@@ -204,7 +205,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *oas3.JSONSchema[oas
 	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
-	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
+	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 }
 
 // onLoop reports whether the $ref at b lies on a loop of $refs, which the load

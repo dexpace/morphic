@@ -169,7 +169,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/RefIntoBranch/allOf/0",
       "name": {
-        "hint": "variant_0"
+        "hint": "ref_into_branch"
       },
       "anonymous": true,
       "docs": {},
@@ -215,7 +215,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/RefIntoBranch/allOf/1",
       "name": {
-        "hint": "variant_1"
+        "hint": "ref_into_branch"
       },
       "anonymous": true,
       "docs": {},
@@ -261,7 +261,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/SharedFirst/allOf/0",
       "name": {
-        "hint": "variant_0"
+        "hint": "shared_first"
       },
       "anonymous": true,
       "docs": {},
@@ -307,7 +307,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/SharedLast/allOf/1",
       "name": {
-        "hint": "variant_1"
+        "hint": "shared_last"
       },
       "anonymous": true,
       "docs": {},

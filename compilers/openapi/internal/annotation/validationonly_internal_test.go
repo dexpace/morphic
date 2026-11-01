@@ -371,3 +371,18 @@ func recording(calls *[]recordedCall) Locator {
 		return ir.Provenance{Source: source, Pointer: pointer}
 	}
 }
+
+// TestExamplesRaw_CombinesTheTwoKeywords pins the object two schemas' examples are
+// compared by: the keywords written, and none where neither is.
+func TestExamplesRaw_CombinesTheTwoKeywords(t *testing.T) {
+	t.Parallel()
+	raw, keys, err := ExamplesRaw(schemaFromYAML(t, "example: 1\nexamples: [2]\n"))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"example":1,"examples":[2]}`, string(raw))
+	assert.Equal(t, []string{"example", "examples"}, keys)
+
+	raw, keys, err = ExamplesRaw(schemaFromYAML(t, "type: string\n"))
+	require.NoError(t, err)
+	assert.Nil(t, raw)
+	assert.Empty(t, keys)
+}

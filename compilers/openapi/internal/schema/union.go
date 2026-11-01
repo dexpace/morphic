@@ -289,17 +289,20 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 
 // variantHint is the hint the union variant for the branch b written at vptr,
 // which lowered to t, takes: the branch's own (lowering.NameAt), unless b is
-// written inline and t is a decorator (ir.Decorated) over the $ref b's allOf
-// names, when it is the name that $ref suggests (lowering.NameThrough), as a
-// branch holding it would be named. 3.0 annotates a branch only by wrapping
-// its $ref, so `{allOf: [{$ref: X}], description: …}` names its variant as
-// 3.1's `{$ref: X, description: …}` does (GitHub #1018). The node t keeps the
-// branch's own: a decorator collapses into its reference wherever it is used.
+// inline and refines the $ref its allOf names, or t is a decorator (ir.Decorated)
+// over it, when it is the name the $ref suggests (lowering.NameThrough). 3.0
+// annotates a branch only by wrapping its $ref, so `{allOf: [{$ref: X}],
+// description: …}` names its variant as 3.1's `{$ref: X, description: …}` does
+// (GitHub #1018). The node t keeps the branch's own: a decorator collapses into
+// its reference wherever it is used.
 func variantHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, t ir.TypeRef) string {
 	own := lowering.NameAt(c, vptr)
 	s := annotation.SchemaOf(b)
 	if s == nil || isRefBranch(b) {
 		return own
+	}
+	if r, refines := refinementOf(c, s, vptr); refines && r.ref != nil {
+		return cmp.Or(lowering.NameThrough(c, r.ref.pointer), own)
 	}
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
@@ -704,7 +707,7 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 // constrains both sides of the disjunction and this path never runs the
 // pointer's own census.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.comp.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	idx := propIndex(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, depth, m, idx, body.comp)...)

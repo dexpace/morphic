@@ -211,7 +211,7 @@ func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 		severity ir.Severity
 		want     string
 	}{
-		{"description", "description: Capped", ir.SeverityInfo, "the branch (description) is kept verbatim"},
+		{"a keyword nothing reads", "minItems: 1", ir.SeverityInfo, "the branch (minItems) is kept verbatim"},
 		{"non-object type", "type: string", ir.SeverityWarning, "the branch (type) is kept verbatim"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

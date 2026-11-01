@@ -10,7 +10,7 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// mergeConstraints folds src's constraint keywords into dst under allOf
+// Constraints folds src's constraint keywords into dst under allOf
 // intersection semantics: dst keeps every keyword it sets and adopts any it
 // leaves unset (nil, "" or false), so a keyword only one branch constrains is
 // never dropped.
@@ -19,7 +19,7 @@ import (
 // a branch declaring only exclusiveMinimum contributes it beside a minimum from
 // elsewhere. UniqueItems has no absent state, but under intersection a true
 // from either branch is always correct, so cmp.Or never wrongly downgrades dst.
-func mergeConstraints(dst, src *ir.Constraints) *ir.Constraints {
+func Constraints(dst, src *ir.Constraints) *ir.Constraints {
 	if dst == nil {
 		return src
 	}
@@ -104,7 +104,7 @@ func strKeyword(name string, of func(*ir.Constraints) string) constraintKeyword 
 
 // constraintsConflict reports the first keyword of constraintKeywords that two
 // constraint sets pin to different values: its index and the disagreement. A
-// keyword set on one side only is not a conflict, since mergeConstraints adopts
+// keyword set on one side only is not a conflict, since Constraints adopts
 // it. Numeric bounds compare by magnitude, so 10 and 10.0 do not conflict.
 func constraintsConflict(a, b *ir.Constraints) (keyword int, detail string, conflict bool) {
 	if a == nil || b == nil {

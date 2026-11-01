@@ -275,9 +275,10 @@ func assertAllOfBooleanBranch(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 		"a false schema and a closed empty model are no longer the same node")
 }
 
-// assertAllOfInlineResidue pins the residue of an inline allOf branch: the merge
-// reads only its properties and required list, so whatever else the branch wrote
-// survives beside the composed model rather than vanishing into it (GitHub #123).
+// assertAllOfInlineResidue pins the residue of an inline allOf branch: what no
+// reader consumes survives beside the composed model rather than vanishing into
+// it (GitHub #123), and what the position reads lands as it would beside the
+// allOf (GitHub #660).
 //
 // The severity split is the point. A branch declaring a type that cannot be an
 // object contradicts the ir.Model the composition produced, so it is a warning;
@@ -290,8 +291,12 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.True(t, ok, "the inline branch still contributes its properties")
 	entry := unmodeledEntry(t, narrowed.Unmodeled, "openapi:allOf/1")
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"maxProperties":3}`,
+	assert.JSONEq(t, `{"type":"object","properties":{"name":{"type":"string"}},"additionalProperties":false,
+		"description":"A narrowed base.","maxProperties":3}`,
 		string(entry.Value), "the whole branch is kept, not only the unmerged keyword")
+	assert.Equal(t, "A narrowed base.", narrowed.Docs.Description, "and the position reads what it can")
+	require.NotNil(t, narrowed.Constraints)
+	assert.Equal(t, new(int64(3)), narrowed.Constraints.MaxProps)
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Narrowed/allOf/1"),
 		"a branch that only narrows the model is info")

@@ -213,6 +213,51 @@ components:
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
 }
 
+// TestContent_ARefinedBinaryBodyIsAFile pins that wrapping a binary body in an
+// allOf changes what a body is no more than a $ref does: a refinement is a use of
+// the schema it names, in either spelling, and one over no binary schema is a
+// plain body.
+func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		schema string
+		file   bool
+	}{
+		"beside":      {"{allOf: [{$ref: '#/components/schemas/Blob'}], description: the upload}", true},
+		"a branch":    {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", true},
+		"bare":        {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", true},
+		"a chain":     {"{$ref: '#/components/schemas/Wrapped'}", true},
+		"inline":      {"{allOf: [{type: string, format: binary}, {description: the upload}]}", true},
+		"not binary":  {"{allOf: [{$ref: '#/components/schemas/Text'}, {description: the upload}]}", false},
+		"a composite": {"{allOf: [{$ref: '#/components/schemas/Blob'}, {$ref: '#/components/schemas/Text'}]}", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /raw:
+    post:
+      operationId: putRaw
+      requestBody:
+        content:
+          application/octet-stream:
+            schema: ` + tc.schema + `
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Blob: {type: string, format: binary}
+    Text: {type: string}
+    Wrapped: {allOf: [{$ref: '#/components/schemas/Blob'}], description: wrapped}
+`)
+			_, svc, diags := compileService(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			assert.Equal(t, tc.file, content.File != nil)
+			if tc.file {
+				assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
+			}
+		})
+	}
+}
+
 const contentSpec = `openapi: 3.2.0
 info: {title: T, version: "1"}
 paths:

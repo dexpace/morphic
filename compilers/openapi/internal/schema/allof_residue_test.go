@@ -17,10 +17,10 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestAllOf_InlineBranchResidueKeptVerbatim covers GitHub #123: an inline allOf
-// branch is merged in place, so the merge reads only its properties and its
-// required list and everything else it declared used to be dropped without a
-// diagnostic. The branch now survives verbatim beside the composed model.
+// TestAllOf_InlineBranchResidueKeptVerbatim covers GitHub #123: what an inline
+// allOf branch writes that neither the merge nor the position reads used to be
+// dropped without a diagnostic. The branch now survives whole beside the composed
+// model, and what the position does read lands where it would beside the allOf.
 func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    S:
@@ -56,19 +56,25 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 	}
 	assert.Contains(t,
 		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/allOf/0"),
-		"additionalProperties, not, minProperties, description, x-vendor",
-		"the diagnostic names every keyword the merge left behind, in source order")
+		"the branch (additionalProperties)", "the diagnostic names what nothing read")
+	assert.Equal(t, "BranchDoc", m.Docs.Description)
+	require.NotNil(t, m.Constraints)
+	assert.Equal(t, new(int64(2)), m.Constraints.MinProps)
+	assert.Contains(t, m.Unmodeled, "openapi:x-vendor")
+	assert.Contains(t, m.Unmodeled, "openapi:not")
 }
 
 // TestAllOf_InlineBranchNonObjectTypeWarns is the worse half of #123: a scalar
-// branch declares no properties, so the merge composed an *empty* ir.Model —
-// which asserts the value is an object the source says is a string. Preserving
-// the branch keeps the source recoverable, and the severity says the IR states
+// branch beside an object contradicts the ir.Model the object composes, which
+// asserts the value is an object the branch says is a string. Preserving the
+// branch keeps the source recoverable, and the severity says the IR states
 // something wrong rather than merely incomplete.
 func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    T:
+	spec := openapitest.ComponentSpec(`    O: {type: object, properties: {a: {type: string}}}
+    T:
       allOf:
+        - {$ref: '#/components/schemas/O'}
         - {type: string, maxLength: 3}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
@@ -77,12 +83,12 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 	require.True(t, ok, "the composed node is still a model")
 	assert.Empty(t, m.Properties, "a scalar branch declares no properties to merge")
 
-	entry, ok := m.Unmodeled["openapi:allOf/0"]
+	entry, ok := m.Unmodeled["openapi:allOf/1"]
 	require.True(t, ok, "the whole branch is kept verbatim; got %+v", m.Unmodeled)
 	assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 	assert.JSONEq(t, `{"type":"string","maxLength":3}`, string(entry.Value))
 	assert.Contains(t,
-		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/components/schemas/T/allOf/0"),
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, "/components/schemas/T/allOf/1"),
 		"declares a type that is not an object")
 	assert.False(t, openapitest.HasDiagAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
 		"a contradicted model is a warning, not the info a merely narrowed one gets")
@@ -97,10 +103,11 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 // or a residue named `<<`, which names nothing a reader can act on.
 func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    Shared: &br {type: string, maxLength: 3, description: Aliased}
-    Aliased: {allOf: [*br]}
-    Merged: {allOf: [{<<: *br}]}
-    Overridden: {allOf: [{<<: *br, type: object, properties: {a: {type: string}}}]}
+	spec := openapitest.ComponentSpec(`    O: {type: object}
+    Shared: &br {additionalProperties: false, type: string, maxLength: 3}
+    Aliased: {allOf: [{$ref: '#/components/schemas/O'}, *br]}
+    Merged: {allOf: [{$ref: '#/components/schemas/O'}, {<<: *br}]}
+    Overridden: {allOf: [{$ref: '#/components/schemas/O'}, {<<: *br, type: object, properties: {a: {type: string}}}]}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -109,9 +116,9 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 		name, wantKeys string
 		sev            ir.Severity
 	}{
-		{"Aliased", "type, maxLength, description", ir.SeverityWarning},
-		{"Merged", "type, maxLength, description", ir.SeverityWarning},
-		{"Overridden", "maxLength, description", ir.SeverityInfo},
+		{"Aliased", "additionalProperties, type", ir.SeverityWarning},
+		{"Merged", "additionalProperties, type", ir.SeverityWarning},
+		{"Overridden", "additionalProperties", ir.SeverityInfo},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -119,14 +126,14 @@ func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 			m, ok := typeByName(doc, tc.name).(*ir.Model)
 			require.True(t, ok, "%s should be a model", tc.name)
 
-			entry, ok := m.Unmodeled["openapi:allOf/0"]
+			entry, ok := m.Unmodeled["openapi:allOf/1"]
 			require.True(t, ok, "%s keeps the branch verbatim; got %+v", tc.name, m.Unmodeled)
 			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
 			assert.Contains(t, string(entry.Value), `"maxLength":3`,
 				"the payload resolves the reference too, so the branch is recoverable")
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, tc.sev,
-					"/components/schemas/"+tc.name+"/allOf/0"),
+					"/components/schemas/"+tc.name+"/allOf/1"),
 				"the branch ("+tc.wantKeys+")",
 				"the keywords the branch effectively declares are named, not `<<`")
 		})
@@ -218,10 +225,10 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
       allOf:
         - type: object
           properties: {a: {type: string}}
-          description: FirstDoc
+          additionalProperties: false
         - type: object
           properties: {b: {type: string}}
-          minProperties: 1
+          patternProperties: {'^x': {type: string}}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -229,10 +236,10 @@ func TestAllOf_EachInlineBranchKeyedSeparately(t *testing.T) {
 	require.True(t, ok, "Multi should be a model")
 	require.Len(t, m.Properties, 2, "both branches still merge their properties")
 	require.Len(t, m.Unmodeled, 2, "one entry per branch; got %+v", m.Unmodeled)
-	assert.Contains(t, string(m.Unmodeled["openapi:allOf/0"].Value), `"description":"FirstDoc"`)
-	assert.Contains(t, string(m.Unmodeled["openapi:allOf/1"].Value), `"minProperties":1`)
+	assert.Contains(t, string(m.Unmodeled["openapi:allOf/0"].Value), `"additionalProperties":false`)
+	assert.Contains(t, string(m.Unmodeled["openapi:allOf/1"].Value), `"patternProperties":`)
 
-	for i, want := range []string{"description", "minProperties"} {
+	for i, want := range []string{"additionalProperties", "patternProperties"} {
 		at := fmt.Sprintf("/components/schemas/Multi/allOf/%d", i)
 		assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, at), want,
 			"branch %d is reported at its own pointer, naming its own residue", i)
@@ -285,7 +292,7 @@ func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(`    M:
       allOf:
-        - {type: string, maxLength: 3, x-t: `+unpreservableValue+`}
+        - {additionalProperties: false, x-t: `+unpreservableValue+`}
 `))
 
 	td := typeByName(doc, "M")

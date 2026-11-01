@@ -102,7 +102,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/NarrowedPastARef/allOf/0",
       "name": {
-        "hint": "variant_0"
+        "hint": "narrowed_past_a_ref"
       },
       "anonymous": true,
       "docs": {},

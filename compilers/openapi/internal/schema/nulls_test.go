@@ -128,7 +128,8 @@ func TestNullableWidening_EachShapeReadsByItsVersion(t *testing.T) {
 			inferred(componentID("Plain")), ir.TypeRef{Target: componentID("Plain")}, at, "keywords beside this $ref",
 			at + "/nullable"},
 		{"3.1 in an allOf branch", "3.1.0", "{allOf: [{type: string, nullable: true}]}", "",
-			inferred(anon), ir.TypeRef{Target: anon}, at + "/allOf/0/nullable", "declares OpenAPI 3.1.0", ""},
+			inferred(ir.PrimTypeID(ir.PrimString)), ir.TypeRef{Target: ir.PrimTypeID(ir.PrimString)},
+			at + "/allOf/0/nullable", "declares OpenAPI 3.1.0", ""},
 		{"3.1 beside a type and an enum listing null", "3.1.0", "{type: string, nullable: true, enum: [a, null]}", "",
 			inferred(anon), ir.TypeRef{Target: anon}, at + "/nullable", "declares OpenAPI 3.1.0", ""},
 		{"3.1 in a union whose null branch declares it", "3.1.0",
@@ -294,12 +295,104 @@ func TestAllOf_NullabilityFollowsTheConjuncts(t *testing.T) {
 
 	// The bit lives on the usage, not on the conjunct: Base and Mixins name one
 	// side of a conjunction, which is the rule conjoinBranch and fillAllOf share.
-	for _, name := range []string{"WrapScalar", "WrapModel", "WrapPlain"} {
+	for _, name := range []string{"WrapModel", "WrapPlain"} {
 		m, isModel := typeByName(doc, name).(*ir.Model)
 		require.True(t, isModel, "%s is a model", name)
 		require.NotNil(t, m.Base, "%s composes a sole $ref as its Base", name)
 		assert.False(t, m.Base.Nullable, "%s.Base names a conjunct and carries no Nullable bit", name)
 	}
+	_, isModel := typeByName(doc, "WrapScalar").(*ir.Model)
+	assert.False(t, isModel, "a conjunct admitting no object composes nothing")
+}
+
+// TestNullableWidening_ABranchWidensTheAllOfHoldingIt pins `nullable: true` on an
+// inline branch writing no properties: under the policy it says what the keyword
+// beside the allOf says, with one report at the keyword, whichever spelling of the
+// branch admits it, and the declared reading stays conjoined.
+func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
+	t.Parallel()
+	const at = "/components/schemas/Holder/properties/p/allOf/1/nullable"
+	for name, tc := range map[string]struct {
+		branches string
+		version  string
+		widens   bool
+		report   string
+	}{
+		"no type":   {"[{$ref: '#/components/schemas/Pet'}, {nullable: true}]", "3.0.3", true, "this schema writes none"},
+		"a type":    {"[{$ref: '#/components/schemas/Plain'}, {type: string, nullable: true}]", "3.0.3", true, "another conjunct"},
+		"3.1":       {"[{$ref: '#/components/schemas/Plain'}, {nullable: true}]", "3.1.0", true, "declares OpenAPI 3.1.0"},
+		"a wrapper": {"[{$ref: '#/components/schemas/Pet'}, {allOf: [{nullable: true}]}]", "3.0.3", true, ""},
+		"writing properties": {"[{$ref: '#/components/schemas/Pet'}, {nullable: true, properties: {a: {type: string}}}]",
+			"3.0.3", false, ""},
+		"disagreeing": {"[{$ref: '#/components/schemas/Pet'}, {nullable: true, title: a}, {title: b}]", "3.0.3", false, ""},
+		"false":       {"[{$ref: '#/components/schemas/Pet'}, {nullable: false}]", "3.0.3", false, ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			src := openapitest.HolderSpec(tc.version, "{allOf: "+tc.branches+"}", "")
+			doc, diags := compileNullable(t, src, false)
+			got := holderP(t, doc)
+			assert.Equal(t, tc.widens, got.Nullable)
+			assert.Equal(t, tc.widens, got.Inferred != "", "the null is the policy's")
+			if tc.report != "" {
+				assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.InferredNullable, ir.SeverityInfo, at), tc.report)
+			}
+			off, _ := compileNullable(t, src, true)
+			assert.False(t, holderP(t, off).Nullable, "the declared reading stays conjoined")
+		})
+	}
+	src := openapitest.HolderSpec("3.0.3", "{allOf: [{$ref: '#/components/schemas/Pet'}, {nullable: true}]}", "")
+	_, diags := compileNullable(t, src, false)
+	assert.Len(t, withCode(diags, diag.InferredNullable), 1, "reported once, at the keyword")
+
+	viaRef := openapitest.HolderSpec("3.0.3", "{$ref: '#/components/schemas/Wide'}",
+		"    Wide: {allOf: [{$ref: '#/components/schemas/Plain'}, {type: string, nullable: true}]}\n")
+	doc, diags := compileNullable(t, viaRef, false)
+	assert.True(t, holderP(t, doc).Nullable, "a use reads the widening through its $ref")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Wide/allOf/1/nullable"},
+		openapitest.PointersOf(diags, diag.InferredNullable), "reported once, where it is written")
+
+	declared := openapitest.HolderSpec("3.0.3", "{allOf: [{type: string, nullable: true}]}", "")
+	doc, diags = compileNullable(t, declared, false)
+	assert.True(t, holderP(t, doc).Nullable)
+	assert.Empty(t, holderP(t, doc).Inferred, "the version admits this null, so nothing reads it in")
+	assert.Empty(t, withCode(diags, diag.InferredNullable))
+
+	besideEnum := openapitest.HolderSpec("3.0.3", "{enum: [a], allOf: [{nullable: true}]}", "")
+	doc, _ = compileNullable(t, besideEnum, false)
+	assert.False(t, holderP(t, doc).Nullable, "a branch the election passed over speaks for nothing")
+
+	besideUnion := openapitest.HolderSpec("3.0.3",
+		"{oneOf: [{type: string}, {type: integer}], allOf: [{$ref: '#/components/schemas/Plain'}, {nullable: true}]}", "")
+	doc, _ = compileNullable(t, besideUnion, false)
+	assert.False(t, holderP(t, doc).Nullable, "nor does one a union conjoins with")
+
+	properties := openapitest.HolderSpec("3.0.3",
+		"{allOf: [{$ref: '#/components/schemas/Pet'}, {nullable: true, properties: {a: {type: string}}}]}", "")
+	doc, _ = compileNullable(t, properties, false)
+	kept, ok := doc0Model(doc)
+	require.True(t, ok)
+	assert.Contains(t, kept.Unmodeled, "openapi:allOf/1", "a nullable that folds nothing stays with its branch")
+
+	off, offDiags := compileNullable(t, src, true)
+	m, ok := doc0Model(off)
+	require.True(t, ok)
+	assert.Contains(t, m.Unmodeled, "openapi:allOf/1", "with the policy off nothing reads the keyword, so it stays")
+	assert.Len(t, withCode(offDiags, diag.DegradedConstruct), 1)
+}
+
+// doc0Model is the node Holder's property p lowered to, as a model.
+func doc0Model(doc *ir.Document) (*ir.Model, bool) {
+	m, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	if !ok {
+		return nil, false
+	}
+	p, ok := openapitest.PropsByWire(m.Properties)["p"]
+	if !ok {
+		return nil, false
+	}
+	target, ok := doc.Types[p.Type.Target].(*ir.Model)
+	return target, ok
 }
 
 // TestConst_FixesWhetherTheValueSpaceHoldsNull pins that `const` decides null
