@@ -1,6 +1,6 @@
 ---
 name: morphic-changing-the-ir
-description: Use when changing anything under ir/ or pass/ (types, codecs, walks, irfacts, irverify, the passes), docs/ir or docs/emitters, the IRVersion constant, or a lowering that starts or stops filling an IR field.
+description: Use when changing anything under ir/ or pass/ (types, codecs, walks, irfacts, irverify, the passes), docs/ir or docs/emitters, the IRVersion constant, or a lowering that starts or stops filling an IR field or writes it a new value.
 ---
 
 # Changing the IR
@@ -39,6 +39,9 @@ cannot be turned off.
   entry for a deleted field pass.
 - **Census.** A fact no committed spec sets is a line of `testdata/unwitnessed.golden.txt`, which
   `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
+- **Values.** A lowering that writes a value a field never held changes no shape, so no test sees
+  it: read what the documents assume of the old values
+  (`references/ir-lessons.md#widened-field-values`).
 - **Emitters.** Once an emitter reads the field, architecture §2.5 says the change lands whole.
 - **Breaking.** A version bump breaks every consumer, as `docs/ir/ir-version.md` says: the title
   carries `!`, and the commit and PR bodies say what an older consumer sees
@@ -47,4 +50,5 @@ cannot be turned off.
 ## References
 
 - `references/ir-lessons.md`: version collisions, the hand lists a new field meets, invariants a
-  type held, design rules over their own document, and what the verifier and codecs must reach.
+  type held, values a field's readers assume, design rules over their own document, and what the
+  verifier and codecs must reach.

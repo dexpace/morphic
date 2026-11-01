@@ -78,6 +78,20 @@ verifier and codecs must reach.
 - **Probe.** `git grep -nE '\.<Sibling> (==|!=)|== ir\.<Struct>\{'`, with `<Sibling>` a sibling
   field's name and `<Struct>` the struct's.
 
+## Read what the documents assume of a field before widening its values
+`widened-field-values`
+
+- **Rule.** When a lowering starts writing a value a field did not hold (a primitive, a mode, a
+  media type), grep the field and its old values across `docs/`, read each normative statement for
+  one that assumes the old set, and change it or name the gap where it stands. The shape stays put,
+  and no emitter reads the value yet, so no test can object.
+- **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
+  types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
+  enum to typed consts, which those types lack. A hand read found one and a review the other
+  (#1191, #1202).
+- **Probe.** `git grep -nE '<field>|<old value>' -- docs`, and list each statement read in the PR
+  body.
+
 ## Check a design rule against everything in its document it governs
 `design-rule-over-its-document`
 
