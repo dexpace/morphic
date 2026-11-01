@@ -5,6 +5,7 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -22,17 +23,32 @@ type streamCandidate struct {
 	declared bool
 }
 
-// streamDirection is one direction's classification: the detail to write, and
-// the two facts about how it was reached that the caller has to act on.
-type streamDirection struct {
-	detail *ir.StreamDetail
-	// inferred reports that at least one contributing content was recognized by
-	// media type rather than by a declaration, which is what the operation's
-	// Provenance.Inferred marker records.
-	inferred bool
-	// ambiguous reports that the direction's streaming contents named different
-	// element types, so none was elected.
-	ambiguous bool
+// frame is what one frame of the candidate holds. An itemSchema states it. A
+// media type's schema applies to the whole body, which OpenAPI maps to an array
+// of its values (3.2 §4.14.3.1), so a list describes the body and its Elem one
+// frame. Any other schema has no array to read, and is the frame itself.
+func (s streamCandidate) frame(reg ir.TypeRegistry) ir.TypeRef {
+	if s.declared {
+		return s.events
+	}
+	if list, ok := listBehind(reg, s.events.Target); ok {
+		return list.Elem
+	}
+	return s.events
+}
+
+// listBehind returns the List id stands for, read through the alias scalars a
+// $ref with siblings hoists, and false where it stands for anything else.
+func listBehind(reg ir.TypeRegistry, id ir.TypeID) (*ir.List, bool) {
+	for range maxBodyAliasHops {
+		base, alias := ir.AliasBase(reg, id)
+		if !alias {
+			break
+		}
+		id = base
+	}
+	list, ok := reg[id].(*ir.List)
+	return list, ok
 }
 
 // applyStreaming writes the operation's streaming summary and per-direction
@@ -41,62 +57,60 @@ type streamDirection struct {
 //
 // It runs over the lowered operation rather than the source, so it reads one
 // answer per direction no matter how many places a payload was assembled from,
-// and it is the only writer of the three streaming fields.
-func applyStreaming(c lowering.Ctx, ts *compile.Types, op *ir.Operation, declPtr jsontext.Pointer) (ir.Inferred, []ir.Diagnostic) {
-	request := classifyStream(streamCandidates(c, ts, op.Request))
-	response := classifyStream(responseCandidates(c, ts, op.Responses))
-	if request.detail == nil && response.detail == nil {
-		return "", nil
+// and it is the only writer of the three streaming fields. What each direction
+// streams is settled later (streamElement); that it streams needs no other node.
+func applyStreaming(c lowering.Ctx, ts *compile.Types, op *ir.Operation, declPtr jsontext.Pointer) ir.Inferred {
+	request := streamCandidates(c, ts, op.Request)
+	response := responseCandidates(c, ts, op.Responses)
+	if len(request) == 0 && len(response) == 0 {
+		return ""
 	}
-	op.RequestStream, op.ResponseStream = request.detail, response.detail
-	op.Streaming = streamingMode(request.detail != nil, response.detail != nil)
-
-	var diags []ir.Diagnostic
-	if request.ambiguous {
-		diags = append(diags, unelectedElementDiag(c, declPtr+ids.Ptr("requestBody"), "request"))
+	op.RequestStream = electStream(ts, request, unelectedElementDiag(c, declPtr+ids.Ptr("requestBody"), "request"))
+	op.ResponseStream = electStream(ts, response, unelectedElementDiag(c, declPtr+ids.Ptr("responses"), "response"))
+	op.Streaming = streamingMode(op.RequestStream != nil, op.ResponseStream != nil)
+	guessed := func(candidate streamCandidate) bool { return !candidate.declared }
+	if slices.ContainsFunc(request, guessed) || slices.ContainsFunc(response, guessed) {
+		return lowering.StreamingMediaTypeHeuristic
 	}
-	if response.ambiguous {
-		diags = append(diags, unelectedElementDiag(c, declPtr+ids.Ptr("responses"), "response"))
-	}
-	if request.inferred || response.inferred {
-		return lowering.StreamingMediaTypeHeuristic, diags
-	}
-	return "", diags
+	return ""
 }
 
-// classifyStream folds one direction's candidates into the detail to write.
-//
-// It refuses to elect an element type from candidates that disagree:
-// StreamDetail holds one Events per direction while Payload keeps every media
-// type, so naming one of two differing contents would be the primary-content
-// selection invariant 2 forbids. The direction still streams and the element is
-// left unnamed for a lowering that has the whole set to choose from.
-//
-// Candidates naming the same element do not disagree, so they are compared, not
-// counted: one frame offered as both text/event-stream and application/x-ndjson
-// is content negotiation over one element type.
-func classifyStream(candidates []streamCandidate) streamDirection {
+// electStream returns the detail of a direction with candidates, nil for one
+// with none, and queues the election of its element.
+func electStream(ts *compile.Types, candidates []streamCandidate, unelected ir.Diagnostic) *ir.StreamDetail {
 	if len(candidates) == 0 {
-		return streamDirection{}
+		return nil
 	}
-	out := streamDirection{detail: &ir.StreamDetail{}}
-	for _, candidate := range candidates {
-		if !candidate.declared {
-			out.inferred = true
+	detail := &ir.StreamDetail{}
+	ts.Defer(streamElement{detail: detail, candidates: candidates, unelected: unelected})
+	return detail
+}
+
+// streamElement elects one direction's Events once the registry is whole
+// (compile.Settlement): a frame can be a node a $ref promised, which mid-walk may
+// not exist yet, so reading it there would follow declaration order.
+//
+// Candidates that disagree elect nothing, and unelected reports it: StreamDetail
+// holds one Events per direction while Payload keeps every media type, so naming
+// one would be the primary-content selection invariant 2 forbids. They are compared,
+// not counted: one frame under two media types is content negotiation. ir.TypeRef
+// is a TypeID and a nullability bit, so == is all "the same element" means.
+type streamElement struct {
+	detail     *ir.StreamDetail
+	candidates []streamCandidate
+	unelected  ir.Diagnostic
+}
+
+// Settle writes the element to the detail and no node of reg.
+func (e streamElement) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
+	events := e.candidates[0].frame(reg)
+	for _, candidate := range e.candidates[1:] {
+		if candidate.frame(reg) != events {
+			return []ir.Diagnostic{e.unelected}
 		}
 	}
-	// ir.TypeRef is a TypeID and a nullability bit, so == is the whole of what
-	// "the same element" means: two contents differing in either name different
-	// elements.
-	events := candidates[0].events
-	for _, candidate := range candidates[1:] {
-		if candidate.events != events {
-			out.ambiguous = true
-			return out
-		}
-	}
-	out.detail.Events = &events
-	return out
+	e.detail.Events = &events
+	return nil
 }
 
 // responseCandidates collects the streaming contents of every success response.
@@ -132,12 +146,10 @@ func streamCandidates(c lowering.Ctx, ts *compile.Types, payload *ir.Payload) []
 	return out
 }
 
-// frameType is what one frame of a streaming content holds. For a frame format
-// the schema under the media type is read as one frame, not the whole body —
-// the opposite of how an ordinary content is read — so it is the element type
-// as well as the content type. A file body's schema describes the file, which
-// has no frames (docs/emitters/plan/streams.md): what travels is bytes, whatever
-// its docs or bounds say of the whole.
+// frameType is what a streaming content offers as its frame: its Type, which
+// streamCandidate.frame reads for a list. A file body's schema describes the
+// file, which has no frames (docs/emitters/plan/streams.md): what travels is
+// bytes, whatever its docs or bounds say of the whole.
 func frameType(ts *compile.Types, content ir.Content) ir.TypeRef {
 	if content.File != nil {
 		return ts.PrimRef(ir.PrimBytes)

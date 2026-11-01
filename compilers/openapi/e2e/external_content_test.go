@@ -191,6 +191,60 @@ paths:
 	assert.Equal(t, ir.Provenance{Source: 1, Pointer: entry}, theirs.Provenance)
 }
 
+// TestExternalContent_AStreamReadsAListAnotherDocumentHolds is why a stream's
+// element settles rather than being read in the walk: the list is a node only a
+// promise builds, so a read during the walk finds none unless something lowered it
+// first, and the element would follow the order of the operations. One document
+// keeps it unreached before the stream, the other reaches it beforehand.
+func TestExternalContent_AStreamReadsAListAnotherDocumentHolds(t *testing.T) {
+	t.Parallel()
+	const (
+		stream = `  /stream:
+    get:
+      operationId: stream
+      responses:
+        "200":
+          description: ok
+          content:
+            application/jsonl: {schema: {$ref: './ext.yaml#/components/schemas/Events'}}
+`
+		plain = `  /plain:
+    get:
+      operationId: plain
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: {$ref: './ext.yaml#/components/schemas/Events'}}
+`
+		ext = `openapi: 3.1.0
+info: {title: e, version: "1"}
+paths: {}
+components:
+  schemas:
+    Event: {type: object, properties: {a: {type: string}}}
+    Events: {type: array, items: {$ref: '#/components/schemas/Event'}}
+`
+	)
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte(ext), 0o600))
+	want := ids.In("ext.yaml").NamedType("/components/schemas/Event")
+	for name, paths := range map[string]string{"stream first": stream + plain, "stream last": plain + stream, "stream alone": stream} {
+		root := "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths:\n" + paths
+		doc, diags, err := openapi.New().Compile(t.Context(),
+			[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+			compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+		require.NoError(t, err, name)
+		require.NotNil(t, doc, name)
+		openapitest.RequireNoErrorDiags(t, diags)
+		op, found := opByName(doc, "stream")
+		require.True(t, found, name)
+		require.NotNil(t, op.ResponseStream, name)
+		require.NotNil(t, op.ResponseStream.Events, name)
+		assert.Equal(t, want, op.ResponseStream.Events.Target, name)
+	}
+}
+
 // TestExternalContent_AMappingNamesAsTheSpecificationSays pins the line
 // GitHub #762 draws inside another document's content. A mapping value that is
 // a pointer names a position in that document, as such a $ref does, and so does

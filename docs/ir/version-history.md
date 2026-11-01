@@ -192,6 +192,9 @@ it sees. Changes made together in one bump are listed together under it.
   - `Enum.ValueType` holds the primitive a declared type and format select, where every member is
     a value of it ([enums](./enums.md)): `int64` where the compiler had written `integer` and kept
     the format verbatim under `Unmodeled`, an entry such a consumer no longer finds.
+  - `StreamDetail.Events` holds what one frame holds where a compiler reads a stream from a media
+    type ([interaction-patterns](./interaction-patterns.md)): a list's `Elem`, where the OpenAPI
+    compiler had named the list, which describes the whole body. `Content.Type` keeps the list.
   - `Union.Exclusive` is false on a union whose variants can match one instance, which the source
     did not ask to exclude ([unions](./unions.md)): a type array naming `integer` and `number` or
     repeating a type, and an enum whose entry repeats or lowers to the top type. The compiler had

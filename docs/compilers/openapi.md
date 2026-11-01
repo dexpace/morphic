@@ -2469,10 +2469,17 @@ as an info `openapi/degraded-construct` at it. A schema's examples are
 encoding cannot state ordinals, so `itemEncoding` and `prefixEncoding` are both kept verbatim in the
 content's `Unmodeled`, under `openapi:itemEncoding` and `openapi:prefixEncoding` (`no_ir_home`),
 reported as one info `openapi/degraded-construct` at the content, while `itemSchema` still lowers to
-`Content.Item`.
+`Content.Item`. On a media type whose body is one document, JSON's or XML's by name or `+json` or
+`+xml` suffix, and which the streaming policy ([`streaming-media`](#streaming-media)) does not name,
+`itemSchema` has no sequence to describe: it lowers all the same, with a warning
+`openapi/item-schema-on-document` at it. Which other media types repeat a structure is no closed
+set, so nothing else draws one.
 
 - Cases: `sequential-media`
-- Codes: `openapi/degraded-construct`
+- Codes: `openapi/degraded-construct`, `openapi/item-schema-on-document`
+- Tests: `operation.TestStreaming_AnItemSchemaOnOneDocumentIsReported`,
+  `operation.TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds`,
+  `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`
 
 ### `streaming-media`
 
@@ -2480,17 +2487,21 @@ A request body or success response with a Content whose media type the streaming
 `application/json-seq`, `application/jsonl`, `application/x-ndjson`, `text/event-stream` and the
 `+json-seq` structured suffix by default, matched on the normalized key
 ([`media-types`](#media-types)) at every minor — lowers to `Operation.RequestStream`
-and `ResponseStream` for the directions that have one, each with `Events` the Content's own `Type`
-(for a frame format the schema is read as one frame, not the body), or `bytes` on a file body
-([`file-bodies`](#file-bodies)), whose schema describes the file, `Streaming` the `client`, `server`
-or `bidi` summary of them, and `Provenance.Inferred` the marker `streaming-media-type` on
+and `ResponseStream` for the directions that have one, each with `Events` what one frame holds: the
+`Elem` of a `Type` whose root, read through aliases, is a list, since a schema applies to the whole
+body and OpenAPI 3.2 §4.14.3.1 maps a sequential body to an array of its values, else the `Type`
+itself, a schema with no array to read being the frame, or `bytes` on a file body
+([`file-bodies`](#file-bodies)), whose schema describes the file. `Content.Type` keeps the list.
+`Streaming` is the `client`, `server` or `bidi` summary of them, and `Provenance.Inferred` the marker
+`streaming-media-type` on
 the operation, joined by `,` to any other marker, since below 3.2 a media type is a guess about
 framing and not a declaration. A 3.2 `itemSchema` ([`item-schema`](#item-schema)) is a declaration:
 it streams on any media type with `Events` the `Item` type and no marker, and wins over the
-media-type reading at its own Content. Streaming Contents that name different element types leave
-`Events` unset on a direction that still streams, every Content kept, reported as an info
-`openapi/degraded-construct` at the `requestBody` or `responses` pointer; Contents that name the
-same element elect it. Error responses and the default are not read: whether the default answers a
+media-type reading at its own Content. An element settles once the registry is whole, since a `$ref`
+can name a list nothing has built yet. Streaming Contents whose frames differ leave `Events` unset
+on a direction that still streams, every Content kept, reported as an info
+`openapi/degraded-construct` at the `requestBody` or `responses` pointer; Contents whose frames are
+one element elect it, a list of a type agreeing with that type. Error responses and the default are not read: whether the default answers a
 success is the plan's to decide ([`response-conditions`](#response-conditions)). The policy is the
 Go option `Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what
 an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it, an
@@ -2504,8 +2515,11 @@ its entries separated by commas, and refuses one that is neither a media type no
   `operation.TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed`,
   `operation.TestStreaming_ItemSchemaDeclaresTheStream`,
   `operation.TestStreaming_AFileBodyStreamsBytes`,
+  `operation.TestStreaming_AListBodyStreamsItsElement`,
+  `operation.TestStreaming_ContentsCompareByTheirFrames`,
+  `e2e.TestExternalContent_AStreamReadsAListAnotherDocumentHolds`,
   `lowering.TestMediaTypeStreams_AnswersFromThePolicy`
-- Status: partly built: sequential media types derive the wrong item type (#630); a response
+- Status: partly built: a response
   offering a plain body and an event stream does not record which content streams (#601); and an
   event stream's terminator, and a response that streams only when a request field asks it to, have
   no IR home (#666, #667).

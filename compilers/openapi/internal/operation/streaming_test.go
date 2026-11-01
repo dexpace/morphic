@@ -4,6 +4,7 @@
 package operation_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -209,6 +210,174 @@ func TestStreaming_SeveralStreamingContentsLeaveTheElementUnnamed(t *testing.T) 
 	for _, pointer := range []string{"/paths/~1events/post/requestBody", "/paths/~1events/post/responses"} {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, pointer),
 			"the refusal names the direction it was made in: %s", pointer)
+	}
+}
+
+// TestStreaming_AListBodyStreamsItsElement holds Events to what one frame holds. A
+// schema applies to the whole body, so a list, however it is reached, describes the
+// sequence and its Elem a frame, while Content.Type keeps the whole body. Any
+// other shape has no items to read, and is the frame itself.
+func TestStreaming_AListBodyStreamsItsElement(t *testing.T) {
+	t.Parallel()
+	const (
+		event = ir.TypeID("t/openapi/components/schemas/Event")
+		pairs = ir.TypeID("t/anon/paths/~1s/get/responses/200/content/application~1jsonl/schema")
+		named = ir.TypeID("t/openapi/components/schemas/Named")
+	)
+	for _, tc := range []struct {
+		name, schema string
+		want         ir.TypeRef
+	}{
+		{"an inline list", `{type: array, items: {$ref: '#/components/schemas/Event'}}`, ir.TypeRef{Target: event}},
+		{"a list named by a $ref", `{$ref: '#/components/schemas/Events'}`, ir.TypeRef{Target: event}},
+		{"a list behind an alias a $ref's sibling hoists", `{$ref: '#/components/schemas/Events', description: d}`, ir.TypeRef{Target: event}},
+		{"a list behind two aliases", `{$ref: '#/components/schemas/Again', description: d}`, ir.TypeRef{Target: event}},
+		{"a nullable list, whose frames are not null", `{type: [array, "null"], items: {$ref: '#/components/schemas/Event'}}`, ir.TypeRef{Target: event}},
+		{"a list of nullable items", `{type: array, items: {$ref: '#/components/schemas/Maybe'}}`, ir.TypeRef{Target: "t/openapi/components/schemas/Maybe"}},
+		{"a tuple, whose frames differ by position", `{type: array, prefixItems: [{type: string}, {type: integer}], items: false}`, ir.TypeRef{Target: pairs}},
+		{"a model, the frame itself", `{$ref: '#/components/schemas/Event'}`, ir.TypeRef{Target: event}},
+		{"a name for another name", `{$ref: '#/components/schemas/Named'}`, ir.TypeRef{Target: named}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := streamingSpec(t, openapitest.PathsSpec(`  /s:
+    get:
+      operationId: s
+      responses:
+        "200":
+          description: ok
+          content:
+            application/jsonl:
+              schema: `+tc.schema+`
+components:
+  schemas:
+    Event: {type: object, properties: {a: {type: string}}}
+    Maybe: {type: [string, "null"]}
+    Named: {type: string, format: hostname}
+    Events: {type: array, items: {$ref: '#/components/schemas/Event'}}
+    Again: {$ref: '#/components/schemas/Events', description: again}
+`), openapi.Options{})
+			op := openapitest.FindOp(t, doc, "s")
+			require.NotNil(t, op.ResponseStream)
+			require.NotNil(t, op.ResponseStream.Events)
+			assert.Equal(t, tc.want.Target, op.ResponseStream.Events.Target)
+		})
+	}
+}
+
+// TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds is the near miss: an
+// itemSchema states the frame outright, so a list there is each item, not the
+// sequence, and its Elem is one level too deep.
+func TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds(t *testing.T) {
+	t.Parallel()
+	doc, _ := streamingSpec(t, openapitest.PathsSpecVer("3.2.0", `  /s:
+    get:
+      operationId: s
+      responses:
+        "200":
+          description: ok
+          content:
+            application/jsonl:
+              itemSchema: {type: array, items: {type: string}}
+`), openapi.Options{})
+	op := openapitest.FindOp(t, doc, "s")
+	require.NotNil(t, op.ResponseStream)
+	require.NotNil(t, op.ResponseStream.Events)
+	assert.IsType(t, &ir.List{}, doc.Types[op.ResponseStream.Events.Target])
+}
+
+// TestStreaming_ContentsCompareByTheirFrames holds the election to what each frame
+// is, not how a schema spelled it: a list of one type agrees with that type, and two
+// lists of different types disagree, which comparing the lists could not tell from
+// two spellings of one element.
+func TestStreaming_ContentsCompareByTheirFrames(t *testing.T) {
+	t.Parallel()
+	listOf := func(name string) string {
+		return `{type: array, items: {$ref: '#/components/schemas/` + name + `'}}`
+	}
+	for _, tc := range []struct {
+		name, first, second string
+		wantElected         bool
+	}{
+		{"a list and its element", listOf("A"), `{$ref: '#/components/schemas/A'}`, true},
+		{"two lists of one element", listOf("A"), listOf("A"), true},
+		{"two lists of different elements", listOf("A"), listOf("B"), false},
+		{"a list and another type", listOf("A"), `{$ref: '#/components/schemas/B'}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := streamingSpec(t, openapitest.PathsSpec(`  /s:
+    get:
+      operationId: s
+      responses:
+        "200":
+          description: ok
+          content:
+            application/jsonl:
+              schema: `+tc.first+`
+            text/event-stream:
+              schema: `+tc.second+`
+components:
+  schemas:
+    A: {type: object, properties: {a: {type: string}}}
+    B: {type: object, properties: {b: {type: string}}}
+`), openapi.Options{})
+			op := openapitest.FindOp(t, doc, "s")
+			require.NotNil(t, op.ResponseStream, "the direction streams either way")
+			if tc.wantElected {
+				require.NotNil(t, op.ResponseStream.Events)
+				assert.Equal(t, ir.TypeID("t/openapi/components/schemas/A"), op.ResponseStream.Events.Target)
+				assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1s/get/responses"))
+				return
+			}
+			assert.Nil(t, op.ResponseStream.Events)
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1s/get/responses"))
+		})
+	}
+}
+
+// TestStreaming_AnItemSchemaOnOneDocumentIsReported holds the warning to media
+// types whose body cannot be a sequence, and to no other: a vendor type and
+// multipart/mixed may repeat a structure, and a policy naming a type speaks for it.
+// What was declared lowers either way.
+func TestStreaming_AnItemSchemaOnOneDocumentIsReported(t *testing.T) {
+	t.Parallel()
+	const vendor = "application/vnd.acme.frames+json"
+	for _, tc := range []struct {
+		mediaType string
+		opts      openapi.Options
+		want      int
+	}{
+		{"application/json", openapi.Options{}, 1},
+		{"application/problem+json", openapi.Options{}, 1},
+		{"application/xml", openapi.Options{}, 1},
+		{vendor, openapi.Options{}, 1},
+		{vendor, openapi.Options{StreamingMedia: openapi.StreamingMedia{MediaTypes: []string{"+json"}}}, 0},
+		{"application/jsonl", openapi.Options{}, 0},
+		{"application/json-seq", openapi.Options{}, 0},
+		{"text/event-stream", openapi.Options{}, 0},
+		{"multipart/mixed", openapi.Options{}, 0},
+		{"application/vnd.acme.frames", openapi.Options{}, 0},
+	} {
+		t.Run(tc.mediaType, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := streamingSpec(t, openapitest.PathsSpecVer("3.2.0", `  /s:
+    get:
+      operationId: s
+      responses:
+        "200":
+          description: ok
+          content:
+            `+tc.mediaType+`:
+              itemSchema: {type: string}
+`), tc.opts)
+			require.NotNil(t, openapitest.FindOp(t, doc, "s").ResponseStream, "it lowers as declared")
+			assert.Equal(t, tc.want, openapitest.CountDiagsAt(diags, diag.ItemSchemaOnDocument, ir.SeverityWarning))
+			if tc.want > 0 {
+				at := "/paths/~1s/get/responses/200/content/" + strings.ReplaceAll(tc.mediaType, "/", "~1") + "/itemSchema"
+				assert.True(t, openapitest.HasDiagCodeAt(diags, diag.ItemSchemaOnDocument, at), "%+v", diags)
+			}
+		})
 	}
 }
 

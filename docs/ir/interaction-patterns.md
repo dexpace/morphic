@@ -83,6 +83,7 @@ and a stream belongs to one content of its payload, so an OpenAPI operation can 
 length-prefixed events) has no field of its own: over HTTP the streaming content's `MediaType`
 states it, another binding frames its own messages, and the plan derives which
 ([streams](../emitters/plan/streams.md)). `Content.Item` declares what one item is; a compiler that
-reads a stream from a media type alone names the content's `Type` as `Events`, or `bytes` for a
-file, whose `Type` describes the whole, a reading `Provenance.Inferred` marks. An element need not
+reads a stream from a media type alone names what one frame holds as `Events`, a list `Type`'s
+`Elem`, else the `Type`, or `bytes` for a file, whose `Type` describes the whole, a reading
+`Provenance.Inferred` marks. An element need not
 be a union, and `Variant.Event` applies only where it is one.
