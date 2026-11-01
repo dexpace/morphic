@@ -239,6 +239,20 @@ class SweepTest(unittest.TestCase):
         self.assertIn("head.diag", why)
         self.assertFalse(run.exists())
 
+    def test_a_table_cut_short_is_not_left_to_be_read(self):
+        table = self.root / "results.tsv"
+
+        def fill_then_fail(path, text):
+            Path.open(path, "w").close()
+            with Path.open(path, "a") as f:
+                f.write(text[:4])
+            raise OSError(28, "No space left on device")
+
+        with unittest.mock.patch.object(Path, "write_text", fill_then_fail):
+            why = sweep.write_table([], table, str)
+        self.assertEqual(why, "no rows written: [Errno 28] No space left on device")
+        self.assertFalse(table.exists())
+
     def test_a_table_that_cannot_be_written_leaves_what_was_found(self):
         out = self.root / "out"
         out.mkdir()
@@ -320,15 +334,21 @@ class StampTest(unittest.TestCase):
     def test_a_stamp_is_read_only_where_a_document_opens(self):
         for ir, want in {b'{\n  "irVersion": "1",\n  "x": 1\n}\n': ("1", b',\n  "x": 1\n}\n'),
                          b'{"irVersion":"1"}': ("1", b"}"),
-                         b'{"x": {"irVersion": "1"}}': ("", b'{"x": {"irVersion": "1"}}'),
-                         b'[{"irVersion": "1"}]': ("", b'[{"irVersion": "1"}]'),
-                         b"": ("", b"")}.items():
+                         b'{"irVersion": ""}': ("", b"}"),
+                         b'{"x": {"irVersion": "1"}}': (None, b'{"x": {"irVersion": "1"}}'),
+                         b'[{"irVersion": "1"}]': (None, b'[{"irVersion": "1"}]'),
+                         b"": (None, b"")}.items():
             with self.subTest(ir=ir):
                 self.assertEqual(sweep.split_stamp(ir), want)
 
     def test_an_output_with_no_stamp_on_one_side_is_compared_whole(self):
         stamped = sweep.Output(0, b'{"irVersion": "1"}', b"")
         self.assertEqual(sweep.difference(stamped, sweep.Output(0, b"", b"")), ("ir", None))
+
+    def test_an_empty_stamp_still_differs_from_another(self):
+        empty = sweep.Output(0, b'{"irVersion": "", "x": 1}', b"")
+        stamped = sweep.Output(0, b'{"irVersion": "1", "x": 1}', b"")
+        self.assertEqual(sweep.difference(empty, stamped), (sweep.STAMP_ALONE, ("", "1")))
 
 
 # A go that fails every build, and one whose build writes a stand-in for cmd/morphic that prints
@@ -376,13 +396,17 @@ class MainTest(unittest.TestCase):
         return code, out.getvalue()
 
     def test_a_sweep_that_cannot_compare_exits_2(self):
+        a_file = self.specs / "a.yaml"
         cases = {"a base that names no commit": ["-b", "no-such-ref", str(self.specs)],
                  "a corpus with no document": ["-b", "HEAD", str(self.empty)],
-                 "a build that fails": ["-b", "HEAD", str(self.specs)]}
+                 "a build that fails": ["-b", "HEAD", str(self.specs)],
+                 "an OUTDIR that cannot be made": ["-b", "HEAD", "-o", str(a_file / "out"),
+                                                   str(self.specs)]}
         for case, argv in cases.items():
             with self.subTest(case=case):
                 code, out = self.sweep(FAILING_GO, *argv)
                 self.assertEqual(code, 2, out)
+                self.assertNotIn("Traceback", out)
 
     def test_a_base_the_branch_lacks_is_named_before_the_build(self):
         later = self.commit("later")

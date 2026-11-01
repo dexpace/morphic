@@ -30,6 +30,7 @@ for its stamp, 1 when one does, 2 when the sweep cannot run.
 
 import argparse
 import concurrent.futures
+import contextlib
 import json
 import os
 import re
@@ -117,11 +118,11 @@ def compile_one(binary: Path, spec: Path, flags: list[str], limit: int) -> Outpu
     return Output(done.returncode, done.stdout, done.stderr)
 
 
-def split_stamp(ir: bytes) -> tuple[str, bytes]:
-    """Return the IR version a document opens with and the bytes after it, or no version and the
-    whole output when it opens with none."""
+def split_stamp(ir: bytes) -> tuple[str | None, bytes]:
+    """Return the IR version a document opens with and the bytes after it, or None and the whole
+    output when it opens with none. An empty version is a version, so it is compared as one."""
     m = STAMP.match(ir)
-    return (m[1].decode(errors="replace"), ir[m.end():]) if m else ("", ir)
+    return (m[1].decode(errors="replace"), ir[m.end():]) if m else (None, ir)
 
 
 def difference(b: Output, h: Output) -> tuple[str, tuple[str, str] | None]:
@@ -133,8 +134,8 @@ def difference(b: Output, h: Output) -> tuple[str, tuple[str, str] | None]:
         what.append("ir")
     if b.diag != h.diag:
         what.append("diagnostics")
-    moved = base_stamp and head_stamp and base_stamp != head_stamp
-    stamps = (base_stamp, head_stamp) if moved else None
+    both = base_stamp is not None and head_stamp is not None
+    stamps = (base_stamp, head_stamp) if both and base_stamp != head_stamp else None
     return " ".join(what) or (STAMP_ALONE if stamps else ""), stamps
 
 
@@ -177,6 +178,8 @@ def write_table(results: list[Result], table: Path, rel) -> str:
     try:
         table.write_text("n\tbase\thead\tdiffers\tspec\n" + rows)
     except OSError as e:
+        with contextlib.suppress(OSError):  # a table cut short reads as a sweep of fewer specs
+            table.unlink(missing_ok=True)
         return f"no rows written: {e}"
     return f"a row per spec in {table}"
 
@@ -286,8 +289,12 @@ def main(argv: list[str] | None = None) -> int:
     except subprocess.CalledProcessError as e:
         print(f"sweep: {e.stderr.strip() or e}", file=sys.stderr)
         return 2
-    out = Path(args.out or tempfile.mkdtemp()).resolve()
-    out.mkdir(parents=True, exist_ok=True)
+    try:
+        out = Path(args.out or tempfile.mkdtemp()).resolve()
+        out.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        print(f"sweep: {e}", file=sys.stderr)
+        return 2
     corpus = [Path(c).resolve() for c in args.corpus] or [root / "testdata"]
     specs = find_specs(corpus)
     if not specs:
