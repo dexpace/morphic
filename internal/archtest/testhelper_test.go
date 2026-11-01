@@ -61,6 +61,7 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		want int // the line reported, 0 for none
 	}{
 		{"called, asserting through testify", "func check(t *testing.T) { assert.True(t, true) }\n" + caller, line},
+		{"called, asserting through a parenthesized testify call", "func check(t *testing.T) { (assert.True)(t, true) }\n" + caller, line},
 		{"called, asserting through require", "func check(t *testing.T) { require.True(t, true) }\n" + caller, line},
 		{"called, failing through t", "func check(t *testing.T) { t.Fatal(1) }\n" + caller, line},
 		{"called, taking a testing.TB", "func check(t testing.TB) { t.Error(1) }\n" + caller, line},
@@ -77,7 +78,9 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"called, asserting through testify on a parameter whose Helper it does not call",
 			"func check(a, t *testing.T) {\n\ta.Helper()\n\tassert.True(t, a != nil)\n}\n" + callerOfTwo, line},
 		{"called, asserting through testify on no parameter",
-			"func check(a, t *testing.T) {\n\ta.Helper()\n\tassert.True(nil, t != nil)\n}\n" + callerOfTwo, line},
+			"func check(a, t *testing.T) {\n\tt.Helper()\n\tassert.True(nil, a != nil)\n}\n" + callerOfTwo, line},
+		{"called, failing through two parameters, one helped",
+			"func check(a, t *testing.T) {\n\ta.Helper()\n\ta.Fatal(1)\n\tt.Fatal(1)\n}\n" + callerOfTwo, line},
 		{"called through parentheses", "func check(t *testing.T) { t.Fatal(1) }\n\nfunc TestP(t *testing.T) { (check)(t) }\n", line},
 		{"called through a parenthesized instantiation",
 			"func check[V any](t *testing.T, v V) { t.Fatal(v) }\n\nfunc TestP(t *testing.T) { (check[int])(t, 1) }\n", line},
@@ -134,6 +137,17 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"the Helper first of the parameter testify fails through, dereferenced",
 			"func check(a, t *testing.TB) {\n\t(*t).Helper()\n\tassert.True(*t, a != nil)\n}\n" +
 				"\nfunc TestP(t *testing.T) {\n\tvar x testing.TB = t\n\tcheck(&x, &x)\n}\n", 0},
+		{"the first parameter's Helper first, testify on a copy",
+			"func check(a, t *testing.T) {\n\ta.Helper()\n\ttb := a\n\tassert.True(tb, t != nil)\n}\n" + callerOfTwo, 0},
+		{"the first parameter's Helper first, testify on nil",
+			"func check(a, t *testing.T) {\n\ta.Helper()\n\tassert.True(nil, t != nil)\n}\n" + callerOfTwo, 0},
+		{"the first parameter's Helper first, testify on a CollectT",
+			"func check(a, t *testing.T, c *assert.CollectT) {\n\ta.Helper()\n\tassert.True(c, t != nil)\n}\n" +
+				"\nfunc TestP(t *testing.T) { check(t, t, nil) }\n", 0},
+		{"naming a testify type", "func check(t *testing.T) assert.TestingT {\n\tvar x assert.TestingT = t\n\treturn x\n}\n" + caller, 0},
+		{"returning a testify function uncalled",
+			"func check(t *testing.T) assert.BoolAssertionFunc {\n\t_ = t.Name()\n\treturn assert.True\n}\n" + caller, 0},
+		{"a testify call with no argument", "func check(t *testing.T) {\n\t_ = t.Name()\n\t_ = assert.CallerInfo()\n}\n" + caller, 0},
 		{"an unnamed testing parameter", "func check(*testing.T) {}\n\nfunc TestP(t *testing.T) { check(t) }\n", 0},
 		{"a blank testing parameter", "func check(_ *testing.T, n int) { assert.True(nil, n > 0) }\n\nfunc use() { check(nil, 1) }\n", 0},
 		{"no testing parameter", "func check(n int) { assert.True(nil, n > 0) }\n\nfunc use() { check(1) }\n", 0},
@@ -743,7 +757,7 @@ func moduleDir(p string) (string, bool) {
 
 // failsThrough returns those of params that body fails its test through by
 // itself: a failing method of one, called or taken as a value, or a testify
-// function, which fails through its first argument, or through each of params
+// call, which fails through its first argument, or through the first of params
 // when that is none of them; names is what importNames read of the file. A
 // function literal's body is left out: a failure there is placed by whatever
 // runs it. As this reads syntax and not data flow, a parameter copied into a
@@ -751,18 +765,18 @@ func moduleDir(p string) (string, bool) {
 // value a struct holds are not followed.
 func failsThrough(body *ast.BlockStmt, params []string, names map[string][]string) []string {
 	through := map[string]bool{}
-	firstArgs := map[*ast.SelectorExpr]ast.Expr{}
+	calls := map[*ast.SelectorExpr]*ast.CallExpr{}
 	ast.Inspect(body, func(n ast.Node) bool {
 		switch x := n.(type) {
 		case *ast.FuncLit:
 			return false
 		case *ast.CallExpr:
-			// A call is visited before its callee, so the callee finds its argument here.
-			if sel, ok := ast.Unparen(x.Fun).(*ast.SelectorExpr); ok && len(x.Args) > 0 {
-				firstArgs[sel] = x.Args[0]
+			// A call is visited before its callee, so the callee finds its call here.
+			if sel, ok := ast.Unparen(x.Fun).(*ast.SelectorExpr); ok {
+				calls[sel] = x
 			}
 		case *ast.SelectorExpr:
-			for _, p := range selectorFails(x, firstArgs[x], params, names) {
+			for _, p := range selectorFails(x, calls[x], params, names) {
 				through[p] = true
 			}
 		default:
@@ -773,18 +787,25 @@ func failsThrough(body *ast.BlockStmt, params []string, names map[string][]strin
 }
 
 // selectorFails returns those of params that sel fails through, as
-// failsThrough reads it; firstArg is the first argument of the call sel is
-// the callee of, nil when there is none.
-func selectorFails(sel *ast.SelectorExpr, firstArg ast.Expr, params []string, names map[string][]string) []string {
+// failsThrough reads it; call is the call sel is the callee of, nil when it is
+// none. A testify selector fails only as the callee of a call with an
+// argument: one naming a type, or a function taken as a value, fails nothing
+// where it is written, and what runs the value later is not followed. A
+// called function that fails nothing, such as require.New, and a conversion
+// to a testify type still read as failing, as syntax cannot tell them apart.
+func selectorFails(sel *ast.SelectorExpr, call *ast.CallExpr, params []string, names map[string][]string) []string {
 	x, ok := receiver(sel.X)
 	if !ok {
 		return nil
 	}
 	if isAssertPackage(names, x.Name) {
-		if arg, ok := receiver(firstArg); ok && slices.Contains(params, arg.Name) {
+		if call == nil || len(call.Args) == 0 || len(params) == 0 {
+			return nil
+		}
+		if arg, ok := receiver(call.Args[0]); ok && slices.Contains(params, arg.Name) {
 			return []string{arg.Name}
 		}
-		return params
+		return params[:1]
 	}
 	if slices.Contains(params, x.Name) && slices.Contains(failingMethods, sel.Sel.Name) {
 		return []string{x.Name}
