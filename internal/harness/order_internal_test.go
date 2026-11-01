@@ -66,6 +66,29 @@ func TestReverseMappings_Permutes(t *testing.T) {
 			src:  "outer:\n  dup: 1\n  dup: 2\n",
 		},
 		{
+			// The parser reads an alias key as the scalar it names, so this mapping
+			// writes rate twice however it spells it (#1105).
+			name: "a key repeated through an alias is refused",
+			src:  "- {x: &k rate}\n- {rate: 1, *k : 2}\n",
+		},
+		{
+			// A key that is no scalar reads as the empty string, whichever anchor
+			// names it (docs/parser-library.md#non-scalar-key).
+			name: "two aliases of mappings are one key",
+			src:  "- &a {x: 1}\n- &b {y: 2}\n- {? *a : 1, ? *b : 2}\n",
+		},
+		{
+			// An anchor's name is no key: the alias reads as other, so nothing repeats.
+			name: "an alias named like another key repeats nothing",
+			src:  "- {x: &rate other}\n- {rate: 1, *rate : 2}\n",
+			want: "- {x: &rate other}\n- {*rate: 2, rate: 1}\n",
+		},
+		{
+			// Their order decides which merge source wins.
+			name: "two merge keys are refused",
+			src:  "- &a {x: 1}\n- &b {y: 2}\n- {<<: *a, <<: *b}\n",
+		},
+		{
 			name: "an unparseable source is refused",
 			src:  "a: [unclosed\n",
 		},
@@ -139,6 +162,16 @@ func TestOrderInvariant_UnpermutableSourcePasses(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, src string }{
 		{"a duplicate key excludes the source", "a: 1\na: 2\n"},
+		{"a key repeated through an alias excludes the source", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      allOf:
+        - {x-k: &k rate}
+        - {type: object, properties: {rate: {type: string}, *k : {type: integer}}}
+`},
 		{"a source with nothing to permute", "a: 1\n"},
 		{"an unparseable source excludes the baseline too", "a: [unclosed\n"},
 	} {

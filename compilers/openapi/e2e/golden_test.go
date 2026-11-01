@@ -15,6 +15,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
@@ -31,9 +32,7 @@ func TestGolden(t *testing.T) {
 		[]compilers.Source{{Path: "petstore.yaml", Data: data}}, compilers.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
-	}
+	openapitest.RequireNoErrorDiags(t, diags)
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/petstore.golden.json", doc)
 }
 
@@ -75,10 +74,7 @@ func TestGolden_SplitSpec(t *testing.T) {
 	doc, diags, err := openapi.New().Compile(t.Context(), sources[:1], compilers.Options{Reader: docs})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	for _, d := range diags {
-		assert.NotEqual(t, ir.SeverityError, d.Severity, "unexpected error diagnostic: %+v", d)
-	}
-	irtest.CompareGolden(t, "../../../testdata/golden/openapi/split/split.golden.json", doc)
+	openapitest.RequireNoErrorDiags(t, diags)
 
 	const item = "server/openapi@paths.yaml/paths/~1pets~1{petId}"
 	byURL := map[string]ir.ServerID{}
@@ -95,6 +91,10 @@ func TestGolden_SplitSpec(t *testing.T) {
 			assert.Equal(t, []ir.ServerID{item + "/get/servers/0"}, op.Servers, "showPet is sent to its own")
 		}
 	}
+	// Last, and only if they held: under -update a failed assertion would
+	// otherwise leave a golden that agrees with the regression.
+	require.False(t, t.Failed(), "an assertion failed; not comparing or rewriting the golden")
+	irtest.CompareGolden(t, "../../../testdata/golden/openapi/split/split.golden.json", doc)
 }
 
 // serverSpace returns the namespace segment of a server's ID.

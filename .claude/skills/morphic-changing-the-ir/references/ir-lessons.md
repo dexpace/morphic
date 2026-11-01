@@ -23,14 +23,39 @@ verifier and codecs must reach.
 - **Rule.** A struct field anywhere in package `ir`, unexported walker state included, meets the
   classification tests in `ir/irverify`: an integer field needs an `integerFields` entry, an
   ID-typed field an `idPositions` entry, a `[]string` a `stringLists` entry, and no map may key an
-  ID to an ID. Shrink walker state before classifying it. Remove a deleted field's entry yourself:
-  a stale `integerFields` entry passes (#1148), though `idPositions` and `stringLists` refuse one.
+  ID to an ID. Shrink walker state before classifying it. Remove a deleted field's entry with it:
+  each table's test refuses a stale entry.
 - **Why.** Walker state added for `ir.FlattenedProperties` failed all three tests, and an alias
   memo mapping an ID to an ID was refused (#1141); a pair of reference-key fields failed the
   integer test (#737).
 - **Probe.** `go test ./ir/irverify -run 'AreAllClassified|EveryShapeIsOneIdShapeOfReads'`; plant
-  an `integerFields` entry for a field that does not exist and watch it pass, then the same in
-  `idPositions` and watch it fail.
+  an entry for a field that does not exist in each table and watch its test fail.
+
+## A new named string type says whether it is a class of ID
+`classify-named-strings`
+
+- **Rule.** A named string type in package `ir` needs an `identityClasses` entry in
+  `ir/irverify/duplicates_internal_test.go` saying whether it is a class of ID and, if so, what
+  resolves its references. An entry for a type no longer declared fails too.
+- **Why.** A class nothing resolves goes unchecked in silence (#50), and
+  `references/ir-lessons.md#classify-ir-fields` does not reach a type, so a change sized from it
+  missed this list (#1225).
+- **Probe.** `go test ./ir/irverify -run TestIdentityClasses_AreAllClassified`.
+
+## A position that only mentions a type is no use of it
+`mention-is-no-use`
+
+- **Rule.** A new `TypeID` position that names a type without using it stays out of `ir.TypeEdges`
+  and each reader that takes the class as a use, as reachability does; a reader resolving references
+  keeps it, since a mention can dangle.
+  `TestAppendTypeIDs_ReadsWhatTheTypeGraphReads` holds `appendTypeIDs` to `ir.TypeEdges` for a type
+  definition's fields, and nothing holds it for a position only an operation holds.
+- **Why.** `appendTypeIDs` reads an operation by reflection, so such a position becomes a GraphQL
+  root and the check on field arguments goes silent on its type, which classifying the position
+  does not show (#1223).
+- **Probe.** `git grep -nE 'TypeFor\[(ir\.)?TypeID\]' -- '*.go' ':!*_test.go'` lists the readers.
+  Add a struct holding a `TypeID` to `ir.Docs`, keep it out of the oracle in `ir/edges_test.go`, and
+  watch `TestAppendTypeIDs_ReadsWhatTheTypeGraphReads` fail until `appendTypeIDs` skips the struct.
 
 ## Find every list a new ID class must join
 `new-id-class`
@@ -44,6 +69,19 @@ verifier and codecs must reach.
   the registry checks loop over each registry by hand (#1144).
 - **Probe.** `git grep -l EnumMemberID -- '*.go' | xargs grep -l GroupID` lists the files; each
   must name the new type.
+
+## Expect a new ID namespace to rewrite every golden document
+`new-id-namespace`
+
+- **Rule.** `Document.IDSpaces` declares what a compiler can mint, not what a document uses, and
+  goldens store it, so a new entry in a compiler's `Namespaces` changes every golden document, where
+  a version bump changes none. Show that no other line moved, land a spec that mints the namespace,
+  and trial-merge the open PRs
+  (`.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`).
+- **Why.** One entry in the `auth` list changed all 128 goldens by one hunk each, and
+  `TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses` refused it while no spec minted it (#1213).
+- **Probe.** `go test ./compilers/openapi/e2e -run 'TestConformance|TestGolden' -update`, then
+  `git diff -U0 -- testdata | grep -E '^[-+] ' | sort | uniq -c` prints the namespace's lines alone.
 
 ## Never give a type in ir a method named typeDef
 `sealed-marker-reserved`
@@ -77,6 +115,29 @@ verifier and codecs must reach.
   `allowReserved` would have been dropped, with every golden and conformance test green (#1144).
 - **Probe.** `git grep -nE '\.<Sibling> (==|!=)|== ir\.<Struct>\{'`, with `<Sibling>` a sibling
   field's name and `<Struct>` the struct's.
+
+## Read what the documents assume of a field before widening its values
+`widened-field-values`
+
+- **Rule.** When a lowering starts writing a value a field did not hold (a primitive, a mode, a
+  media type), grep the field and its old values across `docs/`, read each normative statement for
+  one that assumes the old set, and change it or name the gap where it stands. No emitter reads the
+  value yet, so no test objects, but it is a change of meaning, which `docs/ir/ir-version.md` bumps
+  for.
+- **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
+  types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
+  enum to typed consts, which those types lack (#1191, #1202).
+- **Probe.** `git grep -nE '<field>|<old value>' -- docs`, and list each statement read in the PR
+  body. Then take `references/ir-lessons.md#widened-field-consumers`.
+
+## Ask each consumer of a widened field what it did with the old value
+`widened-field-consumers`
+
+- **Rule.** When a field's values widen, list each consumer that reads the field and ask what it did
+  with the old value, since one may depend on it with no sentence saying so.
+- **Why.** A file body's `Content.Type` held only `bytes`, so a plain upload needed no rule and had
+  none, and grepping the field and its old values on the request side found nothing (#1191, #1204).
+- **Probe.** List in the PR body each consumer asked, and its answer.
 
 ## Check a design rule against everything in its document it governs
 `design-rule-over-its-document`

@@ -30,7 +30,7 @@ witnessing it.
 ### `untagged-unions`
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
-  `anyof-untagged`, `union-decorated-branch`
+  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`
 
 ### `intersection`
 
@@ -175,7 +175,7 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`
+- Witnesses: `security-or-and`, `security-root-empty`
 
 ### `servers`
 

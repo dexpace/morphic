@@ -59,7 +59,8 @@ var generations = []generation{
 		meaning: "an encoding key or a discriminator's Property names the declaration the model's flattening takes"},
 	{version: "0.21.0", format: 1, shape: "93e13e68b0e2c6a8623109d342c08353a4209cbc57d8f3828705646f51d50bf0"},
 	{version: "0.22.0", format: 1, shape: "28c69354fd5e99549277dc63910f3ac5e2968fc56c1f1397b87e53215a834622"},
-	{version: "0.23.0", format: 1, shape: "6d072214c1e4f76c4fc6b113d26c0c7fbedfcd15d6b5039e566850bdd9c0f25e",
+	{version: "0.23.0", format: 1, shape: "987429c948fd6468abae5000a5caa84a23fe8d4ae18403da219b3e4e4b99bd13"},
+	{version: "0.24.0", format: 1, shape: "85835f19a99c7d30b491ff4cdf63b492d454061e6dcbccc0500fce5266189af7",
 		names: "7b1cf234f0ffb4b26e5c80fd36caf2fa9303dbcb5fa6ad541d93c18fde609145"},
 }
 

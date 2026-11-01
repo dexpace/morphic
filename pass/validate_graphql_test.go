@@ -4,11 +4,15 @@
 package pass_test
 
 import (
+	"reflect"
+	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
@@ -230,4 +234,32 @@ func TestAppendTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 		Value:  ir.RawValue(`"t/ghost/in-bytes"`),
 	}}}
 	assert.Empty(t, pass.AppendTypeIDs(nil, doc))
+}
+
+// TestAppendTypeIDs_ReadsWhatTheTypeGraphReads fills every field of each kind
+// and holds what this reflective reader takes from it to ir.TypeEdges, past the
+// kind's own ID. A position naming a type without using it is no edge, so it
+// must be no reachability root, and nothing else asks that of a new position.
+// A position only an operation holds is no field of a kind: this cannot reach it.
+func TestAppendTypeIDs_ReadsWhatTheTypeGraphReads(t *testing.T) {
+	t.Parallel()
+	p, err := decls.Load(reflect.TypeFor[ir.Document]().PkgPath())
+	require.NoError(t, err)
+	kinds, err := p.StringConsts("TypeKind")
+	require.NoError(t, err)
+	require.NotEmpty(t, kinds, "the ir package must declare its type kinds")
+	for _, kind := range kinds {
+		t.Run(kind.Value, func(t *testing.T) {
+			t.Parallel()
+			td, ok := ir.NewTypeDef(ir.TypeKind(kind.Value))
+			require.True(t, ok, "no concrete type for kind %q", kind.Value)
+			irtest.Fill(t, td)
+			edges := slices.Collect(ir.TypeEdges(td))
+			require.NotEmpty(t, edges, "a filled %s holds no edge, so this compares nothing", kind.Value)
+			read := slices.DeleteFunc(pass.AppendTypeIDs(nil, td), func(id ir.TypeID) bool {
+				return id == td.Common().ID
+			})
+			assert.Empty(t, cmp.Diff(edges, read), "mismatch (-edges +read)")
+		})
+	}
 }

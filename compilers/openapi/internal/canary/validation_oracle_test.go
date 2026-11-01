@@ -87,6 +87,9 @@ var validationReasons = map[string]string{
 		"Object without in, a $ref where a schema belongs; the table reports it once",
 	"position": "both sides report the defect and place it differently: the library on the key of the entry (the " +
 		"additionalOperations method, the repeated key), the table on the entry's value, the node its pointer names",
+	"rule-name": "both sides report the defect at one node, under different rules: a Parameter Object's content " +
+		"holding several entries, which the library calls an allowed value and the table an entry count, as the " +
+		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry')",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
 		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
@@ -109,7 +112,8 @@ var validationReasons = map[string]string{
 	"library-silent": "the library has no check for a rule the specification states and the table cites: a " +
 		"Parameter or Header Object holds schema or content, not both (3.1.2 §Parameter Object: 'Parameter Objects " +
 		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +
-		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified'), and a " +
+		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified') and holds one content " +
+		"entry (3.1.2 §Header Object: 'The map MUST only contain one entry'), and a " +
 		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), and " +
 		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
 		"insensitive')",
@@ -227,6 +231,7 @@ func repoPath(t *testing.T, path string) string {
 
 // declaredVersion returns the OpenAPI version a document declares, and false
 // for data that is no YAML or JSON document declaring an "openapi" 3 string.
+// It reads pairs raw, so a version written through an alias is skipped (#1201).
 func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
 	t.Helper()
 	parsed, err := load.Decode(t.Context(), data)

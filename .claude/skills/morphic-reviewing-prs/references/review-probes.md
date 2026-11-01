@@ -104,12 +104,25 @@ defect, keep a `main` control.
   and a suggested regex missed a generic no test row held (#1169).
 - **Probe.** Apply each suggestion in a throwaway worktree and run the checks it touches.
 
+## Review with no `origin`, or in a repository you must not write to
+`review-without-origin`
+
+- **Rule.** With no `origin`, fetch `main` and `pull/<N>/head` by URL into refs of your own, and
+  read `origin/main` as yours in the setup and the push checklist. Where the repository must stay
+  unwritten, `git worktree add` is out: take
+  `.claude/skills/morphic-verifying-changes/references/mutation.md#plant-in-an-unpacked-copy`.
+- **Why.** Reviews of #1233, #1235 and #1238 each improvised these, and one wrote the worktree
+  metadata its round had ruled out.
+- **Probe.** In a new `git init`, run both fetches, then `git for-each-ref`.
+
 ## Search the tracker for each construct a rule settles
 `tracker-on-what-a-rule-settles`
 
 - **Rule.** For each construct a change's rule decides, run
   `gh issue list --state all --limit 1000 --search "<construct>"`. Each open issue on it is closed
-  by the change, cited as left open, or answered with why the change departs from it.
+  by the change, cited as left open, or answered with why the change departs from it. A limitation
+  the body states is searched on what it names
+  (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#limitation-searched-on-what-it-names`).
 - **Why.** A stream rule keyed on a content having no `Item` while #601 expects `Item` on each
   content classified as a stream, and an element rule left #630 unnamed. The PR named neither until
   a later revision, and no pass would have looked for them (#1167, #1170).
@@ -146,10 +159,10 @@ defect, keep a `main` control.
 ## Review the tree as it will merge
 `recheck-against-final-tree`
 
-- **Rule.** After review fixes land or `main` is merged in, review the branch as it will merge:
-  rerun the probes the body and comments cite and every sweep the branch relies on over the merged
-  tree, re-diff each change `main` made to files the branch touches, and look for helpers `main`
-  renamed, features on both sides that interact, and normative text `main` moved.
+- **Rule.** After review fixes land or `main` or the base is merged in, review the branch as it
+  will merge: rerun the probes the body and comments cite and every sweep the branch relies on over
+  the merged tree, re-diff each change `main` made to files the branch touches, and look for helpers
+  `main` renamed, features on both sides that interact, and normative text `main` moved.
 - **Why.** Merges dropped `main`'s wider change in a conflict, left comments asserting behaviour
   `main` had changed, and left PR bodies stating facts a later commit falsified (#837, #382).
 - **Probe.** `git diff <merge-base>..origin/main -- <files the branch touches>` and confirm each
@@ -160,9 +173,12 @@ defect, keep a `main` control.
 
 - **Rule.** Where head and `main` differ, decide which is right on the specification's own terms. If
   `main` is right, fix the head. If neither is, build the right rule at its owner. A better
-  behaviour that changes output is listed under Breaking. A defect `main` shares is fixed or filed,
-  never a reason to stop.
+  behaviour that changes output is stated in the PR body, whose Breaking section goes with a `!` in
+  its title (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#exported-api-change-needs-bang`).
+  A defect `main` shares is fixed or filed, never a reason to stop.
 - **Why.** A parity round copied a library defect and kept an order dependence "as on main" (#1016).
+  Merged PRs tie the section to the `!`, so a `fix` changing an exit code states it in its Summary
+  (#1181, #1186).
 
 ## A PR that moves readers off the library inherits what the library skipped
 `moved-reader-parity`
@@ -206,19 +222,38 @@ defect, keep a `main` control.
 `redundant-guard`
 
 - **Rule.** When a PR adds one predicate at many sites, revert each site to `main`'s spelling on its
-  own. Delete a survivor only when a second reader of the same concept already covers it. When the
-  masking reader is a later stage or a library, keep the guard and pin it directly.
+  own. For any guard whose revert or mutant survives, ask whether removing it changes an outcome,
+  the reader it falls through to included. Where one changes, even if only in the function's own
+  result before a later stage masks it, keep the guard and pin it directly. Where none can, a second
+  reader already makes the check: delete the guard, and let a test reach the branch, which fails
+  loudly if that reader changes.
 - **Why.** Five survivors in #1066 were covered by a choke point; one in #1140 was the function's
-  own grammar.
+  own grammar. A nil check before a nil-safe library getter had nothing to pin, while the same check
+  beside it kept a test from panicking (#742, #1189).
 
 ## Moved code carries stale comments
 `moved-comments`
 
 - **Rule.** For a file split or a cross-package move, read each moved declaration's comment against
   its callers. Grep the whole repository for every moved name, and for the new package's name used
-  as an ordinary word.
+  as an ordinary word. A divided document takes `references/review-probes.md#moved-prose`.
 - **Why.** Byte-identical moves shipped false comments: 8 in #1064, 4 in #1073, 22 in #1099. A
   cross-package move broke comments in files it never touched (#1104).
+
+## Moved prose leans on what stayed behind
+`moved-prose`
+
+- **Rule.** After a document or table is divided across files, read each sentence and cell that
+  leaned on a neighbour now elsewhere, each citation into a divided document for what it cites, and
+  each rewrapped paragraph for a line opening with block markup. A comparison with the original
+  cannot object: the text matches.
+- **Why.** Kotlin's table kept cells reading "the same" of a Go column it had lost, citations
+  outlived the passages they named, and a reflowed line rendered as a list, all past word and link
+  checks (#1179, #1184).
+- **Probe.** `git grep -nwE 'the same|there|too|also' -- <files>`, each section's first line for a
+  pronoun, `git show <rev>:<cited file> | grep -c <name>` for each name cited, and
+  `awk 'FNR==1{p=""} p ~ /^[[:alpha:]]/ && /^ {0,3}([-*] |[0-9]+\. |>|#+ |-+ *$|=+ *$)/{print FILENAME":"FNR} {p=$0}' <files>`.
+  `TestDocuments_OpenNoLineWithAPlus` holds `+`.
 
 ## A new check, walk or golden may already exist
 `mechanism-exists`
