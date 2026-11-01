@@ -371,12 +371,12 @@ departs from it, with what holds each difference.
   one consistent case; package names short lowercase nouns; never shadow builtins or imports.
 - **Testing:** table-driven and flat; `TestFunc_Scenario` names; `testify/require` for
   preconditions, `assert` for values; compare with `cmp.Diff`, or `assert.Equal` on a value holding
-  no unexported field, never `reflect.DeepEqual`; golden files for complex expected output;
-  `t.Helper()` in helpers; `t.Cleanup()` over `defer`; external
-  test packages (`package foo_test`) preferred, reaching internals through the package's
-  `export_test.go`, and an in-package test file named `foo_internal_test.go` (CONTRIBUTING's "Where
-  a test goes"); where goroutines exist, the goroutine leak check under Testing strategy above (the
-  styleguide names `goleak`; #568).
+  no unexported field or `Equal` method, never `reflect.DeepEqual`; golden files for complex
+  expected output; `t.Helper()` in helpers; `t.Cleanup()` over `defer`; external test packages
+  (`package foo_test`) preferred, reaching internals through the package's `export_test.go`, and an
+  in-package test file named `foo_internal_test.go` (CONTRIBUTING's "Where a test goes"); where
+  goroutines exist, the goroutine leak check under Testing strategy above (the styleguide names
+  `goleak`; #568).
 - **Packages:** one package per directory; `internal/` aggressively for implementation detail;
   no `utils`/`helpers`/`common`; `doc.go` for package docs; imports in three `gci` groups
   (stdlib, external, local); no dot imports.

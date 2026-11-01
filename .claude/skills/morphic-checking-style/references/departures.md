@@ -119,15 +119,15 @@ the rule here rather than reading it across.
 `assert-equal-on-plain-values`
 
 - **Rule.** Rule 6.16 takes `cmp` for structs, slices, maps and interfaces and bars
-  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` stands on a value holding no
-  unexported field. A value holding one takes `cmp.Diff` with the options it needs and a direction
-  key (rule 6.15), and a test calls `reflect.DeepEqual` itself nowhere.
-- **Why.** The rule's reason is unexported fields, which such a value lacks: the two agree on nil
-  against empty, on order and on NaN, and `assert.Equal` labels both sides where a bare `cmp.Diff`
-  labels neither (#1206). The tree writes it about twice as often as `cmp.Diff` (#1246).
+  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` stands on a value with no
+  unexported field or `Equal` method, which `cmp` alone calls. Any other value takes `cmp.Diff` with
+  a direction key (rule 6.15), and no test calls `reflect.DeepEqual` itself.
+- **Why.** Such a value lacks what the rule's reason names: the two agree on nil against empty, on
+  order and on a NaN in separate values, and `assert.Equal` labels both sides where a bare
+  `cmp.Diff` labels neither (#1206). A literal slice or map goes this way about twice as often as
+  the tree calls `cmp.Diff` (#1246).
 - **Probe.** `git grep -n 'reflect\.DeepEqual(' -- '*_test.go' ':!*testdata*'` names no call, and
-  `git grep -hE '(assert|require)\.Equal\(t, (\[\]|map\[)' -- '*_test.go' ':!*testdata*' | wc -l`
-  counts the spelling for a literal slice or map.
+  `git grep -nE '^func \([a-zA-Z]+ \*?[a-zA-Z]+\) Equal\(' -- '*.go' ':!*testdata*'` no method.
 
 ## Alias a type to name it at a boundary or to shorten it
 `type-aliases-that-stand`
