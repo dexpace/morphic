@@ -236,13 +236,13 @@ defect, keep a `main` control.
 - **Rule.** After a document or table is divided across files, read each sentence and cell that
   leaned on a neighbour now elsewhere, each citation into a divided document for what it cites, and
   each rewrapped paragraph for a line opening with block markup. A comparison with the original
-  cannot object: the text is the same.
+  cannot object: the text matches.
 - **Why.** Kotlin's table kept cells reading "the same" of a Go column it had lost, citations
   outlived the passages they named, and a reflowed line rendered as a list, all past word and link
   checks (#1179, #1184).
 - **Probe.** `git grep -nwE 'the same|there|too|also' -- <files>`, each section's first line for a
   pronoun, `git show <rev>:<cited file> | grep -c <name>` for each name cited, and
-  `awk 'FNR==1{p=""} p ~ /^[[:alpha:]]/ && /^ {0,3}([-*] |[0-9]+\. |> |#+ )/{print FILENAME":"FNR} {p=$0}' <files>`.
+  `awk 'FNR==1{p=""} p ~ /^[[:alpha:]]/ && /^ {0,3}([-*] |[0-9]+\. |>|#+ |-+ *$|=+ *$)/{print FILENAME":"FNR} {p=$0}' <files>`.
   `TestDocuments_OpenNoLineWithAPlus` holds `+`.
 
 ## A new check, walk or golden may already exist

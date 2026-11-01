@@ -27,29 +27,32 @@ import (
 var plusMarker = regexp.MustCompile(`^ {0,3}\+ `)
 
 // TestDocuments_OpenNoLineWithAPlus fails on a Markdown document with a line
-// that renders as a list item by accident. A comparison with the text before a
-// reflow cannot see one, since the words are the same.
+// that renders as a list item by accident, the skills' among them, which a walk
+// of the root leaves out. A comparison with the text before a reflow cannot see
+// one, since the words are the same.
 func TestDocuments_OpenNoLineWithAPlus(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
-	var documents int
-	err := keydoc.Walk(root, ".", func(path string) error {
-		rel := keydoc.Rel(root, path)
-		if filepath.Ext(path) != ".md" || slices.Contains(strings.Split(rel, "/"), "testdata") {
+	for _, tree := range []string{".", ".claude/skills"} {
+		var documents int
+		err := keydoc.Walk(root, tree, func(path string) error {
+			rel := keydoc.Rel(root, path)
+			if filepath.Ext(path) != ".md" || slices.Contains(strings.Split(rel, "/"), "testdata") {
+				return nil
+			}
+			documents++
+			text, err := os.ReadFile(path)
+			if err != nil {
+				return fmt.Errorf("read %s: %w", rel, err)
+			}
+			for _, line := range plusLines(string(text)) {
+				t.Errorf("%s:%d opens with a list marker, which a reflowed sum renders as a list", rel, line)
+			}
 			return nil
-		}
-		documents++
-		text, err := os.ReadFile(path)
-		if err != nil {
-			return fmt.Errorf("read %s: %w", rel, err)
-		}
-		for _, line := range plusLines(string(text)) {
-			t.Errorf("%s:%d opens with a list marker, which a reflowed sum renders as a list", rel, line)
-		}
-		return nil
-	})
-	require.NoError(t, err)
-	require.NotZero(t, documents, "found no document, so this proves nothing")
+		})
+		require.NoError(t, err)
+		require.NotZero(t, documents, "found no document under %s, so this proves nothing", tree)
+	}
 }
 
 // plusLines returns the number of each line of a Markdown document that opens
