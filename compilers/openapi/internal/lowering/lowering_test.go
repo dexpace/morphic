@@ -198,7 +198,7 @@ func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
 	}
 
 	assert.Len(t, c.Kept.Once("/a", keep("a")), 1, "the first reach reports")
-	assert.Empty(t, c.WithAuth(nil).Kept.Once("/a", keep("a")), "a copy shares what was read")
+	assert.Empty(t, c.InScope(c.RefScope()).Kept.Once("/a", keep("a")), "a copy shares what was read")
 	assert.Len(t, c.Kept.Once("/b", keep("b")), 1)
 
 	assert.Equal(t, 2, reads)
