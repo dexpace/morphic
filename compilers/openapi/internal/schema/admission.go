@@ -376,11 +376,8 @@ func formOf(s *oas3.Schema) (scalarForm, bool) {
 	if format == "" || annotation.DeclaresRedaction(s) {
 		return scalarForm{}, false
 	}
-	form := scalarForm{spelled: format}
-	if types := effectiveTypes(s); len(types) == 1 {
-		form.prim, form.listed = spelling.Lookup(string(types[0]) + "/" + format)
-	}
-	return form, true
+	prim, listed := formatPrimitive(s)
+	return scalarForm{spelled: format, prim: prim, listed: listed}, true
 }
 
 // valueSetOf keys the members one keyword of one schema writes.
