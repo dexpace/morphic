@@ -53,10 +53,11 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 				n, c.Limits.MaxEnumMembers.Cap()))
 			return &ir.Any{TypeCommon: common}
 		}
-		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)
+		distinct, repeatDiags := enumRepeats(c, s.GetEnum(), pointer)
+		diags = append(diags, repeatDiags...)
 		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), c.IDs(), pointer)
 		if !ok {
-			def, enumDiags := enumAsUnion(c, ts, s, common, pointer)
+			def, enumDiags := enumAsUnion(c, ts, s, common, distinct, pointer)
 			diags = append(diags, enumDiags...)
 			return def
 		}
@@ -139,9 +140,10 @@ func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer js
 }
 
 // enumAsUnion lowers a heterogeneous or non-scalar enum to a Union of hoisted
-// Literals, emitting one info diagnostic. The Union is exclusive unless an
-// instance can match two variants (enumEntriesDistinct).
-func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
+// Literals, emitting one info diagnostic. The Union is exclusive where its
+// entries are distinct, as enumRepeats reads them: otherwise an instance can
+// match two variants.
+func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, distinct bool, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
 	nodes := s.GetEnum()
@@ -158,23 +160,8 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 	return &ir.Union{
 		TypeCommon: common,
 		Variants:   variants,
-		Exclusive:  enumEntriesDistinct(nodes),
+		Exclusive:  distinct,
 	}, diags
-}
-
-// enumEntriesDistinct reports whether no instance equals two of the entries:
-// no value repeats, and each has a key, since one with none may lower to the
-// top type, which every instance matches.
-func enumEntriesDistinct(nodes []values.Value) bool {
-	seen := make(map[string]bool, len(nodes))
-	for _, node := range nodes {
-		key, keyed := entryKey(node)
-		if !keyed || seen[key] {
-			return false
-		}
-		seen[key] = true
-	}
-	return true
 }
 
 // hoistLiteral hoists a single node as a Literal type at its own pointer, or
@@ -309,20 +296,20 @@ func numberKey(n ir.BigVal) string {
 }
 
 // enumRepeats reports each entry of the enum at pointer whose value an earlier
-// entry already holds, at the repeat's own pointer. It reads the list as
-// written, so a repeat is reported whether the set lowers to an Enum or
-// degrades to a Union, and a repeated null is reported though a nullable enum
-// keeps no null member.
+// entry already holds, at the repeat's own pointer. It reads the list as written,
+// so a repeat is reported whether the set lowers to an Enum or a Union, and a
+// repeated null though a nullable enum keeps none. Values compare by valueKey, so
+// a repeat in an Enum is a member whose ID ends in its occurrence number.
 //
-// Values compare by valueKey, which keys a scalar by enumMemberKey as member
-// IDs are keyed, so a repeat reported in an Enum is a member whose ID ends in
-// its occurrence number.
-func enumRepeats(c lowering.Ctx, nodes []values.Value, pointer jsontext.Pointer) []ir.Diagnostic {
+// distinct reports that no instance equals two entries: no value repeats, and
+// each has a key, since one with none may lower to the top type.
+func enumRepeats(c lowering.Ctx, nodes []values.Value, pointer jsontext.Pointer) (distinct bool, diags []ir.Diagnostic) {
 	firstAt := make(map[string]int, len(nodes))
-	var diags []ir.Diagnostic
+	distinct = true
 	for i, node := range nodes {
 		key, keyed := entryKey(node)
 		if !keyed {
+			distinct = false
 			continue
 		}
 		first, repeated := firstAt[key]
@@ -330,11 +317,12 @@ func enumRepeats(c lowering.Ctx, nodes []values.Value, pointer jsontext.Pointer)
 			firstAt[key] = i
 			continue
 		}
+		distinct = false
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DuplicateEnumValue,
 			pointer+ids.Ptr("enum", strconv.Itoa(i)),
 			"enum value repeats the entry at index %d; every occurrence is kept", first))
 	}
-	return diags
+	return distinct, diags
 }
 
 // entryKey returns the key the enum entry node is compared by (valueKey), or
