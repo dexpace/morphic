@@ -365,6 +365,145 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/RenderExclusive": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderExclusive",
+      "name": {
+        "source": "RenderExclusive",
+        "canonical": "render_exclusive"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "not": {
+                "properties": {
+                  "html": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "html"
+                ],
+                "type": "object"
+              },
+              "properties": {
+                "html": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "type": "object"
+            },
+            {
+              "not": {
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "type": "object"
+              },
+              "properties": {
+                "html": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "html"
+              ],
+              "type": "object"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderExclusive/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderExclusive"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderExclusive/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The page to render."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderExclusive/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderExclusive/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The address to fetch."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderExclusive/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/RenderTagged": {
       "kind": "model",
       "id": "t/openapi/components/schemas/RenderTagged",
@@ -507,6 +646,15 @@
     },
     {
       "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderExclusive"
+      }
+    },
+    {
+      "severity": "info",
       "code": "openapi/degraded-construct",
       "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is written inline, so it names no referent to conjoin the body with; union branches kept verbatim under Unmodeled",
       "provenance": {
@@ -519,7 +667,7 @@
     {
       "format": "openapi@3.1",
       "path": "union-restated-branches.yaml",
-      "hash": "83a5902c9fe3f07cd0739fef277747dff3d2bc55277bef9e163b7debbe009b71"
+      "hash": "62a9d9776e006950835080a5cec8c0edf8da552d2e1bba6cc888fe815224913c"
     }
   ]
 }

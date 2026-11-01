@@ -1503,16 +1503,19 @@ validation logic, so it is kept under `validation_only` with the keyword family 
 [boundaries](../ir/boundaries.md#validation-only-constructs) and reported as an info
 `openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)). A branch
 that repeats the body declares none either: it writes nothing but `type`, `nullable`, `properties`,
-`required`, `title` and `description`; the `type` it writes, if any, is the body's, with `nullable`
-agreeing; and each property it writes is one the schema's own `properties` declares, written alike
-as a schema object (a boolean schema has no keywords to repeat), or written in nothing but `$ref`,
+`required`, `not`, `title` and `description`, where `required` and `not` narrow as they do in a bare
+branch whatever they hold; the `type` it writes, if any, is the body's, with `nullable` agreeing;
+and each property it writes is one the schema's own `properties` declares, written alike as a
+schema object (a boolean schema has no keywords to repeat), or written in nothing but `$ref`,
 `type`, `format` and `nullable`, each as the body's declaration writes it, with the two agreeing on
 `$ref` and `nullable`. So `{type: string}` in a branch repeats `{type: string, minLength: 1}` in the
 body. A branch writing any other keyword, such as `{type: string, const: a}`, `minLength`, `items`
-or `format`, says more and keeps the verdict it has without the repeated parts, shape 1 above beside a body
-that is no Model and shape 2 beside one that is; a property the schema only composes through `allOf`
-has no one declaration to repeat, so it stays shape 2 too. Declarations are compared as written, so
-one spelling its keywords in another order is not alike.
+or `format`, does not repeat the body, so it is judged as written: one that writes a `type`, a
+`properties` or another keyword declaring shape falls to the five shapes above, even beside a
+`not`, and one that only narrows, as `{required: [a], minProperties: 2}` does, stays validation
+logic. A `not` written inside a property is no repeat either. A property the schema only composes
+through `allOf` has no one declaration to repeat, so it does not repeat the body. Declarations are
+compared as written, so one spelling its keywords in another order is not alike.
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
   `union-restated-branches`
@@ -1523,7 +1526,8 @@ one spelling its keywords in another order is not alike.
   `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,
   `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,
   `schema.TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape`,
-  `schema.TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel`
+  `schema.TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel`,
+  `schema.TestOneOf_CoDeclaredBranchWritingNotIsValidationLogicAtEachPosition`
 - Status: partly built: a multi-typed base's discriminator routes to no subtype (#853). Open:
   keeping a discriminated `oneOf` a union when structural keywords sit beside it (#594), and
   distributing a union's inline branches when properties sit beside it (#661).

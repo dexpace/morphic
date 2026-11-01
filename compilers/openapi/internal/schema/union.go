@@ -460,17 +460,19 @@ func branchDeclaresShape(body *oas3.Schema, b *oas3.JSONSchema[oas3.Referenceabl
 	return declaresShape(s) && !restatesBody(body, s)
 }
 
-// restatingBranchKeywords are the keywords a branch may write and still repeat
-// the body: any other says something the body may not, so the branch keeps the
-// verdict declaresShape gives it.
-var restatingBranchKeywords = []string{"type", "nullable", "properties", "required", "title", "description"}
+// restatingBranchKeywords are the keywords a branch may write and declare no
+// shape the body does not: those that can repeat it, and `required` and `not`,
+// which only narrow it whatever they hold. Any other says something the body may
+// not, so the branch keeps the verdict declaresShape gives it.
+var restatingBranchKeywords = []string{"type", "nullable", "properties", "required", "not", "title", "description"}
 
 // restatesBody reports whether branch writes only restatingBranchKeywords, and
 // the type and the properties among them say nothing body's own do not
 // (docs/compilers/openapi.md#union-beside-structure). A `nullable` beside a
 // type widens it, so the two must agree on that too. Only body's own properties
 // count: one it composes through allOf is settled by the merge, so no one
-// declaration stands for it here.
+// declaration stands for it here. The raw node holds every keyword, where the
+// model has no field for some (docs/parser-library.md#unmodeled-keywords).
 func restatesBody(body, branch *oas3.Schema) bool {
 	for _, p := range nodeview.Pairs(branch.GetRootNode()) {
 		if !slices.Contains(restatingBranchKeywords, p.Key) {
@@ -478,7 +480,7 @@ func restatesBody(body, branch *oas3.Schema) bool {
 		}
 	}
 	sameType := slices.Equal(branch.GetType(), body.GetType()) && branch.GetNullable() == body.GetNullable()
-	if len(effectiveTypes(branch)) > 0 && !sameType {
+	if len(branch.GetType()) > 0 && !sameType {
 		return false
 	}
 	declared := body.GetProperties()

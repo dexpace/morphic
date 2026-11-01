@@ -536,8 +536,8 @@ const restatingTargets = `    Target: {type: object, properties: {t: {type: stri
 `
 
 // TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape holds a branch that only
-// repeats the body to the bare form: the union is kept under validation_only,
-// and nothing reports a degradation.
+// repeats the body, with a `not` or without one, to the bare form: the union is
+// kept under validation_only, and nothing reports a degradation.
 func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ version, schema, keyword string }{
@@ -601,6 +601,61 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
       properties: {a: {type: string}}
       oneOf: [{type: 'null'}, {required: [a], properties: {a: {type: string}}}]
 `, "openapi:oneOf"},
+		"BranchRestatesTheNullableType": {"3.0.3", `      type: object
+      nullable: true
+      properties: {a: {type: string}}
+      oneOf: [{type: object, nullable: true, required: [a]}]
+`, "openapi:oneOf"},
+		"AliasedBranch": {"3.1.0", `      type: object
+      x-branch: &b {required: [a], properties: {a: {type: string}}}
+      properties: {a: {type: string}}
+      oneOf: [*b]
+`, "openapi:oneOf"},
+		"MergedBranch": {"3.1.0", `      type: object
+      x-branch: &b {required: [a], properties: {a: {type: string}}}
+      properties: {a: {type: string}}
+      oneOf: [{<<: *b}]
+`, "openapi:oneOf"},
+		"NotBesideRestatement": {"3.1.0", `      type: object
+      properties: {html: {type: string, description: d}, url: {type: string, description: d}}
+      oneOf:
+        - required: [url]
+          type: object
+          properties: {html: {type: string}, url: {type: string}}
+          not: {required: [html], type: object, properties: {html: {type: string}}}
+        - required: [html]
+          type: object
+          properties: {html: {type: string}, url: {type: string}}
+          not: {required: [url], type: object, properties: {url: {type: string}}}
+`, "openapi:oneOf"},
+		"NotBesideTheBodysType": {"3.0.3", `      type: object
+      properties: {a: {type: string}, b: {type: string}}
+      oneOf: [{type: object, required: [a], not: {required: [b]}}]
+`, "openapi:oneOf"},
+		"NotInAnAnyOf": {"3.1.0", `      type: object
+      properties: {a: {type: string}, b: {type: string}}
+      anyOf: [{required: [a], properties: {a: {type: string}}, not: {required: [b]}}]
+`, "openapi:anyOf"},
+		"NotHoldingAUnion": {"3.1.0", `      type: object
+      properties: {a: {type: string}, b: {type: string}}
+      oneOf: [{type: object, required: [a], not: {anyOf: [{required: [b]}, {type: object}]}}]
+`, "openapi:oneOf"},
+		"NotHoldingShapeTheBodyLacks": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}, not: {properties: {z: {type: array, items: {type: string}}}}}]
+`, "openapi:oneOf"},
+		"NotBeingABoolean": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}, not: true}]
+`, "openapi:oneOf"},
+		"AliasedNot": {"3.1.0", `      type: object
+      x-not: &n {required: [b]}
+      properties: {a: {type: string}, b: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}, not: *n}]
+`, "openapi:oneOf"},
+		"NotBesideANonModelBody": {"3.1.0", `      type: string
+      oneOf: [{type: string, not: {const: a}}]
+`, "openapi:oneOf"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -608,9 +663,7 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 			doc, diags := schema.LowerSpec(t, spec)
 			openapitest.RequireNoErrorDiags(t, diags)
 
-			m, ok := typeByName(doc, "S").(*ir.Model)
-			require.True(t, ok, "the body lowers")
-			entry, ok := m.Unmodeled[tc.keyword]
+			entry, ok := typeByName(doc, "S").Common().Unmodeled[tc.keyword]
 			require.True(t, ok, "the union is kept verbatim")
 			assert.Equal(t, ir.ReasonValidationOnly, entry.Reason)
 			assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.ValidationOnlyKeyword, ir.SeverityInfo))
@@ -738,6 +791,81 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
       properties: {a: {type: string}}
       oneOf: [{required: [a], anyOf: [{required: [a]}]}]
 `},
+		"OneOfBesideBareBranch": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], oneOf: [{required: [a]}]}]
+`},
+		"NullTypeBesideRestatement": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{type: 'null', properties: {a: {type: string}}}]
+`},
+		"NullTypeListBesideRestatement": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{type: ['null'], properties: {a: {type: string}}, not: {required: [a]}}]
+`},
+		"AliasedBranchSayingMore": {"3.1.0", `      type: object
+      x-branch: &b {required: [a], minProperties: 2, properties: {a: {type: string}}}
+      properties: {a: {type: string}}
+      oneOf: [*b]
+`},
+		"MergedBranchSayingMore": {"3.1.0", `      type: object
+      x-branch: &b {minProperties: 2}
+      properties: {a: {type: string}}
+      oneOf: [{<<: *b, required: [a], properties: {a: {type: string}}}]
+`},
+		"NotBesideItems": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}, items: {type: string}, not: {required: [b]}}]
+`},
+		"NotBesideFormat": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}, format: uri, not: {required: [b]}}]
+`},
+		"NotBesideMinLength": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}, minLength: 1, not: {required: [b]}}]
+`},
+		"NotBesideConst": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}, const: {a: x}, not: {required: [b]}}]
+`},
+		"NotBesideEnum": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}, enum: [{a: x}], not: {required: [b]}}]
+`},
+		"NotBesideAllOf": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], allOf: [{properties: {a: {type: string}}}], not: {required: [b]}}]
+`},
+		"NotBesideACatchAll": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], additionalProperties: false, not: {required: [b]}}]
+`},
+		"NotBesideANestedUnion": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], oneOf: [{required: [a]}], not: {required: [b]}}]
+`},
+		"NotBesideAnotherType": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{type: string, not: {const: x}}]
+`},
+		"NotBesideAnUndeclaredProperty": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {z: {type: string}}, not: {required: [b]}}]
+`},
+		"NotBesideAPropertySayingMore": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string, minLength: 1}}, not: {required: [b]}}]
+`},
+		"NotInsideARestatedProperty": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string, not: {const: x}}}}]
+`},
+		"AliasedBranchWithNotSayingMore": {"3.1.0", `      type: object
+      x-branch: &b {required: [a], properties: {a: {type: string}}, format: uri, not: {required: [b]}}
+      properties: {a: {type: string}}
+      oneOf: [*b]
+`},
 		"MinPropertiesBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, minProperties: 2}]
@@ -783,6 +911,18 @@ func TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel(t *testing.T) {
 		"MinLengthBesideTheType": `      type: string
       oneOf: [{type: string, minLength: 1}, {type: string, maxLength: 3}]
 `,
+		"ItemsBesideANot": `      type: array
+      oneOf: [{type: array, items: {type: string}, not: {minItems: 2}}]
+`,
+		"FormatBesideANot": `      type: string
+      oneOf: [{type: string, format: date, not: {const: a}}]
+`,
+		"MinLengthBesideANot": `      type: string
+      oneOf: [{type: string, minLength: 1, not: {const: a}}]
+`,
+		"ConstBesideANot": `      type: string
+      oneOf: [{type: string, const: a, not: {const: b}}]
+`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -796,6 +936,62 @@ func TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel(t *testing.T) {
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
 				"the body is not a model")
+		})
+	}
+}
+
+// TestOneOf_CoDeclaredBranchWritingNotIsValidationLogicAtEachPosition holds a
+// restating branch beside a `not` to one verdict wherever a schema is written
+// on a model and on an operation.
+func TestOneOf_CoDeclaredBranchWritingNotIsValidationLogicAtEachPosition(t *testing.T) {
+	t.Parallel()
+	const exclusive = `{type: object, properties: {a: {type: string}, b: {type: string}}, oneOf: [` +
+		`{required: [a], properties: {a: {type: string}}, not: {required: [b]}}, ` +
+		`{required: [b], properties: {b: {type: string}}, not: {required: [a]}}]}`
+	for _, version := range []string{"3.0.3", "3.1.0", "3.2.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := parseFull(t, `openapi: `+version+`
+info: {title: t, version: "1"}
+paths:
+  /z:
+    post:
+      operationId: render
+      parameters:
+        - {name: q, in: query, schema: `+exclusive+`}
+      requestBody:
+        content:
+          application/json: {schema: `+exclusive+`}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {schema: `+exclusive+`}
+components:
+  schemas:
+    Holder:
+      type: object
+      properties:
+        one: `+exclusive+`
+        many: {type: array, items: `+exclusive+`}
+`)
+			openapitest.RequireNoErrorDiags(t, doc.Diagnostics)
+
+			var got []string
+			for _, d := range doc.Diagnostics {
+				if d.Code == diag.ValidationOnlyKeyword {
+					got = append(got, string(d.Provenance.Pointer))
+				}
+			}
+			assert.ElementsMatch(t, []string{
+				"/components/schemas/Holder/properties/one",
+				"/components/schemas/Holder/properties/many/items",
+				"/paths/~1z/post/parameters/0/schema",
+				"/paths/~1z/post/requestBody/content/application~1json/schema",
+				"/paths/~1z/post/responses/200/content/application~1json/schema",
+			}, got, "%+v", doc.Diagnostics)
+			assert.Zero(t, openapitest.CountDiagsAt(doc.Diagnostics, diag.DegradedConstruct, ir.SeverityInfo),
+				"%+v", doc.Diagnostics)
 		})
 	}
 }

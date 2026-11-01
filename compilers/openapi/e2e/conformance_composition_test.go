@@ -565,6 +565,7 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for name, keyword := range map[string]string{
 		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
+		"RenderExclusive": "openapi:oneOf",
 	} {
 		m, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s lowers to its body", name)
