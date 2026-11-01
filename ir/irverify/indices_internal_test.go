@@ -217,12 +217,8 @@ func TestIntegerFields_AreAllClassified(t *testing.T) {
 				"say whether it indexes a slice (and bounds-check it) or not", name)
 	}
 
-	declared := make(map[string]bool, len(found))
-	for _, name := range found {
-		declared[name] = true
-	}
 	for _, name := range slices.Sorted(maps.Keys(integerFields)) {
-		assert.True(t, declared[name],
+		assert.True(t, slices.Contains(found, name),
 			"integerFields classifies %s, which ir does not declare as an integer field: "+
 				"drop the entry, or fix its name", name)
 	}
