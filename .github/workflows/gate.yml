@@ -139,12 +139,20 @@ jobs:
           persist-credentials: false
       - *setup-go
       - *toolchain
+      # The corpus shares the repository's cache limit with what main saves, which
+      # evicts what was used longest ago, so enough pushes to main in a day lose it
+      # (#1272 changes what they save). A search that restores nothing starts from
+      # the seeds, which costs depth and nothing else, so it warns and carries on.
       - name: restore the corpus
+        id: restore
         uses: actions/cache/restore@v6
         with:
           path: ${{ steps.toolchain.outputs.gocache }}/fuzz
           key: fuzz-corpus-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: fuzz-corpus-${{ runner.os }}-
+      - name: say when no corpus came back
+        if: steps.restore.outputs.cache-matched-key == ''
+        run: echo "::warning::no corpus was restored, so this search starts from the seeds"
       - name: search
         id: search
         timeout-minutes: 25
