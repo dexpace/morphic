@@ -409,15 +409,16 @@ paths:
 ### `requirement-scopes`
 
 A Security Requirement Object's model holds a member only when its value reads as a list of strings.
-A name written with `null`, a scalar, a mapping, or a list holding a `null`, anything but a scalar
-or a scalar it does not decode ([`undecoded-scalar`](#undecoded-scalar)) is gone from `All`, `Keys`
-and `Get`, so `{key: null}` reads as `{}`, the empty option. The core still holds the name, with
-`Present` false, and a `<<` merge is already applied there.
+A name written with `null`, a scalar or a mapping is gone from `All`, `Keys` and `Get`, and so is
+one whose list holds a `null`, a non-scalar or a scalar the model does not decode
+([`undecoded-scalar`](#undecoded-scalar)), so `{key: null}` reads as `{}`, the empty option. The
+core still holds the name, with `Present` false, and a `<<` merge is already applied there.
 
 ```yaml
 security:
   - key:                     # the model holds no member, the core holds key
   - key: 5                   # the same
+  - key: [read, null]        # the same
   - key: [read, {}]          # the same
   - key: [read, 2021-01-01]  # the same
 ```
@@ -530,8 +531,9 @@ The model decodes a string from a scalar the YAML decoder takes for one: a strin
 boolean, as its text. A `!!timestamp`, which any plain date is
 ([`scalar-resolution`](#scalar-resolution)), a `!!binary` and a local tag are none of these. A string
 field so written reads as empty, and a Reference Object's `$ref` as no reference, so the load phase
-meets none. The validator, which the compiler does not call, reports a type mismatch at each; the
-compiler's table reads any scalar as a string and reports neither. The core keeps the node.
+meets none, and the model holds no `summary` or `description` beside it either. The validator, which
+the compiler does not call, reports a type mismatch at each; the compiler's table reads any scalar
+as a string and reports neither. The core keeps the node, and what is written beside it.
 
 ```yaml
 info: {title: 2021-01-01}    # GetTitle is empty
@@ -545,6 +547,7 @@ components:
 - Code:
   - `nodeview.Strings` reads a list's items by their text.
   - `auth.unresolvableSchemeDiags` reads a broken `$ref` from its node.
+  - `auth.docsBeside` reads what is written beside it from the core.
 
 ### `unmodeled-keywords`
 

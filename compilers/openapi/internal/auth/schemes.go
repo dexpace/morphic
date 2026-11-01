@@ -65,9 +65,25 @@ func unresolvableScheme(c lowering.Ctx, name string, rs *soa.ReferencedSecurityS
 	if rs == nil {
 		return scheme, nil
 	}
+	scheme.Docs = docsBeside(rs)
 	_, keptDiags := annotation.PreserveNodeInto(&scheme.Unmodeled, "openapi:$ref", rs.GetCore().Reference.ValueNode,
 		ir.ReasonDegradedLowering, c.ProvenanceAt(entry+ids.Ptr("$ref")))
 	return scheme, append(unresolvableSchemeDiags(c, name, rs, entry), keptDiags...)
+}
+
+// docsBeside returns the summary and description rs writes beside its $ref, read
+// from the core as that $ref is: a model that could not read the $ref holds
+// neither (docs/parser-library.md#undecoded-scalar).
+func docsBeside(rs *soa.ReferencedSecurityScheme) ir.Docs {
+	var docs ir.Docs
+	core := rs.GetCore()
+	if summary := core.Summary.Value; summary != nil {
+		docs.Summary = *summary
+	}
+	if description := core.Description.Value; description != nil {
+		docs.Description = *description
+	}
+	return docs
 }
 
 // unresolvableSchemeDiags reports a securitySchemes entry that resolved to no

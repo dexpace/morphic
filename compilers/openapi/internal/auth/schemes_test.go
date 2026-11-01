@@ -347,20 +347,28 @@ components:
 		"kept verbatim under Unmodeled"}, messagesAtPointer(diags, "/components/securitySchemes/ghost/bearerFormat"))
 }
 
-// TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt pins that a description
-// a Reference Object writes survives the $ref it stands beside (GitHub #610).
+// TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt pins that the text a
+// Reference Object writes survives the $ref it stands beside (GitHub #610),
+// whichever way that $ref failed: where the model could not read it, the model
+// holds neither field (docs/parser-library.md#undecoded-scalar).
 func TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt(t *testing.T) {
 	t.Parallel()
-	doc, _, _ := serviceSpec(t, `openapi: 3.1.0
+	for _, ref := range []string{"'#/components/securitySchemes/Missing'", "2021-01-01", "!!binary aGk=", "[a]", "{a: b}"} {
+		t.Run(ref, func(t *testing.T) {
+			t.Parallel()
+			doc, _, _ := serviceSpec(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths: {}
 components:
   securitySchemes:
-    ghost: {$ref: '#/components/securitySchemes/Missing', description: Issued by the upload endpoint.}
+    ghost: {$ref: `+ref+`, summary: Upload token, description: Issued by the upload endpoint.}
 `)
-	scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
-	require.True(t, ok, "%+v", doc.Auth)
-	assert.Equal(t, "Issued by the upload endpoint.", scheme.Docs.Description)
+			scheme, ok := doc.Auth[ids.UnresolvedAuth("ghost")]
+			require.True(t, ok, "%+v", doc.Auth)
+			assert.Equal(t, "Upload token", scheme.Docs.Summary)
+			assert.Equal(t, "Issued by the upload endpoint.", scheme.Docs.Description)
+		})
+	}
 }
 
 // TestLowerSecuritySchemes_ABrokenRefIsKept pins that an entry whose $ref reaches
