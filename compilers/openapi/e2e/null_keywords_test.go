@@ -76,6 +76,48 @@ func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	}
 }
 
+// TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut holds the two readers of
+// the raw tree that decide whether a $dynamicRef expands, which no keyword of
+// the sweep above reaches, as it writes no $dynamicRef: a null $id at or above
+// either end starts no resource, and a null $dynamicAnchor is no anchor named
+// "null".
+func TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, keyword, schemas string
+	}{
+		{"beside the reference", "$id", `
+    Anchored: {$dynamicAnchor: dyn, type: object}
+    S: {$dynamicRef: '#dyn'%s}
+`},
+		{"above the reference", "$id", `
+    Anchored: {$dynamicAnchor: dyn, type: object}
+    S: {type: object%s, properties: {p: {$dynamicRef: '#dyn'}}}
+`},
+		{"beside the anchor", "$id", `
+    Anchored: {$dynamicAnchor: dyn, type: object%s}
+    S: {$dynamicRef: '#dyn'}
+`},
+		{"as the anchor a reference spells", "$dynamicAnchor", `
+    Anchored: {type: object%s}
+    S: {$dynamicRef: '#null'}
+`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := func(written string) string {
+				return "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:" +
+					fmt.Sprintf(tc.schemas, written)
+			}
+			removed, removedDiags := compileSpecText(t, spec(""))
+			written, writtenDiags := compileSpecText(t, spec(fmt.Sprintf(", %q: null", tc.keyword)))
+			assert.Empty(t, cmp.Diff(removed.Types, written.Types))
+			assert.Empty(t, cmp.Diff(removedDiags, withoutNullWarning(t, writtenDiags, tc.keyword), cmpopts.EquateEmpty()))
+		})
+	}
+}
+
 // nullableKeywords returns the keywords the table gives a Schema Object at
 // minor, but those whose value is an instance, of which a null is one.
 func nullableKeywords(t *testing.T, minor oas.Minor) []string {

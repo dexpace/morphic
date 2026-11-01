@@ -1957,7 +1957,9 @@ of its own, since reading it so loses nothing.
 - Cases: `null-keywords`
 - Codes: `openapi/invalid-numeric-literal`
 - Tests: `e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut`,
+  `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
   `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
+  `anchors.TestBuild_ANullAnchorNamesNothing`,
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`
 
 ## 7. Schemas: keywords beyond the shape
