@@ -61,6 +61,18 @@ to read — and to execute outside the case its author measured.
 - **Probe.** Plant each directive or data shape in a scratch file, run the tool and the check
   against it from a different cwd, and compare their verdicts form by form.
 
+## Show a test reaches no network through a proxy that logs
+`no-network-through-a-logging-proxy`
+
+- **Rule.** To claim a test sends nothing, point `HTTPS_PROXY` and `HTTP_PROXY` at a local listener
+  that logs and refuses every request, check it logs a `curl -x` request, run the test with
+  `-count=1`, and read the log. A request to a loopback address, and a client whose `Transport` sets
+  no `Proxy`, skip it, so an empty log covers neither: test that transport itself.
+- **Why.** Passing offline shows nothing, as a refused request can be what a test expects. The proxy
+  logged two `CONNECT`s on `main` and none on the head of the PR that fixed them (#1235).
+- **Probe.** A planted `http.Get` logs a `CONNECT`; a planted client with a `Transport` of its own
+  logs nothing and still dials out.
+
 ## Name every outcome in a function's or option's contract
 `doc-names-every-outcome`
 
@@ -169,10 +181,11 @@ to read — and to execute outside the case its author measured.
 
 - **Rule.** A PR body or commit reports what the final tree showed: a fix it names is in the diff; a
   mutation it cites was planted exactly, once, at the named site, with each subtest's outcome read
-  under `-v`; "all routes" comes from probing each route. A result at one site is not a result for
-  its mechanism.
+  under `-v`; "all routes" comes from probing each route; a match count comes with the matches read.
+  One site's result is not its mechanism's. Edit a body once `git ls-remote` shows its push landed.
 - **Why.** Bodies claimed fixes that had not landed, "every package green" where none went red, and
-  a bite in subtests that passed under the mutation (#349, #135, #382, #379).
+  a bite in subtests that passed under the mutation (#349, #135, #382, #379). A body outran a
+  refused commit, and a grep count held ordinary text (#1210).
 - **Probe.** Before pushing, rerun each quoted mutation and probe on the final tree and paste what
   it printed.
 
