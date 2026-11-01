@@ -78,11 +78,11 @@ func (r *Registry) requirement(c lowering.Ctx, req *soa.SecurityRequirement, poi
 // shape a requirement has.
 //
 // Null, a scalar and a sequence all unmarshal to a requirement with no members,
-// like the {} meaning "no auth is one acceptable choice" (issue #284). The node
-// it was read from separates them: the marshaller records a root node only for
-// a value it could read as a mapping, so {} carries one inline or through an
-// alias. Being library behavior, it is tested through compiled documents. A
-// mapping whose only key is a `<<` naming no mapping still reads as {} (#1244).
+// like the {} meaning "no auth is one acceptable choice" (issue #284). The
+// marshaller records a root node only for a value it could read as a mapping, so
+// {} carries one inline or through an alias; being library behavior, that is
+// tested through compiled documents. A lone `<<` naming no mapping still reads as
+// {} (#1244).
 //
 // A nil req is unreachable from a parsed document; that guard is for a
 // hand-built slice, as in unresolvableScheme.
