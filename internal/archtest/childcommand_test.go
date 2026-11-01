@@ -68,6 +68,7 @@ func TestChildCommandViolations_PlantedRowsAreReportedExactly(t *testing.T) {
 	}{
 		{"call of Command", "p/a_test.go", execFile(`var _ = exec.Command("x") // want`), 1},
 		{"call of CommandContext", "p/a_test.go", execFile(`var _ = exec.CommandContext(nil, "x") // want`), 1},
+		{"command of a chained call", "p/a_test.go", execFile(`var _, _ = exec.Command("x").Output() // want`), 1},
 		{"literal", "p/a_test.go", execFile(`var _ = exec.Cmd{} // want`), 1},
 		{"address of a literal", "p/a_test.go", execFile(`var _ = &exec.Cmd{} // want`), 1},
 		{"new", "p/a_test.go", execFile(`var _ = new(exec.Cmd) // want`), 1},
@@ -161,6 +162,10 @@ func TestChildCommandViolations_PlantedRowsAreReportedExactly(t *testing.T) {
 			envFile("for _, cmd.Env = range [][]string{{\"X=1\"}} { // want env\n\t}"), 1},
 		{"Env as a range key", "p/a_test.go",
 			envFile("for cmd.Env = range make(chan []string) { // want env\n\t}"), 1},
+		{"Env assigned in the body of a range clause", "p/a_test.go",
+			envFile("var s []string\n\tfor _, s = range [][]string{{\"X=1\"}} {\n\t\tcmd.Env = s // want env\n\t}"), 1},
+		{"Env assigned beneath another assignment", "p/a_test.go",
+			envFile("reset := func() {\n\t\tcmd.Env = nil // want env\n\t}\n\treset()"), 1},
 		{"Env target in parentheses", "p/a_test.go", envFile(`(cmd.Env) = nil // want env`), 1},
 		{"Env extended by append in parentheses", "p/a_test.go",
 			envFile(`cmd.Env = (append((cmd.Env), "X=1"))`), 1},
