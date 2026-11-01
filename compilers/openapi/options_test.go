@@ -140,6 +140,10 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`"streaming-media": want media types or +suffixes separated by commas, got "text/plain/x"`},
 		{"a media type holding a space", map[string]string{"streaming-media": "text/event stream"},
 			`"streaming-media": want media types or +suffixes separated by commas, got "text/event stream"`},
+		// A malformed parameter leaves the name readable, so only the parse's error
+		// refuses it.
+		{"a parameter with no value", map[string]string{"streaming-media": "text/event-stream; charset"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "text/event-stream; charset"`},
 		{"a suffix holding a space", map[string]string{"streaming-media": "+json seq"},
 			`"streaming-media": want media types or +suffixes separated by commas, got "+json seq"`},
 		{"a suffix holding a slash", map[string]string{"streaming-media": "+json/seq"},
