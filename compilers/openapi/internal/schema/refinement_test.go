@@ -754,6 +754,34 @@ func TestRefinement_AHoistingFormatNarrowsItsKind(t *testing.T) {
 	}
 }
 
+// TestRefinement_AValueComparesAsAnEnumEntryDoes pins a value set read by what its
+// members are, not how they are spelled: JSON Schema holds 1 and 1.0 to be one
+// value, so neither what a set narrows nor a default it takes turns on the
+// spelling, and two lists of them share their member.
+func TestRefinement_AValueComparesAsAnEnumEntryDoes(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Level: {type: integer, enum: [1, 2], default: 1}
+    Whole: {type: number, default: 1.0}
+    Narrowed: {allOf: [{$ref: '#/components/schemas/Level'}, {enum: [1.0]}]}
+    Meet: {allOf: [{type: number, enum: [1.0, 2.0]}, {type: integer, enum: [1, 2]}]}
+    Lists: {allOf: [{enum: [[1.0, 2]]}, {enum: [[1, 2.0], [3]]}]}
+    Holder:
+      type: object
+      properties:
+        level: {allOf: [{$ref: '#/components/schemas/Level'}, {enum: [1.0]}]}
+        whole: {allOf: [{$ref: '#/components/schemas/Whole'}, {enum: [1]}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, name := range []string{"Narrowed", "Meet", "Lists"} {
+		assert.NotEqual(t, ir.KindModel, typeByName(doc, name).Kind(), name)
+	}
+	for _, wire := range []string{"level", "whole"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.IsType(t, &ir.Enum{}, doc.Types[p.Type.Target], wire)
+		assert.NotNil(t, p.Default, "%s: the set takes the $ref's default", wire)
+	}
+}
+
 // TestRefinement_ATieTakesTheFirstAndKeepsTheOther pins the one place order
 // decides: two kinds neither of which holds the other, of which the first
 // lowers and the other stays verbatim with a report.

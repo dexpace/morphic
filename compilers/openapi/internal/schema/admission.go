@@ -125,7 +125,7 @@ func (f scalarForm) narrows(g scalarForm) bool {
 // anything else, a bound or an annotation, compare equal.
 type admitted struct {
 	kinds kindSet
-	// fixed marks a value set, values then holding each member's canonical JSON
+	// fixed marks a value set, values then holding each member's key (memberOf)
 	// with its kind, none where the set is empty.
 	fixed  bool
 	values map[string]kindSet
@@ -224,15 +224,27 @@ func (a admitted) formsWithin(b admitted) bool {
 // takes reports whether a admits the value v writes, for a default read across a
 // narrowing (Use.DefaultChain). One it cannot read is no value it takes.
 func (a admitted) takes(v values.Value) bool {
-	raw, err := annotation.RawFromNode(v)
-	if err != nil {
+	key, kind, ok := memberOf(v)
+	if !ok {
 		return false
 	}
 	if a.fixed {
-		_, member := a.values[string(raw)]
+		_, member := a.values[key]
 		return member
 	}
-	return kindOfJSON(raw)&a.kinds != 0
+	return kind&a.kinds != 0
+}
+
+// memberOf returns the key v compares by, as an enum compares its own entries
+// (entryKey), so 1 and 1.0 are one value, with its kind, and false for a value
+// with no key.
+func memberOf(v values.Value) (string, kindSet, bool) {
+	key, keyed := entryKey(v)
+	raw, err := annotation.RawFromNode(v)
+	if !keyed || err != nil {
+		return "", 0, false
+	}
+	return key, kindOfJSON(raw), true
 }
 
 // admission reads what schemas admit, across each $ref along its chain and each
@@ -390,16 +402,16 @@ func (w *admission) valueSet(key valueSetOf, members []values.Value) admitted {
 	return admitted{kinds: set.kinds, fixed: true, values: set.values}
 }
 
-// renderSet renders each member's canonical JSON with its kind.
+// renderSet reads each member's key with its kind.
 func renderSet(members []values.Value) renderedSet {
 	out := renderedSet{values: make(map[string]kindSet, len(members))}
 	for _, m := range members {
-		raw, err := annotation.RawFromNode(m)
-		if err != nil {
+		key, kind, ok := memberOf(m)
+		if !ok {
 			return renderedSet{unread: true}
 		}
-		out.values[string(raw)] = kindOfJSON(raw)
-		out.kinds |= kindOfJSON(raw)
+		out.values[key] = kind
+		out.kinds |= kind
 	}
 	return out
 }

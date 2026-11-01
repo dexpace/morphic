@@ -1039,8 +1039,9 @@ object, as the two together admit no object.
 What the conjuncts admit is read from the source and the bindings, never the registry, so no
 lowering order decides it. Each conjunct's JSON kinds and value set are read across `$ref`, `allOf`,
 `oneOf`, `anyOf`, `type`, `enum` and `const`, a `properties` with no `type` beside it claiming an
-object, and the read takes in at most 256 schemas and 4096 `enum` members. An `allOf` stays the
-composition it would otherwise be, with nothing lost, where:
+object, values comparing as an `enum`'s entries do, so that `1` and `1.0` are one, and the read takes
+in at most 256 schemas and 4096 `enum` members. An `allOf` stays the composition it would otherwise
+be, with nothing lost, where:
 
 1. the read does not finish: a cycle, either bound, a `$ref` landing on no schema, a `$dynamicRef`,
    or a value it cannot convert;
@@ -1124,6 +1125,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_NothingSaidIsTheTopType`,
   `schema.TestRefinement_ATypeBesideTheAllOfIsThePosition`,
   `schema.TestRefinement_AValueSetNarrowsTheRefItBeats`,
+  `schema.TestRefinement_AValueComparesAsAnEnumEntryDoes`,
   `schema.TestRefinement_ANarrowingKeepsItsTargetOnANode`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
