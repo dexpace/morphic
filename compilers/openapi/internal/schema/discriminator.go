@@ -87,8 +87,9 @@ func (r mappingRoute) routed(id ir.TypeID) ir.TypeID {
 // union's variants, built in branch order past the null branches. A type two
 // branches name maps to neither: a mapping naming it says nothing of which, so
 // it stays on the type, which is itself a variant unless both alias it, and
-// that pass.Validate reports. It reads the branches rather than the registry,
-// so the answer turns on no lowering order.
+// that pass.Validate reports, valid as the document is (GitHub #1298). It reads
+// the branches rather than the registry, so the answer turns on no lowering
+// order.
 func referencedVariants(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, variants []ir.Variant) map[ir.TypeID]ir.TypeID {
 	branches, _, _ := unionBranches(s)
 	branches = slices.DeleteFunc(slices.Clone(branches), isNullSchema)

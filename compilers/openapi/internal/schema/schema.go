@@ -129,6 +129,8 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 		return ts.PrimRef(ir.PrimAny), nil
 	}
 	if js.IsBool() {
+		// The parser reads a body as false too when a keyword beneath it fails to
+		// decode under its own name, so a false here may be no false (GitHub #1299).
 		if b := js.GetBool(); b != nil && !*b {
 			id, diags := falseSchema(c, ts, pointer)
 			return ir.TypeRef{Target: id}, diags
