@@ -227,6 +227,7 @@ func repoPath(t *testing.T, path string) string {
 
 // declaredVersion returns the OpenAPI version a document declares, and false
 // for data that is no YAML or JSON document declaring an "openapi" 3 string.
+// It reads pairs raw, so a version written through an alias is skipped (#1201).
 func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
 	t.Helper()
 	parsed, err := load.Decode(t.Context(), data)
