@@ -54,12 +54,12 @@ func TestConformance(t *testing.T) {
 			// A subtest returns once its own parallel subtests have finished, so
 			// the check below sees a failure in any an assertion starts.
 			t.Run("assert", func(t *testing.T) { tc.assert(t, doc, diags) })
-			// A failed capability assertion must not reach the golden: under
-			// -update it would rewrite the snapshot with the regressed document,
-			// leaving a loud run behind a file that now agrees with the regression.
-			require.False(t, t.Failed(), "capability assertion failed; not comparing or rewriting the golden")
-			irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
 			assertJSONRoundTrip(t, doc)
+			// A failed assertion must not reach the golden: under -update it would
+			// rewrite the snapshot with the regressed document, leaving a loud run
+			// behind a file that now agrees with the regression.
+			require.False(t, t.Failed(), "an assertion failed; not comparing or rewriting the golden")
+			irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
 		})
 	}
 }
