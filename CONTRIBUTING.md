@@ -15,9 +15,10 @@ rather than restating them.
   type-check this module, reporting `typecheck` errors rather than findings, so install that
   version with the toolchain you build with:
   `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(make print-lint-version)`.
-- **The gate.** `make gate` runs every check CI runs, in the order CI runs them. Coverage is gated
-  at exactly 100% of statements, counted from the profile, so `go test ./...` passing is not
-  evidence the gate passes. While iterating, run one package (`go test ./compilers/openapi/...`) or
+- **The gate.** `make gate` runs every check a pull request's CI runs, in the order CI runs them;
+  the fuzz search runs nightly instead, and `make fuzz` runs it by hand. Coverage is gated at
+  exactly 100% of statements, counted from the profile, so `go test ./...` passing is not evidence
+  the gate passes. While iterating, run one package (`go test ./compilers/openapi/...`) or
   one test (`go test ./ir -run TestName`), and `make coverage` or `make lint` on their own.
 - **Conventions.** Branch names, commit messages and pull requests follow the root guidance's
   [Commits & pull requests](CLAUDE.md#commits--pull-requests); Go code follows its style section.
