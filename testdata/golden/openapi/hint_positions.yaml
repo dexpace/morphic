@@ -2,11 +2,11 @@
 # from, one for each way the naming composes one. A hint is what an emitter
 # renders an unnamed node's identifier from, so ir/testdata/names.golden.txt
 # lists each one here and IRVersion is pinned to that list
-# (docs/ir/ir-version.md). A document a $ref reads whole is named too,
-# and one file cannot write that position. The root declares no server because
-# the one OpenAPI then supplies is a position of its own. Roles repeat under each
-# kind of owner because the owner decides them: beneath a component schema, a
-# hint read from the pointer alone reads the same.
+# (docs/ir/ir-version.md). A document a $ref reads whole is named too, and one
+# file cannot write that position. The root declares no server because the one
+# OpenAPI then supplies is a position of its own. Roles repeat under each kind
+# of owner because the owner decides them: beneath a component schema, a hint
+# read from the pointer alone reads the same.
 openapi: 3.2.0
 info: {title: Hint positions, version: 1.0.0}
 tags:
