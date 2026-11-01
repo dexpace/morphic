@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // childMaxStack bounds a child's goroutine stacks, so a runaway recursion
@@ -54,8 +56,8 @@ func inChild(t *testing.T, test, env, value string) (string, childEnd) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), childTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+test+"$")
-	cmd.Env = append(os.Environ(), env+"="+value)
+	cmd := exectest.Command(ctx, t, os.Args[0], "-test.run=^"+test+"$")
+	cmd.Env = append(cmd.Env, env+"="+value)
 
 	out, err := cmd.CombinedOutput()
 

@@ -48,6 +48,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // update rewrites oracleDisagreements and validationDisagreements from what
@@ -446,8 +447,8 @@ func runOracleChild(t *testing.T, path, skip string) result {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), oracleTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0])
-	cmd.Env = append(os.Environ(), childEnv+"=binding-oracle", inputEnv+"="+path, oracleSkipEnv+"="+skip)
+	cmd := exectest.Command(ctx, t, os.Args[0])
+	cmd.Env = append(cmd.Env, childEnv+"=binding-oracle", inputEnv+"="+path, oracleSkipEnv+"="+skip)
 	out, err := cmd.CombinedOutput()
 	code := 0
 	if exit, ok := errors.AsType[*exec.ExitError](err); ok {
