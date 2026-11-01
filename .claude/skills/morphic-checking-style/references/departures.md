@@ -147,7 +147,10 @@ the rule here rather than reading it across.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
 - **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported type
   that implements an exported interface its package declares or imports from the module and carries
-  no assertion. A grep lists only the assertions present.
+  no assertion. It reports only a missing assertion, so an unexported type's or a standard library
+  interface's is found by reading what
+  `git grep -nE '^(var )?[[:space:]]*_ +[A-Za-z.*]+ += ' -- '*.go' ':!*_test.go' ':!*testdata*'`
+  lists.
 
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`
