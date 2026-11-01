@@ -226,7 +226,7 @@ defect, keep a `main` control.
 
 - **Rule.** For a file split or a cross-package move, read each moved declaration's comment against
   its callers. Grep the whole repository for every moved name, and for the new package's name used
-  as an ordinary word.
+  as an ordinary word. A divided document takes `references/review-probes.md#moved-prose`.
 - **Why.** Byte-identical moves shipped false comments: 8 in #1064, 4 in #1073, 22 in #1099. A
   cross-package move broke comments in files it never touched (#1104).
 

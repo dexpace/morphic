@@ -7,7 +7,8 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 `merge-main-first`
 
 - **Rule.** Merge `origin/main` into the branch before a review round and before calling it
-  ready. Then build, vet and run the whole suite on the merge, `internal/archtest`'s caps among it,
+  ready, a stacked branch's base first (`references/merging-main.md#merge-the-base-first`). Then
+  build, vet and run the whole suite on the merge, `internal/archtest`'s caps among it,
   and re-plant each mutation the PR body cites
   (`.claude/skills/morphic-verifying-changes/references/mutation.md#rebuild-lost-plants`): a clean
   merge can fail to compile, fail a test, or leave a test green for a mechanism the merge removed.
@@ -134,5 +135,5 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   (#828, #836, #503). A line every conformance golden gained merged cleanly with PRs adding goldens
   and failed on each (#1181, #1191, #1192).
 - **Probe.** `git merge-tree --write-tree --name-only <base> <pr head>` for each open PR, then on
-  the merge `git grep` each removed name and, for goldens,
-  `go test ./compilers/openapi/e2e ./cmd/morphic-census`.
+  the merge (`references/merging-main.md#trial-merge-happened`) `git grep` each removed name and,
+  for goldens, `go test ./compilers/openapi/e2e ./cmd/morphic-census`.
