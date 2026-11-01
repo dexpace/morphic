@@ -126,7 +126,7 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, dc.ProvenanceAt, decl)...)
 	// After the extensions, whose entries are what a promotion reads.
 	return scheme, true, append(diags,
-		c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
+		c.Promoter().Deprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
 }
 
 // applySchemeAnnotations keeps what the securitySchemes entry and, for an oauth2

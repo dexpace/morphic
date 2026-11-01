@@ -51,6 +51,10 @@ type ExtensionPromotions = lowering.ExtensionPromotions
 // ExtensionTarget names one typed IR field a promoted extension fills.
 type ExtensionTarget = lowering.ExtensionTarget
 
+// ExtensionSource is one place a policy reads a fact from: an extension key,
+// and the member of its object value where it holds several facts.
+type ExtensionSource = lowering.ExtensionSource
+
 // The typed fields promotion can fill today.
 const (
 	// TargetDeprecationMessage fills ir.Deprecation.Message.
@@ -78,7 +82,7 @@ const NullableWideningHeuristic = lowering.NullableWideningHeuristic
 // DefaultExtensionPromotions returns the extension-to-field mapping applied
 // when the caller names none. It is exported so a caller changing the mapping
 // can start from it rather than transcribe it.
-func DefaultExtensionPromotions() map[string]ExtensionTarget {
+func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 	return lowering.DefaultExtensionPromotions()
 }
 

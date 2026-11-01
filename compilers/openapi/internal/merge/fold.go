@@ -404,7 +404,7 @@ func (f *folding) foldDocs() {
 // foldAnnotations settles the field's deprecation and XML hints as foldDocs
 // settles its docs: neither is bound to a shape. A property's provenance names
 // a heuristic only for a deprecation one promoted from an extension
-// (lowering.PromoteDeprecation), so the field takes the marker of the
+// (lowering.Promoter.Deprecation), so the field takes the marker of the
 // declaration whose deprecation it keeps, whichever declaration that is.
 func (f *folding) foldAnnotations() {
 	f.merged.Deprecation = firstWritten(f, "deprecation", func(_ int, p *ir.Property) (*ir.Deprecation, bool) {

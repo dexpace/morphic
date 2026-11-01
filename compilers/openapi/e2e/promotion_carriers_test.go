@@ -4,7 +4,7 @@
 // This file holds promotionCarriers (promotion_test.go) to the IR. That map is
 // the sweep over every node the compiler promotes a deprecation into, and it is
 // hand-written: a carrier the IR gains, and the compiler starts building without
-// a PromoteDeprecation call, would be covered by no row and reddens nothing —
+// a promotion call, would be covered by no row and reddens nothing —
 // the exact shape of the defect Parameter had before GitHub #423.
 package e2e_test // external test package — exercises only the public API
 

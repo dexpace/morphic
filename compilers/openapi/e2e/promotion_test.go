@@ -201,8 +201,8 @@ func TestPromotion_DisabledKeepsExtensionsAndNothingElse(t *testing.T) {
 func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 	t.Parallel()
 	own := openapi.Options{Promotions: openapi.ExtensionPromotions{
-		Targets: map[string]openapi.ExtensionTarget{
-			"x-gone-in": openapi.TargetDeprecationRemovalVersion,
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetDeprecationRemovalVersion: {{Key: "x-gone-in"}},
 		},
 	}}
 	doc := compileClean(t, deprecatedOpSpec, own)
@@ -227,8 +227,10 @@ func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
 	// enum, because the targets live on two carriers and a key reaching only the
 	// wrong one would read as a mapping that fills nothing.
 	keys := ""
-	for key := range defaults {
-		keys += "      " + key + ": filled\n"
+	for _, sources := range defaults {
+		for _, src := range sources {
+			keys += "      " + src.Key + ": filled\n"
+		}
 	}
 	spec := `openapi: 3.1.0
 info: {title: T, version: "1"}
@@ -263,10 +265,10 @@ components:
 		openapi.TargetEnumOpen:                  filledWhen(!enum.Closed),
 	}
 	named := map[openapi.ExtensionTarget]bool{}
-	for key, target := range defaults {
+	for target, sources := range defaults {
 		got, known := fields[target]
 		require.True(t, known, "%s is a default target this test reads no field for", target)
-		assert.Equal(t, "filled", got, "%s is filled by its default key %s", target, key)
+		assert.Equal(t, "filled", got, "%s is filled by its default keys %v", target, sources)
 		named[target] = true
 	}
 	for target, got := range fields {
@@ -293,9 +295,9 @@ func filledWhen(promoted bool) string {
 func TestPromotion_RemovalDateAndVersionAreSeparateFacts(t *testing.T) {
 	t.Parallel()
 	both := openapi.Options{Promotions: openapi.ExtensionPromotions{
-		Targets: map[string]openapi.ExtensionTarget{
-			"x-sunset":  openapi.TargetDeprecationRemovalDate,
-			"x-gone-in": openapi.TargetDeprecationRemovalVersion,
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetDeprecationRemovalDate:    {{Key: "x-sunset"}},
+			openapi.TargetDeprecationRemovalVersion: {{Key: "x-gone-in"}},
 		},
 	}}
 	spec := `openapi: 3.1.0

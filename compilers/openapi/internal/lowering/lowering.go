@@ -64,11 +64,10 @@ type Ctx struct {
 	// copy would share, as with the other maps here.
 	streaming map[string]bool
 
-	// promotions is the vendor-extension promotion policy, normalized into the
-	// map PromoteDeprecation reads, and nil when the caller disabled it.
-	//
-	// Unexported for the reason streaming is: it holds a map.
-	promotions map[string]ExtensionTarget
+	// promoter is the vendor-extension promotion policy, normalized, and read
+	// through Promoter. It is unexported for the reason streaming is: it holds a
+	// map.
+	promoter Promoter
 
 	// schemas is the set of component-schema names the document declares.
 	//
@@ -192,7 +191,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		Limits:           limits,
 		schemas:          declaredSchemaNames(doc),
 		streaming:        streamingSet(streaming),
-		promotions:       promotionSet(promotions),
+		promoter:         newPromoter(promotions),
 		NullableWidening: nullable,
 		overlay:          origin,
 
@@ -201,6 +200,9 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		reached:       resolve.NewReached(),
 	}
 }
+
+// Promoter returns the vendor-extension promotion policy this context carries.
+func (c Ctx) Promoter() Promoter { return c.promoter }
 
 // Reached reports whether a lowering run under this context, or any copy of it,
 // resolved a reference to pointer in the source. It is meant to be asked once

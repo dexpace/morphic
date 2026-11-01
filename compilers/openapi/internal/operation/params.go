@@ -270,7 +270,7 @@ func paramHoldsResidue(keyword string) bool {
 // erasing them with an unset value.
 //
 // The extension promotion runs last, after the parameter's own extensions have
-// been preserved: PromoteDeprecation reads the kept Unmodeled entries rather
+// been preserved: a promotion reads the kept Unmodeled entries rather
 // than the source node, so a parameter whose x-* keys are not in the map yet
 // has nothing to promote from (GitHub #423).
 func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr jsontext.Pointer, media []ir.Example) []ir.Diagnostic {
@@ -288,7 +288,7 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
 	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.ProvenanceAt, pptr)...)
-	return append(diags, c.PromoteDeprecation(param.Unmodeled, param.Deprecation, &param.Provenance)...)
+	return append(diags, c.Promoter().Deprecation(param.Unmodeled, param.Deprecation, &param.Provenance)...)
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

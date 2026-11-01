@@ -2827,7 +2827,12 @@ kept ([unmodeled](../ir/unmodeled.md#promotion) states the four rules a promotio
 policy is `Options.Promotions`, on by default: its `Targets` replace the default mapping —
 `x-deprecated-reason` to `Deprecation.Message`, `x-deprecated-since` to `Deprecation.Since`,
 `x-sunset` to `Deprecation.RemovalDate`, and `x-extensible-enum` to an `Enum`'s openness — and its
-`Disabled` turns it off. A deprecation member is filled on an operation, a parameter, a header, a
+`Disabled` turns it off. A target reads a list of sources, each an extension key and, where the
+key's value is an object holding several facts, the member of it to read. The list is the
+precedence: the first source stating a value fills the field, and a later one stating another is
+reported as an info `openapi/degraded-construct` at its own key. An absent member states nothing,
+and a key with no members to read is reported the same way, once however many sources read it. A
+deprecation member is filled on an operation, a parameter, a header, a
 property, a type node or a security scheme that is deprecated; on one that is not, the key annotates
 nothing and stays where it is. A node a promotion writes into lists the marker `extension-promotion`
 in its `Provenance.Inferred`, and the extension stays in `Unmodeled` untouched.
@@ -2856,11 +2861,12 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
   `lowering.TestPromoteEnumOpenness_WritesNothing`,
+  `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
+  `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
-- Status: partly built: the default mapping covers only deprecation and extensible enums (#656); two
-  keys mapped to one field resolve by sort order in silence (#655); a mapping cannot say which
-  extension values state the fact (#654); and an unknown key under a prefix the policy owns is kept
-  in silence (#657).
+- Status: partly built: the default mapping covers only deprecation and extensible enums (#656); a
+  mapping cannot say which extension values state the fact (#654); and an unknown key under a prefix
+  the policy owns is kept in silence (#657).
 
 ### `mutually-exclusive-parameters`
 
