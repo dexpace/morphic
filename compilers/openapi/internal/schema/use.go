@@ -80,8 +80,10 @@ type passage struct {
 	lost bool
 	// principal is a refinement's, nil for any other schema.
 	principal *allOfBranch
-	// admits is what the schema admits.
-	admits admitted
+	// admits is what the schema admits, read only where narrows says it is less
+	// than ref admits: a default no narrowing excludes reads as beside a $ref.
+	admits  admitted
+	narrows bool
 }
 
 // passageOf returns the passage of s, written at pointer, and false for a schema
@@ -91,6 +93,7 @@ func passageOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (passag
 		p := passage{admits: r.joint, principal: r.principal}
 		if r.ref != nil {
 			p.ref, p.lost = r.ref.schema, !r.principalIs(*r.ref)
+			p.narrows = p.lost || r.held.narrowedTo(r.joint)
 		}
 		return p, true
 	}
@@ -100,9 +103,9 @@ func passageOf(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) (passag
 	}
 	if slices.Contains(dispatchOf(s).skipped, "allOf") {
 		w := newAdmission(c)
-		return passage{ref: ref, lost: true, admits: w.written(s)}, true
+		return passage{ref: ref, lost: true, admits: w.written(s), narrows: true}, true
 	}
-	return passage{ref: ref, admits: admitted{kinds: kindAny}}, true
+	return passage{ref: ref}, true
 }
 
 // throughRef returns the one $ref a use of s reads on through, or nil: that of an
@@ -154,7 +157,9 @@ func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Reference
 	u.narrowedFrom = len(u.Referents)
 	u.Referents = append(u.Referents, p.ref.GetSchema())
 	u.Referents = append(u.Referents, lentBy(c, c.RefScope().TargetSchema(p.ref, p.ref.GetSchema())).Referents...)
-	u.narrowed = &p.admits
+	if p.narrows {
+		u.narrowed = &p.admits
+	}
 	return u
 }
 
@@ -177,7 +182,7 @@ func nodeUse(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext
 // its end, past what an alias on it writes (GitHub #1029).
 func lentBy(c lowering.Ctx, s *oas3.Schema) Use {
 	var u Use
-	if p, ok := passageOf(c, s, ""); ok && p.ref != nil {
+	if p, ok := passageOf(c, s, ""); ok && p.narrows {
 		u.narrowed = &p.admits
 		u.narrowedFrom = 1 + len(foldingBranches(s))
 	}

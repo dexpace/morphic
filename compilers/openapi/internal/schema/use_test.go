@@ -55,6 +55,33 @@ func TestUse_ADefaultReadsOnlyWhereThePositionTakesIt(t *testing.T) {
 	assert.Nil(t, propertyOf(t, unread, "Holder", "f").Default, "a value it cannot read is none it takes")
 }
 
+// TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef pins that only a conjunct
+// narrowing the $ref judges its target's default: one the target's own type leaves
+// out reads as a plain $ref reads it, where a conjunct excluding it drops it.
+func TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Bare: {type: string, default: null}
+    Nullable: {type: string, nullable: true, default: null}
+    Holder:
+      type: object
+      properties:
+        plain: {$ref: '#/components/schemas/Bare'}
+        wrapped: {allOf: [{$ref: '#/components/schemas/Bare'}], description: d}
+        widened: {allOf: [{$ref: '#/components/schemas/Bare'}, {nullable: true}]}
+        viaRef: {$ref: '#/components/schemas/Wrapper'}
+        narrowed: {allOf: [{$ref: '#/components/schemas/Nullable'}, {type: string}]}
+        byValue: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a, c]}]}
+    Wrapper: {allOf: [{$ref: '#/components/schemas/Bare'}], description: d}
+    Mode: {type: string, enum: [a, b], default: b}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, wire := range []string{"plain", "wrapped", "widened", "viaRef"} {
+		assert.NotNil(t, propertyOf(t, doc, "Holder", wire).Default, wire)
+	}
+	assert.Nil(t, propertyOf(t, doc, "Holder", "narrowed").Default, "a string takes no null its $ref admits")
+	assert.Nil(t, propertyOf(t, doc, "Holder", "byValue").Default, "the conjuncts together leave only a")
+}
+
 // TestUse_ADefaultBesideItsValueSetStands pins that a narrowing judges only what
 // lies past it: a default written with the value set is the position's own, in or
 // out of the set, as a plain enum's is, and it stands ahead of what the $ref says.
