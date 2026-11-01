@@ -17,6 +17,8 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -51,16 +53,17 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 				n, c.Limits.MaxEnumMembers.Cap()))
 			return &ir.Any{TypeCommon: common}
 		}
-		diags = append(diags, enumRepeats(c, s.GetEnum(), pointer)...)
+		distinct, repeatDiags := enumRepeats(c, s.GetEnum(), pointer)
+		diags = append(diags, repeatDiags...)
 		members, memberPrim, ok := enumMembers(s.GetEnum(), schemaAdmitsNull(c, s), c.IDs(), pointer)
 		if !ok {
-			def, enumDiags := enumAsUnion(c, ts, s, common, pointer)
+			def, enumDiags := enumAsUnion(c, ts, s, common, distinct, pointer)
 			diags = append(diags, enumDiags...)
 			return def
 		}
 		return &ir.Enum{
 			TypeCommon: common,
-			ValueType:  enumValueType(s, memberPrim),
+			ValueType:  enumValueType(s, members, memberPrim),
 			Members:    members,
 			Closed:     true,
 		}
@@ -76,7 +79,7 @@ func lowerEnum(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsonte
 // irverify rejects as ir/union-no-variants and no reader can act on (GitHub
 // #318).
 //
-// ValueType is the declared scalar type, else the top type. Whether a
+// ValueType is what the declaration selects, else the top type. Whether a
 // reference admits null is not settled here: schemaAdmitsNull reads the type
 // keyword at each use site (GitHub #288).
 func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
@@ -84,7 +87,7 @@ func emptyEnum(c lowering.Ctx, s *oas3.Schema, common ir.TypeCommon, pointer jso
 		"enum declares no member, so this position accepts no value; lowered as a closed enum with no members")}
 	return &ir.Enum{
 		TypeCommon: common,
-		ValueType:  enumValueType(s, ir.PrimAny),
+		ValueType:  enumValueType(s, nil, ir.PrimAny),
 		Closed:     true,
 	}, diags
 }
@@ -136,9 +139,11 @@ func enumMembers(nodes []values.Value, dropNull bool, d ids.Document, pointer js
 	return members, prim, true
 }
 
-// enumAsUnion lowers a heterogeneous or non-scalar enum to an exclusive Union of
-// hoisted Literals, emitting one info diagnostic.
-func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
+// enumAsUnion lowers a heterogeneous or non-scalar enum to a Union of hoisted
+// Literals, emitting one info diagnostic. The Union is exclusive where its
+// entries are distinct, as enumRepeats reads them: otherwise an instance can
+// match two variants.
+func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.TypeCommon, distinct bool, pointer jsontext.Pointer) (ir.TypeDef, []ir.Diagnostic) {
 	diags := []ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, pointer,
 		"heterogeneous or non-scalar enum lowered as a union of literals")}
 	nodes := s.GetEnum()
@@ -155,7 +160,7 @@ func enumAsUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Ty
 	return &ir.Union{
 		TypeCommon: common,
 		Variants:   variants,
-		Exclusive:  true,
+		Exclusive:  distinct,
 	}, diags
 }
 
@@ -189,24 +194,33 @@ func hoistLiteral(c lowering.Ctx, ts *compile.Types, node values.Value, pointer 
 	return id, diags
 }
 
-// enumValueType picks an Enum's ValueType from the schema's declared scalar
-// type, falling back to the primitive its members classified to. It does not
-// re-derive that primitive from a ValueKind: enumMemberForm decided it once,
-// for the same members, so there is nothing here to disagree with.
-func enumValueType(s *oas3.Schema, memberPrim ir.PrimKind) ir.PrimKind {
+// enumValueType picks an Enum's ValueType: the primitive the schema's declared
+// type and format select, as a scalar's are read, where every member is a value
+// of it; else the declared scalar type; else the primitive its members
+// classified to. A format the members do not fit is one no target could back
+// the enum with, so it stays verbatim, as a format the table lacks does. It does
+// not re-derive memberPrim from a ValueKind: enumMemberForm decided it once, for
+// the same members, so there is nothing here to disagree with.
+func enumValueType(s *oas3.Schema, members []ir.EnumMember, memberPrim ir.PrimKind) ir.PrimKind {
+	if prim, paired := formatPrimitive(s); paired && enumMembersAre(members, prim) {
+		return prim
+	}
 	if types := effectiveTypes(s); len(types) == 1 {
-		switch types[0] {
-		case oas3.SchemaTypeString:
-			return ir.PrimString
-		case oas3.SchemaTypeInteger:
-			return ir.PrimInteger
-		case oas3.SchemaTypeNumber:
-			return ir.PrimNumber
-		case oas3.SchemaTypeBoolean:
-			return ir.PrimBool
+		if prim, known := spelling.Lookup(string(types[0])); known {
+			return prim
 		}
 	}
 	return memberPrim
+}
+
+// enumMembersAre reports whether every member's value is a value of prim.
+func enumMembersAre(members []ir.EnumMember, prim ir.PrimKind) bool {
+	for _, m := range members {
+		if !merge.Admits(prim, m.Value) {
+			return false
+		}
+	}
+	return true
 }
 
 // enumMemberForm classifies one lowered value as an Enum member: the PrimKind
@@ -282,20 +296,20 @@ func numberKey(n ir.BigVal) string {
 }
 
 // enumRepeats reports each entry of the enum at pointer whose value an earlier
-// entry already holds, at the repeat's own pointer. It reads the list as
-// written, so a repeat is reported whether the set lowers to an Enum or
-// degrades to a Union, and a repeated null is reported though a nullable enum
-// keeps no null member.
+// entry already holds, at the repeat's own pointer. It reads the list as written,
+// so a repeat is reported whether the set lowers to an Enum or a Union, and a
+// repeated null though a nullable enum keeps none. Values compare by valueKey, so
+// a repeat in an Enum is a member whose ID ends in its occurrence number.
 //
-// Values compare by valueKey, which keys a scalar by enumMemberKey as member
-// IDs are keyed, so a repeat reported in an Enum is a member whose ID ends in
-// its occurrence number.
-func enumRepeats(c lowering.Ctx, nodes []values.Value, pointer jsontext.Pointer) []ir.Diagnostic {
+// distinct reports that no instance equals two entries: no value repeats, and
+// each has a key, since one with none may lower to the top type.
+func enumRepeats(c lowering.Ctx, nodes []values.Value, pointer jsontext.Pointer) (distinct bool, diags []ir.Diagnostic) {
 	firstAt := make(map[string]int, len(nodes))
-	var diags []ir.Diagnostic
+	distinct = true
 	for i, node := range nodes {
 		key, keyed := entryKey(node)
 		if !keyed {
+			distinct = false
 			continue
 		}
 		first, repeated := firstAt[key]
@@ -303,11 +317,12 @@ func enumRepeats(c lowering.Ctx, nodes []values.Value, pointer jsontext.Pointer)
 			firstAt[key] = i
 			continue
 		}
+		distinct = false
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DuplicateEnumValue,
 			pointer+ids.Ptr("enum", strconv.Itoa(i)),
 			"enum value repeats the entry at index %d; every occurrence is kept", first))
 	}
-	return diags
+	return distinct, diags
 }
 
 // entryKey returns the key the enum entry node is compared by (valueKey), or

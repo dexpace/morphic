@@ -421,6 +421,13 @@ const (
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
 	// document is invalid for the version it declares, but it still lowers.
 	LaterVersionConstruct = "openapi/later-version-construct"
+	// ItemSchemaOnDocument reports an itemSchema on a media type whose body is one
+	// document, so it has no sequence of items to describe
+	// (docs/compilers/openapi.md#item-schema). It still lowers to Content.Item.
+	//
+	// Warning, not a validation finding: the specification says what itemSchema
+	// describes and forbids no media type, so the document stays valid.
+	ItemSchemaOnDocument = "openapi/item-schema-on-document"
 	// InvalidPathKey reports a Paths Object key that breaks OpenAPI's path
 	// templating rules, those of 3.2.0 §4.8.2 read at every version: no leading
 	// "/", a character a path admits only percent-encoded, a brace outside a

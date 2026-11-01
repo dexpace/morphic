@@ -99,9 +99,10 @@ throughout these documents.
     event shapes among them, reads the frame's fields under `FrameMembers` and the frame's `data`
     otherwise; a stream under a binding other than HTTP draws no `unframed-stream`; a media type
     only a compiler option names gets the one stream method, as `bytes`, with that warning; a
-    primary `Default` that streams is `bidi` beside a `Send`; a `bytes` side lowers as a file; and
-    each operation of the golden spec that streams gets a `StreamPlan`
-    ([streams](../plan/streams.md), [streaming](../operations/streaming.md)).
+    primary `Default` that streams is `bidi` beside a `Send`; a `bytes` side lowers as a file, and
+    a request's file body is a byte source whatever its `Type`; and each operation of the golden
+    spec that streams gets a `StreamPlan` ([streams](../plan/streams.md),
+    [streaming](../operations/streaming.md), [request shaping](../refine/requests.md)).
 25. **T-25 · Emit-layer rules** — one check per rule of the [emit rules](../emit/rules.md). A
     template's context type holds no pointer, map, function or method, by reflection. A golden whose
     enum value, description and example hold `{{ .X }}`, a `$x` and a `*/` keeps each verbatim and

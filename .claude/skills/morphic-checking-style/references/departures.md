@@ -115,6 +115,20 @@ the rule here rather than reading it across.
   `thelper` reads a signature, so it reported 298 functions and none was a breach (#1178).
 - **Probe.** `go test ./internal/archtest -run TestTestHelpers`.
 
+## Compare a plain value with `assert.Equal`
+`assert-equal-on-plain-values`
+
+- **Rule.** Rule 6.16 takes `cmp` for structs, slices, maps and interfaces and bars
+  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` stands on a value with no
+  unexported field or `Equal` method, which `cmp` alone calls. Any other value takes `cmp.Diff` with
+  a direction key (rule 6.15), and no test calls `reflect.DeepEqual` itself.
+- **Why.** Such a value lacks what the rule's reason names: the two agree on nil against empty, on
+  order and on a NaN in separate values, and `assert.Equal` labels both sides where a bare
+  `cmp.Diff` labels neither (#1206). A literal slice or map goes this way about twice as often as
+  the tree calls `cmp.Diff` (#1246).
+- **Probe.** `git grep -n 'reflect\.DeepEqual(' -- '*_test.go' ':!*testdata*'` names no call, and
+  `git grep -nE '^func \([a-zA-Z]+ \*?[a-zA-Z]+\) Equal\(' -- '*.go' ':!*testdata*'` no method.
+
 ## Alias a type to name it at a boundary or to shorten it
 `type-aliases-that-stand`
 
@@ -151,10 +165,14 @@ the rule here rather than reading it across.
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`
 
-- **Rule.** `engine/reader/disk.go` falls back to `http.DefaultClient`, which rule 10.6 bars. A line
-  a change adds is held to the rule, since surrounding code is no defence (`CLAUDE.md`, "Correctness
-  comes first"), and the fallback itself is #1036's. A row leaves this rule when its issue's fix
-  lands.
-- **Why.** Its fix is a time bound on a network read and no matter of style, so the sweep that
-  brought the tree to the other rules left it (#1036, #1173).
-- **Probe.** `git grep -n 'http.DefaultClient' -- 'engine/reader/*.go' ':!*_test.go'`.
+- **Rule.** Rule 10.6 bars the `http.DefaultClient` `engine/reader/disk.go` falls back to (#1036),
+  rule 6.15 the `cmp.Diff` failures most tests print with no direction key (#1206), and rule 6.24
+  the test doubles with no behaviour prefix (#1279). A line a change adds is held to the rule, since
+  surrounding code is no defence (`CLAUDE.md`, "Correctness comes first"). A row leaves this rule
+  when its issue's fix lands.
+- **Why.** The list is what someone met and filed, not every rule the tree breaks: rules 6.15 and
+  6.24 went unlisted until reviews raised them (#1192, #1208). The fallback waits on a time bound
+  for a network read (#1036, #1173).
+- **Probe.** `git grep -n 'http.DefaultClient' -- 'engine/reader/*.go' ':!*_test.go'`, and the
+  commands in #1206 and #1279. `gh issue list --state open --limit 1000 --search styleguide` lists
+  what else is filed.

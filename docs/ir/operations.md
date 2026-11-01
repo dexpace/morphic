@@ -27,7 +27,8 @@ type Operation struct {
                                   // send-without-reply, Thrift oneway, JSON-RPC notifications).
                                   // Distinct from a response with no body (an ack still exists);
                                   // validate rejects OneWay with any response, Default included
-    Streaming  StreamingMode      // none | client | server | bidi (derived summary of the two below)
+    Streaming  StreamingMode      // client | server | bidi; "" = does not stream (derived summary
+                                  // of the two below)
     RequestStream  *StreamDetail  // client→server streaming semantics, when present
     ResponseStream *StreamDetail  // server→client streaming semantics, when present
     Pagination *Pagination

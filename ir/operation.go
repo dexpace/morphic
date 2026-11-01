@@ -38,7 +38,8 @@ type Operation struct {
 	// notifications). Distinct from a response with no body (an ack still
 	// exists); validate rejects OneWay with any response, a Default included.
 	OneWay bool `json:"oneWay"`
-	// Streaming is the derived streaming summary: none | client | server | bidi.
+	// Streaming is the derived streaming summary: client | server | bidi, or
+	// empty for an operation that does not stream (StreamingNone).
 	Streaming StreamingMode `json:"streaming,omitempty"`
 	// RequestStream carries client-to-server streaming semantics, when present.
 	RequestStream *StreamDetail `json:"requestStream,omitzero"`
@@ -186,7 +187,7 @@ type Content struct {
 	// empty.
 	Encoding map[PropID]PartEncoding `json:"encoding,omitempty"`
 	// File marks the body as a file upload/download (TypeSpec file bodies, binary
-	// payloads).
+	// payloads): how it travels, while Type stays what the source declares of it.
 	File *FileInfo `json:"file,omitzero"`
 	// Examples are content-level example values.
 	Examples []Example `json:"examples,omitempty"`
@@ -320,7 +321,7 @@ type StreamingMode string
 // Streaming modes.
 const (
 	// StreamingNone means the operation does not stream.
-	StreamingNone StreamingMode = "none"
+	StreamingNone StreamingMode = ""
 	// StreamingClient means the client streams to the server.
 	StreamingClient StreamingMode = "client"
 	// StreamingServer means the server streams to the client.
@@ -328,6 +329,18 @@ const (
 	// StreamingBidi means both directions stream.
 	StreamingBidi StreamingMode = "bidi"
 )
+
+// Valid reports whether m is one of the modes declared above. StreamingMode is a
+// bare string enum, so nothing rejects an invented or stale value on the wire;
+// irverify calls this so that one is reported rather than switched on.
+func (m StreamingMode) Valid() bool {
+	switch m {
+	case StreamingNone, StreamingClient, StreamingServer, StreamingBidi:
+		return true
+	default:
+		return false
+	}
+}
 
 // StreamDetail describes one direction of a streaming Operation
 // (docs/ir/interaction-patterns.md).

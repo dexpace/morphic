@@ -104,15 +104,37 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 }
 
 // TestStreamingMode_Constants pins the on-disk spelling of every StreamingMode
-// value.
+// value, including the empty-string "none" state.
 func TestStreamingMode_Constants(t *testing.T) {
 	t.Parallel()
 	assertConstantSpellings(t, map[ir.StreamingMode]string{
-		ir.StreamingNone:   "none",
+		ir.StreamingNone:   "",
 		ir.StreamingClient: "client",
 		ir.StreamingServer: "server",
 		ir.StreamingBidi:   "bidi",
-	}, "unspecified")
+	}, "none")
+}
+
+// TestStreamingMode_TiesToConstBlock holds Valid to the package's declarations
+// rather than a list, the empty mode among them. A mode added without teaching
+// Valid fails here, not as a spurious ir/unknown-streaming-mode on a document
+// that states it correctly.
+func TestStreamingMode_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "StreamingMode")
+	require.NotEmpty(t, declared, "the ir sources must declare StreamingMode constants")
+	for _, c := range declared {
+		assert.True(t, ir.StreamingMode(c.Value).Valid(), "declared mode %q must be Valid", c.Value)
+	}
+}
+
+// TestStreamingMode_UnknownIsInvalid pins the other direction: Valid rejects a
+// mode no const declares, the spelling the empty mode replaced among them.
+func TestStreamingMode_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []ir.StreamingMode{"none", "Server", "duplex"} {
+		assert.False(t, mode.Valid(), "%q", mode)
+	}
 }
 
 // TestStability_Constants pins the on-disk spelling of every Stability value,

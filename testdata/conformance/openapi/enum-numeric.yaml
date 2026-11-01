@@ -6,3 +6,14 @@ components:
     BigCodes:
       type: integer
       enum: [1, 9007199254740993]
+    # A format the table knows, read as a scalar's is: the 64-bit width reaches
+    # ValueType, where an emitter picks the enum's backing type.
+    SizedCodes:
+      type: integer
+      format: int64
+      enum: [1, 9007199254740993]
+    # A format the members do not fit stays verbatim: no int8 holds 1000.
+    OversizedCodes:
+      type: integer
+      format: int8
+      enum: [1, 1000]

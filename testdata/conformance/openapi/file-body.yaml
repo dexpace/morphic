@@ -14,3 +14,20 @@ paths:
           content:
             image/png:
               schema: {type: string, format: binary}
+  /documented:
+    put:
+      operationId: putDocumented
+      requestBody:
+        content:
+          # A binary body keeps what its schema says beyond the format.
+          application/octet-stream:
+            schema: {$ref: '#/components/schemas/Blob'}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/octet-stream:
+              schema: {type: string, format: binary, description: The stored object.}
+components:
+  schemas:
+    Blob: {type: string, format: binary, maxLength: 99, description: Raw bytes}
