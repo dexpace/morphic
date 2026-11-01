@@ -81,6 +81,8 @@ func TestParseRaceList_ReadsTheFormatTheMakefileReads(t *testing.T) {
 		{"trailing comment", "./a#x\n", "line 1: \"./a#x\" holds whitespace or '#'"},
 		{"indented entry", "  ./a\n", "line 1: \"  ./a\" holds whitespace"},
 		{"the root", "./\n", "line 1: \"./\" does not name a directory"},
+		{"outside the root", "./../a\n", "line 1: \"./../a\" does not name a directory"},
+		{"the root as a dot", "./.\n", "line 1: \"./.\" does not name a directory"},
 		{"a dot segment", "./a/../b\n", "line 1: \"./a/../b\" does not name a directory"},
 		{"a wildcard inside", "./a/.../b\n", "line 1: \"./a/.../b\" does not name a directory"},
 		{"the whole module", "./...\n", "line 1: \"./...\" does not name a directory"},
@@ -115,6 +117,8 @@ func TestRaceListViolations_PlantedShapesAreReported(t *testing.T) {
 	// Not reported: one x/... entry covers the directory and its child.
 	writeGoStmt(t, filepath.Join(root, "nested", "w_test.go"), "nested")
 	writeGoStmt(t, filepath.Join(root, "nested", "child", "w_test.go"), "child")
+	// Reported: a sibling whose name only starts with the entry's is not under it.
+	writeGoStmt(t, filepath.Join(root, "nestedx", "w_test.go"), "nestedx")
 	// Not reported: exempt, with a single-argument .Go call.
 	writeNamedGoCall(t, filepath.Join(root, "exempt", "w_test.go"), "exempt")
 	// Reported: an exemption for a directory that runs nothing concurrently.
@@ -135,6 +139,8 @@ func TestRaceListViolations_PlantedShapesAreReported(t *testing.T) {
 		`./gone: covers no package that runs concurrently`,
 		`both: is on the race list and in raceExempt, which are exclusive`,
 		`calm: is in raceExempt but runs nothing concurrently`,
+		`nestedx: runs concurrently (nestedx/w_test.go starts a goroutine) but is neither on the race ` +
+			`list nor in raceExempt`,
 		`unlisted: runs concurrently (unlisted/p.go imports "sync") but is neither on the race list ` +
 			`nor in raceExempt`,
 		`vanished: is in raceExempt but runs nothing concurrently`,
