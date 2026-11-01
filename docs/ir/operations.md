@@ -132,13 +132,14 @@ sits. What a target does with a tier is not stated yet (#1222).
   turned inside out: Morphic stores the neutral core and each binding, and emitters derive the
   per-protocol view.
 
-- **`Parameter.Secret` is a field and not a rule about the parameter's type.** A parameter carries
-  its annotations and never hoists a node of its own, so a `Sensitive` scalar would have to be minted
-  for it: 8,325 of the 11,915 parameters in the golden spec own no node (spec @319dc756), and a node
-  minted for a key on an OpenAPI Parameter Object would sit at a schema pointer a `$ref` can name, the
-  collision invariant 3 forbids. `Secret` is the per-use form a property already has, and TypeSpec's
-  `@secret` on a property bound to a header or query lowers to it. No refine step reads it yet, as
-  none reads `Sensitive` (#895).
+- **`Parameter.Secret` is a field and not a rule about the parameter's type.** A carrier never hoists
+  an alias ([annotations](./annotations.md#one-structural-home-per-declaration)), so a parameter
+  whose schema owns no node has none to hold a `Sensitive`, and one would have to be minted: 8,325 of
+  the 11,915 parameters in the golden spec own no node (spec @319dc756), and a node minted for a key
+  on an OpenAPI Parameter Object would sit at a schema pointer a `$ref` can name, the collision
+  invariant 3 forbids. A schema that owns a node keeps the redaction there, and `Secret` is the
+  per-use form a property already has, which TypeSpec's `@secret` on a property bound to a header or
+  query lowers to. No refine step reads it yet, as none reads `Sensitive` (#895).
 
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is

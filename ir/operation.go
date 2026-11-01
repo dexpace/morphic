@@ -119,9 +119,9 @@ type Parameter struct {
 	// Availability records the parameter's versioning timeline.
 	Availability *Availability `json:"availability,omitzero"`
 	// Secret requests that this use's value be redacted in logs and docs, as
-	// Property.Secret does: a parameter never hoists a node of its own, so its
-	// redaction has no type to sit on. A value whose type is
-	// TypeCommon.Sensitive is redacted whether or not it is set.
+	// Property.Secret does: a carrier never hoists an alias, so a parameter whose
+	// schema owns no node has no type for its redaction to sit on. A value whose
+	// type is TypeCommon.Sensitive is redacted whether or not it is set.
 	Secret bool `json:"secret,omitzero"`
 	// Examples are parameter-level example values.
 	Examples []Example `json:"examples,omitempty"`
