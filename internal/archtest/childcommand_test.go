@@ -33,7 +33,7 @@ const (
 	envMessage    = "assigns Env other than by append(cmd.Env, …) without os.Environ, which hands the child the parent's coverage directory or drops its own"
 )
 
-// TestChildCommand_EveryTestBuildsItsCommandThroughExectest holds every Go file
+// TestChildCommand_EveryFileStartsItsChildThroughExectest holds every Go file
 // of the module, production files included, to exectest.Command for the
 // commands it starts: a command built any other way starts a child that
 // inherits the parent's coverage directory, where two children finishing
@@ -42,7 +42,7 @@ const (
 // hands the child that directory again. It also requires the walk to meet a
 // file importing os/exec, so a walk that reaches none fails rather than
 // passing on nothing.
-func TestChildCommand_EveryTestBuildsItsCommandThroughExectest(t *testing.T) {
+func TestChildCommand_EveryFileStartsItsChildThroughExectest(t *testing.T) {
 	t.Parallel()
 	violations, importers, err := childCommandViolations(irtest.RepoRoot(t))
 	require.NoError(t, err)
@@ -52,13 +52,13 @@ func TestChildCommand_EveryTestBuildsItsCommandThroughExectest(t *testing.T) {
 	}
 }
 
-// TestChildCommandViolations_PlantedBuildsAreCaught proves the detector both
+// TestChildCommandViolations_PlantedRowsAreReportedExactly proves the detector both
 // ways on one planted file per row. A line ending in "// want" must be
 // reported as building a command, one ending in "// want dot" as a dot
 // import and one ending in "// want env" as resetting Env, exactly those lines
 // and no other. wantSeen is the number of files
 // importing os/exec the walk met.
-func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
+func TestChildCommandViolations_PlantedRowsAreReportedExactly(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name     string
@@ -123,6 +123,10 @@ func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 		{"file under testdata", "p/testdata/a_test.go", execFile(`var _ = exec.Command("x")`), 0},
 		{"exec that is not os/exec", "p/a_test.go",
 			"package p\n\nfunc f(exec fake) { exec.Command(\"x\") }\n", 0},
+		{"exec imported from another path", "p/a_test.go",
+			"package p\n\nimport exec \"example.com/exec\"\n\nvar _ = exec.Command(\"x\")\n", 0},
+		{"elided literal of another type of the package", "p/a_test.go",
+			execFile(`var _ = []*exec.ExitError{{}}`), 1},
 		{"Env reset from os.Environ", "p/a_test.go",
 			envFile(`cmd.Env = append(os.Environ(), "X=1") // want env`), 1},
 		{"Env replaced by a fresh list", "p/a_test.go",
@@ -351,12 +355,13 @@ func fileChildCommands(rel string, fset *token.FileSet, f *ast.File, spec *ast.I
 }
 
 // elidedCommands returns the position of each literal elided beneath lit that
-// builds a pointer to Cmd from pkg, as {Path: "x"} does in []*exec.Cmd{{...}},
-// where the only selection of Cmd sits under a pointer. The type is carried
-// through slice and array elements and through map keys and values, by a work
-// list the syntax tree bounds. Only lit's own type names it, so a literal of a
-// named type holding such elements is not followed. An elided literal of a
-// value Cmd is not returned: its selection is reported where it stands.
+// builds a pointer to Cmd from pkg, as {Path: "x"} does in []*exec.Cmd{{...}}.
+// The type is carried through slice and array elements and through map keys and
+// values, by a work list the syntax tree bounds. Only lit's own type names it,
+// so a type name is not followed: not a named container, an alias
+// (type alias = *exec.Cmd) or a defined pointer (type P *exec.Cmd). An elided
+// literal of a value Cmd is not returned: its selection is reported where it
+// stands.
 func elidedCommands(lit *ast.CompositeLit, pkg string) []token.Pos {
 	type carried struct {
 		lit *ast.CompositeLit
