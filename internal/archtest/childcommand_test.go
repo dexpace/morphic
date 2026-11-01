@@ -98,6 +98,10 @@ func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 			execFile(`var _ = []*[]*exec.Cmd{{{Path: "x"}}} // want`), 1},
 		{"elided literal in a slice of values", "p/a_test.go",
 			execFile(`var _ = []exec.Cmd{{Path: "x"}} // want`), 1},
+		{"elided literal of a parenthesized element type", "p/a_test.go",
+			execFile(`var _ = [](*exec.Cmd){{Path: "x"}} // want`), 1},
+		{"elided literal beneath a pointer to a parenthesized slice", "p/a_test.go",
+			execFile(`var _ = []*([]*exec.Cmd){{{Path: "x"}}} // want`), 1},
 		{"elided literal of another type", "p/a_test.go",
 			execFile("type t struct{ Path string }\nvar _ = []*t{{Path: \"x\"}}\nvar _ exec.ExitError"), 1},
 		{"elided literals of another type in nested containers", "p/a_test.go",
@@ -197,12 +201,11 @@ func wantedLines(file, src string) []string {
 
 // childCommandViolations walks root and returns one message per command a Go
 // file builds any way but exectest.Command, with the number of files importing
-// os/exec it met. Of those, bar exectest's own, it reports a call of Command
-// or CommandContext, any selection of Cmd not under a pointer, an elided
-// literal of a pointer to Cmd, and a dot import. Of every file but exectest's
-// own, it reports an assignment to Env unless it is append(cmd.Env, …)
-// calling no Environ. It does not match os.StartProcess or the syscall
-// starters, which nothing in the module uses.
+// os/exec it met; exectest's own file is exempt. It reads syntax, not types,
+// so it sees a command only where a statement names exec's Command,
+// CommandContext or Cmd, and an Env only where one assigns a selection of it.
+// A copy (c := *cmd) selects no Cmd, and a write through a pointer
+// (p := &cmd.Env; *p = …) no Env, so both pass, as do the syscall starters.
 func childCommandViolations(root string) (violations []string, importers int, err error) {
 	err = walkGoFiles(root, func(rel string, fset *token.FileSet, f *ast.File) {
 		if rel == exectestFile {
