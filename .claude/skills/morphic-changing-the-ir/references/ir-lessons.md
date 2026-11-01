@@ -10,12 +10,12 @@ verifier and codecs must reach.
 - **Rule.** Two open PRs that bump `IRVersion` from one base claim one version: the constant
   merges silently, and only the `generations` row and the version-history entry conflict. The
   PR merging second keeps `main`'s row and entry, moves the constant to the next version, and
-  appends its own row and entry under it.
+  appends its own under it.
 - **Why.** #1065 and #1066 both set 0.18.0, and the constant merged with no conflict; #734 and #735
   both bumped to 0.10.0 and conflicted only in the history.
-- **Probe.** List the open PRs that set a version, or whose diff did not load:
+- **Probe.** List the open PRs that set a version, or whose diff failed:
   `for n in $(gh pr list --state open --limit 1000 --json number --jq '.[].number'); do d=$(gh pr diff $n) || echo "$n: diff unread"; grep -q '^+const IRVersion' <<<"$d" && echo $n; done`.
-  After the merge, `TestIRVersion_PinsTheEncodedShape` prints the row to append.
+  After the merge, `go test ./ir -run TestIRVersion` prints the row to append.
 
 ## Classify every field you add to package ir, walker state included
 `classify-ir-fields`

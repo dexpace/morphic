@@ -92,7 +92,8 @@ and adds an entry to the [history](./version-history.md), which
 themselves are `ir/testdata/shape.golden.txt` and `ir/testdata/names.golden.txt`, each rewritten with
 `go test ./ir -run TestIRVersion -update`, after `go test ./compilers/openapi/e2e -run
 TestGolden_HintPositions -update` where a hint moved, so a reviewer reads the change as their diff.
-No other golden moves. `TestIRVersion_PinsTheNames` prints the row's `names` once the row exists.
+The bump itself rewrites no other golden, though the change behind it moves every corpus golden
+holding what it changed. `TestIRVersion_PinsTheNames` prints the row's `names` once the row exists.
 Adding a position to `hint_positions.yaml` moves that hash as a renamed one does, so it lands with
 a bump. A row on `main` is never edited: two branches that claim one version append their rows in
 the same place, so whichever merges second meets the other's in a conflict and takes the next
