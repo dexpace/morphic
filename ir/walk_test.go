@@ -97,24 +97,86 @@ func TestWalkValues_NestedMapsAreWalkedEntryByEntry(t *testing.T) {
 	}, paths)
 }
 
+// listVisits is a visitor for a walk of a [irtest.NestedListValue], too deep to
+// render a path per visit, which is quadratic in the depth. It prunes nothing
+// and counts the visits to a []ir.Value, one for each level. It renders two
+// paths only: the first such visit's, which is shallow, and the one numbered
+// deepestAt, which the caller learns from a walk before.
+type listVisits struct {
+	deepestAt      int
+	seen           int
+	first, deepest string
+}
+
+func (l *listVisits) Visit(v reflect.Value, at ir.WalkPath) bool {
+	if v.Type() != reflect.TypeFor[[]ir.Value]() {
+		return true
+	}
+	l.seen++
+	if l.seen == 1 {
+		l.first = at.String()
+	}
+	if l.seen == l.deepestAt {
+		l.deepest = at.String()
+	}
+	return true
+}
+
+// deepList is what walking a nested list told: whether the walk was truncated,
+// how many levels it visited, and the paths of the first and the deepest.
+type deepList struct {
+	truncated      bool
+	levels         int
+	first, deepest string
+}
+
+// walkDeepList walks twice, linear each time: once to count the levels the walk
+// reaches, and once to render the path of the deepest. A walk is one call of
+// walk with the visitor it is given, so a caller picks the root and what else
+// the visitor is.
+func walkDeepList(walk func(*listVisits) bool) deepList {
+	counted := &listVisits{}
+	truncated := walk(counted)
+	rendered := &listVisits{deepestAt: counted.seen}
+	walk(rendered)
+	return deepList{truncated: truncated, levels: counted.seen, first: rendered.first, deepest: rendered.deepest}
+}
+
+// requireDeepestRendered holds the path rendered at the deepest visit to the
+// depth that visit was at, in what a caller may rely on: it is not empty, and
+// it spells one more index than the first level's for each level below the
+// first, since a path brackets its indices.
+func (d deepList) requireDeepestRendered(t *testing.T) {
+	t.Helper()
+	require.NotEmpty(t, d.deepest, "the deepest visit's path must render")
+	indices := func(path string) int { return strings.Count(path, "[0]") }
+	assert.Equal(t, d.levels-1, indices(d.deepest)-indices(d.first),
+		"the deepest path must spell an index for each level below the first")
+}
+
 // TestWalkValues_DeepValueTreeIsTruncated drives the depth cap from both sides:
 // a document nested past it must report truncation rather than be under-checked
 // in silence, and one nested deep but within the bound must not. Its visitor
-// reads no path, since rendering one per visit is quadratic in the depth.
+// renders one path, the deepest, since rendering one per visit is quadratic in
+// the depth.
 func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 	t.Parallel()
-	docWith := func(v ir.Value) *ir.Document {
-		return &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{
+	walkDoc := func(depth int) deepList {
+		v := irtest.NestedListValue(depth)
+		doc := &ir.Document{Types: ir.TypeRegistry{"t/m": &ir.Model{
 			ID:       "t/m",
 			Examples: []ir.Example{{Value: &v}},
 		}}}
+		return walkDeepList(func(l *listVisits) bool { return ir.WalkValues(doc, "doc", l) })
 	}
-	walks := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 
-	assert.True(t, ir.WalkValues(docWith(irtest.NestedListValue(ir.MaxWalkDepth)), "doc", walks),
-		"a tree nested past the cap must report truncation")
-	assert.False(t, ir.WalkValues(docWith(irtest.NestedListValue(200)), "doc", walks),
-		"a tree a compiler can produce must be walked whole")
+	deep := walkDoc(ir.MaxWalkDepth)
+	assert.True(t, deep.truncated, "a tree nested past the cap must report truncation")
+	deep.requireDeepestRendered(t)
+
+	shallow := walkDoc(200)
+	assert.False(t, shallow.truncated, "a tree a compiler can produce must be walked whole")
+	shallow.requireDeepestRendered(t)
 }
 
 // TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext pins that the
