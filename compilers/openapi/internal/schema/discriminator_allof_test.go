@@ -152,12 +152,12 @@ func TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping(t *testing.T) {
 			cat := ir.TypeID("t/anon/" + tc.host + "/Cat")
 			dog := ir.TypeID("t/anon/" + tc.host + "/Dog")
 			assert.Empty(t, cmp.Diff(map[ir.TypeID]string{cat: "cat", dog: ""}, discriminatorValues(t, doc, cat, dog)),
-				"the mapping tags Cat, and no name is implicit for Dog")
+				"the mapping tags Cat, and no name is implicit for Dog (-want +got)")
 			pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
 			require.True(t, ok, "Pet lowers to a model")
 			require.NotNil(t, pet.Discriminator)
 			assert.Empty(t, cmp.Diff(map[string]ir.TypeID{"cat": cat}, pet.Discriminator.Mapping),
-				"the base's mapping names the subtype's own node")
+				"the base's mapping names the subtype's own node (-want +got)")
 		})
 	}
 }
