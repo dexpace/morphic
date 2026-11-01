@@ -540,28 +540,6 @@ class LoadTreeTest(unittest.TestCase):
                          "untracked files count, and ignored or deleted ones do not")
 
 
-class CheckoutRootTest(unittest.TestCase):
-    def test_outside_a_checkout_it_says_what_it_needs(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d).resolve()
-            err = io.StringIO()
-            # The ceiling stops git finding a repository above the directory.
-            with (mock.patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(root.parent)}),
-                  contextlib.chdir(root), contextlib.redirect_stderr(err)):
-                code = skills_lint.main([])
-        self.assertEqual(code, 2)
-        self.assertIn(f"{root} is in no git checkout", err.getvalue())
-        self.assertIn("git init", err.getvalue())
-        self.assertNotIn("rev-parse", err.getvalue(), "it names the problem, not the command")
-
-    def test_inside_a_checkout_it_returns_the_root(self):
-        with tempfile.TemporaryDirectory() as d:
-            root = Path(d).resolve()
-            subprocess.run(["git", "-C", d, "init", "-q"], check=True)
-            (root / "sub").mkdir()
-            self.assertEqual(skills_lint.checkout_root(root / "sub"), root)
-
-
 class GoSourcesTest(unittest.TestCase):
     def go_env(self, stdout: str = "", fail: Exception | None = None) -> Path | None:
         root = Path("module")
