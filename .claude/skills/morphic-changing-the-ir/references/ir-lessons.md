@@ -45,6 +45,19 @@ verifier and codecs must reach.
 - **Probe.** `git grep -l EnumMemberID -- '*.go' | xargs grep -l GroupID` lists the files; each
   must name the new type.
 
+## Expect a new ID namespace to rewrite every golden document
+`new-id-namespace`
+
+- **Rule.** `Document.IDSpaces` declares what a compiler can mint, not what a document uses, and
+  goldens store it, so a new entry in a compiler's `Namespaces` changes every golden document, where
+  a version bump changes none. Show that no other line moved, land a spec that mints the namespace,
+  and trial-merge the open PRs
+  (`.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`).
+- **Why.** One entry in the `auth` list changed all 128 goldens by one hunk each, and
+  `TestNamespaces_DeclaredAreExactlyWhatTheCorpusUses` refused it while no spec minted it (#1213).
+- **Probe.** `go test ./compilers/openapi/e2e -run 'TestConformance|TestGolden' -update`, then
+  `git diff -U0 -- testdata | grep -E '^[-+] ' | sort | uniq -c` prints the namespace's lines alone.
+
 ## Never give a type in ir a method named typeDef
 `sealed-marker-reserved`
 

@@ -37,6 +37,8 @@ cannot be turned off.
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
   `ir/irverify`; `references/ir-lessons.md` says which test reaches each, and which one lets a stale
   entry for a deleted field pass.
+- **Goldens.** A version bump rewrites none, but a new namespace in a compiler's `Namespaces`
+  rewrites the `idSpaces` of every one (`references/ir-lessons.md#new-id-namespace`).
 - **Census.** A fact no committed spec sets is a line of `testdata/unwitnessed.golden.txt`, which
   `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
 - **Values.** A lowering that writes a value a field never held changes no shape, so no test sees
@@ -49,6 +51,6 @@ cannot be turned off.
 
 ## References
 
-- `references/ir-lessons.md`: version collisions, the hand lists a new field meets, invariants a
-  type held, values a field's readers assume, design rules over their own document, and what the
+- `references/ir-lessons.md`: version collisions, the hand lists a new field meets, new namespaces,
+  invariants a type held, values a field's readers assume, design rules over their own document, and what the
   verifier and codecs must reach.
