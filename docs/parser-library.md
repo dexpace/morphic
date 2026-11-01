@@ -522,6 +522,7 @@ components:
   - `annotation.DecidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.
+  - `schema.restatesProperty` compares raw nodes, which hold these keywords, rather than the model.
 
 ### `null-schema-is-false`
 

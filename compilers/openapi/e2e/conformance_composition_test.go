@@ -556,3 +556,29 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	}
 	assert.True(t, found, "expected a validation-only-keyword info diagnostic")
 }
+
+// assertUnionRestatedBranches holds a union whose branches repeat the body to
+// the one that writes only `required`: one Model with the union kept under
+// validation_only, reported as that and not as a degradation. A branch saying
+// more than the body stays degraded
+// (docs/compilers/openapi.md#union-beside-structure).
+func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, keyword := range map[string]string{
+		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
+	} {
+		m, ok := doc.Types[componentID(name)].(*ir.Model)
+		require.True(t, ok, "%s lowers to its body", name)
+		assert.Len(t, m.Properties, 2, "%s", name)
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, m.Unmodeled, keyword).Reason, "%s", name)
+	}
+	tagged, ok := doc.Types[componentID("RenderTagged")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, tagged.Unmodeled, "openapi:oneOf").Reason)
+	var degraded []string
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			degraded = append(degraded, string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"/components/schemas/RenderTagged"}, degraded)
+}
