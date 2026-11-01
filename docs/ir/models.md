@@ -212,11 +212,11 @@ At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lower
 them a single `$ref` entry.
 
 Nothing here is the flattening the [design rules](./README.md#design-rules) leave to emitters. No
-member of one node is copied into another, and every conjunct stays reconstructible: it is the
-reference the position names, an annotation read where the same keyword beside the `allOf` is read,
-or kept whole under its path, as a `$ref` a value set narrows is. An `allOf` whose conjuncts can be
-objects composes as it always did, one sole `$ref` with nothing beside it a decorator
-([annotations](./annotations.md#decorators)) for emitters to collapse.
+member of one node is copied into another, and no conjunct is lost: it is the reference the position
+names, an annotation read where the same keyword beside the `allOf` is read, what the position
+already says, or kept whole under its path, as a `$ref` a value set narrows is. An `allOf` whose
+conjuncts can be objects composes as it always did, one sole `$ref` with nothing beside it a
+decorator ([annotations](./annotations.md#decorators)) for emitters to collapse.
 
 The designs this was weighed against:
 
