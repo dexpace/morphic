@@ -2707,13 +2707,14 @@ the entry. Or its entry resolves to no object, whose `$ref` is reported as an `o
 error at the entry, and whose other shapes the rule table reports
 ([`minor-required-fields`](#minor-required-fields)). An entry lowers to that kind whether or not a
 requirement names it, recording its pointer and keeping what it wrote: its `description` and
-`deprecated`, what a Reference Object writes beside its `$ref`, its `type` and each mechanism field
+`deprecated`, the `summary` and `description` a Reference Object writes beside its `$ref`
+([`reference-object-siblings`](#reference-object-siblings)), its `type` and each mechanism field
 verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each reported as an info
 `openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
 A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error. An
 entry written as no object holds no field to keep. A `security` entry written as no object names
-nothing, so a list holding nothing else is the one list that lowers to no option: it collapses to
-nil, beside the rule table's error, since `[]` would read as public. A `security` that is no list
+nothing, so a list holding nothing else, though it writes entries, lowers to no option: it collapses
+to nil, beside the rule table's error, since `[]` would read as public. A `security` that is no list
 lowers as one left out, beside the rule table's finding, a warning for a `null` and otherwise an
 error.
 

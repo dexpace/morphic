@@ -185,4 +185,5 @@ it sees. Changes made together in one bump are listed together under it.
   such a requirement, so an `Auth` left with no option read as inheriting and one left with others
   lost the option. It also read a name whose value reads as no list of strings as not written, so
   `{name: null}` read as the empty option, and such a name now stands. A consumer pinned to 0.22.0
-  has no reading for the kind, and reads those operations as inheriting the service's credentials.
+  finds those operations naming a kind it has no reading for, where it read them as inheriting the
+  service's credentials.

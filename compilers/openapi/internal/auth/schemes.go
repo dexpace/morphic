@@ -28,8 +28,7 @@ import (
 // ids.UnresolvedAuth(name), so nothing can reach it as a declared scheme: one
 // whose $ref resolves to nothing, reported at its own components pointer (see
 // unresolvableScheme), and one naming no mechanism, reported the same way (see
-// noMechanismDiag). Every other diagnostic from here concerns a scheme with a
-// mechanism.
+// noMechanismDiag).
 func LowerSecuritySchemes(c lowering.Ctx) (*Registry, []ir.Diagnostic) {
 	reg := &Registry{byID: map[ir.AuthID]ir.AuthScheme{}, root: c.ProvenanceAt("")}
 	var diags []ir.Diagnostic
@@ -275,8 +274,8 @@ func fieldsDefinedBy(t soa.SecuritySchemaType) []string {
 }
 
 // preserveUnreadFields keeps verbatim under Unmodeled every mechanism field the
-// entry declared that its own type gives no meaning to (#294), and every such
-// field of an entry naming no mechanism, with its type, which no kind can say.
+// entry declared that its own type gives no meaning to (#294). An entry naming no
+// mechanism keeps all of them, with its type, which no kind can say.
 //
 // ir.AuthScheme has a field of each name, but filling one would give the
 // mechanism a property it does not define, so the field is kept beside the
