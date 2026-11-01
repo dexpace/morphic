@@ -30,7 +30,7 @@ const exectestFile = "internal/exectest/exectest.go"
 const (
 	buildsMessage = "builds a command outside exectest.Command"
 	dotMessage    = "dot-imports os/exec, which hides the commands it builds"
-	envMessage    = "assigns Env other than by append(cmd.Env, …), which hands the child the parent's coverage directory or drops its own"
+	envMessage    = "assigns Env other than by append(cmd.Env, …) without os.Environ, which hands the child the parent's coverage directory or drops its own"
 )
 
 // TestChildCommand_EveryTestBuildsItsCommandThroughExectest holds every Go file
@@ -82,6 +82,26 @@ func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 		{"dot import", "p/a_test.go", "package p\n\nimport . \"os/exec\" // want dot\n", 1},
 		{"pointer to the type", "p/a_test.go", execFile(`func f(c *exec.Cmd) *exec.Cmd { return c }`), 1},
 		{"slice of pointers", "p/a_test.go", execFile(`var _ []*exec.Cmd`), 1},
+		{"elided literal in a slice of pointers", "p/a_test.go",
+			execFile(`var _ = []*exec.Cmd{{Path: "x"}} // want`), 1},
+		{"elided literal as a map value", "p/a_test.go",
+			execFile(`var _ = map[string]*exec.Cmd{"a": {Path: "x"}} // want`), 1},
+		{"elided literal as a map key", "p/a_test.go",
+			execFile(`var _ = map[*exec.Cmd]int{{Path: "x"}: 1} // want`), 1},
+		{"elided literal in nested slices", "p/a_test.go",
+			execFile(`var _ = [][]*exec.Cmd{{{Path: "x"}}} // want`), 1},
+		{"elided literal in an array of pointers", "p/a_test.go",
+			execFile(`var _ = [...]*exec.Cmd{{Path: "x"}} // want`), 1},
+		{"elided literal at a slice index", "p/a_test.go",
+			execFile(`var _ = []*exec.Cmd{0: {Path: "x"}} // want`), 1},
+		{"elided literal beneath a pointer to a slice", "p/a_test.go",
+			execFile(`var _ = []*[]*exec.Cmd{{{Path: "x"}}} // want`), 1},
+		{"elided literal in a slice of values", "p/a_test.go",
+			execFile(`var _ = []exec.Cmd{{Path: "x"}} // want`), 1},
+		{"elided literal of another type", "p/a_test.go",
+			execFile("type t struct{ Path string }\nvar _ = []*t{{Path: \"x\"}}\nvar _ exec.ExitError"), 1},
+		{"elided literals of another type in nested containers", "p/a_test.go",
+			execFile("type t struct{ Path string }\nvar _ = map[t][]*t{{Path: \"x\"}: {{Path: \"y\"}}}\nvar _ exec.ExitError"), 1},
 		{"another name of the package", "p/a_test.go", execFile(`var _ exec.ExitError`), 1},
 		{"another identifier selecting Command", "p/a_test.go",
 			execFile("var o struct{ Command func() }\nvar _ = o.Command"), 1},
@@ -108,6 +128,8 @@ func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 			envFile("var n int\n\tcmd.Env, n = nil, 1 // want env"), 1},
 		{"Env extended by the parent's environment", "p/a_test.go",
 			envFile(`cmd.Env = append(cmd.Env, os.Environ()...) // want env`), 1},
+		{"Env extended by part of the parent's environment", "p/a_test.go",
+			envFile(`cmd.Env = append(cmd.Env, os.Environ()[1:]...) // want env`), 1},
 		{"Env assigned from a call returning two values", "p/a_test.go",
 			envFile("var n int\n\tn, cmd.Env = g() // want env"), 1},
 		{"Env target in parentheses", "p/a_test.go", envFile(`(cmd.Env) = nil // want env`), 1},
@@ -169,10 +191,11 @@ func wantedLines(file, src string) []string {
 // childCommandViolations walks root and returns one message per command a Go
 // file builds any way but exectest.Command, with the number of files importing
 // os/exec it met. Of those, bar exectest's own, it reports a call of Command
-// or CommandContext, any selection of Cmd not under a pointer, and a dot
-// import. Of every file, it reports an assignment to Env unless it is
-// append(cmd.Env, …) without os.Environ(). It does not match os.StartProcess
-// or the syscall starters, which nothing in the module uses.
+// or CommandContext, any selection of Cmd not under a pointer, an elided
+// literal of a pointer to Cmd, and a dot import. Of every file but exectest's
+// own, it reports an assignment to Env unless it is append(cmd.Env, …)
+// calling no Environ. It does not match os.StartProcess or the syscall
+// starters, which nothing in the module uses.
 func childCommandViolations(root string) (violations []string, importers int, err error) {
 	err = walkGoFiles(root, func(rel string, fset *token.FileSet, f *ast.File) {
 		if rel == exectestFile {
@@ -190,8 +213,9 @@ func childCommandViolations(root string) (violations []string, importers int, er
 }
 
 // envViolations returns one message per assignment in f to a selection of Env
-// that does not extend an Env with append, each naming rel and its line. A
-// composite literal's Env key is not an assignment and is left alone.
+// that does not extend an Env with append, or that calls Environ, each naming
+// rel and its line. A composite literal's Env key is not an assignment and is
+// left alone.
 func envViolations(rel string, fset *token.FileSet, f *ast.File) []string {
 	var out []string
 	ast.Inspect(f, func(n ast.Node) bool {
@@ -295,15 +319,98 @@ func fileChildCommands(rel string, fset *token.FileSet, f *ast.File, spec *ast.I
 	})
 
 	var out []string
+	report := func(pos token.Pos) {
+		out = append(out, fmt.Sprintf("%s:%d: %s", rel, fset.Position(pos).Line, buildsMessage))
+	}
 	ast.Inspect(f, func(n ast.Node) bool {
-		sel, ok := n.(*ast.SelectorExpr)
-		if !ok || !buildsCommand(sel, name, pointed[sel]) {
-			return true
+		switch n := n.(type) {
+		case *ast.SelectorExpr:
+			if buildsCommand(n, name, pointed[n]) {
+				report(n.Pos())
+			}
+		case *ast.CompositeLit:
+			for _, pos := range elidedCommands(n, name) {
+				report(pos)
+			}
+		default:
+			// Nothing else names a command.
 		}
-		out = append(out, fmt.Sprintf("%s:%d: %s", rel, fset.Position(sel.Pos()).Line, buildsMessage))
 		return true
 	})
 	return out
+}
+
+// elidedCommands returns the position of each literal elided beneath lit that
+// builds a pointer to Cmd from pkg, as {Path: "x"} does in []*exec.Cmd{{...}},
+// where the only selection of Cmd sits under a pointer. The type is carried
+// through slice and array elements and through map keys and values, by a work
+// list the syntax tree bounds. Only lit's own type names it, so a literal of a
+// named type holding such elements is not followed. An elided literal of a
+// value Cmd is not returned: its selection is reported where it stands.
+func elidedCommands(lit *ast.CompositeLit, pkg string) []token.Pos {
+	type carried struct {
+		lit *ast.CompositeLit
+		typ ast.Expr
+	}
+	var out []token.Pos
+	var work []carried
+	if lit.Type != nil {
+		work = append(work, carried{lit, lit.Type})
+	}
+	// visit takes an element e that the container's type gives typ.
+	visit := func(e, typ ast.Expr) {
+		inner, ok := e.(*ast.CompositeLit)
+		if !ok || inner.Type != nil || typ == nil {
+			return
+		}
+		typ = ast.Unparen(typ)
+		if star, ok := typ.(*ast.StarExpr); ok {
+			if isCommandType(star.X, pkg) {
+				out = append(out, inner.Lbrace)
+				return
+			}
+			typ = star.X
+		}
+		work = append(work, carried{inner, typ})
+	}
+	for len(work) > 0 {
+		next := work[len(work)-1]
+		work = work[:len(work)-1]
+		key, elem := containerTypes(next.typ)
+		for _, elt := range next.lit.Elts {
+			if kv, ok := elt.(*ast.KeyValueExpr); ok {
+				visit(kv.Key, key)
+				elt = kv.Value
+			}
+			visit(elt, elem)
+		}
+	}
+	return out
+}
+
+// containerTypes returns the type of the keys and of the elements of a slice,
+// array or map type, and nil for what is not one. A slice or array has no key
+// type, since its keys are indexes.
+func containerTypes(typ ast.Expr) (key, elem ast.Expr) {
+	switch t := ast.Unparen(typ).(type) {
+	case *ast.ArrayType:
+		return nil, t.Elt
+	case *ast.MapType:
+		return t.Key, t.Value
+	default:
+		return nil, nil
+	}
+}
+
+// isCommandType reports whether e is the type Cmd of the os/exec package named
+// pkg.
+func isCommandType(e ast.Expr, pkg string) bool {
+	sel, ok := ast.Unparen(e).(*ast.SelectorExpr)
+	if !ok || sel.Sel.Name != "Cmd" {
+		return false
+	}
+	id, ok := sel.X.(*ast.Ident)
+	return ok && id.Name == pkg
 }
 
 // buildsCommand reports whether sel, taken from the os/exec package named pkg,
