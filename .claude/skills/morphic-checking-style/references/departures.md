@@ -151,10 +151,13 @@ the rule here rather than reading it across.
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`
 
-- **Rule.** `engine/reader/disk.go` falls back to `http.DefaultClient`, which rule 10.6 bars. A line
-  a change adds is held to the rule, since surrounding code is no defence (`CLAUDE.md`, "Correctness
-  comes first"), and the fallback itself is #1036's. A row leaves this rule when its issue's fix
-  lands.
-- **Why.** Its fix is a time bound on a network read and no matter of style, so the sweep that
-  brought the tree to the other rules left it (#1036, #1173).
-- **Probe.** `git grep -n 'http.DefaultClient' -- 'engine/reader/*.go' ':!*_test.go'`.
+- **Rule.** Rule 10.6 bars the `http.DefaultClient` `engine/reader/disk.go` falls back to (#1036),
+  and rule 6.15 the `cmp.Diff` failures most tests print with no direction key (#1206). A line a
+  change adds is held to the rule, since surrounding code is no defence (`CLAUDE.md`, "Correctness
+  comes first"). A row leaves this rule when its issue's fix lands.
+- **Why.** The list is what someone met and filed, not every rule the tree breaks: rule 6.15 went
+  unlisted until a review of new lines raised it (#1192, #1208). The fallback waits on a time bound
+  for a network read, no matter of style (#1036, #1173).
+- **Probe.** `git grep -n 'http.DefaultClient' -- 'engine/reader/*.go' ':!*_test.go'`, and #1206's
+  script, which counts the bare calls. `gh issue list --state open --limit 1000 --search styleguide`
+  lists what else has been filed.
