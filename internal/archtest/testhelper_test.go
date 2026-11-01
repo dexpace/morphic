@@ -124,6 +124,7 @@ func TestTestHelperViolations_PlantedShapesAreCaught(t *testing.T) {
 		{"a name that only starts like a fuzz target", "func Fuzzy(t *testing.T) { t.Fatal(1) }\n", line},
 		{"a parenthesized parameter's Helper first", "func check(t *testing.T) {\n\t(t).Helper()\n\tt.Fatal(1)\n}\n" + caller, 0},
 		{"a parenthesized Helper first", "func check(t *testing.T) {\n\t(t.Helper)()\n\tt.Fatal(1)\n}\n" + caller, 0},
+		{"a Helper call parenthesized whole", "func check(t *testing.T) {\n\t(t.Helper())\n\tt.Fatal(1)\n}\n" + caller, 0},
 		{"a dereferenced parameter's Helper first",
 			"func check(t *testing.TB) {\n\t(*t).Helper()\n\tassert.True(*t, false)\n}\n" + callerByPointer, 0},
 		{"a second testing parameter's Helper first",
@@ -277,6 +278,8 @@ type TB interface {
 
 type Embeds interface{ testing.TB }
 
+type EmbedsParenthesized interface{ (testing.TB) }
+
 type Fails interface{ Fatal(...any) }
 
 type Of[X any] interface {
@@ -300,6 +303,8 @@ type (
 type Alias = testing.TB
 
 type Defined testing.T
+
+type AliasParenthesized = (*testing.T)
 `
 	const caller = "\nfunc TestP(t *testing.T) { check(t) }\n"
 	const imported = `package b
@@ -333,10 +338,14 @@ import "github.com/stretchr/testify/assert"
 			"b/p_test.go": fmt.Sprintf(imported, "", module, "morphic.TB")}, "b/p_test.go:9"},
 		{"one embedding testing.TB", map[string]string{"a/tb.go": tb,
 			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.Embeds")}, "b/p_test.go:9"},
+		{"one embedding a parenthesized testing type", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.EmbedsParenthesized")}, "b/p_test.go:9"},
 		{"one declared in a group, past its first type", map[string]string{"a/tb.go": tb,
 			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.Grouped")}, "b/p_test.go:9"},
 		{"an alias of a testing type", map[string]string{"a/tb.go": tb,
 			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.Alias")}, "b/p_test.go:9"},
+		{"an alias of a parenthesized pointer to a testing type", map[string]string{"a/tb.go": tb,
+			"b/p_test.go": fmt.Sprintf(imported, "", module+"/a", "a.AliasParenthesized")}, "b/p_test.go:9"},
 		{"a definition of a testing type", map[string]string{"a/tb.go": tb,
 			"b/p_test.go": strings.Replace(fmt.Sprintf(imported, "", module+"/a", "*a.Defined"),
 				"check(t)", "check((*a.Defined)(t))", 1)}, "b/p_test.go:9"},
@@ -684,9 +693,11 @@ func (ft fileTypes) isTesting(typ ast.Expr, typeParams map[string]bool) bool {
 	return ft.namesTesting(base, typeParams)
 }
 
-// baseType returns typ less any pointer, the parentheses gofmt keeps under
-// one, and an instantiation.
+// baseType returns typ less any pointer, the parentheses gofmt keeps around
+// or under one, and an instantiation. gofmt keeps them around a declared type
+// and an interface's embedded one, not around a parameter's.
 func baseType(typ ast.Expr) ast.Expr {
+	typ = ast.Unparen(typ)
 	if star, ok := typ.(*ast.StarExpr); ok {
 		typ = ast.Unparen(star.X)
 	}
@@ -850,13 +861,13 @@ func helpsEach(body *ast.BlockStmt, through []string) bool {
 }
 
 // helperCall returns what stmt calls Helper on when it is a Helper call, read
-// through parentheses and a dereference.
+// through parentheses, around the call too, and a dereference.
 func helperCall(stmt ast.Stmt) (string, bool) {
 	es, ok := stmt.(*ast.ExprStmt)
 	if !ok {
 		return "", false
 	}
-	call, ok := es.X.(*ast.CallExpr)
+	call, ok := ast.Unparen(es.X).(*ast.CallExpr)
 	if !ok {
 		return "", false
 	}
