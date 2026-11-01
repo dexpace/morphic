@@ -5,24 +5,28 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestSingleContentEntry_ReportsExtraMediaTypes covers the invalid document
+// TestPassedOverEntries_ReportsExtraMediaTypes covers the invalid document
 // OpenAPI forbids: a content-style header or parameter declaring more than one
-// media type. Only the first can lower — ir.Property and ir.Parameter each hold
-// one type — so the rest were dropped without a word until the position that
-// takes the first started naming what it left (GitHub #139).
-func TestSingleContentEntry_ReportsExtraMediaTypes(t *testing.T) {
+// media type. Only one can lower — ir.Property and ir.Parameter each hold one
+// type — so the rest were dropped without a word until the position that takes
+// one started naming what it left (GitHub #139).
+func TestPassedOverEntries_ReportsExtraMediaTypes(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name string
@@ -55,14 +59,261 @@ func TestSingleContentEntry_ReportsExtraMediaTypes(t *testing.T) {
 			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.at),
 				"the ignored media types are named at the content map: %+v", diags)
 			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, tc.at),
-				"application/json", "the message names what was ignored, not only that something was")
+				"application/xml", "the message names what was passed over, not only that something was")
 		})
 	}
 }
 
-// TestSingleContentEntry_OneEntryIsSilent is the control: the legal one-entry
+// TestElectContentEntry_DoesNotFollowDeclarationOrder compiles a parameter and a
+// header in every order of their entries. Each order lowers one entry, keeps the
+// others whole on the Document, and reports them alike, so a reordered map changes
+// nothing, and nothing an entry wrote is lost (GitHub #606). It is the diff the
+// harness cannot run: such a document draws a validation error, where the order
+// oracle stops.
+func TestElectContentEntry_DoesNotFollowDeclarationOrder(t *testing.T) {
+	t.Parallel()
+	const (
+		numberEntry = `application/json: {schema: {$ref: "#/components/schemas/Num"}}`
+		plainEntry  = `text/plain: {schema: {$ref: "#/components/schemas/Str"}, example: hi, x-kept: 1}`
+		xmlEntry    = `application/xml: {schema: {type: boolean}}`
+	)
+	spec := func(entries ...string) string {
+		content := "\n                " + strings.Join(entries, "\n                ")
+		return openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - name: p
+          in: query
+          content:` + strings.ReplaceAll(content, "                ", "            ") + `
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H:
+              content:` + content + `
+components:
+  schemas:
+    Num: {type: integer}
+    Str: {type: string}
+`)
+	}
+	const (
+		paramMap    = "/paths/~1x/get/parameters/0/content"
+		headerMap   = "/paths/~1x/get/responses/200/headers/X-H/content"
+		xmlValue    = `{"schema":{"type":"boolean"}}`
+		plainValue  = `{"example":"hi","schema":{"$ref":"#/components/schemas/Str"},"x-kept":1}`
+		wantWarning = `"application/json" is lowered and "application/xml", "text/plain" kept verbatim under the document's Unmodeled`
+	)
+	wantValues := map[string]string{
+		"openapi:" + paramMap + "/application~1xml":  xmlValue,
+		"openapi:" + paramMap + "/text~1plain":       plainValue,
+		"openapi:" + headerMap + "/application~1xml": xmlValue,
+		"openapi:" + headerMap + "/text~1plain":      plainValue,
+	}
+
+	for _, entries := range [][]string{
+		{numberEntry, plainEntry, xmlEntry}, {numberEntry, xmlEntry, plainEntry},
+		{plainEntry, numberEntry, xmlEntry}, {plainEntry, xmlEntry, numberEntry},
+		{xmlEntry, numberEntry, plainEntry}, {xmlEntry, plainEntry, numberEntry},
+	} {
+		doc, diags := parseFull(t, spec(entries...))
+		for name, elected := range map[string]func(*testing.T, *ir.Document) (ir.TypeID, string, ir.Unmodeled){
+			"parameter": electedParam, "header": electedHeader,
+		} {
+			target, mediaType, unmodeled := elected(t, doc)
+			assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Num"), target, "%s, %q", name, entries)
+			assert.Equal(t, "application/json", mediaType, "%s, %q", name, entries)
+			assert.Empty(t, unmodeled, "%s, %q: a passed-over entry is the document's", name, entries)
+		}
+		got := make(map[string]string, len(doc.Unmodeled))
+		for key, entry := range doc.Unmodeled {
+			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason, key)
+			got[key] = string(entry.Value)
+		}
+		assert.Equal(t, wantValues, got, "%q", entries)
+		for _, at := range []string{paramMap, headerMap} {
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at),
+				wantWarning, "%q", entries)
+		}
+	}
+}
+
+// TestPassedOverEntries_KeepsEntriesAMergeKeyWrote holds the keeper to the map
+// the election read: a `content` written through `<<` is the parser's, and a
+// read of the raw mapping that missed it would keep nothing.
+func TestPassedOverEntries_KeepsEntriesAMergeKeyWrote(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+x-shared: &shared
+  content:
+    text/plain: {schema: {type: string}}
+    application/json: {schema: {type: integer}}
+paths:
+  /x:
+    get:
+      operationId: getX
+      parameters:
+        - {name: p, in: query, <<: *shared}
+      responses: {"200": {description: ok}}
+`)
+	target, mediaType, _ := electedParam(t, doc)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), target)
+	assert.Equal(t, "application/json", mediaType)
+	assert.Contains(t, doc.Unmodeled, "openapi:/paths/~1x/get/parameters/0/content/text~1plain")
+}
+
+// TestPassedOverEntries_NamesOnlyWhatItKept holds the warning to what reached
+// the IR: an entry whose node cannot be kept is reported as unpreservable, and
+// naming it as kept as well would announce a preservation that did not happen.
+func TestPassedOverEntries_NamesOnlyWhatItKept(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - name: p
+          in: query
+          content:
+            application/json: {schema: {type: integer}}
+            application/xml: {x-twice: 1, x-twice: 2}
+            text/plain: {schema: {type: string}}
+      responses: {"200": {description: ok}}
+`))
+	_, mediaType, _ := electedParam(t, doc)
+	assert.Equal(t, "application/json", mediaType)
+	assert.Equal(t, []string{"openapi:/paths/~1x/get/parameters/0/content/text~1plain"},
+		slices.Sorted(maps.Keys(doc.Unmodeled)))
+	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+		"/paths/~1x/get/parameters/0/content"),
+		`"application/json" is lowered and "text/plain" kept verbatim under the document's Unmodeled`)
+}
+
+// TestPassedOverEntries_QuotesWhatItNames holds the warning to one line that names
+// each entry: a key is the document's own text, so a line break in one would start
+// a line of the report, and a comma would read as two entries.
+func TestPassedOverEntries_QuotesWhatItNames(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - name: p
+          in: query
+          content:
+            application/json: {schema: {type: integer}}
+            "text/a,text/b": {}
+            "text/c\nerror: forged": {}
+      responses: {"200": {description: ok}}
+`))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+		"/paths/~1x/get/parameters/0/content"),
+		`"application/json" is lowered and "text/a,text/b", "text/c\nerror: forged" kept verbatim under the document's Unmodeled`)
+}
+
+// TestPassedOverEntries_KeepsEveryEntryAndNamesTheLowest holds a map at the bound
+// on the names one warning lists and one past it, declared in both orders: the
+// bound shortens the line and drops no entry, what it leaves out must not follow
+// the document, and the count must exclude the elected entry, which is no name.
+func TestPassedOverEntries_KeepsEveryEntryAndNamesTheLowest(t *testing.T) {
+	t.Parallel()
+	const at = "/paths/~1x/get/parameters/0/content"
+	for _, passedOver := range []int{annotation.MaxUnknownKeys, annotation.MaxUnknownKeys + 1} {
+		keys := make([]string, 0, passedOver+1)
+		for i := range passedOver + 1 {
+			keys = append(keys, fmt.Sprintf("text/%03d", i))
+		}
+		wantKept := make([]string, 0, passedOver)
+		for _, key := range keys[1:] {
+			wantKept = append(wantKept, "openapi:"+at+"/"+strings.ReplaceAll(key, "/", "~1"))
+		}
+		wantMore := ""
+		if rest := passedOver - annotation.MaxUnknownKeys; rest > 0 {
+			wantMore = fmt.Sprintf(" and %d more", rest)
+		}
+		reversed := slices.Clone(keys)
+		slices.Reverse(reversed)
+		for _, declared := range [][]string{keys, reversed} {
+			var spec strings.Builder
+			spec.WriteString("  /x:\n    get:\n      operationId: getX\n      parameters:\n" +
+				"        - name: p\n          in: query\n          content:\n")
+			for _, key := range declared {
+				fmt.Fprintf(&spec, "            %s: {}\n", key)
+			}
+			spec.WriteString("      responses: {\"200\": {description: ok}}\n")
+			doc, diags := parseFull(t, openapitest.PathsSpec(spec.String()))
+
+			_, mediaType, _ := electedParam(t, doc)
+			assert.Equal(t, keys[0], mediaType)
+			assert.Equal(t, wantKept, slices.Sorted(maps.Keys(doc.Unmodeled)))
+			assert.Equal(t, 0, openapitest.CountDiagsAt(diags, diag.UnknownKeyBudget, ir.SeverityWarning))
+			warning := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning, at)
+			assert.Equal(t, annotation.MaxUnknownKeys, strings.Count(warning, `"text/`)-1, "a warning stays one short line")
+			lastNamed := strconv.Quote(keys[annotation.MaxUnknownKeys])
+			assert.Contains(t, warning, lastNamed+wantMore+" kept verbatim")
+		}
+	}
+}
+
+// TestPassedOverEntries_KeepsOneCopyPerDeclaration lowers a parameter and a header
+// through several references. What they pass over belongs to the declaration, so
+// the Document holds it once and no reference copies it, and the warning stands
+// once at the declaration: the IR grows with the source, not with its product
+// with the references (GitHub #1240).
+func TestPassedOverEntries_KeepsOneCopyPerDeclaration(t *testing.T) {
+	t.Parallel()
+	const (
+		paramMap  = "/components/parameters/P/content"
+		headerMap = "/components/headers/H/content"
+	)
+	var spec strings.Builder
+	for _, name := range []string{"a", "b", "c"} {
+		fmt.Fprintf(&spec, `  /%[1]s:
+    get:
+      operationId: %[1]s
+      parameters:
+        - $ref: "#/components/parameters/P"
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H: {$ref: "#/components/headers/H"}
+`, name)
+	}
+	spec.WriteString(`components:
+  parameters:
+    P:
+      name: q
+      in: query
+      content:
+        application/json: {schema: {type: integer}}
+        text/plain: {schema: {type: string}}
+  headers:
+    H:
+      content:
+        application/json: {schema: {type: integer}}
+        text/plain: {schema: {type: string}}
+`)
+	doc, diags := parseFull(t, openapitest.PathsSpec(spec.String()))
+
+	assert.Equal(t, []string{"openapi:" + headerMap + "/text~1plain", "openapi:" + paramMap + "/text~1plain"},
+		slices.Sorted(maps.Keys(doc.Unmodeled)))
+	for _, name := range []string{"a", "b", "c"} {
+		op := openapitest.FindOp(t, doc, name)
+		require.Len(t, op.Params, 1)
+		assert.Empty(t, op.Params[0].Unmodeled, name)
+		require.Len(t, op.Responses, 1)
+		require.Len(t, op.Responses[0].Headers, 1)
+		assert.Empty(t, op.Responses[0].Headers[0].Unmodeled, name)
+	}
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning), "%+v", diags)
+}
+
+// TestElectContentEntry_OneEntryIsSilent is the control: the legal one-entry
 // spelling must not warn, or every content-style header and parameter would.
-func TestSingleContentEntry_OneEntryIsSilent(t *testing.T) {
+func TestElectContentEntry_OneEntryIsSilent(t *testing.T) {
 	t.Parallel()
 	_, diags := parseFull(t, openapitest.PathsSpec("  /x:\n    get:\n      responses:\n"+
 		"        \"200\":\n          description: ok\n          headers:\n"+

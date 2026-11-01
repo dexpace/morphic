@@ -32,6 +32,7 @@ func fillSequential(c lowering.Ctx, ts *compile.Types, content *ir.Content, medi
 		ref, itemDiags := schema.Ref(c, ts, schema.TopLevelDepth, item, mediaPtr+ids.Ptr("itemSchema"))
 		diags = append(diags, itemDiags...)
 		content.Item = &ref
+		diags = append(diags, itemsOfOneDocument(c, content.MediaType, mediaPtr)...)
 	}
 	if len(media.GetPrefixEncoding()) > 0 {
 		return append(diags, positionalEncoding(c, content, media, mediaPtr)...)
@@ -45,6 +46,18 @@ func fillSequential(c lowering.Ctx, ts *compile.Types, content *ir.Content, medi
 	content.ItemEncoding = &pe
 	content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, unmodeled)
 	return append(diags, encDiags...)
+}
+
+// itemsOfOneDocument reports an itemSchema on a media type whose body is one
+// document. Which media types repeat a structure is no closed set, so it fires only
+// where the syntax says, and never on one the caller's policy calls a stream.
+func itemsOfOneDocument(c lowering.Ctx, mediaType string, mediaPtr jsontext.Pointer) []ir.Diagnostic {
+	if !lowering.HoldsOneDocument(mediaType) || c.MediaTypeStreams(mediaType) {
+		return nil
+	}
+	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.ItemSchemaOnDocument, mediaPtr+ids.Ptr("itemSchema"),
+		"itemSchema describes the items of a sequential media type, and a body of %q is one document; "+
+			"it lowers as a stream, as declared", mediaType)}
 }
 
 // positionalEncoding keeps 3.2 positional prefixEncoding — and the itemEncoding

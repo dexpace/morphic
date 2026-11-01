@@ -651,6 +651,52 @@ func TestLower_MultiTypeUnion(t *testing.T) {
 	assert.True(t, u.Exclusive)
 }
 
+// TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes holds a type array's union
+// to what the array admits (GitHub #868). Every integer is a number, so a list
+// naming both is inclusive, in either order and whatever else it names; with a
+// width both variants are one primitive, which an exclusive reading would refuse
+// outright.
+func TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		schema string
+		want   bool
+	}{
+		{"integer and number", `{type: [integer, number]}`, false},
+		{"number and integer", `{type: [number, integer]}`, false},
+		{"with a width", `{type: [integer, number], format: int32}`, false},
+		{"with null", `{type: [integer, number, "null"]}`, false},
+		{"with a third type", `{type: [integer, string, number]}`, false},
+		{"integer alone among the numbers", `{type: [integer, string]}`, true},
+		{"number alone among the numbers", `{type: [number, string]}`, true},
+		{"no number at all", `{type: [object, array, string, boolean]}`, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    U: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			u, ok := typeByName(doc, "U").(*ir.Union)
+			require.True(t, ok)
+			assert.Equal(t, tc.want, u.Exclusive)
+		})
+	}
+}
+
+// TestLower_ATypeListedTwiceIsNotExclusive covers the other way two listed types
+// overlap: such a list is invalid, yet its two variants admit one value alike, so
+// an exclusive reading would refuse every string.
+func TestLower_ATypeListedTwiceIsNotExclusive(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    U: {type: [string, integer, string]}\n"))
+	openapitest.AssertHasCode(t, diags, "openapi/validation/validation-duplicate-key", ir.SeverityError)
+	u, ok := typeByName(doc, "U").(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, u.Variants, 3)
+	assert.False(t, u.Exclusive)
+}
+
 func TestLower_UnionWithStructuralSiblingVariants(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    A:
