@@ -1389,7 +1389,12 @@ is reported where those sets share no member and the schema admits no null as
 [`nullable`](#nullable) reads it, under the nullable-widening policy where that is on: a null every
 conjunct admits is a shared value, as
 [`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
-null that runs out of its budget is undecided and reports nothing.
+null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
+the instance types nothing is reported, since one conjunct contradicts nothing: a `type: "null"`
+beside a `false`, `enum` or `const` is silent. The null reading is the whole schema's, so two or
+more narrowing conjuncts beside a `false`, `enum` or `const` are reported though that entry alone
+takes away the null they share: `{allOf: [{type: [string, "null"]}, {type: [object, "null"]},
+false]}` draws the warning beside the `false`'s own report.
 
 What writes no `type` states nothing, so a report is made only of what the source declares: a
 boolean entry, whose `false` is [`allof-false-branch`](#allof-false-branch)'s to report, a `$ref`
@@ -1411,7 +1416,7 @@ past `MaxAllOfFlattenDepth`. An `allOf` that does not compose, one beside a `$re
   `schema.TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo`,
   `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
   `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
-  `schema.TestAllOf_DisjointConjunctsReportAtEachPositionKind`
+  `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`
 
 ### `union`
 

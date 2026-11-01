@@ -96,6 +96,10 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			`{allOf: [{$ref: '#/components/schemas/NullStr'}, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
 		{"an entry stating nothing goes unnamed",
 			`{allOf: [` + refStr + `, {description: d}, ` + refObj + `]}`, "allOf/0: string, allOf/2: object"},
+		{"two nullable types beside a false entry",
+			`{allOf: [{type: [string, "null"]}, {type: [object, "null"]}, false]}`, "allOf/0: string, allOf/1: object"},
+		{"two nullable types beside an enum",
+			`{allOf: [{type: [string, "null"]}, {type: [object, "null"]}, {enum: [a]}]}`, "allOf/0: string, allOf/1: object"},
 		{"a distributed union with an inline branch",
 			`{allOf: [` + refObj + `, {type: string}], oneOf: [` + refObj + `, ` + refList + `]}`,
 			"allOf/0: object, allOf/1: string"},
@@ -119,8 +123,8 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 
 // TestAllOf_ConjunctsSharingAValueStaySilent holds the readings that must not
 // report: a conjunct writing no type states nothing, and neither does a
-// boolean, an unresolved $ref or a keyword beside a $ref, and a null both
-// sides admit is a value they share.
+// boolean, an unresolved $ref or a keyword beside a $ref, a null both sides
+// admit is a value they share, and a lone conjunct contradicts nothing.
 func TestAllOf_ConjunctsSharingAValueStaySilent(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -152,6 +156,12 @@ func TestAllOf_ConjunctsSharingAValueStaySilent(t *testing.T) {
 		{"a null read past its budget",
 			`{allOf: [` + strings.Repeat(`{$ref: '#/components/schemas/Props'}, `, 130) +
 				`{$ref: '#/components/schemas/NullStr'}, {$ref: '#/components/schemas/NullObj'}]}`, "", ""},
+		{"a null beside a false entry", `{allOf: [{type: "null"}, false]}`, "", diag.FalseSchema},
+		{"a type of null beside a false entry", `{type: "null", allOf: [false]}`, "", diag.FalseSchema},
+		{"a null beside a $ref landing on false", `{allOf: [{type: "null"}, {$ref: '#/components/schemas/No'}]}`,
+			"    No: false\n", diag.FalseSchema},
+		{"a null beside an enum", `{allOf: [{type: "null"}, {enum: [a]}]}`, "", ""},
+		{"a null beside a const", `{allOf: [{type: "null"}, {const: 1}]}`, "", ""},
 		{"a distributed union composing nothing",
 			`{properties: {a: {type: string}}, oneOf: [` + refObj + `, ` + refList + `]}`, "", ""},
 	} {
@@ -252,10 +262,10 @@ func TestAllOf_DisjointConjunctsIgnoreDeclarationOrder(t *testing.T) {
 	assert.Empty(t, cmp.Diff(want, got), "the report does not depend on the declaration order")
 }
 
-// TestAllOf_DisjointConjunctsReportAtEachPositionKind holds the report to the two
-// shapes a schema position is written in: a property of an object, and the
-// schema of a response's media type.
-func TestAllOf_DisjointConjunctsReportAtEachPositionKind(t *testing.T) {
+// TestAllOf_DisjointConjunctsReportOnModelsAndOperations holds the report to
+// where a schema is written on a model and on an operation: a property, array
+// items, a query parameter, a request body and a response media type.
+func TestAllOf_DisjointConjunctsReportOnModelsAndOperations(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, `openapi: 3.1.0
 info: {title: t, version: "1"}

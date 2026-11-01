@@ -16,8 +16,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// instanceTypes is a set of JSON instance types, null aside: schemaAdmitsNull
-// is the one reading of null. Its zero is a schema writing `type: "null"`.
+// instanceTypes is a set of JSON instance types, null aside: nulls is the one
+// reading of null. Its zero is a schema writing `type: "null"`.
 type instanceTypes uint8
 
 const (
@@ -144,7 +144,9 @@ func (r *conjunctTypes) entry(e allOfBranch) instanceTypes {
 // disjointConjuncts names what each conjunct of comp, the allOf s writes,
 // states of its instance types where they share no value, and returns nil
 // where they share one (docs/compilers/openapi.md#allof-disjoint-conjuncts).
-// A null is one: the shared reading of it is schemaAdmitsNull's.
+// A null is one: the shared reading of it is the nulls walk's. One conjunct
+// contradicts nothing, so a lone `type: "null"` beside what takes its null away
+// draws nil too.
 func disjointConjuncts(c lowering.Ctx, s *oas3.Schema, comp allOfComposition) []string {
 	r := conjunctTypes{refs: c.Bindings(), steps: budget.New(budget.AtMost(maxNullConjuncts))}
 	own := declaredInstanceTypes(s)
@@ -163,7 +165,11 @@ func disjointConjuncts(c lowering.Ctx, s *oas3.Schema, comp allOfComposition) []
 	if n.schema(s, nullSite{}).admits(c) || n.conjuncts.Exhausted() {
 		return nil
 	}
-	return comp.namedConjuncts(own, read)
+	names := comp.namedConjuncts(own, read)
+	if len(names) < 2 {
+		return nil
+	}
+	return names
 }
 
 // namedConjuncts spells each conjunct that narrows the instance types, own
