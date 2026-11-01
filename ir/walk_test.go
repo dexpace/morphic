@@ -99,7 +99,8 @@ func TestWalkValues_NestedMapsAreWalkedEntryByEntry(t *testing.T) {
 
 // TestWalkValues_DeepValueTreeIsTruncated drives the depth cap from both sides:
 // a document nested past it must report truncation rather than be under-checked
-// in silence, and one nested deep but within the bound must not.
+// in silence, and one nested deep but within the bound must not. Its visitor
+// reads no path, since rendering one per visit is quadratic in the depth.
 func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 	t.Parallel()
 	docWith := func(v ir.Value) *ir.Document {
@@ -108,12 +109,12 @@ func TestWalkValues_DeepValueTreeIsTruncated(t *testing.T) {
 			Examples: []ir.Example{{Value: &v}},
 		}}}
 	}
+	walks := ir.VisitFunc(func(reflect.Value, ir.WalkPath) bool { return true })
 
-	_, truncated := walkPaths(docWith(irtest.NestedListValue(ir.MaxWalkDepth)))
-	assert.True(t, truncated, "a tree nested past the cap must report truncation")
-
-	_, truncated = walkPaths(docWith(irtest.NestedListValue(200)))
-	assert.False(t, truncated, "a tree a compiler can produce must be walked whole")
+	assert.True(t, ir.WalkValues(docWith(irtest.NestedListValue(ir.MaxWalkDepth)), "doc", walks),
+		"a tree nested past the cap must report truncation")
+	assert.False(t, ir.WalkValues(docWith(irtest.NestedListValue(200)), "doc", walks),
+		"a tree a compiler can produce must be walked whole")
 }
 
 // TestWalkValuesContext_WalksAsWalkValuesUnderALiveContext pins that the
