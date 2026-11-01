@@ -148,7 +148,7 @@ the rule here rather than reading it across.
 - **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported pair
   the rule covers that carries no assertion. It reports only a missing assertion, so an unexported
   type's or a standard library interface's shows in what
-  `git grep -nE -e '^(var )?[[:space:]]*_ +[A-Za-z.*]+ += ' -e '^var _ += ' -- '*.go' ':!*_test.go' ':!*testdata*'`
+  `git grep -nE -e '^(var )?[[:space:]]*_(,[[:space:]]*_)* +[^=]*[^[:space:]=] +=' -e '^var _(, _)* +=' -- '*.go' ':!*_test.go' ':!*testdata*'`
   lists, bar a conversion inside a `var (...)` group.
 
 ## Hold a new line to a rule the tree still breaks
