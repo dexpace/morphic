@@ -90,9 +90,9 @@ const (
 // lowering reads one for a keyword whose value is a schema as left out, and one
 // for another object's schema as the empty schema, a value. It reads one for a
 // Schema Object's other keywords several ways, so that is the wrong value
-// (GitHub #1069). A null for an optional field is otherwise left out, and one
-// for a security requirement's name lists no scopes; for a required field it is
-// the value that is missing, reported by whichever package owns the rule.
+// (GitHub #1069). A null for an optional field is otherwise left out; for a
+// required field it is the value that is missing, reported by whichever package
+// owns the rule.
 func (f frame) nullRead(fld Field, m Minor) nullReading {
 	holdsSchema := fld.Shape == Nested && fld.Of == Schema
 	if holdsSchema != (f.obj.Kind == Schema) {
@@ -110,6 +110,7 @@ func (f frame) nullRead(fld Field, m Minor) nullReading {
 		}
 		return wrongValue
 	}
+	// A requirement's name stands whatever its value, so it is no optional field.
 	if f.obj.Kind == SecurityRequirement {
 		return noScopes
 	}
