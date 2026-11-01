@@ -82,7 +82,7 @@ func graphqlReachableTypes(doc *ir.Document) (map[ir.TypeID]bool, bool) {
 // over: prose naming a type does not use it, as ir.TypeEdges holds too.
 func appendTypeIDs(dst []ir.TypeID, root any) []ir.TypeID {
 	ir.WalkValues(root, "", ir.VisitFunc(func(v reflect.Value, _ ir.WalkPath) bool {
-		if v.Type() == docRefType {
+		if v.Kind() == reflect.Struct && v.Type() == docRefType {
 			return false
 		}
 		if v.Kind() == reflect.String && v.Type() == typeIDType && v.String() != "" {

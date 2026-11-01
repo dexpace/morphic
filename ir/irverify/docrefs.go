@@ -26,7 +26,7 @@ func checkDocRefs(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
-			if v.Type() != docsType {
+			if v.Kind() != reflect.Struct || v.Type() != docsType {
 				return true
 			}
 			docs, ok := reflect.TypeAssert[ir.Docs](v)
