@@ -30,17 +30,18 @@ applies decides.
 
    Each document a spec's references read is a `Sources` entry after the entry document and its
    overlay, and a type it declares, inline in a parameter or response it holds included, names that
-   entry (ir-design §3.1), so a key names a file the references read.
+   entry ([identity](../../ir/identity.md)), so a key names a file the references read.
 2. **Split by group.** With `SplitByGroup`, each top-level operation group is a unit, holding the
    group's operations, its sub-client and every type only its operations reach, as `TypePlan.Reach`
-   says; `Reach` spreads from each operation's roots along the type graph as usage does (ir-design
-   §4.9), a service's `CommonErrors` counting as every one of its groups' roots, since each of its
-   operations can return them. A type several groups reach goes to a shared unit, and a type none
-   reaches stays in the root with the client. No cycle can arise: whatever a reached type holds is
-   reached by every group that reaches it, so a group unit imports at most the shared unit, the
-   shared unit imports none, and only the root, which nothing imports, holds a type that may reach
-   into a group. A type moves between a group's unit and the shared unit only when the set of groups
-   reaching it changes, which takes a change to the operations that reach it.
+   says; `Reach` spreads from each operation's roots along the type graph as usage does
+   ([derived-facts](../../ir/derived-facts.md)), a service's `CommonErrors` counting as every one of
+   its groups' roots, since each of its operations can return them. A type several groups reach goes
+   to a shared unit, and a type none reaches stays in the root with the client. No cycle can arise:
+   whatever a reached type holds is reached by every group that reaches it, so a group unit imports
+   at most the shared unit, the shared unit imports none, and only the root, which nothing imports,
+   holds a type that may reach into a group. A type moves between a group's unit and the shared unit
+   only when the set of groups reaching it changes, which takes a change to the operations that
+   reach it.
 
 The root unit's name is the options'. A group's unit is the group's name rendered for a package
 under the root, the shared unit is `shared` under the root, and a partition's unit is the name its

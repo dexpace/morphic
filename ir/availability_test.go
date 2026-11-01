@@ -15,7 +15,7 @@ import (
 // marshal to an empty object rather than six empty-slice/empty-string fields —
 // and that a fully populated Availability — add/remove/re-add cycles, a
 // deprecation version, renames, type changes, and required-flips — survives a
-// JSON round trip (ir-design §11).
+// JSON round trip (docs/ir/availability.md).
 func TestAvailability_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Availability{}, `{}`, *populatedAvailability())

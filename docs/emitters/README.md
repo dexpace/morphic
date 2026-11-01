@@ -2,13 +2,13 @@
 
 The emitter is the second half of the Morphic pipeline: it turns an `ir.Document` (plus its own
 options) into generated SDK source, docs, mock servers, and other artifacts. This directory is the
-normative contract for that half, the way `docs/ir-design.md` is normative for the IR. It extends
-the emitter sketch in `docs/architecture.md §2.3`–`§2.4`; where the two disagree, `architecture.md`
-wins on stage boundaries and these documents win on the shapes inside an emitter.
+normative contract for that half, the way [`docs/ir/`](../ir/README.md) is normative for the IR. It
+extends the emitter sketch in `docs/architecture.md §2.3`–`§2.4`; where the two disagree,
+`architecture.md` wins on stage boundaries and these documents win on the shapes inside an emitter.
 
-Type sketches are written as Go because the implementation is Go. As in `ir-design.md`, field names
-and struct shapes here are the contract; receiver methods and helpers are not. The IR is consumed,
-never modified — an emitter imports `ir` and reads it.
+Type sketches are written as Go because the implementation is Go. As in the [IR
+design](../ir/README.md), field names and struct shapes here are the contract; receiver methods and
+helpers are not. The IR is consumed, never modified — an emitter imports `ir` and reads it.
 
 ## How the documents divide
 
@@ -21,7 +21,7 @@ target's documents.
 
 A trace of one construct divides the same way. Its IR and its plan are the same for every target, so
 they sit in the shared document, as does what every target builds from them, and the forms one
-target builds sit in that target's. A trace's IR field names are `ir-design.md`'s.
+target builds sit in that target's. A trace's IR field names are [the IR design](../ir/README.md)'s.
 
 A new target adds a directory under `targets/` holding the documents every target has (`overview`,
 `lowering`, `types`, `models`, `unions`, `naming`, `operations`, `returns` and `errors`) and any of
@@ -194,7 +194,7 @@ while reusing the same `plan` and refine step library.
    value is resolved in plan or refine and reaches emit as a decided node. A template that inspects
    the IR is a design bug.
 3. **The un-lowered IR is the acceptance test.** If a refine step cannot make its decision from
-   `IR + Plan + Options`, either the IR is under-designed (file a bug against `ir-design.md`) or the
+   `IR + Plan + Options`, either the IR is under-designed (file a bug against the IR design) or the
    fact is runtime policy ([runtime policy](contract/runtime-policy.md)) — never a compiler change
    (INV2, INV9).
 4. **Wire truth is a separate channel from identifiers.** Serialization always reads `WireName` /

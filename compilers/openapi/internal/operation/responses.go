@@ -33,13 +33,13 @@ const (
 	statusKeyLen = 3
 )
 
-// lowerResponses lowers an operation's responses onto op (ir-design §7.2): each
-// status below 400, or a key naming no status, to Responses and each from 400
-// to Errors, in source order, as RFC 9110 classes them, and the default, which
-// answers every status the others leave and so states neither class, to
-// Default. opDeclPtr is the operation's own declaration pointer, so a $ref'd
-// response interns its content once at its component pointer rather than once
-// per mount site (issue #107).
+// lowerResponses lowers an operation's responses onto op
+// (docs/ir/responses.md): each status below 400, or a key naming no status, to
+// Responses and each from 400 to Errors, in source order, as RFC 9110 classes
+// them, and the default, which answers every status the others leave and so
+// states neither class, to Default. opDeclPtr is the operation's own
+// declaration pointer, so a $ref'd response interns its content once at its
+// component pointer rather than once per mount site (issue #107).
 func lowerResponses(c lowering.Ctx, ts *compile.Types, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
@@ -90,9 +90,9 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, op *ir.Operation, src *so
 // lowerDefaultResponse lowers the responses map's default, if it declares one,
 // to op.Default, whose conditions are the catch-all. OpenAPI says it answers
 // every status no other key names, which takes in successes and failures alike
-// (ir-design §7.2), so the compiler classes it as neither: whether it is the
-// success response, an error, or both is a reading of the API, which the plan
-// makes under its policy.
+// (docs/ir/responses.md), so the compiler classes it as neither: whether it is
+// the success response, an error, or both is a reading of the API, which the
+// plan makes under its policy.
 func lowerDefaultResponse(c lowering.Ctx, ts *compile.Types, op *ir.Operation,
 	resps *soa.Responses, opDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {
@@ -208,8 +208,8 @@ func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rp
 }
 
 // responseName builds a success response's neutral naming. OpenAPI names no
-// response, so the hint ir-design §7.2 allows is the status key: "200", "2_xx",
-// or the shared mint for a key with no word in it (GitHub #259).
+// response, so the hint docs/ir/responses.md allows is the status key: "200",
+// "2_xx", or the shared mint for a key with no word in it (GitHub #259).
 //
 // It is the key as declared, not the range it parses to, so "2XX" is not named
 // by a spelling its document never used, nor a key naming no status by the
@@ -246,7 +246,7 @@ func lowerErrorCase(c lowering.Ctx, ts *compile.Types, r *soa.Response, code str
 }
 
 // statusRange maps an OpenAPI response key to an inclusive status range: "200"
-// → {200,200}, "4XX" → {400,499}, "default" → {0,0} (ir-design §7.2). ok
+// → {200,200}, "4XX" → {400,499}, "default" → {0,0} (docs/ir/responses.md). ok
 // reports whether the key named a status, and a false always comes paired with
 // the zero range; callers route on that.
 //
@@ -343,8 +343,8 @@ func isErrorRange(r ir.StatusRange) bool { return r.From >= 400 }
 
 // faultFor classifies a status range as RFC 9110 classes it: a 4xx status is a
 // client error and a 5xx one a server error, the status code's own meaning
-// rather than a reading of the API (ir-design §7.2). Any other range, which no
-// ErrorCase holds, is neither.
+// rather than a reading of the API (docs/ir/responses.md). Any other range,
+// which no ErrorCase holds, is neither.
 func faultFor(r ir.StatusRange) string {
 	switch {
 	case r.From >= 400 && r.From <= 499:

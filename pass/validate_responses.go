@@ -31,7 +31,7 @@ func checkOneWay(doc *ir.Document) []ir.Diagnostic {
 
 // checkDefaultResponses reports an operation whose Default answers anything but
 // the catch-all, the one condition the field holds: a status the source names
-// is a Response or an ErrorCase (ir-design §7.2).
+// is a Response or an ErrorCase (docs/ir/responses.md).
 func checkDefaultResponses(doc *ir.Document) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ir.ForEachOperation(doc, func(op ir.Operation) {
@@ -68,7 +68,7 @@ func statusNames(rs []ir.StatusRange) string {
 }
 
 // answersCatchAllOnly reports whether c is the catch-all condition alone: one
-// range, the zero one (ir-design §7.2).
+// range, the zero one (docs/ir/responses.md).
 func answersCatchAllOnly(c ir.ResponseConditions) bool {
 	return len(c.StatusCodes) == 1 && c.StatusCodes[0] == ir.StatusRange{}
 }

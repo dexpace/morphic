@@ -6,9 +6,10 @@ Enum:[us, eu]}]}, …}`, a service whose `Servers` is `["server/openapi/servers/
 operation whose `Servers` names a server of its own.
 
 - **Which servers.** A service's servers are those its `Servers` names, in order; one naming none
-  has no declared server, and its client takes a base URL from its caller (ir-design §10). The
-  client's default is the first of them a client can reach (below). The IR states both, so the plan
-  copies neither ([plan or refine](../plan/plan-or-refine.md)).
+  has no declared server, and its client takes a base URL from its caller
+  ([servers](../../ir/servers.md)). The client's default is the first of them a client can reach
+  (below). The IR states both, so the plan copies neither ([plan or
+  refine](../plan/plan-or-refine.md)).
 - **refine.** The client takes three settings beside its runtime policy: which declared server to
   use, the default unless the caller names another; a value for each of that server's variables, its
   `Default` unless the caller gives one, and one of its `Enum` when it has one, each value of which
@@ -21,12 +22,12 @@ operation whose `Servers` names a server of its own.
   AsyncAPI allows, is #883's.
 - **A server a client cannot reach.** A server whose URL, its variables at their defaults, has no
   scheme and host — the `/` OpenAPI supplies for a document that declares no server, which records
-  no pointer (ir-design §10), among them — cannot be the default: the document's location, which
-  OpenAPI resolves a relative URL against, is not something an SDK knows. The default is the first
-  server that has both, so a relative server listed first passes the default to the next. A client
-  refuses to be built while the server it would use has neither and no base URL replaces it, as when
-  a caller names a relative server, and refine reports a client none of whose servers has both once,
-  as an info `emitters/<target>/no-default-server`.
+  no pointer ([servers](../../ir/servers.md)), among them — cannot be the default: the document's
+  location, which OpenAPI resolves a relative URL against, is not something an SDK knows. The
+  default is the first server that has both, so a relative server listed first passes the default to
+  the next. A client refuses to be built while the server it would use has neither and no base URL
+  replaces it, as when a caller names a relative server, and refine reports a client none of whose
+  servers has both once, as an info `emitters/<target>/no-default-server`.
 - **An operation's own servers.** An operation whose `Servers` names any is sent to those in place
   of its service's, by the same rules: to the first of them a client can reach, each variable at its
   `Default`. The caller's choice of server and of variable values is a choice among the service's

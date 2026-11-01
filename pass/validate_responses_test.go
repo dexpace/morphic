@@ -33,8 +33,8 @@ func defaultResponse() *ir.Response {
 
 // TestValidate_AOneWayOperationWithADefaultIsReported pins that a Default is
 // counted among the responses a one-way operation may not declare: it is a
-// response whichever class the plan gives it (ir-design §7.2). Counting only
-// Responses would let a one-way operation carry a Default unreported.
+// response whichever class the plan gives it (docs/ir/responses.md). Counting
+// only Responses would let a one-way operation carry a Default unreported.
 func TestValidate_AOneWayOperationWithADefaultIsReported(t *testing.T) {
 	t.Parallel()
 	cases := []struct {

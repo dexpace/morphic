@@ -22,9 +22,10 @@
   row names ([type table](../contract/type-table.md)) to have some. An enum is outside this line: it
   declares its own codec ([enums](enums.md)), which reads and writes its value type through that
   type's row, so it is a defined type whatever its value type maps to.
-- **External** (ir-design §4.6): `External{Identity, Package, MinVersion}` becomes the type its
-  type-table row names for `Identity` ([type table](../contract/type-table.md)), imported with the
-  row's `Imports` and required at its `Dependency` — imported, not generated. `Package` and
+- **External** ([containers](../../ir/containers.md)): `External{Identity, Package, MinVersion}`
+  becomes the type its type-table row names for `Identity`
+  ([type table](../contract/type-table.md)), imported with the row's `Imports` and required at its
+  `Dependency` — imported, not generated. `Package` and
   `MinVersion` name what the source format imports, which a built-in row may follow; they cannot
   name a target's type, so a row is what maps an identity. An identity with no row (`erlang:pid`,
   `erlang:fun`) gets the passthrough/opaque strategy and a `warning` diagnostic, never a silent

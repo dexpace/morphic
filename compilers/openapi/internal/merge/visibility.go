@@ -10,8 +10,8 @@ import (
 )
 
 // mergeVisibility folds src's lifecycle visibility into dst under allOf
-// intersection semantics (ir-design §5.2): the merged property is visible only
-// in a lifecycle both branches admit.
+// intersection semantics (docs/compilers/openapi.md#disjoint-visibility): the
+// merged property is visible only in a lifecycle both branches admit.
 //
 // An empty Only (None false) means visible in every lifecycle, not none, so
 // each side is read as the set it admits before intersecting. Disjoint sets

@@ -18,10 +18,10 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
 - **No body** (`DELETE /pet/{id}` → `204`, or any `HEAD`). **plan.** `Shape` `void`. **refine.** The
   method returns no value.
 - **A lone default** (`POST /purge`, whose only response is `default`). **plan.** The IR lowers it
-  to `Operation.Default`, classed neither way (ir-design §7.2), and the default `PrimaryResponse`
-  takes it for the primary response, marked `Inferred` ([plan policy](../plan/policy.md)), so
-  `Shape` reads it as any other: `value` with its body, `void` without one. **refine.** As the line
-  for the body it carries.
+  to `Operation.Default`, classed neither way ([responses](../../ir/responses.md)), and the default
+  `PrimaryResponse` takes it for the primary response, marked `Inferred` ([plan
+  policy](../plan/policy.md)), so `Shape` reads it as any other: `value` with its body, `void`
+  without one. **refine.** As the line for the body it carries.
 - **Declared headers** (`GET /zone` → `200` with an `ETag`). **plan.** `Return.Headers` lists them,
   and each entry of `Others` holds its own. **refine.** The plain method is unchanged, whatever the
   response declares. A result type that appeared with the first declared header would change that

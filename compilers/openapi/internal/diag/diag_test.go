@@ -158,10 +158,10 @@ func codes() []string {
 }
 
 // TestCodes_AreNamespacedAndDistinct pins what makes a code usable by a consumer
-// that allowlists them (ir-design §13): each is namespaced to this format, and
-// no two share a spelling. A duplicate would make two unrelated findings
-// indistinguishable to anything filtering on the code, and the constants
-// themselves cannot collide in a way the compiler would notice.
+// that allowlists them: each is namespaced to this format, and no two share a
+// spelling. A duplicate would make two unrelated findings indistinguishable to
+// anything filtering on the code, and the constants themselves cannot collide
+// in a way the compiler would notice.
 func TestCodes_AreNamespacedAndDistinct(t *testing.T) {
 	t.Parallel()
 	seen := make(map[string]bool, len(codes()))

@@ -31,8 +31,8 @@ const (
 	embedderAPI = "the engine's API for a driver compiling a spec held wholly in memory, as an editor " +
 		"integration would (docs/architecture.md); no binary of the module does"
 	transformAPI = "how a transform pass edits a document (docs/architecture.md); no transform ships yet"
-	relationAPI  = "a relation ir-design §4.3 defines for the IR's consumers, which no shipped one reads yet"
-	factAPI      = "a fact ir-design §4.9 derives for emitters, which are not built yet"
+	relationAPI  = "a relation docs/ir/models.md#composition defines for the IR's consumers, which no shipped one reads yet"
+	factAPI      = "a fact docs/ir/derived-facts.md derives for emitters, which are not built yet"
 	stringerAPI  = "fmt.Stringer, naming a Kind wherever one is printed; declared in a test file, it would " +
 		"make a test print what production does not"
 )

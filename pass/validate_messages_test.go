@@ -26,10 +26,11 @@ func messageBindingDoc(channel ir.ChannelID, carried, used []ir.MessageID) *ir.D
 	return doc
 }
 
-// TestValidate_MessageNotCarriedByChannel is the containment claim ir-design §8.3
-// makes for MessageBinding.Messages: an operation may use only the messages its
-// channel carries. Both ids resolve, so the reference walk is silent and a
-// publisher for a message the channel contract forbids validated clean.
+// TestValidate_MessageNotCarriedByChannel is the containment claim
+// docs/ir/messaging.md makes for MessageBinding.Messages: an operation may use
+// only the messages its channel carries. Both ids resolve, so the reference
+// walk is silent and a publisher for a message the channel contract forbids
+// validated clean.
 func TestValidate_MessageNotCarriedByChannel(t *testing.T) {
 	t.Parallel()
 	diags := validated(t, messageBindingDoc("chan/a",
@@ -114,9 +115,9 @@ func TestValidate_ReplyMessageNotCarriedByChannel(t *testing.T) {
 }
 
 // TestValidate_ReplyMessagesCarriedAreClean is the silent half, including the
-// reply whose address is dynamic: ir-design §8.3 leaves such a reply's channel
-// nil, so there is no declared message set to hold it to and a check that
-// reported there would refuse legal IR.
+// reply whose address is dynamic: docs/ir/messaging.md leaves such a reply's
+// channel nil, so there is no declared message set to hold it to and a check
+// that reported there would refuse legal IR.
 func TestValidate_ReplyMessagesCarriedAreClean(t *testing.T) {
 	t.Parallel()
 	carried := []ir.MessageID{"msg/a", "msg/b"}

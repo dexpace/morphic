@@ -266,11 +266,12 @@ func dedupeParts(parts []bodyPart) []bodyPart {
 // on the model the body stands for, falling back to deriving one under
 // schemaPtr in d when prop is nil.
 //
-// The IR is asked first because §4.3 stores only a model's own properties: a
-// composed body holds its parts on the models it composes, so a key derived
-// from the composed node's pointer would name a property that exists nowhere.
-// Deriving is the answer for a body with no model in the IR, such as a schema
-// declaring properties beside an enum or scalar type.
+// The IR is asked first because a model stores only its own properties
+// (docs/ir/models.md#composition): a composed body holds its parts on the
+// models it composes, so a key derived from the composed node's pointer would
+// name a property that exists nowhere. Deriving is the answer for a body with
+// no model in the IR, such as a schema declaring properties beside an enum or
+// scalar type.
 func partPropID(prop *ir.Property, d ids.Document, wire string, schemaPtr jsontext.Pointer) ir.PropID {
 	if prop != nil {
 		return prop.ID
@@ -279,9 +280,10 @@ func partPropID(prop *ir.Property, d ids.Document, wire string, schemaPtr jsonte
 }
 
 // partMembers returns, by wire name, the declaration the flattening of the type
-// body denotes takes for each of its members (ir-design §4.3), which is the one
-// an encoding key names: what a reader of the body's flattened shape looks up.
-// A body standing for no model has none.
+// body denotes takes for each of its members
+// (docs/ir/models.md#the-flattening), which is the one an encoding key names:
+// what a reader of the body's flattened shape looks up. A body standing for no
+// model has none.
 func partMembers(reg ir.TypeRegistry, body ir.TypeID) map[string]*ir.Property {
 	flat := ir.FlattenedProperties(reg, body)
 	members := make(map[string]*ir.Property, len(flat.Properties))

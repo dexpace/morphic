@@ -265,8 +265,8 @@ func (j typeJudge) classify(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.Typ
 func saysItsValues(td ir.TypeDef) bool { return isLiteral(td) || isStructural(td) }
 
 // unaliased returns the type td stands for: td itself, or what a chain of alias
-// scalars ends in (ir-design §4.2). The chain is bounded against a malformed
-// registry, as primKind's is.
+// scalars ends in (docs/ir/scalars.md#aliases). The chain is bounded against a
+// malformed registry, as primKind's is.
 func (j typeJudge) unaliased(td ir.TypeDef) ir.TypeDef {
 	for range maxTypeResolveDepth {
 		s, alias := td.(*ir.Scalar)
@@ -324,7 +324,7 @@ func isStructural(td ir.TypeDef) bool {
 // or an object literal into the Model kind, and a Tuple or a list literal into
 // the List kind. One instance can satisfy a map and a struct at once, or a list
 // and a tuple. Which of the two a position lowers to depends on what else it
-// declares about its members (ir-design §4.6), not on a shape that could
+// declares about its members (docs/ir/containers.md), not on a shape that could
 // contradict the other.
 func instanceKind(td ir.TypeDef) ir.TypeKind {
 	if lit, ok := td.(*ir.Literal); ok && lit.Value.Kind == ir.ValueObject {
@@ -660,7 +660,7 @@ const maxTypeResolveDepth = 64
 // list, tuple, literal, external, or a base-less opaque scalar). The Base chain
 // is bounded against a malformed registry.
 //
-// An Enum resolves via its already-computed ValueType (ir-design §4.5). A
+// An Enum resolves via its already-computed ValueType (docs/ir/enums.md). A
 // Literal is deliberately left unresolved: a ValueNumber literal spans integer,
 // number, float and decimal, so no one kind stands for it.
 func (j typeJudge) primKind(ref ir.TypeRef) (ir.PrimKind, bool) {

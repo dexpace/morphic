@@ -42,7 +42,7 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target i
 // A declaration already owning a node at pointer resolves to it, checked after
 // that gate so a position declaring nothing still resolves to its target. A
 // $ref naming the position only promises one (resolvePointer), so no home
-// depends on declaration order (ir-design §4.3).
+// depends on declaration order (docs/ir/models.md#composition-beside-a-union).
 //
 // unhomed is the census verdict of a $ref site or a collapsed union, which
 // declaresPositionScoped cannot judge.
@@ -95,8 +95,8 @@ func declaresAnnotations(s *oas3.Schema) bool {
 	return s.GetExample() != nil || len(s.GetExamples()) > 0
 }
 
-// declaresValidationOnly reports whether s writes a §4.7 validation-only
-// keyword that annotation.Read keeps verbatim under Unmodeled. A `false`
+// declaresValidationOnly reports whether s writes a validation-only keyword
+// that annotation.Read keeps verbatim under Unmodeled. A `false`
 // unevaluatedProperties is excluded on purpose: fillAdditional lowers it into
 // the model's openness, so it is structure rather than a preserved keyword.
 func declaresValidationOnly(s *oas3.Schema) bool {

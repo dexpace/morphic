@@ -23,16 +23,17 @@ guard against a heuristic silently defaulting on and quietly making the plan non
 ## The default response is classed here
 
 The IR states an operation's `Default` — OpenAPI's `default` — as neither a success nor a failure,
-since it answers every status the others do not name (ir-design §7.2). `PrimaryResponse` reads the
-whole operation for that reason, and its default takes the lowest 2xx `Response`, an exact status
-before a range that starts there, else one with no condition, which is an RPC's one response, or the
-`Default` where the operation declares neither, since a `default` answering every status is then the
-operation's only description of a success. A `Default` that is not the primary response is the
-catch-all of `Errors`, with its condition. Either use is marked `Inferred`, and a policy may take it
-as neither or both. Disabling the heuristic leaves an operation with no success response `void`
-([body shapes](responses.md#body-shapes)) and its `Default` in no plan field. `Streaming` summarizes
-only the streams an operation's success responses declare, so no `StreamDetail` covers a `Default`,
-and a primary one streams only where a content of it declares an `Item` ([streams](streams.md)).
+since it answers every status the others do not name ([responses](../../ir/responses.md)).
+`PrimaryResponse` reads the whole operation for that reason, and its default takes the lowest 2xx
+`Response`, an exact status before a range that starts there, else one with no condition, which is
+an RPC's one response, or the `Default` where the operation declares neither, since a `default`
+answering every status is then the operation's only description of a success. A `Default` that is
+not the primary response is the catch-all of `Errors`, with its condition. Either use is marked
+`Inferred`, and a policy may take it as neither or both. Disabling the heuristic leaves an operation
+with no success response `void` ([body shapes](responses.md#body-shapes)) and its `Default` in no
+plan field. `Streaming` summarizes only the streams an operation's success responses declare, so no
+`StreamDetail` covers a `Default`, and a primary one streams only where a content of it declares an
+`Item` ([streams](streams.md)).
 
 ## A union a client reads is open
 

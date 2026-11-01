@@ -534,9 +534,9 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 // also traces an overlay's contribution without touching any lowering: a
 // position the overlay introduced or rewrote names the overlay as its source.
 //
-// from is for a record no single position addresses, such as a §4.7 entry
-// folding several keywords. The entry is located at the declaring schema, and
-// from lists the keywords' positions, so the entry names the document that
+// from is for a record no single position addresses, such as a validation-only
+// entry folding several keywords. The entry is located at the declaring schema,
+// and from lists the keywords' positions, so the entry names the document that
 // wrote all of them, when one did (see overlay.Origin.IndexOf).
 func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
 	if o, ok := homeOf(c); ok {

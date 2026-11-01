@@ -66,7 +66,8 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schem
 // It reads ref alone and never the $ref target, which is why no tgt reaches it:
 // bounds conjoin rather than override, so a referent's bound merged here under
 // use-site precedence would publish the wider of the two as the whole truth. It
-// stays on the node the reference points at instead (ir-design §12.2).
+// stays on the node the reference points at instead
+// (docs/ir/annotations.md#what-a-reference-carries-down).
 func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	cons, diags := ConstraintsOf(c, &p.Unmodeled, ref, pointer)
 	p.Constraints = cons

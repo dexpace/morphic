@@ -13,9 +13,9 @@ import (
 // the channel it binds does not carry.
 //
 // Channel.Messages is the channel's contract, which messages may travel on it
-// (ir-design §8.3), and an operation names the subset it uses. A binding naming
-// one outside that set is a well-formed reference, so the reference walk has
-// nothing to say, while an emitter generates a publisher for a message the
+// (docs/ir/messaging.md), and an operation names the subset it uses. A binding
+// naming one outside that set is a well-formed reference, so the reference walk
+// has nothing to say, while an emitter generates a publisher for a message the
 // channel forbids. The code keeps the pass/ namespace: this is a containment
 // judgement the pass owns outright, not a broken reference.
 //
@@ -37,7 +37,7 @@ func checkMessageBindings(doc *ir.Document) []ir.Diagnostic {
 // request the operation's channel does not — so neither is checked alone.
 //
 // A reply with no channel of its own is left alone: its address is dynamic, so
-// there is no declared message set to hold it to (ir-design §8.3). Each
+// there is no declared message set to hold it to (docs/ir/messaging.md). Each
 // channel's messages are read through carried.
 func checkBoundMessages(doc *ir.Document, op ir.Operation, carried *reusedMap[ir.MessageID, bool]) []ir.Diagnostic {
 	b := op.Bindings.Message

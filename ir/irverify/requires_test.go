@@ -41,11 +41,12 @@ func requiresViolations(vs []irverify.Violation, code string) []irverify.Violati
 }
 
 // TestVerify_RequiresHoldsNoOwnPropertyAndNoRepeat pins the two rules on
-// Model.Requires (ir-design §4.3): no name is one an own property declares,
-// whose Required is that fact's one home, and no name repeats. Each is reported
-// at the offending entry, a repeat at its later index naming the earlier. A
-// blank name alone is legal, since a member may be named "", and an entry that
-// is no model, or is a nil one, is not this check's to judge.
+// Model.Requires (docs/ir/models.md#required-members): no name is one an own
+// property declares, whose Required is that fact's one home, and no name
+// repeats. Each is reported at the offending entry, a repeat at its later index
+// naming the earlier. A blank name alone is legal, since a member may be named
+// "", and an entry that is no model, or is a nil one, is not this check's to
+// judge.
 func TestVerify_RequiresHoldsNoOwnPropertyAndNoRepeat(t *testing.T) {
 	t.Parallel()
 	const at = "types[t/x/M].Requires["
@@ -126,7 +127,8 @@ func TestVerify_RequiresHoldsNoOwnPropertyAndNoRepeat(t *testing.T) {
 
 // TestVerify_RequiresReadsTheEffectiveWireName holds the own-property rule to
 // the name a property travels under: its WireName, or its source name where it
-// sets none (ir-design §5.1). A source name a WireName replaces is no member's.
+// sets none (docs/ir/properties.md). A source name a WireName replaces is no
+// member's.
 func TestVerify_RequiresReadsTheEffectiveWireName(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {

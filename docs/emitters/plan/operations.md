@@ -12,7 +12,7 @@ type OpPlan struct {
     Errors          []PlannedError    // every failure the operation declares, ranges collapsed
                                       // (404/4XX/catch-all)
     Page            *PagePlan         // nil = not paginated
-    Stream          *StreamPlan       // nil = neither direction streams (ir-design.md §7.3)
+    Stream          *StreamPlan       // nil = neither direction streams (docs/ir/interaction-patterns.md)
     LRO             *LROPlan          // nil = not long-running
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
     Bindings        BindingView       // per-protocol param/request/response view from OpBindings
@@ -31,7 +31,7 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     Inferred   bool                   // heuristic pagination (may be disabled by policy)
 }
 
-type LROPlan struct {                 // maps ir.LongRunning (ir-design.md §7.3)
+type LROPlan struct {                 // maps ir.LongRunning (docs/ir/interaction-patterns.md)
     FinalStateVia string              // "operation-location" | "status-monitor" | "original-uri" | …
     PollOp     *ir.OpID               // declared polling operation; nil = poll the start op's monitor
     FinalOp    *ir.OpID               // declared final-result operation; nil = result is inline
@@ -52,7 +52,7 @@ How `Return`, `Others` and `Errors` read a response is in [responses](responses.
 collapse oagen performs destructively in its compiler and Morphic forbids there (INV2): the IR keeps
 every response and content type whole; "pick a primary for the ergonomic method" happens here,
 lowered late. The content ranking (`json > form > multipart > binary`) is a shared, overridable plan
-helper (resolves `ir-design.md` open Q3).
+helper (resolves [open question 3](../../ir/open-questions.md)).
 
 Some facts oagen's plan carries are not here, by the [plan-or-refine test](plan-or-refine.md).
 Whether there is a body, whether the operation is one-way and its idempotency are stated by the IR,

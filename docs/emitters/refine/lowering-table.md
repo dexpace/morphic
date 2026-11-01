@@ -1,11 +1,12 @@
 # The lowering table
 
-The complete emitter acceptance surface is `ir-design.md §4–§9`; this table is its condensed
-normative list: every construct a target answers, and the wire truth each lowering must preserve.
-Each target's table gives its lowering of every row under the same first column
-([Go](../targets/go/lowering.md), [Kotlin](../targets/kotlin/lowering.md)), which
-`TestEmitterDocs_EveryTargetAnswersEveryConstruct` holds. Every row must have an emit path or a
-diagnosed degrade on each target; a missing row is an IR bug (INV9), not a compiler change.
+The complete emitter acceptance surface is the [IR design](../../ir/README.md)'s type, service and
+protocol documents; this table is its condensed normative list: every construct a target answers,
+and the wire truth each lowering must preserve. Each target's table gives its lowering of every row
+under the same first column ([Go](../targets/go/lowering.md),
+[Kotlin](../targets/kotlin/lowering.md)), which `TestEmitterDocs_EveryTargetAnswersEveryConstruct`
+holds. Every row must have an emit path or a diagnosed degrade on each target; a missing row is an
+IR bug (INV9), not a compiler change.
 
 | IR construct | Wire truth preserved |
 |---|---|

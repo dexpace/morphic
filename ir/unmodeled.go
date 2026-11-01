@@ -21,22 +21,25 @@ const (
 	ReasonVendorExtension UnmodeledReason = "vendor_extension"
 	// ReasonValidationOnly marks validation logic rather than data shape: the
 	// IR's structural picture is complete without it, and neither a target type
-	// system nor a sibling source format has an equivalent (ir-design §4.7).
+	// system nor a sibling source format has an equivalent
+	// (docs/ir/boundaries.md#validation-only-constructs).
 	ReasonValidationOnly UnmodeledReason = "validation_only"
 	// ReasonDegradedLowering marks a construct with no faithful target as
 	// written — the IR has no combinator for the shape, or no target type system
 	// holds it. It was lowered to a documented weaker shape with the original
-	// kept beside it, so the degradation stays recoverable (ir-design §4.8).
+	// kept beside it, so the degradation stays recoverable
+	// (docs/ir/boundaries.md#degraded-constructs).
 	ReasonDegradedLowering UnmodeledReason = "degraded_lowering"
 	// ReasonNoIRHome marks a construct target languages can express and the IR
 	// draws no deliberate boundary against: the position simply has no field for
 	// it yet. A gap expected to close, not a boundary.
 	ReasonNoIRHome UnmodeledReason = "no_ir_home"
 	// ReasonOutOfScope marks a construct the IR excludes on purpose — runtime
-	// machinery or per-target SDK policy rather than API shape (ir-design §15:
-	// Smithy waiters and @endpointRuleSet, TCGC client-shaping decorators). It
-	// is kept so nothing is lost, but no IR node is coming; the consumer meant
-	// to read it is an emitter policy layer, not a promotion pass.
+	// machinery or per-target SDK policy rather than API shape
+	// (docs/ir/boundaries.md#deliberate-exclusions: Smithy waiters and
+	// @endpointRuleSet, TCGC client-shaping decorators). It is kept so nothing
+	// is lost, but no IR node is coming; the consumer meant to read it is an
+	// emitter policy layer, not a promotion pass.
 	ReasonOutOfScope UnmodeledReason = "out_of_scope"
 )
 
@@ -57,8 +60,9 @@ func (r UnmodeledReason) Valid() bool {
 // UnmodeledEntry is one unmodeled construct, kept verbatim.
 type UnmodeledEntry struct {
 	// Reason says why the construct is here rather than modeled, so a consumer
-	// can take the subset it cares about — a validation emitter wants §4.7
-	// entries and not vendor noise; a linter wants the degradations.
+	// can take the subset it cares about — a validation emitter wants
+	// validation-only entries and not vendor noise; a linter wants the
+	// degradations.
 	Reason UnmodeledReason `json:"reason"`
 	// Value is the source construct, preserved whole but not byte-for-byte:
 	// encoding reformats a RawValue's whitespace and string escapes, and a
@@ -83,7 +87,8 @@ type UnmodeledEntry struct {
 // Unmodeled is the lossless escape hatch: a source construct the IR
 // deliberately does not model survives here untouched, keys namespaced by
 // origin so two formats never collide: "openapi:x-rate-limit",
-// "smithy:aws.api#arn", "graphql:@key", "erlang:opaque" (ir-design §12).
+// "smithy:aws.api#arn", "graphql:@key", "erlang:opaque"
+// (docs/ir/unmodeled.md#keys).
 //
 // The name states the one property every member shares, that the IR does not
 // model it, rather than any one format's word. OpenAPI calls these extensions,

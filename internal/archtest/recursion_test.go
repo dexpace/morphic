@@ -50,8 +50,8 @@ var loweringRecursions = [][]string{
 	// end to walk to.
 	{"nulls.allOf", "nulls.conjunct", "nulls.keywords", "nulls.lands", "nulls.ref", "nulls.schema", "nulls.usage"},
 	// Callbacks. An operation may declare callbacks, each of which is a path item
-	// holding operations of its own (ir-design §8.1), so the operation lowering
-	// reaches itself through them.
+	// holding operations of its own (docs/ir/http-binding.md), so the operation
+	// lowering reaches itself through them.
 	{"lowerCallbackOps", "lowerCallbacks", "lowerOperation", "mountPathItem"},
 	// The key an enum entry is compared by when the enum repeats it. A list's or
 	// an object's key is built from its elements', each a value keyed the same

@@ -43,10 +43,11 @@ type declaration struct {
 }
 
 // fold returns the property decls make together under allOf intersection
-// (ir-design §4.3, docs/compilers/openapi.md#allof-redeclared-property). decls
-// is every declaration of one wire name, at least two, in declaration order;
-// the field keeps the first one's identity unless another model carries that
-// declaration (identify). Every fact is decided from the whole set, so
+// (docs/ir/models.md#the-flattening,
+// docs/compilers/openapi.md#allof-redeclared-property). decls is every
+// declaration of one wire name, at least two, in declaration order; the field
+// keeps the first one's identity unless another model carries that declaration
+// (identify). Every fact is decided from the whole set, so
 // declaration order decides only a tie, and the merge reports each one. What a
 // declaration says that the field does not carry is reported at that
 // declaration, which is kept verbatim beside the field.

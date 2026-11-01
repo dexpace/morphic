@@ -528,11 +528,12 @@ func TestCrossPathReference_SubtreeIsNamedByItsDeclaration(t *testing.T) {
 
 // TestUndeclaredRegion_TwoReferencesAgreeInBothOrders is #529's second gap: a
 // position no declaration lowers, such as one beneath not, if, a $defs entry or
-// a dependentSchemas entry (each kept verbatim in Unmodeled, ir-design §4.7), is
-// reached only by references. Two references into one such region, one aimed at
-// the outer position and one beneath it, name the inner position alike in
-// either order, because its name is a function of its coordinate
-// (lowering.NameAt).
+// a dependentSchemas entry (the others kept verbatim in Unmodeled,
+// docs/ir/boundaries.md#validation-only-constructs, and a $defs entry nowhere,
+// docs/compilers/openapi.md#vocabulary-coverage), is reached only by
+// references. Two references into one such region, one aimed at the outer
+// position and one beneath it, name the inner position alike in either order,
+// because its name is a function of its coordinate (lowering.NameAt).
 func TestUndeclaredRegion_TwoReferencesAgreeInBothOrders(t *testing.T) {
 	t.Parallel()
 	const preamble = "openapi: 3.1.0\ninfo: {title: O, version: \"1.0.0\"}\npaths:\n"
