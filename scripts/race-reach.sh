@@ -5,8 +5,7 @@
 # data race whose stack names the plant's file. The Makefile passes the command
 # `make race` runs, so that shows the command runs the race detector at all: one
 # without -race, or a build that hides the plant, would leave the listed packages
-# just as green. Atomic coverage can hide the plant (GitHub #1271), so the
-# command must not carry -covermode.
+# just as green.
 #
 # Usage: race-reach.sh go test [flags]
 set -euo pipefail

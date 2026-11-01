@@ -2,8 +2,9 @@
 // `go test -race` to report, and nothing else: that is how it shows `make race`
 // runs the race detector at all, as a race-free tree would pass without it.
 // It is test code alone, so the layering audit, which reads production files,
-// meets no package here. The shape is the one atomic coverage hides (GitHub
-// #1271), so the plant is run without -covermode.
+// meets no package here, and coverage, which instruments no test file, cannot
+// hide it as atomic coverage hid the same race in production code (GitHub
+// #1271).
 package racereach
 
 import (
