@@ -115,16 +115,19 @@ func TestEmitterDocs_RootMapsEveryDocument(t *testing.T) {
 	}
 }
 
-// emitterTargets returns the name of each target under docs.
+// emitterTargets returns the name of each target under docs. A target is a
+// directory, so a file beside one, such as the .DS_Store Finder leaves, is none.
 func emitterTargets(t *testing.T, docs string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(filepath.Join(docs, targetsDir))
 	require.NoError(t, err)
-	require.NotEmpty(t, entries, "found no target, so this proves nothing")
-	targets := make([]string, 0, len(entries))
+	var targets []string
 	for _, entry := range entries {
-		targets = append(targets, entry.Name())
+		if entry.IsDir() {
+			targets = append(targets, entry.Name())
+		}
 	}
+	require.NotEmpty(t, targets, "found no target, so this proves nothing")
 	return targets
 }
 
@@ -246,6 +249,16 @@ func unmappedDocuments(docs string) ([]string, int, error) {
 		return nil
 	})
 	return unmapped, mapped, err
+}
+
+// TestEmitterTargets_ReadsOnlyDirectories plants a file beside a target, which
+// is no target, so a file browser's leavings do not fail every document test.
+func TestEmitterTargets_ReadsOnlyDirectories(t *testing.T) {
+	t.Parallel()
+	docs := t.TempDir()
+	writeDocFile(t, filepath.Join(docs, targetsDir, "go", "overview.md"), "# Go\n")
+	writeDocFile(t, filepath.Join(docs, targetsDir, ".DS_Store"), "")
+	assert.Equal(t, []string{"go"}, emitterTargets(t, docs))
 }
 
 // TestTableConstructs_ReadsTheNamedTable plants a target's table the way the
