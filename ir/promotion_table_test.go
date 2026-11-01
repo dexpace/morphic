@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -198,5 +199,6 @@ func TestPromotionRows_ReadsTheTableOnly(t *testing.T) {
 	t.Parallel()
 	doc := "| `Before.Table` | `A` | `Inferred` |\n" + promotionTable + "\n\n| Field | Kept on | Recorded in |\n|---|---|---|\n" +
 		"| `A.B`, `A.C` | the `D`, or `E` | `Inferred` |\n\n### Next\n\n| `After.Table` | `A` | `Inferred` |\n"
-	assert.Equal(t, []promotionRow{{fields: []string{"A.B", "A.C"}, kept: []string{"D", "E"}, record: "Inferred"}}, promotionRows(doc))
+	want := []promotionRow{{fields: []string{"A.B", "A.C"}, kept: []string{"D", "E"}, record: "Inferred"}}
+	assert.Empty(t, cmp.Diff(want, promotionRows(doc), cmp.AllowUnexported(promotionRow{})))
 }

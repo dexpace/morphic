@@ -361,9 +361,6 @@ func TestValidate_DanglingTypeRef(t *testing.T) {
 	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
-// TestValidate_DanglingRefInMessagePayload exercises the Messages walk in
-// checkDanglingRefs: a message whose payload content references a missing type
-// must be reported against the message location.
 // TestValidate_DanglingDocRef pins the check prose could not have while its
 // references were tokens inside it: a reference out of band is a TypeID like any
 // other, so one naming no type is reported where it sits, and text shaped like a
@@ -379,6 +376,9 @@ func TestValidate_DanglingDocRef(t *testing.T) {
 	assert.Equal(t, "doc.Types[t/m].Docs.Refs[0].Type", found[0].Provenance.Node)
 }
 
+// TestValidate_DanglingRefInMessagePayload exercises the Messages walk in
+// checkDanglingRefs: a message whose payload content references a missing type
+// must be reported against the message location.
 func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
