@@ -324,7 +324,7 @@ func decorates(td ir.TypeDef) bool {
 // them overlap (typesDisjoint). A type array asks for one of its types, not for
 // exactly one, so overlapping variants must not exclude each other; with an
 // integer width, integer and number name the same primitive, and the two
-// variants stay, for an emitter to keep apart (emitter-design §4.4).
+// variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {

@@ -66,10 +66,10 @@ NAME_IN_FILE = re.compile(r"`([A-Za-z_]\w*)` in `([^`\s]+\.go)`")
 # puts first on its line and indents nothing it nests to match.
 GO_BLOCK = re.compile(r"^(?:(?:const|var|type) \(|type [^\n]* (?:struct|interface) \{)\n"
                       r"(.*?)^[)}]$", re.M | re.S)
-SECTION = re.compile(r"(ir-design|emitter-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
+SECTION = re.compile(r"(ir-design|architecture)(?:\.md)? ?§ ?([0-9]+(?:\.[0-9]+)*)")
 # A § after the name of a document it can be in, a line break between them allowed: one of the
 # design documents SECTION holds to the tree, or an RFC. Any other names no document.
-NAMED_SECTION = re.compile(r"(?:(?:ir-design|emitter-design|architecture)(?:\.md)?|RFC \d+)\s?§")
+NAMED_SECTION = re.compile(r"(?:(?:ir-design|architecture)(?:\.md)?|RFC \d+)\s?§")
 KEY = re.compile(r"(parser-library|compilers/openapi)\.md#([a-z0-9-]+)")
 # A fenced block's opening or closing run, as CommonMark reads one: three or more backticks or
 # tildes, indented by at most three spaces, then the info string.
