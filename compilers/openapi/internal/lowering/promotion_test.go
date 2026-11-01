@@ -695,7 +695,7 @@ func TestPromoterDeprecation_KeyStatesIt(t *testing.T) {
 // TestPromoterDeprecation_KeyLeavesADeclaredDeprecationUnmarked pins what a key
 // beside the keyword adds: nothing. The Deprecation stays the keyword's, and a
 // node the promotion wrote nothing into carries no marker, which is what tells
-// the 267 golden operations writing both from the ones the key alone deprecates.
+// an operation writing both from one the key alone deprecates.
 func TestPromoterDeprecation_KeyLeavesADeclaredDeprecationUnmarked(t *testing.T) {
 	t.Parallel()
 	declared := new(ir.Deprecation)
