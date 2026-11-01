@@ -210,10 +210,14 @@ defect, keep a `main` control.
 `redundant-guard`
 
 - **Rule.** When a PR adds one predicate at many sites, revert each site to `main`'s spelling on its
-  own. Delete a survivor only when a second reader of the same concept already covers it. When the
-  masking reader is a later stage or a library, keep the guard and pin it directly.
+  own. For any guard a revert or a mutant survives, ask whether removing it changes an outcome, the
+  reader it falls through to included. Where one changes, even if only in the function's own result
+  before a later stage masks it, keep the guard and pin it directly. Where none can, a second reader
+  already makes the check: delete the guard, and let a test reach the branch, which fails loudly if
+  that reader changes.
 - **Why.** Five survivors in #1066 were covered by a choke point; one in #1140 was the function's
-  own grammar.
+  own grammar. A nil check before a nil-safe library getter had nothing to pin, while the same check
+  beside it kept a test from panicking (#742, #1189).
 
 ## Moved code carries stale comments
 `moved-comments`
