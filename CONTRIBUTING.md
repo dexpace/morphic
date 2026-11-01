@@ -51,7 +51,8 @@ Read the documents for your layer, and skip the rest until you need them.
   on every execution, and a binary links every test file's imports, so a target beside tests that
   import `internal/decls` or testify searches at a fraction of its speed. `ir/fuzz` and
   `compilers/openapi/e2e/fuzz` hold test files alone, import no test tooling, and read a table they
-  share with a package's other tests from `internal/ircases` rather than restating it. A target
+  share with a package's other tests from `internal/ircases` or `internal/testspec`, which import
+  next to nothing, rather than restating it. A target
   stays beside its code when it needs the package's internals, compares against a library its code
   links anyway, or its package's tests link little. Coverage counts only a package's own tests, so
   nothing in a `fuzz` package stands in for them. *Fails if missed:* nothing fails for a target that
