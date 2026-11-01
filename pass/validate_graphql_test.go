@@ -67,7 +67,7 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 // whether the operation root's docs name it or a reachable type's do.
 func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
 	t.Parallel()
-	mention := ir.Docs{Description: "see Mentioned", Refs: []ir.DocRef{{Start: 4, End: 13, Type: "t/mentioned"}}}
+	mention := ir.Docs{Description: "see Mentioned", Refs: []ir.DocRef{{StartByte: 4, EndByte: 13, Type: "t/mentioned"}}}
 	for _, tc := range []struct {
 		name     string
 		op, root ir.Docs

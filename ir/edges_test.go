@@ -127,8 +127,8 @@ func TestTypeEdges_MatchesTheReflectionWalk(t *testing.T) {
 func TestTypeEdges_ADocRefIsNoEdge(t *testing.T) {
 	t.Parallel()
 	m := &ir.Model{ID: "t/m", Docs: ir.Docs{Description: "see Self and Other", Refs: []ir.DocRef{
-		{Start: 4, End: 8, Type: "t/m"},
-		{Start: 13, End: 18, Type: "t/other"},
+		{StartByte: 4, EndByte: 8, Type: "t/m"},
+		{StartByte: 13, EndByte: 18, Type: "t/other"},
 	}}}
 	assert.Empty(t, slices.Collect(ir.TypeEdges(m)))
 }

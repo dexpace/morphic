@@ -21,7 +21,7 @@ func TestCheckDocRefs_VisitingCostsNoAllocation(t *testing.T) {
 		"t/plain": &ir.Model{ID: "t/plain", Docs: ir.Docs{Description: "no references"}},
 		"t/refs": &ir.Model{ID: "t/refs", Docs: ir.Docs{
 			Description: "see Pet",
-			Refs:        []ir.DocRef{{Start: 4, End: 7, Type: "t/plain"}},
+			Refs:        []ir.DocRef{{StartByte: 4, EndByte: 7, Type: "t/plain"}},
 		}},
 	}}
 	check := checkDocRefs(doc)

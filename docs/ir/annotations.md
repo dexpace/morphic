@@ -14,8 +14,8 @@ type Docs struct {
 }
 
 type DocRef struct {
-    Start, End int            // a half-open span of Description's bytes, on rune boundaries
-    Type       TypeID         // the type the span names
+    StartByte, EndByte int    // a half-open span of Description's bytes, on rune boundaries
+    Type               TypeID // the type the span names
 }
 
 type Deprecation struct { Message, Since, RemovalVersion, RemovalDate string }
@@ -53,13 +53,13 @@ and EDoc has `{@link}`. A link an emitter resolves through the type's ID says wh
 as in that SDK, where the same words copied into a doc comment go stale (Kiota's doc templates).
 **`Docs.Refs` marks such a span and leaves the prose as the source wrote it.** A `DocRef` says that
 a run of `Description`'s bytes names a type. An emitter replaces the span with a link to whatever
-the type renders as, and one that does not resolve references reads text that still says what the
-author meant, as does a reader where the type renders as nothing a link can reach, such as a
-primitive: the span stays text.
+the type renders as. One that does not resolve references, or that meets a type rendering as nothing
+a link can reach, such as a primitive, leaves the span as text, which still says what the author
+meant.
 
 A span counts bytes of UTF-8, the encoding every string a document holds is in
 ([names](./naming.md)), so a reader in another language converts from it rather than counting in
-its own. Spans ascend and do not overlap, so an emitter splices them in one pass over
+its own, which is why the fields carry the unit in their names. Spans ascend and do not overlap, so an emitter splices them in one pass over
 the text. `irverify` holds a span to a non-empty run of whole runes inside its description
 (`ir/doc-ref-span`), and the list to that order (`ir/doc-ref-order`). `Type` is a `TypeID` like any
 other, so both checkers report one that names nothing as `ir/dangling-type-ref` and neither reads

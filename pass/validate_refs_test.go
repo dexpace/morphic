@@ -369,7 +369,7 @@ func TestValidate_DanglingDocRef(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()
 	m := doc.Types["t/m"].(*ir.Model)
-	m.Docs = ir.Docs{Description: "{t:t/nowhere} reads Pet", Refs: []ir.DocRef{{Start: 20, End: 23, Type: "t/pet"}}}
+	m.Docs = ir.Docs{Description: "{t:t/nowhere} reads Pet", Refs: []ir.DocRef{{StartByte: 20, EndByte: 23, Type: "t/pet"}}}
 	found := withCode(validated(t, doc), "ir/dangling-type-ref")
 	require.Len(t, found, 1, "the token-shaped text is not a reference, and the span is")
 	assert.Contains(t, found[0].Message, "t/pet")

@@ -24,7 +24,7 @@ func TestDocs_JSONContract(t *testing.T) {
 // assume.
 func TestDocRef_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.DocRef{}, `{"start":0,"end":0,"type":""}`, ir.DocRef{Start: 1, End: 2, Type: "t/x"})
+	assertJSONContract(t, ir.DocRef{}, `{"startByte":0,"endByte":0,"type":""}`, ir.DocRef{StartByte: 1, EndByte: 2, Type: "t/x"})
 }
 
 // TestLink_JSONContract pins Link's omitempty contract (both fields are

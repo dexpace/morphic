@@ -19,7 +19,7 @@ func TestVerify_DocRefs(t *testing.T) {
 	t.Parallel()
 	const pet = "see Pet" // 7 bytes
 	const accented = "é and Pet"
-	span := func(start, end int) ir.DocRef { return ir.DocRef{Start: start, End: end, Type: "t/x/Leaf"} }
+	span := func(start, end int) ir.DocRef { return ir.DocRef{StartByte: start, EndByte: end, Type: "t/x/Leaf"} }
 	for _, tc := range []struct {
 		name string
 		docs ir.Docs
@@ -57,9 +57,9 @@ func TestVerify_DocRefs(t *testing.T) {
 			Refs: []ir.DocRef{span(0, 7), span(1, 2), span(3, 4)}}, map[string]int{"ir/doc-ref-order": 2}},
 		{"one bad span is one finding", ir.Docs{Description: pet, Refs: []ir.DocRef{span(0, 3), span(5, 99), span(4, 7)}},
 			map[string]int{"ir/doc-ref-span": 1}},
-		{"a span naming no type", ir.Docs{Description: pet, Refs: []ir.DocRef{{Start: 0, End: 3}}},
+		{"a span naming no type", ir.Docs{Description: pet, Refs: []ir.DocRef{{StartByte: 0, EndByte: 3}}},
 			map[string]int{"ir/empty-type-ref": 1}},
-		{"a span naming a type nothing declares", ir.Docs{Description: pet, Refs: []ir.DocRef{{Start: 0, End: 3, Type: "t/x/Gone"}}},
+		{"a span naming a type nothing declares", ir.Docs{Description: pet, Refs: []ir.DocRef{{StartByte: 0, EndByte: 3, Type: "t/x/Gone"}}},
 			map[string]int{"ir/dangling-type-ref": 1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -85,7 +85,7 @@ func TestVerify_DocRefs(t *testing.T) {
 // a server, whose field is not even named Docs.
 func TestVerify_DocRefsAreHeldWhereverDocsSit(t *testing.T) {
 	t.Parallel()
-	bad := ir.Docs{Description: "x", Refs: []ir.DocRef{{Start: 0, End: 9, Type: "t/x/Leaf"}}}
+	bad := ir.Docs{Description: "x", Refs: []ir.DocRef{{StartByte: 0, EndByte: 9, Type: "t/x/Leaf"}}}
 	doc := closedDoc(&ir.Enum{
 		ID:      "t/x/E",
 		Name:    ir.Naming{Source: "E", Canonical: "e"},

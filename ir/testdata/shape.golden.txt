@@ -145,8 +145,8 @@ type Discriminator struct
 	"propertyName" string omitempty
 
 type DocRef struct
-	"end" int
-	"start" int
+	"endByte" int
+	"startByte" int
 	"type" TypeID
 
 type Docs struct

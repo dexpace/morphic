@@ -53,19 +53,19 @@ func docRefViolations(docs ir.Docs, at ir.WalkPath) []Violation {
 			vs = append(vs, Violation{
 				Code: "ir/doc-ref-span",
 				Message: fmt.Sprintf("doc reference [%d,%d) is no span of the %d bytes of its description: "+
-					"it is empty, outside them or splits a rune", ref.Start, ref.End, len(docs.Description)),
+					"it is empty, outside them or splits a rune", ref.StartByte, ref.EndByte, len(docs.Description)),
 				Path: docRefPath(at, i),
 			})
-		case ref.Start < end:
+		case ref.StartByte < end:
 			vs = append(vs, Violation{
 				Code: "ir/doc-ref-order",
 				Message: fmt.Sprintf("doc reference [%d,%d) starts before the span ahead of it ends, at %d",
-					ref.Start, ref.End, end),
+					ref.StartByte, ref.EndByte, end),
 				Path: docRefPath(at, i),
 			})
-			end = max(end, ref.End)
+			end = max(end, ref.EndByte)
 		default:
-			end = ref.End
+			end = ref.EndByte
 		}
 	}
 	return vs
@@ -82,6 +82,6 @@ func docRefPath(at ir.WalkPath, i int) string {
 // does not decode is checkUTF8's to report: utf8.RuneStart rejects a
 // continuation byte, so a stray one at an edge reads as a split rune.
 func isSpanOf(ref ir.DocRef, text string) bool {
-	return 0 <= ref.Start && ref.Start < ref.End && ref.End <= len(text) &&
-		utf8.RuneStart(text[ref.Start]) && (ref.End == len(text) || utf8.RuneStart(text[ref.End]))
+	return 0 <= ref.StartByte && ref.StartByte < ref.EndByte && ref.EndByte <= len(text) &&
+		utf8.RuneStart(text[ref.StartByte]) && (ref.EndByte == len(text) || utf8.RuneStart(text[ref.EndByte]))
 }

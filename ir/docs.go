@@ -27,10 +27,10 @@ type Docs struct {
 // It is a mention rather than a use: no edge of the type graph, so it makes no
 // type recursive, reachable or used.
 type DocRef struct {
-	// Start is the offset of the span's first byte.
-	Start int `json:"start"`
-	// End is the offset just past the span's last byte.
-	End int `json:"end"`
+	// StartByte is the offset of the span's first byte.
+	StartByte int `json:"startByte"`
+	// EndByte is the offset just past the span's last byte.
+	EndByte int `json:"endByte"`
 	// Type is the type the span names.
 	Type TypeID `json:"type"`
 }
