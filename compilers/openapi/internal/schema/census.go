@@ -321,7 +321,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: id})
 		diags = append(diags, aliasDiags...)
 	}
-	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, nodeShape(td.Kind()), pointer)...)
+	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, positionShape(td, s), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
 }
 
@@ -331,6 +331,19 @@ const refSiteShape = "an alias over its $ref target"
 
 // nodeShape describes a node of kind k, for that same diagnostic.
 func nodeShape(kind ir.TypeKind) string { return fmt.Sprintf("a node of kind %q", kind) }
+
+// positionShape is nodeShape for the node td, the position's declaration s
+// lowered to. An Enum's ValueType is the home of any format the table pairs, so
+// an enum that left one verbatim says its members are why: its kind alone would
+// deny the home.
+func positionShape(td ir.TypeDef, s *oas3.Schema) string {
+	if e, ok := td.(*ir.Enum); ok {
+		if prim, paired := formatPrimitive(s); paired && !enumMembersAre(e.Members, prim) {
+			return fmt.Sprintf("an enum whose members are not all values of %s", prim)
+		}
+	}
+	return nodeShape(td.Kind())
+}
 
 // recordUnhomedKeywords stores each unhomed keyword on the node owner names.
 // shape describes what the position lowered to, so a reader is told which half

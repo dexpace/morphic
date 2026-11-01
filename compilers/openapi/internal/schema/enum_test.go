@@ -488,6 +488,34 @@ func TestEnum_ValueTypeReadsTheFormatItsMembersFit(t *testing.T) {
 	}
 }
 
+// TestEnum_ReportsWhyAFormatStayedVerbatim holds the report to the cause that
+// fired. An Enum's ValueType is a home for what the table pairs, so a format the
+// members do not fit says so, and only one with no pairing has no home at all.
+func TestEnum_ReportsWhyAFormatStayedVerbatim(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		schema string
+		want   string
+	}{
+		{"past a width", `{type: integer, format: int8, enum: [1, 1000]}`, "an enum whose members are not all values of int8,"},
+		{"no date", `{type: string, format: date, enum: [soon]}`, "an enum whose members are not all values of date,"},
+		{"binary", `{type: string, format: binary, enum: [abc]}`, "an enum whose members are not all values of bytes,"},
+		{"a format the table lacks", `{type: string, format: email, enum: [a@b.c]}`, `a node of kind "enum",`},
+		{"a pairing the table lacks", `{type: integer, format: float, enum: [1]}`, `a node of kind "enum",`},
+		{"no declared type", `{format: int64, enum: [1, 2]}`, `a node of kind "enum",`},
+		{"a fit beside a homeless keyword", `{type: integer, format: int8, enum: [1], maxItems: 2}`, `a node of kind "enum",`},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			_, diags := schema.LowerSpec(t, openapitest.ComponentSpec("    E: "+tc.schema+"\n"))
+			assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/E"),
+				"lowered to "+tc.want+" which has no home for")
+		})
+	}
+}
+
 // TestEnum_NarrowsARedeclaredPrimitiveInEitherOrder holds the allOf judge's reading
 // of ValueType: a field redeclared as an enum whose format the members fit narrows
 // the primitive it restates, whichever branch declares it. With the format left
