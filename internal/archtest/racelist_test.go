@@ -60,8 +60,9 @@ func TestRaceList_NamesEveryConcurrentPackage(t *testing.T) {
 }
 
 // TestParseRaceList_ReadsTheFormatTheMakefileReads feeds the reader one file it
-// accepts and one for each shape it refuses, so the Makefile's sed and this
-// reader cannot take the same file two ways.
+// accepts and one for each shape it refuses. The reader follows the format the
+// Makefile's sed is written for, but no test runs the sed, so a change to the
+// sed is checked with `make -n race`.
 func TestParseRaceList_ReadsTheFormatTheMakefileReads(t *testing.T) {
 	t.Parallel()
 	got, err := parseRaceList("# a comment\n\n   \n  # an indented comment\n./a\n./b/c/...\n./d\n")
