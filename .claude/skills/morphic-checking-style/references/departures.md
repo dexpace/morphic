@@ -115,6 +115,20 @@ the rule here rather than reading it across.
   `thelper` reads a signature, so it reported 298 functions and none was a breach (#1178).
 - **Probe.** `go test ./internal/archtest -run TestTestHelpers`.
 
+## Compare a plain value with `assert.Equal`
+`assert-equal-on-plain-values`
+
+- **Rule.** Rule 6.16 takes `cmp` for structs, slices, maps and interfaces and bars
+  `reflect.DeepEqual`, which `assert.Equal` calls. Here `assert.Equal` stands on a value holding no
+  unexported field. A value holding one takes `cmp.Diff` with the options it needs and a direction
+  key (rule 6.15), and a test calls `reflect.DeepEqual` itself nowhere.
+- **Why.** The rule's reason is unexported fields, which such a value lacks: the two agree on nil
+  against empty, on order and on NaN, and `assert.Equal` labels both sides where a bare `cmp.Diff`
+  labels neither (#1206). The tree writes it about twice as often as `cmp.Diff` (#1246).
+- **Probe.** `git grep -n 'reflect\.DeepEqual(' -- '*_test.go' ':!*testdata*'` names no call, and
+  `git grep -hE '(assert|require)\.Equal\(t, (\[\]|map\[)' -- '*_test.go' ':!*testdata*' | wc -l`
+  counts the spelling for a literal slice or map.
+
 ## Alias a type to name it at a boundary or to shorten it
 `type-aliases-that-stand`
 
