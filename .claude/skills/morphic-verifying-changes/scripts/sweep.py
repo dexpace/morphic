@@ -16,16 +16,16 @@ CPUs), each holding its output in memory until it is compared. OUTDIR defaults t
 directory, and a run replaces its runs/ directory: a spec that differs keeps both sides' outputs
 under OUTDIR/runs/<n>/ for diffing, and when they cannot be written the sweep goes on and says so,
 as nothing it compares is on disk. OUTDIR holds a row per spec in results.tsv: its number, both
-exit codes, what differs and its path. The
-IR version a document opens with is set aside before comparing, so a bump lists only the specs
-that moved: the summary gives it once, and a spec differing in nothing else is "stamp" in
-results.tsv and keeps no outputs. The .yaml, .yml and .json files CORPUS names, and those under its
-directories (default testdata), are read for OpenAPI and Swagger documents: a JSON one, even one
-saved as .yaml or .yml, by its top-level keys, minified or not, and a YAML one by a version key
-anywhere in it, so a file naming one in a comment or a nested mapping is compiled too, and fails
-alike on both sides. The sweep reports facts and judges none: specs that fail alike on both sides
-agree, so read the exit codes before taking agreement for a pass. Exit 0 when no spec differs but
-for its stamp, 1 when one does, 2 when the sweep cannot run.
+exit codes, what differs and its path. The IR version a document opens with is set aside before
+comparing, so a bump lists only the specs that moved: the summary gives it once, and a spec
+differing in nothing else is "stamp" in results.tsv and keeps no outputs. The .yaml, .yml and
+.json files CORPUS names, and those under its directories (default testdata), are read for OpenAPI
+and Swagger documents: a JSON one, even one saved as .yaml or .yml, by its top-level keys, minified
+or not, and a YAML one by a version key anywhere in it, so a file naming one in a comment or a
+nested mapping is compiled too, and fails alike on both sides. The sweep reports facts and judges
+none: specs that fail alike on both sides agree, so read the exit codes before taking agreement
+for a pass. Exit 0 when no spec differs but for its stamp, 1 when one does, 2 when the sweep cannot
+run.
 """
 
 import argparse

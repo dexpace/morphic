@@ -243,8 +243,7 @@ class SweepTest(unittest.TestCase):
         table = self.root / "results.tsv"
 
         def fill_then_fail(path, text):
-            Path.open(path, "w").close()
-            with Path.open(path, "a") as f:
+            with Path.open(path, "w") as f:
                 f.write(text[:4])
             raise OSError(28, "No space left on device")
 

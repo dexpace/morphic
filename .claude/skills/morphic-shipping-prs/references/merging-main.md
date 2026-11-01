@@ -134,6 +134,6 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Why.** Resolving a conflict over a removed make target would have kept the gate pointing at it
   (#828, #836, #503). A line every conformance golden gained merged cleanly with PRs adding goldens
   and failed on each (#1181, #1191, #1192).
-- **Probe.** `git merge-tree --write-tree --name-only <base> <pr head>` for each open PR, then on
+- **Probe.** `git merge-tree --write-tree --name-only <head> <pr head>` for each open PR, then on
   the merge (`references/merging-main.md#trial-merge-happened`) `git grep` each removed name and,
   for goldens, `go test ./compilers/openapi/e2e ./cmd/morphic-census`.

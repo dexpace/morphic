@@ -96,12 +96,12 @@ verifier and codecs must reach.
 
 - **Rule.** When a lowering starts writing a value a field did not hold (a primitive, a mode, a
   media type), grep the field and its old values across `docs/`, read each normative statement for
-  one that assumes the old set, and change it or name the gap where it stands. The shape stays put,
-  and no emitter reads the value yet, so no test can object.
+  one that assumes the old set, and change it or name the gap where it stands. The shape stays put
+  and no emitter reads the value yet, so no test objects, but it is a change of meaning, which
+  `docs/ir/ir-version.md` bumps for.
 - **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
   types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
-  enum to typed consts, which those types lack. A hand read found one and a review the other
-  (#1191, #1202).
+  enum to typed consts, which those types lack (#1191, #1202).
 - **Probe.** `git grep -nE '<field>|<old value>' -- docs`, and list each statement read in the PR
   body.
 

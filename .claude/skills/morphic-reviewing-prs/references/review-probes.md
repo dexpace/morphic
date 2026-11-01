@@ -212,7 +212,7 @@ defect, keep a `main` control.
 `redundant-guard`
 
 - **Rule.** When a PR adds one predicate at many sites, revert each site to `main`'s spelling on its
-  own. For any guard a revert or a mutant survives, ask whether removing it changes an outcome, the
+  own. For any guard whose revert or mutant survives, ask whether removing it changes an outcome, the
   reader it falls through to included. Where one changes, even if only in the function's own result
   before a later stage masks it, keep the guard and pin it directly. Where none can, a second reader
   already makes the check: delete the guard, and let a test reach the branch, which fails loudly if
