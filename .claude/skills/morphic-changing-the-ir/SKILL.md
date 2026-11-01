@@ -34,6 +34,8 @@ cannot be turned off.
   it, with the row's `meaning`.
 - **Other PRs.** Before claiming a version, and after each merge of `main`, list the open PRs
   that claim one (`references/ir-lessons.md#version-collisions`).
+- **Mentions.** A position only mentioning a type needs more than classifying
+  (`references/ir-lessons.md#mention-is-no-use`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
   `ir/irverify`; `references/ir-lessons.md` says which test reaches each, and which one lets a stale
   entry for a deleted field pass.

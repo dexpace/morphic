@@ -32,6 +32,21 @@ verifier and codecs must reach.
   an `integerFields` entry for a field that does not exist and watch it pass, then the same in
   `idPositions` and watch it fail.
 
+## A position that only mentions a type is no use of it
+`mention-is-no-use`
+
+- **Rule.** A new `TypeID` position that names a type without using it stays out of `ir.TypeEdges`
+  and each reader that takes the class as a use, as reachability does; a reader resolving references
+  keeps it, since a mention can dangle.
+  `TestAppendTypeIDs_ReadsWhatTheTypeGraphReads` holds `appendTypeIDs` to `ir.TypeEdges` for a type
+  definition's fields, and nothing holds it for a position only an operation holds.
+- **Why.** `appendTypeIDs` reads an operation by reflection, so such a position becomes a GraphQL
+  root and the check on field arguments goes silent on its type, which classifying the position
+  does not show (#1223).
+- **Probe.** `git grep -nE 'TypeFor\[(ir\.)?TypeID\]' -- '*.go' ':!*_test.go'` lists the readers.
+  Add a struct holding a `TypeID` to `ir.Docs`, keep it out of the oracle in `ir/edges_test.go`, and
+  watch that test fail until `appendTypeIDs` skips the struct.
+
 ## Find every list a new ID class must join
 `new-id-class`
 
