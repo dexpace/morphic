@@ -58,14 +58,15 @@ a link can reach, such as a primitive, leaves the span as text, which still says
 meant.
 
 A span counts bytes of UTF-8, the encoding every string a document holds is in
-([names](./naming.md)), so a reader in another language converts from it rather than counting in
-its own, which is why the fields carry the unit in their names. Spans ascend and do not overlap, so an emitter splices them in one pass over
-the text. `irverify` holds a span to a non-empty run of whole runes inside its description
-(`ir/doc-ref-span`), and the list to that order (`ir/doc-ref-order`). `Type` is a `TypeID` like any
-other, so both checkers report one that names nothing as `ir/dangling-type-ref` and neither reads
-the prose. `Refs` indexes its own `Description`, so whatever replaces a description replaces its
-references: a use site's description folded over a referent's
-([what a reference carries down](#what-a-reference-carries-down)) takes the use site's spans or none.
+([names](./naming.md)), so a reader in another language converts from it rather than counting in its
+own, which is why the fields carry the unit in their names. Spans ascend and do not overlap, so an
+emitter splices them in one pass over the text. `irverify` holds a span to a non-empty run of whole
+runes inside its description (`ir/doc-ref-span`), and the list to that order (`ir/doc-ref-order`).
+`Type` is a `TypeID` like any other, so both checkers report one that names nothing as
+`ir/dangling-type-ref` and neither reads the prose. `Refs` indexes its own `Description`, so
+whatever replaces a description replaces its references: a use site's description folded over a
+referent's ([what a reference carries down](#what-a-reference-carries-down)) takes the use site's
+spans or none.
 
 **A reference is a mention, not a use.** Prose naming a type holds no value of it, so a `DocRef` is
 no edge of the type graph. `ir.TypeEdges`, `irfacts` and GraphQL reachability do not follow one: a
