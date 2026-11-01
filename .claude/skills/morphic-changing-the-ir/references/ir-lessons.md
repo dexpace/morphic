@@ -122,14 +122,23 @@ verifier and codecs must reach.
 
 - **Rule.** When a lowering starts writing a value a field did not hold (a primitive, a mode, a
   media type), grep the field and its old values across `docs/`, read each normative statement for
-  one that assumes the old set, and change it or name the gap where it stands. The shape stays put
-  and no emitter reads the value yet, so no test objects, but it is a change of meaning, which
-  `docs/ir/ir-version.md` bumps for.
+  one that assumes the old set, and change it or name the gap where it stands. No emitter reads the
+  value yet, so no test objects, but it is a change of meaning, which `docs/ir/ir-version.md` bumps
+  for.
 - **Why.** The default streaming policy gained `+json-seq` while the `Framings` default named media
   types exactly, and `Enum.ValueType` gained `date`, `uuid` and `decimal` while Go lowers a closed
   enum to typed consts, which those types lack (#1191, #1202).
 - **Probe.** `git grep -nE '<field>|<old value>' -- docs`, and list each statement read in the PR
-  body.
+  body. Then take `references/ir-lessons.md#widened-field-consumers`.
+
+## Ask each consumer of a widened field what it did with the old value
+`widened-field-consumers`
+
+- **Rule.** When a field's values widen, list each consumer that reads the field and ask what it did
+  with the old value, since one may depend on it with no sentence saying so.
+- **Why.** A file body's `Content.Type` held only `bytes`, so a plain upload needed no rule and had
+  none, and grepping the field and its old values on the request side found nothing (#1191, #1204).
+- **Probe.** List in the PR body each consumer asked, and its answer.
 
 ## Check a design rule against everything in its document it governs
 `design-rule-over-its-document`

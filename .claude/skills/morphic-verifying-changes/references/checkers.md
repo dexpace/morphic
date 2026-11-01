@@ -9,11 +9,13 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
 
 - **Rule.** An AST or grep check over Go source must match every form the language and codebase use:
   value and pointer receivers, method values, functions passed as values, aliases, every selector
-  base, go statements and .Go calls, every write form and every constructor of an identity type.
+  base, go statements and .Go calls, every write form (a `range` clause's `=` too), every
+  constructor of an identity type, and every import of a path.
 - **Why.** Recursion and dependency pins went blind to value receivers and method values, and a grep
-  audit reported clean while missing both planted writes (#332, #837).
-- **Probe.** Plant one instance of each form the check must catch in a scratch package and confirm
-  each reddens; prefer keying on go/types over selector text.
+  audit reported clean while missing both planted writes (#332, #837). A blank `os/exec` import hid
+  a named one, and a `range` clause assigned past a check of assignments (#1233, #1252).
+- **Probe.** Plant each form in a scratch package, and one inside another, as a walk can stop early:
+  each must redden. Prefer keying on go/types over selectors.
 
 ## A guard on how a value is built must see what undoes the build
 `build-guards-see-later-writes`

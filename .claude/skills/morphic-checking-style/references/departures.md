@@ -166,12 +166,13 @@ the rule here rather than reading it across.
 `rules-the-tree-still-breaks`
 
 - **Rule.** Rule 10.6 bars the `http.DefaultClient` `engine/reader/disk.go` falls back to (#1036),
-  and rule 6.15 the `cmp.Diff` failures most tests print with no direction key (#1206). A line a
-  change adds is held to the rule, since surrounding code is no defence (`CLAUDE.md`, "Correctness
-  comes first"). A row leaves this rule when its issue's fix lands.
-- **Why.** The list is what someone met and filed, not every rule the tree breaks: rule 6.15 went
-  unlisted until a review of new lines raised it (#1192, #1208). The fallback waits on a time bound
-  for a network read, no matter of style (#1036, #1173).
-- **Probe.** `git grep -n 'http.DefaultClient' -- 'engine/reader/*.go' ':!*_test.go'`, and #1206's
-  script, which counts the bare calls. `gh issue list --state open --limit 1000 --search styleguide`
-  lists what else has been filed.
+  rule 6.15 the `cmp.Diff` failures most tests print with no direction key (#1206), and rule 6.24
+  the test doubles with no behaviour prefix (#1279). A line a change adds is held to the rule, since
+  surrounding code is no defence (`CLAUDE.md`, "Correctness comes first"). A row leaves this rule
+  when its issue's fix lands.
+- **Why.** The list is what someone met and filed, not every rule the tree breaks: rules 6.15 and
+  6.24 went unlisted until reviews raised them (#1192, #1208). The fallback waits on a time bound
+  for a network read (#1036, #1173).
+- **Probe.** `git grep -n 'http.DefaultClient' -- 'engine/reader/*.go' ':!*_test.go'`, and the
+  commands in #1206 and #1279. `gh issue list --state open --limit 1000 --search styleguide` lists
+  what else is filed.
