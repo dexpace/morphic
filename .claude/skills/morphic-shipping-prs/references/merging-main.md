@@ -137,3 +137,12 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Probe.** `git merge-tree --write-tree --name-only <head> <pr head>` for each open PR, then on
   the merge (`references/merging-main.md#trial-merge-happened`) `git grep` each removed name and,
   for goldens, `go test ./compilers/openapi/e2e ./cmd/morphic-census`.
+
+## Run the skills lint on each trial merge of a skill edit
+`trial-merge-lints-the-skills`
+
+- **Rule.** A change editing a skill runs `skills_lint.py` on each trial merge, as a word cap is
+  shared across open PRs and neither a conflict check nor a test reads it.
+- **Why.** Two PRs each under a skill's body cap merged with no conflict at 512 words against 500,
+  which would have failed the second to land on nothing in its own change (#1219).
+- **Probe.** The lint on each tree `references/merging-main.md#trial-merge-happened` confirms.
