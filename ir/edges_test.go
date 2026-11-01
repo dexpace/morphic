@@ -20,6 +20,10 @@ import (
 // typeIDReflect is the reflect.Type of ir.TypeID.
 var typeIDReflect = reflect.TypeFor[ir.TypeID]()
 
+// docRefReflect is the reflect.Type of ir.DocRef, the one position holding a
+// TypeID that is no edge.
+var docRefReflect = reflect.TypeFor[ir.DocRef]()
+
 // newFilled returns a TypeDef of kind with every field filled.
 func newFilled(t *testing.T, kind ir.TypeKind) ir.TypeDef {
 	t.Helper()
@@ -30,10 +34,13 @@ func newFilled(t *testing.T, kind ir.TypeKind) ir.TypeDef {
 }
 
 // reflectedEdges is the oracle: every non-empty TypeID the reflection walk
-// reaches from td except td's own ID, in the order it reaches them, with the
-// path of each.
+// reaches from td except td's own ID and a DocRef's, in the order it reaches
+// them, with the path of each.
 func reflectedEdges(td ir.TypeDef) (ids []ir.TypeID, paths []string) {
 	ir.WalkValues(td, "<root>", ir.VisitFunc(func(v reflect.Value, at ir.WalkPath) bool {
+		if v.Type() == docRefReflect {
+			return false
+		}
 		path := at.String()
 		if v.Kind() == reflect.String && v.Type() == typeIDReflect && v.String() != "" && path != "<root>.ID" {
 			ids = append(ids, ir.TypeID(v.String()))
@@ -112,6 +119,18 @@ func TestTypeEdges_MatchesTheReflectionWalk(t *testing.T) {
 		total += len(slices.Collect(ir.TypeEdges(td)))
 	}
 	require.Positive(t, total, "the corpus must exercise at least one edge")
+}
+
+// TestTypeEdges_ADocRefIsNoEdge pins that prose naming a type leaves the graph
+// as it was: a model whose description names itself or a sibling holds neither,
+// so nothing that reads edges may call it recursive or the sibling reachable.
+func TestTypeEdges_ADocRefIsNoEdge(t *testing.T) {
+	t.Parallel()
+	m := &ir.Model{ID: "t/m", Docs: ir.Docs{Description: "see Self and Other", Refs: []ir.DocRef{
+		{Start: 4, End: 8, Type: "t/m"},
+		{Start: 13, End: 18, Type: "t/other"},
+	}}}
+	assert.Empty(t, slices.Collect(ir.TypeEdges(m)))
 }
 
 func TestTypeEdges_SelfReferenceStillCounts(t *testing.T) {

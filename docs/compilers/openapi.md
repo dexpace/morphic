@@ -848,12 +848,15 @@ lands on the property, parameter or header that carries it, the referent's under
 field by field ([`ref-use-site`](#ref-use-site)). A parameter's or header's own `description` wins
 over its schema's. `deprecated: true` on a parameter or header and on its schema each deprecate it,
 neither one's `false` clearing the other. A request body's `description` lands on its Payload
-([`request-body`](#request-body)), and a response's payload states no docs of its own.
+([`request-body`](#request-body)), and a response's payload states no docs of its own. OpenAPI has
+no syntax for naming a type in prose, so a `description` is kept as written and no span of it is
+marked ([references in prose](../ir/annotations.md#references-in-prose)).
 
 - Cases: `docs-summary-desc`, `deprecation`
 - Tests: `operation.TestOperation_DeprecatedIsCarried`,
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
-  `operation.TestContent_RequestBodyDocsReachThePayload`
+  `operation.TestContent_RequestBodyDocsReachThePayload`,
+  `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
 - Status: partly built: a deprecation cannot name its replacement, which the IR has no field for
   (#670).
 

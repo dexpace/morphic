@@ -8,11 +8,31 @@ package ir
 type Docs struct {
 	// Summary is a short single-line description.
 	Summary string `json:"summary,omitempty"`
-	// Description is CommonMark; it may contain {t:TypeID} cross-reference
-	// tokens that emitters resolve to language-appropriate links.
+	// Description is CommonMark, exactly as the source wrote it. No text in it
+	// is the IR's own markup, so nothing in it needs escaping.
 	Description string `json:"description,omitempty"`
+	// Refs are the spans of Description that name a type, ascending and
+	// disjoint. They index this Description, so whatever replaces it replaces
+	// them too.
+	Refs []DocRef `json:"refs,omitempty"`
 	// ExternalDocs links to supplementary documentation.
 	ExternalDocs []Link `json:"externalDocs,omitempty"`
+}
+
+// DocRef marks a span of Docs.Description as naming a type, so an emitter can
+// link the span to whatever the type renders as and the link survives a rename
+// (docs/ir/annotations.md#references-in-prose). A span is half-open, in bytes of
+// the UTF-8 text, and falls on rune boundaries.
+//
+// It is a mention rather than a use: no edge of the type graph, so it makes no
+// type recursive, reachable or used.
+type DocRef struct {
+	// Start is the offset of the span's first byte.
+	Start int `json:"start"`
+	// End is the offset just past the span's last byte.
+	End int `json:"end"`
+	// Type is the type the span names.
+	Type TypeID `json:"type"`
 }
 
 // Link is an external documentation reference.

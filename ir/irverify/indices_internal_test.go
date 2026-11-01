@@ -180,6 +180,8 @@ var integerFields = map[string]string{
 	"idField.index":       "the field through which a struct type declares its identity, read off the type",
 	"keyedRegistry.index": "the Document field that keys a registry map, read off Document's type",
 
+	"DocRef.Start":          "byte offset into Docs.Description; bounds-checked by checkDocRefs",
+	"DocRef.End":            "byte offset into Docs.Description; bounds-checked by checkDocRefs",
 	"Property.WireID":       "protobuf field number / thrift id, not a position",
 	"Variant.WireID":        "protobuf oneof field number or ordinal, not a position",
 	"StatusRange.From":      "HTTP status code",

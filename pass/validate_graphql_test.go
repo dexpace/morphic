@@ -57,6 +57,39 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 	assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
 }
 
+// TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable pins that prose naming a
+// type gives it no GraphQL reach, at either step of the traversal: a type named
+// only by a description is not reachable, so its field arguments stay illegal,
+// whether the operation root's docs name it or a reachable type's do.
+func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
+	t.Parallel()
+	mention := ir.Docs{Description: "see Mentioned", Refs: []ir.DocRef{{Start: 4, End: 13, Type: "t/mentioned"}}}
+	for name, annotate := range map[string]func(op *ir.Operation, root *ir.Model){
+		"an operation's docs":     func(op *ir.Operation, _ *ir.Model) { op.Docs = mention },
+		"a reachable type's docs": func(_ *ir.Operation, root *ir.Model) { root.Docs = mention },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc := validDoc()
+			doc.Types["t/mentioned"] = &ir.Model{ID: "t/mentioned", Properties: []ir.Property{{
+				ID: "p/args", Name: ir.Naming{Source: "field"}, WireName: "field",
+				Type: ir.TypeRef{Target: "t/prim/string"},
+				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+			}}}
+			root := &ir.Model{ID: "t/root"}
+			doc.Types[root.ID] = root
+			op := ir.Operation{
+				ID:       "q",
+				Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: root.ID}}},
+				Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
+			}
+			annotate(&op, root)
+			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
+			assert.Contains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
+		})
+	}
+}
+
 // argModel is a model whose one property carries a field argument, so the model
 // is legal only where a GraphQL binding reaches it.
 func argModel(id ir.TypeID) *ir.Model {

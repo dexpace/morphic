@@ -178,3 +178,8 @@ it sees. Changes made together in one bump are listed together under it.
     `Style` and `Explode` beside its members, which encode flat ([responses](./responses.md)). The
     compiler had kept each verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to
     0.21.0 that reads those entries no longer finds them.
+- **0.23.0** — `Docs` gained `Refs`, the spans of `Description` that name a type, each a `DocRef`
+  ([annotations](./annotations.md#references-in-prose)). They replace the `{t:TypeID}` tokens
+  `Description` was documented to hold, which no compiler wrote, so `{t:` in a description is now
+  text and nothing else. A consumer pinned to 0.22.0 refuses the document, and one that scanned
+  descriptions for tokens must read `Refs`.

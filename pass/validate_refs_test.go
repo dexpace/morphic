@@ -364,6 +364,21 @@ func TestValidate_DanglingTypeRef(t *testing.T) {
 // TestValidate_DanglingRefInMessagePayload exercises the Messages walk in
 // checkDanglingRefs: a message whose payload content references a missing type
 // must be reported against the message location.
+// TestValidate_DanglingDocRef pins the check prose could not have while its
+// references were tokens inside it: a reference out of band is a TypeID like any
+// other, so one naming no type is reported where it sits, and text shaped like a
+// token is only text.
+func TestValidate_DanglingDocRef(t *testing.T) {
+	t.Parallel()
+	doc := validDoc()
+	m := doc.Types["t/m"].(*ir.Model)
+	m.Docs = ir.Docs{Description: "{t:t/nowhere} reads Pet", Refs: []ir.DocRef{{Start: 20, End: 23, Type: "t/pet"}}}
+	found := withCode(validated(t, doc), "ir/dangling-type-ref")
+	require.Len(t, found, 1, "the token-shaped text is not a reference, and the span is")
+	assert.Contains(t, found[0].Message, "t/pet")
+	assert.Equal(t, "doc.Types[t/m].Docs.Refs[0].Type", found[0].Provenance.Node)
+}
+
 func TestValidate_DanglingRefInMessagePayload(t *testing.T) {
 	t.Parallel()
 	doc := validDoc()

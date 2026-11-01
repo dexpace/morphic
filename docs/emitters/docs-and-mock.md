@@ -7,9 +7,9 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   pagination, return-shape, error taxonomy — exactly what docs must describe) and most of the refine
   step library, but lowers into a `docast` (pages, operation blocks, schema tables, examples) and
   runs a **reduced pipeline**: no `EscapeReservedWords`, and casing is a presentation choice
-  (SDK-style identifiers or spec-faithful source names, set in its options). `Docs.Description`
-  `{t:TypeID}` cross-reference tokens resolve to intra-doc links via the *same* IR-ID lookup the Go
-  emitter uses for doc comments — links survive renames. Examples use the schema arm
+  (SDK-style identifiers or spec-faithful source names, set in its options). The spans
+  [`Docs.Refs`](../ir/annotations.md#references-in-prose) marks resolve to intra-doc links via the
+  *same* IR-ID lookup the Go emitter uses for doc comments — links survive renames. Examples use the schema arm
   (`Value/Headers`) vs the operation arm (`Input/Output/Error`) correctly. A union `TypePlan.Open`
   marks is documented as one a response may extend, and every `PlannedError` and `PlannedResponse`
   as the body and headers it declares. No runtime `Policy` is consulted — proving the IR/policy

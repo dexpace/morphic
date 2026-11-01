@@ -144,9 +144,15 @@ type Discriminator struct
 	"property" PropID omitempty
 	"propertyName" string omitempty
 
+type DocRef struct
+	"end" int
+	"start" int
+	"type" TypeID
+
 type Docs struct
 	"description" string omitempty
 	"externalDocs" []Link omitempty
+	"refs" []DocRef omitempty
 	"summary" string omitempty
 
 type Document struct

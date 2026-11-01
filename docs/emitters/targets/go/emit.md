@@ -41,7 +41,7 @@ type Iface   struct{}                       // any
 ## Why a domain AST → text → `go/format`, not `go/ast` directly
 
 `go/ast` is awkward to *synthesize* (it wants a `token.FileSet` and real positions and cannot carry
-generator intent like a field's `Origin` IR ID or a `{t:TypeID}` doc token). The domain AST is
+generator intent like a field's `Origin` IR ID or a `Docs.Refs` span). The domain AST is
 smaller, holds provenance and wire metadata on its nodes, and prints to text that `go/format` then
 makes canonical. `go/ast` is used in exactly one place — re-parsing *existing* files for additive
 merge ([write / integrate](../../write-integrate.md)) — where its parser is the right tool. The two

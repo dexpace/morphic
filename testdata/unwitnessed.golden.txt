@@ -29,6 +29,10 @@ member 0 0 Discriminator.envelope
 member 0 0 Discriminator.envelopeValueName
 member 0 0 Discriminator.index
 member 0 0 Discriminator.inferred
+member 0 0 DocRef.end
+member 0 0 DocRef.start
+member 0 0 DocRef.type
+member 0 0 Docs.refs
 member 0 0 Document.channels
 member 0 0 Document.messages
 member 0 0 Document.versions
