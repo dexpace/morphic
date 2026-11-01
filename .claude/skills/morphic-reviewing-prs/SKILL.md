@@ -46,7 +46,8 @@ Run all, fanning out only when asked (`references/review-probes.md#fan-out-a-pas
    (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md`).
 6. **Process.** The push checklist in `morphic-shipping-prs`, without its push, on the PR's tree
    and text; then title, commits, body, closing keywords and scope, by
-   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`.
+   `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs, by
+   `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`.
 7. **New commits.** When the branch, its base or `origin/main` moves, rerun the setup and every
    pass the new commits can affect.
 

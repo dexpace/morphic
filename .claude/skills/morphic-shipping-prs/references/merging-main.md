@@ -109,13 +109,17 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Probe.** `git diff --stat origin/main...HEAD`, read from the merge base, lists only files the
   branch changed; a two-dot diff against `origin/main` also lists what `main` gained since.
 
-## Trial-merge the open PRs after removing a name they may use
+## Trial-merge the open PRs after a change they may not survive
 `trial-merge-open-prs`
 
-- **Rule.** A change that removes or renames a target, file or identifier other open PRs may name
-  trial-merges each of them, before and after, and searches each merged tree for the removed
-  names; GitHub's conflict flag does not say which merge caused a conflict.
-- **Why.** Removing a make target made two open PRs conflict in the lines naming it, and the obvious
-  resolution would have kept the gate pointing at a deleted target (#828, #836, #503).
-- **Probe.** `git merge-tree --write-tree --name-only <base> <pr head>` for each open PR, then
-  `git grep` the merged tree for each removed name.
+- **Rule.** A change that removes or renames a target, file or identifier other open PRs may name,
+  or alters what every file of a kind must hold, such as a golden, trial-merges each, before and
+  after. Search each merged tree for the removed names and run the kind's tests there:
+  `git merge-tree` reports conflicts, not failures, and GitHub's flag does not say which merge
+  caused one.
+- **Why.** Resolving a conflict over a removed make target would have kept the gate pointing at it
+  (#828, #836, #503). A line every conformance golden gained merged cleanly with PRs adding goldens
+  and failed on each (#1181, #1191, #1192).
+- **Probe.** `git merge-tree --write-tree --name-only <base> <pr head>` for each open PR, then on
+  the merge `git grep` each removed name and, for goldens,
+  `go test ./compilers/openapi/e2e ./cmd/morphic-census`.
