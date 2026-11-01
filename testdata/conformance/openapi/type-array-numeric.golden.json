@@ -1,0 +1,245 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "TypeArrayNumeric",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "TypeArrayNumeric",
+        "canonical": "type_array_numeric"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Label": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Label",
+      "name": {
+        "source": "Label",
+        "canonical": "label"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Label"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "string"
+          },
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/openapi/components/schemas/Measure": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Measure",
+      "name": {
+        "source": "Measure",
+        "canonical": "measure"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Measure"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "number"
+          },
+          "type": {
+            "target": "t/prim/number",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": false
+    },
+    "t/openapi/components/schemas/Sized": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Sized",
+      "name": {
+        "source": "Sized",
+        "canonical": "sized"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Sized"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "integer"
+          },
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "number"
+          },
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": false,
+      "wireTagged": false
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int32"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "type-array-numeric.yaml",
+      "hash": "d65265bde7687e29fd73b28f8a85d79e93364fca220491401f44ed12877b44b5"
+    }
+  ]
+}

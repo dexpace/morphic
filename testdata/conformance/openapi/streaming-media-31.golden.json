@@ -342,6 +342,206 @@
                 "pointer": "/paths/~1negotiated/get",
                 "inferred": "streaming-media-type"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1feed/get",
+              "name": {
+                "source": "streamFeed",
+                "canonical": "stream_feed"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/x-ndjson",
+                        "type": {
+                          "target": "t/anon/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema",
+                          "nullable": false
+                        }
+                      },
+                      {
+                        "mediaType": "text/event-stream",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/feed",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1feed/get",
+                "inferred": "streaming-media-type"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1sequence/get",
+              "name": {
+                "source": "streamSequence",
+                "canonical": "stream_sequence"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json-seq",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Frame",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "server",
+              "responseStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/sequence",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sequence/get",
+                "inferred": "streaming-media-type"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1sequence-suffix/post",
+              "name": {
+                "source": "uploadSequence",
+                "canonical": "upload_sequence"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/geo+json-seq",
+                    "type": {
+                      "target": "t/openapi/components/schemas/Frame",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "client",
+              "requestStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/sequence-suffix",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/geo+json-seq"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sequence-suffix/post",
+                "inferred": "streaming-media-type"
+              }
             }
           ]
         }
@@ -355,6 +555,24 @@
     }
   ],
   "types": {
+    "t/anon/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema": {
+      "kind": "list",
+      "id": "t/anon/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1feed/get/responses/200/content/application~1x-ndjson/schema"
+      },
+      "elem": {
+        "target": "t/openapi/components/schemas/Frame",
+        "nullable": false
+      }
+    },
     "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema": {
       "kind": "model",
       "id": "t/anon/paths/~1ingest/post/requestBody/content/application~1x-ndjson/schema",
@@ -639,7 +857,7 @@
     {
       "format": "openapi@3.1",
       "path": "streaming-media-31.yaml",
-      "hash": "b3422f6cc28ca2435137d5acaddded24c388f1081ff82c722523d5b1f20c9246"
+      "hash": "a755a1efe149a7a8d5e794705a230f998a975e17a0ed2ac363e27c364067eba0"
     }
   ]
 }

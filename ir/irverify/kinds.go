@@ -4,6 +4,7 @@
 package irverify
 
 import (
+	"reflect"
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
@@ -37,6 +38,50 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 		})
 	}
 	return vs
+}
+
+var streamingModeType = reflect.TypeFor[ir.StreamingMode]()
+
+// streamingPath holds the types between a Document and Operation.Streaming, the
+// one field of its type (TestStreamingPath_ListsEveryCarrier).
+var streamingPath = map[reflect.Type]bool{
+	reflect.TypeFor[*ir.Document]():        true,
+	reflect.TypeFor[ir.Document]():         true,
+	reflect.TypeFor[[]ir.Service]():        true,
+	reflect.TypeFor[ir.Service]():          true,
+	reflect.TypeFor[[]ir.OperationGroup](): true,
+	reflect.TypeFor[ir.OperationGroup]():   true,
+	reflect.TypeFor[[]ir.Operation]():      true,
+	reflect.TypeFor[ir.Operation]():        true,
+}
+
+// checkStreamingModes asserts every Operation.Streaming holds a mode ir
+// declares. An emitter switches on the mode to shape a method, and StreamingMode
+// is a plain string type, so nothing else rejects an invented one. The other
+// wire enums with no Valid method are not held yet (GitHub #1190).
+//
+// It prunes all but streamingPath: shown every value, it cost each verified
+// compile 0.8% for one field of one struct.
+func checkStreamingModes(*ir.Document) walkCheck {
+	var vs []Violation
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Type() != streamingModeType {
+				return streamingPath[v.Type()]
+			}
+			mode, ok := reflect.TypeAssert[ir.StreamingMode](v)
+			if !ok || mode.Valid() {
+				return false
+			}
+			vs = append(vs, Violation{
+				Code:    "ir/unknown-streaming-mode",
+				Message: "operation carries undeclared streaming mode " + strconv.Quote(string(mode)),
+				Path:    at.String(),
+			})
+			return false
+		},
+		report: reporting(&vs),
+	}
 }
 
 // checkAuthKinds asserts every interned auth scheme names a mechanism ir

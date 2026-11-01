@@ -1130,6 +1130,43 @@ func assertCoDeclaredSchemaContent(t *testing.T, doc *ir.Document, diags []ir.Di
 		diagsAt(diags, "openapi/degraded-construct", "/paths/~1x/get/responses/200/headers/X-H/schema"))
 }
 
+// assertContentSeveralEntries pins how a parameter and a header holding several
+// content entries lower: each elects the lowest key, though the spec declares it
+// last, keeps every other entry whole on the Document under its own coordinate,
+// and names them in one warning at the map, sorted.
+func assertContentSeveralEntries(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	op, ok := opByName(doc, "getX")
+	require.True(t, ok)
+	require.Len(t, op.Bindings.HTTP, 1)
+
+	param, found := openapitest.ParamBySource(op, "p")
+	require.True(t, found)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), param.Type.Target)
+	assert.Equal(t, "application/json", indexByParam(op.Bindings.HTTP[0].ParamBindings)["p"].ContentType)
+	assert.Empty(t, param.Unmodeled, "a passed-over entry is the document's")
+
+	require.Len(t, op.Responses, 1)
+	header, ok := headerByWire(op.Responses[0].Headers, "X-H")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/prim/integer"), header.Type.Target)
+	require.NotNil(t, header.Encoding)
+	assert.Equal(t, "application/json", header.Encoding.MediaType)
+	assert.Empty(t, header.Unmodeled, "a passed-over entry is the document's")
+
+	const (
+		paramMap  = "/paths/~1x/get/parameters/0/content"
+		headerMap = "/paths/~1x/get/responses/200/headers/X-H/content"
+	)
+	assert.Len(t, doc.Unmodeled, 3)
+	assertKeptRaw(t, doc.Unmodeled, "openapi:"+paramMap+"/text~1plain", `{"schema":{"type":"string"},"example":"hi"}`)
+	assertKeptRaw(t, doc.Unmodeled, "openapi:"+headerMap+"/application~1xml", `{"schema":{"type":"boolean"}}`)
+	assertKeptRaw(t, doc.Unmodeled, "openapi:"+headerMap+"/text~1plain", `{"schema":{"type":"string"}}`)
+
+	for _, at := range []string{paramMap, headerMap} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/degraded-construct", at), at)
+	}
+}
+
 // indexByParam indexes HTTP parameter bindings by wire name, the name of the
 // logical parameter each one binds.
 func indexByParam(bindings []ir.HTTPParamBinding) map[string]ir.HTTPParamBinding {
