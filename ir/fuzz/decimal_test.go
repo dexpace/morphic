@@ -1,7 +1,7 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package ir_test
+package fuzz_test
 
 import (
 	"cmp"
@@ -9,6 +9,7 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/dexpace/morphic/internal/ircases"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -22,9 +23,9 @@ const maxRationalExp = 4096
 // NewBigVal stores unchanged. Taking them from the slices their own tests keep
 // means a spelling added there reaches here.
 func decimalSeeds() []string {
-	seeds := append([]string{}, decimalSpellings...)
+	seeds := append([]string{}, ircases.DecimalSpellings...)
 	seeds = append(seeds, bigValAdversarialSeeds...)
-	return append(seeds, bigValDecimalForms...)
+	return append(seeds, ircases.DecimalForms...)
 }
 
 // FuzzParseDecimal_ReadsWhatNewBigValKeeps searches for a literal the two

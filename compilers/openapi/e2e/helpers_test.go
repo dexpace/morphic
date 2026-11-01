@@ -35,12 +35,9 @@ const goldenPetstore = "../../../testdata/golden/openapi/petstore.yaml"
 // times its own size, which no alias budget admits.
 const amplificationBombFixture = "../../../testdata/openapi/amplification_alias_bomb.yaml"
 
-// reproducerDir is where the cycle fixtures live. readReproducer,
-// TestCycleReproducers_EveryFixtureIsExercised and FuzzCycleDetector's seeds
-// all derive their paths from it, so none of them can end up looking somewhere
-// the others are not — which matters most for the seed loader, since it
-// ignores a read error and a wrong path there would cost the fuzzer its seeds
-// in silence.
+// reproducerDir is where the cycle fixtures live. readReproducer and
+// TestCycleReproducers_EveryFixtureIsExercised derive their paths from it, so
+// neither can end up looking somewhere the other is not.
 const reproducerDir = "../../../testdata/openapi"
 
 // corpusRoot is every committed spec directory, addressed relative to this

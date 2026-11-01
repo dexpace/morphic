@@ -26,6 +26,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -124,7 +125,7 @@ func TestCycleReproducers_EveryFixtureIsExercised(t *testing.T) {
 }
 
 // cycleFixtureFiles is every fixture the tables above name, for the guard
-// against the corpus growing past them and for the fuzzer's seeds.
+// against the corpus growing past them.
 func cycleFixtureFiles() []string {
 	files := make([]string, 0, len(aliasCycleReproducers)+len(schemaRefCycles)+len(unreadSchemaRefs)+
 		len(referenceObjectCycles))
@@ -496,103 +497,17 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 	}
 }
 
-var refShapedDataSpecs = []struct {
-	name string
-	data string
-}{
-	{"example-data-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A:
-      type: object
-      example:
-        p: {$ref: '#/components/schemas/A/example/q'}
-        q: {$ref: '#/components/schemas/A/example/p'}
-`},
-	{"default-data-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A:
-      type: object
-      default:
-        p: {$ref: '#/components/schemas/A/default/q'}
-        q: {$ref: '#/components/schemas/A/default/p'}
-`},
-	{"extension-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-foo: {a: {$ref: '#/x-foo/b'}, b: {$ref: '#/x-foo/a'}}
-`},
-	{"responses-ref-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  responses:
-    A: {$ref: '#/components/responses/B'}
-    B: {$ref: '#/components/responses/A'}
-`},
-	{"allof-wrapped-cycle", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A: {allOf: [{$ref: '#/components/schemas/B'}]}
-    B: {allOf: [{$ref: '#/components/schemas/A'}]}
-`},
-	// The four cases below are the negative controls for GitHub #26: each uses
-	// the same alias/merge/contentSchema shapes as the crashing reproducers, but
-	// legally (no degenerate cycle), so neither the alias scan nor the binder may
-	// start reporting valid documents it previously accepted.
-	{"legal-anchor-reuse", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-anchors: {s: &s {type: object}}
-components:
-  schemas:
-    A: *s
-    B: {type: object, properties: {p: *s}}
-`},
-	{"legal-merge-key", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-anchors: {base: &base {description: base schema}}
-components:
-  schemas:
-    A: {<<: *base, type: object}
-`},
-	{"legal-content-schema", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-components:
-  schemas:
-    A: {type: string, contentMediaType: application/json, contentSchema: {type: object}}
-`},
-	{"legal-alias-ref-terminates", `openapi: 3.1.0
-info: {title: t, version: '1'}
-paths: {}
-x-anchors: {ref: &r '#/components/schemas/B'}
-components:
-  schemas:
-    A: {$ref: *r}
-    B: {type: object}
-`},
-}
-
 // TestCompile_RefShapedDataNotRefused pins that a structure shaped like a $ref
 // outside a schema position, or a loop-free use of aliases, compiles and is not
 // reported as a cycle. A cycle is reported and refuses nothing, so a $ref read
 // where no resolver reads one shows as that diagnostic.
 func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 	t.Parallel()
-	for _, tc := range refShapedDataSpecs {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, tc := range testspec.RefShapedData {
+		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags, err := openapi.New().Compile(t.Context(),
-				[]compilers.Source{{Path: tc.name + ".yaml", Data: []byte(tc.data)}}, compilers.Options{})
+				[]compilers.Source{{Path: tc.Name + ".yaml", Data: []byte(tc.Data)}}, compilers.Options{})
 			require.NoError(t, err)
 			assert.NotNil(t, doc, "a legal ref-shaped-data spec must still lower")
 			for _, d := range diags {
@@ -649,40 +564,6 @@ func TestCompile_MergeChainPastBoundStillCompiles(t *testing.T) {
 		assert.NotEqual(t, ir.SeverityError, d.Severity, "no diagnostic refuses the source: %+v", d)
 		assert.NotEqual(t, diag.CycleScanFailed, d.Code, "the alias scan completes: %+v", d)
 	}
-}
-
-// FuzzCycleDetector compiles arbitrary bytes seeded from the cycle corpus.
-// Whatever a source holds, the compile must not panic, overflow the stack or
-// hang, and must come back with a document or with a refusal: an error
-// diagnostic saying why no document came back, or a Go error alone, which an
-// empty source raises. A cycle of schema $refs refuses nothing, so a corpus
-// seed comes back with a document.
-func FuzzCycleDetector(f *testing.F) {
-	for _, file := range cycleFixtureFiles() {
-		if data, err := os.ReadFile(filepath.Join(reproducerDir, file+".yaml")); err == nil {
-			f.Add(data)
-		}
-	}
-	for _, tc := range refShapedDataSpecs {
-		f.Add([]byte(tc.data))
-	}
-	if data, err := os.ReadFile(amplificationBombFixture); err == nil {
-		f.Add(data) // the GitHub #27 reproducer: refused for amplification, not a cycle
-	}
-	f.Add([]byte(" "))         // whitespace-only: recoverable parser panic
-	f.Add([]byte("\t\x00: [")) // undecodable: reported as a parse error, not a fault
-
-	f.Fuzz(func(t *testing.T, data []byte) {
-		doc, diags, err := openapi.New().Compile(t.Context(),
-			[]compilers.Source{{Path: "fuzz.yaml", Data: data}}, compilers.Options{})
-		if err != nil {
-			assert.Nil(t, doc, "a Go error returns no document")
-			return
-		}
-		if doc == nil {
-			assert.True(t, ir.HasError(diags), "no document came back, and no error says why: %+v", diags)
-		}
-	})
 }
 
 // TestCompile_ReentrantPrefixReportsAlikeInBothDeclarationOrders pins that a

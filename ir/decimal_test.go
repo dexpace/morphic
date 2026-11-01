@@ -11,17 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/ircases"
 	"github.com/dexpace/morphic/ir"
 )
-
-// decimalSpellings are spellings of a handful of values, several of each, and
-// values a rounding reading would merge. decimal_property_test.go seeds its fuzz
-// targets from this slice rather than restating it.
-var decimalSpellings = []string{
-	"0", "-0.0", "0e9", "1", "1.0", "1e0", "10e-1", "10", "1e1", "10.0", "1500", "1500.0", "15e2", "1.5e3",
-	"0.001", "1e-3", "5", "-5", "-5.00", "-0.5e1", "1e1000001", "10e1000000", "1e-1000001",
-	"9007199254740993", "9007199254740992", "1.0000000000000001", "1.0000000000000002",
-}
 
 // mustParseDecimal reads a literal the caller knows is a decimal in range.
 func mustParseDecimal(t *testing.T, s string) ir.Decimal {
@@ -246,14 +238,14 @@ func TestDecimal_CmpOrdersEveryDecimalSpellingExactly(t *testing.T) {
 }
 
 // TestDecimal_EqualityIsOneValue holds the three ways to ask whether two
-// literals are one value to one answer over every pair of decimalSpellings:
+// literals are one value to one answer over every pair of ircases.DecimalSpellings:
 // Cmp, ==, and the canonical decimal. A member ID keys a number by that
 // spelling, so a pair the three split on would merge two enum members or
 // split one. A map keyed by Decimal then holds one entry per value.
 func TestDecimal_EqualityIsOneValue(t *testing.T) {
 	t.Parallel()
-	for _, a := range decimalSpellings {
-		for _, b := range decimalSpellings {
+	for _, a := range ircases.DecimalSpellings {
+		for _, b := range ircases.DecimalSpellings {
 			da, db := mustParseDecimal(t, a), mustParseDecimal(t, b)
 
 			byCmp, byEq, byText := da.Cmp(db) == 0, da == db, da.String() == db.String()
@@ -316,7 +308,7 @@ func TestParseDecimal_ReadsAHugeLiteralWithoutAllocating(t *testing.T) {
 // through it, such as one a decoder produced, is refused rather than guessed at.
 func TestBigVal_DecimalReadsWhatNewBigValBuilt(t *testing.T) {
 	t.Parallel()
-	for _, s := range bigValDecimalForms {
+	for _, s := range ircases.DecimalForms {
 		v, err := ir.NewBigVal(s)
 		require.NoError(t, err, s)
 
