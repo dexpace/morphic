@@ -235,15 +235,19 @@ func (w *admission) conesOver(conjuncts []conjunct, i int) int {
 
 // lowerPrincipal lowers the branch r uses, at the pointer it is written at, so
 // nothing is minted and each node stands at a pointer naming its schema. A $ref
-// goes through Ref, as fillRefBranch's does, so what is written beside it keeps
-// the alias it always has. An inline branch that reduces to a shared node leaves
+// goes through Ref, as fillRefBranch's does, keeping the alias what is written
+// beside it always has. An inline branch that reduces to a shared node leaves
 // what it writes to the position, as a voice. Either takes a frame of its own, so
-// a refinement counts two against maxSchemaDepth, a limit no real schema nears.
+// a refinement counts two against maxSchemaDepth, a limit no real schema nears. A
+// $ref the principal beat is still resolved: nothing else may lower what it names.
 func lowerPrincipal(c lowering.Ctx, ts *compile.Types, depth int, r refinement) (ir.TypeID, []ir.Diagnostic) {
 	e := r.principal
 	if isRefBranch(e.schema) {
 		ref, diags := Ref(c, ts, depth, e.schema, e.pointer)
 		return ref.Target, diags
+	}
+	if r.ref != nil {
+		resolveSchemaRef(c, ts, r.ref.schema)
 	}
 	ref, diags := CarriedRef(c, ts, depth, e.schema, e.pointer)
 	return ref.Target, diags

@@ -625,6 +625,24 @@ func TestRefinement_ANarrowingKeepsItsTargetOnANode(t *testing.T) {
 	}
 }
 
+// TestRefinement_ANarrowedRefStillLowersItsTarget pins what a kept $ref names: a
+// position no component holds is lowered by a reference alone, and a narrowing
+// keeps the reference, so the target's node stands as it does beneath a Base.
+func TestRefinement_ANarrowedRefStillLowersItsTarget(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    Host:
+      type: object
+      $defs:
+        Mode: {type: string, enum: [a, b], example: b}
+    Narrow: {allOf: [{$ref: '#/components/schemas/Host/$defs/Mode'}, {enum: [a]}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	en, ok := doc.Types["t/anon/components/schemas/Host/$defs/Mode"].(*ir.Enum)
+	require.True(t, ok, "nothing but the kept $ref names the target")
+	assert.Len(t, en.Members, 2)
+	assert.NotEmpty(t, en.Examples, "the target's examples stay on its node")
+}
+
 // TestRefinement_ACarrierReadsThroughARefinement pins GitHub #1029's sibling: a
 // $ref to a component refining another reaches what the second one says, as a
 // chain of $refs does, and one hop further where it refines in turn.
