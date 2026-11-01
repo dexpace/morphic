@@ -88,7 +88,7 @@ jobs:
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
 
   suite:
-    name: build, test (race detector, exactly 100% coverage)
+    name: build, coverage (exactly 100%), race detector
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -102,6 +102,8 @@ jobs:
       # their bound (#1010).
       - name: build
         run: make build
-      - name: test
+      - name: coverage
         run: make coverage
+      - name: race
+        run: make race
       - *save
