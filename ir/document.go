@@ -9,7 +9,7 @@ package ir
 //
 // It names a schema generation, not a commit: any change to the JSON shape
 // bumps it, once, where the change lands on main. docs/ir/ir-version.md holds
-// that policy and the history of what each bump changed, and
+// that policy, docs/ir/version-history.md what each bump changed, and
 // TestIRVersion_PinsTheEncodedShape holds it to the shape.
 const IRVersion = "0.22.0"
 

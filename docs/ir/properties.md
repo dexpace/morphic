@@ -1,7 +1,7 @@
 # Properties
 
-Part of the [IR design](./README.md). One member of a model, and the lifecycle sets that say when it
-is visible.
+Part of the [IR design](./README.md). One member of a model, and the lifecycle sets, not booleans,
+that say when it is visible.
 
 ```go
 type Property struct {

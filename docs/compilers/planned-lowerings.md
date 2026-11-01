@@ -10,8 +10,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 
 | Format | Lowering rules |
 |---|---|
-| **OpenAPI 3.x** | [`compilers/openapi.md`](../compilers/openapi.md) |
-| **Swagger 2.0** | lifted inside the OpenAPI compiler: [`swagger-lift`](../compilers/openapi.md#swagger-lift) |
+| **OpenAPI 3.x** | [`compilers/openapi.md`](./openapi.md) |
+| **Swagger 2.0** | lifted inside the OpenAPI compiler: [`swagger-lift`](./openapi.md#swagger-lift) |
 
 ## TypeSpec
 
