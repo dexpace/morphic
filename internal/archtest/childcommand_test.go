@@ -21,6 +21,10 @@ import (
 // osExecImport is the import path of the package whose commands start a child.
 const osExecImport = `"os/exec"`
 
+// exectestFile is the one file allowed to build a command: exectest.Command
+// itself, as walkGoFiles names it.
+const exectestFile = "internal/exectest/exectest.go"
+
 // The two things childCommandViolations reports, which the planted files'
 // "// want" and "// want dot" markers stand for.
 const (
@@ -28,17 +32,18 @@ const (
 	dotMessage    = "dot-imports os/exec, which hides the commands it builds"
 )
 
-// TestChildCommand_EveryTestBuildsItsCommandThroughExectest holds every test
-// file of the module to exectest.Command for the commands it starts: a command
-// built any other way starts a child that inherits the parent's coverage
-// directory, where two children finishing together fail to write the meta-data
-// file. It also requires the walk to meet a test file importing os/exec, so a
-// walk that reaches none fails rather than passing on nothing.
+// TestChildCommand_EveryTestBuildsItsCommandThroughExectest holds every Go file
+// of the module, production files included, to exectest.Command for the
+// commands it starts: a command built any other way starts a child that
+// inherits the parent's coverage directory, where two children finishing
+// together fail to write the meta-data file. It also requires the walk to meet
+// a file importing os/exec, so a walk that reaches none fails rather than
+// passing on nothing.
 func TestChildCommand_EveryTestBuildsItsCommandThroughExectest(t *testing.T) {
 	t.Parallel()
 	violations, importers, err := childCommandViolations(irtest.RepoRoot(t))
 	require.NoError(t, err)
-	assert.Positive(t, importers, "the walk reaches test files importing os/exec")
+	assert.Positive(t, importers, "the walk reaches files importing os/exec")
 	for _, v := range violations {
 		t.Error(v)
 	}
@@ -47,8 +52,8 @@ func TestChildCommand_EveryTestBuildsItsCommandThroughExectest(t *testing.T) {
 // TestChildCommandViolations_PlantedBuildsAreCaught proves the detector both
 // ways on one planted file per row. A line ending in "// want" must be
 // reported as building a command, and one ending in "// want dot" as a dot
-// import, exactly those lines and no other. wantSeen is the number of test
-// files importing os/exec the walk met.
+// import, exactly those lines and no other. wantSeen is the number of files
+// importing os/exec the walk met.
 func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -74,7 +79,10 @@ func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 		{"pointer to the type", "p/a_test.go", execFile(`func f(c *exec.Cmd) *exec.Cmd { return c }`), 1},
 		{"slice of pointers", "p/a_test.go", execFile(`var _ []*exec.Cmd`), 1},
 		{"another name of the package", "p/a_test.go", execFile(`var _ exec.ExitError`), 1},
-		{"file that is not a test", "p/a.go", execFile(`var _ = exec.Command("x")`), 0},
+		{"another identifier selecting Command", "p/a_test.go",
+			execFile("var o struct{ Command func() }\nvar _ = o.Command"), 1},
+		{"file that is not a test", "p/a.go", execFile(`var _ = exec.Command("x") // want`), 1},
+		{"the helper itself", exectestFile, execFile(`var _ = exec.Command("x")`), 0},
 		{"file under testdata", "p/testdata/a_test.go", execFile(`var _ = exec.Command("x")`), 0},
 		{"exec that is not os/exec", "p/a_test.go",
 			"package p\n\nfunc f(exec fake) { exec.Command(\"x\") }\n", 0},
@@ -90,7 +98,7 @@ func TestChildCommandViolations_PlantedBuildsAreCaught(t *testing.T) {
 			violations, seen, err := childCommandViolations(root)
 
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantSeen, seen, "test files importing os/exec")
+			assert.Equal(t, tt.wantSeen, seen, "files importing os/exec")
 			assert.Equal(t, wantedLines(tt.file, tt.src), violations)
 		})
 	}
@@ -116,16 +124,16 @@ func wantedLines(file, src string) []string {
 	return want
 }
 
-// childCommandViolations walks root for the test files that import os/exec and
-// returns one message per command they build any way but exectest.Command, with
-// the number of such files it met. It reports a call of Command or
-// CommandContext, and every selection of Cmd that is not the target of a
-// pointer type: a literal, new, a var, a slice, an array, a field or an alias.
-// A dot import is reported too, since it hides what the file builds. It does
-// not report os.StartProcess or a syscall, which no test uses.
+// childCommandViolations walks root for the Go files that import os/exec,
+// bar exectest's own, and returns one message per command they build any way
+// but exectest.Command, with the number of such files it met. It reports a
+// call of Command or CommandContext, and every selection of Cmd that is not the
+// target of a pointer type: a literal, new, a var, a slice, an array, a field
+// or an alias. A dot import is reported too, since it hides what the file
+// builds. It does not report os.StartProcess or a syscall, which nothing uses.
 func childCommandViolations(root string) (violations []string, importers int, err error) {
 	err = walkGoFiles(root, func(rel string, fset *token.FileSet, f *ast.File) {
-		if !strings.HasSuffix(rel, "_test.go") {
+		if rel == exectestFile {
 			return
 		}
 		spec := osExecSpec(f)
