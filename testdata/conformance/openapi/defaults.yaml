@@ -9,6 +9,8 @@ components:
         n: {type: integer, default: 9007199254740993}
         viaRef: {$ref: '#/components/schemas/DeclaredDefault'}
         flag: {type: boolean, default: true}
+        # A written null is a default, not the absence of one.
+        cleared: {type: [string, "null"], default: null}
         blob: {type: string, default: !!binary "aGk="}
         list:
           type: array

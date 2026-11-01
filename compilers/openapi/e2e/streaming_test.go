@@ -131,13 +131,14 @@ func assertStreamingMedia30(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.Inferred("streaming-media-type"), op.Provenance.Inferred)
 }
 
-// assertStreamingMedia31 is the corpus row for the three shapes 3.0 cannot show
-// on one operation: a request body that streams as well as its response, a
-// response whose two streaming contents name different element types, where
-// none is elected, and one whose two name the same, where it is.
+// assertStreamingMedia31 is the corpus row for what assertStreamingMedia30 leaves
+// out, which a 3.0 document lowers alike: a request that streams beside its
+// response, one that streams alone, a response whose two streaming contents name
+// different element types, where none is elected, and one whose two name the
+// same, where it is.
 //
 // The last two are the pair that says what the refusal is for. Refusing on the
-// count alone would pass the middle one and fail the last, and content
+// count alone would pass the first of them and fail the second, and content
 // negotiation over a single frame — the same schema as text/event-stream and as
 // application/x-ndjson — is the commoner shape of the two.
 func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
@@ -151,6 +152,15 @@ func assertStreamingMedia31(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	require.NotNil(t, both.ResponseStream)
 	assert.NotNil(t, both.ResponseStream.Events, "a charset parameter does not defeat the match")
 	assert.Equal(t, ir.Inferred("streaming-media-type"), both.Provenance.Inferred)
+
+	upload, ok := opByName(doc, "uploadRows")
+	require.True(t, ok)
+	assert.Equal(t, ir.StreamingClient, upload.Streaming, "only the request streams")
+	require.NotNil(t, upload.RequestStream)
+	require.NotNil(t, upload.RequestStream.Events)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Frame"), upload.RequestStream.Events.Target)
+	assert.Nil(t, upload.ResponseStream, "a 204 has nothing to stream back")
+	assert.Equal(t, ir.Inferred("streaming-media-type"), upload.Provenance.Inferred)
 
 	either, ok := opByName(doc, "streamEither")
 	require.True(t, ok)

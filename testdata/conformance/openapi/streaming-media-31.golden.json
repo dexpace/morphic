@@ -141,6 +141,73 @@
               }
             },
             {
+              "id": "op/openapi/paths/~1upload/post",
+              "name": {
+                "source": "uploadRows",
+                "canonical": "upload_rows"
+              },
+              "docs": {},
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/x-ndjson",
+                    "type": {
+                      "target": "t/openapi/components/schemas/Frame",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ingested"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "streaming": "client",
+              "requestStream": {
+                "events": {
+                  "target": "t/openapi/components/schemas/Frame",
+                  "nullable": false
+                },
+                "requiresLength": false
+              },
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/upload",
+                    "sharedRoute": false,
+                    "requestContentTypes": [
+                      "application/x-ndjson"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1upload/post",
+                "inferred": "streaming-media-type"
+              }
+            },
+            {
               "id": "op/openapi/paths/~1mixed/get",
               "name": {
                 "source": "streamEither",
@@ -572,7 +639,7 @@
     {
       "format": "openapi@3.1",
       "path": "streaming-media-31.yaml",
-      "hash": "c7c7a5c5051e94131d339363c28854b82e5a6fda41e8381ee46fbd2bbca4fb1a"
+      "hash": "b3422f6cc28ca2435137d5acaddded24c388f1081ff82c722523d5b1f20c9246"
     }
   ]
 }

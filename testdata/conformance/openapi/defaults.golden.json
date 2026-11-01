@@ -212,6 +212,36 @@
           }
         },
         {
+          "id": "p/openapi/components/schemas/S/properties/cleared",
+          "name": {
+            "source": "cleared",
+            "canonical": "cleared"
+          },
+          "wireName": "cleared",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "null"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/S/properties/cleared"
+          }
+        },
+        {
           "id": "p/openapi/components/schemas/S/properties/blob",
           "name": {
             "source": "blob",
@@ -352,7 +382,7 @@
     {
       "format": "openapi@3.1",
       "path": "defaults.yaml",
-      "hash": "aa326a604c12228396e42ee9c189c02531073296861cc10423441502cee6d9fb"
+      "hash": "f44ae8b9fe1ee3d27d918fa92dd48291ecef669a78cf8c527bf361a2e1310e0c"
     }
   ]
 }
