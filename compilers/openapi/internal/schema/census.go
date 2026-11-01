@@ -276,9 +276,8 @@ const collapsedShape = "a nullable reference to its one non-null branch"
 // site's target belongs to the referent (keywordHome's nil td). The census
 // keywords such a schema can write are the few neither declaresShape nor
 // narrowsInstance counts, the discriminator among them (GitHub #595).
-// lowerSchemaBody's other outcomes
-// that skip lower(), a Union and an expanded $dynamicRef, run no census yet
-// (GitHub #848).
+// lowerSchemaBody's other outcomes that skip lower(), a Union and an expanded
+// $dynamicRef, run no census yet (GitHub #848).
 func collapsedUnhomedKeywords(s *oas3.Schema) []string {
 	if hasUnionSiblings(s) {
 		return nil

@@ -628,7 +628,10 @@ func TestCollectionBound_BesideAValueBoundReachesOneConstraints(t *testing.T) {
 // of a count the parser's model reads as the number they state.
 func TestCollectionBound_ALiteralReadExactlyReachesConstraints(t *testing.T) {
 	t.Parallel()
-	for literal, want := range map[string]int64{"0": 0, "1.0": 1, "1e3": 1000} {
+	for literal, want := range map[string]int64{
+		"0": 0, "1.0": 1, "1e3": 1000, "1e18": 1e18, "0x10": 16, "0o17": 15, "1_000": 1000,
+		"9223372036854775807": 9223372036854775807,
+	} {
 		t.Run(literal, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
@@ -640,6 +643,25 @@ func TestCollectionBound_ALiteralReadExactlyReachesConstraints(t *testing.T) {
 			assert.Equal(t, &ir.Constraints{MinItems: &want}, alias.Constraints)
 			assert.Empty(t, alias.Unmodeled)
 		})
+	}
+}
+
+// TestCollectionBound_ASpellingOfYAMLReachesConstraints pins the raw-node half of
+// the read against the model's: an alias and a merge key state the bound as a
+// plain literal does, so neither is left verbatim.
+func TestCollectionBound_ASpellingOfYAMLReachesConstraints(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+		"    Anchored: {type: array, items: {type: string}, minItems: &n 2}\n"+
+		"    Holder:\n      type: object\n      properties:\n"+
+		"        alias: {$ref: '#/components/schemas/Tags', minItems: *n}\n"+
+		"        merged: {<<: {minItems: 2}, $ref: '#/components/schemas/Tags'}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, wire := range []string{"alias", "merged"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.Equal(t, &ir.Constraints{MinItems: new(int64(2))}, p.Constraints, wire)
+		assert.Empty(t, p.Unmodeled, wire)
 	}
 }
 
@@ -657,6 +679,8 @@ func TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState(t *testing.T)
 	}{
 		{"uniqueItems false", "uniqueItems: false", []string{"openapi:uniqueItems"}, nil},
 		{"integer past int64", "minItems: 99999999999999999999", []string{"openapi:minItems"}, nil},
+		{"one past int64", "minItems: 9223372036854775808", []string{"openapi:minItems"}, nil},
+		{"exponent past int64", "minItems: 1e19", []string{"openapi:minItems"}, nil},
 		{"float past float64", "maxItems: 1e400", []string{"openapi:maxItems"}, nil},
 		{"only the unreadable one", "minItems: 1, maxItems: 1e400", []string{"openapi:maxItems"},
 			&ir.Constraints{MinItems: new(int64(1))}},

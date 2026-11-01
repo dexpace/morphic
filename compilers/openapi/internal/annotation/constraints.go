@@ -67,11 +67,10 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer
 // an integer past int64 as 0 (GitHub #1050), so a caller able to keep the raw
 // keyword instead asks here before it trusts the model.
 func CountIsExact(s *oas3.Schema, keyword string, count *int64) bool {
-	node := RawPropertyNode(s, keyword)
-	if count == nil || node == nil {
+	if count == nil {
 		return false
 	}
-	literal, err := value.NumericLiteral(node)
+	literal, err := value.NumericLiteral(RawPropertyNode(s, keyword))
 	if err != nil {
 		return false
 	}

@@ -15,6 +15,43 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// TestParams_ASharedDeclarationLeavesItsListItsBound pins one home per
+// declaration where the schema is not written at the position mounting it: a
+// parameter and a header reached through a $ref read the pointer their schema
+// lowered at, so neither carrier restates the bound its List holds.
+func TestParams_ASharedDeclarationLeavesItsListItsBound(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := compileService(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+components:
+  parameters:
+    Listed: {name: listed, in: query, schema: {type: array, items: {type: string}, minItems: 1}}
+  headers:
+    Limited: {schema: {type: array, items: {type: string}, maxItems: 5}}
+paths:
+  /tags:
+    get:
+      operationId: listTags
+      parameters:
+        - {$ref: '#/components/parameters/Listed'}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Limited: {$ref: '#/components/headers/Limited'}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 1)
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+
+	assert.Nil(t, op.Params[0].Constraints)
+	assert.IsType(t, &ir.List{}, doc.Types[op.Params[0].Type.Target])
+	assert.Nil(t, op.Responses[0].Headers[0].Constraints)
+	assert.IsType(t, &ir.List{}, doc.Types[op.Responses[0].Headers[0].Type.Target])
+}
+
 // TestParams_CollectionBoundBesideARefReachesTheCarrier pins the two carriers
 // this package fills (docs/compilers/openapi.md#constraints): the bound written
 // for one use of a shared list reaches the parameter or header holding that use,

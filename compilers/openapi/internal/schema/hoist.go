@@ -92,8 +92,8 @@ func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, poi
 	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
 }
 
-// internAliasHolding interns the alias over target with the bounds an internAlias
-// read, and the keyword kept beside them.
+// internAliasHolding interns the alias over target, holding the bounds its caller
+// read and the keyword kept beside them.
 func internAliasHolding(c lowering.Ctx, ts *compile.Types, cons *ir.Constraints, kept ir.Unmodeled, pointer jsontext.Pointer, target ir.TypeRef) ir.TypeID {
 	return internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
 		common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, kept)
