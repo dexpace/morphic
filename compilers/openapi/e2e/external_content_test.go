@@ -144,6 +144,53 @@ func TestExternalContent_ARefInItNamesItsOwnDocument(t *testing.T) {
 	}
 }
 
+// TestExternalContent_APassedOverEntryIsKeptPerDocument holds the Document's key
+// to the declaration it keeps: one pointer in two documents is two declarations,
+// so each keeps its own entry under its own key, and neither reads as a later
+// reach of the other.
+func TestExternalContent_APassedOverEntryIsKeptPerDocument(t *testing.T) {
+	t.Parallel()
+	const declaration = `components:
+  parameters:
+    P:
+      name: q
+      in: query
+      content:
+        a/a: {schema: {type: string}}
+        b/b: {schema: {type: %s}}
+`
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"),
+		fmt.Appendf(nil, "openapi: 3.1.0\ninfo: {title: e, version: \"1\"}\npaths: {}\n"+declaration, "boolean"), 0o600))
+	root := fmt.Sprintf(`openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /own:
+    get:
+      operationId: own
+      parameters: [{$ref: '#/components/parameters/P'}]
+      responses: {"200": {description: ok}}
+  /ext:
+    get:
+      operationId: ext
+      parameters: [{$ref: './ext.yaml#/components/parameters/P'}]
+      responses: {"200": {description: ok}}
+`+declaration, "integer")
+	doc, _, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+
+	const entry = "/components/parameters/P/content/b~1b"
+	require.Len(t, doc.Unmodeled, 2)
+	own, theirs := doc.Unmodeled["openapi:"+entry], doc.Unmodeled["openapi:"+ids.In("ext.yaml").Coordinate(entry)]
+	assert.JSONEq(t, `{"schema":{"type":"integer"}}`, string(own.Value))
+	assert.Equal(t, ir.Provenance{Pointer: entry}, own.Provenance)
+	assert.JSONEq(t, `{"schema":{"type":"boolean"}}`, string(theirs.Value))
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: entry}, theirs.Provenance)
+}
+
 // TestExternalContent_AMappingNamesAsTheSpecificationSays pins the line
 // GitHub #762 draws inside another document's content. A mapping value that is
 // a pointer names a position in that document, as such a $ref does, and so does

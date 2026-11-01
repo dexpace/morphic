@@ -62,8 +62,9 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 		scope := ids.Scope("content", mt)
 		examples, residue, residueDiags := contentEntryFields(c, media, mediaPtr, scope, carrier, home)
 		diags = append(diags, residueDiags...)
-		written := nodeview.Pairs(nodeview.Child(root, "content"))
-		diags = append(diags, passedOverEntries(c, &residue, written, mt, at)...)
+		diags = append(diags, c.Kept().Once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
+			return passedOverEntries(c, nodeview.Pairs(nodeview.Child(root, "content")), mt, at)
+		})...)
 		elected := typeSpelling{
 			js:        media.GetSchema(),
 			pointer:   mediaPtr + ids.Ptr("schema"),
@@ -126,41 +127,54 @@ func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (strin
 	return elected, chosen, chosen != nil
 }
 
-// passedOverEntries keeps each entry of written, a content map's pairs, but
-// elected verbatim under openapi:content/<key>, the key escaped as a pointer
-// segment, and reports them once at the map, sorted and quoted, so the report
-// follows no declaration order and stays one line.
+// passedOverEntries returns each entry of written, a content map's pairs, but
+// elected, kept verbatim under openapi:<its coordinate>, and reports them once at
+// the map, sorted, so the report follows no declaration order.
 //
-// It keeps the lowest annotation.MaxUnknownKeys, as the census does: each costs
-// a copy per reference to the map (GitHub #1240) and a name in that line.
+// They are the Document's rather than the carrier's (lowering.KeptOnce): a carrier
+// a $ref reaches lowers once per reference, and an entry belongs to the
+// declaration, which no node stands for. So what they cost is what the source
+// wrote, and none need dropping.
 //
 // The reason and severity are passedOverSpelling's. An entry interns no node, and
 // --explain does not read Unmodeled (GitHub #693), so only the warning names it.
-func passedOverEntries(c lowering.Ctx, u *ir.Unmodeled, written []nodeview.Pair, elected string, at jsontext.Pointer) []ir.Diagnostic {
+func passedOverEntries(c lowering.Ctx, written []nodeview.Pair, elected string, at jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
 	passed := slices.DeleteFunc(slices.SortedFunc(slices.Values(written), byKey),
 		func(entry nodeview.Pair) bool { return entry.Key == elected })
+	var entries ir.Unmodeled
 	var diags []ir.Diagnostic
-	if len(passed) > annotation.MaxUnknownKeys {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.UnknownKeyBudget, at+ids.Ptr("content"),
-			"a content map passes over %d entries, past the %d this compiler keeps; "+
-				"the rest are represented in the IR in no form at all", len(passed), annotation.MaxUnknownKeys))
-		passed = passed[:annotation.MaxUnknownKeys]
-	}
 	var kept []string
 	for _, entry := range passed {
-		ok, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey("content", entry.Key),
-			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(at+ids.Ptr("content", entry.Key)))
+		pointer := at + ids.Ptr("content", entry.Key)
+		ok, keptDiags := annotation.PreserveNodeInto(&entries, "openapi:"+c.IDs().Coordinate(pointer),
+			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
 		diags = append(diags, keptDiags...)
 		if ok {
-			kept = append(kept, strconv.Quote(entry.Key))
+			kept = append(kept, entry.Key)
 		}
 	}
 	if len(kept) == 0 {
-		return diags
+		return entries, diags
 	}
-	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
+	return entries, append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
 		"a content-style header or parameter must declare exactly one media type; "+
-			"%q is lowered and %s kept verbatim under Unmodeled", elected, strings.Join(kept, ", ")))
+			"%q is lowered and %s kept verbatim under the document's Unmodeled", elected, namedEntries(kept)))
+}
+
+// namedEntries lists keys for one warning: each quoted, so a key cannot break the
+// line or read as two, and past annotation.MaxUnknownKeys a count of the rest,
+// since the document sets how many there are.
+func namedEntries(keys []string) string {
+	named := keys[:min(len(keys), annotation.MaxUnknownKeys)]
+	quoted := make([]string, len(named))
+	for i, key := range named {
+		quoted[i] = strconv.Quote(key)
+	}
+	list := strings.Join(quoted, ", ")
+	if rest := len(keys) - len(named); rest > 0 {
+		return list + " and " + strconv.Itoa(rest) + " more"
+	}
+	return list
 }
 
 // byKey orders two pairs of one mapping, whose keys differ.

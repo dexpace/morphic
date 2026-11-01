@@ -214,9 +214,8 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Name, out.Version = m.Name, m.Version
 	out.TermsOfService, out.Docs = m.TermsOfService, m.Docs
 	out.Contact, out.License = m.Contact, m.License
-	if len(m.Unmodeled) > 0 {
-		out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
-	}
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
+	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, c.Kept().Entries())
 	acc.AppendAll(metaDiags)
 	out.IRVersion = ir.IRVersion
 	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()

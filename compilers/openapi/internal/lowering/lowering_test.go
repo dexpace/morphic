@@ -5,9 +5,11 @@ package lowering_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -218,6 +220,43 @@ func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
 	assert.False(t, lowering.Ctx{}.Reached("/components/parameters/P"))
 	assert.Nil(t, lowering.Ctx{}.RefScope().Reached)
+}
+
+// TestKeptOnce_ReadsADeclarationOnce holds what makes a kept entry cost what the
+// source wrote: the first reach reads and reports, a later one through any copy of
+// the context does neither, and another declaration is a read of its own.
+func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
+	t.Parallel()
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	reads := 0
+	keep := func(key string) func() (ir.Unmodeled, []ir.Diagnostic) {
+		return func() (ir.Unmodeled, []ir.Diagnostic) {
+			reads++
+			return ir.Unmodeled{key: {Reason: ir.ReasonDegradedLowering}}, []ir.Diagnostic{{Code: key}}
+		}
+	}
+
+	assert.Len(t, c.Kept().Once("/a", keep("a")), 1, "the first reach reports")
+	assert.Empty(t, c.WithAuth(nil).Kept().Once("/a", keep("a")), "a copy shares what was read")
+	assert.Len(t, c.Kept().Once("/b", keep("b")), 1)
+
+	assert.Equal(t, 2, reads)
+	assert.Equal(t, []string{"a", "b"}, slices.Sorted(maps.Keys(c.Kept().Entries())))
+}
+
+// TestKeptOnce_AZeroContextKeepsNothing is the state New never leaves: with nowhere
+// to hold a read, it asks for none rather than report what nothing kept.
+func TestKeptOnce_AZeroContextKeepsNothing(t *testing.T) {
+	t.Parallel()
+	asked := false
+	diags := lowering.Ctx{}.Kept().Once("/a", func() (ir.Unmodeled, []ir.Diagnostic) {
+		asked = true
+		return nil, nil
+	})
+	assert.False(t, asked)
+	assert.Empty(t, diags)
+	assert.Nil(t, lowering.Ctx{}.Kept().Entries())
 }
 
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution

@@ -544,10 +544,11 @@ and is reported, as for every construct a later minor added, with an
 ### `verbatim-preservation`
 
 A construct a rule keeps verbatim becomes an `Unmodeled` entry
-([unmodeled](../ir/unmodeled.md)) on the node or carrier that owns its position: keyed
-`openapi:<keyword>` for a keyword or field, or by the scoped key the rule names where several
-objects reach one carrier ([`vendor-extensions`](#vendor-extensions)), under the reason the rule
-gives, and with a `Provenance` locating the construct itself rather than the node that carries it.
+([unmodeled](../ir/unmodeled.md)) on the node or carrier that owns its position, or on the Document
+where the rule says no node stands for it: keyed `openapi:<keyword>` for a keyword or field, or by
+the scoped key the rule names where several objects reach one carrier
+([`vendor-extensions`](#vendor-extensions)), under the reason the rule gives, and with a
+`Provenance` locating the construct itself rather than the node that carries it.
 The entry holds the construct as JSON read off its YAML node as the parser reads it: aliases
 followed, `<<` merge keys merged in the parser's order
 ([`merge-keys`](../parser-library.md#merge-keys)), a mapping key as the text it spells, since the
@@ -2287,11 +2288,12 @@ lowered as the `schema` spelling's is with the same constraints and `xml` hints,
 `<owner>/content/<key>/schema`, or the top type where the entry writes none, and the key as written
 is the media type that serializes the value: `HTTPParamBinding.ContentType` on a parameter,
 `Property.Encoding.MediaType` on a header, neither set by the `schema` spelling. Every other entry
-lowers nothing and is kept whole under `openapi:content/<key>`, the key escaped as a pointer segment
-(`degraded_lowering`), reported as one `openapi/degraded-construct` warning at the `content` map
-naming them, beside the `openapi/validation` error ([`validation`](#validation)) such a map draws.
-A map keeps at most `annotation.MaxUnknownKeys` of them, the lowest keys, and the rest reach the IR
-in no form, reported as one `openapi/unknown-key-budget` warning at the map.
+lowers nothing and is kept whole on the Document under `openapi:<coordinate>`, its own pointer behind
+a document's qualifier where it is not the source (`degraded_lowering`), once however many references
+reach it: such an entry belongs to the declaration, which no node stands for, and a parameter or
+header lowers once per reference. Each is reported in one `openapi/degraded-construct` warning at the
+`content` map, beside the `openapi/validation` error ([`validation`](#validation)) such a map draws,
+which names the lowest `annotation.MaxUnknownKeys` and counts the rest.
 What else the elected entry writes is kept: its `example` and `examples` follow the parameter's or
 header's own in `Examples`, and the rest goes verbatim under `openapi:content/<key>/<field>`, the
 key escaped as a pointer segment — its `x-*` extensions under `vendor_extension`; an undeclared
@@ -2304,10 +2306,11 @@ beside it stands, and the empty map is kept under `degraded_lowering` with an
 [`competing-keywords`](#competing-keywords)'.
 
 - Cases: `param-content-fields`, `header-content-schema`, `content-several-entries`
-- Codes: `openapi/degraded-construct`, `openapi/unknown-key-budget`
+- Codes: `openapi/degraded-construct`
 - Tests: `operation.TestParams_ContentStyleParameter`,
   `operation.TestPassedOverEntries_ReportsExtraMediaTypes`,
-  `operation.TestPassedOverEntries_KeepsTheLowestKeysUpToTheBudget`,
+  `operation.TestPassedOverEntries_KeepsEveryEntryAndNamesTheLowest`,
+  `operation.TestPassedOverEntries_KeepsOneCopyPerDeclaration`,
   `operation.TestElectContentEntry_DoesNotFollowDeclarationOrder`,
   `operation.TestParamContent_OwnAndMediaExamplesAreBothKept`
 - Status: partly built: a `style`, `explode` or `allowReserved` beside a parameter's `content` lowers

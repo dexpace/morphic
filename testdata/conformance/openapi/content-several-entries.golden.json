@@ -75,21 +75,6 @@
                   },
                   "required": false,
                   "docs": {},
-                  "unmodeled": {
-                    "openapi:content/text~1plain": {
-                      "reason": "degraded_lowering",
-                      "value": {
-                        "example": "hi",
-                        "schema": {
-                          "type": "string"
-                        }
-                      },
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1x/get/parameters/0/content/text~1plain"
-                      }
-                    }
-                  },
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1x/get/parameters/0"
@@ -135,32 +120,6 @@
                       "eventPayload": false,
                       "secret": false,
                       "docs": {},
-                      "unmodeled": {
-                        "openapi:content/application~1xml": {
-                          "reason": "degraded_lowering",
-                          "value": {
-                            "schema": {
-                              "type": "boolean"
-                            }
-                          },
-                          "provenance": {
-                            "source": 0,
-                            "pointer": "/paths/~1x/get/responses/200/headers/X-H/content/application~1xml"
-                          }
-                        },
-                        "openapi:content/text~1plain": {
-                          "reason": "degraded_lowering",
-                          "value": {
-                            "schema": {
-                              "type": "string"
-                            }
-                          },
-                          "provenance": {
-                            "source": 0,
-                            "pointer": "/paths/~1x/get/responses/200/headers/X-H/content/text~1plain"
-                          }
-                        }
-                      },
                       "provenance": {
                         "source": 0,
                         "pointer": "/paths/~1x/get/responses/200/headers/X-H"
@@ -240,6 +199,45 @@
       }
     }
   },
+  "unmodeled": {
+    "openapi:/paths/~1x/get/parameters/0/content/text~1plain": {
+      "reason": "degraded_lowering",
+      "value": {
+        "example": "hi",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/parameters/0/content/text~1plain"
+      }
+    },
+    "openapi:/paths/~1x/get/responses/200/headers/X-H/content/application~1xml": {
+      "reason": "degraded_lowering",
+      "value": {
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/responses/200/headers/X-H/content/application~1xml"
+      }
+    },
+    "openapi:/paths/~1x/get/responses/200/headers/X-H/content/text~1plain": {
+      "reason": "degraded_lowering",
+      "value": {
+        "schema": {
+          "type": "string"
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1x/get/responses/200/headers/X-H/content/text~1plain"
+      }
+    }
+  },
   "diagnostics": [
     {
       "severity": "error",
@@ -270,7 +268,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and \"text/plain\" kept verbatim under Unmodeled",
+      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and \"text/plain\" kept verbatim under the document's Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1x/get/parameters/0/content"
@@ -279,7 +277,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and \"application/xml\", \"text/plain\" kept verbatim under Unmodeled",
+      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and \"application/xml\", \"text/plain\" kept verbatim under the document's Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1x/get/responses/200/headers/X-H/content"

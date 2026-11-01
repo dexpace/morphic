@@ -144,6 +144,12 @@ type Ctx struct {
 	// once every other lowering has returned (Reached), so it cannot change their
 	// answers. Nil in a zero context, which records nothing.
 	reached *resolve.Reached
+
+	// kept holds what the run keeps for the Document rather than a node. Copies
+	// share it on purpose, as reached: only run reads what it keeps, once every
+	// lowering has returned, so it cannot change their answers. Nil in a zero
+	// context, which keeps nothing.
+	kept *KeptOnce
 }
 
 // loadResult holds what a context reads of the load phase (see WithLoaded): the
@@ -199,6 +205,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		typePositions: map[scopedPosition]bind.Position{},
 		anchors:       &anchorMemo{},
 		reached:       resolve.NewReached(),
+		kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
 	}
 }
 
