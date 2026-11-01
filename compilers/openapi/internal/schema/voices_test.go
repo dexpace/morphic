@@ -288,7 +288,7 @@ func TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testing.T) {
       type: object
       properties:
         f: {allOf: [{$ref: '#/components/schemas/Base'}, {readOnly: true, default: {id: a}}]}
-    Bare: {allOf: [{$ref: '#/components/schemas/Base'}, {readOnly: true}], writeOnly: false}
+    Bare: {allOf: [{$ref: '#/components/schemas/Base'}, {readOnly: true}, {readOnly: true}], writeOnly: false}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	f := propertyOf(t, doc, "Holder", "f")
@@ -298,7 +298,7 @@ func TestVoices_AUseBindingKeywordReachesItsCarrierOrItsNode(t *testing.T) {
 	require.True(t, ok)
 	entry, ok := bare.Unmodeled["openapi:readOnly"]
 	require.True(t, ok, "got %v", bare.Unmodeled)
-	assert.Equal(t, "/components/schemas/Bare/allOf/1/readOnly", string(entry.Provenance.Pointer))
+	assert.Equal(t, "/components/schemas/Bare/allOf/1/readOnly", string(entry.Provenance.Pointer), "the nearest of the two")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Bare/allOf/1/readOnly"))
 }
 

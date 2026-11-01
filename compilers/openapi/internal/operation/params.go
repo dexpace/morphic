@@ -5,6 +5,7 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -183,10 +184,11 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	// ir.Parameter has no Visibility field. Keeping them after the guard would
 	// drop them for exactly the parameters whose schema owns a node — an object,
 	// an enum, an array.
-	diags := preserveParamVisibility(c, param, s, pointer)
-	for _, v := range use.Written() {
+	var diags []ir.Diagnostic
+	for _, v := range slices.Backward(use.Written()) {
 		diags = append(diags, preserveParamVisibility(c, param, v.Node, v.At)...)
 	}
+	diags = append(diags, preserveParamVisibility(c, param, s, pointer)...)
 	if schema.LoweredToOwnNode(c, ts, pointer, param.Type) {
 		return diags
 	}
@@ -200,10 +202,10 @@ func fillParamSchemaAnnotations(c lowering.Ctx, ts *compile.Types, param *ir.Par
 	if len(a.Examples) > 0 {
 		param.Examples = a.Examples
 	}
-	diags = append(diags, preserveParamHomeless(c, param, s, pointer)...)
-	for _, v := range use.Voices {
+	for _, v := range slices.Backward(use.Voices) {
 		diags = append(diags, preserveParamHomeless(c, param, v.Node, v.At)...)
 	}
+	diags = append(diags, preserveParamHomeless(c, param, s, pointer)...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, a.Unmodeled)
 	// Last, per schema.PreserveUnknownKeywords: it keeps only the keywords no
 	// reader above it kept, and everything annotation.Read recorded is already on

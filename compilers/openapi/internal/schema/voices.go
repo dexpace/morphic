@@ -207,8 +207,8 @@ func declaresScoped(voices []annotation.Voice) bool {
 }
 
 // recordVoicedResidue is recordDeclarationResidue for what voices write, each
-// reported at the keyword it wrote. The schema written at the position records
-// after them, so an entry both write is its own.
+// reported at the keyword it wrote, the last first: an entry several write is the
+// nearest's, and the schema written at the position records after them.
 func recordVoicedResidue(c lowering.Ctx, ts *compile.Types, voices []annotation.Voice, pointer jsontext.Pointer, home annotation.Home) []ir.Diagnostic {
 	if home != annotation.HomeOwnNode {
 		return nil
@@ -218,7 +218,7 @@ func recordVoicedResidue(c lowering.Ctx, ts *compile.Types, voices []annotation.
 		return nil
 	}
 	var diags []ir.Diagnostic
-	for _, v := range voices {
+	for _, v := range slices.Backward(voices) {
 		diags = append(diags, recordResidue(c, td.Common(), v.Node, v.At)...)
 	}
 	return diags
