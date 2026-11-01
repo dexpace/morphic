@@ -32,7 +32,7 @@ var plusMarker = regexp.MustCompile(`^ {0,3}\+ `)
 func TestDocuments_OpenNoLineWithAPlus(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
-	documents := 0
+	var documents int
 	err := keydoc.Walk(root, ".", func(path string) error {
 		rel := keydoc.Rel(root, path)
 		if filepath.Ext(path) != ".md" || slices.Contains(strings.Split(rel, "/"), "testdata") {
