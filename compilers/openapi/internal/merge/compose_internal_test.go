@@ -233,12 +233,18 @@ func TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet(t *testing.T) {
 	reg["t/min"] = &ir.Scalar{ID: "t/min", Base: &ir.TypeRef{Target: "t/B"}, Constraints: &ir.Constraints{MinProps: new(int64(1))}}
 	reg["t/max"] = &ir.Scalar{ID: "t/max", Base: &ir.TypeRef{Target: "t/B"}, Constraints: &ir.Constraints{MaxProps: new(int64(4))}}
 	g, recorded := stubMerger(reg)
+	mint, mints := g.Mint, 0
+	g.Mint = func(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+		mints++
+		return mint(pointer, node)
+	}
 
 	got := g.fold(declsOf("t/min", "t/max"))
 
 	composed, ok := reg[got.Type.Target].(*ir.Model)
 	require.True(t, ok, "the field's type is the composition")
 	assert.Equal(t, []ir.TypeRef{{Target: "t/min"}, {Target: "t/max"}}, composed.Mixins)
+	assert.Equal(t, 1, mints, "one pointer takes one node, which Register would otherwise refuse")
 	assert.Empty(t, *recorded)
 }
 

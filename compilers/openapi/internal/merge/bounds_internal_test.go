@@ -489,6 +489,25 @@ func TestFold_ANodesBoundsJudgeAValueWrittenAgainstItsOwnKind(t *testing.T) {
 	}
 }
 
+// TestFold_AValueOfABroaderMemberIsJudgedByTheField pins where "the field's type
+// but for bounds" stops. A list of integers is no such type beside a list of
+// int32, which is narrower by its element, so what it wrote is judged by the field
+// and not left to its declaration.
+func TestFold_AValueOfABroaderMemberIsJudgedByTheField(t *testing.T) {
+	t.Parallel()
+	fraction := ir.Value{Kind: ir.ValueList, List: []ir.Value{num("1.5")}}
+	broad, narrow := nthDecl(0, "t/list-int"), nthDecl(1, "t/list-i32")
+	broad.prop.Default = &fraction
+	g, recorded := stubMerger(judgeRegistry())
+
+	got := g.fold([]declaration{broad, narrow})
+
+	assert.Equal(t, ir.TypeID("t/list-i32"), got.Type.Target)
+	assert.Nil(t, got.Default)
+	require.Len(t, *recorded, 1)
+	assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
+}
+
 // TestFold_ATypeTheRegistryDoesNotHoldHoldsNoBounds pins the guard behind a
 // dangling reference: it says nothing of its bounds, and a value written against
 // it is its declaration's own, as on any type the fold keeps.
