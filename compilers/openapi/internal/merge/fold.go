@@ -350,7 +350,8 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), own), v, 0) {
 		return false
 	}
-	if len(f.conjuncts) == 0 && (f.rel[f.winner][i] == relSame || alike(judge, f.decls[f.winner].prop.Type, f.decls[i].prop.Type)) {
+	winner, written := f.decls[f.winner].prop.Type, f.decls[i].prop.Type
+	if len(f.conjuncts) == 0 && (f.rel[f.winner][i] == relSame || alike(judge, winner, written)) {
 		return true
 	}
 	ref := f.merged.Type

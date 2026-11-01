@@ -107,12 +107,12 @@ func withBounds(td ir.TypeDef, c *ir.Constraints) ir.TypeDef {
 // overlap where they differ in anything but bounds, and otherwise as their
 // bounds relate.
 func detailRelation(ax, bx extras) relation {
-	ab, bb := ax.Constraints, bx.Constraints
+	aBounds, bBounds := ax.Constraints, bx.Constraints
 	ax.Constraints, bx.Constraints = nil, nil
 	if !reflect.DeepEqual(ax, bx) {
 		return relOverlap
 	}
-	return boundsRelation(ab, bb)
+	return boundsRelation(aBounds, bBounds)
 }
 
 // holdsDetail reports whether a container with wx loses nothing of one with lx:

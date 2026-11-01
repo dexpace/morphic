@@ -350,7 +350,8 @@ func TestFold_ANodeHoldingEveryBoundIsNotMinted(t *testing.T) {
 func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T) {
 	t.Parallel()
 	node := boundedNodeKinds()["a scalar"]
-	mirrored := func(reg map[ir.TypeID]ir.TypeDef, sets ...*ir.Constraints) []declaration {
+	mirrored := func(t *testing.T, reg map[ir.TypeID]ir.TypeDef, sets ...*ir.Constraints) []declaration {
+		t.Helper()
 		decls := nodeDecls(t, reg, node, sets...)
 		for i := range decls {
 			decls[i].prop.Constraints = sets[i]
@@ -362,7 +363,7 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 	t.Run("only the pattern differs", func(t *testing.T) {
 		t.Parallel()
 		reg := narrowingRegistry()
-		decls := mirrored(reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
+		decls := mirrored(t, reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
 		nodes := len(reg)
 		g, recorded := stubMerger(reg)
 
@@ -378,7 +379,7 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 	t.Run("one more declaration sets it on the property alone", func(t *testing.T) {
 		t.Parallel()
 		reg := narrowingRegistry()
-		nodes := mirrored(reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
+		nodes := mirrored(t, reg, &ir.Constraints{Pattern: "^a$"}, &ir.Constraints{Pattern: "^b$"})
 		bare := nthDecl(2, primRef(ir.PrimInt32).Target)
 		bare.prop.Constraints = &ir.Constraints{Pattern: "^a$"}
 		g, recorded := stubMerger(reg)
@@ -392,7 +393,7 @@ func TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner(t *testing.T
 	t.Run("a bound meets beside it", func(t *testing.T) {
 		t.Parallel()
 		reg := narrowingRegistry()
-		decls := mirrored(reg,
+		decls := mirrored(t, reg,
 			&ir.Constraints{Pattern: "^a$", MaxLength: new(int64(9))},
 			&ir.Constraints{Pattern: "^b$", MaxLength: new(int64(3))})
 		g, recorded := stubMerger(reg)
@@ -444,9 +445,9 @@ func TestFold_AValueIsHeldToTheBoundsOthersBring(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			const written0 = `{"written":"value"}`
+			const source = `{"written":"value"}`
 			withValue, other := nthDecl(0, primRef(tc.kind).Target), nthDecl(1, primRef(tc.kind).Target)
-			withValue.prop.Constraints, withValue.prop.Default, withValue.source = tc.own, &tc.value, written(written0)
+			withValue.prop.Constraints, withValue.prop.Default, withValue.source = tc.own, &tc.value, written(source)
 			other.prop.Constraints = tc.another
 			for _, order := range [][]declaration{{withValue, other}, {other, withValue}} {
 				g, recorded := stubMerger(narrowingRegistry())
@@ -463,7 +464,7 @@ func TestFold_AValueIsHeldToTheBoundsOthersBring(t *testing.T) {
 				require.Len(t, *recorded, 1)
 				assert.Equal(t, diag.DegradedConstruct, (*recorded)[0].Code)
 				assert.Equal(t, withValue.prop.Provenance.Pointer, (*recorded)[0].Provenance.Pointer)
-				assert.Equal(t, ir.RawValue(written0), got.Unmodeled[losingDeclarationKey+string(declaredAt(0))].Value)
+				assert.Equal(t, ir.RawValue(source), got.Unmodeled[losingDeclarationKey+string(declaredAt(0))].Value)
 			}
 		})
 	}
