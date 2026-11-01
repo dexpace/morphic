@@ -257,3 +257,24 @@ func assertSecurityOrAnd(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.True(t, ok)
 	assert.Empty(t, op.Auth, "security: [] makes the operation explicitly public")
 }
+
+// assertSecurityRootEmpty pins the document's half of absent against empty: a
+// root `security: []` lowers to a non-nil, empty list, where a root writing none
+// leaves nil. It shares no spec with assertSecurityOrAnd, since one document has
+// one root list. An operation still inherits it by writing nothing, and
+// overrides it by writing its own.
+func assertSecurityRootEmpty(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	require.Len(t, doc.Services, 1)
+	auth := doc.Services[0].Auth
+	assert.NotNil(t, auth, "the empty list is written, so it is kept apart from an absent one")
+	assert.Empty(t, auth)
+
+	inherits, ok := opByName(doc, "inheritsTheRoot")
+	require.True(t, ok)
+	assert.Nil(t, inherits.Auth, "an operation writing no security inherits the root's")
+
+	overrides, ok := opByName(doc, "overridesTheRoot")
+	require.True(t, ok)
+	require.Len(t, overrides.Auth, 1, "an operation's own list stands over the empty root")
+	assert.Len(t, overrides.Auth[0].Schemes, 1)
+}

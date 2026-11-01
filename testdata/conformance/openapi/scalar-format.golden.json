@@ -231,6 +231,357 @@
           }
         },
         {
+          "id": "p/openapi/components/schemas/Holder/properties/i16",
+          "name": {
+            "source": "i16",
+            "canonical": "i_16"
+          },
+          "wireName": "i16",
+          "type": {
+            "target": "t/prim/int16",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/i16"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/i32",
+          "name": {
+            "source": "i32",
+            "canonical": "i_32"
+          },
+          "wireName": "i32",
+          "type": {
+            "target": "t/prim/int32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/i32"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/i64",
+          "name": {
+            "source": "i64",
+            "canonical": "i_64"
+          },
+          "wireName": "i64",
+          "type": {
+            "target": "t/prim/int64",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/i64"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/u8",
+          "name": {
+            "source": "u8",
+            "canonical": "u_8"
+          },
+          "wireName": "u8",
+          "type": {
+            "target": "t/prim/uint8",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/u8"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/u16",
+          "name": {
+            "source": "u16",
+            "canonical": "u_16"
+          },
+          "wireName": "u16",
+          "type": {
+            "target": "t/prim/uint16",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/u16"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/u64",
+          "name": {
+            "source": "u64",
+            "canonical": "u_64"
+          },
+          "wireName": "u64",
+          "type": {
+            "target": "t/prim/uint64",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/u64"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/f32",
+          "name": {
+            "source": "f32",
+            "canonical": "f_32"
+          },
+          "wireName": "f32",
+          "type": {
+            "target": "t/prim/float32",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/f32"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/f64",
+          "name": {
+            "source": "f64",
+            "canonical": "f_64"
+          },
+          "wireName": "f64",
+          "type": {
+            "target": "t/prim/float64",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/f64"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/amount",
+          "name": {
+            "source": "amount",
+            "canonical": "amount"
+          },
+          "wireName": "amount",
+          "type": {
+            "target": "t/prim/decimal",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/amount"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/big",
+          "name": {
+            "source": "big",
+            "canonical": "big"
+          },
+          "wireName": "big",
+          "type": {
+            "target": "t/prim/decimal128",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/big"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/at",
+          "name": {
+            "source": "at",
+            "canonical": "at"
+          },
+          "wireName": "at",
+          "type": {
+            "target": "t/prim/datetime_offset",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/at"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/opens",
+          "name": {
+            "source": "opens",
+            "canonical": "opens"
+          },
+          "wireName": "opens",
+          "type": {
+            "target": "t/prim/time",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/opens"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/ttl",
+          "name": {
+            "source": "ttl",
+            "canonical": "ttl"
+          },
+          "wireName": "ttl",
+          "type": {
+            "target": "t/prim/duration",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/ttl"
+          }
+        },
+        {
           "id": "p/openapi/components/schemas/Holder/properties/whole",
           "name": {
             "source": "whole",
@@ -261,6 +612,114 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/prim/datetime_offset": {
+      "kind": "primitive",
+      "id": "t/prim/datetime_offset",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "datetime_offset"
+    },
+    "t/prim/decimal": {
+      "kind": "primitive",
+      "id": "t/prim/decimal",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "decimal"
+    },
+    "t/prim/decimal128": {
+      "kind": "primitive",
+      "id": "t/prim/decimal128",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "decimal128"
+    },
+    "t/prim/duration": {
+      "kind": "primitive",
+      "id": "t/prim/duration",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "duration"
+    },
+    "t/prim/float32": {
+      "kind": "primitive",
+      "id": "t/prim/float32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "float32"
+    },
+    "t/prim/float64": {
+      "kind": "primitive",
+      "id": "t/prim/float64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "float64"
+    },
+    "t/prim/int16": {
+      "kind": "primitive",
+      "id": "t/prim/int16",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int16"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int32"
+    },
+    "t/prim/int64": {
+      "kind": "primitive",
+      "id": "t/prim/int64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int64"
     },
     "t/prim/int8": {
       "kind": "primitive",
@@ -298,6 +757,30 @@
       },
       "prim": "string"
     },
+    "t/prim/time": {
+      "kind": "primitive",
+      "id": "t/prim/time",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "time"
+    },
+    "t/prim/uint16": {
+      "kind": "primitive",
+      "id": "t/prim/uint16",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "uint16"
+    },
     "t/prim/uint32": {
       "kind": "primitive",
       "id": "t/prim/uint32",
@@ -309,6 +792,30 @@
         "source": -1
       },
       "prim": "uint32"
+    },
+    "t/prim/uint64": {
+      "kind": "primitive",
+      "id": "t/prim/uint64",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "uint64"
+    },
+    "t/prim/uint8": {
+      "kind": "primitive",
+      "id": "t/prim/uint8",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "uint8"
     }
   },
   "servers": {
@@ -328,7 +835,7 @@
     {
       "format": "openapi@3.1",
       "path": "scalar-format.yaml",
-      "hash": "50d309e29bb799624840dcbd2c6b903f05923194ff65ab20d82dee150ea1c629"
+      "hash": "b318c4fc39feaf7f3660a7581c2bad20463f6724528d766288f7c454c9b3ed98"
     }
   ]
 }
