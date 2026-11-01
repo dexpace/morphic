@@ -29,7 +29,8 @@ const extensionKeyPrefix = "openapi:"
 //
 // It is a closed vocabulary rather than a free-form path because a promotion
 // has to be applied by code that knows the field's type, and a name nothing
-// implements would be a policy that silently does nothing.
+// implements would be a policy that silently does nothing. Nothing refuses such
+// a name yet (GitHub #1281).
 type ExtensionTarget string
 
 // The typed fields promotion can fill today. Every other field an extension is

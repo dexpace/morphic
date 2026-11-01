@@ -2931,8 +2931,9 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
   its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
   between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
-  `oneOf` kept verbatim beside structure waits for those branches to lower (#661); and a flattened
-  member reads no redaction off a declaration it overrides, a key's as `format: password`'s (#1211).
+  `oneOf` kept verbatim beside structure waits for those branches to lower (#661); a flattened
+  member reads no redaction off a declaration it overrides, a key's as `format: password`'s (#1211);
+  and a mapping naming a target nothing reads is accepted in silence (#1281).
 
 ### `mutually-exclusive-parameters`
 
