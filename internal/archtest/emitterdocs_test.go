@@ -274,16 +274,6 @@ func sectionLines(text, title string) []string {
 	return lines
 }
 
-// TestEmitterTargets_ReadsOnlyDirectories plants a file beside a target, which
-// is no target, so a file browser's leavings do not fail every document test.
-func TestEmitterTargets_ReadsOnlyDirectories(t *testing.T) {
-	t.Parallel()
-	docs := t.TempDir()
-	writeDocFile(t, filepath.Join(docs, targetsDir, "go", "overview.md"), "# Go\n")
-	writeDocFile(t, filepath.Join(docs, targetsDir, ".DS_Store"), "")
-	assert.Equal(t, []string{"go"}, emitterTargets(t, docs))
-}
-
 // TestTableConstructs_ReadsTheNamedTable plants a target's table the way the
 // real ones are written: a prose lead, an escaped pipe in a code span and out of
 // one, a citation in a cell, a row with no answer, and a second table that ends
@@ -315,6 +305,16 @@ func TestTableConstructs_ReadsTheNamedTable(t *testing.T) {
 
 	_, err := tableConstructs(filepath.Join(dir, "absent.md"), constructHead)
 	require.ErrorIs(t, err, fs.ErrNotExist)
+}
+
+// TestEmitterTargets_ReadsOnlyDirectories plants a file beside a target, which
+// is no target, so a file browser's leavings do not fail every document test.
+func TestEmitterTargets_ReadsOnlyDirectories(t *testing.T) {
+	t.Parallel()
+	docs := t.TempDir()
+	writeDocFile(t, filepath.Join(docs, targetsDir, "go", "overview.md"), "# Go\n")
+	writeDocFile(t, filepath.Join(docs, targetsDir, ".DS_Store"), "")
+	assert.Equal(t, []string{"go"}, emitterTargets(t, docs))
 }
 
 // TestCommonDocuments_ReadsTheRootsList plants the root's list wrapped across
