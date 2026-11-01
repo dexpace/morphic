@@ -1,0 +1,11 @@
+# The packages `make race` runs under the race detector, one `go test`
+# pattern per line. A `#` starts a comment only at the start of a line.
+# A package belongs here when its code runs on more than one goroutine.
+# The Makefile reads this file, so it is the only list.
+./barrier
+./cmd/morphic
+./compilers/openapi/internal/load
+./engine/...
+./internal/ctxtest
+./internal/leakcheck
+./ir/irfacts

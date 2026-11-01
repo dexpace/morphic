@@ -6,7 +6,8 @@
 # then a step that calls it to one of the jobs.
 #
 #   make            the whole gate, one check at a time
-#   make coverage   the suite once, under -race, at exactly 100% coverage
+#   make coverage   the suite once, at exactly 100% coverage
+#   make race       the packages in scripts/race-packages.txt, under -race
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -34,6 +35,19 @@ endif
 
 GOTOOLCHAIN ?= go$(GO_VERSION)
 export GOTOOLCHAIN
+
+# The packages `make race` runs under the race detector, read from
+# scripts/race-packages.txt the way GO_VERSION is read from go.mod, so the list
+# has one definition. sed drops the file's comment and blank lines; it also
+# works on GNU make 3.81, which has no $(file <...). An empty result is refused
+# by the race recipe rather than here: an $(error) at parse time would also stop
+# `make -s print-go-version`, which CI runs before anything else.
+RACE_PACKAGES := $(shell sed -e '/^[[:space:]]*\#/d' -e '/^[[:space:]]*$$/d' scripts/race-packages.txt)
+
+# The two tests `make race` leaves out, anchored so that only they match. A
+# renamed test makes the pattern match nothing, which slows the race run and
+# does not weaken it.
+RACE_SKIP := ^(TestLoad_ACancelAtAnyCheckEndsTheLoadCleanly|TestLoad_DoesNextToNothingOnceItRefusesACancel)$$
 
 # A GOTOOLCHAIN already set in the environment wins, as an override should. It is
 # reported rather than refused, exactly as a local golangci-lint of the wrong
@@ -74,10 +88,10 @@ FUZZTIME ?= 10s
 # `go test ./...` over the same tree. CI runs them on two machines instead.
 .NOTPARALLEL:
 
-.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
+.PHONY: gate fmt vet lint lint-planted check-lint-version build coverage race \
 	fuzz bench bench-smoke print-lint-version print-go-version
 
-gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
+gate: fmt vet lint lint-planted build coverage race fuzz bench-smoke
 
 fmt:
 	@unformatted="$$(gofmt -l $$(git ls-files '*.go'))"; \
@@ -117,15 +131,15 @@ check-lint-version:
 build:
 	$(GO) build ./...
 
-# The suite runs once, under the race detector, and cmd/morphic-covergate judges
-# its profile statement by statement; its doc says why go test's percentage is
-# not enough. -race rides along rather than taking a run of its own: both want
-# the same execution of the same tests, and the profile is identical either way.
+# The suite runs once, and cmd/morphic-covergate judges its profile statement by
+# statement; its doc says why go test's percentage is not enough. Set mode is
+# enough because the gate reads only whether a block ran, never how often. The
+# race detector has a target of its own, `race` below.
 #
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends
-# in a stack dump naming the stuck goroutine. 300s clears the slowest package
-# under -race by more than an order of magnitude.
+# in a stack dump naming the stuck goroutine. #1248 decides the value and its
+# margin.
 #
 # The profile path is minted per run: go test truncates it at the start and
 # appends each package as it finishes, so two runs sharing one would each judge
@@ -138,8 +152,22 @@ coverage:
 		profile="$$(mktemp "$${TMPDIR:-/tmp}/morphic-cover.XXXXXX")" || exit 1; \
 		trap 'rm -f "$$profile"' EXIT; \
 	fi; \
-	$(GO) test ./... -race -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
+	$(GO) test ./... -timeout 300s -covermode=set -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
+
+# The race detector runs alone, over the packages whose code runs on more than
+# one goroutine (scripts/race-packages.txt says when a package belongs). go test
+# refuses -race with -covermode=set, and #1271 measured -race with atomic
+# coverage missing a planted race that -race alone caught, so coverage and the
+# detector do not share a run.
+#
+# The two tests skipped test cancellation one step at a time, which is
+# sequential, so the detector learns nothing from them and they are slow under
+# it. They still run at full size in `coverage`.
+race:
+	@test -n "$(strip $(RACE_PACKAGES))" || { \
+		echo "make race: scripts/race-packages.txt lists no package" >&2; exit 1; }
+	$(GO) test -race -timeout 300s -skip '$(RACE_SKIP)' $(RACE_PACKAGES)
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)
