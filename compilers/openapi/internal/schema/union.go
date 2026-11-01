@@ -11,12 +11,14 @@ import (
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/yml"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -429,19 +431,22 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
 }
 
 // unionBranchesDeclareShape reports whether any oneOf/anyOf branch contributes
-// data shape. When none does — `oneOf: [{required: [a]}, {required: [b]}]`, the
-// commonest instance — the union narrows what the sibling body accepts without
-// changing it, which is dependentRequired's job description: validation logic,
-// not shape (docs/ir/boundaries.md#validation-only-constructs).
+// data shape s does not declare itself. When none does —
+// `oneOf: [{required: [a]}, {required: [b]}]`, the commonest instance — the
+// union narrows what the sibling body accepts without changing it, which is
+// dependentRequired's job description: validation logic, not shape
+// (docs/ir/boundaries.md#validation-only-constructs).
 func unionBranchesDeclareShape(s *oas3.Schema) bool {
-	return slices.ContainsFunc(s.GetOneOf(), branchDeclaresShape) ||
-		slices.ContainsFunc(s.GetAnyOf(), branchDeclaresShape)
+	declares := func(b *oas3.JSONSchema[oas3.Referenceable]) bool { return branchDeclaresShape(s, b) }
+	return slices.ContainsFunc(s.GetOneOf(), declares) || slices.ContainsFunc(s.GetAnyOf(), declares)
 }
 
-// branchDeclaresShape reports whether one union branch declares data shape. A
-// $ref always does; a bare `type: null` never does, since it contributes only
-// the enclosing reference's Nullable bit.
-func branchDeclaresShape(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+// branchDeclaresShape reports whether one union branch declares data shape of
+// its own beside body, the schema writing the union. A $ref always does; a bare
+// `type: null` never does, since it contributes only the enclosing reference's
+// Nullable bit; and a type or a property set that only repeats body's does not
+// (restatesBody).
+func branchDeclaresShape(body *oas3.Schema, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if isRefBranch(b) {
 		return true
 	}
@@ -449,7 +454,72 @@ func branchDeclaresShape(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if s == nil {
 		return false // a boolean branch declares no shape of its own
 	}
-	return declaresShape(s) || len(s.GetOneOf())+len(s.GetAnyOf()) > 0
+	if len(s.GetOneOf())+len(s.GetAnyOf()) > 0 {
+		return true
+	}
+	return declaresShape(s) && !restatesBody(body, s)
+}
+
+// restatingBranchKeywords are the keywords a branch may write and declare no
+// shape the body does not: those that can repeat it, and `required` and `not`,
+// which only narrow it whatever they hold. Any other says something the body may
+// not, so the branch keeps the verdict declaresShape gives it.
+var restatingBranchKeywords = []string{"type", "nullable", "properties", "required", "not", "title", "description"}
+
+// restatesBody reports whether branch writes only restatingBranchKeywords, and
+// the type and the properties among them say nothing body's own do not
+// (docs/compilers/openapi.md#union-beside-structure). A `nullable` beside a
+// type widens it, so the two must agree on that too. Only body's own properties
+// count: one it composes through allOf is settled by the merge, so no one
+// declaration stands for it here. The raw node holds every keyword, where the
+// model has no field for some (docs/parser-library.md#unmodeled-keywords).
+func restatesBody(body, branch *oas3.Schema) bool {
+	for _, p := range nodeview.Pairs(branch.GetRootNode()) {
+		if !slices.Contains(restatingBranchKeywords, p.Key) {
+			return false
+		}
+	}
+	sameType := slices.Equal(branch.GetType(), body.GetType()) && branch.GetNullable() == body.GetNullable()
+	if len(branch.GetType()) > 0 && !sameType {
+		return false
+	}
+	declared := body.GetProperties()
+	for name, p := range branch.GetProperties().All() {
+		d, ok := declared.Get(name)
+		if !ok || !restatesProperty(d, p) {
+			return false
+		}
+	}
+	return true
+}
+
+// typeKeywords are the keywords a branch can repeat of a property with more
+// written beside the body's copy. Each means the same whatever stands beside
+// it, unlike additionalProperties, which reads the `properties` next to it.
+var typeKeywords = []string{"$ref", "type", "format", "nullable"}
+
+// restatesProperty reports whether branch, a union branch's declaration of a
+// property, says nothing body, the property's own declaration, does not: it is
+// written alike, or writes only typeKeywords, each as body does, and agrees on
+// the two a body can say more with, a `$ref` that in 3.0 replaces what stands
+// beside it and a `nullable` that widens `type`. The raw nodes hold every
+// keyword, where the model has no field for some
+// (docs/parser-library.md#unmodeled-keywords).
+func restatesProperty(body, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+	declared, written := body.GetSchema(), branch.GetSchema()
+	if declared == nil || written == nil {
+		return false // a boolean schema has no keywords to hold to the other's
+	}
+	d, w := declared.GetRootNode(), written.GetRootNode()
+	if yml.EqualNodes(d, w) {
+		return true
+	}
+	for _, p := range nodeview.Pairs(w) {
+		if !slices.Contains(typeKeywords, p.Key) || !yml.EqualNodes(p.Val, nodeview.Child(d, p.Key)) {
+			return false
+		}
+	}
+	return declared.GetRef() == written.GetRef() && declared.GetNullable() == written.GetNullable()
 }
 
 // composesAsModel reports whether the structural siblings lower to a Model,

@@ -1,0 +1,673 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "UnionRestatedBranches",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "UnionRestatedBranches",
+        "canonical": "union_restated_branches"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Render": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Render",
+      "name": {
+        "source": "Render",
+        "canonical": "render"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "properties": {
+                "html": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "html"
+              ]
+            },
+            {
+              "properties": {
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Render/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Render"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Render/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Render/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Render/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Render/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RenderBare": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderBare",
+      "name": {
+        "source": "RenderBare",
+        "canonical": "render_bare"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "required": [
+                "html"
+              ]
+            },
+            {
+              "required": [
+                "url"
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderBare/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderBare"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderBare/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderBare/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderBare/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderBare/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RenderDocumented": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderDocumented",
+      "name": {
+        "source": "RenderDocumented",
+        "canonical": "render_documented"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "properties": {
+                "html": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "html"
+              ],
+              "type": "object"
+            },
+            {
+              "properties": {
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "type": "object"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderDocumented/anyOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderDocumented"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderDocumented/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The page to render."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderDocumented/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderDocumented/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/url",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderDocumented/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RenderExclusive": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderExclusive",
+      "name": {
+        "source": "RenderExclusive",
+        "canonical": "render_exclusive"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "not": {
+                "properties": {
+                  "html": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "html"
+                ],
+                "type": "object"
+              },
+              "properties": {
+                "html": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ],
+              "type": "object"
+            },
+            {
+              "not": {
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "url"
+                ],
+                "type": "object"
+              },
+              "properties": {
+                "html": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "html"
+              ],
+              "type": "object"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderExclusive/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderExclusive"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderExclusive/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The page to render."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderExclusive/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderExclusive/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The address to fetch."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderExclusive/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RenderTagged": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderTagged",
+      "name": {
+        "source": "RenderTagged",
+        "canonical": "render_tagged"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "properties": {
+                "kind": {
+                  "const": "html",
+                  "type": "string"
+                }
+              }
+            },
+            {
+              "properties": {
+                "kind": {
+                  "const": "url",
+                  "type": "string"
+                }
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderTagged/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderTagged"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderTagged/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderTagged/properties/kind"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    },
+    "t/prim/url": {
+      "kind": "primitive",
+      "id": "t/prim/url",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "url"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderBare"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Render"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"anyOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderDocumented"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderExclusive"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and a branch is written inline, so it names no referent to conjoin the body with; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderTagged"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "union-restated-branches.yaml",
+      "hash": "62a9d9776e006950835080a5cec8c0edf8da552d2e1bba6cc888fe815224913c"
+    }
+  ]
+}
