@@ -5,9 +5,10 @@ description: Use when asked to review a pull request, branch or commit range in 
 
 # Reviewing morphic pull requests
 
-The bar is `CLAUDE.md`'s: the first round leaves nothing to find. A finding needs its command, and
-must survive an attempt to disprove it (`references/review-probes.md#disprove-each-finding`). Post
-nothing unless asked, then by `references/review-probes.md#posted-findings`.
+The bar is `CLAUDE.md`'s: the first round leaves nothing to find. A finding needs the command that
+showed it, and must survive an attempt to disprove it
+(`references/review-probes.md#disprove-each-finding`). Post nothing unless asked, then by
+`references/review-probes.md#posted-findings`.
 
 ## Setup
 
@@ -29,7 +30,7 @@ domain skill.
 Run all, fanning out only when asked (`references/review-probes.md#fan-out-a-pass-to-a-reader`).
 
 1. **Gate.** `make gate`, unless CI passed on a head holding everything the setup merges. Never
-   re-check by eye what the gate enforces.
+   re-check by eye what it enforces.
 2. **Code, before the claims.** Read the diff without the PR body. For each changed mechanism,
    diff old against new semantics at every bound, sweep every site of it
    (`.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-every-site-of-the-mechanism`),
@@ -55,13 +56,13 @@ Run all, fanning out only when asked (`references/review-probes.md#fan-out-a-pas
 
 Rank each finding `issue:`, `nit:` (a defect too small to break anything), `suggestion:` (no
 defect) or `question:` (`references/review-probes.md#rank-by-what-was-shown`). The rank orders the work, not what may ship: every `issue:` and `nit:` is
-fixed or justified in writing before merge. Each names the rule it breaks, the file and line, what
-was run and what came back, and the smallest fix that removes the class, not the instance.
+fixed or justified in writing before merge. Each names the rule it breaks, file and line, what was
+run, what came back, and the smallest fix removing the class, not the instance.
 
 - A defect the change introduces, exposes or makes reachable is in scope even when its root is
   older, and a stated limitation is an `issue:` when a valid input shows head worse than base.
-- A deliberate oddity (a documented policy, an open issue) is a finding only where its comment
-  hides it.
+- A deliberate oddity (a documented policy, an open issue) is a finding only where no comment says
+  so.
 - Read what reviews already stand (`references/review-probes.md#read-standing-reviews`), then list
   what was probed clean, by class and count, and each equivalent mutant with its reason.
 - A fix the review makes is a change under review
