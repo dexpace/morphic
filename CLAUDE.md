@@ -501,12 +501,14 @@ context-switch between repos.
   when it narrows things down — omit it when the change is repo-wide.
 - **Breaking changes** mark the type with `!` (`feat!:`, `refactor!:`) and explain the break in the
   commit body — don't bury it in the subject line alone.
-- **The PR title is the commit subject.** PRs are squash-merged, so the *title* — not the branch's
-  commit subjects — is what lands on `main`. It takes the same Conventional Commits form and the
-  same rules: `type(scope): subject`, imperative, no trailing period. A well-formed commit under a
-  prose PR title still merges as a non-conforming commit, and since the squashed subject *is* the
-  title, every non-conforming subject in this history arrived exactly that way. To see the current
-  state rather than trust this sentence:
+- **The PR title is the commit subject, unless the branch has one commit.** PRs are squash-merged,
+  so the *title* — not the branch's commit subjects — is what lands on `main`. A branch with one
+  commit of its own lands under that commit's subject instead, a merge of `main` being no second
+  commit: `gh api repos/dexpace/morphic --jq .squash_merge_commit_title` names the setting, and PR
+  #1232 shows it. Both take the same Conventional Commits form and the same rules:
+  `type(scope): subject`, imperative, no trailing period. A well-formed commit under a prose PR
+  title still merges as a non-conforming commit, and every non-conforming subject in this history
+  arrived exactly that way. To see the current state rather than trust this sentence:
 
   ```bash
   git log --format='%s' origin/main | grep -E '\(#[0-9]+\)$' |
@@ -514,7 +516,8 @@ context-switch between repos.
   ```
 
 - **Budget the appended number inside the 72-char cap.** GitHub appends ` (#N)` to the squashed
-  subject automatically — never type it yourself, but do count it, at the number the PR will get.
+  subject automatically — never type it yourself, but do count it, at the number the PR will get,
+  on the title and on each commit subject, as a branch with one commit lands under its subject.
   Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with `N` one
   past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
   over-length subjects in this history were *within* the cap until the number was appended, which
