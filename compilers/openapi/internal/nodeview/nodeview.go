@@ -559,9 +559,9 @@ func (v *View) mappingChild(n *yaml.Node, token string) *yaml.Node {
 // where the costs roughly meet; BenchmarkDocumentPath_IntoAWideMapping carries
 // the widths that show it.
 //
-// Width says nothing about reuse: a view built for one read of a path reads each
-// node once, so indexing there costs time and allocations for nothing. keyIndex
-// adds a reuse condition.
+// Width says nothing about reuse: a view built for one path reads each node once,
+// so indexing there costs time and allocations for nothing. keyIndex adds a
+// reuse condition.
 const minIndexedPairs = 16
 
 // keyIndex returns n's expansion as a key map, built on the second read of a
