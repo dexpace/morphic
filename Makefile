@@ -171,7 +171,9 @@ coverage:
 #
 # scripts/race-reach.sh then runs the same command over the race planted in
 # internal/archtest/testdata/racereach and requires it to be reported, which
-# shows the command still runs the detector.
+# shows the command still runs the detector. The script sees only the command it
+# is passed, so it holds the recipe's first line only while that line runs
+# $(RACE_TEST).
 race:
 	@test -n "$(strip $(RACE_PACKAGES))" || { \
 		echo "make race: scripts/race-packages.txt lists no package" >&2; exit 1; }
