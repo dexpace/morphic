@@ -769,12 +769,12 @@ func moduleDir(p string) (string, bool) {
 
 // failsThrough returns those of params that body fails its test through by
 // itself: a failing method of one, called or taken as a value, or a testify
-// call, which fails through its first argument, or through the first of params
-// when that is none of them; names is what importNames read of the file. A
-// function literal's body is left out: a failure there is placed by whatever
-// runs it. As this reads syntax and not data flow, a parameter copied into a
-// local, a method expression such as (*testing.T).Fatal(t) and a testing
-// value a struct holds are not followed.
+// call with an argument, which fails through its first argument, or through
+// params[0] when that is none of them; names is what importNames read of the
+// file. A function literal's body is left out: a failure there is placed by
+// whatever runs it. As this reads syntax and not data flow, a parameter copied
+// into a local, a method expression such as (*testing.T).Fatal(t) and a
+// testing value a struct holds are not followed.
 func failsThrough(body *ast.BlockStmt, params []string, names map[string][]string) []string {
 	through := map[string]bool{}
 	calls := map[*ast.SelectorExpr]*ast.CallExpr{}
