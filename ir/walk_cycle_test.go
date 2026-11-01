@@ -231,13 +231,23 @@ func TestCycleVisitor_IsToldInADeterministicOrder(t *testing.T) {
 	assert.Equal(t, "doc[a].Next", first[0].Path)
 }
 
+// silentCycles is an ir.CycleVisitor that prunes nothing and reads nothing it is
+// told, for a walk too deep to render a path per visit. It keeps the walk one
+// that tells cycles, which a plain visitor would not. A walk asks a visitor for
+// Cycle at run time, so a caller converts it, for the build to refuse one that
+// has stopped being a CycleVisitor.
+type silentCycles struct{}
+
+func (silentCycles) Visit(reflect.Value, ir.WalkPath) bool { return true }
+
+func (silentCycles) Cycle(_, _ ir.WalkPath, _ reflect.Type) {}
+
 // TestCycleVisitor_WalkReportsTruncation holds the flag a walk owes its caller
 // when it tells cycles too: a cycle past the depth cap is not found by a walk
 // that stopped.
 func TestCycleVisitor_WalkReportsTruncation(t *testing.T) {
 	t.Parallel()
-	_, truncated := valueCycles(irtest.NestedListValue(ir.MaxWalkDepth))
-	assert.True(t, truncated)
+	assert.True(t, ir.WalkValues(irtest.NestedListValue(ir.MaxWalkDepth), "doc", ir.CycleVisitor(silentCycles{})))
 }
 
 // nodeKind is what a node of a random graph is built as: one of the three
