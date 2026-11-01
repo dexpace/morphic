@@ -126,7 +126,6 @@ member 0 0 Operation.overloadOf
 member 0 0 Operation.pagination
 member 0 0 Operation.parameterVisibility
 member 0 0 Operation.returnTypeVisibility
-member 0 0 Operation.stability
 member 0 0 OperationGroup.availability
 member 0 0 OperationGroup.resource
 member 0 0 OperationGroup.stability
@@ -262,9 +261,6 @@ value 0 0 PrimKind "float32"
 value 0 0 PrimKind "time"
 value 0 0 PrimKind "uint16"
 value 0 0 PrimKind "uint64"
-value 0 0 Stability "alpha"
-value 0 0 Stability "beta"
-value 0 0 Stability "stable"
 value 0 0 StreamingMode "client"
 value 0 0 StreamingMode "none"
 value 0 0 TypeKind "external"

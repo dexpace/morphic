@@ -30,6 +30,63 @@ paths:
       responses:
         "200":
           description: ok
+  # A key can state the deprecation itself, at every carrier a keyword can.
+  /z:
+    get:
+      operationId: keyDeprecates
+      x-fern-availability: deprecated
+      parameters:
+        - name: byKey
+          in: query
+          x-fern-availability: deprecated
+          x-sunset: "2031-01-01"
+          schema: {type: string}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-By-Key:
+              x-fern-availability: deprecated
+              schema: {type: string}
+  # Other spellings of the members, one of them an object holding two.
+  /members:
+    get:
+      operationId: messageKey
+      deprecated: true
+      x-stainless-deprecation-message: use getY instead
+      x-forge-sunset: {date: "2030-06-01"}
+      responses:
+        "200":
+          description: ok
+    put:
+      operationId: objectKey
+      deprecated: true
+      x-cfDeprecation: {description: goes away, display: true, eol: "2030-01-01", id: some_id}
+      responses:
+        "200":
+          description: ok
+    post:
+      operationId: textForAnObject
+      deprecated: true
+      x-cfDeprecation: goes away
+      responses:
+        "200":
+          description: ok
+    patch:
+      operationId: numberForAMember
+      deprecated: true
+      x-forge-sunset: {date: 7}
+      responses:
+        "200":
+          description: ok
+    delete:
+      operationId: firstKeyWins
+      deprecated: true
+      x-deprecated-reason: the first key
+      x-stainless-deprecation-message: the second key
+      responses:
+        "200":
+          description: ok
 components:
   schemas:
     Old:
@@ -39,6 +96,11 @@ components:
       properties:
         p: {type: string, deprecated: true, x-deprecated-reason: field goes away}
         n: {type: string, deprecated: true, x-deprecated-reason: 7}
+    ByKey:
+      type: object
+      x-fern-availability: deprecated
+      properties:
+        p: {type: string, x-fern-availability: deprecated}
     Size:
       type: string
       enum: [small, large]
@@ -62,3 +124,8 @@ components:
       in: header
       deprecated: true
       x-deprecated-reason: rotate to oauth
+    byKey:
+      type: apiKey
+      name: X-By-Key
+      in: header
+      x-fern-availability: deprecated

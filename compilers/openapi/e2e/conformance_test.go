@@ -241,6 +241,8 @@ func conformanceCases() []conformanceCase {
 		{"path-item-ref-siblings", assertPathItemRefSiblings},
 		{"deprecation", assertDeprecation},
 		{"extension-promotion", assertExtensionPromotion},
+		{"extension-stability", assertExtensionStability},
+		{"extension-redaction", assertExtensionRedaction},
 		{"examples", assertExamples},
 		{"docs-summary-desc", assertDocsSummaryDesc},
 		{"request-body-docs", assertRequestBodyDocs},

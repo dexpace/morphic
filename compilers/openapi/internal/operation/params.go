@@ -288,7 +288,8 @@ func fillParamDetail(c lowering.Ctx, param *ir.Parameter, p *soa.Parameter, pptr
 	diags = append(diags, extDiags...)
 	param.Unmodeled = annotation.MergeUnmodeled(param.Unmodeled, pExt)
 	diags = append(diags, annotation.UnknownKeysIn(&param.Unmodeled, p, c.ProvenanceAt, pptr)...)
-	return append(diags, c.Promoter().Deprecation(param.Unmodeled, param.Deprecation, &param.Provenance)...)
+	diags = append(diags, c.Promoter().Deprecation(param.Unmodeled, &param.Deprecation, &param.Provenance)...)
+	return append(diags, c.Promoter().Redaction(param.Unmodeled, &param.Secret, &param.Provenance)...)
 }
 
 // resolveStyleExplode materializes a parameter's resolved serialization style

@@ -278,6 +278,460 @@
                 "source": 0,
                 "pointer": "/paths/~1y/get"
               }
+            },
+            {
+              "id": "op/openapi/paths/~1z/get",
+              "name": {
+                "source": "keyDeprecates",
+                "canonical": "key_deprecates"
+              },
+              "docs": {},
+              "deprecation": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1z/get/parameters/byKey/query",
+                  "name": {
+                    "source": "byKey",
+                    "canonical": "by_key"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "deprecation": {
+                    "removalDate": "2031-01-01"
+                  },
+                  "unmodeled": {
+                    "openapi:x-fern-availability": {
+                      "reason": "vendor_extension",
+                      "value": "deprecated",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1z/get/parameters/0/x-fern-availability"
+                      }
+                    },
+                    "openapi:x-sunset": {
+                      "reason": "vendor_extension",
+                      "value": "2031-01-01",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1z/get/parameters/0/x-sunset"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1z/get/parameters/0",
+                    "inferred": "extension-promotion"
+                  }
+                }
+              ],
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1z/get/responses/200/headers/X-By-Key",
+                      "name": {
+                        "source": "X-By-Key",
+                        "canonical": "x_by_key"
+                      },
+                      "wireName": "X-By-Key",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "deprecation": {},
+                      "unmodeled": {
+                        "openapi:x-fern-availability": {
+                          "reason": "vendor_extension",
+                          "value": "deprecated",
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1z/get/responses/200/headers/X-By-Key/x-fern-availability"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1z/get/responses/200/headers/X-By-Key",
+                        "inferred": "extension-promotion"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/z",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1z/get/parameters/byKey/query",
+                        "location": "query",
+                        "wireName": "byKey",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "deprecated",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1z/get/x-fern-availability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1z/get",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1members/get",
+              "name": {
+                "source": "messageKey",
+                "canonical": "message_key"
+              },
+              "docs": {},
+              "deprecation": {
+                "message": "use getY instead",
+                "removalDate": "2030-06-01"
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/members",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-forge-sunset": {
+                  "reason": "vendor_extension",
+                  "value": {
+                    "date": "2030-06-01"
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1members/get/x-forge-sunset"
+                  }
+                },
+                "openapi:x-stainless-deprecation-message": {
+                  "reason": "vendor_extension",
+                  "value": "use getY instead",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1members/get/x-stainless-deprecation-message"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1members/get",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1members/put",
+              "name": {
+                "source": "objectKey",
+                "canonical": "object_key"
+              },
+              "docs": {},
+              "deprecation": {
+                "message": "goes away",
+                "removalDate": "2030-01-01"
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/members",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-cfDeprecation": {
+                  "reason": "vendor_extension",
+                  "value": {
+                    "description": "goes away",
+                    "display": true,
+                    "eol": "2030-01-01",
+                    "id": "some_id"
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1members/put/x-cfDeprecation"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1members/put",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1members/post",
+              "name": {
+                "source": "textForAnObject",
+                "canonical": "text_for_an_object"
+              },
+              "docs": {},
+              "deprecation": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/members",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-cfDeprecation": {
+                  "reason": "vendor_extension",
+                  "value": "goes away",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1members/post/x-cfDeprecation"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1members/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1members/delete",
+              "name": {
+                "source": "firstKeyWins",
+                "canonical": "first_key_wins"
+              },
+              "docs": {},
+              "deprecation": {
+                "message": "the first key"
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "DELETE",
+                    "uriTemplate": "/members",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-deprecated-reason": {
+                  "reason": "vendor_extension",
+                  "value": "the first key",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1members/delete/x-deprecated-reason"
+                  }
+                },
+                "openapi:x-stainless-deprecation-message": {
+                  "reason": "vendor_extension",
+                  "value": "the second key",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1members/delete/x-stainless-deprecation-message"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1members/delete",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1members/patch",
+              "name": {
+                "source": "numberForAMember",
+                "canonical": "number_for_a_member"
+              },
+              "docs": {},
+              "deprecation": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PATCH",
+                    "uriTemplate": "/members",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-forge-sunset": {
+                  "reason": "vendor_extension",
+                  "value": {
+                    "date": 7
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1members/patch/x-forge-sunset"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1members/patch"
+              }
             }
           ]
         }
@@ -291,6 +745,77 @@
     }
   ],
   "types": {
+    "t/openapi/components/schemas/ByKey": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/ByKey",
+      "name": {
+        "source": "ByKey",
+        "canonical": "by_key"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "deprecation": {},
+      "unmodeled": {
+        "openapi:x-fern-availability": {
+          "reason": "vendor_extension",
+          "value": "deprecated",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ByKey/x-fern-availability"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ByKey",
+        "inferred": "extension-promotion"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/ByKey/properties/p",
+          "name": {
+            "source": "p",
+            "canonical": "p"
+          },
+          "wireName": "p",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "deprecation": {},
+          "unmodeled": {
+            "openapi:x-fern-availability": {
+              "reason": "vendor_extension",
+              "value": "deprecated",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/ByKey/properties/p/x-fern-availability"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ByKey/properties/p",
+            "inferred": "extension-promotion"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Fixed": {
       "kind": "enum",
       "id": "t/openapi/components/schemas/Fixed",
@@ -619,6 +1144,33 @@
     }
   },
   "auth": {
+    "auth/openapi/components/securitySchemes/byKey": {
+      "id": "auth/openapi/components/securitySchemes/byKey",
+      "name": {
+        "source": "byKey",
+        "canonical": "by_key"
+      },
+      "kind": "apiKey",
+      "docs": {},
+      "deprecation": {},
+      "in": "header",
+      "keyName": "X-By-Key",
+      "unmodeled": {
+        "openapi:x-fern-availability": {
+          "reason": "vendor_extension",
+          "value": "deprecated",
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/securitySchemes/byKey/x-fern-availability"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/byKey",
+        "inferred": "extension-promotion"
+      }
+    },
     "auth/openapi/components/securitySchemes/k": {
       "id": "auth/openapi/components/securitySchemes/k",
       "name": {
@@ -671,7 +1223,7 @@
         "source": 0,
         "pointer": "/components/securitySchemes/k/deprecated",
         "position": {
-          "line": 63,
+          "line": 125,
           "column": 19
         }
       }
@@ -684,13 +1236,40 @@
         "source": 0,
         "pointer": "/components/schemas/Old/properties/n/x-deprecated-reason"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-cfDeprecation\" is not an object, so no member of it is read",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1members/post/x-cfDeprecation"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-stainless-deprecation-message\" states another deprecation.message than \"x-deprecated-reason\", which the policy reads first, and does not fill it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1members/delete/x-stainless-deprecation-message"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-forge-sunset.date\" is not a string, so it does not fill deprecation.removalDate",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1members/patch/x-forge-sunset/date"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "extension-promotion.yaml",
-      "hash": "b4f4ef5897514c40206596d8d69ec51963b381a2f5ce96f49e7b4b69ec1d62a5"
+      "hash": "f2c3465a60fdebcfa03eed57eb31f9cc3341c7f93be4c4b0003f52bfedad975b"
     }
   ]
 }

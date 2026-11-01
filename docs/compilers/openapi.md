@@ -837,7 +837,7 @@ declaration that owns it.
 `summary`, `description` and `externalDocs` lower to `Docs`, and `deprecated: true` to
 `Deprecation{}`, on the entity whose object writes them. `Deprecation` is an empty marker: the
 keyword states no message, version or date, which only [`extension-promotion`](#extension-promotion)
-can supply. An operation, and a tag on its `TagDef` and on the group it names, take all three; a
+can supply, and which can state the deprecation itself where no keyword does. An operation, and a tag on its `TagDef` and on the group it names, take all three; a
 schema's `title` is the `Summary`, beside its `description` and `externalDocs`; a response and an
 error case take `description` and `summary` ([`response-summary`](#response-summary)); a request
 body, a security scheme, a server and a server variable take `description`, an example `summary` and
@@ -2824,49 +2824,75 @@ kept and reported as a written one is.
 
 A vendor extension the promotion policy maps to a typed field is read into that field as well as
 kept ([unmodeled](../ir/unmodeled.md#promotion) states the four rules a promotion keeps). The
-policy is `Options.Promotions`, on by default: its `Targets` replace the default mapping —
-`x-deprecated-reason` to `Deprecation.Message`, `x-deprecated-since` to `Deprecation.Since`,
-`x-sunset` to `Deprecation.RemovalDate`, and `x-extensible-enum` to an `Enum`'s openness — and its
+policy is `Options.Promotions`, on by default: its `Targets` replace the default mapping and its
 `Disabled` turns it off. A target reads a list of sources, each an extension key and, where the
 key's value is an object holding several facts, the member of it to read. The list is the
 precedence: the first source stating a value fills the field, and a later one stating another is
 reported as an info `openapi/degraded-construct` at its own key. An absent member states nothing,
 and a key with no members to read is reported the same way, once however many sources read it. A
-deprecation member is filled on an operation, a parameter, a header, a
-property, a type node or a security scheme that is deprecated; on one that is not, the key annotates
-nothing and stays where it is. A node a promotion writes into lists the marker `extension-promotion`
-in its `Provenance.Inferred`, and the extension stays in `Unmodeled` untouched.
+node a promotion writes into lists the marker `extension-promotion` in its `Provenance.Inferred`,
+and the extension stays in `Unmodeled` untouched.
 
-A value the mapped field cannot hold — anything but text, for the four `Deprecation` members — is
-reported as an info `openapi/degraded-construct` at the extension and not coerced, since the
-document means something else by the key. Text of the right JSON shape is taken as written:
-`x-sunset` fills `RemovalDate` and not `RemovalVersion` because the header it echoes ([RFC
-8594](https://www.rfc-editor.org/rfc/rfc8594)) is a date by definition, and the mapping is where
-that reading is stated — the promotion does not then parse the date to confirm it. No default key
-names `RemovalVersion`: a document stating a removal *version* names its own key, per rule 1 of
-[unmodeled](../ir/unmodeled.md#promotion).
+`Deprecation` is filled on an operation, a parameter, a header, a property, a type node or a
+security scheme. A key can state the deprecation itself: the default reads `x-fern-availability`,
+then `x-stability`, whose text `deprecated` or boolean `true` creates the `Deprecation`, whatever a
+`deprecated: false` beside it says, since the marker and the entry let a consumer that disagrees
+see what was read. `false` and any other word state nothing, and any other shape is reported. A
+member is filled on what is deprecated by then, and on anything else the key annotates nothing and
+stays where it is. `Message` reads `x-deprecated-reason`, `x-stainless-deprecation-message` and the
+`description` of `x-cfDeprecation`; `Since` reads `x-deprecated-since`; and `RemovalDate` reads
+`x-sunset`, the `date` of `x-forge-sunset` and the `eol` of `x-cfDeprecation`.
+
+A value a member cannot hold, anything but text, is reported as an info `openapi/degraded-construct`
+at the extension and not coerced, since the document means something else by the key. Text of the
+right JSON shape is taken as written: `x-sunset` fills `RemovalDate` and not `RemovalVersion` because
+the header it echoes ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) is a date by definition,
+and the mapping is where that reading is stated — the promotion does not then parse the date to
+confirm it. No default key names `RemovalVersion`: a document stating a removal *version* names its
+own key, per rule 1 of [unmodeled](../ir/unmodeled.md#promotion).
+
+`Operation.Stability` reads `x-stability`, then `x-fern-availability`. `alpha` is `alpha`, `beta` and
+`preview` are `beta`, and `stable` and `generally-available` are `stable`. `deprecated` names no
+tier and is not reported, as a key the deprecation also reads; `legacy`, any other word and any
+other shape are reported, and leave the field unset. Where the two keys disagree the less stable
+statement wins, which is what reading `x-stability` first gives: in the golden spec every
+disagreement is `beta` against `generally-available`, 47 operations (spec @319dc756). It is the right
+call where the text can tell, as the 2 of them whose own description says beta show, and none of the
+2,636 operations marked generally available alone says so. It over-reports where the mark sits on
+one method of a resource and not on its neighbours, as `GET` and `PUT` of
+`/accounts/{account_id}/access/apps/{app_id}` carry it and `DELETE` does not, which reads as a mark on
+a payload and not on the operation. A consumer gating on the tier hides such an operation, and the
+report on each disagreement and the kept entries are what let it audit that.
+
+`x-sensitive` asks for redaction as `format: password` does ([`password`](#password)), and lands
+where that does: `Sensitive` on the node a position owns, `Secret` on a property, header or parameter
+that owns none. `true` writes it, `false` states nothing and never clears what another declaration
+asks for, and any other shape is reported.
 
 `Enum.Closed` is the one target whose fact is stated by a key being *present* rather than by a
-value, so nothing is read or reported there. Its default key, `x-extensible-enum`, writes the member
-list as its own value, and a list of members says nothing about openness that the key naming it has
-not already said; the promotion therefore clears `Closed` on presence. A boolean value is the one
-shape that does state openness by itself, and an explicit `false` is read as written rather than
+value, so a value is not read as a statement there. Its default key, `x-extensible-enum`, writes the
+member list as its own value, and a list of members says nothing about openness that the key naming
+it has not already said; the promotion therefore clears `Closed` on presence. A boolean value is the
+one shape that does state openness by itself, and an explicit `false` is read as written rather than
 inverted. Only openness is ever promoted: a schema's `enum` is closed by definition, so a document
 declares the open case or nothing, and the mapping names that fact rather than the field's own
 polarity. A document that writes `x-extensible-enum` *instead* of `enum` lowers to no `Enum` at all
 and there is no node to open — minting one from a vendor key would be a compiler reading a member
 list out of an extension, not a promotion, so the entry is left for a consumer that wants to.
 
-- Cases: `extension-promotion`
+- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
+  `lowering.TestPromoteDeprecation_KeyStatesIt`,
+  `lowering.TestPromoteStability_ReadsEachWord`,
+  `lowering.TestPromoteRedaction_OnlyTrueWrites`,
   `lowering.TestPromoteEnumOpenness_WritesNothing`,
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
   `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
-- Status: partly built: the default mapping covers only deprecation and extensible enums (#656); a
-  mapping cannot say which extension values state the fact (#654); and an unknown key under a prefix
-  the policy owns is kept in silence (#657).
+- Status: partly built: the default mapping leaves pagination, open enums stated by value, reserved
+  expansion and server names to come (#656); a mapping cannot say which extension values state the
+  fact (#654); and an unknown key under a prefix the policy owns is kept in silence (#657).
 
 ### `mutually-exclusive-parameters`
 

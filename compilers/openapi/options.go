@@ -57,6 +57,8 @@ type ExtensionSource = lowering.ExtensionSource
 
 // The typed fields promotion can fill today.
 const (
+	// TargetDeprecation states that what a key sits on is deprecated.
+	TargetDeprecation = lowering.TargetDeprecation
 	// TargetDeprecationMessage fills ir.Deprecation.Message.
 	TargetDeprecationMessage = lowering.TargetDeprecationMessage
 	// TargetDeprecationSince fills ir.Deprecation.Since.
@@ -67,6 +69,10 @@ const (
 	TargetDeprecationRemovalDate = lowering.TargetDeprecationRemovalDate
 	// TargetEnumOpen clears ir.Enum.Closed.
 	TargetEnumOpen = lowering.TargetEnumOpen
+	// TargetStability fills ir.Operation.Stability.
+	TargetStability = lowering.TargetStability
+	// TargetRedaction asks for a value to be redacted.
+	TargetRedaction = lowering.TargetRedaction
 )
 
 // NullableWidening is the nullable-widening policy: whether a null a schema

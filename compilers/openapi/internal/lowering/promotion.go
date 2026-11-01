@@ -33,10 +33,14 @@ type ExtensionTarget string
 
 // The typed fields promotion can fill today. Every other field an extension is
 // the only OpenAPI spelling for — Pagination, LongRunning, Idempotency,
-// ErrorCase.Retryable/Throttling, Enum.Flags, EnumMember.Name, Sensitive and
-// Secret — is a target this vocabulary is meant to grow, not a decision against
-// it (GitHub #252).
+// ErrorCase.Retryable/Throttling, Enum.Flags, EnumMember.Name — is a target this
+// vocabulary is meant to grow, not a decision against it (GitHub #252).
 const (
+	// TargetDeprecation deprecates what a key sits on where no `deprecated`
+	// keyword did, giving the members below a Deprecation to fill. The text
+	// "deprecated" or a boolean true states it; a key may hold other words, as
+	// x-stability does, and false or another word states nothing.
+	TargetDeprecation ExtensionTarget = "deprecation"
 	// TargetDeprecationMessage fills ir.Deprecation.Message.
 	TargetDeprecationMessage ExtensionTarget = "deprecation.message"
 	// TargetDeprecationSince fills ir.Deprecation.Since.
@@ -61,6 +65,15 @@ const (
 	// established spelling, writes the member list as its value. An explicit
 	// boolean `false` is honoured rather than inverted (extensionOpenness).
 	TargetEnumOpen ExtensionTarget = "enum.open"
+
+	// TargetStability fills ir.Operation.Stability. The words a value may use
+	// are stabilityTier's.
+	TargetStability ExtensionTarget = "stability"
+
+	// TargetRedaction asks for a value to be redacted, as `format: password`
+	// does: ir.TypeCommon.Sensitive on a type node, Secret on a property or a
+	// parameter. A boolean true states it, and false states nothing.
+	TargetRedaction ExtensionTarget = "redaction"
 )
 
 // ExtensionSource is one place a policy reads a fact from: the extension Key
@@ -113,14 +126,28 @@ type ExtensionPromotions struct {
 // not wrong — it names its own mapping.
 func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 	return map[ExtensionTarget][]ExtensionSource{
-		TargetDeprecationMessage: {{Key: "x-deprecated-reason"}},
-		TargetDeprecationSince:   {{Key: "x-deprecated-since"}},
+		TargetDeprecation: {{Key: "x-fern-availability"}, {Key: "x-stability"}},
+		TargetDeprecationMessage: {
+			{Key: "x-deprecated-reason"},
+			{Key: "x-stainless-deprecation-message"},
+			{Key: "x-cfDeprecation", Member: "description"},
+		},
+		TargetDeprecationSince: {{Key: "x-deprecated-since"}},
 		// x-sunset echoes the RFC 8594 Sunset header, which is a date by
 		// definition, so it fills the date field and not the version one.
-		TargetDeprecationRemovalDate: {{Key: "x-sunset"}},
+		TargetDeprecationRemovalDate: {
+			{Key: "x-sunset"},
+			{Key: "x-forge-sunset", Member: "date"},
+			{Key: "x-cfDeprecation", Member: "eol"},
+		},
 		// x-extensible-enum is the convention for an enum a service may add
 		// members to, so it says the set is open and not that it is closed.
 		TargetEnumOpen: {{Key: "x-extensible-enum"}},
+		// Where the two disagree the less stable statement wins: an operation
+		// x-stability calls beta and the other key does not is one a consumer
+		// should not take for stable (docs/compilers/openapi.md#extension-promotion).
+		TargetStability: {{Key: "x-stability"}, {Key: "x-fern-availability"}},
+		TargetRedaction: {{Key: "x-sensitive"}},
 	}
 }
 
@@ -153,18 +180,31 @@ func newPromoter(p ExtensionPromotions) Promoter {
 	return Promoter{targets: targets}
 }
 
-// Deprecation fills dep's fields from the vendor extensions kept in unmodeled,
-// and marks prov with the heuristic when it writes anything.
+// Deprecation reads the vendor extensions kept in unmodeled into a deprecation:
+// a key stating one creates *dep where no keyword did, and the members fill what
+// is then there. It marks prov with the heuristic when it writes anything.
 //
-// A nil dep is the whole answer for a node that is not deprecated — the field
-// describes a deprecation, so an x-deprecated-reason beside no `deprecated: true`
-// annotates nothing and stays where it is.
-func (p Promoter) Deprecation(unmodeled ir.Unmodeled, dep *ir.Deprecation, prov *ir.Provenance) []ir.Diagnostic {
+// A *dep still nil afterwards is the whole answer for a node that is not
+// deprecated — the members describe a deprecation, so an x-deprecated-reason
+// beside none annotates nothing and stays where it is. A `deprecated: false`
+// beside a key stating the opposite does not stop it, as the marker and the
+// entry let a consumer that disagrees see what was read.
+func (p Promoter) Deprecation(unmodeled ir.Unmodeled, dep **ir.Deprecation, prov *ir.Provenance) []ir.Diagnostic {
 	if dep == nil || prov == nil || len(unmodeled) == 0 || len(p.targets) == 0 {
 		return nil
 	}
-	var diags []ir.Diagnostic
-	var promoted bool
+	_, deprecated, diags := firstStated(unmodeled, p.targets[TargetDeprecation], reading[bool]{
+		target: TargetDeprecation,
+		want:   "is neither text nor a boolean",
+		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return statesDeprecated(raw) },
+	})
+	promoted := deprecated && *dep == nil
+	if promoted {
+		*dep = &ir.Deprecation{}
+	}
+	if *dep == nil {
+		return diags
+	}
 	for _, target := range []ExtensionTarget{
 		TargetDeprecationMessage, TargetDeprecationSince,
 		TargetDeprecationRemovalVersion, TargetDeprecationRemovalDate,
@@ -172,11 +212,48 @@ func (p Promoter) Deprecation(unmodeled ir.Unmodeled, dep *ir.Deprecation, prov 
 		text, stated, misfits := firstStated(unmodeled, p.targets[target], textReading(target))
 		diags = append(diags, misfits...)
 		if stated {
-			*deprecationField(dep, target) = text
+			*deprecationField(*dep, target) = text
 			promoted = true
 		}
 	}
 	if promoted {
+		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
+	}
+	return diags
+}
+
+// Stability fills tier from the vendor extensions kept in unmodeled, and marks
+// prov with the heuristic when it does.
+func (p Promoter) Stability(unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir.Provenance) []ir.Diagnostic {
+	if tier == nil || prov == nil || len(unmodeled) == 0 || len(p.targets) == 0 {
+		return nil
+	}
+	stated, found, diags := firstStated(unmodeled, p.targets[TargetStability], reading[ir.Stability]{
+		target: TargetStability,
+		want:   "names no stability tier",
+		read:   p.readStability,
+	})
+	if found {
+		*tier = stated
+		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
+	}
+	return diags
+}
+
+// Redaction sets redact from the vendor extensions kept in unmodeled, and marks
+// prov with the heuristic when that writes it. A redaction already asked for by
+// `format: password` needs no guess, so it stays unmarked.
+func (p Promoter) Redaction(unmodeled ir.Unmodeled, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
+	if redact == nil || prov == nil || len(unmodeled) == 0 || len(p.targets) == 0 {
+		return nil
+	}
+	_, stated, diags := firstStated(unmodeled, p.targets[TargetRedaction], reading[bool]{
+		target: TargetRedaction,
+		want:   "is not a boolean",
+		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return statesRedaction(raw) },
+	})
+	if stated && !*redact {
+		*redact = true
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
 	return diags
@@ -287,6 +364,80 @@ func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource
 		}
 	}
 	return kept, found, diags
+}
+
+// readStability reads a value as a tier.
+//
+// One key may also be a source of TargetDeprecation, whose reader takes what
+// names no tier: its word `deprecated` and its boolean are that target's
+// statement, and a value neither target can hold is its report. Answering those
+// here too would report one defect twice, or call a word misread that was read.
+// Another word no target reads, and any of these on a key only this target
+// reads, is a misfit.
+func (p Promoter) readStability(src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
+	if text, ok := extensionText(raw); ok {
+		if tier := stabilityTier(text); tier != ir.StabilityUnstated {
+			return tier, states
+		}
+	}
+	if _, said := statesDeprecated(raw); said != statesNothing && slices.Contains(p.targets[TargetDeprecation], src) {
+		return ir.StabilityUnstated, statesNothing
+	}
+	return ir.StabilityUnstated, misfit
+}
+
+// stabilityTier returns the tier a source's word names, or StabilityUnstated for
+// a word naming none. The set is what the sources share and not any one of them
+// (docs/ir/operations.md#stability): `preview` has one source, so it reads as
+// the tier it promises least, and `legacy` says a thing is old and not how far
+// it is committed to.
+func stabilityTier(word string) ir.Stability {
+	switch word {
+	case "alpha":
+		return ir.StabilityAlpha
+	case "beta", "preview":
+		return ir.StabilityBeta
+	case "stable", "generally-available":
+		return ir.StabilityStable
+	default:
+		return ir.StabilityUnstated
+	}
+}
+
+// statesDeprecated reads a value as a statement that what it sits on is
+// deprecated: the text "deprecated" and a boolean true state it, false and any
+// other word state nothing, and any other shape misfits. The bool is whether it
+// stated it.
+func statesDeprecated(raw ir.RawValue) (bool, statement) {
+	if text, ok := extensionText(raw); ok {
+		if text == "deprecated" {
+			return true, states
+		}
+		return false, statesNothing
+	}
+	return statesBoolean(raw)
+}
+
+// statesRedaction reads a value as a request to redact: a boolean true states
+// it, false states nothing, and any other shape misfits. A false never clears a
+// redaction another declaration asks for, which is the safe reading.
+func statesRedaction(raw ir.RawValue) (bool, statement) {
+	return statesBoolean(raw)
+}
+
+// statesBoolean reads a value that is a statement only when true. The target is
+// *bool for the reason extensionOpenness says: null decodes into a bool as
+// false, which would read a bare key as a statement of nothing rather than as
+// another shape.
+func statesBoolean(raw ir.RawValue) (bool, statement) {
+	var flag *bool
+	if err := json.Unmarshal(raw, &flag); err != nil || flag == nil {
+		return false, misfit
+	}
+	if *flag {
+		return true, states
+	}
+	return false, statesNothing
 }
 
 // value returns what s reads of entry, and where that sits: the entry's value

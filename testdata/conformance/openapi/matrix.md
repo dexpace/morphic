@@ -87,7 +87,7 @@ witnessing it.
 
 ### `redaction`
 
-- Witnesses: `secret-format`
+- Witnesses: `secret-format`, `extension-redaction`
 
 ### `recursive-types`
 
@@ -187,12 +187,11 @@ witnessing it.
 
 ### `deprecation`
 
-- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`
+- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`, `extension-stability`
 
 ### `stability`
 
-- Uncovered: no spec witnesses it until the compiler reads a stability extension into `Stability`; a
-  conformance case of that rule retires this.
+- Witnesses: `extension-stability`
 
 ### `examples`
 

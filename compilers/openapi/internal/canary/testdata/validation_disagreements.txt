@@ -194,7 +194,7 @@ testdata/conformance/openapi/empty-required-values.yaml	38:30	validation-require
 testdata/conformance/openapi/empty-required-values.yaml	39:39	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:47	validation-required-field	library	empty-is-missing
 testdata/conformance/openapi/empty-required-values.yaml	40:61	validation-required-field	library	empty-is-missing
-testdata/conformance/openapi/extension-promotion.yaml	63:19	later-version-construct	compiler	version-gate
+testdata/conformance/openapi/extension-promotion.yaml	125:19	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	7:8	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	8:20	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	12:12	later-version-construct	compiler	version-gate

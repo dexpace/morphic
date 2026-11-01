@@ -106,7 +106,8 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 		p.Examples = a.Examples
 	}
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, a.Unmodeled)
-	diags = append(diags, c.Promoter().Deprecation(p.Unmodeled, p.Deprecation, &p.Provenance)...)
+	diags = append(diags, c.Promoter().Deprecation(p.Unmodeled, &p.Deprecation, &p.Provenance)...)
+	diags = append(diags, c.Promoter().Redaction(p.Unmodeled, &p.Secret, &p.Provenance)...)
 	// nil node: this arm runs only when the schema lowered to no node of its own,
 	// so nothing here can be carrying an Encoding.
 	diags = append(diags, recordUnplacedContent(c, &p.Unmodeled, ref, nil, pointer)...)

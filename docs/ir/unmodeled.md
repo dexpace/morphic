@@ -134,9 +134,10 @@ where the IR expects them, so there is no reason to record and no unmodelled con
 
 Several typed fields model information no source format gives a keyword for, so the only way a
 document can state it is a vendor extension:
-`Deprecation.Message`/`Since`/`RemovalVersion`/`RemovalDate`, `Enum.Closed`, `Pagination.*`,
-`LongRunning`, `Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`,
-`EnumMember.Name`, `Sensitive` and `Secret`. Reading such an extension into its field is
+`Deprecation.Message`/`Since`/`RemovalVersion`/`RemovalDate`, `Enum.Closed`, `Operation.Stability`,
+`Pagination.*`, `LongRunning`, `Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`,
+`EnumMember.Name`, `Sensitive` and `Secret`, and a format's keyword for a fact need not be its only
+spelling, so `Deprecation` itself is a target too. Reading such an extension into its field is
 **promotion**, and because the format assigns an `x-*` key no semantics at all, promotion is a
 heuristic — invariant 6 applies to it in full. Four rules, so that no emitter has to re-derive
 this from `Unmodeled` and no two derive it differently:
