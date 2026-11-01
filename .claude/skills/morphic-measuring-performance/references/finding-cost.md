@@ -76,6 +76,18 @@ how to measure so the number means what the claim says.
   second caller reading discriminator mapping values made it quadratic (#774).
 - **Probe.** `git grep -n '<function>('`, then time the failing caller's shape on both builds.
 
+## Measure a cost on every arm of the switch it runs through
+`cost-claims-per-arm`
+
+- **Rule.** When a change sends a loop through a function that branches on its input's kind, one
+  input measures one arm. Generate an input per arm, quote the range rather than one figure, and
+  name any arm left out with the reason: reading does not find the dear one.
+- **Why.** `merge.Admits` judges an enum member by primitive kind, and one figure, 2.1%, stood for
+  every format. Measured per format, `uuid` added 0.15% and `double` 35.45%, by rebuilding a constant
+  on each call (#1191, #1205).
+- **Probe.** List each arm with the input that reached it, and take each arm's instructions on both
+  builds (`references/finding-cost.md#instructions-not-wall-clock`).
+
 ## Time generated shapes, deep and wide, on main and the branch
 `deep-generated-shapes`
 
