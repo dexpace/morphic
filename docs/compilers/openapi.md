@@ -2646,7 +2646,8 @@ is none of them is reported as an `openapi/validation` error, of the class
 its pointer, and a `security` list — the document's to the Service's, an operation's to the
 Operation's — to an OR of ANDs: each requirement object one alternative, naming its schemes, each
 with the scopes it lists (§9). An operation that writes no `security` inherits the document's, and
-one writing `security: []` is public; the two stay apart, absent against empty (§7.2). A requirement
+one writing `security: []` is public; the two stay apart, absent against empty (§7.2). The
+document's list keeps the same two spellings apart in `Service.Auth`. A requirement
 naming a scheme the section does not declare is reported as an `openapi/unresolved-ref` error at the
 requirement and dropped. An entry that omits the field naming its mechanism — `type`, or for `http`
 the `scheme` token — is interned as no scheme, reported as an `openapi/incomplete-security-scheme`
