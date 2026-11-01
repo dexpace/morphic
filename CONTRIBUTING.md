@@ -311,7 +311,7 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    it takes to be swept. Order-invariance permutes YAML and JSON mappings, so a source that is
    neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
    the package's `TestMain`, and its package a line in `scripts/race-packages.txt`, which `make race`
-   runs under `-race`.
+   runs under `-race`, or a `raceExempt` entry in `internal/archtest` with its reason.
    `morphic compile --verify <spec>` holds your compiler's document, and every pass's, to the same
    invariants while you write it.
    *Fails if missed:* `TestHarness_InRepoCorpus`, which sweeps the corpus and requires every

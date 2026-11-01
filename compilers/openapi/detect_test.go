@@ -108,9 +108,10 @@ func TestDetect_ReadsTheVersionTheCompileReads(t *testing.T) {
 // a caller reading a source for it, takes from each kind of options, another
 // compiler's included, which mean this one's default as
 // compilers.Compiler.Detect requires rather than no limit. Detect's own tests
-// exceed only a budget the caller sets: a source past the default costs more
-// than the gate's race run should pay, so another compiler's options read as
-// no limit would pass them all.
+// exceed only a budget the caller sets: a source past the default costs about
+// 2 s and 430 MiB in `make coverage`
+// (TestDetect_ReadsASourceWithinTheCallersByteBudget), so another compiler's
+// options read as no limit would pass them all.
 func TestCompiler_SourceLimitReadsTheCallersOptions(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
