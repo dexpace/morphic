@@ -178,7 +178,8 @@ it sees. Changes made together in one bump are listed together under it.
     `Style` and `Explode` beside its members, which encode flat ([responses](./responses.md)). The
     compiler had kept each verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to
     0.21.0 that reads those entries no longer finds them.
-- **0.23.0** — a stability tier and a parameter's redaction gained homes:
+- **0.23.0** — a stability tier and a parameter's redaction gained homes, and the OpenAPI compiler
+  reads more of a document's keys into fields it had:
   - `Operation` and `OperationGroup` gained `Stability`, a closed `alpha | beta | stable`, empty
     where a source states none ([operations](./operations.md#stability)), and `irverify` reports a
     tier the IR does not declare (`ir/unknown-stability`). A consumer pinned to 0.22.0 cannot decode
@@ -187,3 +188,8 @@ it sees. Changes made together in one bump are listed together under it.
     compiler no longer keeps a parameter's `format: password` under `Unmodeled`. A consumer pinned
     to 0.22.0 that reads `openapi:format` on a parameter no longer finds it, and a parameter that
     keeps redaction through a `$ref` now states it itself.
+  - A vendor key can state `Deprecation` where no keyword does, `x-sensitive` sets `Sensitive` and
+    `Secret`, and a property, header or parameter naming a `$ref` reads what the target's keys state
+    ([`extension-promotion`](../compilers/openapi.md#extension-promotion)). These shapes are
+    unchanged, so to a consumer pinned to 0.22.0 such an operation reads as live and such a value as
+    plain.

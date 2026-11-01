@@ -12,9 +12,9 @@ package ir
 // restriction is this struct and the Constraints of every node its TypeRef
 // reaches; an absent Constraints means no bound was declared, never that the
 // value is unbounded (docs/ir/annotations.md#what-a-reference-carries-down).
-// Documentation, deprecation, visibility and Default are the opposite: a
-// compiler merges them from a $ref's target onto the referencing carrier, with
-// use-site precedence.
+// Documentation, deprecation, redaction, visibility and Default are the
+// opposite: a compiler merges them from a $ref's target onto the referencing
+// carrier, with use-site precedence.
 type Constraints struct {
 	// Min is the inclusive lower numeric bound (JSON Schema minimum): an
 	// admissible value is >= it. nil = this position declared none.

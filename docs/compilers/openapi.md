@@ -1185,8 +1185,8 @@ over the declarations folded into the field, the first to set a keyword keeping 
 description, external links, deprecation, XML hints and each `Unmodeled` key over every declaration,
 the first to give one keeping it, and a declaration giving one differently is reported and kept. A
 field keeping the first declaration's identity keeps that declaration's provenance, and either way
-it names the heuristic that promoted its deprecation from an extension, wherever the deprecation it
-keeps came from.
+it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
+the one it keeps came from.
 
 The IR has no combinator for "string here, integer there", nor a second slot for a default, title,
 description, external link, examples, deprecation or XML hint another declaration already fills, so
@@ -1313,6 +1313,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother`,
   `merge.TestFold_AValueSpelledTwoWaysIsOneValue`,
   `merge.TestFold_ThePromotionMarkerFollowsTheDeprecationKept`,
+  `merge.TestFold_ThePromotionMarkerFollowsTheSecretTaken`,
   `schema.TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree`,
   `schema.TestAllOf_ContainerMembersAreJudgedAsFieldsAre`,
   `merge.TestClassify_ComparesResolvedKinds`,
