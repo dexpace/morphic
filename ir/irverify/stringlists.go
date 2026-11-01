@@ -24,12 +24,12 @@ const (
 	// zero value, so a field stringLists does not list is held to it rather
 	// than let through.
 	listPath listRule = iota
-	// listSet is a set: a lifecycle set (ir-design §5.2), or the methods a
-	// token endpoint accepts (ir-design §9). No entry may be blank, and none may
-	// repeat, since a repeat admits nothing more.
+	// listSet is a set: a lifecycle set (docs/ir/properties.md#visibility), or
+	// the methods a token endpoint accepts (docs/ir/auth.md). No entry may be
+	// blank, and none may repeat, since a repeat admits nothing more.
 	listSet
 	// listAliases is Naming.Aliases, which checkNaming holds to rules of its
-	// own (ir-design §3.2).
+	// own (docs/ir/naming.md).
 	listAliases
 	// listVerbatim copies a source's own entries, and whether one may repeat
 	// or be blank is that format's to say: OpenAPI may list a tag twice, and

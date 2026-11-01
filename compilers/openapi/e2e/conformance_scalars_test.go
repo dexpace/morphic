@@ -17,7 +17,7 @@ import (
 
 // assertEnumString pins a string enum and its one-member form, which is an
 // Enum as well: an `enum` keyword lowers to an Enum whatever its member count,
-// and only `const` lowers to a Literal (ir-design §4.5).
+// and only `const` lowers to a Literal (docs/ir/enums.md).
 func assertEnumString(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	e, ok := doc.Types[componentID("Color")].(*ir.Enum)
 	require.True(t, ok)

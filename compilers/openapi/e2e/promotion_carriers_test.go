@@ -46,9 +46,9 @@ var promotedCarrierRows = map[string][]string{
 // with, which is why it is spelled here rather than skipped when the IR is
 // read; each reason is held to the IR below, so an entry cannot outlive it.
 var unpromotedCarriers = map[string]string{
-	"EnumMember": "carries no Provenance, so rule 4 of ir-design §12 keeps promotion out until it gains one",
+	"EnumMember": "carries no Provenance, so rule 4 of docs/ir/unmodeled.md keeps promotion out until it gains one",
 	"Message":    "the OpenAPI compiler builds none: a Message is an AsyncAPI node",
-	"Variant":    "carries no Provenance, so rule 4 of ir-design §12 keeps promotion out until it gains one",
+	"Variant":    "carries no Provenance, so rule 4 of docs/ir/unmodeled.md keeps promotion out until it gains one",
 }
 
 // TestPromotionCarriers_NameEveryDeprecationCarrierInTheIR fails when the IR

@@ -42,7 +42,7 @@ func TestOneOf_WithDiscriminator(t *testing.T) {
 	pet, ok := doc.Types[componentID("Pet")].(*ir.Union)
 	require.True(t, ok, "Pet should be a union")
 	assert.True(t, pet.Exclusive, "oneOf is exclusive")
-	assert.True(t, pet.WireTagged, "the discriminator's tag property names the variant (ir-design §4.4)")
+	assert.True(t, pet.WireTagged, "the discriminator's tag property names the variant (docs/ir/unions.md)")
 	require.Len(t, pet.Variants, 2, "both variants present")
 	require.NotNil(t, pet.Discriminator)
 	assert.Equal(t, "petType", pet.Discriminator.PropertyName)
@@ -160,7 +160,7 @@ func TestOneOf_CoDeclaredCompositionDistributes(t *testing.T) {
 
 	for i, branch := range []string{"A", "B"} {
 		v := doc.Types[u.Variants[i].Type.Target].(*ir.Model)
-		require.NotNil(t, v.Base, "the enclosing allOf's sole $ref stays Base (ir-design §4.3)")
+		require.NotNil(t, v.Base, "the enclosing allOf's sole $ref stays Base (docs/compilers/openapi.md#allof-classification)")
 		assert.Equal(t, componentID("Base"), v.Base.Target)
 		require.Len(t, v.Mixins, 1, "the branch joins as a mixin, the composition already having a base")
 		assert.Equal(t, componentID(branch), v.Mixins[0].Target)
@@ -210,7 +210,8 @@ func TestAnyOf_CoDeclaredPropertiesDistributeAsBase(t *testing.T) {
 // pointers, which a $ref elsewhere in the document denotes too. Whichever
 // lowered first took the pointer, so an unrelated reference could leave one
 // variant a bare alias of its branch while its siblings carried the body — the
-// disagreement ir-design §4.3 forbids, decided by declaration order.
+// disagreement docs/ir/models.md#composition-beside-a-union forbids, decided by
+// declaration order.
 func TestOneOf_CoDeclaredVariantNotStolenByRefToBranch(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -374,11 +375,12 @@ func TestOneOf_CoDeclaredAdditionalPropsHintNamesTheBody(t *testing.T) {
 	assert.Equal(t, "combo_value", doc.Types[v.AdditionalProps.Value.Target].Common().Name.Hint)
 }
 
-// TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten pins what §4.3 says
-// Base/Mixins may name. JSON Schema lets a composition conjoin any schema, so a
-// branch can reference a scalar, an enum or another union; the referent is
-// carried as written, because narrowing it would mean dropping a branch the
-// source declared. fillAllOf classifies an allOf entry the same way.
+// TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten pins what
+// docs/ir/models.md#composition-beside-a-union says Base/Mixins may name. JSON
+// Schema lets a composition conjoin any schema, so a branch can reference a
+// scalar, an enum or another union; the referent is carried as written, because
+// narrowing it would mean dropping a branch the source declared. fillAllOf
+// classifies an allOf entry the same way.
 func TestOneOf_CoDeclaredNonModelBranchIsCarriedAsWritten(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Scalar: {type: string, minLength: 2}

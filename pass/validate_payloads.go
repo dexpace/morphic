@@ -156,9 +156,9 @@ func appendEncodingKeyDiags(dst []ir.Diagnostic, facts *irfacts.Index, site payl
 // exposes. The keys are asked in ascending order, sorted in keys, so map
 // iteration reaches neither the output nor the questions facts is asked, and
 // only a key reported has its location spelled. A key naming a declaration the
-// type's flattening overrides passes, though ir-design §4.3 has it name the one
-// taken: flattening every type asked about grows quadratically down a deep
-// hierarchy.
+// type's flattening overrides passes, though docs/ir/models.md#the-flattening
+// has it name the one taken: flattening every type asked about grows
+// quadratically down a deep hierarchy.
 func appendUnknownPartDiags(dst []ir.Diagnostic, facts *irfacts.Index, c ir.Content, site payloadSite, i int,
 	keys *[]ir.PropID,
 ) []ir.Diagnostic {

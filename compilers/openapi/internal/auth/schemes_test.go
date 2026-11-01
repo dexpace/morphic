@@ -218,9 +218,9 @@ components:
 // (GitHub #294).
 //
 // Every case declares every mechanism field, so each row states both
-// halves of ir-design §12.1's one-home principle: what the type defines reaches
-// its IR field and is not also kept raw, and what it does not define is kept
-// raw and does not fill a field of another mechanism.
+// halves of docs/compilers/openapi.md#security-scheme-fields: what the type
+// defines reaches its IR field and is not also kept raw, and what it does not
+// define is kept raw and does not fill a field of another mechanism.
 func TestLowerSecuritySchemes_FieldsTheTypeDoesNotDefineSurvive(t *testing.T) {
 	t.Parallel()
 	// everyField is written on each entry below; a row names the ones its type

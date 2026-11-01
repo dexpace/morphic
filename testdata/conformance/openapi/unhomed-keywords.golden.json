@@ -17,6 +17,7 @@
       "openapi"
     ],
     "p": [
+      "composed",
       "openapi"
     ],
     "param": [
@@ -1206,7 +1207,7 @@
     {
       "format": "openapi@3.1",
       "path": "unhomed-keywords.yaml",
-      "hash": "dba5f2f84965437c7ed982d321286f7afa9863237e21c9d3c757fac0dda9e69b"
+      "hash": "35f37b3bd8736e465ae886659a97cad60e1cb49cc49d0ea5a44cadc4d66d58cf"
     }
   ]
 }

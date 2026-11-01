@@ -250,7 +250,7 @@ func TestVerify_IssueReproducerIsReported(t *testing.T) {
 }
 
 // TestVerify_AliasClaimedByAnotherEntityIsClean pins what irverify leaves to
-// others (ir-design §3.2). Across the type registry no rule decides a
+// others (docs/ir/naming.md). Across the type registry no rule decides a
 // collision: a relative alias resolves against its own namespace, and two
 // independent schemas may each declare one. Between sibling properties it is a
 // problem in the spec, which pass/validate reports.

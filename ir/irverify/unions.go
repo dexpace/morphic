@@ -8,11 +8,11 @@ import (
 )
 
 // checkUnions asserts every union in the type registry has a variant and is
-// in a tag mode ir-design §4.4 defines. A union of none is a type no value
+// in a tag mode docs/ir/unions.md defines. A union of none is a type no value
 // inhabits, so a lowering dropped every variant it meant to add; one carrying a
-// Discriminator without WireTagged reads under §4.4 as untagged, so a consumer
-// ignores its tag. Both are a lowering's defects: a Violation, not an
-// ir.Diagnostic.
+// Discriminator without WireTagged reads under docs/ir/unions.md#tag-modes as
+// untagged, so a consumer ignores its tag. Both are a lowering's defects: a
+// Violation, not an ir.Diagnostic.
 //
 // Two shapes pass, since valid documents produce them: one variant, which
 // `oneOf: [{$ref: X}]` lowers to and invariant #2 keeps; and two variants
@@ -37,7 +37,7 @@ func checkUnions(doc *ir.Document) []Violation {
 		if u.Discriminator != nil && !u.WireTagged {
 			vs = append(vs, Violation{
 				Code:    "ir/union-discriminator-untagged",
-				Message: "union carries a discriminator but is not WireTagged, a tag mode ir-design §4.4 does not define",
+				Message: "union carries a discriminator but is not WireTagged, a tag mode docs/ir/unions.md does not define",
 				Path:    typePath(id),
 			})
 		}

@@ -13,10 +13,10 @@ import (
 var inferredType = reflect.TypeFor[ir.Inferred]()
 
 // checkInferred asserts every inferred-marker list is in the one form
-// ir.JoinInferred writes (ir-design §12), so that two lists naming one set of
-// heuristics in one order are one string. ir.Inferred is a defined string type,
-// so a conversion skips the join, a decoded document never meets it, and a
-// round trip carries "a,,b" faithfully.
+// ir.JoinInferred writes (docs/ir/unmodeled.md#promotion), so that two lists
+// naming one set of heuristics in one order are one string. ir.Inferred is a
+// defined string type, so a conversion skips the join, a decoded document never
+// meets it, and a round trip carries "a,,b" faithfully.
 //
 // The walk finds the lists by type, so a new carrier is held at once. A list is
 // read byte by byte, as the join reads it: a name that does not decode is still

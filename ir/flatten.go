@@ -4,10 +4,11 @@
 package ir
 
 // Flattening is the shape of a model across its composition, as
-// [FlattenedProperties] computes it (ir-design §4.3): its properties and which
-// are required, while each model's catch-all stays its own. It points into the
-// registry it was computed from and copies no property, so it describes that
-// registry as it stood; a caller that changes the registry flattens again.
+// [FlattenedProperties] computes it (docs/ir/models.md#the-flattening): its
+// properties and which are required, while each model's catch-all stays its
+// own. It points into the registry it was computed from and copies no property,
+// so it describes that registry as it stood; a caller that changes the registry
+// flattens again.
 type Flattening struct {
 	// Properties are the members, one per wire name, each at the place the walk
 	// first reads its wire name.
@@ -48,14 +49,14 @@ type PropertyDecl struct {
 }
 
 // FlattenedProperties returns the shape of the model root names across its
-// composition (ir-design §4.3). Root and each composition entry are read
-// through alias scalars. The walk goes depth first, following a model's Base,
-// then Implements, then Mixins, and reads each model's own properties after
-// those of every model it composes that does not compose it too: layout
-// order. It reads the declarations [ExposedProps] reaches, one member per wire
-// name, a later declaration overriding an earlier one in its place. A root
-// naming no model has an empty shape; a cyclic composition is read to its
-// fixpoint. It writes nothing to types.
+// composition (docs/ir/models.md#the-flattening). Root and each composition
+// entry are read through alias scalars. The walk goes depth first, following a
+// model's Base, then Implements, then Mixins, and reads each model's own
+// properties after those of every model it composes that does not compose it
+// too: layout order. It reads the declarations [ExposedProps] reaches, one
+// member per wire name, a later declaration overriding an earlier one in its
+// place. A root naming no model has an empty shape; a cyclic composition is
+// read to its fixpoint. It writes nothing to types.
 func FlattenedProperties(types TypeRegistry, root TypeID) Flattening {
 	f := flattener{types: types}
 	return f.flatten(root)

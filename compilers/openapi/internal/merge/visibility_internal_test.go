@@ -13,8 +13,8 @@ import (
 
 // TestMergeVisibility_IntersectsUnderAllOfSemantics pins the shapes an allOf
 // redeclaration's Visibility pairing can take. An empty Only means
-// unrestricted, not restricted-to-nothing (ir-design §5.2), so each side must
-// be read as the set it admits before intersecting.
+// unrestricted, not restricted-to-nothing (docs/ir/properties.md#visibility),
+// so each side must be read as the set it admits before intersecting.
 //
 // The first three cases cannot catch a plain append, since concatenating an
 // empty Only is a no-op. The five below them do: appending duplicates when both

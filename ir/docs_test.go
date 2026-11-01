@@ -38,10 +38,11 @@ func TestDeprecation_JSONContract(t *testing.T) {
 }
 
 // TestErrorExample_JSONContract pins ErrorExample's contract that both Type
-// and Content carry no omitempty (ir-design §12: an operation-scenario
-// example's error arm always has a type and a content value, never an
-// implicit one), while nested TypeRef/Value zero shapes are exercised in
-// their own test files, and that a fully populated ErrorExample round-trips.
+// and Content carry no omitempty
+// (docs/ir/annotations.md#docs-deprecation-examples: an operation-scenario
+// example's error arm always has a type and a content value, never an implicit
+// one), while nested TypeRef/Value zero shapes are exercised in their own test
+// files, and that a fully populated ErrorExample round-trips.
 func TestErrorExample_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.ErrorExample{},
@@ -51,9 +52,10 @@ func TestErrorExample_JSONContract(t *testing.T) {
 
 // TestExample_JSONContract pins that every Example field is optional, since a
 // legal Example populates only one contextual arm — Value/Headers or
-// Input/Output/Error (ir-design §12). The fixture below sets both arms at
-// once purely to exercise every field in one fixture; nothing currently
-// checks arm legality, so this test only pins serialization.
+// Input/Output/Error (docs/ir/annotations.md#docs-deprecation-examples). The
+// fixture below sets both arms at once purely to exercise every field in one
+// fixture; nothing currently checks arm legality, so this test only pins
+// serialization.
 func TestExample_JSONContract(t *testing.T) {
 	t.Parallel()
 	val := ir.Value{Kind: ir.ValueString, Str: "example value"}

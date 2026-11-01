@@ -1,6 +1,6 @@
 # IR lessons
 
-What an IR change meets that ir-design does not say: other branches claiming the same version,
+What an IR change meets that `docs/ir` does not say: other branches claiming the same version,
 hand lists that must name a new field, guarantees a type held without stating them, and what the
 verifier and codecs must reach.
 
@@ -8,11 +8,11 @@ verifier and codecs must reach.
 `version-collisions`
 
 - **Rule.** Two open PRs that bump `IRVersion` from one base claim one version: the constant
-  merges silently, and only the `generations` row and the ir-design history entry conflict. The
+  merges silently, and only the `generations` row and the version-history entry conflict. The
   PR merging second keeps `main`'s row and entry, moves the constant to the next version, and
   appends its own row and entry under it.
 - **Why.** #1065 and #1066 both set 0.18.0, and the constant merged with no conflict; #734 and #735
-  both bumped to 0.10.0 and conflicted only in ir-design.
+  both bumped to 0.10.0 and conflicted only in the history.
 - **Probe.** List the open PRs that set a version, or whose diff did not load:
   `for n in $(gh pr list --state open --limit 1000 --json number --jq '.[].number'); do d=$(gh pr diff $n) || echo "$n: diff unread"; grep -q '^+const IRVersion' <<<"$d" && echo $n; done`.
   After the merge, `TestIRVersion_PinsTheEncodedShape` prints the row to append.
@@ -81,7 +81,7 @@ verifier and codecs must reach.
 ## Check a design rule against everything in its document it governs
 `design-rule-over-its-document`
 
-- **Rule.** When a change to ir-design or emitter-design states a general rule, a placement
+- **Rule.** When a change to the IR or emitter design states a general rule, a placement
   argument or a step order, list every field, input or step in the document it applies to and
   check each; check a step order against what each step reads that a later step can still change.
 - **Why.** A rule giving derived facts no plan field stood beside a plan field copying one, a

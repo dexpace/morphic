@@ -948,7 +948,8 @@ func TestCompile_OverlayIsCreditedWithTheKeysItAdds(t *testing.T) {
 
 	t.Run("an if/then/else entry names the overlay only where it wrote every arm", func(t *testing.T) {
 		// Pet and Widget each carry one under the same key, so the two are
-		// told apart by the declaring schema their pointers name (§12).
+		// told apart by the declaring schema their pointers name
+		// (docs/ir/unmodeled.md#keys).
 		found := entriesKeyed(entries, "openapi:if-then-else")
 		require.Len(t, found, 2, "Pet's entry and Widget's")
 		sources := map[jsontext.Pointer]int{}

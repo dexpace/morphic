@@ -17,6 +17,7 @@
       "openapi"
     ],
     "p": [
+      "composed",
       "openapi"
     ],
     "param": [
@@ -647,7 +648,7 @@
     {
       "format": "openapi@3.1",
       "path": "numeric-precision.yaml",
-      "hash": "da3c656dba3563279ce2a96714ff32d37f000333cff766b043841bc3944765bc"
+      "hash": "48328b3f2bd7cadc169f2f322bb169789993db4506c21eb7f91e4324310f7a61"
     }
   ]
 }

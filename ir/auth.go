@@ -3,9 +3,9 @@
 
 package ir
 
-// AuthKind names one authentication mechanism (ir-design §9). X509 is distinct
-// from mutual_tls (certificate as credential vs mutual verification); compilers
-// must not conflate them.
+// AuthKind names one authentication mechanism (docs/ir/auth.md). X509 is
+// distinct from mutual_tls (certificate as credential vs mutual verification);
+// compilers must not conflate them.
 type AuthKind string
 
 // Authentication mechanisms.
@@ -61,7 +61,8 @@ func (k AuthKind) Valid() bool {
 	}
 }
 
-// AuthScheme is a named authentication scheme in Document.Auth (ir-design §9).
+// AuthScheme is a named authentication scheme in Document.Auth
+// (docs/ir/auth.md).
 type AuthScheme struct {
 	// ID is the scheme's stable synthetic identity.
 	ID AuthID `json:"id,omitempty"`
@@ -101,7 +102,7 @@ type AuthScheme struct {
 	Provenance Provenance `json:"provenance"`
 }
 
-// OAuthFlow is one OAuth 2.0 flow of an AuthScheme (ir-design §9).
+// OAuthFlow is one OAuth 2.0 flow of an AuthScheme (docs/ir/auth.md).
 type OAuthFlow struct {
 	// Kind is authorization_code | client_credentials | implicit | password |
 	// device.
@@ -127,7 +128,7 @@ type OAuthFlow struct {
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
 
-// OAuthScope is one scope an OAuthFlow offers (ir-design §9).
+// OAuthScope is one scope an OAuthFlow offers (docs/ir/auth.md).
 type OAuthScope struct {
 	// Name is the scope as a token request spells it.
 	Name string `json:"name"`
@@ -137,16 +138,16 @@ type OAuthScope struct {
 }
 
 // AuthRequirement is one authentication option: all its SchemeUses must be
-// satisfied together (ir-design §9). A slice of AuthRequirement is an OR across
-// options in priority order; an empty option means "no auth is one acceptable
-// choice".
+// satisfied together (docs/ir/auth.md). A slice of AuthRequirement is an OR
+// across options in priority order; an empty option means "no auth is one
+// acceptable choice".
 type AuthRequirement struct {
 	// Schemes must all be satisfied together to fulfill this option.
 	Schemes []SchemeUse `json:"schemes,omitempty"`
 }
 
 // SchemeUse names one scheme and the scopes required of it within an
-// AuthRequirement (ir-design §9).
+// AuthRequirement (docs/ir/auth.md).
 type SchemeUse struct {
 	// Scheme is the referenced auth scheme; never empty.
 	Scheme AuthID `json:"scheme,omitempty"`

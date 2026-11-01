@@ -13,7 +13,7 @@ import (
 // anonymous hoisted type has empty Source, and a named entity may have no
 // aliases — so the zero value marshals to an empty object, and that a fully
 // populated Naming survives a JSON round trip. Naming is the identity vehicle
-// threaded through every named entity in the IR (ir-design §3.2).
+// threaded through every named entity in the IR (docs/ir/naming.md).
 func TestNaming_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Naming{}, `{}`, populatedNaming())

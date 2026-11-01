@@ -10,7 +10,7 @@ import (
 )
 
 // The stable codes the OpenAPI compiler reports under. They are stable strings
-// so CI can allowlist them (ir-design §13).
+// so CI can allowlist them (docs/ir/provenance.md).
 const (
 	// Validation reports a document breaking a rule of the OpenAPI Specification
 	// at its declared minor, which the load phase's rule table finds; it is
@@ -107,7 +107,8 @@ const (
 	// overlay reports; nothing else about the lowering changes.
 	OverlayOriginIncomplete = "openapi/overlay-origin-incomplete"
 	// ValidationOnlyKeyword reports a validation-only JSON Schema keyword kept
-	// verbatim under Unmodeled (ir-design §4.7).
+	// verbatim under Unmodeled
+	// (docs/ir/boundaries.md#validation-only-constructs).
 	ValidationOnlyKeyword = "openapi/validation-only-keyword"
 	// FalseSchema reports a boolean `false` schema (matches nothing).
 	FalseSchema = "openapi/false-schema"
@@ -189,10 +190,11 @@ const (
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
-	// variants (ir-design §4.3, docs/compilers/openapi.md#union-beside-structure).
-	// Nothing is lost, so this records a decision rather than a degradation: the
-	// IR's shape no longer mirrors the source's, which is what a reader comparing
-	// the two needs told.
+	// variants (docs/ir/models.md#composition-beside-a-union,
+	// docs/compilers/openapi.md#union-beside-structure). Nothing is lost, so
+	// this records a decision rather than a degradation: the IR's shape no
+	// longer mirrors the source's, which is what a reader comparing the two
+	// needs told.
 	CompositionLowering = "openapi/composition-lowering"
 	// DynamicRefExpanded reports that a $dynamicRef was resolved to the one
 	// $dynamicAnchor matching it in this document
@@ -206,9 +208,10 @@ const (
 	// with disagreeing values. The judgment finds the types narrower (no
 	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
 	// not narrow) or disjoint; only disjoint types, a scalar against a structure
-	// and two structure kinds conflict. A conflicting constraint keyword
-	// (minimum: 10 vs. exclusiveMinimum: 10) is usually satisfiable, but no
-	// simple merge states it, so the merge keeps a source-order winner.
+	// and two structures of different instance types conflict. A conflicting
+	// constraint keyword (minimum: 10 vs. exclusiveMinimum: 10) is usually
+	// satisfiable, but no simple merge states it, so the merge keeps a
+	// source-order winner.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
 	// Unmodeled (merge.keepLosingDeclaration); #10 records intersecting bounds.

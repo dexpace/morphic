@@ -82,15 +82,15 @@ the rule here rather than reading it across.
   every way to reach a stream (#974, #1001).
 - **Probe.** `git grep -ln '"log/slog"' -- '*.go' ':!*_test.go'` lists only a plant.
 
-## Take an IR struct's shape from `docs/ir-design.md`
+## Take an IR struct's shape from `docs/ir`
 `ir-shapes-stand`
 
-- **Rule.** Rule 5.27 avoids embedding in a public struct. `docs/ir-design.md` is normative for
+- **Rule.** Rule 5.27 avoids embedding in a public struct. `docs/ir` is normative for
   `ir` and stands where the two differ: each type kind embeds `TypeCommon`, and `Header` embeds
   `Property` so the two encode flat as one object.
 - **Why.** A header's shape was weighed against fields on `Property`, and chosen so that the type
   states the rule and no check has to (#1144).
-- **Probe.** `grep -n '^    TypeCommon$' docs/ir-design.md`.
+- **Probe.** `grep -rn '^    TypeCommon$' docs/ir`.
 
 ## A change is done at `make gate`
 `done-is-make-gate`
@@ -120,7 +120,7 @@ the rule here rather than reading it across.
 
 - **Rule.** Rule 5.9 keeps type aliases for migration. Three kinds stand here: a public face naming
   a type an internal package declares, which no caller outside could name otherwise, as
-  `compilers/openapi/options.go` does; a shape `docs/ir-design.md` gives, as `ir.Lifecycle`; and a
+  `compilers/openapi/options.go` does; a shape `docs/ir` gives, as `ir.Lifecycle`; and a
   package's private shorthand for a long type, as `schemaRef`. Any other alias is held to the rule.
 - **Why.** A defined type in the public face would restate a vocabulary, and two declarations of one
   strategy set can drift (#1173).

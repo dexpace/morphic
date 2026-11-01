@@ -241,7 +241,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 			tc.decorate(&broad)
 			narrow := ir.Property{WireName: "p", Type: primRef(tc.narrow), Provenance: ptrAt(narrowPtr)}
 			m := &ir.Model{}
-			idx, settle := indexOver(m, reg, g)
+			idx, settle := indexOver(m, g)
 			first, second := broad, narrow
 			firstSrc, secondSrc := written(tc.raw), unread(t)
 			if !broadFirst {
@@ -385,7 +385,7 @@ func mergeDecls(t *testing.T, decls ...decl) (ir.Property, []ir.Diagnostic) {
 	reg := narrowingRegistry()
 	g, recorded := stubMerger(reg)
 	m := &ir.Model{}
-	idx, settle := indexOver(m, reg, g)
+	idx, settle := indexOver(m, g)
 	for _, d := range decls {
 		p := ir.Property{WireName: "p", Type: primRef(d.kind), Default: d.def, Provenance: ptrAt(d.ptr)}
 		p.Type.Nullable = d.nullable

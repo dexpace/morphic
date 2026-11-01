@@ -4,7 +4,7 @@
 package ir
 
 // ValueKind names the shape of a Value payload; see Value for why values are
-// kept separate from the type graph (ir-design §6).
+// kept separate from the type graph (docs/ir/values.md).
 type ValueKind string
 
 // Value kinds. The Kind field of a Value selects which payload field carries
@@ -37,10 +37,10 @@ const (
 )
 
 // Value is typed data kept separate from the type graph: defaults, constants,
-// literal types, enum member values, and examples (ir-design §6). Kind selects
-// which payload field is meaningful; the others hold their zero value, and
-// every payload is omitted when empty, so an empty list and a nil one share one
-// spelling: Value{Kind: ValueList} marshals to {"kind":"list"}.
+// literal types, enum member values, and examples (docs/ir/values.md). Kind
+// selects which payload field is meaningful; the others hold their zero value,
+// and every payload is omitted when empty, so an empty list and a nil one share
+// one spelling: Value{Kind: ValueList} marshals to {"kind":"list"}.
 //
 // irverify holds this contract: a populated field the kind does not select is
 // ir/value-stray-payload, an absent one it does select is
@@ -77,7 +77,7 @@ type Field struct {
 }
 
 // ValueRef references a declared constant: a TypeSpec enum-member default or a
-// reference to a named const (ir-design §6).
+// reference to a named const (docs/ir/values.md).
 type ValueRef struct {
 	// Type identifies the declaring type; never empty.
 	Type TypeID `json:"type,omitempty"`
@@ -87,7 +87,7 @@ type ValueRef struct {
 
 // CtorValue captures a value built by a named scalar constructor, such as
 // utcDateTime.now() or plainDate.fromISO("2024-05-06"). Such values are
-// inherently non-literal, so compilers must not fold them (ir-design §6).
+// inherently non-literal, so compilers must not fold them (docs/ir/values.md).
 type CtorValue struct {
 	// Scalar identifies the scalar whose constructor is invoked; never empty.
 	Scalar TypeID `json:"scalar,omitempty"`

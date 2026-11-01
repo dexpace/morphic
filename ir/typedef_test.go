@@ -13,8 +13,9 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// allKinds is the closed kind set from ir-design §4. Adding a TypeKind without
-// updating every consumer must break this file (the assertNever lesson).
+// allKinds is the closed kind set from docs/ir/type-graph.md. Adding a TypeKind
+// without updating every consumer must break this file (the assertNever
+// lesson).
 var allKinds = []ir.TypeKind{
 	ir.KindPrimitive, ir.KindScalar, ir.KindModel, ir.KindUnion, ir.KindEnum,
 	ir.KindList, ir.KindMap, ir.KindTuple, ir.KindLiteral, ir.KindExternal, ir.KindAny,
