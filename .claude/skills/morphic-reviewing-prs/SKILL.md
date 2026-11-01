@@ -21,7 +21,7 @@ git worktree add --detach <dir> FETCH_HEAD && cd <dir>
 git merge --no-edit "origin/$base" && git merge --no-edit origin/main
 ```
 
-Abort a merge that conflicts (`git merge --abort`) and review what merged; the conflict is an
+Abort a conflicting merge (`git merge --abort`) and review what merged; the conflict is an
 `issue:`. Probe only in that worktree, with `morphic-verifying-changes` and the changed files'
 domain skill.
 
@@ -52,11 +52,11 @@ Run all, fanning out only when asked (`references/review-probes.md#fan-out-a-pas
    `.claude/skills/morphic-shipping-prs/references/commits-and-prs.md`, and open PRs, by
    `.claude/skills/morphic-shipping-prs/references/merging-main.md#trial-merge-open-prs`.
 7. **New commits.** When the branch, its base or `origin/main` moves, rerun the setup and every
-   pass the new commits can affect.
+   pass the commits can affect.
 
 ## Findings
 
-Rank each finding `issue:`, `nit:` (a defect too small to break anything), `suggestion:` (no
+Rank each finding `issue:`, `nit:` (a defect breaking nothing), `suggestion:` (no
 defect) or `question:` (`references/review-probes.md#rank-by-what-was-shown`). The rank orders the work, not what may ship: every `issue:` and `nit:` is
 fixed or justified in writing before merge. Each names the rule it breaks, file and line, what was
 run, what came back, and the smallest fix removing the class, not the instance.
@@ -72,5 +72,5 @@ run, what came back, and the smallest fix removing the class, not the instance.
 
 ## References
 
-- `references/review-probes.md`: what earlier rounds missed.
+- `references/review-probes.md`: what earlier rounds missed, and reviewing with no `origin`.
 

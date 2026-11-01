@@ -61,6 +61,18 @@ to read — and to execute outside the case its author measured.
 - **Probe.** Plant each directive or data shape in a scratch file, run the tool and the check
   against it from a different cwd, and compare their verdicts form by form.
 
+## Show a test reaches no network through a proxy that logs
+`no-network-through-a-logging-proxy`
+
+- **Rule.** To claim a test sends nothing, point `HTTPS_PROXY` and `HTTP_PROXY` at a local listener
+  that logs and refuses every request, check it logs a `curl -x` request, run the test with
+  `-count=1`, and read the log. A request to a loopback address, and a client whose `Transport` sets
+  no `Proxy`, skip it, so an empty log covers neither: test that transport itself.
+- **Why.** Passing offline shows nothing, as a refused request can be what a test expects. The proxy
+  logged two `CONNECT`s on `main` and none on the head of the PR that fixed them (#1235).
+- **Probe.** A planted `http.Get` logs a `CONNECT`; a planted client with a `Transport` of its own
+  logs nothing and still dials out.
+
 ## Name every outcome in a function's or option's contract
 `doc-names-every-outcome`
 

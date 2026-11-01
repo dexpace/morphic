@@ -79,6 +79,14 @@ is not behaviour held.
   Run `go test ./...`, which sweeps `testdata/` through the harness; once a fixture reddens, check
   the golden diff is exactly the fix's effect.
 
+## A fix in test code leaves the revert above empty
+`test-only-fix-reverts-by-hand`
+
+- **Rule.** The revert above leaves test files alone, so for a fix in test code it is empty, which
+  is no pass: undo the fix's hunks by hand, keep the assertions, and confirm a test reddens.
+- **Why.** Putting an oracle's reader back on `http.DefaultClient` left every test green until a
+  test for it was added, with the revert printing nothing (#1235).
+
 ## Give competing sources distinct values
 `distinct-values-for-competing-sources`
 

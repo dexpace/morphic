@@ -104,6 +104,17 @@ defect, keep a `main` control.
   and a suggested regex missed a generic no test row held (#1169).
 - **Probe.** Apply each suggestion in a throwaway worktree and run the checks it touches.
 
+## Review with no `origin`, or in a repository you must not write to
+`review-without-origin`
+
+- **Rule.** With no `origin`, fetch `main` and `pull/<N>/head` by URL into refs of your own, and read
+  `origin/main` as yours in the setup and the push checklist. Where the repository must stay
+  unwritten, `git worktree add` is out: take
+  `.claude/skills/morphic-verifying-changes/references/mutation.md#plant-in-an-unpacked-copy`.
+- **Why.** Reviews of #1233, #1235 and #1238 each improvised these, and one wrote the worktree
+  metadata its round had ruled out.
+- **Probe.** In a new `git init`, run both fetches, then `git for-each-ref`.
+
 ## Search the tracker for each construct a rule settles
 `tracker-on-what-a-rule-settles`
 

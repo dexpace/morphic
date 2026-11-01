@@ -18,15 +18,27 @@ yourself. These rules are the ways that reading still lies.
 - **Probe.** `git status --short` in your own tree lists only your changes, and
   `git worktree list` no longer names the throwaway.
 
+## Plant in an unpacked copy where the repository must stay unwritten
+`plant-in-an-unpacked-copy`
+
+- **Rule.** `git worktree add` writes metadata into the repository. Where that is ruled out, unpack
+  a copy with `git archive <head> | tar -x -C <dir>`, then `git init`, `git add -A` and a commit
+  there, since `git init` alone leaves `status` and `diff HEAD` nothing to compare.
+- **Why.** Reviews improvised this, and one wrote the metadata its round had ruled out (#1233,
+  #1235, #1238).
+- **Probe.** Plant a line in the copy: `status` names one file.
+
 ## Check the tree holds one mutant before reading its verdict
 `one-mutant-per-verdict`
 
 - **Rule.** Before reading a mutant's verdict, check that the tree holds that mutant and nothing
   else: `git -C <dir> status --short` names only its file, and `git -C <dir> diff HEAD` shows its
   one change to a tracked file, since `git diff` alone hides a staged or untracked plant. A loop
-  planting several runs the check every round and reads no verdict past a failed one.
+  planting several runs the check every round and reads no verdict past a failed one. A plant
+  removing a call removes the call: one discarding its result or error still runs it.
 - **Why.** A plant loop restored from a path it never wrote, so six mutants stacked, each reading
-  as a kill, and every verdict after the first was void (#1153).
+  as a kill, and every verdict after the first was void (#1153). A plant ignoring a call's error
+  left the call running, and read as a hole in a PR's central claim (#1233).
 
 ## Read a kill in the output, never in the exit status
 `read-the-kill-in-the-output`
@@ -66,14 +78,14 @@ yourself. These rules are the ways that reading still lies.
 `mutation-survivor-scope`
 
 - **Rule.** Before calling a survivor untested, run it over `go test ./...` and ask whether anything
-  can observe it. An unobservable mutant is equivalent: record it with the reason. For a helper in a
-  `_test.go` file, `go test` on its directory and on `./internal/archtest` is that run: no other
+  can observe it. An unobservable mutant is equivalent: record it with the reason. An arm's removal
+  alone does not make it equivalent: plant a changed result too. For a helper in a `_test.go` file, `go test` on its directory and on `./internal/archtest` is that run: no other
   package compiles the file, `export_test.go` included, and archtest reads it as text.
 - **Why.** Two of three "untested" survivors were killed in another package, and the third was
-  equivalent (#825). The rule then asked for a module run per survivor where
-  `go test ./internal/archtest` had settled three in that directory's helpers (#1233), yet deleting
-  a helper's `t.Helper()` in `pass/validate_payloads_test.go` passes `go test ./pass` and fails
-  archtest.
+  equivalent (#825). The rule asked for a module run per survivor where
+  `go test ./internal/archtest` settled three (#1233), yet a `t.Helper()` deleted in
+  `pass/validate_payloads_test.go` passes `go test ./pass` and fails archtest. Two arms recorded
+  equivalent by removal alone had results a row saw (#1233).
 
 ## A kill by panic hides whether the pinning test pins
 `mutation-crash-kill`

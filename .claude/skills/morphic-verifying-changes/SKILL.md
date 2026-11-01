@@ -24,7 +24,8 @@ goes to the type that owns the broken state
 | order-independent | swap the declaration order; diff the documents, and the diagnostics as a sorted multiset |
 | no regression against main | `scripts/sweep.py`, or `references/differentials.md#argv-differential` for a change under `cmd/`; each new probe fails on `main`, and a build with the fix broken differs |
 | the fixture reaches the check | confirm where it lands: `harness.Check` stops at the first error diagnostic |
-| a bound of N holds | lower it by one at each site; a test at N and at N+1 notices |
+| a bound of N holds | lower it by one at each site; a test at N and N+1 notices |
+| this test reaches no network | `references/claims.md#no-network-through-a-logging-proxy` |
 | lowers to X, is dropped, is refused | compile that literal input; read the IR and every diagnostic |
 | a count, size or cost | derive it with a command and name the revision; a cost by `morphic-measuring-performance` |
 
@@ -40,10 +41,10 @@ goes to the type that owns the broken state
 
 ## Script
 
-`python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py`, run from the repository
-root, compiles a corpus at a base and at the working tree, then prints each side's exit codes and
-each spec that differs past its IR version. It judges nothing: `references/differentials.md` says
-what the codes mean, and its `--help` gives the options.
+`python3.14 .claude/skills/morphic-verifying-changes/scripts/sweep.py` compiles a corpus at a base
+and at the working tree, printing each side's exit codes and each spec that differs past its IR
+version. It judges nothing: `references/differentials.md` says what the codes mean, and `--help`
+the options.
 
 ## References
 

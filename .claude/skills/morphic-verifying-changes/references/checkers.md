@@ -15,6 +15,18 @@ own verifier and codecs are in `.claude/skills/morphic-changing-the-ir/reference
 - **Probe.** Plant one instance of each form the check must catch in a scratch package and confirm
   each reddens; prefer keying on go/types over selector text.
 
+## A guard on how a value is built must see what undoes the build
+`build-guards-see-later-writes`
+
+- **Rule.** A source check guarding how a value is built also matches a later write that resets what
+  the build set, the forbidden value in each argument of an `append` or other variadic call, and a
+  composite literal with an elided type.
+- **Why.** A guard on how a command is built passed each of these in turn (#1233). `os/exec` keeps
+  a key's last occurrence, so `cmd.Env = append(cmd.Env, os.Environ()...)` hands the parent's
+  values back.
+- **Probe.** Plant the forbidden value after the build and in every argument position, and confirm
+  each reddens.
+
 ## Identify code with the type checker, never by name strings
 `resolve-symbols-semantically`
 
