@@ -793,9 +793,11 @@ one reads its target by this rule, and one holding a `$ref` to a refinement read
 `$ref` that loses the type to a value set narrowing it still speaks, for documentation, deprecation,
 visibility and redaction, on the carrier or else on the alias keeping it, and so does one an `enum`
 or a `const` beside its `allOf` passes over ([`competing-keywords`](#competing-keywords)), on the node
-that lowers to; its `default` counts only where the narrowed type takes it, and its examples stay on
-its node, as any target's do ([`schema-examples`](#schema-examples)). A `default` written with the
-value set is the position's own, in the set or not, as a plain `enum`'s is. A sole `$ref` composed
+that lowers to; its examples stay on its node, as any target's do
+([`schema-examples`](#schema-examples)). A `default` a `$ref` lends across a conjunct admitting less
+than it does counts only where the position takes it, and with no such conjunct it reads as beside
+the `$ref`, whatever the target's own type says of it. A `default` written with the value set is the
+position's own, in the set or not, as a plain `enum`'s is. A sole `$ref` composed
 with nothing a `Model` alone holds, a decorator ([annotations](../ir/annotations.md#decorators)) or a
 bound beside it, lends a carrier what it would lend written alone, since the visibility and `default`
 of the use have no other home. A composition writing what only a `Model` holds
@@ -808,6 +810,7 @@ carrier nothing.
   `schema.TestSchemaExamples_ComponentRefSiblingKeepsThem`,
   `schema.TestRefinement_ACarrierReadsThroughARefinement`,
   `schema.TestUse_ADefaultBesideItsValueSetStands`,
+  `schema.TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef`,
   `schema.TestUse_ACarrierReadsThroughADecorator`,
   `schema.TestUse_ALoopOfNarrowingEnumsEnds`
 
@@ -932,11 +935,12 @@ the whole schema holding the `allOf`, a `type` beside the `allOf` included, as b
 does ([`allof-inline-residue`](#allof-inline-residue)). A `type` without `null` beside a `$ref` still
 narrows what it lands on, and a `type: [T, "null"]` on a conjunct of an `allOf` conjoins with the
 rest. A reference whose null only that reading admits names `nullable-widening` in
-`TypeRef.Inferred` (invariant 6), so `Nullable` with no marker is the declared reading, and each such null is reported once as an info
-`openapi/inferred-nullable`, at the `nullable` keyword or, for keywords beside a `$ref`, at the
-schema that writes them, saying why its version does not admit it, whatever references its schema.
-The policy is the Go option `Options.NullableWidening`, whose `Disabled` reads the keywords only as
-their version defines them, and the text option `nullable-widening`, which `false` turns off. A
+`TypeRef.Inferred` (invariant 6), so `Nullable` with no marker is the declared reading, and each
+such null is reported once as an info `openapi/inferred-nullable`, at the `nullable` keyword or, for
+keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
+whatever references its schema. The policy is the Go option `Options.NullableWidening`, whose
+`Disabled` reads the keywords only as their version defines them, and the text option
+`nullable-widening`, which `false` turns off. A
 `nullable` in a 3.1 or 3.2 schema, or beside a `$ref`, is then a keyword its dialect does not
 define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
@@ -1071,11 +1075,12 @@ The principal is chosen from the whole set:
    is within another where its kinds, its values, its `format` and its `items` are. Two formats of the
    table ([`string-formats`](#string-formats), [`numeric-formats`](#numeric-formats)) compare by what
    they select, a format narrows the bare kind it applies to, one the table does not list included,
-   `items` narrow none, and two `items` compare by what each says, so `uuid` beats `string`, `email`
-   beats `string` and a list of `uuid` beats a list of `string`, in either order, as a field
-   redeclared the same ways does ([`allof-redeclared-property`](#allof-redeclared-property)). A tie,
-   such as two formats neither of which narrows the other, is the one place order decides, and the
-   loser is kept and reported, again as such a field is.
+   `items` narrow an `array` writing none, and two `items` compare by what each says, so `uuid` beats
+   `string`, `email` beats `string` and a list of `uuid` beats a list of `string`, in either order,
+   as a field redeclared the same ways does
+   ([`allof-redeclared-property`](#allof-redeclared-property)). A tie, such as two formats neither of
+   which narrows the other, is the one place order decides, and the loser is kept and reported, again
+   as such a field is.
 
 A `format` or `items` written with no `type` qualifies a kind and names none, so it decides nothing:
 `{allOf: [{type: integer}, {format: int32}]}` lowers to `integer` with the second branch kept, in
@@ -1099,7 +1104,8 @@ so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. One saying more is ke
 under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the `allOf` under
 `openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the branch or at the
 position. A `$ref` a value set beats is kept the same way, and its target still speaks for the
-position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set takes it.
+position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set takes it, and
+still lowers, though nothing else names it, as a position no component holds lowers for a `$ref`.
 
 Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
@@ -1128,6 +1134,7 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_AValueSetNarrowsTheRefItBeats`,
   `schema.TestRefinement_AValueComparesAsAnEnumEntryDoes`,
   `schema.TestRefinement_ANarrowingKeepsItsTargetOnANode`,
+  `schema.TestRefinement_ANarrowedRefStillLowersItsTarget`,
   `schema.TestRefinement_AHoistingFormatNarrowsItsKind`,
   `schema.TestRefinement_ATieTakesTheFirstAndKeepsTheOther`,
   `schema.TestRefinement_ANoKindConjunctIsNeverThePrincipal`,
@@ -1140,8 +1147,10 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
   `schema.TestRefinement_ACappedBranchStaysAComposition`
 - Status: partly built: conjuncts sharing no value are reported only where an inline `type` says so
-  (#1215), a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition (#661), and a
-  structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes (#1067).
+  (#1215), a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition (#661), a
+  structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes (#1067), and a
+  conjunct that lowers as a type array drops what none of its variants holds, as a type array written
+  alone does (#852).
 
 ### `allof-beside-ref`
 
