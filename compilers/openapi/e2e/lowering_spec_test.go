@@ -366,6 +366,9 @@ func testFuncs(pkg string) (map[string]bool, error) {
 }
 
 // isTestFunc reports whether fn is a test function: TestName(t *testing.T).
+// It matches testing by its literal name, so a test in a file that aliases
+// testing is missed and fails TestLoweringSpec_TestsAreDeclared, while a
+// function taking a T from another package named testing is counted (#1234).
 func isTestFunc(fn *ast.FuncDecl) bool {
 	if fn.Recv != nil || !strings.HasPrefix(fn.Name.Name, "Test") || fn.Type.Params.NumFields() != 1 {
 		return false
