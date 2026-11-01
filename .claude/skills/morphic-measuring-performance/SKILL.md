@@ -13,7 +13,7 @@ busy machine measures the machine.
 
 | Claim | Measure |
 |---|---|
-| faster or cheaper | instructions retired, base and head built and run alternately, the median and range of each (`references/finding-cost.md#instructions-not-wall-clock`) |
+| faster or cheaper | instructions retired on one thread, base and head built and run alternately, the median and range of each (`references/finding-cost.md#instructions-not-wall-clock`) |
 | a cost through a function that switches on kind | the same on an input per arm, quoted as a range (`references/finding-cost.md#cost-claims-per-arm`) |
 | a stage after the compile is cheap | a throwaway program over a saved document, less a run that only decodes (`references/finding-cost.md#cost-of-a-later-stage`) |
 | no cost on the common path | the same over the golden spec and a large input of the old shape (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#price-common-path`) |
