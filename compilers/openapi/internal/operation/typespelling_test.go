@@ -99,7 +99,7 @@ components:
 		"openapi:content/application~1xml": `{"schema":{"type":"boolean"}}`,
 		"openapi:content/text~1plain":      `{"example":"hi","schema":{"$ref":"#/components/schemas/Str"},"x-kept":1}`,
 	}
-	const wantWarning = `"application/json" is lowered and application/xml, text/plain kept verbatim under Unmodeled`
+	const wantWarning = `"application/json" is lowered and "application/xml", "text/plain" kept verbatim under Unmodeled`
 
 	for _, entries := range [][]string{
 		{numberEntry, plainEntry, xmlEntry}, {numberEntry, xmlEntry, plainEntry},
@@ -176,7 +176,29 @@ func TestPassedOverEntries_NamesOnlyWhatItKept(t *testing.T) {
 	assert.Equal(t, []string{"openapi:content/text~1plain"}, slices.Sorted(maps.Keys(unmodeled)))
 	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
 	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
-		"/paths/~1x/get/parameters/0/content"), `"application/json" is lowered and text/plain kept verbatim under Unmodeled`)
+		"/paths/~1x/get/parameters/0/content"), `"application/json" is lowered and "text/plain" kept verbatim under Unmodeled`)
+}
+
+// TestPassedOverEntries_QuotesWhatItNames holds the warning to one line that names
+// each entry: a key is the document's own text, so a line break in one would start
+// a line of the report, and a comma would read as two entries.
+func TestPassedOverEntries_QuotesWhatItNames(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.PathsSpec(`  /x:
+    get:
+      operationId: getX
+      parameters:
+        - name: p
+          in: query
+          content:
+            application/json: {schema: {type: integer}}
+            "text/a,text/b": {}
+            "text/c\nerror: forged": {}
+      responses: {"200": {description: ok}}
+`))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityWarning,
+		"/paths/~1x/get/parameters/0/content"),
+		`"application/json" is lowered and "text/a,text/b", "text/c\nerror: forged" kept verbatim under Unmodeled`)
 }
 
 // TestElectContentEntry_OneEntryIsSilent is the control: the legal one-entry

@@ -270,7 +270,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and text/plain kept verbatim under Unmodeled",
+      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and \"text/plain\" kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1x/get/parameters/0/content"
@@ -279,7 +279,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and application/xml, text/plain kept verbatim under Unmodeled",
+      "message": "a content-style header or parameter must declare exactly one media type; \"application/json\" is lowered and \"application/xml\", \"text/plain\" kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1x/get/responses/200/headers/X-H/content"

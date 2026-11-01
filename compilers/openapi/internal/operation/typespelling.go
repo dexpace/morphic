@@ -6,6 +6,7 @@ package operation
 import (
 	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -127,8 +128,8 @@ func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (strin
 
 // passedOverEntries keeps each entry of written, a content map's pairs, but
 // elected verbatim under openapi:content/<key>, the key escaped as a pointer
-// segment, and reports them once at the map, sorted so the report does not
-// follow declaration order either.
+// segment, and reports them once at the map, sorted and quoted, so the report
+// follows no declaration order and stays one line.
 //
 // It takes the pairs read once: looking each key up costs a scan per entry,
 // quadratic in what a document can write. No test counts that, as nodeview.Child
@@ -147,7 +148,7 @@ func passedOverEntries(c lowering.Ctx, u *ir.Unmodeled, written []nodeview.Pair,
 			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(at+ids.Ptr("content", entry.Key)))
 		diags = append(diags, keptDiags...)
 		if ok {
-			kept = append(kept, entry.Key)
+			kept = append(kept, strconv.Quote(entry.Key))
 		}
 	}
 	if len(kept) == 0 {
