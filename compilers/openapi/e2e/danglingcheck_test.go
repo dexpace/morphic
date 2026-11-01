@@ -138,8 +138,9 @@ func TestDanglingRefs_EveryReproducerIsExercised(t *testing.T) {
 }
 
 // TestDanglingRefs_Reproducers compiles each issue-#14 reproducer and asserts the
-// produced IR has zero dangling references — every offending entry either interns
-// correctly or is dropped with an error-severity diagnostic.
+// produced IR has zero dangling references — every offending entry interns
+// correctly, or takes an error-severity diagnostic and is dropped or backed by a
+// node minted for it.
 func TestDanglingRefs_Reproducers(t *testing.T) {
 	t.Parallel()
 	for _, tc := range danglingReproducers() {
@@ -158,10 +159,18 @@ func TestDanglingRefs_Reproducers(t *testing.T) {
 				// f12 resolves the same-file ref internally; the loader still reports
 				// the external m.yaml it could not open. Only closure is asserted.
 			case mints:
-				assert.True(t, diag.HasError(diags), "the minted target is reported as an error")
+				assert.True(t, hasErrorNamingNoMechanism(diags), "the minted target is reported as an error")
 			}
 		})
 	}
+}
+
+// hasErrorNamingNoMechanism reports whether diags hold the error a requirement
+// draws for a name that reaches no mechanism.
+func hasErrorNamingNoMechanism(diags []ir.Diagnostic) bool {
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Severity == ir.SeverityError && d.Code == diag.UnresolvedSecurityScheme
+	})
 }
 
 // TestDanglingRefs_f07 pins the positive case: a mapping value that contains '/'
@@ -197,7 +206,7 @@ func TestDanglingRefs_f30(t *testing.T) {
 	require.Len(t, doc.Services, 1)
 	assert.Empty(t, cmp.Diff([]ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: minted}}}}, doc.Services[0].Auth,
 		cmpopts.EquateEmpty()), "the sole option stays")
-	assert.True(t, diag.HasError(diags), "and the name that reached no mechanism is reported")
+	assert.True(t, hasErrorNamingNoMechanism(diags), "and the name that reached no mechanism is reported")
 }
 
 // TestDanglingRefs_f10 pins that a $ref to a component sub-schema interns the
