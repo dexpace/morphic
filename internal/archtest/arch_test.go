@@ -435,6 +435,9 @@ var rules = map[string][]string{
 	// decorators a test of cancellation puts a cancel at a chosen check with,
 	// which tests across the module import.
 	"internal/ctxtest": {},
+	// The tables ir's tests and its fuzz targets share: stdlib-only, because
+	// a fuzz run pays on every execution for all the code its binary links.
+	"internal/ircases": {},
 	// Test infrastructure too: tests that hold a hand-written list to what a
 	// package declares read it type-checked, through go/packages. Two of its
 	// testdata packages are imported by others, which is how a test shows a

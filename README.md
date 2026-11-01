@@ -378,7 +378,7 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   it reads the IR's declarations through the go command.
 - **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
   longer search). One target runs on its own with, for example,
-  `go test ./compilers/openapi/e2e -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
+  `go test ./compilers/openapi/e2e/fuzz -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
 
 ## Design docs
 

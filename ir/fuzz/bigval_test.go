@@ -1,17 +1,18 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package ir_test
+package fuzz_test
 
 import (
 	"encoding/json/jsontext"
 	"testing"
 
+	"github.com/dexpace/morphic/internal/ircases"
 	"github.com/dexpace/morphic/ir"
 )
 
 // bigValAdversarialSeeds seeds the fuzzer with the spellings that make the
-// grammar's hard cases reachable at all, as naming_property_test.go's
+// grammar's hard cases reachable at all, as naming_test.go's
 // adversarialRunes does: a fuzzer exploring bytes at random is unlikely to
 // construct any of these itself, and #45 lived in two of them that no table
 // test included. Each group's reason sits beside it.
@@ -47,15 +48,15 @@ var bigValAdversarialSeeds = []string{
 // the rows TestNewBigVal_CanonicalizesToJSONForm's table lists (#45).
 //
 // A rejected input carries no claim: NewBigVal need only never accept what
-// json.Valid would refuse. The seeds carry most of the weight, since an
-// ordinary `go test` runs them without searching and the gate's search is
-// bounded to seconds (scripts/fuzz.sh). They are chosen adversarially, not
-// drawn from real specs, for the reason bigValAdversarialSeeds gives.
+// json.Valid would refuse. An ordinary `go test` runs the seeds without
+// searching, and the search runs nightly (scripts/fuzz.sh). They are chosen
+// adversarially, not drawn from real specs, for the reason
+// bigValAdversarialSeeds gives.
 func FuzzNewBigVal_AcceptedFormsAreJSONValid(f *testing.F) {
 	for _, seed := range bigValAdversarialSeeds {
 		f.Add(seed)
 	}
-	for _, form := range bigValDecimalForms {
+	for _, form := range ircases.DecimalForms {
 		f.Add(form)
 	}
 

@@ -64,8 +64,8 @@ category alone would lose the second.
 it recomputes the canonical from the `Source` beside it, so a boundary in the wrong place is a
 compiler bug rather than a variant reading. What no check can say is that the grammar itself is
 right — a check that recomputes moves with what it recomputes through — so the answers are pinned
-by a conformance table and the properties every answer must satisfy by a fuzz target beside it
-(GitHub #186).
+by a conformance table and the properties every answer must satisfy by a fuzz target over the same
+table (GitHub #186).
 
 One rule sits under all of those and under `Aliases` too, because it is about the encoding rather
 than the spelling: **every channel's bytes must decode**. It is not a naming rule at all: every
