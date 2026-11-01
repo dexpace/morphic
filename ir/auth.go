@@ -41,6 +41,10 @@ const (
 	AuthKindSASLGSSAPI AuthKind = "sasl_gssapi"
 	// AuthKindCustom is a custom/unmodeled scheme.
 	AuthKindCustom AuthKind = "custom"
+	// AuthKindUnresolved is a scheme the source names and the compiler resolved
+	// no mechanism for. It records what the compiler holds, not that the source
+	// states none (docs/ir/auth.md).
+	AuthKindUnresolved AuthKind = "unresolved"
 )
 
 // Valid reports whether k is one of the mechanisms declared above. AuthKind is a
@@ -54,7 +58,7 @@ func (k AuthKind) Valid() bool {
 		AuthKindOpenIDConnect, AuthKindMutualTLS, AuthKindUserPassword, AuthKindX509,
 		AuthKindSymmetricEncryption, AuthKindAsymmetricEncryption,
 		AuthKindSASLPlain, AuthKindSASLSCRAMSHA256, AuthKindSASLSCRAMSHA512,
-		AuthKindSASLGSSAPI, AuthKindCustom:
+		AuthKindSASLGSSAPI, AuthKindCustom, AuthKindUnresolved:
 		return true
 	default:
 		return false

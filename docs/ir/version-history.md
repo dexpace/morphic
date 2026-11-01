@@ -178,3 +178,10 @@ it sees. Changes made together in one bump are listed together under it.
     `Style` and `Explode` beside its members, which encode flat ([responses](./responses.md)). The
     compiler had kept each verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to
     0.21.0 that reads those entries no longer finds them.
+- **0.23.0** — a security requirement keeps a scheme the compiler resolved no mechanism for
+  ([auth](./auth.md#unresolved-schemes)). `AuthKind` gained `unresolved`, and auth IDs the
+  `unresolved` namespace ([identity](./identity.md#unresolved-schemes)), which every OpenAPI document
+  declares under `idSpaces.auth`, whether or not it mints there. The OpenAPI compiler had dropped
+  such a requirement, so an `Auth` left with no option read as inheriting and one left with others
+  lost the option. A consumer pinned to 0.22.0 has no reading for the kind, and reads those
+  operations as inheriting the service's credentials.

@@ -47,9 +47,9 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 // oauth2 (GitHub #295). Kind is the only AuthScheme field backed by a declared
 // constant set.
 //
-// This is the class-level guard for a defect one compiler already refuses at
-// the source (GitHub #294, #296): the refusal reports a spec spelling the
-// shape, and this covers a compiler that mints it from a clean spec.
+// This is the class-level guard for a defect one compiler already reports at
+// the source (GitHub #294, #296): that report covers a spec spelling the shape,
+// and this covers a compiler that mints it from a clean spec.
 func checkAuthKinds(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, scheme := range doc.Auth {

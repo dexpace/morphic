@@ -10,7 +10,8 @@ type AuthScheme struct {
     Kind AuthKind
     // AuthKind: apiKey | http_basic | http_bearer | oauth2 | openid_connect | mutual_tls |
     //           user_password | x509 | symmetric_encryption | asymmetric_encryption |
-    //           sasl_plain | sasl_scram_sha256 | sasl_scram_sha512 | sasl_gssapi | custom
+    //           sasl_plain | sasl_scram_sha256 | sasl_scram_sha512 | sasl_gssapi | custom |
+    //           unresolved
     // The SASL family, user_password, and x509 are how Kafka/AMQP clients authenticate
     // (AsyncAPI securitySchemes). AsyncAPI `httpApiKey` lowers to apiKey; AsyncAPI `apiKey`
     // (transport user/password slot) lowers to apiKey with In: user|password. X509 is distinct
@@ -81,3 +82,44 @@ typically `custom` — whose credential is several fields combined into a reques
 one value its kind implies. Nil means the source declares no shape. No compiler fills it yet:
 building that type out of an extension would mint a node ([identity](./identity.md#the-id-grammar)),
 which is a design of its own.
+
+## Unresolved schemes
+
+A requirement names its schemes, and a name can reach no mechanism: nothing declares it, what
+declares it names none, or the compiler cannot read what it names. The requirement still stands,
+so the option keeps its place in the list, its other schemes and its scopes, and names a scheme of
+kind `unresolved`, one per name. An SDK asks its caller for that credential, and never sends the
+service's in its place or nothing at all ([auth](../emitters/operations/auth.md#unresolved-schemes)).
+
+The kind says what the compiler holds, which is no mechanism. It does not say the source states
+none: an OpenAPI 3.2 requirement can name a scheme by URI, and an entry can write `in` and `name`
+under no `type`. So the scheme fills no field saying how to authenticate, and `irverify` reports one
+that does (`ir/unresolved-auth-has-mechanism`). What it does hold is what a declaration wrote, if
+one did: its `Docs` and `Deprecation`, and the rest verbatim under `Unmodeled`. A compiler reports
+an error for each such scheme, so a document holding one reaches an emitter only where its caller
+accepted that finding. Its ID is in a namespace of its own
+([identity](./identity.md#unresolved-schemes)).
+
+The premise is measured. `cloudflare/api-schemas` at `319dc756`, the golden spec, names three such
+schemes from nine operations, and in those nine every option does, so nothing else states what they
+need. Of the 1,840 OpenAPI documents in the reference corpus, 57 name one, at 286 options, 50 of
+them listing scopes, and none ANDs such a name with a declared scheme. In 45 of those documents the
+list holds `{}` as well, so dropping the rest would leave it saying no auth is needed.
+
+Rejected, each with the input it fails on:
+
+- **No requirement, with the name kept under `Unmodeled`.** `Auth` absent inherits, so an operation
+  naming its own upload token sends the service's account token.
+- **`[]`.** That is explicitly public, the opposite of what a demanded credential says (#41).
+- **`custom`.** It claims a mechanism the IR does not model, where the compiler holds none (#294).
+- **`AuthRequirement.Unresolved`, a name beside empty `Schemes`.** `{nosuch: []}` reads as the empty
+  option to a consumer that does not read the new field, and its scopes and any other member of the
+  option need a second home.
+- **A name on `SchemeUse` with an empty `Scheme`.** A reference stops being an ID, and every emitter
+  derives the set of names itself, though refine emits one option per scheme.
+- **Refusing the document.** A finding never refuses a document, which lowers as written, and the
+  golden spec writes this construct.
+- **Declaring the scheme with an overlay, or matching the name to a declared one.** An overlay works
+  today, since a name it declares resolves, but it gives a source no default. A match is an
+  inference (invariant 6), and only five of the golden spec's nine sites have a near match, so the
+  other four need this home regardless.

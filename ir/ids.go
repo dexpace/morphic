@@ -90,6 +90,14 @@ const IDSeparator = "/"
 // accident rather than on purpose is what naming it here makes visible.
 const IDSpacePrim = "prim"
 
+// IDSpaceUnresolved is the space the schemes of kind AuthKindUnresolved are
+// addressed in.
+//
+// It is every format's, like IDSpacePrim, and reserved like it, so a reader can
+// tell such a scheme from its ID, and no pointer a reference can spell reaches
+// one (docs/ir/identity.md). irverify holds the kind and the space together.
+const IDSpaceUnresolved = "unresolved"
+
 // PrimTypeID returns the shared TypeID of the primitive of kind k.
 //
 // It is the one ID this package can derive. Every other path is the compiler's

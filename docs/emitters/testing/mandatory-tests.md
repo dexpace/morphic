@@ -135,3 +135,9 @@ throughout these documents.
     RPC operation's one response is its primary, leaving `Others` empty; and no golden operation's
     declared status is left to no entry ([which entry
     answers](../plan/responses.md#which-entry-answers), [return shapes](../operations/returns.md)).
+28. **T-28 · Unresolved schemes** — on every target, an operation whose only option names a scheme of
+    kind `unresolved` sends what the caller's `Authenticator` writes, and with none configured is
+    refused unsent, the error naming the scheme, from a call, a pager's first page and a stream's
+    open. An option beside it is taken in priority order, an option ANDing it with a declared scheme
+    needs both, and the service's credentials are never sent in its place
+    ([auth](../operations/auth.md#unresolved-schemes)).
