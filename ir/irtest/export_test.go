@@ -3,6 +3,8 @@
 
 package irtest
 
+import "time"
+
 // CompareGoldenOn is compareGolden, for the external tests.
 var CompareGoldenOn = compareGolden
 
@@ -17,14 +19,18 @@ var ReadModuleFilesOn = readModuleFiles
 
 // RequireOpensOn is requireOpens for a module rooted at /m, whose child writes
 // its log to /log, for the external tests.
-func RequireOpensOn(t testingT, self, test string, inChild bool,
-	run func() ([]byte, error), read func(string) ([]byte, error),
+func RequireOpensOn(t testingT, self, test string, inChild bool, remaining time.Duration, bounded bool,
+	run func(args []string) ([]byte, error), read func(string) ([]byte, error),
 ) {
 	t.Helper()
 	requireOpens(t, opensCheck{
-		self: self, test: test, root: "/m", logPath: "/log", inChild: inChild, run: run, read: read,
+		self: self, test: test, root: "/m", logPath: "/log", inChild: inChild,
+		remaining: remaining, bounded: bounded, run: run, read: read,
 	})
 }
+
+// ChildArgs is childArgs, for the external tests.
+var ChildArgs = childArgs
 
 // UnopenedIn is unopened, for the external tests.
 var UnopenedIn = unopened

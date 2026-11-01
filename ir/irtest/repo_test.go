@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -126,11 +127,14 @@ func TestUnopened_NamesTheModuleFilesTheLogLacks(t *testing.T) {
 }
 
 // opensRun is one drive of requireOpens: the caller, the test it names, whether
-// the process is a child, and the child's run and the log's read.
+// the process is a child, the time left and whether it is limited, and the
+// child's run and the log's read.
 type opensRun struct {
 	self, test string
 	inChild    bool
-	run        func() ([]byte, error)
+	remaining  time.Duration
+	bounded    bool
+	run        func(args []string) ([]byte, error)
 	read       func(string) ([]byte, error)
 }
 
@@ -139,7 +143,7 @@ type opensRun struct {
 func goodOpens() opensRun {
 	return opensRun{
 		self: "TestCaller", test: "TestNamed",
-		run:  func() ([]byte, error) { return []byte("ok"), nil },
+		run:  func([]string) ([]byte, error) { return []byte("ok"), nil },
 		read: func(string) ([]byte, error) { return []byte("open /m/go.mod\nopen /m/go.sum\n"), nil },
 	}
 }
@@ -152,8 +156,8 @@ func (o opensRun) drive() (*recordingT, bool) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		irtest.RequireOpensOn(rec, o.self, o.test, o.inChild,
-			func() ([]byte, error) { started = true; return o.run() }, o.read)
+		irtest.RequireOpensOn(rec, o.self, o.test, o.inChild, o.remaining, o.bounded,
+			func(args []string) ([]byte, error) { started = true; return o.run(args) }, o.read)
 	}()
 	<-done
 	return rec, started
@@ -183,7 +187,7 @@ func TestRequireOpens_FailsWhenTheChildOrItsLogDoes(t *testing.T) {
 		fatal string
 	}{
 		{"the child fails", func(o *opensRun) {
-			o.run = func() ([]byte, error) { return []byte("boom output"), errors.New("exit status 1") }
+			o.run = func([]string) ([]byte, error) { return []byte("boom output"), errors.New("exit status 1") }
 		}, "running TestNamed to read its test log: exit status 1\nboom output"},
 		{"the log is unreadable", func(o *opensRun) {
 			o.read = func(string) ([]byte, error) { return nil, errors.New("gone") }
@@ -209,9 +213,9 @@ func TestRequireOpens_FailsWhenTheChildOrItsLogDoes(t *testing.T) {
 	}
 }
 
-// TestRequireOpens_RefusesToRunAgainstItselfOrInAChild pins the depth bound:
-// each refusal comes before any child starts.
-func TestRequireOpens_RefusesToRunAgainstItselfOrInAChild(t *testing.T) {
+// TestRequireOpens_RefusesToRunAgainstItselfInAChildOrWithoutTime pins the
+// depth and time bounds: each refusal comes before any child starts.
+func TestRequireOpens_RefusesToRunAgainstItselfInAChildOrWithoutTime(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name  string
@@ -222,6 +226,10 @@ func TestRequireOpens_RefusesToRunAgainstItselfOrInAChild(t *testing.T) {
 			"TestCaller names itself, which would run it again without end"},
 		{"it runs in a child", func(o *opensRun) { o.inChild = true },
 			"TestCaller runs in a child RequireOpensModuleFiles started, which would start another"},
+		{"no time is left", func(o *opensRun) { o.bounded = true },
+			"TestCaller has no time left (0s), and a child given none would run without a timeout"},
+		{"the time has passed", func(o *opensRun) { o.bounded, o.remaining = true, -time.Second },
+			"TestCaller has no time left (-1s), and a child given none would run without a timeout"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -233,6 +241,74 @@ func TestRequireOpens_RefusesToRunAgainstItselfOrInAChild(t *testing.T) {
 			assert.True(t, rec.aborted)
 			assert.Contains(t, rec.fatalf, tc.fatal)
 			assert.GreaterOrEqual(t, rec.helperCalls, 1, "requireOpens marks itself a helper")
+		})
+	}
+}
+
+// TestRequireOpens_GivesTheChildTheTimeLeft pins the wiring: the arguments
+// requireOpens builds reach the child's run, bounded by what the parent has
+// left when it has a limit.
+func TestRequireOpens_GivesTheChildTheTimeLeft(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		bounded   bool
+		remaining time.Duration
+		want      []string
+	}{
+		{"a limited parent", true, 90 * time.Second,
+			[]string{"-test.run=^TestNamed$", "-test.testlogfile=/log", "-test.timeout=1m30s"}},
+		{"an unlimited parent", false, 0,
+			[]string{"-test.run=^TestNamed$", "-test.testlogfile=/log"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var got []string
+			o := goodOpens()
+			o.bounded, o.remaining = tc.bounded, tc.remaining
+			o.run = func(args []string) ([]byte, error) { got = args; return []byte("ok"), nil }
+			rec, started := o.drive()
+			assert.True(t, started)
+			assert.False(t, rec.aborted)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+// TestChildArgs_BoundsTheChildOnlyWhenTheParentIsBounded pins the argument
+// list: the timeout round-trips to the time left, and an unlimited parent
+// gives none, since the child would otherwise be cut short.
+func TestChildArgs_BoundsTheChildOnlyWhenTheParentIsBounded(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name      string
+		bounded   bool
+		remaining time.Duration
+	}{
+		{"a whole second", true, time.Second},
+		{"minutes", true, 119*time.Second + 999*time.Millisecond},
+		{"one nanosecond", true, time.Nanosecond},
+		{"unlimited", false, 0},
+		{"unlimited with time given", false, time.Hour},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			args := irtest.ChildArgs("T", "/some/log", tc.remaining, tc.bounded)
+			require.GreaterOrEqual(t, len(args), 2)
+			assert.Equal(t, "-test.run=^T$", args[0])
+			assert.Equal(t, "-test.testlogfile=/some/log", args[1])
+			if !tc.bounded {
+				assert.Len(t, args, 2, "no -test.timeout")
+				return
+			}
+			require.Len(t, args, 3)
+			value, ok := strings.CutPrefix(args[2], "-test.timeout=")
+			require.True(t, ok, "%q", args[2])
+			got, err := time.ParseDuration(value)
+			require.NoError(t, err)
+			assert.Equal(t, tc.remaining, got)
 		})
 	}
 }
