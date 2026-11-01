@@ -109,9 +109,9 @@ how to measure so the number means what the claim says.
   one wide component, growing both together. Rerun the reproducers of closed cost issues whose tests
   the change deletes.
 - **Why.** A pointer builder quadratic in depth passed a corpus of real specs and the full gate, and
-  three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778). Those shapes
-  ran linear past a references-by-size product in output bytes, which doubling either alone hides
-  (#1191, #1240).
+  three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778). Those
+  shapes read linear while references times size grew the output, which doubling one hides (#1191,
+  #1240).
 - **Probe.** Instructions retired and output bytes on each shape at n and 2n, on both builds
   (`references/finding-cost.md#instructions-not-wall-clock`).
 

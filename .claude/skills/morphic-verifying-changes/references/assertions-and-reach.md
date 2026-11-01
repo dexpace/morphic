@@ -135,9 +135,9 @@ it.
 - **Rule.** Finish every check before any golden write. No assertion follows the write, and one that
   may start a parallel subtest runs inside a serial `t.Run`, so the guard reads a settled
   `t.Failed()`.
-- **Why.** A non-fatal assertion under -update rewrote the golden from regressed output (#149, #379).
-  A parallel subtest runs after its parent returns, and an assertion after the write has not run, so
-  neither stops a guard placed ahead of the write (#1242).
+- **Why.** A non-fatal assertion under -update rewrote the golden from regressed output (#149,
+  #379). A parallel subtest runs after its parent returns, and an assertion after the write has not
+  run, so neither stops a guard placed ahead of the write (#1242).
 - **Probe.** With -update, plant a regression that changes the golden at each kind of check, on both
   sides of the write and inside a parallel subtest, and confirm no golden changes.
 

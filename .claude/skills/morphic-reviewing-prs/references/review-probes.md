@@ -107,8 +107,8 @@ defect, keep a `main` control.
 ## Review with no `origin`, or in a repository you must not write to
 `review-without-origin`
 
-- **Rule.** With no `origin`, fetch `main` and `pull/<N>/head` by URL into refs of your own, and read
-  `origin/main` as yours in the setup and the push checklist. Where the repository must stay
+- **Rule.** With no `origin`, fetch `main` and `pull/<N>/head` by URL into refs of your own, and
+  read `origin/main` as yours in the setup and the push checklist. Where the repository must stay
   unwritten, `git worktree add` is out: take
   `.claude/skills/morphic-verifying-changes/references/mutation.md#plant-in-an-unpacked-copy`.
 - **Why.** Reviews of #1233, #1235 and #1238 each improvised these, and one wrote the worktree
@@ -160,10 +160,9 @@ defect, keep a `main` control.
 `recheck-against-final-tree`
 
 - **Rule.** After review fixes land or `main` or the base is merged in, review the branch as it
-  will merge:
-  rerun the probes the body and comments cite and every sweep the branch relies on over the merged
-  tree, re-diff each change `main` made to files the branch touches, and look for helpers `main`
-  renamed, features on both sides that interact, and normative text `main` moved.
+  will merge: rerun the probes the body and comments cite and every sweep the branch relies on over
+  the merged tree, re-diff each change `main` made to files the branch touches, and look for helpers
+  `main` renamed, features on both sides that interact, and normative text `main` moved.
 - **Why.** Merges dropped `main`'s wider change in a conflict, left comments asserting behaviour
   `main` had changed, and left PR bodies stating facts a later commit falsified (#837, #382).
 - **Probe.** `git diff <merge-base>..origin/main -- <files the branch touches>` and confirm each

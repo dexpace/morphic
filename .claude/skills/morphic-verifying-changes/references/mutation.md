@@ -79,8 +79,9 @@ yourself. These rules are the ways that reading still lies.
 
 - **Rule.** Before calling a survivor untested, run it over `go test ./...` and ask whether anything
   can observe it. An unobservable mutant is equivalent: record it with the reason. An arm's removal
-  alone does not make it equivalent: plant a changed result too. For a helper in a `_test.go` file, `go test` on its directory and on `./internal/archtest` is that run: no other
-  package compiles the file, `export_test.go` included, and archtest reads it as text.
+  alone does not make it equivalent: plant a changed result too. For a helper in a `_test.go` file,
+  `go test` on its directory and on `./internal/archtest` is that run: no other package compiles the
+  file, `export_test.go` included, and archtest reads it as text.
 - **Why.** Two of three "untested" survivors were killed in another package, and the third was
   equivalent (#825). The rule asked for a module run per survivor where
   `go test ./internal/archtest` settled three (#1233), yet a `t.Helper()` deleted in

@@ -54,5 +54,5 @@ cannot be turned off.
 ## References
 
 - `references/ir-lessons.md`: version collisions, the hand lists a new field meets, new namespaces,
-  invariants a type held, values a field's readers assume, design rules over their own document, and what the
-  verifier and codecs must reach.
+  invariants a type held, values a field's readers assume, design rules over their own document,
+  and what the verifier and codecs must reach.

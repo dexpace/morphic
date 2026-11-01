@@ -8,8 +8,8 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 
 - **Rule.** Merge `origin/main` into the branch before a review round and before calling it
   ready, a stacked branch's base first (`references/merging-main.md#merge-the-base-first`). Then
-  build, vet and run the whole suite on the merge, `internal/archtest`'s caps among it,
-  and re-plant each mutation the PR body cites
+  build, vet and run the whole suite on the merge, `internal/archtest`'s caps among it, and re-plant
+  each mutation the PR body cites
   (`.claude/skills/morphic-verifying-changes/references/mutation.md#rebuild-lost-plants`): a clean
   merge can fail to compile, fail a test, or leave a test green for a mechanism the merge removed.
 - **Why.** After a base PR's final round stopped handing over cached bytes, a stacked PR's dedup

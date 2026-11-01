@@ -4,13 +4,13 @@ A comparison is evidence only when it could have come out the other way. `script
 compiles a corpus with two builds and prints facts, never a verdict: each side's exit codes, each
 spec whose exit code, IR or diagnostics differ, and a row per spec in `results.tsv`. An `IRVersion`
 bump is set aside and printed once, a spec it alone changed is `stamp` in `results.tsv`, and only a
-spec that differs past that keeps its outputs for diffing. Morphic exits
-0 when no diagnostic reaches `--fail-on` (errors, by default), so a spec with only warnings exits 0;
-1 when one does or the spec lowered to no document; and 2 when it was misused, could not do its
-I/O, ran a stage that broke its contract or was stopped by a signal. The sweep records 137 for a
-compile it killed at its time limit and minus the number of a signal that ended one. A spec that
-agrees on 2, 137 or a negative code was compiled by neither build, so its agreement says nothing.
-These rules decide whether the answer means anything.
+spec that differs past that keeps its outputs for diffing. Morphic exits 0 when no diagnostic
+reaches `--fail-on` (errors, by default), so a spec with only warnings exits 0; 1 when one does or
+the spec lowered to no document; and 2 when it was misused, could not do its I/O, ran a stage that
+broke its contract or was stopped by a signal. The sweep records 137 for a compile it killed at its
+time limit and minus the number of a signal that ended one. A spec that agrees on 2, 137 or a
+negative code was compiled by neither build, so its agreement says nothing. These rules decide
+whether the answer means anything.
 
 ## A probe that passes on main did not reach the defect
 `main-control`

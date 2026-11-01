@@ -38,8 +38,9 @@ verifier and codecs must reach.
 - **Rule.** A named string type in package `ir` needs an `identityClasses` entry in
   `ir/irverify/duplicates_internal_test.go` saying whether it is a class of ID and, if so, what
   resolves its references. An entry for a type no longer declared fails too.
-- **Why.** A class nothing resolves goes unchecked in silence (#50), and the field rule above does
-  not reach a type, so a change sized from it missed this list (#1225).
+- **Why.** A class nothing resolves goes unchecked in silence (#50), and
+  `references/ir-lessons.md#classify-ir-fields` does not reach a type, so a change sized from it
+  missed this list (#1225).
 - **Probe.** `go test ./ir/irverify -run TestIdentityClasses_AreAllClassified`.
 
 ## A position that only mentions a type is no use of it
@@ -55,7 +56,7 @@ verifier and codecs must reach.
   does not show (#1223).
 - **Probe.** `git grep -nE 'TypeFor\[(ir\.)?TypeID\]' -- '*.go' ':!*_test.go'` lists the readers.
   Add a struct holding a `TypeID` to `ir.Docs`, keep it out of the oracle in `ir/edges_test.go`, and
-  watch that test fail until `appendTypeIDs` skips the struct.
+  watch `TestAppendTypeIDs_ReadsWhatTheTypeGraphReads` fail until `appendTypeIDs` skips the struct.
 
 ## Find every list a new ID class must join
 `new-id-class`
