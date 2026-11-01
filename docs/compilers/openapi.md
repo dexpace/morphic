@@ -1033,11 +1033,13 @@ read through YAML aliases and merge keys, so a branch written `[*shared]` or `[{
 derives the same residue as one written out. The diagnostic is an info, and a warning where the
 branch declares a `type` that excludes `object`, because the composing `Model` then asserts a shape
 the source contradicts — `allOf: [{type: string, maxLength: 3}]` composes an empty model of kind
-`model` over a source that says `string`. Two branch kinds are outside this rule rather than limits
-of it: a `$ref` branch owns a node, so what is written beside the `$ref` is *modeled* on the branch
-alias [models](../ir/models.md#composition-entries) describes rather than kept as residue,
-and a boolean branch declares no keywords at all, so there is no residue to derive — it is a
-decision about the composed node instead, stated with the `false`-schema rule
+`model` over a source that says `string` — unless the conjuncts share no value, which
+[`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts) reports once at the schema. Two branch kinds
+are outside this rule rather than limits of it: a `$ref` branch owns a node, so what is written
+beside the `$ref` is *modeled* on the branch alias
+[models](../ir/models.md#composition-entries) describes rather than kept as residue, and a boolean
+branch declares no keywords at all, so there is no residue to derive — it is a decision about the
+composed node instead, stated with the `false`-schema rule
 [`allof-false-branch`](#allof-false-branch).
 
 A flattened entry kept as residue is whole too, its own entries included, so an entry inside it that
@@ -1367,6 +1369,49 @@ and keeps the branch, and the branch is reported once.
 - Codes: `openapi/false-schema`
 - Tests: `schema.TestAllOf_NestedFalseBranchClosesModel`,
   `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`
+
+### `allof-disjoint-conjuncts`
+
+An `allOf` whose conjuncts share no value admits no instance, as
+`{allOf: [{$ref: List}], type: object}` does over an array and `{allOf: [{$ref: Str}, {$ref: Obj}]}`
+over a string and an object. Such a schema lowers as any composition does
+([`allof-classification`](#allof-classification)), a distributed one included
+([`union-beside-structure`](#union-beside-structure)), and draws one `openapi/degraded-construct`
+warning at the composing schema, naming each conjunct that narrows the instance types and what it
+states. An inline branch that [`allof-inline-residue`](#allof-inline-residue) would warn about
+reports its residue as an info there, so the contradiction is reported once however it is spelled.
+
+The reading is of the source, since a `Model` cannot say whether its source wrote `type: object`,
+and `{properties: …}` alone admits a string. Each conjunct states a set of JSON instance types,
+`integer` being a `number`: the `type` beside the `allOf`; an inline entry's `type`, conjoined with
+what its own `allOf` states; and for a `$ref` entry, what the schema it lands on states. The schema
+is reported where those sets share no member and the schema admits no null as
+[`nullable`](#nullable) reads it, under the nullable-widening policy where that is on: a null every
+conjunct admits is a shared value, as
+[`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
+null that runs out of its budget is undecided and reports nothing.
+
+What writes no `type` states nothing, so a report is made only of what the source declares: a
+boolean entry, whose `false` is [`allof-false-branch`](#allof-false-branch)'s to report, a `$ref`
+landing on no schema, and a composition only `enum`, `const`, `format`, `oneOf` or `anyOf` empties.
+A keyword beside a `$ref` entry states nothing either: OpenAPI 3.0 ignores it, and reading it from
+3.1 on, where it applies, is left open, so `{allOf: [{$ref: Str, type: object}]}` draws no report at
+any version. A conjunct whose own `allOf` empties what it states also states nothing here, which is
+what keeps a schema composing a reported one from drawing a second report; the cost is a miss where
+nothing reports it, as for a conjunct admitting only a null its own entries share, or one nested
+past `MaxAllOfFlattenDepth`. An `allOf` that does not compose, one beside a `$ref`
+([`allof-beside-ref`](#allof-beside-ref)) or passed over for a `const` or `enum`
+([`competing-keywords`](#competing-keywords)), is not read.
+
+- Cases: `allof-disjoint-conjuncts`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
+  `schema.TestAllOf_ConjunctsSharingAValueStaySilent`,
+  `schema.TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport`,
+  `schema.TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo`,
+  `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
+  `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
+  `schema.TestAllOf_DisjointConjunctsReportAtEachPositionKind`
 
 ### `union`
 

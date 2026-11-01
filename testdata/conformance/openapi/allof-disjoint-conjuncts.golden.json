@@ -1,0 +1,393 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "AllOfDisjointConjuncts",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfDisjointConjuncts",
+        "canonical": "all_of_disjoint_conjuncts"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/openapi/components/schemas/Inline": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Inline",
+      "name": {
+        "source": "Inline",
+        "canonical": "inline"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/1": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "string"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Inline/allOf/1"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Inline"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Obj",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/List": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/List",
+      "name": {
+        "source": "List",
+        "canonical": "list"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/List"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/NullableObj": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/NullableObj",
+      "name": {
+        "source": "NullableObj",
+        "canonical": "nullable_obj"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NullableObj"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/NullableObj/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/NullableObj/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/NullableStr": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/NullableStr",
+      "name": {
+        "source": "NullableStr",
+        "canonical": "nullable_str"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/NullableStr"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": true
+      }
+    },
+    "t/openapi/components/schemas/Obj": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Obj",
+      "name": {
+        "source": "Obj",
+        "canonical": "obj"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Obj"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Obj/properties/a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "wireName": "a",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Obj/properties/a"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/OwnType": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/OwnType",
+      "name": {
+        "source": "OwnType",
+        "canonical": "own_type"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnType"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/List",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/SharedNull": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/SharedNull",
+      "name": {
+        "source": "SharedNull",
+        "canonical": "shared_null"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/SharedNull"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/NullableStr",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/NullableObj",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Str": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Str",
+      "name": {
+        "source": "Str",
+        "canonical": "str"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Str"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/TwoRefs": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/TwoRefs",
+      "name": {
+        "source": "TwoRefs",
+        "canonical": "two_refs"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoRefs"
+      },
+      "mixins": [
+        {
+          "target": "t/openapi/components/schemas/Str",
+          "nullable": false
+        },
+        {
+          "target": "t/openapi/components/schemas/Obj",
+          "nullable": false
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (type: object, allOf/0: array), so no instance satisfies this schema, which lowers as written",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/OwnType"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (allOf/0: string, allOf/1: object), so no instance satisfies this schema, which lowers as written",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/TwoRefs"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (allOf/0: object, allOf/1: string), so no instance satisfies this schema, which lowers as written",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Inline"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, so only its properties and required list compose; the branch (type) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Inline/allOf/1"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "allof-disjoint-conjuncts.yaml",
+      "hash": "6b922a7b7d94e17392622ee218c7097c4cbad0f53f60b9b9e29f658171ada076"
+    }
+  ]
+}
