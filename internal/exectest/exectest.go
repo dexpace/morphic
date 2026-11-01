@@ -33,14 +33,14 @@ const (
 // copyPerm is the mode of a coverage file copied into the parent's directory.
 const copyPerm = 0o644
 
-// Command returns exec.CommandContext(ctx, name, args...) with Env set. When
-// the test binary is built for coverage, the child gets a GOCOVERDIR of its
-// own, and t's cleanup copies the coverage files it left into this
-// process's, so the profile counts what only the child ran. Children sharing
-// one directory race: a test-binary child writes its meta-data file from an
-// exit hook, through a temporary name taken from the clock, and two children
-// finishing together on a clock ticking in microseconds read one value, so
-// the second fails to rename. A site extends cmd.Env only with append(cmd.Env, …).
+// Command returns exec.CommandContext(ctx, name, args...) with Env set, so a
+// Dir the caller sets does not put PWD in the child's environment. When the
+// test binary is built for coverage, the child gets a GOCOVERDIR of its own,
+// and t's cleanup copies the coverage files it left into this process's.
+// Children sharing one directory race: each writes its meta-data file through
+// a temporary name taken from the clock, and two finishing together on a
+// microsecond clock read one value, so the second fails to rename. A site
+// extends cmd.Env only with append(cmd.Env, …).
 func Command(ctx context.Context, t testing.TB, name string, args ...string) *exec.Cmd {
 	t.Helper()
 	if ctx == nil {
@@ -122,7 +122,7 @@ func copyWhole(src, dst string) error {
 	if err != nil {
 		return fmt.Errorf("read the child's file: %w", err)
 	}
-	if err := renameio.WriteFile(dst, raw, copyPerm); err != nil {
+	if err := renameio.WriteFile(dst, raw, copyPerm, renameio.WithTempDir(filepath.Dir(dst))); err != nil {
 		return fmt.Errorf("copy the child's file: %w", err)
 	}
 	return nil
