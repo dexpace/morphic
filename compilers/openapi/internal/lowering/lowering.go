@@ -66,8 +66,9 @@ type Ctx struct {
 
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
-	// map.
-	promoter Promoter
+	// map. It sits behind one pointer for the reason loaded does: RefScope copies
+	// the whole context into a closure.
+	promoter *Promoter
 
 	// schemas is the set of component-schema names the document declares.
 	//
@@ -201,8 +202,14 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 	}
 }
 
-// Promoter returns the vendor-extension promotion policy this context carries.
-func (c Ctx) Promoter() Promoter { return c.promoter }
+// Promoter returns the vendor-extension promotion policy this context carries,
+// which a zero context reads as disabled.
+func (c Ctx) Promoter() Promoter {
+	if c.promoter == nil {
+		return Promoter{}
+	}
+	return *c.promoter
+}
 
 // Reached reports whether a lowering run under this context, or any copy of it,
 // resolved a reference to pointer in the source. It is meant to be asked once

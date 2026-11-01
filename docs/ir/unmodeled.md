@@ -132,8 +132,8 @@ where the IR expects them, so there is no reason to record and no unmodelled con
 
 ## Promotion
 
-Several typed fields model information no source format gives a keyword for, so the only way a
-document can state it is a vendor extension:
+Several typed fields model information a source format may give no keyword for, so the only way a
+document in that format can state it is a vendor extension:
 `Deprecation.Message`/`Since`/`RemovalVersion`/`RemovalDate`, `Enum.Closed`, `Operation.Stability`,
 `Pagination.*`, `LongRunning`, `Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`,
 `EnumMember.Name`, `Sensitive` and `Secret`, and a format's keyword for a fact need not be its only

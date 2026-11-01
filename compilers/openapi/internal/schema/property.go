@@ -134,14 +134,16 @@ func PromoteUse(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], unmodel
 // either.
 func referentOf(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) lowering.Referent {
 	ref := annotation.SchemaOf(js)
-	tgt := c.RefScope().TargetSchema(js, ref)
+	tgt, at := c.RefScope().TargetAt(js, ref)
 	if tgt == nil {
 		return lowering.Referent{}
 	}
-	return lowering.Referent{
-		Entries:            annotation.ExtensionsNamed(tgt.GetExtensions(), c.Promoter().Keys()),
-		InheritsDeprecated: ref.Deprecated == nil,
-	}
+	promoter := c.Promoter()
+	from := promoter.Referent(at, tgt.GetDeprecated(), func() ir.Unmodeled {
+		return annotation.ExtensionsNamed(tgt.GetExtensions(), promoter.Keys())
+	})
+	from.InheritsDeprecated = ref.Deprecated == nil
+	return from
 }
 
 // LoweredToOwnNode reports whether the declaration at pointer, in c's

@@ -8,6 +8,7 @@ import (
 	"iter"
 	"slices"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/ir"
@@ -146,9 +147,9 @@ func DefaultExtensionPromotions() map[ExtensionTarget][]ExtensionSource {
 		// x-extensible-enum is the convention for an enum a service may add
 		// members to, so it says the set is open and not that it is closed.
 		TargetEnumOpen: {{Key: "x-extensible-enum"}},
-		// Where the two disagree the less stable statement wins: an operation
-		// x-stability calls beta and the other key does not is one a consumer
-		// should not take for stable (docs/compilers/openapi.md#extension-promotion).
+		// The order decides a disagreement, whichever tier each key names. It is
+		// the one that reads the less stable statement on what the golden spec
+		// writes (docs/compilers/openapi.md#extension-promotion).
 		TargetStability: {{Key: "x-stability"}, {Key: "x-fern-availability"}},
 		TargetRedaction: {{Key: "x-sensitive"}},
 	}
@@ -167,6 +168,10 @@ type Promoter struct {
 	targets map[ExtensionTarget][]ExtensionSource
 	// keys is every extension key targets reads, distinct and sorted.
 	keys []string
+	// referents remembers what each position lends (Referent). Copies share it
+	// on purpose: an answer reads only the document and the policy, which no
+	// lowering changes.
+	referents map[bind.Position]Referent
 }
 
 // Referent is what a carrier of a $ref reads of the schema the $ref ends on.
@@ -174,26 +179,38 @@ type Promoter struct {
 // (docs/compilers/openapi.md#ref-use-site). The zero value is a carrier with no
 // $ref, which is every carrier but a property, a header and a parameter.
 type Referent struct {
-	// Entries holds the mapped keys the referent writes, in Unmodeled's form.
-	Entries ir.Unmodeled
+	// Deprecated reports that a key on the referent states it deprecated.
+	Deprecated bool
+	// Members is what the referent's keys state of its deprecation, empty on a
+	// referent no keyword or key deprecates: there a member annotates nothing, so
+	// it lends nothing, and a use's own `deprecated` gives it no home. An emitter
+	// folding a decorator merges the Deprecation the node holds, and the two
+	// spellings of one use have to agree (docs/emitters/refine/decorators.md).
+	Members ir.Deprecation
+	// Redacted reports that a key on the referent asks for redaction.
+	Redacted bool
 	// InheritsDeprecated reports that the use site writes no `deprecated`, which
 	// would decide over the referent's. A key on the referent stating one then
-	// counts as the referent's `deprecated`.
+	// counts as the referent's `deprecated`. It is the one fact here of the use
+	// and not the referent, so its caller sets it.
 	InheritsDeprecated bool
 }
 
-// newPromoter normalizes a policy. The caller's map and lists are copied: a
-// Promoter travels in a by-value context, and a shared map or slice would be
-// the one part of it a lowering could write through.
-func newPromoter(p ExtensionPromotions) Promoter {
+// newPromoter normalizes a policy. The caller's map and lists are copied, so no
+// lowering can write through a context into what the caller holds, and nothing
+// the caller does later reaches a run.
+func newPromoter(p ExtensionPromotions) *Promoter {
 	if p.Disabled {
-		return Promoter{}
+		return &Promoter{}
 	}
 	targets := p.Targets
 	if len(targets) == 0 {
 		targets = DefaultExtensionPromotions()
 	}
-	out := Promoter{targets: make(map[ExtensionTarget][]ExtensionSource, len(targets))}
+	out := &Promoter{
+		targets:   make(map[ExtensionTarget][]ExtensionSource, len(targets)),
+		referents: map[bind.Position]Referent{},
+	}
 	for target, sources := range targets {
 		out.targets[target] = slices.Clone(sources)
 		for _, src := range sources {
@@ -209,10 +226,44 @@ func newPromoter(p ExtensionPromotions) Promoter {
 // referent.
 func (p Promoter) Keys() iter.Seq[string] { return slices.Values(p.keys) }
 
-// Deprecation reads the extensions in own, and those from lends, into a
+// Referent returns what the schema at at lends a carrier of a $ref ending on it.
+// declared is that schema's `deprecated: true`, and entries reads its mapped keys
+// in Unmodeled's form, once for every copy of p: a schema has as many carriers as
+// a document names it, and a key's value can be as large as the document.
+//
+// The readings' findings are dropped because the schema is a declaration, and
+// reports where it is written; a use repeating them would be one report per use.
+func (p Promoter) Referent(at bind.Position, declared bool, entries func() ir.Unmodeled) Referent {
+	if len(p.keys) == 0 {
+		return Referent{}
+	}
+	if known, seen := p.referents[at]; seen {
+		return known
+	}
+	read := p.readReferent(declared, entries())
+	p.referents[at] = read
+	return read
+}
+
+// readReferent reads what entries, the mapped keys of a schema, state to a
+// carrier of a $ref to it.
+func (p Promoter) readReferent(declared bool, entries ir.Unmodeled) Referent {
+	var read Referent
+	_, read.Deprecated, _ = firstStated(entries, p.targets[TargetDeprecation], deprecationReading())
+	_, read.Redacted, _ = firstStated(entries, p.targets[TargetRedaction], redactionReading())
+	if !declared && !read.Deprecated {
+		return read
+	}
+	for _, member := range deprecationMembers(&read.Members) {
+		*member.field, _, _ = firstStated(entries, p.targets[member.target], textReading(member.target))
+	}
+	return read
+}
+
+// Deprecation reads the extensions in own, and what from lends, into a
 // deprecation: a key stating one creates *dep where no keyword did, then the
-// members fill what is there, so a date on a referent reaches a use a key
-// deprecates. It marks prov with the heuristic when it writes anything.
+// members fill what is there. It marks prov with the heuristic when it writes
+// anything.
 //
 // A *dep still nil is the whole answer for a node that is not deprecated: a
 // member beside none annotates nothing and stays where it is. A `deprecated:
@@ -221,34 +272,22 @@ func (p Promoter) Deprecation(own ir.Unmodeled, from Referent, dep **ir.Deprecat
 	if dep == nil || prov == nil {
 		return nil
 	}
-	var lent ir.Unmodeled
-	if from.InheritsDeprecated {
-		lent = from.Entries
-	}
-	_, deprecated, diags := useSiteStated(own, lent, p.targets[TargetDeprecation], reading[bool]{
-		target: TargetDeprecation,
-		want:   "is neither text nor a boolean",
-		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return statesDeprecated(raw) },
-	})
-	promoted := deprecated && *dep == nil
+	_, stated, diags := firstStated(own, p.targets[TargetDeprecation], deprecationReading())
+	promoted := (stated || from.Deprecated && from.InheritsDeprecated) && *dep == nil
 	if promoted {
 		*dep = &ir.Deprecation{}
 	}
 	if *dep == nil {
 		return diags
 	}
-	for _, member := range []struct {
-		target ExtensionTarget
-		field  *string
-	}{
-		{TargetDeprecationMessage, &(*dep).Message},
-		{TargetDeprecationSince, &(*dep).Since},
-		{TargetDeprecationRemovalVersion, &(*dep).RemovalVersion},
-		{TargetDeprecationRemovalDate, &(*dep).RemovalDate},
-	} {
-		text, stated, misfits := useSiteStated(own, from.Entries, p.targets[member.target], textReading(member.target))
+	lent := deprecationMembers(&from.Members)
+	for i, member := range deprecationMembers(*dep) {
+		text, filled, misfits := firstStated(own, p.targets[member.target], textReading(member.target))
 		diags = append(diags, misfits...)
-		if stated {
+		if !filled {
+			text = *lent[i].field
+		}
+		if text != "" {
 			*member.field = text
 			promoted = true
 		}
@@ -257,6 +296,23 @@ func (p Promoter) Deprecation(own ir.Unmodeled, from Referent, dep **ir.Deprecat
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
 	return diags
+}
+
+// deprecationMember is one text field of a Deprecation and the target filling it.
+type deprecationMember struct {
+	target ExtensionTarget
+	field  *string
+}
+
+// deprecationMembers pairs dep's fields with their targets, in one order however
+// many deprecations a reader walks at once.
+func deprecationMembers(dep *ir.Deprecation) [4]deprecationMember {
+	return [4]deprecationMember{
+		{TargetDeprecationMessage, &dep.Message},
+		{TargetDeprecationSince, &dep.Since},
+		{TargetDeprecationRemovalVersion, &dep.RemovalVersion},
+		{TargetDeprecationRemovalDate, &dep.RemovalDate},
+	}
 }
 
 // Stability fills tier from the vendor extensions kept in unmodeled, and marks
@@ -277,19 +333,15 @@ func (p Promoter) Stability(unmodeled ir.Unmodeled, tier *ir.Stability, prov *ir
 	return diags
 }
 
-// Redaction sets redact from the vendor extensions kept in own, or those from
+// Redaction sets redact from the vendor extensions kept in own, or what from
 // lends, and marks prov with the heuristic when that writes it. A redaction
 // already asked for by `format: password` needs no guess, so it stays unmarked.
 func (p Promoter) Redaction(own ir.Unmodeled, from Referent, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
 	if redact == nil || prov == nil {
 		return nil
 	}
-	_, stated, diags := useSiteStated(own, from.Entries, p.targets[TargetRedaction], reading[bool]{
-		target: TargetRedaction,
-		want:   "is not a boolean",
-		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return statesBoolean(raw) },
-	})
-	if stated && !*redact {
+	_, stated, diags := firstStated(own, p.targets[TargetRedaction], redactionReading())
+	if (stated || from.Redacted) && !*redact {
 		*redact = true
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
@@ -344,32 +396,42 @@ type reading[T comparable] struct {
 
 // textReading reads a value as prose, a version or a date. Text is taken as
 // written; a date is not parsed, because the mapping is the caller's statement
-// that the key holds one.
+// that the key holds one. Empty text states nothing: a field holding it reads as
+// unset, so it could fill nothing and would stand in front of a later source.
 func textReading(target ExtensionTarget) reading[string] {
 	return reading[string]{
 		target: target,
 		want:   "is not a string",
 		read: func(_ ExtensionSource, raw ir.RawValue) (string, statement) {
 			text, ok := extensionText(raw)
-			if !ok {
+			switch {
+			case !ok:
 				return "", misfit
+			case text == "":
+				return "", statesNothing
+			default:
+				return text, states
 			}
-			return text, states
 		},
 	}
 }
 
-// useSiteStated is firstStated for a carrier of a $ref: what own states, and
-// otherwise what referent does. A key on the carrier wins without a report, as a
-// keyword beside a $ref does. The referent's findings are dropped because it
-// is a declaration, and reports where it is written; a use repeating them would
-// be one report per use.
-func useSiteStated[T comparable](own, referent ir.Unmodeled, sources []ExtensionSource, r reading[T]) (T, bool, []ir.Diagnostic) {
-	v, stated, diags := firstStated(own, sources, r)
-	if !stated {
-		v, stated, _ = firstStated(referent, sources, r)
+// deprecationReading reads a value as saying that what it sits on is deprecated.
+func deprecationReading() reading[bool] {
+	return reading[bool]{
+		target: TargetDeprecation,
+		want:   "is neither text nor a boolean",
+		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return statesDeprecated(raw) },
 	}
-	return v, stated, diags
+}
+
+// redactionReading reads a value as asking for redaction.
+func redactionReading() reading[bool] {
+	return reading[bool]{
+		target: TargetRedaction,
+		want:   "is not a boolean",
+		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return statesBoolean(raw) },
+	}
 }
 
 // firstStated returns the value of the first of sources to state one, and

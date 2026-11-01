@@ -32,8 +32,8 @@ paths:
       x-stability: stable
       x-fern-availability: generally-available
       responses: {"200": {description: ok}}
-    # The less stable statement wins, by the order of the default policy, and
-    # the key it beat is reported.
+    # The order of the default policy decides, whichever tier each key names,
+    # and the key it beat is reported.
     put:
       operationId: sourcesDisagree
       x-stability: beta

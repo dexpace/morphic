@@ -1006,7 +1006,7 @@
     {
       "format": "openapi@3.1",
       "path": "extension-stability.yaml",
-      "hash": "ea26aafdc3803bad9045c4baa3839790a96531475afb5a7c3d3ed80caf66a7f8"
+      "hash": "c27df299ca78a0225e984e908b697e473a25c3682f9ec8b9e783e581d620623d"
     }
   ]
 }

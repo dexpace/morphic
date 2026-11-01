@@ -9,7 +9,10 @@
 package e2e_test // external test package — exercises only the public API
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,9 +26,9 @@ import (
 
 // useSiteComponents declares every target the cases below name. Spent writes no
 // `deprecated`, so a use reads its key as the target's own. Dated is not
-// deprecated at all, so its date is only for a use that is. Mid sits between a
-// use and Spent and lends nothing, as a schema between the two ends of a chain
-// lends no annotation.
+// deprecated at all, so its date annotates nothing, there or at a use. Mid sits
+// between a use and Spent and lends nothing, as a schema between the two ends of
+// a chain lends no annotation.
 const useSiteComponents = `components:
   schemas:
     Old: {type: string, deprecated: true, x-deprecated-reason: use New, x-sunset: "2030-01-01"}
@@ -124,12 +127,14 @@ func TestPromotion_AUseReadsItsReferentsKeys(t *testing.T) {
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false, true},
 		{"a keyword beside the $ref decides over the referent's key", `{$ref: '#/components/schemas/Spent', deprecated: false}`,
 			nil, false, false},
-		{"a keyword deprecating gives the referent's members a home", `{$ref: '#/components/schemas/Dated', deprecated: true}`,
-			&ir.Deprecation{RemovalDate: "2032-01-01"}, false, true},
-		{"a key deprecating does too", `{$ref: '#/components/schemas/Dated', x-fern-availability: deprecated}`,
-			&ir.Deprecation{RemovalDate: "2032-01-01"}, false, true},
+		{"a keyword deprecating the use reads no live referent's member", `{$ref: '#/components/schemas/Dated', deprecated: true}`,
+			&ir.Deprecation{}, false, false},
+		{"nor does a key deprecating it", `{$ref: '#/components/schemas/Dated', x-fern-availability: deprecated}`,
+			&ir.Deprecation{}, false, true},
 		{"a referent's member annotates nothing on a live use", `{$ref: '#/components/schemas/Dated'}`,
 			nil, false, false},
+		{"a use's own key keeps a deprecated referent's other members", `{$ref: '#/components/schemas/Spent', x-deprecated-reason: mine, deprecated: true}`,
+			&ir.Deprecation{Message: "mine", RemovalDate: "2031-01-01"}, false, true},
 		{"a referent's redaction", `{$ref: '#/components/schemas/Tok'}`, nil, true, true},
 		{"a false beside the $ref clears no redaction", `{$ref: '#/components/schemas/Tok', x-sensitive: false}`,
 			nil, true, true},
@@ -176,8 +181,8 @@ func TestPromotion_AReferentReportsOnceWhereItIsWritten(t *testing.T) {
 // TestPromotion_TheObjectAroundASchemaIsItsOwnKeywordSite covers the two carriers
 // with an object of their own around the schema, which writes annotations a
 // property has no place for. `deprecated: true` on either and on its schema each
-// deprecate it, so a referent's date reaches the first, and neither's false
-// clears what a key on the referent states.
+// deprecate it, so a key beside the first has a deprecation to fill, and neither's
+// false clears what a key on the referent states.
 func TestPromotion_TheObjectAroundASchemaIsItsOwnKeywordSite(t *testing.T) {
 	t.Parallel()
 	const spec = `openapi: 3.1.0
@@ -187,13 +192,13 @@ paths:
     get:
       operationId: x
       parameters:
-        - {name: deprecates, in: query, deprecated: true, schema: {$ref: '#/components/schemas/Dated'}}
+        - {name: deprecates, in: query, deprecated: true, x-sunset: "2033-01-01", schema: {$ref: '#/components/schemas/Dated'}}
         - {name: declines, in: query, deprecated: false, schema: {$ref: '#/components/schemas/Spent'}}
       responses:
         "200":
           description: ok
           headers:
-            X-Deprecates: {deprecated: true, schema: {$ref: '#/components/schemas/Dated'}}
+            X-Deprecates: {deprecated: true, x-sunset: "2033-01-01", schema: {$ref: '#/components/schemas/Dated'}}
             X-Declines: {deprecated: false, schema: {$ref: '#/components/schemas/Spent'}}
 ` + useSiteComponents
 	doc := compileClean(t, spec, openapi.Options{})
@@ -209,37 +214,68 @@ paths:
 	headerDeclines, ok := headerByWire(op.Responses[0].Headers, "X-Declines")
 	require.True(t, ok)
 
-	assert.Equal(t, &ir.Deprecation{RemovalDate: "2032-01-01"}, deprecates.Deprecation)
+	assert.Equal(t, &ir.Deprecation{RemovalDate: "2033-01-01"}, deprecates.Deprecation)
 	assert.Equal(t, &ir.Deprecation{RemovalDate: "2031-01-01"}, declines.Deprecation)
-	assert.Equal(t, &ir.Deprecation{RemovalDate: "2032-01-01"}, headerDeprecates.Deprecation)
+	assert.Equal(t, &ir.Deprecation{RemovalDate: "2033-01-01"}, headerDeprecates.Deprecation)
 	assert.Equal(t, &ir.Deprecation{RemovalDate: "2031-01-01"}, headerDeclines.Deprecation)
 }
 
 // TestPromotion_ADecoratorMatchesTheRefItStandsFor pins the two spellings of one
 // use to one answer. A 3.0 document annotates a use by wrapping the $ref in an
-// allOf, and an emitter folds the wrapped type's annotations onto the carrier
-// (docs/emitters/refine/decorators.md), so the node has to say what the $ref's
-// carrier says: the key deprecates the target, not only a use of it.
+// allOf, and an emitter folds the decorator's annotations, then the wrapped
+// type's, onto the carrier (docs/emitters/refine/decorators.md), so what the
+// $ref's carrier holds has to be what that fold reads off the nodes. The second
+// and third rows are why a target has to be deprecated to lend a member: a fold
+// has no Deprecation to take Dated's date from.
 func TestPromotion_ADecoratorMatchesTheRefItStandsFor(t *testing.T) {
 	t.Parallel()
-	doc := compileClean(t, useSiteSpec(`{$ref: '#/components/schemas/Spent', description: d}`), openapi.Options{})
-	for carrier, got := range useSitesOf(t, doc) {
-		assert.NotNil(t, got.deprecation, carrier)
-	}
+	for _, tc := range []struct {
+		name, target, annotation string
+	}{
+		{"a key deprecating the target", "Spent", "description: d"},
+		{"a keyword on a live target", "Dated", "deprecated: true"},
+		{"a key on a live target", "Dated", "x-fern-availability: deprecated"},
+		{"a target deprecated with members", "Old", "description: d"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			target := "'#/components/schemas/" + tc.target + "'"
+			beside := compileClean(t, useSiteSpec(`{$ref: `+target+`, `+tc.annotation+`}`), openapi.Options{})
+			wrapped := compileClean(t, useSiteSpec(`{allOf: [{$ref: `+target+`}], `+tc.annotation+`}`), openapi.Options{})
 
-	wrapped := compileClean(t, useSiteSpec(`{allOf: [{$ref: '#/components/schemas/Spent'}], description: d}`), openapi.Options{})
-	op, ok := opByName(wrapped, "x")
+			for carrier, got := range useSitesOf(t, beside) {
+				assert.Equal(t, foldedDeprecation(t, wrapped), got.deprecation, carrier)
+			}
+		})
+	}
+}
+
+// foldedDeprecation is the fold of docs/emitters/refine/decorators.md over the
+// parameter useSiteSpec declares, as a decorator: each field from the decorator
+// and then from the type it wraps, the carrier deprecated where either is.
+func foldedDeprecation(t *testing.T, doc *ir.Document) *ir.Deprecation {
+	t.Helper()
+	op, ok := opByName(doc, "x")
 	require.True(t, ok)
 	param, ok := openapitest.ParamBySource(op, "use")
 	require.True(t, ok)
-	decorator, ok := wrapped.Types[param.Type.Target].(*ir.Model)
+	decorator, ok := doc.Types[param.Type.Target].(*ir.Model)
 	require.True(t, ok, "an allOf over one $ref is a decorator")
 	base, decorated := ir.Decorated(decorator)
 	require.True(t, decorated)
-	assert.Equal(t, componentID("Spent"), base.Target)
-	target := wrapped.Types[componentID("Spent")].Common()
-	assert.Equal(t, &ir.Deprecation{RemovalDate: "2031-01-01"}, target.Deprecation,
-		"what an emitter folds onto the carrier")
+	near, far := decorator.Common().Deprecation, doc.Types[base.Target].Common().Deprecation
+	if near == nil {
+		return far
+	}
+	if far == nil {
+		return near
+	}
+	return &ir.Deprecation{
+		Message:        cmp.Or(near.Message, far.Message),
+		Since:          cmp.Or(near.Since, far.Since),
+		RemovalVersion: cmp.Or(near.RemovalVersion, far.RemovalVersion),
+		RemovalDate:    cmp.Or(near.RemovalDate, far.RemovalDate),
+	}
 }
 
 // TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder diffs a document against
@@ -331,4 +367,31 @@ func assertPromotionsAgree(t *testing.T, a, b *ir.Document) {
 		assert.Equal(t, p.Secret, q.Secret, wire)
 		assert.Equal(t, p.Provenance.Inferred, q.Provenance.Inferred, wire)
 	}
+}
+
+// TestPromotion_AReferentCostsItsUsesNothingMore holds the price of a mapped key's
+// value apart from how many uses name it. A read per use costs their product, so
+// a 200 KB document with a key of 20,000 items and 500 uses took seconds to do
+// what no read of it needs. Doubling the value at many uses has to cost what
+// doubling it at one does. Not parallel: AllocsPerRun measures the process.
+func TestPromotion_AReferentCostsItsUsesNothingMore(t *testing.T) {
+	spec := func(uses, items int) string {
+		var b strings.Builder
+		b.WriteString("openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n")
+		b.WriteString("    Big: {type: string, x-sensitive: [0")
+		b.WriteString(strings.Repeat(", 0", items))
+		b.WriteString("]}\n    Holder:\n      type: object\n      properties:\n")
+		for i := range uses {
+			b.WriteString("        p" + strconv.Itoa(i) + ": {$ref: '#/components/schemas/Big'}\n")
+		}
+		return b.String()
+	}
+	const many, items = 64, 2000
+	cost := func(uses, size int) float64 {
+		src := spec(uses, size)
+		return testing.AllocsPerRun(1, func() { compileUse(t, src) })
+	}
+	atOne := cost(1, 2*items) - cost(1, items)
+	atMany := cost(many, 2*items) - cost(many, items)
+	assert.Less(t, atMany, 2*atOne, "doubling a value at %d uses against at one", many)
 }

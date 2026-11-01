@@ -777,12 +777,13 @@ The keywords written beside a schema's `$ref`, which 3.1 admits and which are re
 declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
-the same rule at every carrier. An extension the promotion policy maps is read the same way
-([`extension-promotion`](#extension-promotion)). At a position that carries no property, parameter or
-header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a component — the keywords beside the
-`$ref` bind an alias hoisted at that position instead ([models](../ir/models.md#composition-entries)).
-Constraints are the exception: bounds conjoin rather than override, so each position keeps the ones it declared
-and none is copied to a use site
+the same rule at every carrier. Redaction has nothing to win with: `format: password` on either side
+asks for it, and no keyword beside the `$ref` withdraws the target's. An extension the promotion
+policy maps is read the same way ([`extension-promotion`](#extension-promotion)). At a position that
+carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
+component — the keywords beside the `$ref` bind an alias hoisted at that position instead
+([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
+than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
@@ -838,9 +839,10 @@ declaration that owns it.
 `summary`, `description` and `externalDocs` lower to `Docs`, and `deprecated: true` to
 `Deprecation{}`, on the entity whose object writes them. `Deprecation` is an empty marker: the
 keyword states no message, version or date, which only [`extension-promotion`](#extension-promotion)
-can supply, and which can state the deprecation itself where no keyword does. An operation, and a tag on its `TagDef` and on the group it names, take all three; a
-schema's `title` is the `Summary`, beside its `description` and `externalDocs`; a response and an
-error case take `description` and `summary` ([`response-summary`](#response-summary)); a request
+can supply, and which can state the deprecation itself where no keyword does. An operation, and a
+tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
+beside its `description` and `externalDocs`; a response and an error case take `description` and
+`summary` ([`response-summary`](#response-summary)); a request
 body, a security scheme, a server and a server variable take `description`, an example `summary` and
 `description`, and a security scheme `deprecated` (3.2). `info` and the root `externalDocs` make the
 Document's one `Docs`, while the Service takes `info.description` alone. A schema's documentation
@@ -2849,30 +2851,36 @@ A property, header or parameter naming a `$ref` reads the target's mapped keys b
 field by field and without a report, and the target is the end of the chain, so a schema between
 the two lends nothing. A key on the target stating a deprecation counts as the target's `deprecated`,
 so a `deprecated` beside the `$ref` decides over it as it does over the keyword, and a key beside the
-`$ref`, being the use's own, is not stopped by one. What a target's key cannot hold is reported where
-that key is written and read, once, and a use reads past it without a report. The deprecation a use
-gains on its own, by a keyword or a key beside the `$ref`, gives the target's members a home.
+`$ref`, being the use's own, is not stopped by one. A target lends a member only where it is
+deprecated itself, by a keyword or a key: on a live target the member annotates nothing, as it does
+anywhere, and a use deprecated on its own does not change that. So the target's `Deprecation` is all
+a use reads of it, which is what the [fold](../emitters/refine/decorators.md) of a 3.0 decorator over
+the same target reads, and what the target's key cannot hold is reported where that key is written
+and read, once, with a use reading past it in silence.
 
 A value a member cannot hold, anything but text, is reported as an info `openapi/degraded-construct`
-at the extension and not coerced, since the document means something else by the key. Text of the
-right JSON shape is taken as written: `x-sunset` fills `RemovalDate` and not `RemovalVersion` because
-the header it echoes ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) is a date by definition,
-and the mapping is where that reading is stated — the promotion does not then parse the date to
-confirm it. No default key names `RemovalVersion`: a document stating a removal *version* names its
-own key, per rule 1 of [unmodeled](../ir/unmodeled.md#promotion).
+at the extension and not coerced, since the document means something else by the key. Empty text
+states nothing, and neither fills a member nor stands before a later source. Other text of the right
+JSON shape is taken as written: `x-sunset` fills `RemovalDate` and not `RemovalVersion` because the
+header it echoes ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) is a date by definition, and
+the mapping is where that reading is stated — the promotion does not then parse the date to confirm
+it. No default key names `RemovalVersion`: a document stating a removal *version* names its own key,
+per rule 1 of [unmodeled](../ir/unmodeled.md#promotion).
 
 `Operation.Stability` reads `x-stability`, then `x-fern-availability`. `alpha` is `alpha`, `beta` and
 `preview` are `beta`, and `stable` and `generally-available` are `stable`. What the deprecation
 reads of a key, `deprecated` or `true`, names no tier and is not reported here; `legacy`, any other
-word and any other shape are reported, once, and leave the field unset. Where the two keys disagree the less stable
-statement wins, which is what reading `x-stability` first gives: in the golden spec every
-disagreement is `beta` against `generally-available`, 47 operations (spec @319dc756). It is the right
-call where the text can tell, as the 2 of them whose own description says beta show, and none of the
-2,636 operations marked generally available alone says so. It over-reports where the mark sits on
-one method of a resource and not on its neighbours, as `GET` and `PUT` of
-`/accounts/{account_id}/access/apps/{app_id}` carry it and `DELETE` does not, which reads as a mark on
-a payload and not on the operation. A consumer gating on the tier hides such an operation, and the
-report on each disagreement and the kept entries are what let it audit that.
+word and any other shape are reported, once, and leave the field unset. Where the two keys disagree
+`x-stability` wins, as the order decides and not the tiers, so `x-stability: stable` wins over
+`x-fern-availability: beta`. That order is chosen for what the golden spec writes, where every
+disagreement is `x-stability: beta` against `generally-available`, 47 operations (spec @319dc756), so
+there it reads the less stable statement. It is the right call where the text can tell, as the 2 of
+them whose own description says beta show, and none of the 2,636 operations marked generally
+available alone says so. It over-reports where the mark sits on one method of a resource and not on
+its neighbours, as `GET` and `PUT` of `/accounts/{account_id}/access/apps/{app_id}` carry it and
+`DELETE` does not, which reads as a mark on a payload and not on the operation. A consumer gating on
+the tier hides such an operation, and the report on each disagreement and the kept entries are what
+let it audit that.
 
 `x-sensitive` asks for redaction as `format: password` does ([`password`](#password)), and lands
 where that does: `Sensitive` on the node a position owns, `Secret` on a property, header or parameter
@@ -2900,16 +2908,18 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
   `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
   `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
+  `lowering.TestPromoter_ReferentReadsWhatASchemaLends`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
   `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
+  `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`
 - Status: partly built: the default mapping leaves pagination, open enums stated by value, reserved
   expansion and server names to come (#656); a mapping cannot say which extension values state the
-  fact (#654); an unknown key under a prefix the policy owns is kept in silence (#657); a key on an
-  `allOf` branch reaches no field, and one beside an `allOf` reaches another than it does beside a
-  `$ref` (#1220); a key on a path item, a tag or a content entry, kept under a scope, reaches no
-  field (#1221); and a key inside a `oneOf` kept verbatim beside structure waits for those branches
-  to lower (#661).
+  fact, so a stability key's `true` reads as a deprecation (#654); an unknown key under a prefix the
+  policy owns is kept in silence (#657); a key on an `allOf` branch reaches no field, and one beside
+  an `allOf` reaches another than it does beside a `$ref` (#1220); a key on a path item, a tag or a
+  content entry, kept under a scope, reaches no field (#1221); and a key inside a `oneOf` kept
+  verbatim beside structure waits for those branches to lower (#661).
 
 ### `mutually-exclusive-parameters`
 
