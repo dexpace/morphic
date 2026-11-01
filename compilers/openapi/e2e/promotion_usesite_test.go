@@ -11,6 +11,7 @@ package e2e_test // external test package — exercises only the public API
 import (
 	"cmp"
 	"encoding/json/jsontext"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -367,6 +368,57 @@ func assertPromotionsAgree(t *testing.T, a, b *ir.Document) {
 		assert.Equal(t, p.Deprecation, q.Deprecation, wire)
 		assert.Equal(t, p.Secret, q.Secret, wire)
 		assert.Equal(t, p.Provenance.Inferred, q.Provenance.Inferred, wire)
+	}
+}
+
+// TestPromotion_AReferentIsKnownByItsDocument holds what a use reads to the document
+// its $ref lands in. Two documents can hold one pointer, and what a target lends is
+// remembered by where it is read, so whichever use reads first must leave the other
+// its own answer.
+func TestPromotion_AReferentIsKnownByItsDocument(t *testing.T) {
+	t.Parallel()
+	const other = `openapi: 3.1.0
+info: {title: other, version: "1"}
+paths: {}
+components:
+  schemas:
+    Tok: {type: string, x-sensitive: true, x-stability: deprecated, x-sunset: "2030-01-01"}
+`
+	const local = "        - {name: local, in: query, schema: {$ref: '#/components/schemas/Tok'}}\n"
+	const foreign = "        - {name: foreign, in: query, schema: {$ref: './other.yaml#/components/schemas/Tok'}}\n"
+	for name, params := range map[string]string{
+		"the source's read first": local + foreign,
+		"the other's read first":  foreign + local,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := t.TempDir()
+			layout(t, dir, map[string]string{"other.yaml": other})
+			doc, diags := compileOnDisk(t, filepath.Join(dir, "root.yaml"), `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /a:
+    get:
+      operationId: x
+      parameters:
+`+params+`      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Tok: {type: string}
+`, true)
+			openapitest.RequireNoErrorDiags(t, diags)
+			op, ok := opByName(doc, "x")
+			require.True(t, ok)
+			mine, ok := openapitest.ParamBySource(op, "local")
+			require.True(t, ok)
+			theirs, ok := openapitest.ParamBySource(op, "foreign")
+			require.True(t, ok)
+
+			assert.False(t, mine.Secret, "the source's Tok asks for nothing")
+			assert.Nil(t, mine.Deprecation)
+			assert.True(t, theirs.Secret, "the other document's Tok asks for redaction")
+			assert.Equal(t, &ir.Deprecation{RemovalDate: "2030-01-01"}, theirs.Deprecation)
+		})
 	}
 }
 
