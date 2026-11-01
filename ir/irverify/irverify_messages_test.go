@@ -166,6 +166,20 @@ func messageCases() []messageCase {
 			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {ID: "auth/x/a", Name: named("a"), Kind: ir.AuthKind(illFormed)}}
 			return doc
 		}, "ir/unknown-auth-kind", fmt.Sprintf("auth scheme names undeclared mechanism %q", illFormed)},
+		{"auth kind in the unresolved space", func() *ir.Document {
+			const id ir.AuthID = "auth/unresolved/a"
+			doc := typesDoc()
+			doc.Auth = map[ir.AuthID]ir.AuthScheme{id: {ID: id, Name: named("a"), Kind: ir.AuthKind(illFormed)}}
+			return doc
+		}, "ir/unresolved-auth-space", fmt.Sprintf("auth scheme of kind %q is addressed in space \"unresolved\", "+
+			"and the kind unresolved and the space unresolved go together", illFormed)},
+		{"auth space of the unresolved kind", func() *ir.Document {
+			id := ir.AuthID("auth/" + illFormed + "/a")
+			doc := typesDoc()
+			doc.Auth = map[ir.AuthID]ir.AuthScheme{id: {ID: id, Name: named("a"), Kind: ir.AuthKindUnresolved}}
+			return doc
+		}, "ir/unresolved-auth-space", fmt.Sprintf("auth scheme of kind \"unresolved\" is addressed in space %q, "+
+			"and the kind unresolved and the space unresolved go together", illFormed)},
 		{"oauth scope repeated", func() *ir.Document {
 			doc := typesDoc()
 			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {ID: "auth/x/a", Name: named("a"), Kind: ir.AuthKindOAuth2,
