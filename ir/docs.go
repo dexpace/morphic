@@ -20,7 +20,7 @@ type Docs struct {
 }
 
 // DocRef marks a span of [Docs].Description as naming a type, so an emitter can
-// link the span to whatever the type renders as and the link survives a rename
+// link the span to whatever the type renders as
 // (docs/ir/annotations.md#references-in-prose). A span is half-open, in bytes of
 // the UTF-8 text, and falls on rune boundaries.
 //

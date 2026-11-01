@@ -9,11 +9,11 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   runs a **reduced pipeline**: no `EscapeReservedWords`, and casing is a presentation choice
   (SDK-style identifiers or spec-faithful source names, set in its options). The spans
   [`Docs.Refs`](../ir/annotations.md#references-in-prose) marks resolve to intra-doc links via the
-  *same* IR-ID lookup the Go emitter uses for doc comments — links survive renames. Examples use the schema arm
-  (`Value/Headers`) vs the operation arm (`Input/Output/Error`) correctly. A union `TypePlan.Open`
-  marks is documented as one a response may extend, and every `PlannedError` and `PlannedResponse`
-  as the body and headers it declares. No runtime `Policy` is consulted — proving the IR/policy
-  split pays off.
+  *same* IR-ID lookup the Go emitter uses for doc comments, so a link follows what its target
+  renders as. Examples use the schema arm (`Value/Headers`) vs the operation arm
+  (`Input/Output/Error`) correctly. A union `TypePlan.Open` marks is documented as one a response
+  may extend, and every `PlannedError` and `PlannedResponse` as the body and headers it declares. No
+  runtime `Policy` is consulted — proving the IR/policy split pays off.
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
   and the IR `Examples` to synthesize canned responses, `Others` to answer as each declared response
   does, the error taxonomy to simulate declared failures, `TypePlan.Open` to say whether a variant

@@ -49,11 +49,12 @@ type ErrorExample struct { Type TypeRef; Content Value }
 ## References in prose
 
 Some formats name a type inside their prose: a Protobuf comment writes `[Book][example.v1.Book]`,
-and EDoc has `{@link}`. A link an emitter resolves through the type's ID survives a rename, where the
-same words copied into a doc comment go stale (Kiota's doc templates). **`Docs.Refs` marks such a
-span and leaves the prose as the source wrote it.** A `DocRef` says that a run of `Description`'s
-bytes names a type. An emitter replaces the span with a link to whatever the type renders as, and
-one that does not resolve references reads text that still says what the author meant.
+and EDoc has `{@link}`. A link an emitter resolves through the type's ID says what the type renders
+as in that SDK, where the same words copied into a doc comment go stale (Kiota's doc templates).
+**`Docs.Refs` marks such a span and leaves the prose as the source wrote it.** A `DocRef` says that
+a run of `Description`'s bytes names a type. An emitter replaces the span with a link to whatever
+the type renders as, and one that does not resolve references reads text that still says what the
+author meant.
 
 A span counts bytes of UTF-8, the encoding every string a document holds is in
 ([names](./naming.md)), so a reader in another language converts from it rather than counting in
