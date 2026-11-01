@@ -2495,7 +2495,8 @@ success is the plan's to decide ([`response-conditions`](#response-conditions)).
 Go option `Options.StreamingMedia`: `Disabled` turns the media-type reading off, leaving only what
 an `itemSchema` declares, and `MediaTypes` replaces the default list instead of extending it, an
 entry starting with `+` naming a structured suffix. The `streaming-media` setting sets `MediaTypes`,
-its entries separated by commas, and refuses one that is neither a media type nor a suffix.
+its entries separated by commas, and refuses one that is neither a media type nor a suffix, and
+`streaming-inference=false` sets `Disabled`.
 
 - Cases: `streaming-media-30`, `streaming-media-31`
 - Codes: `openapi/degraded-construct`
