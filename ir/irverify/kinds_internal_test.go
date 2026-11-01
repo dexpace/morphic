@@ -6,7 +6,7 @@ package irverify
 import (
 	"os"
 	"reflect"
-	"strings"
+	"regexp"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,24 +15,23 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestStreamingPath_ListsEveryCarrier reads the encoded shape, which reaches
-// through every sealed sum, for each field a value on streamingPath travels by.
-// A second one is a path checkStreamingModes prunes, where an invented mode would
-// pass unread, so it fails here until streamingPath takes it.
+// TestStreamingPath_ListsEveryCarrier counts the fields of each type on
+// streamingPath in the encoded shape, which reaches through every sealed sum, by
+// their type and however it is held: a second field is a path checkStreamingModes
+// prunes, where an invented mode would pass unread, so it fails here until
+// streamingPath takes it.
 func TestStreamingPath_ListsEveryCarrier(t *testing.T) {
 	t.Parallel()
 	shape, err := os.ReadFile("../testdata/shape.golden.txt")
 	require.NoError(t, err)
-	for _, field := range []struct {
-		spelling string
-		carriers int
-	}{
-		{`"streaming" StreamingMode `, 1},
-		{` []Operation `, 1},
-		{` []OperationGroup `, 2},
-		{` []Service `, 1},
+	for typeName, carriers := range map[string]int{
+		"StreamingMode":  1,
+		"Operation":      1,
+		"OperationGroup": 2,
+		"Service":        1,
 	} {
-		assert.Equal(t, field.carriers, strings.Count(string(shape), field.spelling), "%q", field.spelling)
+		field := regexp.MustCompile(`(?m)^\t"[^"]+" \S*\b` + typeName + `\b`)
+		assert.Len(t, field.FindAllString(string(shape), -1), carriers, typeName)
 	}
 }
 
