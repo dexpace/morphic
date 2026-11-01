@@ -19,6 +19,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // childEnv names the child a re-run of this test binary runs in place of its
@@ -128,8 +130,8 @@ func probe(t *testing.T, name, input string, env ...string) result {
 
 	ctx, cancel := context.WithTimeout(t.Context(), childTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0])
-	cmd.Env = append(append(os.Environ(), env...), childEnv+"="+name, inputEnv+"="+path)
+	cmd := exectest.Command(ctx, t, os.Args[0])
+	cmd.Env = append(append(cmd.Env, env...), childEnv+"="+name, inputEnv+"="+path)
 	out, err := cmd.CombinedOutput()
 
 	code := 0

@@ -31,7 +31,6 @@ import (
 	"fmt"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime/debug"
 	"slices"
@@ -46,6 +45,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/internal/exectest"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -357,9 +357,9 @@ func probe(t *testing.T, spec string) (failed bool, outcome string) {
 	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, os.Args[0],
+	cmd := exectest.Command(ctx, t, os.Args[0],
 		"-test.run=^TestResolverOracle_ProbeHelper$", "-test.timeout="+helperTimeout.String())
-	cmd.Env = append(os.Environ(), probeEnv+"="+spec)
+	cmd.Env = append(cmd.Env, probeEnv+"="+spec)
 
 	out, err := cmd.CombinedOutput()
 	text := string(out)

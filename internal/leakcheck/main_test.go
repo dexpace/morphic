@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/exectest"
 	"github.com/dexpace/morphic/internal/leakcheck"
 )
 
@@ -85,11 +86,11 @@ func runChild(t *testing.T, leak bool) (int, string) {
 	ctx, cancel := context.WithTimeout(t.Context(), 60*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, os.Args[0], "-test.run=^TestMain_ReportsALeak_Child$")
+	cmd := exectest.Command(ctx, t, os.Args[0], "-test.run=^TestMain_ReportsALeak_Child$")
 	// One P is what makes the planted goroutine park before the child's test
 	// returns. Go's own goroutineleak tests run under GOMAXPROCS=1 for the same
 	// reason (runtime/testdata/testgoroutineleakprofile).
-	cmd.Env = append(os.Environ(), "GOMAXPROCS=1")
+	cmd.Env = append(cmd.Env, "GOMAXPROCS=1")
 	if leak {
 		cmd.Env = append(cmd.Env, leakCheckChildEnv+"=1")
 	}

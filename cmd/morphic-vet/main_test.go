@@ -6,11 +6,12 @@ package main
 import (
 	"encoding/json/v2"
 	"os"
-	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // asTool makes this test binary run main in place of the tests. unitchecker
@@ -30,8 +31,8 @@ func TestMain(m *testing.M) {
 // its name, so the answer names the rules main passes it.
 func TestMain_HandsGoVetTheRules(t *testing.T) {
 	t.Parallel()
-	cmd := exec.CommandContext(t.Context(), os.Args[0], "-flags")
-	cmd.Env = append(os.Environ(), asTool+"=1")
+	cmd := exectest.Command(t.Context(), t, os.Args[0], "-flags")
+	cmd.Env = append(cmd.Env, asTool+"=1")
 	out, err := cmd.Output()
 	require.NoError(t, err, "the tool did not answer -flags")
 

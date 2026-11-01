@@ -435,6 +435,10 @@ var rules = map[string][]string{
 	// decorators a test of cancellation puts a cancel at a chosen check with,
 	// which tests across the module import.
 	"internal/ctxtest": {},
+	// Test infrastructure too: the one way a test starts a child process, which
+	// gives a covered child a coverage directory of its own. It reaches renameio
+	// for the whole-file copy of what the child wrote, and nothing of the module.
+	"internal/exectest": {"github.com/google/renameio/v2"},
 	// Test infrastructure too: tests that hold a hand-written list to what a
 	// package declares read it type-checked, through go/packages. Two of its
 	// testdata packages are imported by others, which is how a test shows a
