@@ -34,20 +34,20 @@ type spyTB struct {
 	errors   []string
 }
 
-func (f *spyTB) Helper()         {}
-func (f *spyTB) TempDir() string { return f.dir }
+func (s *spyTB) Helper()         {}
+func (s *spyTB) TempDir() string { return s.dir }
 
-func (f *spyTB) Cleanup(fn func()) { f.cleanups = append(f.cleanups, fn) }
+func (s *spyTB) Cleanup(fn func()) { s.cleanups = append(s.cleanups, fn) }
 
-func (f *spyTB) Errorf(format string, args ...any) {
-	f.errors = append(f.errors, fmt.Sprintf(format, args...))
+func (s *spyTB) Errorf(format string, args ...any) {
+	s.errors = append(s.errors, fmt.Sprintf(format, args...))
 }
 
-func (f *spyTB) Fatal(args ...any) { panic(fatal(fmt.Sprint(args...))) }
+func (s *spyTB) Fatal(args ...any) { panic(fatal(fmt.Sprint(args...))) }
 
 // runCleanups runs the registered cleanups last in, first out, as a test does.
-func (f *spyTB) runCleanups() {
-	for _, fn := range slices.Backward(f.cleanups) {
+func (s *spyTB) runCleanups() {
+	for _, fn := range slices.Backward(s.cleanups) {
 		fn()
 	}
 }
