@@ -16,6 +16,17 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Probe.** `git merge --no-commit --no-ff origin/main`, then `go build ./...`, `go vet ./...`,
   `go test ./...`, and the PR's listed mutants.
 
+## Merge a stacked branch's base first, as a merge of its own
+`merge-the-base-first`
+
+- **Rule.** A stacked PR lands on its base, not on `main`. Merge `origin/<base>` before
+  `origin/main`, each as its own merge so that a defect shows against the merge causing it, and run
+  on each what `references/merging-main.md#merge-main-first` names.
+- **Why.** A head green alone, and reported `MERGEABLE` and `CLEAN`, stopped compiling once merged
+  with its base, which merging `main` could not show (#1183, #1179).
+- **Probe.** `gh pr view <N> --json baseRefName --jq .baseRefName`, then
+  `git merge --no-commit --no-ff origin/<base>` and `go vet ./...` before touching `main`.
+
 ## Find out what a grown parameter carries before filling it in
 `grown-parameter-carries-something`
 

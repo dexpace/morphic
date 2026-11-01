@@ -146,7 +146,8 @@ defect, keep a `main` control.
 ## Review the tree as it will merge
 `recheck-against-final-tree`
 
-- **Rule.** After review fixes land or `main` is merged in, review the branch as it will merge:
+- **Rule.** After review fixes land or `main` or the base is merged in, review the branch as it
+  will merge:
   rerun the probes the body and comments cite and every sweep the branch relies on over the merged
   tree, re-diff each change `main` made to files the branch touches, and look for helpers `main`
   renamed, features on both sides that interact, and normative text `main` moved.
