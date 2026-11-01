@@ -110,6 +110,8 @@ func TestCommand_WithoutCoverageTheEnvironmentIsAsItWas(t *testing.T) {
 }
 
 func TestCommand_RunsTheNamedCommandUnderTheContext(t *testing.T) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
@@ -120,6 +122,8 @@ func TestCommand_RunsTheNamedCommandUnderTheContext(t *testing.T) {
 }
 
 func TestCommand_RefusesANilContext(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeTB{TB: t, dir: t.TempDir()}
 	var none context.Context
 
@@ -129,6 +133,8 @@ func TestCommand_RefusesANilContext(t *testing.T) {
 }
 
 func TestCommand_RefusesAnEmptyName(t *testing.T) {
+	t.Parallel()
+
 	fake := &fakeTB{TB: t, dir: t.TempDir()}
 
 	assert.PanicsWithValue(t, fatal("exectest.Command: empty command name"), func() {

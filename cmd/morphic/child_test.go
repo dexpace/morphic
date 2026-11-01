@@ -38,6 +38,8 @@ func command(t *testing.T, name string, args ...string) *exec.Cmd {
 // that what a real child writes is in the parent's directory once its test
 // ends, which is how the profile counts the statements only a child ran.
 func TestChild_ACoveredChildsCountersReachTheParentDir(t *testing.T) {
+	t.Parallel()
+
 	parent := os.Getenv(coverDirEnv)
 	if parent == "" {
 		t.Skip("this binary is not built for coverage")
