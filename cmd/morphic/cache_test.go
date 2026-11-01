@@ -1,0 +1,196 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package main
+
+import (
+	"bytes"
+	"context"
+	"io"
+	"os"
+	"path/filepath"
+	"sync/atomic"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/internal/testspec"
+	"github.com/dexpace/morphic/ir"
+)
+
+// compileCounter is the shipped compiler, counting its compiles.
+type compileCounter struct {
+	compilers.Compiler
+	compiles atomic.Int32
+}
+
+func (c *compileCounter) Compile(ctx context.Context, sources []compilers.Source,
+	opts compilers.Options,
+) (*ir.Document, []ir.Diagnostic, error) {
+	c.compiles.Add(1)
+	return c.Compiler.Compile(ctx, sources, opts)
+}
+
+// countCompiles makes the commands compile through the returned counter for the
+// rest of the test, on top of whatever options the flags asked for.
+func countCompiles(t *testing.T) *compileCounter {
+	t.Helper()
+	counter := &compileCounter{Compiler: openapi.New()}
+	orig := newEngine
+	t.Cleanup(func() { newEngine = orig })
+	newEngine = func(opts ...engine.Option) (*engine.Engine, error) {
+		return engine.New(append(opts, engine.WithCompilers(counter))...)
+	}
+	return counter
+}
+
+// runCommand runs args and returns the exit code and both streams.
+func runCommand(t *testing.T, args ...string) (code int, stdout, stderr string) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	code = run(t.Context(), args, &out, &errOut)
+	return code, out.String(), errOut.String()
+}
+
+// specFile writes a spec the shipped compiler lowers cleanly.
+func specFile(t *testing.T) string {
+	t.Helper()
+	spec := filepath.Join(t.TempDir(), "spec.yaml")
+	require.NoError(t, os.WriteFile(spec, []byte(testspec.Tiny), 0o600))
+	return spec
+}
+
+// TestCacheDir_ASecondRunWritesWhatTheFirstDid runs each output a command has
+// twice, the counter telling a hit from a compile, and requires the same bytes.
+func TestCacheDir_ASecondRunWritesWhatTheFirstDid(t *testing.T) {
+	for name, args := range map[string][]string{
+		"compile":  {"compile"},
+		"explain":  {"compile", "--explain", ""},
+		"validate": {"validate"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			counter := countCompiles(t)
+			args := append(args, specFile(t), "--cache-dir", t.TempDir())
+
+			code, stdout, stderr := runCommand(t, args...)
+			require.Equal(t, 0, code, stderr)
+			again, stdoutAgain, stderrAgain := runCommand(t, args...)
+
+			assert.EqualValues(t, 1, counter.compiles.Load(), "the second run compiled")
+			assert.Equal(t, code, again)
+			assert.Equal(t, stdout, stdoutAgain)
+			assert.Equal(t, stderr, stderrAgain)
+		})
+	}
+}
+
+// TestCacheDir_EitherCommandAnswersTheOther shares one entry between the commands,
+// in both orders, as their help says: they build the same pipeline.
+func TestCacheDir_EitherCommandAnswersTheOther(t *testing.T) {
+	for name, order := range map[string][2]string{
+		"validate after compile": {"compile", "validate"},
+		"compile after validate": {"validate", "compile"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			counter := countCompiles(t)
+			spec, dir := specFile(t), t.TempDir()
+			for _, command := range order {
+				code, _, stderr := runCommand(t, command, spec, "--cache-dir", dir)
+				require.Equal(t, 0, code, stderr)
+			}
+			assert.EqualValues(t, 1, counter.compiles.Load())
+		})
+	}
+}
+
+// TestCacheDir_OutputFileIsTheSameEitherWay writes the compact form, the one
+// that passes through the document's own encoder after a hit decodes it.
+func TestCacheDir_OutputFileIsTheSameEitherWay(t *testing.T) {
+	counter := countCompiles(t)
+	spec, dir := specFile(t), t.TempDir()
+	plain := filepath.Join(t.TempDir(), "plain.json")
+	cached := filepath.Join(t.TempDir(), "cached.json")
+
+	code, _, stderr := runCommand(t, "compile", spec, "-o", plain)
+	require.Equal(t, 0, code, stderr)
+	code, _, stderr = runCommand(t, "compile", spec, "--cache-dir", dir)
+	require.Equal(t, 0, code, stderr)
+	code, _, stderr = runCommand(t, "compile", spec, "--cache-dir", dir, "-o", cached)
+	require.Equal(t, 0, code, stderr)
+
+	assert.EqualValues(t, 2, counter.compiles.Load(), "the plain run and the first cached one")
+	want, err := os.ReadFile(plain)
+	require.NoError(t, err)
+	got, err := os.ReadFile(cached)
+	require.NoError(t, err)
+	assert.Equal(t, string(want), string(got))
+}
+
+// TestCacheDir_NoFlagNoCache leaves the directory the flag would have named
+// empty, and compiles each run.
+func TestCacheDir_NoFlagNoCache(t *testing.T) {
+	counter := countCompiles(t)
+	spec := specFile(t)
+	for range 2 {
+		code, _, stderr := runCommand(t, "compile", spec)
+		require.Equal(t, 0, code, stderr)
+	}
+	assert.EqualValues(t, 2, counter.compiles.Load())
+}
+
+// TestCacheDir_VerifyRunsItsStages holds --verify, which exists to run them, to
+// compiling though an entry would answer.
+func TestCacheDir_VerifyRunsItsStages(t *testing.T) {
+	counter := countCompiles(t)
+	spec, dir := specFile(t), t.TempDir()
+	for range 2 {
+		code, _, stderr := runCommand(t, "compile", spec, "--cache-dir", dir)
+		require.Equal(t, 0, code, stderr)
+	}
+	code, _, stderr := runCommand(t, "compile", spec, "--cache-dir", dir, "--verify")
+	require.Equal(t, 0, code, stderr)
+	assert.EqualValues(t, 2, counter.compiles.Load())
+}
+
+// TestCacheDir_AnUnusableDirectoryWarns names a path that cannot be a directory,
+// which fails the lookup and the store both. The run keeps its output and its
+// exit status, and says why on one line of stderr, which is all that may differ.
+func TestCacheDir_AnUnusableDirectoryWarns(t *testing.T) {
+	blocked := filepath.Join(t.TempDir(), "file")
+	require.NoError(t, os.WriteFile(blocked, nil, 0o600))
+	spec := specFile(t)
+
+	code, stdout, stderr := runCommand(t, "compile", spec)
+	require.Equal(t, 0, code, stderr)
+	codeBlocked, stdoutBlocked, stderrBlocked := runCommand(t, "compile", spec, "--cache-dir", blocked)
+
+	assert.Equal(t, code, codeBlocked)
+	assert.Equal(t, stdout, stdoutBlocked)
+	assert.Regexp(t, `^morphic: warning: cache: load: [^\n]+; cache: store: [^\n]+\n$`, stderrBlocked)
+}
+
+// TestEngineFor_NoBuildNoEngine stops where the build would be named: with no
+// identity no key is sound, and the flag asked for one. It calls engineFor
+// because a run under a cancelled ctx fails anyway, whatever engine it got.
+func TestEngineFor_NoBuildNoEngine(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	eng, err := engineFor(ctx, specOptions{cacheDir: t.TempDir()})
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, eng)
+}
+
+// TestRunPipeline_ABuildFailureEndsTheRun reports it as any failure outside the
+// spec is.
+func TestRunPipeline_ABuildFailureEndsTheRun(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	res, _, err := runPipeline(ctx, specFile(t), specOptions{cacheDir: t.TempDir()}, io.Discard)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Nil(t, res)
+	assert.Equal(t, exitFailure, exitCode(err))
+}

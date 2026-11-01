@@ -19,6 +19,13 @@ structural invariants, and each pass to leaving its input as it found it. The
 first stage to break one ends the run (exit 2) with every invariant it broke.
 It is for developing a compiler or a pass, and slows the run.
 
+--cache-dir keeps each document in the directory it names, and answers a later
+run from there when nothing the document depends on has changed: this build,
+the spec and every document it reads, the settings, the passes, and the working
+directory. The output and the exit status are the same either way. A cache
+that cannot be read or written costs the time and a warning on stderr, and a
+--verify run does not use it, as it exists to run the stages.
+
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
 compiler's are listed in the README.
@@ -55,6 +62,7 @@ Examples:
   morphic compile openapi.yaml --opt grouping=path-prefix --opt overlay=patch.yaml
 
 Flags:
+      --cache-dir string    keep compiled documents in this directory, and reuse one while nothing it depends on has changed
       --disable-pass name   turn off the IR pass with this name (repeatable)
       --explain pointer     report what compiling produced at this pointer instead of the IR; '' is the whole document
       --fail-on threshold   exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document (default error)

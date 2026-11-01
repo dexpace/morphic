@@ -8,11 +8,13 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/engine/cache"
 	"github.com/dexpace/morphic/engine/output"
 	"github.com/dexpace/morphic/engine/report"
 	"github.com/dexpace/morphic/ir"
@@ -22,8 +24,9 @@ import (
 // inject a construction failure — the real engine.New registers exactly one
 // compiler into a fresh registry, so neither of Register's failure modes (no
 // formats reported, a format collision) can actually fire — and a stub engine
-// that returns a nil Document.
-var newEngine = func() (*engine.Engine, error) { return engine.New() }
+// that returns a nil Document. A stub is handed what the flags asked for, so it
+// can compose with them.
+var newEngine = func(opts ...engine.Option) (*engine.Engine, error) { return engine.New(opts...) }
 
 // compileLong is compile's description. cobra prints it as written, so it is
 // wrapped by hand.
@@ -45,6 +48,13 @@ pass carries is refused (exit 2) with the names that exist. --skip-validate is
 structural invariants, and each pass to leaving its input as it found it. The
 first stage to break one ends the run (exit 2) with every invariant it broke.
 It is for developing a compiler or a pass, and slows the run.
+
+--cache-dir keeps each document in the directory it names, and answers a later
+run from there when nothing the document depends on has changed: this build,
+the spec and every document it reads, the settings, the passes, and the working
+directory. The output and the exit status are the same either way. A cache
+that cannot be read or written costs the time and a warning on stderr, and a
+--verify run does not use it, as it exists to run the stages.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
@@ -115,6 +125,7 @@ type specOptions struct {
 	verify       bool
 	disable      passFlag
 	settings     settingFlag
+	cacheDir     string
 }
 
 // disabledPasses is the pass names the flags turn off: --disable-pass's, and
@@ -153,6 +164,8 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 		"check the IR each stage returns against the IR's invariants, and that no pass changes its input; for developing a stage, and slow")
 	fs.Var(opts.settings, "opt",
 		"set one key=value option on the compiler the spec selects (repeatable)")
+	fs.StringVar(&opts.cacheDir, "cache-dir", "",
+		"keep compiled documents in this directory, and reuse one while nothing it depends on has changed")
 }
 
 // completeSpecFile offers spec files, by extension, for the one operand compile
@@ -203,7 +216,7 @@ func specArgs(cmd *cobra.Command, args []string) error {
 func runPipeline(
 	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
 ) (res *engine.Result, code int, err error) {
-	eng, err := newEngine()
+	eng, err := engineFor(ctx, opts)
 	if err != nil {
 		return nil, 0, failure(err)
 	}
@@ -224,10 +237,27 @@ func runPipeline(
 	if err := report.WriteDiagnostics(stderr, res.Diagnostics, res.Sources); err != nil {
 		return nil, 0, &exitError{code: writeFailureExit(code), err: fmt.Errorf("write diagnostics: %w", err)}
 	}
+	if res.CacheErr != nil {
+		emitf(stderr, "morphic: warning: %s\n", strings.ReplaceAll(res.CacheErr.Error(), "\n", "; "))
+	}
 	if res.Document == nil {
 		return nil, code, nil
 	}
 	return res, code, nil
+}
+
+// engineFor builds the engine opts ask for: one keeping its documents in the
+// directory --cache-dir names, under this executable's identity, or the plain
+// one.
+func engineFor(ctx context.Context, opts specOptions) (*engine.Engine, error) {
+	if opts.cacheDir == "" {
+		return newEngine()
+	}
+	build, err := cache.BuildID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return newEngine(engine.WithCache(cache.NewDir(opts.cacheDir), build))
 }
 
 // compileSpec runs the pipeline over specPath, writes the IR document and its

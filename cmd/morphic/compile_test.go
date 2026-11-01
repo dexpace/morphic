@@ -517,7 +517,7 @@ func TestRunPipeline_ARunCancelledInItsLastStageWritesNothing(t *testing.T) {
 		for _, args := range [][]string{{"compile", spec}, {"compile", spec, "-o", dest}, {"validate", spec}} {
 			for _, tt := range tests {
 				ctx, cancel := context.WithCancelCause(t.Context())
-				newEngine = func() (*engine.Engine, error) {
+				newEngine = func(...engine.Option) (*engine.Engine, error) {
 					return engine.New(stage.options(func() { cancel(tt.cause) })...)
 				}
 				var stdout, stderr bytes.Buffer

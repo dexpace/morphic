@@ -48,7 +48,7 @@ func useEngine(t *testing.T, opts ...engine.Option) {
 	t.Helper()
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return engine.New(opts...) }
+	newEngine = func(...engine.Option) (*engine.Engine, error) { return engine.New(opts...) }
 }
 
 // TestRun_VerifyEndsARunWhoseStageBreaksTheIR runs both commands over a
