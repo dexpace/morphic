@@ -215,8 +215,8 @@ func (a admitted) valuesWithin(b admitted) bool {
 	return true
 }
 
-// narrowedTo reports whether joint, which holds all a admits and the conjuncts
-// beside it, leaves out a kind or a value a admits.
+// narrowedTo reports whether joint, what a and the conjuncts beside it admit
+// together, leaves out a kind or a value a admits.
 func (a admitted) narrowedTo(joint admitted) bool {
 	return a.kinds != joint.kinds || !a.valuesWithin(joint)
 }
