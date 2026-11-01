@@ -12,6 +12,9 @@ var EncodedOn = encoded
 // FillOn is fill, for the external tests.
 var FillOn = fill
 
+// ReadModuleFilesOn is readModuleFiles, for the external tests.
+var ReadModuleFilesOn = readModuleFiles
+
 // RootFrom is rootFrom, for the external tests.
 var RootFrom = rootFrom
 

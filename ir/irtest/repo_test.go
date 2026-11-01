@@ -64,3 +64,41 @@ func TestRootFrom_RefusesADirectoryOutsideAnyModule(t *testing.T) {
 	assert.Empty(t, got)
 	assert.GreaterOrEqual(t, rec.helperCalls, 1, "rootFrom marks itself a helper")
 }
+
+// TestReadModuleFiles_OpensGoModAndGoSum pins the paths on the real tree: the
+// module's go.mod and go.sum, in that order.
+func TestReadModuleFiles_OpensGoModAndGoSum(t *testing.T) {
+	t.Parallel()
+	root := irtest.RepoRoot(t)
+	assert.Equal(t, []string{filepath.Join(root, "go.mod"), filepath.Join(root, "go.sum")},
+		irtest.ReadModuleFiles(t))
+}
+
+// TestReadModuleFiles_RefusesAFileItCannotRead pins the failure for each file:
+// a module whose go.mod or go.sum cannot be opened stops the test, since the
+// rerun it promises would otherwise not happen.
+func TestReadModuleFiles_RefusesAFileItCannotRead(t *testing.T) {
+	t.Parallel()
+	for _, missing := range []string{"go.mod", "go.sum"} {
+		t.Run(missing, func(t *testing.T) {
+			t.Parallel()
+			rec := &recordingT{}
+			done := make(chan struct{})
+			var got []string
+			go func() {
+				defer close(done)
+				got = irtest.ReadModuleFilesOn(rec, "/module", func(path string) ([]byte, error) {
+					if filepath.Base(path) == missing {
+						return nil, errors.New("gone")
+					}
+					return nil, nil
+				})
+			}()
+			<-done
+			assert.True(t, rec.aborted)
+			assert.Contains(t, rec.fatalf, "reading the module's "+missing+": gone")
+			assert.Empty(t, got)
+			assert.GreaterOrEqual(t, rec.helperCalls, 1, "readModuleFiles marks itself a helper")
+		})
+	}
+}

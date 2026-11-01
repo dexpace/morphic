@@ -139,6 +139,7 @@ type sourceFunc struct {
 // what it imports, without tests, and returns what the check reads of it.
 func moduleProgram(t *testing.T) program {
 	t.Helper()
+	irtest.ReadModuleFiles(t) // the dependencies parsed below sit in the module cache, which go test never rechecks
 	cfg := &packages.Config{
 		Mode: packages.NeedName | packages.NeedCompiledGoFiles | packages.NeedImports | packages.NeedDeps |
 			packages.NeedModule | packages.NeedTypesSizes,

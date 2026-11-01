@@ -359,6 +359,17 @@ func membersOf(g libGraph, api map[string]string) ([]resolutionMember, error) {
 // the packages of it the module's production code reaches.
 var libraryAPI = sync.OnceValues(deriveResolutionAPI)
 
+// libraryMembers returns the API libraryAPI derives, after opening the module's
+// go.mod and go.sum. The library's sources sit in the module cache, which go
+// test never rechecks, so a bump reruns the tests only through these opens.
+func libraryMembers(t *testing.T) []resolutionMember {
+	t.Helper()
+	irtest.ReadModuleFiles(t)
+	members, err := libraryAPI()
+	require.NoError(t, err)
+	return members
+}
+
 // deriveResolutionAPI reads the library's sources and derives the API from its
 // two anchors.
 func deriveResolutionAPI() ([]resolutionMember, error) {
@@ -587,8 +598,7 @@ func productionPaths() ([]string, error) {
 // one a list would have missed, is counted from the start.
 func TestResolutionCalls_HeldToTheBaseline(t *testing.T) {
 	t.Parallel()
-	members, err := libraryAPI()
-	require.NoError(t, err)
+	members := libraryMembers(t)
 	pkgs, err := productionLoad()
 	require.NoError(t, err)
 
@@ -611,8 +621,7 @@ func TestResolutionCalls_HeldToTheBaseline(t *testing.T) {
 // library to reviewedMembers, in both directions.
 func TestResolutionAPI_IsTheReviewedSet(t *testing.T) {
 	t.Parallel()
-	members, err := libraryAPI()
-	require.NoError(t, err)
+	members := libraryMembers(t)
 	shorts := make([]string, len(members))
 	for i, m := range members {
 		shorts[i] = m.short
@@ -787,8 +796,7 @@ func plantedResolved(s resolvedState) bool {
 // name. Without it, a counter that recognized nothing would pass the pin.
 func TestResolutionUses_PlantedSpellingsAreCounted(t *testing.T) {
 	t.Parallel()
-	members, err := libraryAPI()
-	require.NoError(t, err)
+	members := libraryMembers(t)
 	for _, plant := range []struct{ dir, src string }{
 		{"compilers/openapi/internal/diag", plantedUses},
 		{"compilers/openapi/internal/ids", plantedElsewhere},

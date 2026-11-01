@@ -41,3 +41,34 @@ func holdsGoMod(dir string) bool {
 	_, err := os.Stat(filepath.Join(dir, "go.mod"))
 	return err == nil
 }
+
+// moduleFiles are the files whose change marks a dependency moving: go.mod
+// names each version and go.sum its hashes.
+var moduleFiles = []string{"go.mod", "go.sum"}
+
+// ReadModuleFiles opens the main module's go.mod and go.sum, in this process,
+// and returns their paths.
+//
+// A test that reads a dependency's sources, which sit in the module cache, calls
+// it so a bump reruns the test: go test rechecks only the files inside the
+// module that a test opens, never the cache's, and a bump changes both of
+// these.
+func ReadModuleFiles(t *testing.T) []string {
+	t.Helper()
+	return readModuleFiles(t, RepoRoot(t), os.ReadFile)
+}
+
+// readModuleFiles is ReadModuleFiles with the root and the read injected, so a
+// test can drive its failure.
+func readModuleFiles(t testingT, root string, read func(string) ([]byte, error)) []string {
+	t.Helper()
+	paths := make([]string, 0, len(moduleFiles))
+	for _, name := range moduleFiles {
+		path := filepath.Join(root, name)
+		if _, err := read(path); err != nil {
+			t.Fatalf("irtest: reading the module's %s: %v", name, err)
+		}
+		paths = append(paths, path)
+	}
+	return paths
+}
