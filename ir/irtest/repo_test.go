@@ -6,6 +6,7 @@ package irtest_test
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -141,6 +142,56 @@ func TestRequireOpensModuleFiles_BoundsTheChildByItsParent(t *testing.T) {
 	}
 	t.Setenv(parentDeadlineEnv, deadline.Format(time.RFC3339Nano))
 	irtest.RequireOpensModuleFiles(t, "TestBoundedChild_OpensTheModuleFilesOnlyWithinItsParentsTime")
+}
+
+// subjectEnv names the test TestRefusalSubject_RunsWhatItIsGiven passes to
+// RequireOpensModuleFiles.
+const subjectEnv = "IRTEST_TEST_SUBJECT"
+
+// TestRefusalSubject_RunsWhatItIsGiven calls RequireOpensModuleFiles on the test
+// subjectEnv names, if it is set, so the test below can run the call in a
+// process of its own, where a refusal ends that process rather than the suite.
+func TestRefusalSubject_RunsWhatItIsGiven(t *testing.T) {
+	t.Parallel()
+	if subject := os.Getenv(subjectEnv); subject != "" {
+		irtest.RequireOpensModuleFiles(t, subject)
+	}
+}
+
+// TestRequireOpensModuleFiles_RefusesThroughARealChild holds the values
+// RequireOpensModuleFiles builds for its refusals, which the injected tests
+// cannot: a caller naming itself, one inside a marked child, and a child whose
+// log opens nothing must each fail the process that made the call, for the
+// reason named. Without them the call recurses without end or passes on any log.
+func TestRequireOpensModuleFiles_RefusesThroughARealChild(t *testing.T) {
+	t.Parallel()
+	const self = "TestRefusalSubject_RunsWhatItIsGiven"
+	tests := []struct {
+		name    string
+		subject string
+		marked  bool
+		want    string
+	}{
+		{"a caller naming itself", self, false, self + " names itself"},
+		{"a caller inside a marked child", "TestReadModuleFiles_OpensGoModAndGoSum", true,
+			self + " runs in a child RequireOpensModuleFiles started"},
+		{"a child that opens nothing", "TestUnopened_NamesTheModuleFilesTheLogLacks", false,
+			"TestUnopened_NamesTheModuleFilesTheLogLacks does not open the module's go.mod or go.sum"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			cmd := exec.CommandContext(t.Context(), os.Args[0],
+				"-test.run=^"+self+"$", "-test.timeout=2m")
+			cmd.Env = append(os.Environ(), subjectEnv+"="+tc.subject)
+			if tc.marked {
+				cmd.Env = append(cmd.Env, irtest.OpensChildEnv+"=1")
+			}
+			out, err := cmd.CombinedOutput()
+			require.Error(t, err, "the call must fail its process:\n%.1500s", out)
+			assert.Contains(t, string(out), tc.want)
+		})
+	}
 }
 
 // TestUnopened_NamesTheModuleFilesTheLogLacks pins the log's reading: only an
