@@ -2,6 +2,11 @@
 # pattern per line. A `#` starts a comment only at the start of a line.
 # A package belongs here when its code runs on more than one goroutine.
 # The Makefile reads this file, so it is the only list.
+#
+# Two exceptions to that rule, as #1271 decided: internal/harness and
+# internal/census are tooling outside the pipeline, yet their tests call
+# harness.Check and (*Census).Add on parallel goroutines. Neither is listed,
+# so a race in either goes undetected.
 ./barrier
 ./cmd/morphic
 ./compilers/openapi/internal/load
