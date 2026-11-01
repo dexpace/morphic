@@ -211,6 +211,13 @@ class SweepTest(unittest.TestCase):
         self.assertEqual((runs / "1" / "head.ir").read_text(), "{}\n")
         self.assertEqual((runs / "2" / "head.diag").read_text(), "warning\n")
 
+    def test_a_rerun_leaves_no_outputs_of_an_earlier_one(self):
+        stale = self.root / "out" / "runs" / "5" / "base.ir"  # same.yaml, which agrees
+        stale.parent.mkdir(parents=True)
+        stale.write_text("from an earlier run")
+        self.sweep(sweep.find_specs([self.corpus]))
+        self.assertFalse(stale.exists())
+
     def test_outputs_that_cannot_be_written_cost_the_diff_and_not_the_result(self):
         # A file where the directory must go fails each write as a full disk would.
         out = self.root / "out"

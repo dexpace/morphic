@@ -12,10 +12,11 @@ BASE is the revision to compare against (default origin/main); when HEAD does no
 warning says the differences also count what BASE gained since. A compile running past SECONDS
 (default 60) is killed and recorded as 137, and one ended by a signal, such as the kill that ends
 a compile out of memory, as minus the signal's number. JOBS compiles run at once (default half the
-CPUs), each holding its output in memory until it is compared. A spec that differs keeps both
-sides' outputs under OUTDIR/runs/<n>/ (default a new temporary directory) for diffing, and when
-they cannot be written the sweep goes on and says so, as nothing it compares is on disk. OUTDIR
-holds a row per spec in results.tsv: its number, both exit codes, what differs and its path. The
+CPUs), each holding its output in memory until it is compared. OUTDIR defaults to a new temporary
+directory, and a run replaces its runs/ directory: a spec that differs keeps both sides' outputs
+under OUTDIR/runs/<n>/ for diffing, and when they cannot be written the sweep goes on and says so,
+as nothing it compares is on disk. OUTDIR holds a row per spec in results.tsv: its number, both
+exit codes, what differs and its path. The
 IR version a document opens with is set aside before comparing, so a bump lists only the specs
 that moved: the summary gives it once, and a spec differing in nothing else is "stamp" in
 results.tsv and keeps no outputs. The .yaml, .yml and .json files CORPUS names, and those under its
@@ -163,6 +164,8 @@ def compare(base: Path, head: Path, specs: list[Path], out: Path, flags: list[st
         unkept = keep(out / "runs" / str(n), b, h) if what not in ("", STAMP_ALONE) else ""
         return Result(n, spec, (b.code, h.code), (len(b.ir), len(h.ir)), what, stamps, unkept)
 
+    # A number names another spec once the corpus changes, so no earlier run's pair may stand.
+    shutil.rmtree(out / "runs", ignore_errors=True)
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
         return list(pool.map(one, enumerate(specs, 1)))
 
