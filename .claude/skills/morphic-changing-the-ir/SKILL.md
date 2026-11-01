@@ -37,8 +37,7 @@ cannot be turned off.
 - **Mentions.** A position only mentioning a type needs more than classifying
   (`references/ir-lessons.md#mention-is-no-use`).
 - **Hand lists.** A new field, ID class or sum kind meets classification tests in `ir` and
-  `ir/irverify`; `references/ir-lessons.md` says which list each meets, and which one lets a stale
-  entry for a deleted field pass.
+  `ir/irverify`; `references/ir-lessons.md` says which list each meets.
 - **Census.** A fact no committed spec sets is a line of `testdata/unwitnessed.golden.txt`, which
   `go test ./cmd/morphic-census -update` rewrites; a case that sets the fact takes its line out.
 - **Goldens.** A version bump rewrites none, but a new namespace in a compiler's `Namespaces`
