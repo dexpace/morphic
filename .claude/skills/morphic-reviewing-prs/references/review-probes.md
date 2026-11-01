@@ -161,9 +161,12 @@ defect, keep a `main` control.
 
 - **Rule.** Where head and `main` differ, decide which is right on the specification's own terms. If
   `main` is right, fix the head. If neither is, build the right rule at its owner. A better
-  behaviour that changes output is listed under Breaking. A defect `main` shares is fixed or filed,
-  never a reason to stop.
+  behaviour that changes output is stated in the PR body, whose Breaking section goes with a `!` in
+  its title (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#exported-api-change-needs-bang`).
+  A defect `main` shares is fixed or filed, never a reason to stop.
 - **Why.** A parity round copied a library defect and kept an order dependence "as on main" (#1016).
+  Merged PRs tie the section to the `!`, so a `fix` changing an exit code states it in its Summary
+  (#1181, #1186).
 
 ## A PR that moves readers off the library inherits what the library skipped
 `moved-reader-parity`
