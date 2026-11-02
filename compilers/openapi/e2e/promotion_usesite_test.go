@@ -208,6 +208,30 @@ func TestPromotion_ARefinementLendsWhatItRefines(t *testing.T) {
 	}
 }
 
+// TestPromotion_ALostRefLendsTheNodeItSpeaksOn holds a node a $ref speaks on
+// after losing the type, to a value set narrowing it or an enum beside its allOf
+// (docs/compilers/openapi.md#ref-use-site), to that $ref's keys as to its
+// keyword: the $ref is no Base of the node, so nothing else reaches them.
+func TestPromotion_ALostRefLendsTheNodeItSpeaksOn(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileUse(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Old: {type: string, enum: [x, y], x-stability: deprecated, x-deprecated-reason: gone, x-sensitive: true}
+    Narrowed: {allOf: [{$ref: '#/components/schemas/Old'}, {enum: [x]}]}
+    PassedOver: {type: string, enum: [x], allOf: [{$ref: '#/components/schemas/Old'}]}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	for _, name := range []string{"Narrowed", "PassedOver"} {
+		node, ok := doc.Types[ir.TypeID("t/openapi/components/schemas/"+name)]
+		require.True(t, ok, name)
+		assert.Equal(t, &ir.Deprecation{Message: "gone"}, node.Common().Deprecation, name)
+		assert.True(t, node.Common().Sensitive, name)
+	}
+}
+
 // TestPromotion_AReferentReportsOnceWhereItIsWritten holds a misfit on a target
 // to one report at the target, however many uses read it: the use site reads
 // silently, and it fills nothing from a value the target could not hold.

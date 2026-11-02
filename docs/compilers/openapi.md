@@ -3375,15 +3375,16 @@ field by field and without a report, and the target is the end of the chain, so 
 two lends nothing, as it lends no keyword. One holding a refinement
 ([`allof-refinement`](#allof-refinement)), or a `$ref` to one, reads along the chain its keywords
 are read along, nearest first: the nearest link stating a deprecation, by a keyword or a key,
-decides it and lends its members, and any link asking for redaction asks it of the use. A key on the
-target stating a deprecation counts as the target's `deprecated`, so a `deprecated` beside the
-`$ref` decides over it as it does over the keyword, and a key beside the `$ref`, being the use's
-own, is not stopped by one. A target lends a member only where it is deprecated itself, by a keyword
-or a key: on a live target the member annotates nothing, as it does anywhere, and a use deprecated
-on its own does not change that. So the target's `Deprecation` is all a use reads of it, which is
-what the [fold](../emitters/refine/decorators.md) of a 3.0 decorator over the same target reads, and
-what the target's key cannot hold is reported where that key is written and read, once, with a use
-reading past it in silence.
+decides it and lends its members, and any link asking for redaction asks it of the use. A node a
+`$ref` still speaks on once a value set takes its type reads that `$ref`'s keys the same way, as it
+reads its keyword. A key on the target stating a deprecation counts as the target's `deprecated`, so
+a `deprecated` beside the `$ref` decides over it as it does over the keyword, and a key beside the
+`$ref`, being the use's own, is not stopped by one. A target lends a member only where it is
+deprecated itself, by a keyword or a key: on a live target the member annotates nothing, as it does
+anywhere, and a use deprecated on its own does not change that. So the target's `Deprecation` is all
+a use reads of it, which is what the [fold](../emitters/refine/decorators.md) of a 3.0 decorator
+over the same target reads, and what the target's key cannot hold is reported where that key is
+written and read, once, with a use reading past it in silence.
 
 A value a member cannot hold, anything but text, is reported as an info `openapi/degraded-construct`
 at the extension and not coerced, since the document means something else by the key. Empty text
@@ -3442,6 +3443,7 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
   `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
   `e2e.TestPromotion_ARefinementLendsWhatItRefines`,
+  `e2e.TestPromotion_ALostRefLendsTheNodeItSpeaksOn`,
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
   `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
   `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`

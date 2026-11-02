@@ -145,7 +145,8 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	if !ok {
 		return nil
 	}
-	a, diags := annotation.Read(nodeUse(c, ts, s, pointer, target).Site(s), pointer, c.ProvenanceAt)
+	use := nodeUse(c, ts, s, pointer, target)
+	a, diags := annotation.Read(use.Site(s), pointer, c.ProvenanceAt)
 
 	common := td.Common()
 	common.Docs = a.Docs
@@ -159,8 +160,9 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
-	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, lowering.Referent{}, &common.Deprecation, &common.Provenance)...)
-	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, lowering.Referent{}, &common.Sensitive, &common.Provenance)...)
+	from := use.lentKeys(c, s)
+	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
+	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
 	// The enum-openness promotion is applied here rather than where the Enum is
 	// built, for the same reason the deprecation one is: a promotion reads the
 	// preserved Unmodeled entries, and this is the point at which the

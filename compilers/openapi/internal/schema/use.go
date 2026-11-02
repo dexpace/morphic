@@ -70,6 +70,30 @@ func (u Use) takes(v values.Value) bool {
 	return u.narrowed.takes(v) || (u.nullable && isNullValue(v))
 }
 
+// lentKeys returns what the mapped keys of what u falls back to lend s, the
+// schema written at its position. They are read along the chain its keywords
+// are, nearest first (Referents): the nearest stating a deprecation, by a keyword
+// or a key, decides it and lends its members, and any asking for redaction asks
+// it of the use. A `deprecated` on s or a voice decides over them all; a nil s,
+// the position of a boolean schema, writes none.
+func (u Use) lentKeys(c lowering.Ctx, s *oas3.Schema) lowering.Referent {
+	promoter := c.Promoter()
+	var from lowering.Referent
+	decided := false
+	for _, r := range u.Referents {
+		read := promoter.Referent(r, r.GetDeprecated(), func() ir.Unmodeled {
+			return annotation.ExtensionsNamed(r.GetExtensions(), promoter.Keys())
+		})
+		from.Redacted = from.Redacted || read.Redacted
+		if !decided && (read.Deprecated || r.Deprecated != nil) {
+			from.Deprecated, from.Members, decided = read.Deprecated, read.Members, true
+		}
+	}
+	from.InheritsDeprecated = (s == nil || s.Deprecated == nil) &&
+		!slices.ContainsFunc(u.Voices, func(v annotation.Voice) bool { return v.Node.Deprecated != nil })
+	return from
+}
+
 // Written returns the inline branches written for the position that a keeper of
 // what only the position can hold reads beside its schema: u's voices, then a
 // principal owning a node, which holds no such keyword itself.

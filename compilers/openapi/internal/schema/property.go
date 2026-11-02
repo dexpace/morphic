@@ -5,7 +5,6 @@ package schema
 
 import (
 	"encoding/json/jsontext"
-	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -140,32 +139,15 @@ func PromoteUse(c lowering.Ctx, from lowering.Referent, unmodeled ir.Unmodeled, 
 }
 
 // KeysLentTo returns what the mapped keys of what a carrier of js falls back to
-// lend it, js written at pointer and lowered to t. They are read along the chain
-// its keywords are, nearest first (Use.Referents): the nearest stating a
-// deprecation, by a keyword or a key, decides it and lends its members, and any
-// asking for redaction asks it of the use. A position owning a node lends its
-// carrier none, as it lends no keyword.
+// lend it, js written at pointer and lowered to t (Use.lentKeys). A position
+// owning a node lends its carrier none, as it lends no keyword: the node takes
+// them (attachDeclaredAnnotations).
 func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) lowering.Referent {
 	s := annotation.SchemaOf(js)
 	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
 		return lowering.Referent{}
 	}
-	use := UseOf(c, ts, js, t, pointer)
-	promoter := c.Promoter()
-	var from lowering.Referent
-	decided := false
-	for _, r := range use.Referents {
-		read := promoter.Referent(r, r.GetDeprecated(), func() ir.Unmodeled {
-			return annotation.ExtensionsNamed(r.GetExtensions(), promoter.Keys())
-		})
-		from.Redacted = from.Redacted || read.Redacted
-		if !decided && (read.Deprecated || r.Deprecated != nil) {
-			from.Deprecated, from.Members, decided = read.Deprecated, read.Members, true
-		}
-	}
-	from.InheritsDeprecated = s.Deprecated == nil &&
-		!slices.ContainsFunc(use.Voices, func(v annotation.Voice) bool { return v.Node.Deprecated != nil })
-	return from
+	return UseOf(c, ts, js, t, pointer).lentKeys(c, s)
 }
 
 // LoweredToOwnNode reports whether the declaration at pointer, in c's
