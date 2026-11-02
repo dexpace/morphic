@@ -15,6 +15,11 @@ import (
 // BuildID names the running build by the SHA-256 of its executable, for
 // engine.WithCache. A module version does not name a build: every dirty tree
 // and every go run shares one, and no version says which toolchain built it.
+//
+// It hashes the file at the executable's path, not the image running, which no
+// portable call reads. An executable replaced after the process started and
+// before this read is named for its replacement, so what the process compiles
+// is kept under the new build's key and answers that build's runs.
 func BuildID(ctx context.Context) (string, error) {
 	return buildID(ctx, os.Executable)
 }
