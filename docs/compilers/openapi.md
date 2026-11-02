@@ -1403,7 +1403,10 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   lists, tuples or maps whose members are different models (#1180); a model, an alias of `{}` and
   another model keep the first and report the rest (#1194); a model and the wrapper it
   flattens that fold different sets only because the model stops at the flattening depth are refused
-  as `compile/registry-refused`, not told apart, since one declaration names both.
+  as `compile/registry-refused`, not told apart, since one declaration names both; a `Scalar`
+  hoisted for `time` is judged as its base `string`, as one for any format the table leaves out is,
+  though the compiler holds the `full-time` grammar, so a `full-time` `default` or `const` beside it
+  is not adopted, and against another string format it is reported as an overlap (#1353).
 
 ### `allof-required`
 
@@ -1909,13 +1912,14 @@ to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` t
 `binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
 with the `string` it travels as in `WireType`. Any other format (`time`, `email`, `uri-reference`,
 `ipv4`, an invented one) lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the
-format as written, case kept, since the compiler knows no registry of formats beyond the table.
-`time` is RFC 3339's `full-time`, which carries an offset, and the `time` primitive holds none
-([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a `byte` or unknown format
-names the encoding instead; where the two name different encodings the format is kept verbatim under
-`openapi:format` (`no_ir_home`) with an info `openapi/degraded-construct` at it. A scalar hoisted
-for its format carries the bounds written beside it. The table is the same at every minor, and a
-pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)'.
+format as written, case kept, since the compiler knows no registry of formats beyond the table, and
+the table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
+primitive holds none ([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a
+`byte` or unknown format names the encoding instead; where the two name different encodings the
+format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
+`openapi/degraded-construct` at it. A scalar hoisted for its format carries the bounds written
+beside it. The table is the same at every minor, and a pairing of `format` with another `type` is
+[`numeric-formats`](#numeric-formats)'.
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
