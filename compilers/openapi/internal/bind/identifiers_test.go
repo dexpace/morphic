@@ -186,6 +186,28 @@ func TestBind_ALocationADocumentDeclaresIsThatIdentifier(t *testing.T) {
 	assert.False(t, table.Document(docNamed(t, table, "/z.yaml")).Unreached)
 }
 
+// TestBind_TheSourceDeclaresOnceWhateverThePasses pins that the source's own
+// identifiers are read once, though each pass walks it again: a URI only another
+// document declares runs a second pass, and the source's $id and plain name
+// still answer there rather than reading as declared twice.
+func TestBind_TheSourceDeclaresOnceWhateverThePasses(t *testing.T) {
+	t.Parallel()
+	cfg, _ := recordingDocuments(t, map[string]string{"o.yaml": "T: {$id: 'https://x.test/t', type: string}\n"})
+	table := bound(t, head+"components:\n  schemas:\n    S: {$id: 'https://x.test/s', type: string}\n"+
+		"    H: {$anchor: here, type: string}\n    A: {$ref: 'https://x.test/s'}\n    B: {$ref: '#here'}\n"+
+		"    O: {$ref: 'o.yaml#/T'}\n    C: {$ref: 'https://x.test/t'}\n", cfg)
+
+	for site, want := range map[jsontext.Pointer]bind.Position{
+		"/components/schemas/A": {Doc: bind.Source, Pointer: "/components/schemas/S"},
+		"/components/schemas/B": {Doc: bind.Source, Pointer: "/components/schemas/H"},
+		"/components/schemas/C": {Doc: docNamed(t, table, "o.yaml"), Pointer: "/T"},
+	} {
+		e := entryAt(t, table, site)
+		require.Equal(t, bind.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
+		assert.Equal(t, want, e.Hop.Target, "%s", site)
+	}
+}
+
 // TestBind_ADocumentNoPassReachesDeclaresNothing pins the document a pass read
 // as a location before another declared that URI. Once no pass reaches it, what
 // it declares answers for nothing, so a URI it and a reached document declare

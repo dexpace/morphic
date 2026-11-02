@@ -490,6 +490,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestBind_AnIdentifierIsNoLocationToFetch`, `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
   `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`, `bind.TestBind_DeclarationOrderReachesNoAnswer`,
   `bind.TestBind_ADocumentNoPassReachesDeclaresNothing`,
+  `bind.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
   `bind.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
   `e2e.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
   `bind.TestTable_SaysWhyARefWentUnread`,
