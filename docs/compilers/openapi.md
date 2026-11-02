@@ -2404,7 +2404,8 @@ operation's mount pointer, its name and its location ([identity](../ir/identity.
 repeating an earlier entry's `name` and `in`, its `$ref`s resolved, which OpenAPI forbids, keeps
 every occurrence, each repeat's ID ending in its occurrence number, and is reported as an
 `openapi/duplicate-parameter` error at the repeat. Every list the source writes is checked, whether
-or not it lowers, and a list another document writes where it lowers; the rule table
+or not it lowers, and a list another document writes where it lowers or where a path item that
+mounts no operation keeps it; the rule table
 ([`validation`](#validation)) states this rule and leaves it to this one. A path item that mounts
 no operation has none to merge its parameters into, so it keeps each entry as written, a `$ref`
 included, where it keeps what else it writes ([`path-item-servers`](#path-item-servers)), under

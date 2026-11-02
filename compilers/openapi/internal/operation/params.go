@@ -451,13 +451,14 @@ type paramSlot struct {
 	name, in string
 }
 
-// paramLedger counts how often each slot has been declared on one operation, so
-// a repeat is numbered. The count follows the merged list, in order, and so
-// never the iteration order of a map.
+// paramLedger counts how often each slot has been declared on one operation, or
+// on one path item that mounts none, so a repeat is numbered. The count follows
+// the list it is given, in order, and so never the iteration order of a map.
 //
 // A repeat in a list the source writes is load's to report, once, where it is
 // written (paramRepeats). One in another document's content, which that
-// walk does not reach, is reported here, at the entry it was lowered from.
+// walk does not reach, is reported here, at the entry it was lowered or kept
+// from.
 type paramLedger struct {
 	mount   jsontext.Pointer
 	seen    map[paramSlot]int
