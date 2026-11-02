@@ -269,6 +269,55 @@ func TestFold_AValueSpelledTwoWaysIsOneValue(t *testing.T) {
 	require.Len(t, *recorded, 1, "two values are still two")
 }
 
+// TestFold_ThePromotionMarkerFollowsTheSecretTaken is the marker pin for the
+// other annotation a promotion writes on a declaration. Secret folds by OR, so
+// the field takes it from a later declaration as readily as from the first, and
+// the field keeps the first's provenance: without the join, a redaction a
+// heuristic read would carry no trace of it. A declaration lends no marker for a
+// redaction it declared or does not ask for, whatever else was inferred of it,
+// and the answer is the same in either order.
+func TestFold_ThePromotionMarkerFollowsTheSecretTaken(t *testing.T) {
+	t.Parallel()
+	const marker ir.Inferred = "extension-promotion"
+	plain := stringAt("/allOf/0/properties/p", `{}`)
+	promoted := stringAt("/allOf/1/properties/p", `{}`)
+	promoted.prop.Secret = true
+	promoted.prop.Provenance.Inferred = marker
+	promoted.secretBy = marker
+	declared := stringAt("/allOf/2/properties/p", `{"format":"password"}`)
+	declared.prop.Secret = true
+	unrelated := stringAt("/allOf/3/properties/p", `{}`)
+	unrelated.prop.Provenance.Inferred = marker
+	// A declared redaction beside a marker a promoted deprecation drew: the field
+	// keeps the first declaration's deprecation, so nothing it keeps was inferred.
+	declaredMarked := stringAt("/allOf/4/properties/p", `{"format":"password"}`)
+	declaredMarked.prop.Secret = true
+	declaredMarked.prop.Provenance.Inferred = marker
+
+	for _, tc := range []struct {
+		name   string
+		decls  []declaration
+		secret bool
+		want   ir.Inferred
+	}{
+		{"a promoted redaction second", []declaration{plain, promoted}, true, marker},
+		{"a promoted redaction first", []declaration{promoted, plain}, true, marker},
+		{"beside a declared one", []declaration{declared, promoted}, true, marker},
+		{"beside a declared one, swapped", []declaration{promoted, declared}, true, marker},
+		{"a declared redaction alone", []declaration{plain, declared}, true, ""},
+		{"a marker that is no redaction's", []declaration{plain, unrelated}, false, ""},
+		{"a declared redaction's declaration marked for another fact", []declaration{plain, declaredMarked}, true, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g, _ := stubMerger(narrowingRegistry())
+			got := g.fold(tc.decls)
+			assert.Equal(t, tc.secret, got.Secret)
+			assert.Equal(t, tc.want, got.Provenance.Inferred)
+		})
+	}
+}
+
 // TestFold_ThePromotionMarkerFollowsTheDeprecationKept pins that the field
 // names the heuristic that promoted its deprecation whichever declaration gave
 // it: a deprecation promoted from an extension is marked on that declaration's

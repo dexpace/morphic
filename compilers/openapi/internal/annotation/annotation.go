@@ -285,8 +285,8 @@ type Set struct {
 	Docs       ir.Docs
 	Deprecated bool
 	// Sensitive is a redaction the site or its referent asks for
-	// (DeclaresRedaction). A type node holds it as Sensitive and a property as
-	// Secret; a parameter has no field for it (GitHub #578).
+	// (DeclaresRedaction). A type node holds it as Sensitive, and a property or
+	// a parameter as Secret.
 	Sensitive bool
 	XML       *ir.XMLHints
 	Examples  []ir.Example

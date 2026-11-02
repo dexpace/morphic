@@ -134,6 +134,7 @@ member 0 0 Operation.parameterVisibility
 member 0 0 Operation.returnTypeVisibility
 member 0 0 OperationGroup.availability
 member 0 0 OperationGroup.resource
+member 0 0 OperationGroup.stability
 member 0 0 OperationGroup.unmodeled
 member 0 0 Pagination.firstLink
 member 0 0 Pagination.inferred
