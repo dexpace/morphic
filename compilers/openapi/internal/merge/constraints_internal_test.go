@@ -27,53 +27,36 @@ func TestMerger_MergeConstraintsKeepsBothSidesBounds(t *testing.T) {
 	assert.Equal(t, int64(2), *got.MinLength, "a bound only the second side declares survives the merge")
 }
 
-// TestBigValConflictDetail_ComparesByMagnitude pins the comparison every
-// arbitrary-precision keyword goes through. Equal magnitudes spelled
-// differently must not read as a conflict — 10 and 10.0 are one value, and
-// reporting them would invent a disagreement the source never wrote — while
-// differing magnitudes must, since the merge keeps one and drops the other.
-//
-// The keyword is a parameter, so the name in the message is the one the caller
-// passed: the four bounds and multipleOf share this helper, and a hard-coded
-// name would report every one of them as the same keyword.
-func TestBigValConflictDetail_ComparesByMagnitude(t *testing.T) {
+// TestConstraintsConflict_ComparesByMagnitude pins the comparison every
+// arbitrary-precision keyword goes through. Equal magnitudes spelled differently
+// are one value, so reporting them would invent a disagreement the source never
+// wrote. Two numbers that have an order meet, and a literal no Decimal holds has
+// none, so the merge keeps one and reports the other.
+func TestConstraintsConflict_ComparesByMagnitude(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		keyword string
-		a, b    *ir.BigVal
-		want    string
+		name string
+		a, b *ir.BigVal
+		want string
 	}{
-		{name: "only one side bounds", keyword: "minimum", a: new(ir.BigVal("10"))},
-		{name: "neither side bounds", keyword: "minimum"},
+		{name: "only one side bounds", a: new(ir.BigVal("10"))},
+		{name: "neither side bounds"},
+		{name: "the same magnitude, spelled differently", a: new(ir.BigVal("10")), b: new(ir.BigVal("10.0"))},
+		{name: "two numbers have an order", a: new(ir.BigVal("10")), b: new(ir.BigVal("20"))},
+		{name: "one unreadable literal against itself", a: new(ir.BigVal("nan")), b: new(ir.BigVal("nan"))},
 		{
-			name:    "the same magnitude, spelled differently",
-			keyword: "minimum", a: new(ir.BigVal("10")), b: new(ir.BigVal("10.0")),
-		},
-		{
-			name: "differing magnitudes", keyword: "minimum", a: new(ir.BigVal("10")), b: new(ir.BigVal("20")),
-			want: "conflicting minimum (10 and 20)",
-		},
-		{
-			name:    "the exclusive bound reports under its own keyword",
-			keyword: "exclusiveMinimum", a: new(ir.BigVal("10")), b: new(ir.BigVal("20")),
-			want: "conflicting exclusiveMinimum (10 and 20)",
-		},
-		{
-			name:    "multipleOf shares the comparison",
-			keyword: "multipleOf", a: new(ir.BigVal("3")), b: new(ir.BigVal("5")),
-			want: "conflicting multipleOf (3 and 5)",
-		},
-		{
-			name:    "unparseable operands compare exactly",
-			keyword: "minimum", a: new(ir.BigVal("nan")), b: new(ir.BigVal("other")),
+			name: "unreadable operands compare exactly", a: new(ir.BigVal("nan")), b: new(ir.BigVal("other")),
 			want: "conflicting minimum (nan and other)",
+		},
+		{
+			name: "one unreadable operand has no order either", a: new(ir.BigVal("10")), b: new(ir.BigVal("nan")),
+			want: "conflicting minimum (10 and nan)",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			detail, ok := bigValConflictDetail(tc.keyword, tc.a, tc.b)
+			_, detail, ok := constraintsConflict(&ir.Constraints{Min: tc.a}, &ir.Constraints{Min: tc.b})
 			assert.Equal(t, tc.want != "", ok)
 			assert.Equal(t, tc.want, detail)
 		})
