@@ -525,6 +525,7 @@ limit by that eighth between prunes, and a ledger it cannot read prunes at once.
 morphic/
 ├── barrier/                # Layer 0 — turns a panic in code the caller does not own into an error.
 ├── ir/                     # Layer 0 — IR node types, IDs, shared traversals, editing, JSON round-trip.
+│   ├── fuzz/               #           Fuzz targets over ir's public API: test files only.
 │   ├── irfacts/            #           Derived facts of a document, never stored (docs/ir/derived-facts.md).
 │   ├── irtest/             #           Golden-snapshot and fixture helpers for IR documents.
 │   └── irverify/           #           Structural-invariant oracle (dangling refs, IDs, naming).
@@ -535,7 +536,8 @@ morphic/
 │   │   │                   #           Compiler, its Options, and the run that calls the
 │   │   │                   #           lowerings below in order.
 │   │   ├── e2e/            #             Its end-to-end tests: test files only, compiling through
-│   │   │                   #             that face, so they cover no package.
+│   │   │   │               #             that face, so they cover no package.
+│   │   │   └── fuzz/       #             Fuzz targets that compile whole documents: test files only.
 │   │   └── internal/       #             Its own packages, each below that face:
 │   │       ├── diag/       #             diagnostic codes and the constructor
 │   │       ├── ids/        #             pointer construction; pointer → TypeID
@@ -576,6 +578,7 @@ morphic/
 ├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
+├── internal/ircases/       #           Tables ir's tests and fuzz targets share (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).
 ├── internal/leakcheck/     #           Goroutine leak check for test binaries (tooling).
