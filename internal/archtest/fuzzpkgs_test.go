@@ -122,6 +122,20 @@ func TestFuzzPackages_OnlyFuzzDirectoriesTheGoToolReadsAreFound(t *testing.T) {
 	assert.Len(t, violations, 1)
 }
 
+// TestFuzzPackages_RootIsNeverSkipped roots the walk at a directory whose name
+// the go tool skips beneath it. The walk is asked about that directory, not
+// about a child of it, so the skip rule must not end the walk before it starts.
+func TestFuzzPackages_RootIsNeverSkipped(t *testing.T) {
+	t.Parallel()
+	root := filepath.Join(t.TempDir(), "_root")
+	writeImporter(t, filepath.Join(root, "fuzz", "x_test.go"), "github.com/stretchr/testify/assert")
+
+	violations, found, err := fuzzPackageViolations(root)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"fuzz"}, found)
+	assert.Len(t, violations, 1)
+}
+
 // fuzzPackageViolations walks root for fuzz packages, each a directory named
 // fuzz outside any directory the go tool ignores that holds _test.go files, and
 // returns the packages it found and one message for each import of theirs that
