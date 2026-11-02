@@ -9,7 +9,8 @@ type Provenance struct {
     Pointer  jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
     Position Position         // 1-based line and column into that source, for a finding on a raw node
     Node     string           // IR-space location: a stable ID or a path through the document's own fields
-    Inferred Inferred         // "" = declared; else the heuristics that produced this node, comma-separated (docs/ir/unmodeled.md)
+    Inferred Inferred         // "" = declared; else the heuristics that produced this node or read a fact out of its
+                              // Unmodeled, comma-separated (docs/ir/unmodeled.md)
 }
 
 type Position struct {
@@ -29,7 +30,9 @@ type Diagnostic struct {
 
 Everything heuristic is auditable; everything broken is reportable with an exact source location.
 A reference has no `Provenance`, so a heuristic that sets a reference's `Nullable` names itself in
-the reference's own `TypeRef.Inferred` ([type-graph](./type-graph.md#type-references)).
+the reference's own `TypeRef.Inferred` ([type-graph](./type-graph.md#type-references)). `ErrorCase`
+and `OAuthFlow` have none either, and record a promotion in an `Inferred` of their own
+([promotion](./unmodeled.md#promotion)).
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so
