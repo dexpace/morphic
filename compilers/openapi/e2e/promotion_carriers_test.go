@@ -75,7 +75,7 @@ func TestPromotionCarriers_NameEveryDeprecationCarrierInTheIR(t *testing.T) {
 		name := n.Obj().Name()
 		if _, promoted := promotedCarrierRows[name]; promoted {
 			assert.True(t, holdsField(n, "Provenance"),
-				"%s is promoted into, and PromoteDeprecation records in its Provenance", name)
+				"%s is promoted into, and Promoter.Deprecation records in its Provenance", name)
 			continue
 		}
 		reason := unpromotedCarriers[name]
