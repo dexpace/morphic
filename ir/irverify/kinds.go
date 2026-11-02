@@ -10,8 +10,6 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-var stabilityType = reflect.TypeFor[ir.Stability]()
-
 // checkPrimKinds asserts every primitive names a kind ir declares.
 //
 // checkPrimIDs cannot reach this: it asks the ID to agree with the kind, and an
@@ -44,9 +42,10 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 
 var streamingModeType = reflect.TypeFor[ir.StreamingMode]()
 
-// streamingPath holds the types between a Document and Operation.Streaming, the
-// one field of its type (TestStreamingPath_ListsEveryCarrier).
-var streamingPath = map[reflect.Type]bool{
+// operationPath holds the types between a Document and its operations, the path
+// to every field of a type checkStreamingModes or checkStability holds
+// (TestOperationPath_ListsEveryCarrier).
+var operationPath = map[reflect.Type]bool{
 	reflect.TypeFor[*ir.Document]():        true,
 	reflect.TypeFor[ir.Document]():         true,
 	reflect.TypeFor[[]ir.Service]():        true,
@@ -62,14 +61,14 @@ var streamingPath = map[reflect.Type]bool{
 // is a plain string type, so nothing else rejects an invented one. The other
 // wire enums with no Valid method are not held yet (GitHub #1190).
 //
-// It prunes all but streamingPath: shown every value, it cost each verified
+// It prunes all but operationPath: shown every value, it cost each verified
 // compile 0.8% for one field of one struct.
 func checkStreamingModes(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Type() != streamingModeType {
-				return streamingPath[v.Type()]
+				return operationPath[v.Type()]
 			}
 			mode, ok := reflect.TypeAssert[ir.StreamingMode](v)
 			if !ok || mode.Valid() {
@@ -111,19 +110,20 @@ func checkAuthKinds(doc *ir.Document) []Violation {
 	return vs
 }
 
+var stabilityType = reflect.TypeFor[ir.Stability]()
+
 // checkStability asserts every stability names a tier ir declares, or none.
 // Stability is a plain string type with no decoder of its own, so a decoded
 // document carries an invented tier in unchallenged, and an emitter gating an
 // operation on the tier has no arm for one.
 //
-// The walk finds the field by type, as checkInferred finds its lists, so a new
-// carrier is held at once.
+// It prunes all but operationPath, for checkStreamingModes's reason.
 func checkStability(*ir.Document) walkCheck {
 	var vs []Violation
 	return walkCheck{
 		visit: func(v reflect.Value, at ir.WalkPath) bool {
 			if v.Type() != stabilityType {
-				return true
+				return operationPath[v.Type()]
 			}
 			if tier := ir.Stability(v.String()); !tier.Valid() {
 				vs = append(vs, Violation{
