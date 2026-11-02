@@ -70,7 +70,7 @@ type mediaDecl struct {
 // resolving to nothing, which lowers nothing, as any reference object does
 // (docs/compilers/openapi.md#references). The load phase or the rule table
 // reported why, but for a $ref inside an object reached in raw YAML
-// (GitHub #1320) or one the model decodes no string from (GitHub #1280). Keys
+// (GitHub #1320) or one the model decodes no string from (GitHub #1368). Keys
 // beside the $ref but summary and description are not read (GitHub #1321).
 //
 // One declaration lowers at its own pointer however many entries name it, so

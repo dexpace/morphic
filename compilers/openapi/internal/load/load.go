@@ -82,23 +82,39 @@ type Options struct {
 	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, error)
 }
 
-// releaseAnchors clears the anchor name from every node of the model's source
-// tree, so the parser folds every entry the document writes. root must not be
-// nil.
+// readyForModel readies every node of the model's source tree, in one walk: it
+// clears each anchor's name, and tags each plain date a string (plainDate).
+// root must not be nil.
 //
 // The parser skips an anchored mapping entry where the model folds entries into
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
-// GitHub #459). That skip is the only read of an anchor's name;
-// an alias reaches its target by a kept pointer. Run it after the pre-parse
-// refusals, which do read names. A document read through external is released
-// too (GitHub #501), and replaces the resolver's own parse on a second
-// resolution (GitHub #538).
-func releaseAnchors(ctx context.Context, root *yaml.Node) {
+// GitHub #459). That skip is the only read of a name; an alias reaches its
+// target by a kept pointer. Run it after the pre-parse refusals, which read
+// names. A document read through external is readied too (GitHub #501), and
+// replaces the resolver's own parse on a second resolution (GitHub #538).
+func readyForModel(ctx context.Context, root *yaml.Node) {
 	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		n.Anchor = ""
+		if plainDate(n) {
+			n.Tag = "!!str"
+		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
+}
+
+// plainDate reports whether n is a scalar the parser tagged a timestamp with no
+// tag written, which any unquoted date is
+// (docs/parser-library.md#scalar-resolution). OpenAPI holds YAML to its JSON
+// schema ruleset, which has no timestamp, so the source wrote the string it
+// spells. The model decodes no string from a timestamp, and reads a field so
+// written as left out (docs/parser-library.md#undecoded-scalar, GitHub #1280).
+//
+// A scalar the source tags outright, `!!timestamp` or another, is no plain date:
+// what its tag reads as is GitHub #245's and #1368's to settle.
+func plainDate(n *yaml.Node) bool {
+	return n != nil && n.Kind == yaml.ScalarNode && n.Style&yaml.TaggedStyle == 0 &&
+		n.ShortTag() == "!!timestamp"
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not
