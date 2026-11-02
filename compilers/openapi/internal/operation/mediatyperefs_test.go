@@ -424,3 +424,53 @@ components:
 	assert.JSONEq(t, strconv.Quote(want), string(kept.Value))
 	assert.Equal(t, wantAt, string(kept.Provenance.Pointer))
 }
+
+// TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument pins that a
+// parameter or header whose content entry names a Media Type Object in another
+// document reads its schema where that object is declared: what the parameter
+// keeps verbatim is placed in that document, and a bound the schema's own node
+// holds is not copied onto the header as well (GitHub #856).
+func TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument(t *testing.T) {
+	t.Parallel()
+	const other = `openapi: 3.2.0
+info: {title: O, version: "1"}
+paths: {}
+components:
+  mediaTypes:
+    Q: {schema: {type: integer, minimum: 2, readOnly: true}}
+    H: {schema: {type: array, items: {type: integer}, maxItems: 3}}
+`
+	doc, diags := compileMediaTypeUses(t, other, `  /b:
+    get:
+      operationId: getB
+      parameters:
+        - name: f
+          in: query
+          content:
+            application/json: {$ref: 'other.yaml#/components/mediaTypes/Q'}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H:
+              content:
+                application/json: {$ref: 'other.yaml#/components/mediaTypes/H'}
+`, true)
+	openapitest.RequireNoErrorDiags(t, diags)
+	get := openapitest.FindOp(t, doc, "getB")
+
+	require.Len(t, get.Params, 1)
+	kept, ok := get.Params[0].Unmodeled["openapi:readOnly"]
+	require.True(t, ok, "kept: %v", get.Params[0].Unmodeled)
+	require.Less(t, kept.Provenance.Source, len(doc.Sources))
+	assert.Equal(t, "other.yaml", filepath.Base(doc.Sources[kept.Provenance.Source].Path), "placed where declared")
+	assert.Equal(t, "/components/mediaTypes/Q/schema/readOnly", string(kept.Provenance.Pointer))
+
+	require.Len(t, get.Responses[0].Headers, 1)
+	header := get.Responses[0].Headers[0]
+	list, ok := doc.Types[header.Type.Target].(*ir.List)
+	require.True(t, ok, "the header's type: %s", header.Type.Target)
+	require.NotNil(t, list.Constraints)
+	assert.Equal(t, int64(3), *list.Constraints.MaxItems, "the list node holds the bound")
+	assert.Nil(t, header.Constraints, "so the header holds no copy of it")
+}

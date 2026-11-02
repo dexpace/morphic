@@ -498,7 +498,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestResolve_AMediaTypeUseTheParserFaultsOnIsReportedOnce`,
   `resolve.TestReferenceEnd_NamesWhereAMediaTypeReferenceEnds`,
   `load.TestResolve_EveryKindOfObjectIsValidated`,
-  `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`
+  `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`,
+  `operation.TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
   (#604). Another document's identifiers are not read, so a plain name naming one of its resources
   is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
