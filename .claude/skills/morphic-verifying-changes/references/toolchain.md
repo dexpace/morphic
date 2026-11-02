@@ -61,12 +61,13 @@
 ## A test opens, in its own process, what its result rests on
 `test-opens-its-inputs`
 
-- **Rule.** A test whose verdict rests on a file outside the module root, or on one only a child
-  process reads (`go list` under `go/packages`, a re-exec'd child, `git`), opens, in its own
-  process, the in-module files the child reads, or a file that changes with them. For a dependency
-  that file is `go.mod` and `go.sum`: call `irtest.ReadModuleFiles` and hold the call with
-  `irtest.RequireOpensModuleFiles`. No check yet holds a new test to the rule, and none is filed.
-- **Why.** `readDeclarers` read the parser library's sources from the module cache, which go test
-  never rechecks, so a bump would rerun nothing once CI reused results (#1272).
-- **Probe.** Run the package twice, `touch` the file the verdict rests on (`go.sum` for a
-  dependency), and run it again. The last `ok` line must lack `(cached)`.
+- **Rule.** A test whose verdict rests on a file outside the module, or on one only a child
+  (`go list`, `git`) reads, opens in its own process the in-module files the child
+  reads, or one that changes with them. For a dependency, call `irtest.ReadModuleFiles`, held by
+  `irtest.RequireOpensModuleFiles`. For a child's list, list each directory above it.
+- **Why.** `readDeclarers` read library sources from the module cache, which go test never
+  rechecks (#1272). Sweeping the child sites `grep -rn --include='*.go' -E 'exec.Command'` and
+  each `packages.Load` and `decls.Load`, found `ir/irtest`'s `git ls-files` tests; closed.
+- **Probe.** `touch` the file the verdict rests on and rerun: the last `ok` must lack `(cached)`.
+  For a list, in a scratch clone with its own `GOCACHE`, commit a file it would newly list, run
+  `make filetimes`, and rerun without `-count=1`.
