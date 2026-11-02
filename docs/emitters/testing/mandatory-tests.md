@@ -195,3 +195,10 @@ throughout these documents.
     a coded error under `only` ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open),
     [unions](../refine/unions.md#variant-identity-and-recognition)).
 
+36. **T-36 · Enums over every value type** — on every target, an enum of each primitive a
+    `ValueType` can name, `bool`, `integer`, `number`, `decimal`, `date`, `uuid` and `bytes` among
+    them, closed and open, encodes each member as its value type's JSON kind and decodes it back to
+    the same constant, a number spelled with trailing zeros included; where the target's constants
+    cannot hold the type, the member's value is reachable as the row's type, and no member is ever
+    written as a string its value type does not admit
+    ([a member on the wire](../refine/enums.md#a-member-on-the-wire)).
