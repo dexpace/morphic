@@ -231,13 +231,28 @@ func TestCycleVisitor_IsToldInADeterministicOrder(t *testing.T) {
 	assert.Equal(t, "doc[a].Next", first[0].Path)
 }
 
+// deepListCycles is a [listVisits] that is an ir.CycleVisitor too, reading no
+// cycle it is told of, which keeps the walk one that tells cycles, as a plain
+// visitor would not. A walk asks a visitor for Cycle at run time, so a caller
+// converts it, for the build to refuse one that has stopped being a
+// CycleVisitor.
+type deepListCycles struct{ *listVisits }
+
+func (deepListCycles) Cycle(_, _ ir.WalkPath, _ reflect.Type) {}
+
 // TestCycleVisitor_WalkReportsTruncation holds the flag a walk owes its caller
 // when it tells cycles too: a cycle past the depth cap is not found by a walk
 // that stopped.
 func TestCycleVisitor_WalkReportsTruncation(t *testing.T) {
 	t.Parallel()
-	_, truncated := valueCycles(irtest.NestedListValue(ir.MaxWalkDepth))
-	assert.True(t, truncated)
+	root := irtest.NestedListValue(ir.MaxWalkDepth)
+
+	deep := walkDeepList(func(l *listVisits) bool {
+		return ir.WalkValues(root, "doc", ir.CycleVisitor(deepListCycles{l}))
+	})
+
+	assert.True(t, deep.truncated, "WalkValues with a CycleVisitor must report truncation at ir.MaxWalkDepth")
+	deep.requireDeepestRendered(t)
 }
 
 // nodeKind is what a node of a random graph is built as: one of the three
