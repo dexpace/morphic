@@ -104,33 +104,44 @@ them: a row added to the matrix has a detector, or a reason no IR fact shows it.
 
 ## Correlation keys
 
-`Correlation(id)` answers what an entity is called across revisions of its document: a key built
-from what the document names it by, never from an array position or a file's location, so it
-survives the edits that move an ID ([across revisions](./identity.md#across-revisions)). An entity
-keeps its key through a reordered array, a schema moved within its file or to another file, and an
-`allOf` branch inserted before the one declaring a property; an operation keeps its own through a
-renamed path variable, and through a renamed path where it names itself. A rename of the name the
-key is built from moves the key too, and nothing derived from a document alone follows it; that is
-the structural tier [open question 5](./open-questions.md) leaves open.
+`Correlation(id)` answers what an entity of any class is called across revisions of its document,
+and `Correlated(key)` answers the reverse: a key built from what the document names the entity by,
+never from an array position or a file's location, so it survives the edits that move an ID
+([across revisions](./identity.md#across-revisions)). An entity keeps its key through a reordered
+array, a schema moved within its file or to another file, and an `allOf` branch inserted before
+the one declaring a property; an operation keeps its own through a renamed path variable, and
+through a renamed path where it names itself. A rename of the name the key is built from moves the
+key too, and nothing derived from a document alone follows it; that is the structural tier [open
+question 5](./open-questions.md) leaves open.
+
+An entity named for itself takes a key of its own:
 
 | Entity | Key |
 |---|---|
 | operation | `op:` and its declared name (`Naming.Source`, an OpenAPI `operationId`); one the source leaves unnamed takes its method and route instead, each path variable written `{}`, a webhook's event name standing for the route |
-| callback operation | the declaring operation's key, the callback's name, its expression and the method |
-| parameter | its operation's key, its location and its wire name, a header's in lower case |
-| named type | `type:` and its declared name (`Naming.Source`) |
-| anonymous type | the key of the position declaring it: a parameter's schema, a body's content by media type, a response by its condition and media type, a property's type, a container's element, a variant's type; an `allOf` member written in place takes the key of the model composing it, so what it declares is keyed as that model's own |
-| property | the key of the model declaring it, and its wire name |
-| union variant | its union's key and the tag naming it, a discriminator value or a wire name; untagged, its type's key where the type is named, else its declared name, else none |
-| enum member | its enum's key and the member's key ([member identity](./enums.md#member-identity)) |
+| named type | its namespace, then `type:` and its declared name; a primitive, its kind |
+| service, auth scheme | its declared name |
 | group | its ID, which a rule mints from a name and never from a position ([groups](./identity.md#operation-groups)) |
-| server | its URL template |
-| auth scheme | its declared name |
 
-A key no two entities of a document share identifies one. Where two share one, as two components of
-one name in two documents do, or two servers of one URL template, the key identifies neither and
-`Correlation` reports none for both, because a wrong match is the failure the key exists to prevent.
-An entity with no key is matched by nothing, so a consumer reads it as removed in one revision and
-added in the other. The key is derived and never stored, as every fact here is: it needs only what
-the document already holds, and a stored copy would add to every node a document that is already
-several times its source ([consumers](./consumers.md#size)). Not built yet (#679).
+Every other entity is keyed by a position that names it, its holder's key extended by one segment:
+
+| Entity | Position |
+|---|---|
+| parameter | its operation, where the parameter travels and its wire name, a header's in lower case; one no binding places, its name |
+| property | the model declaring it, and its wire name. The anonymous models a model composes in place are part of it: their properties are keyed as its own, each wire name keying the declaration the model's [flattening](./models.md#the-flattening) takes and none it overrides |
+| field argument | its property, and its name |
+| header | the response, error, default or stream item declaring it, and its name in lower case |
+| enum member | its enum, and the member's key ([member identity](./enums.md#member-identity)) |
+| server | the service or operation naming it, and its URL template |
+| callback operation with no name of its own | the operation declaring it, the method and the runtime expression keying it |
+| anonymous type | a parameter's schema; the content of a request, a response, an error or a default, by the conditions and media type, and that content's stream item and file contents; a stream's events and initial message; an RPC input; a long-running operation's polling and final types; an auth scheme's credentials; a property's or a header's type, and what its encoding decodes to; a catch-all's value, key and patterns; a list's element, a map's key and value, a tuple's element by its position and its rest, and a scalar's base; an anonymous model another composes in place, by the composing model's key and `allOf`; and a variant's type, by the tag a discriminator maps to it, its wire name in a key-tagged union, else its declared name |
+
+An entity several positions name takes the least of their keys, so its key is the same whatever
+order the document declares them in. A key no two entities of a document share identifies one. Where
+two share one, as two components of one name in two documents do, or two anonymous models one model
+composes in place, the key identifies neither and `Correlation` reports none for both, and they key
+nothing through it, because a wrong match is the failure the key exists to prevent. An entity with
+no key is matched by nothing, so a consumer reads it as removed in one revision and added in the
+other. The key is derived and never stored, as every fact here is: it needs only what the document
+already holds, and a stored copy would add to every node a document that is already several times
+its source ([consumers](./consumers.md#size)). Not built yet (#679).
