@@ -174,9 +174,9 @@ func TestRequireOpensModuleFiles_RefusesThroughARealChild(t *testing.T) {
 	}{
 		{"a caller naming itself", self, false, self + " names itself"},
 		{"a caller inside a marked child", "TestReadModuleFiles_OpensGoModAndGoSum", true,
-			self + " runs in a child RequireOpensModuleFiles started"},
+			self + " runs in a child RequireOpens started"},
 		{"a child that opens nothing", "TestUnopened_NamesTheModuleFilesTheLogLacks", false,
-			"TestUnopened_NamesTheModuleFilesTheLogLacks does not open the module's go.mod or go.sum"},
+			"TestUnopened_NamesTheModuleFilesTheLogLacks does not open "},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -195,27 +195,31 @@ func TestRequireOpensModuleFiles_RefusesThroughARealChild(t *testing.T) {
 }
 
 // TestUnopened_NamesTheModuleFilesTheLogLacks pins the log's reading: only an
-// exact open line under the root counts, so a stat, another file and another
-// root do not.
+// exact open line for a path counts, so a stat, another file, another root and
+// a longer name do not, and the answer keeps the order the paths came in.
 func TestUnopened_NamesTheModuleFilesTheLogLacks(t *testing.T) {
 	t.Parallel()
+	files := []string{"/m/go.mod", "/m/go.sum"}
 	tests := []struct {
-		name string
-		log  string
-		want []string
+		name  string
+		log   string
+		paths []string
+		want  []string
 	}{
-		{"both", "# test log\nopen /m/go.mod\nopen /m/go.sum\n", nil},
-		{"no go.mod", "open /m/go.sum\n", []string{"go.mod"}},
-		{"no go.sum", "open /m/go.mod\n", []string{"go.sum"}},
-		{"stat is not open", "stat /m/go.mod\nopen /m/go.sum\n", []string{"go.mod"}},
-		{"another root", "open /other/go.mod\nopen /m/go.sum\n", []string{"go.mod"}},
-		{"a longer name", "open /m/go.mod.bak\nopen /m/go.sum\n", []string{"go.mod"}},
-		{"empty", "", []string{"go.mod", "go.sum"}},
+		{"both", "# test log\nopen /m/go.mod\nopen /m/go.sum\n", files, nil},
+		{"no go.mod", "open /m/go.sum\n", files, []string{"/m/go.mod"}},
+		{"no go.sum", "open /m/go.mod\n", files, []string{"/m/go.sum"}},
+		{"stat is not open", "stat /m/go.mod\nopen /m/go.sum\n", files, []string{"/m/go.mod"}},
+		{"another root", "open /other/go.mod\nopen /m/go.sum\n", files, []string{"/m/go.mod"}},
+		{"a longer name", "open /m/go.mod.bak\nopen /m/go.sum\n", files, []string{"/m/go.mod"}},
+		{"empty", "", files, files},
+		{"a directory", "open /m\nopen /m/a/b\n", []string{"/m", "/m/a", "/m/a/b"}, []string{"/m/a"}},
+		{"no paths", "open /m/go.mod\n", nil, nil},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, irtest.UnopenedIn([]byte(tc.log), "/m"))
+			assert.Equal(t, tc.want, irtest.UnopenedIn([]byte(tc.log), tc.paths))
 		})
 	}
 }
@@ -225,6 +229,7 @@ func TestUnopened_NamesTheModuleFilesTheLogLacks(t *testing.T) {
 // child's run and the log's read.
 type opensRun struct {
 	self, test string
+	paths      []string
 	inChild    bool
 	remaining  time.Duration
 	bounded    bool
@@ -236,7 +241,7 @@ type opensRun struct {
 // module files; a test changes the one thing it pins.
 func goodOpens() opensRun {
 	return opensRun{
-		self: "TestCaller", test: "TestNamed",
+		self: "TestCaller", test: "TestNamed", paths: []string{"/m/go.mod", "/m/go.sum"},
 		run:  func([]string) ([]byte, error) { return []byte("ok"), nil },
 		read: func(string) ([]byte, error) { return []byte("open /m/go.mod\nopen /m/go.sum\n"), nil },
 	}
@@ -250,7 +255,7 @@ func (o opensRun) drive() (*recordingT, bool) {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		irtest.RequireOpensOn(rec, o.self, o.test, o.inChild, o.remaining, o.bounded,
+		irtest.RequireOpensOn(rec, o.self, o.test, o.paths, o.inChild, o.remaining, o.bounded,
 			func(args []string) ([]byte, error) { started = true; return o.run(args) }, o.read)
 	}()
 	<-done
@@ -287,11 +292,11 @@ func TestRequireOpens_FailsWhenTheChildOrItsLogDoes(t *testing.T) {
 			o.read = func(string) ([]byte, error) { return nil, errors.New("gone") }
 		}, "reading the test log of TestNamed: gone"},
 		{"no go.mod opened", func(o *opensRun) { o.read = logOf("open /m/go.sum\n") },
-			"TestNamed does not open the module's go.mod, so a dependency bump would not rerun it:\nok"},
+			"TestNamed does not open /m/go.mod, so a change there would not rerun it:\nok"},
 		{"no go.sum opened", func(o *opensRun) { o.read = logOf("open /m/go.mod\n") },
-			"TestNamed does not open the module's go.sum, so a dependency bump would not rerun it:\nok"},
+			"TestNamed does not open /m/go.sum, so a change there would not rerun it:\nok"},
 		{"neither opened", func(o *opensRun) { o.read = logOf("") },
-			"TestNamed does not open the module's go.mod or go.sum, so"},
+			"TestNamed does not open /m/go.mod, /m/go.sum, so a change there"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -319,7 +324,9 @@ func TestRequireOpens_RefusesToRunAgainstItselfInAChildOrWithoutTime(t *testing.
 		{"the test names itself", func(o *opensRun) { o.test = o.self },
 			"TestCaller names itself, which would run it again without end"},
 		{"it runs in a child", func(o *opensRun) { o.inChild = true },
-			"TestCaller runs in a child RequireOpensModuleFiles started, which would start another"},
+			"TestCaller runs in a child RequireOpens started, which would start another"},
+		{"no path is named", func(o *opensRun) { o.paths = nil },
+			"TestCaller names no path for TestNamed to open, so its log would show nothing"},
 		{"no time is left", func(o *opensRun) { o.bounded = true },
 			"TestCaller has no time left (0s), and a child given none would run without a timeout"},
 		{"the time has passed", func(o *opensRun) { o.bounded, o.remaining = true, -time.Second },

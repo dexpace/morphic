@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -72,24 +71,36 @@ func readModuleFiles(t testingT, root string, read func(string) ([]byte, error))
 	}
 }
 
-// opensChildEnv marks a process RequireOpensModuleFiles started, which must not
-// start another.
+// opensChildEnv marks a process RequireOpens started, which must not start
+// another.
 const opensChildEnv = "IRTEST_OPENS_CHILD"
 
 // RequireOpensModuleFiles fails t unless running the top-level test named test
-// opens the main module's go.mod and go.sum. It reads the open lines in go
+// opens the main module's go.mod and go.sum. It is RequireOpens for those two.
+func RequireOpensModuleFiles(t *testing.T, test string) {
+	t.Helper()
+	root := RepoRoot(t)
+	paths := make([]string, 0, len(moduleFiles))
+	for _, name := range moduleFiles {
+		paths = append(paths, filepath.Join(root, name))
+	}
+	RequireOpens(t, test, paths...)
+}
+
+// RequireOpens fails t unless running the top-level test named test opens each
+// of paths, absolute and as the log writes them. It reads the open lines in go
 // test's log, which the test cache keys on; a returned value cannot show that.
 // The child takes the parent's remaining time as its own -test.timeout, so it
 // ends when its parent does, and gets no shorter bound, as one under load
 // would read a slow child as a hung one.
-func RequireOpensModuleFiles(t *testing.T, test string) {
+func RequireOpens(t *testing.T, test string, paths ...string) {
 	t.Helper()
 	logPath := filepath.Join(t.TempDir(), "testlog")
 	deadline, bounded := t.Deadline()
 	requireOpens(t, opensCheck{
 		self:      t.Name(),
 		test:      test,
-		root:      RepoRoot(t),
+		paths:     paths,
 		logPath:   logPath,
 		inChild:   os.Getenv(opensChildEnv) != "",
 		remaining: time.Until(deadline),
@@ -104,27 +115,31 @@ func RequireOpensModuleFiles(t *testing.T, test string) {
 }
 
 // opensCheck is what requireOpens needs: the calling test and the one to run,
-// the module's root, where the child writes its log, whether this process is
-// itself such a child, the time left to this process and whether it has a limit
-// at all, and the child's run, given its arguments, and the log's read.
+// the paths the child must open, where it writes its log, whether this process
+// is itself such a child, the time left to this process and whether it has a
+// limit at all, and the child's run, given its arguments, and the log's read.
 type opensCheck struct {
-	self, test, root, logPath string
-	inChild                   bool
-	remaining                 time.Duration
-	bounded                   bool
-	run                       func(args []string) ([]byte, error)
-	read                      func(string) ([]byte, error)
+	self, test, logPath string
+	paths               []string
+	inChild             bool
+	remaining           time.Duration
+	bounded             bool
+	run                 func(args []string) ([]byte, error)
+	read                func(string) ([]byte, error)
 }
 
-// requireOpens is RequireOpensModuleFiles with its effects injected, so a test
-// can drive each refusal without starting a child.
+// requireOpens is RequireOpens with its effects injected, so a test can drive
+// each refusal without starting a child.
 func requireOpens(t testingT, c opensCheck) {
 	t.Helper()
 	if c.inChild {
-		t.Fatalf("irtest: %s runs in a child RequireOpensModuleFiles started, which would start another", c.self)
+		t.Fatalf("irtest: %s runs in a child RequireOpens started, which would start another", c.self)
 	}
 	if c.test == c.self {
 		t.Fatalf("irtest: %s names itself, which would run it again without end", c.self)
+	}
+	if len(c.paths) == 0 {
+		t.Fatalf("irtest: %s names no path for %s to open, so its log would show nothing", c.self, c.test)
 	}
 	if c.bounded && c.remaining <= 0 {
 		// testing arms its timer only for a value above zero.
@@ -139,9 +154,9 @@ func requireOpens(t testingT, c opensCheck) {
 	if err != nil {
 		t.Fatalf("irtest: reading the test log of %s: %v", c.test, err)
 	}
-	if missing := unopened(log, c.root); len(missing) != 0 {
-		t.Fatalf("irtest: %s does not open the module's %s, so a dependency bump would not rerun it:\n%.1500s",
-			c.test, strings.Join(missing, " or "), out)
+	if missing := unopened(log, c.paths); len(missing) != 0 {
+		t.Fatalf("irtest: %s does not open %.1500s, so a change there would not rerun it:\n%.1500s",
+			c.test, strings.Join(missing, ", "), out)
 	}
 }
 
@@ -156,14 +171,19 @@ func childArgs(test, logPath string, remaining time.Duration, bounded bool) []st
 	return args
 }
 
-// unopened returns the module files under root that log, go test's record of a
-// run, holds no open line for.
-func unopened(log []byte, root string) []string {
-	lines := strings.Split(string(log), "\n")
+// unopened returns the paths that log, go test's record of a run, holds no open
+// line for, in the order given.
+func unopened(log []byte, paths []string) []string {
+	opened := map[string]bool{}
+	for line := range strings.SplitSeq(string(log), "\n") {
+		if path, ok := strings.CutPrefix(line, "open "); ok {
+			opened[path] = true
+		}
+	}
 	var missing []string
-	for _, name := range moduleFiles {
-		if !slices.Contains(lines, "open "+filepath.Join(root, name)) {
-			missing = append(missing, name)
+	for _, path := range paths {
+		if !opened[path] {
+			missing = append(missing, path)
 		}
 	}
 	return missing

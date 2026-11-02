@@ -5,9 +5,11 @@ package irtest_test
 
 import (
 	"bytes"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -139,4 +141,35 @@ func listDirectories(t *testing.T, root string, dirs map[string]bool) {
 		_, err := os.ReadDir(filepath.Join(root, dir))
 		require.NoError(t, err, "listing %s", dir)
 	}
+}
+
+// TestTrackedFiles_ListsEveryDirectoryAboveAFile holds listDirectories to its
+// purpose through the test log, which is what go test keys its cached result
+// on: the child run of the test above must open the root and every directory
+// above a tracked file. A listing of the root alone, or of each file's parent
+// alone, returns the right verdict on today's tree and misses a file added in
+// a directory it never listed.
+func TestTrackedFiles_ListsEveryDirectoryAboveAFile(t *testing.T) {
+	t.Parallel()
+	root := irtest.RepoRoot(t)
+	cmd := exec.Command("git", "ls-files", "-z")
+	cmd.Dir = root
+	out, err := cmd.Output()
+	if err != nil {
+		t.Skipf("git ls-files unavailable (%v)", err)
+	}
+
+	want := map[string]bool{root: true}
+	for rel := range strings.SplitSeq(strings.TrimSuffix(string(out), "\x00"), "\x00") {
+		if _, statErr := os.Lstat(filepath.Join(root, rel)); statErr != nil {
+			continue // a file staged for deletion, which the child skips too
+		}
+		parts := strings.Split(rel, "/")
+		for n := 1; n < len(parts); n++ {
+			want[filepath.Join(root, filepath.Join(parts[:n]...))] = true
+		}
+	}
+	require.Greater(t, len(want), 1, "no directory below the root, so the walk above proves nothing")
+
+	irtest.RequireOpens(t, "TestTrackedFiles_HoldNoCarriageReturn", slices.Sorted(maps.Keys(want))...)
 }
