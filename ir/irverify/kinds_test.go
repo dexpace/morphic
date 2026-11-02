@@ -199,7 +199,7 @@ func TestVerify_ALiteralsUndeclaredValueTypeIsAViolation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc := &ir.Document{Types: ir.TypeRegistry{"t/x/L": &ir.Literal{
-				TypeCommon: ir.TypeCommon{ID: "t/x/L"}, Value: ir.Value{Kind: ir.ValueString, Str: "a"}, ValueType: tc.vt,
+				ID: "t/x/L", Value: ir.Value{Kind: ir.ValueString, Str: "a"}, ValueType: tc.vt,
 			}}}
 			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-prim-kind"))
 		})
