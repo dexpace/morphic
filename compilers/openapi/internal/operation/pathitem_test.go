@@ -667,3 +667,82 @@ paths:
 			"an item with nothing beside its operations announces nothing")
 	}
 }
+
+const keptOncePerMountSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    summary: the path
+    x-path: 1
+    bogus1: {k: 1}
+    bogus2: [1, 2]
+    get: {responses: {"200": {description: ok}}}
+    put: {responses: {"200": {description: ok}}}
+    post: {x-own: 1, responses: {"200": {description: ok}}}
+  /b:
+    $ref: '#/components/pathItems/P'
+    bogus3: 1
+components:
+  pathItems:
+    P:
+      description: the shared item
+      bogus4: true
+      get: {responses: {"200": {description: ok}}}
+      delete: {responses: {"200": {description: ok}}}
+`
+
+// TestPathItem_KeepsWhatItDeclaresOncePerMount pins that what a path item keeps
+// is computed once a mount and copied onto each operation, rather than
+// recomputed for each with compile.Diags left to drop the repeated findings
+// (GitHub #414). /b holds each layer of a $ref'd mount to it. The documentation
+// note is sited at each operation, so each still gets one.
+func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceAsReported(t, keptOncePerMountSpec)
+
+	var keys, notes []string
+	for _, d := range diags {
+		switch {
+		case d.Code == diag.UnknownObjectKey:
+			keys = append(keys, string(d.Provenance.Pointer))
+		case d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, "path-item documentation"):
+			notes = append(notes, string(d.Provenance.Pointer))
+		}
+	}
+	assert.ElementsMatch(t, []string{"/paths/~1a/bogus1", "/paths/~1a/bogus2", "/paths/~1b/bogus3",
+		"/components/pathItems/P/bogus4"}, keys,
+		"each undeclared key is reported once, however many operations hold it")
+	assert.ElementsMatch(t, []string{"/paths/~1a/get", "/paths/~1a/put", "/paths/~1a/post",
+		"/components/pathItems/P/get", "/components/pathItems/P/delete"}, notes,
+		"each operation holding its path's summary or description is told so once, where it is declared")
+
+	ops := map[ir.OpID]ir.Operation{}
+	for _, g := range svc.Groups {
+		for _, op := range g.Operations {
+			ops[op.ID] = op
+		}
+	}
+	for _, tc := range []struct {
+		mount         string
+		methods, keys []string
+	}{
+		{"/paths/~1a", []string{"get", "put", "post"},
+			[]string{"pathItem/bogus1", "pathItem/bogus2", "pathItem/x-path", "pathItemSummary"}},
+		{"/paths/~1b", []string{"get", "delete"},
+			[]string{"pathItem/bogus3", "pathItem/bogus4", "pathItemDescription"}},
+	} {
+		for _, method := range tc.methods {
+			op, ok := ops[ir.OpID("op/openapi"+tc.mount+"/"+method)]
+			require.True(t, ok, "%s mounts %s", tc.mount, method)
+			for _, key := range tc.keys {
+				assert.Contains(t, op.Unmodeled, "openapi:"+key, "%s %s holds %s", tc.mount, method, key)
+			}
+		}
+	}
+	assert.Contains(t, ops["op/openapi/paths/~1a/post"].Unmodeled, "openapi:x-own",
+		"an operation's own entries stay beside its path item's")
+
+	ops["op/openapi/paths/~1a/get"].Unmodeled["openapi:pathItem/bogus1"].Value[0] = ' '
+	assert.JSONEq(t, `{"k":1}`, string(ops["op/openapi/paths/~1a/put"].Unmodeled["openapi:pathItem/bogus1"].Value),
+		"each operation owns its copy: writing through one leaves the others as declared")
+}

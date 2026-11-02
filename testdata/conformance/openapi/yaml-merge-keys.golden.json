@@ -554,6 +554,15 @@
       }
     },
     {
+      "severity": "warning",
+      "code": "openapi/unknown-object-key",
+      "message": "key \"mergedBogus\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1merged/mergedBogus"
+      }
+    },
+    {
       "severity": "info",
       "code": "openapi/validation-only-keyword",
       "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
@@ -569,15 +578,6 @@
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1merged/get"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/unknown-object-key",
-      "message": "key \"mergedBogus\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/mergedBogus"
       }
     },
     {

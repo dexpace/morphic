@@ -64,6 +64,31 @@ func typeByName(doc *ir.Document, name string) ir.TypeDef {
 // compiler's business, not theirs.
 func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStrategy) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
+	var acc compile.Diags
+	svc, loadDiags := walkService(t, src, grouping, acc.AppendAll)
+	return svc, append(loadDiags, acc.List()...)
+}
+
+// serviceAsReported is serviceWithGrouping under GroupByTags, returning every
+// diagnostic after the load's as each phase reported it, before compile.Diags
+// drops a repeat: what a test needs to hold a lowering to reporting a finding
+// once rather than leave that to the dedupe.
+func serviceAsReported(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
+	t.Helper()
+	var reported []ir.Diagnostic
+	svc, _ := walkService(t, src, lowering.GroupByTags, func(diags []ir.Diagnostic) {
+		reported = append(reported, diags...)
+	})
+	return svc, reported
+}
+
+// walkService loads src and runs the phases beneath the service walk, then the
+// walk itself under grouping, handing report each phase's diagnostics in turn.
+// It returns the service and the load's diagnostics.
+func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
+	report func([]ir.Diagnostic),
+) (ir.Service, []ir.Diagnostic) {
+	t.Helper()
 	loadedDoc, loadDiags, err := load.Load(t.Context(), 0, openapitest.SourceOf(src), load.Options{})
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
@@ -71,16 +96,15 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 	types := compile.NewTypes()
 	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, grouping, lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
-	var acc compile.Diags
-	acc.AppendAll(schema.LowerComponentSchemas(t.Context(), c, types))
+	report(schema.LowerComponentSchemas(t.Context(), c, types))
 
 	schemes, schemeDiags := auth.LowerSecuritySchemes(c)
-	acc.AppendAll(schemeDiags)
+	report(schemeDiags)
 	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, servers.NewRegistry(), schemes)
-	acc.AppendAll(svcDiags)
+	report(svcDiags)
 	_, finished := types.Finish(t.Context())
-	acc.AppendAll(finished)
-	return svc, append(loadDiags, acc.List()...)
+	report(finished)
+	return svc, loadDiags
 }
 
 // errorFindings spells each error in diags as its code and pointer, in the order

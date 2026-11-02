@@ -33,12 +33,15 @@ func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
 	summary, description := "documented", "at length"
+	var kept ir.Unmodeled
 	op := &ir.Operation{}
 
-	diags := applyPathItemDocs(l.ctx, onOperation(op),
+	diags := applyPathItemDocs(l.ctx, onOperations(&kept),
 		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a", owners{}.cedes(0))
+	diags = append(diags, keepOn(op, kept)...)
 
-	assert.Nil(t, op.Unmodeled, "documentation with no raw node is not preserved")
+	assert.Nil(t, kept, "documentation with no raw node is not preserved")
+	assert.Nil(t, op.Unmodeled, "so the operation holds none")
 	assert.Empty(t, diags)
 }
 
