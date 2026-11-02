@@ -82,6 +82,27 @@
         "name": "hex-color"
       }
     },
+    "t/anon/components/schemas/Holder/properties/opens": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Holder/properties/opens",
+      "name": {
+        "hint": "opens"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Holder/properties/opens"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "encoding": {
+        "name": "time"
+      }
+    },
     "t/anon/components/schemas/Holder/properties/whole": {
       "kind": "scalar",
       "id": "t/anon/components/schemas/Holder/properties/whole",
@@ -528,12 +549,39 @@
           }
         },
         {
-          "id": "p/openapi/components/schemas/Holder/properties/opens",
+          "id": "p/openapi/components/schemas/Holder/properties/starts",
           "name": {
-            "source": "opens",
-            "canonical": "opens"
+            "source": "starts",
+            "canonical": "starts"
           },
-          "wireName": "opens",
+          "wireName": "starts",
+          "type": {
+            "target": "t/prim/datetime",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/starts"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/closes",
+          "name": {
+            "source": "closes",
+            "canonical": "closes"
+          },
+          "wireName": "closes",
           "type": {
             "target": "t/prim/time",
             "nullable": false
@@ -551,7 +599,7 @@
           "docs": {},
           "provenance": {
             "source": 0,
-            "pointer": "/components/schemas/Holder/properties/opens"
+            "pointer": "/components/schemas/Holder/properties/closes"
           }
         },
         {
@@ -579,6 +627,33 @@
           "provenance": {
             "source": 0,
             "pointer": "/components/schemas/Holder/properties/ttl"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Holder/properties/opens",
+          "name": {
+            "source": "opens",
+            "canonical": "opens"
+          },
+          "wireName": "opens",
+          "type": {
+            "target": "t/anon/components/schemas/Holder/properties/opens",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Holder/properties/opens"
           }
         },
         {
@@ -612,6 +687,18 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/prim/datetime": {
+      "kind": "primitive",
+      "id": "t/prim/datetime",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "datetime"
     },
     "t/prim/datetime_offset": {
       "kind": "primitive",
@@ -835,7 +922,7 @@
     {
       "format": "openapi@3.1",
       "path": "scalar-format.yaml",
-      "hash": "b318c4fc39feaf7f3660a7581c2bad20463f6724528d766288f7c454c9b3ed98"
+      "hash": "e68bed3e900ed553dbafdc40d1234aa8b7c57f25f0d577476779df7cd2817753"
     }
   ]
 }

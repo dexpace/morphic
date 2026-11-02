@@ -1140,10 +1140,18 @@ by value domain and spelling (`integer` against `number`, `uuid` against `string
 (`string` against `format: byte`, or an unknown format over bare `string`), is disjoint from a kind
 of another family, or from another string format where neither is `bytes` (`uuid` against
 `format: date`), and overlaps any other kind (`uuid` against `format: byte`); for an `Enum`, that
-overlap is disjoint where the kind's judge refuses every member. An enum with no members is refused
+overlap is disjoint where the kind's judge refuses every member. A `Scalar` hoisted for `time`,
+whose grammar, RFC 3339's `full-time`, the compiler holds though the table pairs it with no kind
+([`string-formats`](#string-formats)), is read wherever a kind is, through an alias too, as a
+string format of its own: within `string`, an overlap with `bytes`, and disjoint from every other
+kind, `time-local` and `date-time` among them, and from an `Enum` none of whose members it
+admits. An enum with no members is refused
 vacuously, so it is disjoint from any kind it would otherwise overlap, `bytes` included; an enum
 with members against `bytes` stays an overlap. A `const` wins when the kind admits its value; where
-it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Two
+it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Against a
+`Scalar` hoisted for `time`, a `const` is disjoint where the node refuses its value, and wins where
+the node admits it and says nothing but its base, the format and bounds, so a field typed by the
+`const` loses none of it; a node saying more, a description or an example, overlaps it. Two
 enums, two `const`s or two `Scalar`s equal in every field but where they were declared (IDs, names,
 whether hoisted inline, and the provenance of the node and of what it keeps under `Unmodeled`) are
 one type where both were written inline at the field's own declarations, in their document, as the
@@ -1175,7 +1183,8 @@ pair is judged by what the two types hold, an alias as the
 type it stands for and a `const` object or array as a structure of that instance type: disjoint
 where their kinds share no value, or a value type meets a structure, or two structures of different
 instance types meet; an overlap where their kinds share values or a `const` meets a type that ends
-in a kind or another `const`; and unrelated where nothing says what they share, as between two
+in a kind, but for the `time` node above, or another `const`; and unrelated where nothing says
+what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
 and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
 types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
@@ -1243,7 +1252,8 @@ judged against that: a `default: null` or a null example is refused where the me
 admit null, a declaration of the field's own type included. The top type admits null whatever its
 bit says, and one folded under another type says nothing of null. A `default` or `examples` a
 broader declaration gives is taken only where the winning type admits it, judged per keyword and all
-or nothing. The winning type admits a value by its kind and by the constraints its node carries:
+or nothing. The winning type admits a value by its kind, by the `full-time` grammar where it is a
+`Scalar` hoisted for `time`, and by the constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
 `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
 declaration's value is held by the same checks to each bound the field keeps that another
@@ -1304,13 +1314,15 @@ more than the field does, and a release changing either changes no value the fie
 neither is kept or reported. Each diagnostic sits at the declaration that lost and names the one
 whose say the field kept. A dropped declaration is reported against the winner as an
 `openapi/conflicting-redeclaration`
-warning where their types are incompatible — disjoint primitive kinds (`string` against `integer`,
-`uuid` against `date-time`), an enum none of whose members the other kind admits, a scalar against a
+warning where their types are incompatible — disjoint kinds (`string` against `integer`, `uuid`
+against `date-time`, `time` against `time-local`), an enum none of whose members the other kind
+admits, a scalar against a
 structure, two structures of different instance types, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
 two enums of one kind, each with members, a `const` against a kind with no judge, against a node
-that ends in a kind or against another `const`, or two lists or maps whose members share only null or share nothing while
+that ends in a kind, but for the `time` node above, or against another `const`, or two lists or
+maps whose members share only null or share nothing while
 both admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types
 the judgment does not compare (a model and a map, a list and a tuple, a union, an opaque scalar, a
 node a degraded lowering minted, or two models beside a type that keeps them from composing), since
@@ -1396,6 +1408,11 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `spelling.TestRelate_ClassifiesEveryVerdict`,
   `spelling.TestFormatTable_EveryRowNarrowsItsBareType`,
   `merge.TestAdmits_JudgesEachKindExactly`,
+  `merge.TestAdmitsFormat_JudgesTimeAsAFullTime`,
+  `merge.TestAdmitsFormat_SharesNoStringWithAKind`,
+  `merge.TestRelateKinds_ReadsAHeldFormatAsAStringFormat`,
+  `merge.TestKindOf_TheFirstEncodingDecidesTheFormat`,
+  `schema.TestAllOf_ATimeIsJudgedByItsGrammar`,
   `merge.TestAdmits_ReadsAHugeExponentWithoutMaterializingIt`,
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
@@ -1450,14 +1467,15 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), a list or map whose
-  broader side carries detail the narrower lacks, a node adding a bound beside one adding other
-  detail, and a list or map whose members meet, are reported as an overlap and never narrowed
-  (#1042); two models alike in every property compose rather than collapse to one type (#1083); a
-  model and a map or a union are reported as types the merge does not compare (#1182), and so are two
-  lists, tuples or maps whose members are different models (#1180); a model, an alias of `{}` and
-  another model keep the first and report the rest (#1194); a model and the wrapper it
-  flattens that fold different sets only because the model stops at the flattening depth are refused
-  as `compile/registry-refused`, not told apart, since one declaration names both.
+  broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a
+  description or other detail of its own against a `const` it admits, a node adding a bound beside
+  one adding other detail, and a list or map whose members meet, are reported as an overlap and
+  never narrowed (#1042); two models alike in every property compose rather than collapse to one
+  type (#1083); a model and a map or a union are reported as types the merge does not compare
+  (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a model,
+  an alias of `{}` and another model keep the first and report the rest (#1194); a model and the
+  wrapper it flattens that fold different sets only because the model stops at the flattening depth
+  are refused as `compile/registry-refused`, not told apart, since one declaration names both.
 
 ### `allof-required`
 
@@ -1958,16 +1976,19 @@ the union, under a report naming a union of models.
 ### `string-formats`
 
 A `type: string` with a `format` the table names lowers to the shared primitive the pairing selects,
-and no node of its own: `date` to `date`, `time` to `time`, `duration` to `duration`, `uuid` to
-`uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `binary` to `bytes`. `byte` lowers to a
-hoisted `Scalar` over `bytes` whose `Encoding` is `base64`, with the `string` it travels as in
-`WireType`. Any other format (`email`, `uri-reference`, `ipv4`, an invented one) lowers to a hoisted
-`Scalar` over `string` whose `Encoding.Name` is the format as written, case kept, since the compiler
-knows no registry of formats beyond the table. A `contentEncoding` beside a `byte` or unknown format
-names the encoding instead; where the two name different encodings the format is kept verbatim under
-`openapi:format` (`no_ir_home`) with an info `openapi/degraded-construct` at it. A scalar hoisted
-for its format carries the bounds written beside it. The table is the same at every minor, and a
-pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)'.
+and no node of its own: `date` to `date`, `time-local` to `time`, `duration` to `duration`, `uuid`
+to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` to `datetime`,
+`binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
+with the `string` it travels as in `WireType`. Any other format (`time`, `email`, `uri-reference`,
+`ipv4`, an invented one) lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the
+format as written, case kept, since the compiler knows no registry of formats beyond the table, and
+the table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
+primitive holds none ([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a
+`byte` or unknown format names the encoding instead; where the two name different encodings the
+format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
+`openapi/degraded-construct` at it. A scalar hoisted for its format carries the bounds written
+beside it. The table is the same at every minor, and a pairing of `format` with another `type` is
+[`numeric-formats`](#numeric-formats)'.
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
@@ -1975,8 +1996,7 @@ pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)
   `schema.TestLower_NamedScalarComponentResolves`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
   `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
-- Status: partly built: `date-time-local` and `time-local` hoist over `string`, and `time`'s offset
-  has no home (#869), and a `byte` string and a string-carried number put the logical and the wire
+- Status: partly built: a `byte` string and a string-carried number put the logical and the wire
   type on opposite fields (#637).
 
 ### `numeric-formats`
