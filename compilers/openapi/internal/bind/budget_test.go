@@ -57,7 +57,8 @@ func budgetConfig(limit budget.Limit) bind.Config {
 // TestBind_StopsAtItsBudget pins the budget: every limit short of what the
 // table costs cuts it, and the cost itself does not. An answer read within the
 // cut, a site's or a mapping value's, is the full one, or one the budget
-// stopped, never another. A site the budget never reached is missing. The cut
+// stopped, never another, as budgetSpec is read in one pass, so no later pass
+// would answer otherwise. A site the budget never reached is missing. The cut
 // lands at the same place each time, since the sites are read in order.
 func TestBind_StopsAtItsBudget(t *testing.T) {
 	t.Parallel()

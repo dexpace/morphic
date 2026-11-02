@@ -511,7 +511,9 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   holding a character above U+FFFF is refused as malformed (#516), and an unresolved reference
   object's message ends in the resolver's own wording, unless its chain ends on a position holding
   no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file a
-  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040).
+  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040). A chain
+  of documents each named by an absolute URI costs a pass a link, so its work grows with the square
+  of its length (#1349).
 
 ### `reference-cycles`
 

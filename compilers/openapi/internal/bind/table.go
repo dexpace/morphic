@@ -205,8 +205,8 @@ func reread(b *binder) bool {
 // answers for their URIs (OAS 3.1 §4.3.1), so the next pass reads against what
 // they declare. They are read together, a pass for all rather than one each, so
 // one may declare another's URI, read then for nothing, and a document one of
-// them names waits for the pass after: a chain of them costs a pass a link. b
-// reached none of them, should it be the last.
+// them names waits for the pass after: a chain of them costs a pass a link
+// (GitHub #1349). b reached none of them, should it be the last.
 func readHeld(b *binder) {
 	reached := maps.Clone(b.docs.reached)
 	for _, name := range slices.Sorted(maps.Keys(b.held)) {
@@ -279,11 +279,11 @@ func (b *binder) table(t *Table) *Table {
 	return t
 }
 
-// attribute returns, for each position some $ref's, mapping value's or expanding
-// $dynamicRef's chain reaches, the least such position, in whichever document. Starting from each
-// in order, a chain is followed until it meets a position a lesser start
-// reached, whose chain on from there that start has marked, so each position
-// is marked once.
+// attribute returns, for each position some $ref's, mapping value's or
+// expanding $dynamicRef's chain reaches, the least such position, in whichever
+// document. Starting from each in order, a chain is followed until it meets a
+// position a lesser start reached, whose chain on from there that start has
+// marked, so each position is marked once.
 func (b *binder) attribute(t *Table) map[Position]Position {
 	type start struct {
 		from, first Position
