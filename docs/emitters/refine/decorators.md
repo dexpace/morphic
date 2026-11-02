@@ -41,7 +41,9 @@ carrier holding the reference — a property, a parameter, a header or a union v
 has a field for all three — so the reference documents its input exactly as the 3.1 `$ref` it stands
 for does:
 
-- **`Docs` and `Deprecation`**, each field from the first that sets it: the carrier's own, then each
+- **`Docs` and `Deprecation`**, each field from the first that sets it, a `Description` and its
+  `Refs` counting as one since each span indexes its own description
+  ([references in prose](../../ir/annotations.md#references-in-prose)): the carrier's own, then each
   decorator's along the chain; a carrier is deprecated where any of them is. At a property,
   parameter or header the annotations of the type `Alias` names come last, merged as
   [annotations](../../ir/annotations.md#what-a-reference-carries-down) merges a `$ref` target's onto
