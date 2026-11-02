@@ -31,12 +31,12 @@ func FuzzCycleDetector(f *testing.F) {
 			[]compilers.Source{{Path: "fuzz.yaml", Data: data}}, compilers.Options{})
 		if err != nil {
 			if doc != nil {
-				t.Fatalf("a Go error returned a document: %v", err)
+				t.Errorf("a Go error returned a document: %v", err)
 			}
 			return
 		}
 		if doc == nil && !ir.HasError(diags) {
-			t.Fatalf("no document came back, and no error says why: %+v", diags)
+			t.Errorf("no document came back, and no error says why: %+v", diags)
 		}
 	})
 }
