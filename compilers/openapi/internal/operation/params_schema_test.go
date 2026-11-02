@@ -687,8 +687,9 @@ components:
 }
 
 // TestParameter_ABranchSpeaksAsItsSchemaDoes pins a parameter's schema refining a
-// $ref: what its branches write lands as what the schema writes does, and what
-// ir.Parameter has no field for is kept verbatim at the keyword that wrote it.
+// $ref: what its branches write lands as what the schema writes does, a redaction
+// on Secret, and what ir.Parameter has no field for is kept verbatim at the
+// keyword that wrote it.
 func TestParameter_ABranchSpeaksAsItsSchemaDoes(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
@@ -714,7 +715,9 @@ components:
 	assert.Equal(t, "A string", param.Docs.Summary)
 	require.NotNil(t, param.Constraints)
 	assert.Equal(t, new(int64(3)), param.Constraints.MaxLength)
-	for _, key := range []string{"openapi:readOnly", "openapi:format", "openapi:xml"} {
+	assert.True(t, param.Secret, "a branch's format: password redacts the parameter")
+	assert.NotContains(t, param.Unmodeled, "openapi:format", "which then needs no verbatim copy")
+	for _, key := range []string{"openapi:readOnly", "openapi:xml"} {
 		entry, kept := param.Unmodeled[key]
 		if assert.True(t, kept, "%s: got %v", key, param.Unmodeled) {
 			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, key)
