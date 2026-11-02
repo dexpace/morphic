@@ -94,8 +94,9 @@ func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	require.True(t, ok, `the callback named "a/x-b" keeps its own x-c escaped; got %v`, kept)
 	assert.JSONEq(t, `"FROM_A_SLASH_XB"`, string(slashed.Value))
 
-	var names []string
-	for _, cb := range openapitest.FindOp(t, doc, "postP").Bindings.HTTP[0].Callbacks {
+	callbacks := openapitest.FindOp(t, doc, "postP").Bindings.HTTP[0].Callbacks
+	names := make([]string, 0, len(callbacks))
+	for _, cb := range callbacks {
 		names = append(names, cb.Name)
 		cbOp := openapitest.FindOp(t, doc, map[string]string{"a": "cbA", "a/x-b": "cbB"}[cb.Name])
 		assert.Equal(t, []ir.OpID{cbOp.ID}, cb.Operations, "callback %q lists its own operation", cb.Name)

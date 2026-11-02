@@ -84,29 +84,30 @@ func checkCallbacks(*ir.Document) walkCheck {
 	listed := map[ir.OpID]string{}
 	return walkCheck{
 		visit: func(v reflect.Value, path ir.WalkPath) bool {
-			if v.Type() != operationType {
-				return true
-			}
-			op, ok := reflect.TypeAssert[ir.Operation](v)
-			if !ok {
-				return true
-			}
-			for i, b := range op.Bindings.HTTP {
-				if _, seen := marked[op.ID]; b.Inbound == ir.HTTPInboundCallback && !seen {
-					marked[op.ID] = path.String() + ".Bindings.HTTP"
-				}
-				for j, cb := range b.Callbacks {
-					for k, id := range cb.Operations {
-						if _, seen := listed[id]; !seen {
-							listed[id] = path.String() + ".Bindings.HTTP[" + strconv.Itoa(i) + "].Callbacks[" +
-								strconv.Itoa(j) + "].Operations[" + strconv.Itoa(k) + "]"
-						}
-					}
-				}
+			if op, ok := reflect.TypeAssert[ir.Operation](v); ok {
+				noteCallbacks(&op, path, marked, listed)
 			}
 			return true
 		},
 		report: func(d declarations) []Violation { return callbackDisagreements(d, marked, listed) },
+	}
+}
+
+// noteCallbacks records where op, at path, is first marked a callback, and
+// where each operation its bindings list among their Callbacks is first listed.
+func noteCallbacks(op *ir.Operation, path ir.WalkPath, marked, listed map[ir.OpID]string) {
+	for i, b := range op.Bindings.HTTP {
+		if _, seen := marked[op.ID]; b.Inbound == ir.HTTPInboundCallback && !seen {
+			marked[op.ID] = path.String() + ".Bindings.HTTP"
+		}
+		for j, cb := range b.Callbacks {
+			for k, id := range cb.Operations {
+				if _, seen := listed[id]; !seen {
+					listed[id] = path.String() + ".Bindings.HTTP[" + strconv.Itoa(i) + "].Callbacks[" +
+						strconv.Itoa(j) + "].Operations[" + strconv.Itoa(k) + "]"
+				}
+			}
+		}
 	}
 }
 
