@@ -273,9 +273,9 @@ func TestFold_AValueSpelledTwoWaysIsOneValue(t *testing.T) {
 // other annotation a promotion writes on a declaration. Secret folds by OR, so
 // the field takes it from a later declaration as readily as from the first, and
 // the field keeps the first's provenance: without the join, a redaction a
-// heuristic read would carry no trace of it. A declaration not redacting lends
-// no marker, whatever else was inferred of it, and the answer is the same in
-// either order.
+// heuristic read would carry no trace of it. A declaration lends no marker for a
+// redaction it declared or does not ask for, whatever else was inferred of it,
+// and the answer is the same in either order.
 func TestFold_ThePromotionMarkerFollowsTheSecretTaken(t *testing.T) {
 	t.Parallel()
 	const marker ir.Inferred = "extension-promotion"
@@ -283,10 +283,16 @@ func TestFold_ThePromotionMarkerFollowsTheSecretTaken(t *testing.T) {
 	promoted := stringAt("/allOf/1/properties/p", `{}`)
 	promoted.prop.Secret = true
 	promoted.prop.Provenance.Inferred = marker
+	promoted.secretBy = marker
 	declared := stringAt("/allOf/2/properties/p", `{"format":"password"}`)
 	declared.prop.Secret = true
 	unrelated := stringAt("/allOf/3/properties/p", `{}`)
 	unrelated.prop.Provenance.Inferred = marker
+	// A declared redaction beside a marker a promoted deprecation drew: the field
+	// keeps the first declaration's deprecation, so nothing it keeps was inferred.
+	declaredMarked := stringAt("/allOf/4/properties/p", `{"format":"password"}`)
+	declaredMarked.prop.Secret = true
+	declaredMarked.prop.Provenance.Inferred = marker
 
 	for _, tc := range []struct {
 		name   string
@@ -300,6 +306,7 @@ func TestFold_ThePromotionMarkerFollowsTheSecretTaken(t *testing.T) {
 		{"beside a declared one, swapped", []declaration{promoted, declared}, true, marker},
 		{"a declared redaction alone", []declaration{plain, declared}, true, ""},
 		{"a marker that is no redaction's", []declaration{plain, unrelated}, false, ""},
+		{"a declared redaction's declaration marked for another fact", []declaration{plain, declaredMarked}, true, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

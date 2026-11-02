@@ -40,6 +40,10 @@ type Merger struct {
 type declaration struct {
 	prop   ir.Property
 	source Source
+	// secretBy names the heuristics that set prop.Secret, empty where a keyword
+	// declared it. prop.Provenance.Inferred cannot say: one marker covers every
+	// fact a promotion read into the declaration.
+	secretBy ir.Inferred
 }
 
 // fold returns the property decls make together under allOf intersection
@@ -361,11 +365,11 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 }
 
 // foldUse settles who sends the field and sees it: required and secret where
-// any declaration says so, and visible only in the lifecycles every
-// declaration admits (mergeVisibility). The field holds the first declaration's
-// provenance, so a later one's redaction brings its marker: a promotion may have
-// read it (lowering.Promoter.Redaction), and the join leaves the answer alike in
-// either order. Declarations that empty a set none had emptied on its own are
+// any declaration says so, and visible only in the lifecycles every declaration
+// admits (mergeVisibility). The field holds the first declaration's provenance,
+// so a later one's promoted redaction brings its marker (secretBy) in either
+// order, and a declared one brings none, whatever else that declaration's
+// marker covers. Declarations that empty a set none had emptied on its own are
 // reported where the last of them is written; nothing is discarded, so nothing
 // is kept.
 func (f *folding) foldUse() {
@@ -375,9 +379,7 @@ func (f *folding) foldUse() {
 		if i == 0 {
 			continue
 		}
-		if d.prop.Secret {
-			f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, d.prop.Provenance.Inferred)
-		}
+		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, d.secretBy)
 		visibility := mergeVisibility(f.merged.Visibility, d.prop.Visibility)
 		if visibility.None && !f.merged.Visibility.None && !d.prop.Visibility.None {
 			f.note(i, ir.SeverityWarning, diag.DisjointVisibility,

@@ -1390,6 +1390,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_AValueSpelledTwoWaysIsOneValue`,
   `merge.TestFold_ThePromotionMarkerFollowsTheDeprecationKept`,
   `merge.TestFold_ThePromotionMarkerFollowsTheSecretTaken`,
+  `e2e.TestPromotion_AFoldedFieldIsMarkedForWhatItKeeps`,
   `schema.TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree`,
   `schema.TestAllOf_ContainerMembersAreJudgedAsFieldsAre`,
   `merge.TestClassify_ComparesResolvedKinds`,

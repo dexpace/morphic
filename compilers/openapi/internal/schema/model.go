@@ -130,8 +130,13 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
+		declared := p.Secret
 		diags = append(diags, PromoteUse(c, js, p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
-		idx.MergeProperty(p, redeclarationSource(js))
+		var secretBy ir.Inferred
+		if p.Secret && !declared {
+			secretBy = lowering.ExtensionPromotionHeuristic
+		}
+		idx.MergeProperty(p, redeclarationSource(js), secretBy)
 	}
 	return diags
 }
