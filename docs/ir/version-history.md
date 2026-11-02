@@ -255,3 +255,11 @@ it sees. Changes made together in one bump are listed together under it.
   `description`, which it had kept verbatim under `Unmodeled` as `openapi:description`, and the
   `summary` and `description` beside a content entry's `$ref` into `components/mediaTypes`, which
   it now follows. A consumer pinned to 0.28.0 refuses the document as another generation's.
+- **0.30.0** — the OpenAPI compiler keeps a path item's own `summary` and `description` on each
+  operation it mounts under `openapi:pathItem/summary` and `openapi:pathItem/description`, beneath
+  the scope its extensions and undeclared keys already took, rather than under
+  `openapi:pathItemSummary` and `openapi:pathItemDescription`
+  ([`path-item-docs`](../compilers/openapi.md#path-item-docs)). No shape changed. A consumer pinned
+  to 0.29.0 that reads the old keys no longer finds the path's text there. Where an operation writes
+  an undeclared key of that name, it finds that key's value, which 0.29.0 let the path's text
+  replace.
