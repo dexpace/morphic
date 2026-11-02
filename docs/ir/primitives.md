@@ -37,10 +37,11 @@ OpenAPI's `time` lowers ([openapi](../compilers/openapi.md#string-formats)).
 
 A `time_offset` kind beside `datetime_offset` was weighed and not taken. JSON Schema's `time`
 format, which OpenAPI and AsyncAPI read, is the only spelling of a time of day with an offset among
-the formats the IR is designed against: TypeSpec's `plainTime` and Protobuf's
-`google.type.TimeOfDay` hold none, and Smithy, GraphQL and Swagger 2.0 have no time of day. Specs
-also write values under `time` with no offset, so a kind promising one would type such a value as
-what it is not, and a target decoding the kind would refuse it. A `Scalar` keeps the format and
+the formats the IR is designed against: TypeSpec's `plainTime`, Protobuf's
+`google.type.TimeOfDay` and Erlang/OTP's `calendar:time()` hold none, and Smithy, GraphQL and
+Swagger 2.0 have no time of day. Specs also write values under `time` with no offset, so a kind
+promising one would type such a value as what it is not, and a target decoding the kind would
+refuse it. A `Scalar` keeps the format and
 leaves the reading to the target's [type table](../emitters/contract/type-table.md), whose row for
 `{string, "time"}` can choose.
 

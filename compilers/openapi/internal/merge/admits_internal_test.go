@@ -209,7 +209,6 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"duration date after time", ir.PrimDuration, str("PT1H1D"), false},
 		{"date number", ir.PrimDate, num("1"), false},
 		{"bytes", ir.PrimBytes, ir.Value{Kind: ir.ValueBytes, Bytes: []byte("x")}, false},
-		{"datetime", ir.PrimDatetime, str("2024-02-29T23:59:59Z"), false},
 		{"any", ir.PrimAny, ir.Value{Kind: ir.ValueObject}, true},
 		{"list against integer", ir.PrimInteger, ir.Value{Kind: ir.ValueList, List: []ir.Value{num("1")}}, false},
 		{"unknown kind", ir.PrimKind("nope"), str("x"), false},

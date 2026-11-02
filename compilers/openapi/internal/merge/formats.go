@@ -107,8 +107,8 @@ func parses(layout, s string) bool {
 }
 
 // rfc3339Form names the RFC 3339 §5.6 production parsesRFC3339 reads: a
-// partial-time, alone or after a full-date and T, with or without the
-// time-offset after it.
+// partial-time alone, or a full-date, T and partial-time with or without the
+// time-offset after them.
 type rfc3339Form int
 
 // The productions the time kinds are judged against. A full-time, a
