@@ -20,6 +20,17 @@ paths:
                 type: object
                 properties:
                   ack: {type: string}
+  # A request that streams beside a response that does not.
+  /upload:
+    post:
+      operationId: uploadRows
+      requestBody:
+        content:
+          application/x-ndjson:
+            schema: {$ref: '#/components/schemas/Frame'}
+      responses:
+        "204":
+          description: ingested
   /mixed:
     get:
       operationId: streamEither
@@ -52,6 +63,39 @@ paths:
               schema: {$ref: '#/components/schemas/Frame'}
             application/x-ndjson:
               schema: {$ref: '#/components/schemas/Frame'}
+  # A schema applies to the whole body and a sequential body reads as an array of
+  # its values, so a list names each frame by its items. Here that is the element
+  # the first content names outright, so the two contents agree.
+  /feed:
+    get:
+      operationId: streamFeed
+      responses:
+        "200":
+          description: ok
+          content:
+            application/x-ndjson:
+              schema: {type: array, items: {$ref: '#/components/schemas/Frame'}}
+            text/event-stream:
+              schema: {$ref: '#/components/schemas/Frame'}
+  # A registered sequence type (RFC 7464), and its structured suffix (RFC 8091).
+  /sequence:
+    get:
+      operationId: streamSequence
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json-seq:
+              schema: {$ref: '#/components/schemas/Frame'}
+  /sequence-suffix:
+    post:
+      operationId: uploadSequence
+      requestBody:
+        content:
+          application/geo+json-seq:
+            schema: {$ref: '#/components/schemas/Frame'}
+      responses:
+        "204": {description: ok}
 components:
   schemas:
     Frame:

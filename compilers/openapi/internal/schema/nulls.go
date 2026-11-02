@@ -307,7 +307,7 @@ func (n *nulls) why(s *oas3.Schema) string {
 			"and 3.1, which applies them, defines no nullable"
 	case !n.is30:
 		return fmt.Sprintf("this document declares OpenAPI %s, whose schemas define no nullable keyword", n.declared)
-	case len(s.GetType()) == 0:
+	case !writesType(s):
 		return "OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, " +
 			"and this schema writes none"
 	case enumNullVerdict(s) == nullForbidden:
@@ -352,11 +352,10 @@ func foldNullVerdicts(verdicts ...nullVerdict) nullVerdict {
 // typeNullVerdict reads the `type` keyword. A schema writing none constrains no
 // instance kind at all, so it is silent rather than forbidding.
 func typeNullVerdict(s *oas3.Schema) nullVerdict {
-	types := s.GetType()
-	if len(types) == 0 {
+	if !writesType(s) {
 		return nullSilent
 	}
-	if slices.Contains(types, oas3.SchemaTypeNull) {
+	if slices.Contains(s.GetType(), oas3.SchemaTypeNull) {
 		return nullAdmitted
 	}
 	return nullForbidden

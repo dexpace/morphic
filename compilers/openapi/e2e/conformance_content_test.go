@@ -143,6 +143,20 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, resp.File, "a string+binary schema is a file body whatever the media type")
 	assert.Equal(t, []string{"image/png"}, resp.File.ContentTypes)
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
+
+	documented, ok := opByName(doc, "putDocumented")
+	require.True(t, ok)
+	require.NotNil(t, documented.Request)
+	require.Len(t, documented.Request.Contents, 1)
+	blob := documented.Request.Contents[0]
+	require.NotNil(t, blob.File, "a binary $ref is a file body")
+	assert.Equal(t, componentID("Blob"), blob.Type.Target, "and keeps the schema it names")
+
+	stored := firstContent(t, documented)
+	require.NotNil(t, stored.File, "an inline binary schema is a file body")
+	node, ok := doc.Types[stored.Type.Target]
+	require.True(t, ok)
+	assert.Equal(t, "The stored object.", node.Common().Docs.Description, "and keeps its docs")
 }
 
 // assertMediaTypeSpelling pins that a media type is classified by its type alone

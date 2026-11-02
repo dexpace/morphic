@@ -42,13 +42,15 @@ func (c brokenIRCompiler) Compile(_ context.Context, sources []compilers.Source,
 	}, nil, nil
 }
 
-// useEngine makes the commands compile with an engine built from opts for the
-// rest of the test.
+// useEngine makes the commands compile with an engine built from what the flags
+// asked for and then opts, for the rest of the test.
 func useEngine(t *testing.T, opts ...engine.Option) {
 	t.Helper()
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return engine.New(opts...) }
+	newEngine = func(flagged ...engine.Option) (*engine.Engine, error) {
+		return engine.New(append(flagged, opts...)...)
+	}
 }
 
 // TestRun_VerifyEndsARunWhoseStageBreaksTheIR runs both commands over a

@@ -339,17 +339,17 @@ func TestAllOf_ALosingRedeclarationIsKeptAsWritten(t *testing.T) {
 
 func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
 	t.Parallel()
-	// Same target type, but the two branches pin the same keyword to different
-	// values (maxLength 10 vs 20). The chosen winner is arbitrary source order, so
-	// the dropped bound is surfaced rather than silently discarded.
+	// Same target type, but the two branches pin a keyword with no order to
+	// different values. The chosen winner is arbitrary source order, so the
+	// dropped pattern is surfaced rather than silently discarded.
 	spec := openapitest.ComponentSpec(`    Boundish:
       allOf:
         - type: object
           properties:
-            code: {type: string, maxLength: 10}
+            code: {type: string, pattern: '^a$'}
         - type: object
           properties:
-            code: {type: string, maxLength: 20}
+            code: {type: string, pattern: '^b$'}
 `)
 	doc, diags := schema.LowerSpec(t, spec)
 	openapitest.RequireNoErrorDiags(t, diags)
@@ -357,8 +357,7 @@ func TestAllOf_ConflictingRedeclaredConstraintDiagnosed(t *testing.T) {
 	require.True(t, ok, "Boundish should be a model")
 	require.Len(t, m.Properties, 1, "code reconciles to one property")
 	require.NotNil(t, m.Properties[0].Constraints, "the first declaration's constraints are kept")
-	require.NotNil(t, m.Properties[0].Constraints.MaxLength)
-	assert.Equal(t, int64(10), *m.Properties[0].Constraints.MaxLength,
+	assert.Equal(t, "^a$", m.Properties[0].Constraints.Pattern,
 		"the first declaration in source order still wins the constraint")
 
 	conflicts := conflictDiags(diags)
@@ -533,26 +532,6 @@ func TestAllOf_EquivalentNumericBoundsDoNotConflict(t *testing.T) {
 		"10 and 10.0 are the same numeric bound, not a conflict")
 }
 
-func TestAllOf_DifferingNumericBoundsConflict(t *testing.T) {
-	t.Parallel()
-	// Two branches pin the same lower bound to different magnitudes; the kept
-	// winner is arbitrary source order, so the dropped bound is surfaced.
-	spec := openapitest.ComponentSpec(`    Boundish:
-      allOf:
-        - type: object
-          properties:
-            n: {type: integer, minimum: 5}
-        - type: object
-          properties:
-            n: {type: integer, minimum: 10}
-`)
-	_, diags := schema.LowerSpec(t, spec)
-	openapitest.RequireNoErrorDiags(t, diags)
-	conflicts := conflictDiags(diags)
-	require.Len(t, conflicts, 1, "differing numeric bounds are diagnosed once")
-	assert.Contains(t, conflicts[0].Message, `"n"`)
-}
-
 func TestAllOf_ScalarVersusObjectRedeclarationConflicts(t *testing.T) {
 	t.Parallel()
 	// A scalar in one branch and a structural type in the other cannot both hold.
@@ -616,47 +595,10 @@ func TestAllOf_ConstraintAndFormatConflictsDiagnosed(t *testing.T) {
 		name, a, b, wantDetail string
 	}{
 		{
-			name:       "minimum",
-			a:          "{type: number, minimum: 10}",
-			b:          "{type: number, minimum: 20}",
-			wantDetail: "conflicting minimum (10 and 20)",
-		},
-		{
-			// The exclusive bound is a keyword of its own, so it conflicts
-			// under its own name rather than as a differing sense of minimum.
-			name:       "exclusiveMinimum",
-			a:          "{type: number, exclusiveMinimum: 10}",
-			b:          "{type: number, exclusiveMinimum: 20}",
-			wantDetail: "conflicting exclusiveMinimum (10 and 20)",
-		},
-		{
 			name:       "pattern",
 			a:          "{type: string, pattern: '^a$'}",
 			b:          "{type: string, pattern: '^b$'}",
 			wantDetail: `conflicting pattern ("^a$" and "^b$")`,
-		},
-		{
-			name:       "multipleOf",
-			a:          "{type: integer, multipleOf: 2}",
-			b:          "{type: integer, multipleOf: 3}",
-			wantDetail: "conflicting multipleOf (2 and 3)",
-		},
-		{
-			// The other half of the past-a-rational rows in
-			// TestAllOf_CompatibleConstraintRedeclarationsStaySilent: a
-			// magnitude no rational holds still has to be ordered, not waved
-			// through, or the fix for the equal pair would just silence every
-			// pair that large.
-			name:       "minimum too large for a rational",
-			a:          "{type: number, minimum: 1e1000001}",
-			b:          "{type: number, minimum: 2e1000001}",
-			wantDetail: "conflicting minimum (1e1000001 and 2e1000001)",
-		},
-		{
-			name:       "multipleOf too large for a rational",
-			a:          "{type: number, multipleOf: 1e1000001}",
-			b:          "{type: number, multipleOf: 1e1000002}",
-			wantDetail: "conflicting multipleOf (1e1000001 and 1e1000002)",
 		},
 		{
 			name: "uuid vs date-time",

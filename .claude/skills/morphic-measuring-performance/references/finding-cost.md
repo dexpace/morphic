@@ -26,10 +26,22 @@ how to measure so the number means what the claim says.
 - **Why.** Replacing `FieldByName` with an allocation-free field scan made `Verify` slower (#1133);
   runs alternating with the author's own test runs showed a gap quiet runs did not (#1140).
 - **Probe.** Build `./cmd/morphic` with `go build -o <bin>` in a worktree of the merge base and at
-  the head, run the two alternately under `/usr/bin/time -l` on macOS or
-  `perf stat -e instructions:u` on Linux, and compare each side's median and range. A run that
-  exits non-zero measured a failure. With neither tool, take
+  the head, run the two alternately (`references/finding-cost.md#count-on-one-thread`) under
+  `/usr/bin/time -l` on macOS or `perf stat -e instructions:u` on Linux, and compare each side's
+  median and range. A run that exits non-zero measured a failure. With neither tool, take
   `references/finding-cost.md#cpu-time-without-a-counter`.
+
+## Count instructions on one thread with the collector off
+`count-on-one-thread`
+
+- **Rule.** Set `GOMAXPROCS=1 GOGC=off` for an instruction count over a compile: scheduling and
+  collection can move a total past the gap, whichever build they land on, and alternating does not
+  average that out. A spec too large to hold uncollected keeps `GOMAXPROCS=1` alone and says so.
+  Count each side's readings before quoting a median.
+- **Why.** Two builds on one spec read +2.73%, then -2.08%; pinned, the same pair read +2.06% with
+  each side's range under 1% (#1205, #1210).
+- **Probe.** `GOMAXPROCS=1 GOGC=off /usr/bin/time -l <bin> compile -- <spec>`, three alternating
+  runs a side: a range wider than the gap means the count is still noise.
 
 ## Without an instruction counter, compare CPU time and say so
 `cpu-time-without-a-counter`
@@ -76,16 +88,31 @@ how to measure so the number means what the claim says.
   second caller reading discriminator mapping values made it quadratic (#774).
 - **Probe.** `git grep -n '<function>('`, then time the failing caller's shape on both builds.
 
+## Measure a cost on every arm of the switch it runs through
+`cost-claims-per-arm`
+
+- **Rule.** When a change sends a loop through a function that branches on its input's kind, one
+  input measures one arm. Generate an input per arm, quote the range rather than one figure, and
+  name any arm left out with the reason: reading does not find the dear one.
+- **Why.** A PR read every enum member through a switch on primitive kind, and one figure, 2.1%,
+  stood for every format. Measured per format, `uuid` added 0.15% and `double` 35.45%, by rebuilding
+  a constant on each call (#1191, #1205).
+- **Probe.** List each arm with the input that reached it, and take each arm's instructions on both
+  builds (`references/finding-cost.md#instructions-not-wall-clock`).
+
 ## Time generated shapes, deep and wide, on main and the branch
 `deep-generated-shapes`
 
 - **Rule.** When a change adds a walk, index or per-position reader, time `main` against the branch
   on generated shapes no corpus holds: a spine a few hundred levels deep with a wide leaf, many
-  parallel deep chains, and many `$ref`s into distinct entries of one wide mapping. Rerun the
-  reproducers of closed cost issues whose tests the change deletes.
+  parallel deep chains, many `$ref`s into distinct entries of one wide mapping, and many `$ref`s to
+  one wide component, growing both together. Rerun the reproducers of closed cost issues whose tests
+  the change deletes.
 - **Why.** A pointer builder quadratic in depth passed a corpus of real specs and the full gate, and
-  three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778).
-- **Probe.** Instructions retired on each generated shape at n and 2n, on both builds
+  three closed cost issues regressed with their tests deleted (#1016, #775, #777, #778). Those
+  shapes read linear while references times size grew the output, which doubling one hides (#1191,
+  #1240).
+- **Probe.** Instructions retired and output bytes on each shape at n and 2n, on both builds
   (`references/finding-cost.md#instructions-not-wall-clock`).
 
 ## Do not take main's fast failure as the baseline for a fix

@@ -33,7 +33,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `Channel`/`Message`/`MessageBinding` | `MsgView` → channel client + send/receive + reply routing (messaging target) |
 | `ErrorCase{Fault, Retryable}` | one runtime `*APIError` holding the status, fault, kind, raw body and typed `Body` and `Headers`; `errors.Is` by fault and kind, `sdk.Body[T]` for the body ([failures](errors.md)); declared facts win over policy |
 | `Response` beside the primary (`OpPlan.Others`) | one read as `Return` returned as the primary; no body → a nullable return, or a pager or stream that ends; another body, or a body that does not decode → `*OtherResponse` on the `error` path, with no fault and no retry; a 2xx the document does not list read as `Return` ([return shapes](returns.md)) |
-| `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order |
+| `Auth` OR-of-ANDs | `Authenticator` + per-scheme options; priority order; a scheme of kind `unresolved` takes the caller's `Authenticator`, and unconfigured with no other option is the `error` return naming the scheme, nothing sent ([auth](../../operations/auth.md#unresolved-schemes)) |
 | `Value{Num BigVal, Ctor, Ref, symbol}` | literals via decimal (never float64); `Ctor`→call; `symbol`→string explicitly; a `Default` documented, never written onto a request ([values](../../refine/values.md)) |
 | `Naming{Canonical}` | cased via `naming.Policy`; a name with no words named by its characters, and one that would begin with a digit led by its role's word ([naming](../../refine/naming.md)); a name a scope reserves escaped with a trailing underscore; collisions ID-keyed |
 

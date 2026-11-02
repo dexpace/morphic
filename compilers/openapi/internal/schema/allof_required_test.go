@@ -269,12 +269,12 @@ func TestAllOf_ARequiredNameWrittenInSeveralListsIsListedOnce(t *testing.T) {
 	assert.Equal(t, []string{"id", "extra", "other"}, m.Requires, "once each, in the order first written")
 }
 
-// TestAllOf_BoolBranchSkippedInCompositionRequired covers an allOf branch that
-// is a bare boolean schema (`true` here) rather than a $ref or an inline
-// object, so b.GetSchema() returns nil for it. It pins that the bool branch
-// contributes no required names, while the sibling object branch's property and
-// required still lower normally.
-func TestAllOf_BoolBranchSkippedInCompositionRequired(t *testing.T) {
+// TestAllOf_BoolBranchContributesNoRequiredNames covers an allOf branch that is
+// a bare boolean schema (`true` here) rather than a $ref or an inline object,
+// so its schema is nil. It pins that the bool branch contributes no required
+// names and that reading it does not panic, while the sibling object branch's
+// property and required still lower normally.
+func TestAllOf_BoolBranchContributesNoRequiredNames(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec(`    Thing:
       allOf:

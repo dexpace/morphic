@@ -17,6 +17,21 @@ components:
         # numbers alike, and registers the widths under number.
         small: {type: integer, format: int8}
         count: {type: number, format: uint32}
+        i16: {type: integer, format: int16}
+        i32: {type: integer, format: int32}
+        i64: {type: integer, format: int64}
+        u8: {type: integer, format: uint8}
+        u16: {type: integer, format: uint16}
+        u64: {type: integer, format: uint64}
+        # A float or decimal format selects its primitive under number alone.
+        f32: {type: number, format: float}
+        f64: {type: number, format: double}
+        amount: {type: number, format: decimal}
+        big: {type: number, format: decimal128}
+        # A string format the table names selects a primitive and hoists nothing.
+        at: {type: string, format: date-time}
+        opens: {type: string, format: time}
+        ttl: {type: string, format: duration}
         # A float format on an integer admits only its integral values, which
         # no primitive narrower than integer holds, so the format is kept.
         whole: {type: integer, format: double}

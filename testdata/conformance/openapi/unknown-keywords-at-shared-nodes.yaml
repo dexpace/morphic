@@ -1,0 +1,42 @@
+openapi: 3.1.0
+info: {title: Unknown keywords at shared nodes, version: "1"}
+paths:
+  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: string
+                k-content: 1
+components:
+  schemas:
+    S:
+      type: string
+    Items:
+      type: array
+      items:
+        type: string
+        k-items: 1
+    ItemsRef:
+      type: array
+      items:
+        $ref: '#/components/schemas/S'
+        k-itemsref: 1
+    Map:
+      type: object
+      additionalProperties:
+        type: string
+        k-map: 1
+    Union:
+      oneOf:
+        - type: string
+          k-branch: 1
+        - type: integer
+    Plain:
+      type: array
+      items:
+        type: string
+        $comment: decided, so nothing here needs a node

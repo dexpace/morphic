@@ -54,10 +54,11 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 	recorded := &[]ir.Diagnostic{}
 	g := &Merger{
 		Resolve: func(id ir.TypeID) (ir.TypeDef, bool) { td, ok := reg[id]; return td, ok },
-		Mint: func(pointer jsontext.Pointer, m *ir.Model) ir.TypeID {
-			m.ID = composedAt(pointer)
-			reg[m.ID] = m
-			return m.ID
+		Mint: func(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+			common := node.Common()
+			common.ID = composedAt(pointer)
+			reg[common.ID] = node
+			return common.ID
 		},
 		Interned: func(jsontext.Pointer) bool { return false },
 		PropAt:   func(pointer jsontext.Pointer) ir.PropID { return "p/minted" + ir.PropID(pointer) },

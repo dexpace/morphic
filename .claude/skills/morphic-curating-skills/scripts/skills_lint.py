@@ -131,18 +131,19 @@ def listing(root: Path, *args: str) -> list[str]:
 def load_tree(root: Path) -> tuple[set[str], set[str], set[str]]:
     """Return the first segment of every tracked path, every declared Go test name with each
     family prefix of it, as TestA_B declares TestA, and the path of every file the tree holds:
-    each one git lists, untracked ones included and ignored ones not, that is on disk."""
-    top_level, tests = {".claude"}, set()
-    for f in listing(root):
-        top_level.add(f.split("/", 1)[0])
-        if f.endswith("_test.go") and (root / f).is_file():
+    each one git lists, untracked ones included and ignored ones not, that is on disk. A test is
+    read from any of those files, so a skill can name one before its file is staged."""
+    top_level = {".claude"} | {f.split("/", 1)[0] for f in listing(root)}
+    listed = listing(root, "--cached", "--others", "--exclude-standard")
+    known, tests = {f for f in listed if (root / f).is_file()}, set()
+    for f in known:
+        if f.endswith("_test.go"):
             for name in TEST_DECL.findall((root / f).read_text(errors="replace")):
                 parts = name.split("_")
                 tests.update("_".join(parts[:i]) for i in range(1, len(parts) + 1))
     if not tests:
         raise RuntimeError("found no declared test, so a test name cannot be checked")
-    listed = listing(root, "--cached", "--others", "--exclude-standard")
-    return top_level, tests, {f for f in listed if (root / f).is_file()}
+    return top_level, tests, known
 
 
 def go_sources(root: Path) -> Path | None:

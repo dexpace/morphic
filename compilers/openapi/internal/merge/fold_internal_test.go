@@ -146,7 +146,7 @@ func TestFold_ADroppedFirstDeclarationIsKept(t *testing.T) {
 func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(narrowingRegistry())
-	maxLen := func(n int64) *ir.Constraints { return &ir.Constraints{MaxLength: &n} }
+	pattern := func(p string) *ir.Constraints { return &ir.Constraints{Pattern: p} }
 	d := func(at string, c *ir.Constraints) declaration {
 		return declaration{
 			prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimString), Constraints: c, Provenance: ptrAt(jsontext.Pointer(at))},
@@ -154,10 +154,10 @@ func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 		}
 	}
 
-	got := g.fold([]declaration{d("/a", nil), d("/b", maxLen(5)), d("/c", maxLen(5)), d("/d", maxLen(6))})
+	got := g.fold([]declaration{d("/a", nil), d("/b", pattern("^x$")), d("/c", pattern("^x$")), d("/d", pattern("^y$"))})
 
 	require.NotNil(t, got.Constraints)
-	assert.Equal(t, int64(5), *got.Constraints.MaxLength)
+	assert.Equal(t, "^x$", got.Constraints.Pattern)
 	require.Len(t, *recorded, 1, "an agreeing declaration is no conflict")
 	assert.Equal(t, jsontext.Pointer("/d"), (*recorded)[0].Provenance.Pointer)
 	assert.Contains(t, (*recorded)[0].Message, "kept what the declaration at /b says over the one at /d",

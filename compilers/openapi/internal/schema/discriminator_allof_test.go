@@ -116,6 +116,52 @@ func TestAllOf_InlineSubtypeHasNoImplicitDiscriminatorValue(t *testing.T) {
 		"the component keeps its implicit tag; neither inline subtype gets one")
 }
 
+// TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping pins GitHub #572: a subtype
+// declared under an extension and reached by $ref is no component schema, so a
+// mapping entry tags it and nothing else does. Under components/x-shared
+// ComponentSchemaName still returns the entry's name, so that host is what holds
+// the implicit tag to the name's ok: Dog must not answer to a name no schema has.
+func TestAllOf_ExtensionSubtypeIsTaggedOnlyByAMapping(t *testing.T) {
+	t.Parallel()
+	const subtypes = `%[1]sCat: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {purr: {type: string}}}
+%[1]sDog: {allOf: [{$ref: '#/components/schemas/Pet'}], type: object, properties: {bark: {type: string}}}
+`
+	for _, tc := range []struct{ name, host, section string }{
+		{"a root extension", "x-lib", "x-lib:\n" + fmt.Sprintf(subtypes, "  ")},
+		{"another component kind", "components/x-shared", "  x-shared:\n" + fmt.Sprintf(subtypes, "    ")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpec(fmt.Sprintf(`    Holder:
+      type: object
+      properties:
+        c: {$ref: '#/%[1]s/Cat'}
+        d: {$ref: '#/%[1]s/Dog'}
+    Pet:
+      type: object
+      required: [kind]
+      properties:
+        kind: {type: string}
+      discriminator:
+        propertyName: kind
+        mapping:
+          cat: '#/%[1]s/Cat'
+`, tc.host))+tc.section)
+			assert.Empty(t, diags)
+
+			cat := ir.TypeID("t/anon/" + tc.host + "/Cat")
+			dog := ir.TypeID("t/anon/" + tc.host + "/Dog")
+			assert.Empty(t, cmp.Diff(map[ir.TypeID]string{cat: "cat", dog: ""}, discriminatorValues(t, doc, cat, dog)),
+				"the mapping tags Cat, and no name is implicit for Dog (-want +got)")
+			pet, ok := doc.Types[componentID("Pet")].(*ir.Model)
+			require.True(t, ok, "Pet lowers to a model")
+			require.NotNil(t, pet.Discriminator)
+			assert.Empty(t, cmp.Diff(map[string]ir.TypeID{"cat": cat}, pet.Discriminator.Mapping),
+				"the base's mapping names the subtype's own node (-want +got)")
+		})
+	}
+}
+
 // TestAllOf_InlineSubtypeDiscriminatorValueFromMapping pins the path the #517
 // fix leaves untouched: a mapping entry can still name an inline subtype by
 // JSON reference, and mappingTagsFor — not subtypeDiscriminatorValue's

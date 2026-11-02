@@ -4,6 +4,7 @@
 package irverify_test
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,26 +57,35 @@ func TestVerify_RegistryKeyMismatchIsAViolation(t *testing.T) {
 }
 
 func TestVerify_SortsSameCodeByPath(t *testing.T) {
-	// Two properties dangle distinct missing targets, yielding two violations that
-	// share the ir/dangling-type-ref code. Verify must order them by Path, which
-	// exercises the sort's equal-code tiebreaker.
-	holder := &ir.Model{
-		ID: "t/x/Holder",
-		Properties: []ir.Property{
-			{ID: "p/x/Holder/a", Type: ir.TypeRef{Target: "t/x/MissingA"}},
-			{ID: "p/x/Holder/b", Type: ir.TypeRef{Target: "t/x/MissingB"}},
-		},
+	// Eleven properties dangle distinct missing targets, yielding violations that
+	// share the ir/dangling-type-ref code. The walk reports them by index, but as
+	// bytes Properties[10] sorts before Properties[1], so walk order and Path
+	// order part at the second entry. With fewer than eleven the two orders agree
+	// and the sort's equal-code tiebreaker would go unexercised.
+	const count = 11
+	holder := &ir.Model{ID: "t/x/Holder"}
+	for i := range count {
+		n := strconv.Itoa(i)
+		holder.Properties = append(holder.Properties, ir.Property{
+			ID:   ir.PropID("p/x/Holder/" + n),
+			Type: ir.TypeRef{Target: ir.TypeID("t/x/Missing" + n)},
+		})
 	}
 	doc := &ir.Document{Types: ir.TypeRegistry{holder.ID: holder}}
 
-	var dangling []irverify.Violation
+	var got []string
 	for _, v := range verifyDeclared(doc) {
 		if v.Code == "ir/dangling-type-ref" {
-			dangling = append(dangling, v)
+			got = append(got, v.Path)
 		}
 	}
-	require.Len(t, dangling, 2)
-	assert.Less(t, dangling[0].Path, dangling[1].Path, "same-code violations are ordered by Path")
+	require.Len(t, got, count)
+
+	want := make([]string, 0, count)
+	for _, i := range []int{0, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9} {
+		want = append(want, "doc.Types[t/x/Holder].Properties["+strconv.Itoa(i)+"].Type.Target")
+	}
+	assert.Equal(t, want, got, "same-code violations are ordered by Path as bytes")
 }
 
 // codesOf extracts the Code of each violation for order-independent assertions.

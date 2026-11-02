@@ -66,6 +66,29 @@ func TestReverseMappings_Permutes(t *testing.T) {
 			src:  "outer:\n  dup: 1\n  dup: 2\n",
 		},
 		{
+			// The parser reads an alias key as the scalar it names, so this mapping
+			// writes rate twice however it spells it (#1105).
+			name: "a key repeated through an alias is refused",
+			src:  "- {x: &k rate}\n- {rate: 1, *k : 2}\n",
+		},
+		{
+			// A key that is no scalar reads as the empty string, whichever anchor
+			// names it (docs/parser-library.md#non-scalar-key).
+			name: "two aliases of mappings are one key",
+			src:  "- &a {x: 1}\n- &b {y: 2}\n- {? *a : 1, ? *b : 2}\n",
+		},
+		{
+			// An anchor's name is no key: the alias reads as other, so nothing repeats.
+			name: "an alias named like another key repeats nothing",
+			src:  "- {x: &rate other}\n- {rate: 1, *rate : 2}\n",
+			want: "- {x: &rate other}\n- {*rate: 2, rate: 1}\n",
+		},
+		{
+			// Their order decides which merge source wins.
+			name: "two merge keys are refused",
+			src:  "- &a {x: 1}\n- &b {y: 2}\n- {<<: *a, <<: *b}\n",
+		},
+		{
 			name: "an unparseable source is refused",
 			src:  "a: [unclosed\n",
 		},
@@ -139,6 +162,16 @@ func TestOrderInvariant_UnpermutableSourcePasses(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct{ name, src string }{
 		{"a duplicate key excludes the source", "a: 1\na: 2\n"},
+		{"a key repeated through an alias excludes the source", `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    S:
+      allOf:
+        - {x-k: &k rate}
+        - {type: object, properties: {rate: {type: string}, *k : {type: integer}}}
+`},
 		{"a source with nothing to permute", "a: 1\n"},
 		{"an unparseable source excludes the baseline too", "a: [unclosed\n"},
 	} {
@@ -232,8 +265,8 @@ func TestOrderInvariant_UncompilableBaselineIsNotAFinding(t *testing.T) {
 	}
 }
 
-// TestDiffOrderInvariants_ReportsEachChannel drives the three ways a permutation
-// can differ, so each message is exercised rather than only the first.
+// TestDiffOrderInvariants_ReportsEachChannel drives each way a permutation can
+// differ, so each message is exercised rather than only the first.
 func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 	t.Parallel()
 	model := func(id ir.TypeID, wire string) *ir.Model {
@@ -270,6 +303,18 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 		assert.Contains(t, detail, "server registry depends on declaration order")
 	})
 
+	t.Run("an auth scheme that changed", func(t *testing.T) {
+		t.Parallel()
+		scheme := func(pointer jsontext.Pointer) *ir.Document {
+			return &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
+				"auth/x/a": {ID: "auth/x/a", Provenance: ir.Provenance{Pointer: pointer}},
+			}}
+		}
+		detail, ok := diffOrderInvariants(scheme("/a"), scheme("/b"), nil)
+		assert.False(t, ok)
+		assert.Contains(t, detail, "auth registry depends on declaration order")
+	})
+
 	t.Run("a different set of diagnostics", func(t *testing.T) {
 		t.Parallel()
 		other := &ir.Document{Types: ir.TypeRegistry{"t/x/A": model("t/x/A", "a")}}
@@ -278,6 +323,40 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 		assert.False(t, ok)
 		assert.Contains(t, detail, "diagnostics depend on declaration order")
 	})
+}
+
+// TestDiffOrderInvariants_AFlowsScopesFollowTheSource pins that the auth registry
+// compares a flow's scopes as a set: they keep source order, which a permutation
+// reverses, while a changed scope still differs.
+func TestDiffOrderInvariants_AFlowsScopesFollowTheSource(t *testing.T) {
+	t.Parallel()
+	doc := func(scopes ...ir.OAuthScope) *ir.Document {
+		return &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
+			"auth/x/a": {ID: "auth/x/a", Flows: []ir.OAuthFlow{{Scopes: scopes}}},
+		}}
+	}
+	read, write := ir.OAuthScope{Name: "read"}, ir.OAuthScope{Name: "write"}
+
+	detail, ok := diffOrderInvariants(doc(read, write), doc(write, read), nil)
+	assert.True(t, ok, detail)
+
+	_, ok = diffOrderInvariants(doc(read, write), doc(read, ir.OAuthScope{Name: "admin"}), nil)
+	assert.False(t, ok)
+}
+
+// TestOrderInvariant_ReachesARequirementNamingNoMechanism calls the oracle on the
+// fixture that holds every shape such a requirement takes. harness.Check would
+// stop at its first error, before the oracle, so without this call nothing
+// permutes what a minted scheme is built from. Two of the fixture's paths name
+// one scheme, so the permutation swaps which requirement reaches it first.
+func TestOrderInvariant_ReachesARequirementNamingNoMechanism(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(filepath.FromSlash("../../testdata/conformance/openapi/security-unresolved.yaml"))
+	require.NoError(t, err)
+
+	detail, ok := orderInvariant(context.Background(), "security-unresolved.yaml", data)
+
+	assert.True(t, ok, detail)
 }
 
 // TestDiagnosticSet_IgnoresLineAndColumnButKeepsWhetherPositioned pins the two

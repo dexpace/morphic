@@ -82,11 +82,18 @@ var validationReasons = map[string]string{
 	"old-grammar": "the library checks a 3.2 document against the 3.1 grammar, a schema's own Validate discarding " +
 		"the version it is handed, and refuses what 3.2 added: style: cookie on a cookie parameter (3.2.0 §Parameter Object), a discriminator's " +
 		"defaultMapping (3.2.0 §Discriminator Object), an xml nodeType (3.2.0 §XML Object)",
+	"null-keyword": "the library refuses a null for a few Schema Object keywords (type, enum, discriminator) as a " +
+		"value of the wrong type, and says nothing of the same null for most others; the table warns of each " +
+		"alike, since the schema lowering reads every one as the keyword left out " +
+		"(docs/compilers/openapi.md#null-keywords)",
 	"duplicate-report": "the library reports one defect more than once, from its model and again from its " +
 		"meta-schema or a second check of the same field: a Discriminator Object without propertyName, a Parameter " +
 		"Object without in, a $ref where a schema belongs; the table reports it once",
 	"position": "both sides report the defect and place it differently: the library on the key of the entry (the " +
 		"additionalOperations method, the repeated key), the table on the entry's value, the node its pointer names",
+	"rule-name": "both sides report the defect at one node, under different rules: a Parameter Object's content " +
+		"holding several entries, which the library calls an allowed value and the table an entry count, as the " +
+		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry')",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
 		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
@@ -97,8 +104,9 @@ var validationReasons = map[string]string{
 		"under Unmodeled and says so",
 	"owned": "another package reports the rule, and the table states it and leaves it to them: a repeated " +
 		"operationId is judged once every operation is lowered (docs/compilers/openapi.md#operation-ids), a repeated " +
-		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), an " +
-		"HTTP scheme written empty by the security scheme lowering (docs/compilers/openapi.md#security-requirements)",
+		"parameter by the load phase's check of every parameter list (docs/compilers/openapi.md#parameters), a " +
+		"scheme with no type, or an HTTP one with no scheme or an empty one, by the security scheme lowering " +
+		"(docs/compilers/openapi.md#security-requirements)",
 	"beside-ref": "the library models a Path Item that writes a $ref as the reference alone, and validates none of " +
 		"the fields beside it; the table reads them as the item's own, as the lowering does " +
 		"(docs/compilers/openapi.md#path-item-ref-fields)",
@@ -109,7 +117,8 @@ var validationReasons = map[string]string{
 	"library-silent": "the library has no check for a rule the specification states and the table cites: a " +
 		"Parameter or Header Object holds schema or content, not both (3.1.2 §Parameter Object: 'Parameter Objects " +
 		"MUST include either a content field or a schema field, but not both'), an XML Object's nodeType bars wrapped " +
-		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified'), and a " +
+		"(3.2.0 §XML Object), a Header Object writes no in (3.2.0 §Header Object: 'in MUST NOT be specified') and holds one content " +
+		"entry (3.1.2 §Header Object: 'The map MUST only contain one entry'), and a " +
 		"$ref is a URI reference, which holds no space (3.1.2 §Reference Object: 'This MUST be in the form of a URI'), and " +
 		"a header name is a token, which a slash is not (3.1.2 §Parameter Object: 'states header names are case " +
 		"insensitive')",
@@ -227,6 +236,7 @@ func repoPath(t *testing.T, path string) string {
 
 // declaredVersion returns the OpenAPI version a document declares, and false
 // for data that is no YAML or JSON document declaring an "openapi" 3 string.
+// It reads pairs raw, so a version written through an alias is skipped (#1201).
 func declaredVersion(t testing.TB, data []byte) (string, *yaml.Node, bool) {
 	t.Helper()
 	parsed, err := load.Decode(t.Context(), data)

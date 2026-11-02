@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// ExtensionPromotionHeuristic is the name Provenance.Inferred carries on a node
-// whose typed field was read out of a vendor extension. It is a constant
+// ExtensionPromotionHeuristic is the name the node keeping a vendor extension
+// lists once a typed field is read out of that extension. It is a constant
 // because the marker is what an auditor greps for, and a spelling written at
 // the producing site and again at a reading test can drift.
 const ExtensionPromotionHeuristic ir.Inferred = "extension-promotion"
@@ -31,10 +31,9 @@ const extensionKeyPrefix = "openapi:"
 type ExtensionTarget string
 
 // The typed fields promotion can fill today. Every other field an extension is
-// the only OpenAPI spelling for — Pagination, LongRunning, Idempotency,
-// ErrorCase.Retryable/Throttling, Enum.Flags, EnumMember.Name, Sensitive and
-// Secret — is a target this vocabulary is meant to grow, not a decision against
-// it (GitHub #252).
+// the only OpenAPI spelling for is a target this vocabulary is meant to grow,
+// not a decision against it (GitHub #252): docs/ir/unmodeled.md#promotion lists
+// them with the node each promotion records itself on.
 const (
 	// TargetDeprecationMessage fills ir.Deprecation.Message.
 	TargetDeprecationMessage ExtensionTarget = "deprecation.message"
@@ -67,11 +66,10 @@ const (
 //
 // It is a policy rather than a table in the lowering because OpenAPI assigns an
 // x-* key no semantics whatsoever, so reading one as anything is a guess about
-// a convention (architecture principle 6). A promoted field is marked
-// ExtensionPromotionHeuristic in its node's provenance and the extension stays
-// in Unmodeled untouched, which is what makes the guess auditable and
-// reversible: a consumer that disagrees can ignore the typed field and read the
-// entry itself.
+// a convention (architecture principle 6). The node keeping the extension lists
+// ExtensionPromotionHeuristic and the extension stays in Unmodeled untouched,
+// which is what makes the guess auditable and reversible: a consumer that
+// disagrees can ignore the typed field and read the entry itself.
 type ExtensionPromotions struct {
 	// Disabled turns promotion off. Off means off: every extension is kept
 	// verbatim and no typed field is written from one.

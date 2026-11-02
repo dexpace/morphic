@@ -41,7 +41,9 @@ type Content struct {
                                   // `pass` resolves a key against that model rather than a
                                   // registry; of a part several declarations name, the one the
                                   // model's flattening takes (docs/ir/models.md)
-    File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary payloads)
+    File      *FileInfo           // body is a file upload/download (TypeSpec file bodies, binary
+                                  // payloads): how it travels, while Type stays what the source
+                                  // declares of it, so nothing that declaration says is lost
     Examples  []Example
     Unmodeled  Unmodeled
 }
@@ -60,7 +62,9 @@ type PartEncoding struct {
 
 type FileInfo struct {
     IsText   bool                 // textual vs binary contents
-    Contents *TypeRef             // declared contents scalar chain (string/bytes extensions); nil = bytes
+    Contents *TypeRef             // declared contents scalar chain (string/bytes extensions); nil = bytes.
+                                  // A compiler's lowered schema stays on Content.Type: it need not
+                                  // be such a chain, as a type array lowers to a union
     ContentTypes []string         // declared *allowed* content-type set (TypeSpec File<"image/png" |
                                   // "image/jpeg">); runtime Content-Type comes from the file value
     ContentTypeDefault string     // default when the file value carries none

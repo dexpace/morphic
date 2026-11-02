@@ -17,31 +17,31 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestFold_AConstraintDisagreementIsReported pins the second of the two
-// conflict routes. Two declarations that agree on type but pin one keyword to
-// different values fold to the first one's bound, so the other, which may be
+// TestFold_AKeywordNoOneValueStatesIsKeptAndReported pins the second of the two
+// conflict routes. Two declarations that agree on type but pin a keyword with no
+// order to different values fold to the first one's, so the other, which may be
 // the stricter, is discarded and must be announced.
-func TestFold_AConstraintDisagreementIsReported(t *testing.T) {
+func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{
 		WireName:    "age",
 		Provenance:  ir.Provenance{Pointer: "/components/schemas/A/properties/age"},
-		Constraints: &ir.Constraints{Min: new(ir.BigVal("10"))},
+		Constraints: &ir.Constraints{Pattern: "^a$"},
 	}
 	src := ir.Property{
 		WireName:    "age",
 		Provenance:  ptrAt("/components/schemas/B/properties/age"),
-		Constraints: &ir.Constraints{Min: new(ir.BigVal("20"))},
+		Constraints: &ir.Constraints{Pattern: "^b$"},
 	}
 
-	dst = foldTwo(g, dst, src, written(`{"minimum":20}`))
+	dst = foldTwo(g, dst, src, written(`{"pattern":"^b$"}`))
 
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, new(ir.BigVal("10")), dst.Constraints.Min, "the first bound is kept")
+	assert.Equal(t, "^a$", dst.Constraints.Pattern, "the first pattern is kept")
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
-	assert.Contains(t, (*recorded)[0].Message, "conflicting minimum (10 and 20)")
+	assert.Contains(t, (*recorded)[0].Message, `conflicting pattern ("^a$" and "^b$")`)
 	assert.Contains(t, (*recorded)[0].Message, "/components/schemas/A/properties/age",
 		"the kept declaration is named")
 	assert.Contains(t, (*recorded)[0].Message, "/components/schemas/B/properties/age",

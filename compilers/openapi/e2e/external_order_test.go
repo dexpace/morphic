@@ -78,7 +78,8 @@ var orderDecided = map[string]string{
 // referencingRoots returns two sources that each $ref every path item and every
 // component of the OpenAPI 3 document data as ext.yaml: one in data's order,
 // and one with each list reversed. It reports false for data that is no OpenAPI
-// 3 document.
+// 3 document. It reads pairs raw, so an alias value leaves its entry out and an
+// alias key is referenced under the anchor's name (#1201).
 func referencingRoots(data []byte) (forward, reversed string, ok bool) {
 	var doc yaml.Node
 	if yaml.Unmarshal(data, &doc) != nil || len(doc.Content) == 0 || doc.Content[0].Kind != yaml.MappingNode {

@@ -70,13 +70,13 @@ func orderInvariant(ctx context.Context, spec string, data []byte) (string, bool
 }
 
 // diffOrderInvariants compares what a declaration-order permutation must leave
-// untouched: the type and server registries and the diagnostics.
+// untouched: the type, server and auth registries and the diagnostics.
 //
-// A registry is ID-keyed, so a permutation leaves it unchanged, while
-// every interning collision shows up as a difference in it: a node minted at
-// the wrong pointer, a hint kept from whichever lowering arrived first, a body
-// that lost what a second declaration wrote. Operations, responses and content
-// types follow source order (invariant #7), so are not compared.
+// A registry is ID-keyed, so a permutation leaves it unchanged, while every
+// interning collision shows as a difference in it: a node minted at the wrong
+// pointer, a hint kept from whichever lowering came first, a body that lost what
+// a second declaration wrote. Operations, responses and content types follow
+// source order (invariant #7), so go uncompared.
 //
 // The collections whose order follows the source's (sourceOrderedCollections)
 // are compared regardless of order, not ignored: a changed property still
@@ -90,6 +90,9 @@ func diffOrderInvariants(first, second *ir.Document, secondDiags []ir.Diagnostic
 	}
 	if d := cmp.Diff(first.Servers, second.Servers, sourceOrderedCollections()...); d != "" {
 		return "server registry depends on declaration order (-as-written +reversed):\n" + d, false
+	}
+	if d := cmp.Diff(first.Auth, second.Auth, sourceOrderedCollections()...); d != "" {
+		return "auth registry depends on declaration order (-as-written +reversed):\n" + d, false
 	}
 	if d := cmp.Diff(diagnosticSet(first.Diagnostics), diagnosticSet(secondDiags)); d != "" {
 		return "diagnostics depend on declaration order (-as-written +reversed):\n" + d, false
@@ -137,6 +140,7 @@ func sourceOrderedCollections() []cmp.Option {
 		cmpopts.SortSlices(func(a, b ir.PatternProps) bool { return a.Pattern < b.Pattern }),
 		cmpopts.SortSlices(func(a, b ir.Field) bool { return a.Name < b.Name }),
 		cmpopts.SortSlices(func(a, b ir.ServerVariable) bool { return a.Name < b.Name }),
+		cmpopts.SortSlices(func(a, b ir.OAuthScope) bool { return a.Name < b.Name }),
 	}
 	return []cmp.Option{keyed, cmp.Comparer(func(a, b []ir.Example) bool { return sameExamples(a, b, keyed) })}
 }
@@ -262,17 +266,24 @@ func reversedPairs(content []*yaml.Node) []*yaml.Node {
 	return append(out, content[2*pairs:]...)
 }
 
-// duplicateKeys reports whether a mapping declares one key twice. Reversing such
-// a mapping changes which declaration wins (#95), so the two compiles would
-// differ for a reason that is not a defect.
+// duplicateKeys reports whether a mapping declares one key twice, each key read
+// as the parser reads it: an alias stands for the node it names, whose Value is
+// empty when that is no scalar (docs/parser-library.md#non-scalar-key). Reversing
+// such a mapping changes which declaration wins (#95), so the two compiles would
+// differ for a reason that is not a defect. It compares text alone, so a `<<`
+// merge key beside a quoted or aliased `<<`, which the parser reads apart, is
+// declined too, leaving that source unchecked rather than misjudged.
 func duplicateKeys(n *yaml.Node) bool {
 	seen := make(map[string]bool, len(n.Content)/2)
 	for i := 0; i+1 < len(n.Content); i += 2 {
-		key := n.Content[i].Value
-		if seen[key] {
+		key := n.Content[i]
+		if key.Kind == yaml.AliasNode {
+			key = key.Alias // a parsed alias names its anchor, and that is no alias
+		}
+		if seen[key.Value] {
 			return true
 		}
-		seen[key] = true
+		seen[key.Value] = true
 	}
 	return false
 }

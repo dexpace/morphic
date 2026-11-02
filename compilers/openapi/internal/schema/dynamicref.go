@@ -249,7 +249,11 @@ func declaresResourceIDAbove(c lowering.Ctx, pointer jsontext.Pointer) bool {
 	// An incomplete walk needs no arm: path holds the nodes reached, and an $id
 	// above a pointer that falls off the tree still binds.
 	path, _ := view.DocumentPath(root, pointer)
-	return slices.ContainsFunc(path, func(n *yaml.Node) bool { return view.ChildByToken(n, "$id") != nil })
+	return slices.ContainsFunc(path, func(n *yaml.Node) bool {
+		// A null is the keyword left out (docs/compilers/openapi.md#null-keywords).
+		id := view.ChildByToken(n, "$id")
+		return id != nil && !annotation.IsNullNode(id)
+	})
 }
 
 // recordUnexpandedDynamicRef keeps a $dynamicRef verbatim on p when it was not
