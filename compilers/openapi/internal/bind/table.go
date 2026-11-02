@@ -425,7 +425,7 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 		return false, true
 	}
 	path, _ := t.res.docs.path(p)
-	res, known := t.res.holding(p, path, true)
+	res, known := t.res.holding(p, path, true /* schema */)
 	return res.id, known
 }
 
