@@ -151,6 +151,13 @@ paths:
       requestBody: {$ref: '#/components/schemas/Positions/x-body'}
       responses:
         '204': {description: stored}
+    query:
+      responses:
+        '204': {description: stored}
+    additionalOperations:
+      mSearch:
+        responses:
+          '204': {description: stored}
   /events:
     get:
       operationId: events

@@ -965,7 +965,11 @@ doc.Services[0].Groups[0].Operations[0].Responses[0].Name 200
 doc.Services[0].Groups[1].Name default
 doc.Services[0].Groups[1].Operations[0].Responses[0].Name 201
 doc.Services[0].Groups[1].Operations[10].Responses[0].Name 204
-doc.Services[0].Groups[1].Operations[11].Responses[0].Name 200
+doc.Services[0].Groups[1].Operations[11].Name query_structures
+doc.Services[0].Groups[1].Operations[11].Responses[0].Name 204
+doc.Services[0].Groups[1].Operations[12].Name m_search_structures
+doc.Services[0].Groups[1].Operations[12].Responses[0].Name 204
+doc.Services[0].Groups[1].Operations[13].Responses[0].Name 200
 doc.Services[0].Groups[1].Operations[1].Responses[0].Name 204
 doc.Services[0].Groups[1].Operations[2].Name post_uploads
 doc.Services[0].Groups[1].Operations[2].Responses[0].Name 204

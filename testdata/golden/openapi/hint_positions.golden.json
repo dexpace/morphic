@@ -1248,6 +1248,90 @@
               }
             },
             {
+              "id": "op/openapi/paths/~1structures/query",
+              "name": {
+                "hint": "query_structures"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "stored"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "QUERY",
+                    "uriTemplate": "/structures",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1structures/query"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1structures/additionalOperations/mSearch",
+              "name": {
+                "hint": "m_search_structures"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "204"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 204,
+                        "to": 204
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "stored"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "mSearch",
+                    "uriTemplate": "/structures",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1structures/additionalOperations/mSearch"
+              }
+            },
+            {
               "id": "op/openapi/paths/~1events/get",
               "name": {
                 "source": "events",
@@ -6410,7 +6494,7 @@
         "source": 0,
         "pointer": "/components/schemas/***",
         "position": {
-          "line": 283,
+          "line": 290,
           "column": 7
         }
       }
@@ -6423,7 +6507,7 @@
         "source": 0,
         "pointer": "/components/schemas/",
         "position": {
-          "line": 287,
+          "line": 294,
           "column": 7
         }
       }
@@ -6496,7 +6580,7 @@
     {
       "format": "openapi@3.2",
       "path": "hint_positions.yaml",
-      "hash": "0d4bf6c2ca826f90c1e119d3b7707a5582cbca22def8e2501506d31f566fed85"
+      "hash": "d8b8f974c365ea3a596b56e8257cf558db0f0b0a514323fe3bd810b3cf83290b"
     }
   ]
 }
