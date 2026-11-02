@@ -175,9 +175,9 @@ jobs:
       - *setup-go
       - *toolchain
       # The corpus shares the repository's cache limit with what main saves, which
-      # evicts what was used longest ago, so enough pushes to main in a day lose it
-      # (#1272 changes what they save). A search that restores nothing starts from
-      # the seeds, which costs depth and nothing else, so it warns and carries on.
+      # evicts what was used longest ago, so enough pushes to main in a day lose it.
+      # A search that restores nothing starts from the seeds, which costs depth and
+      # nothing else, so it warns and carries on.
       - name: restore the corpus
         id: restore
         uses: actions/cache/restore@v6
