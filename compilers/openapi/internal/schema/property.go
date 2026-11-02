@@ -20,10 +20,11 @@ import (
 // the declaration's annotations, secrecy among them. Annotations present at a
 // $ref use-site override the target's (docs/compilers/openapi.md#ref-use-site).
 //
-// Constraints stay unconditional: ir.Property is the only home every property
-// has, while its schema may lower to a node of a kind with no Constraints field
-// or to no node of its own at all. Restating them where the node also carries
-// them is the safe half of that trade.
+// Value constraints stay unconditional: ir.Property is the only home every
+// property has, while its schema may lower to a node of a kind with no
+// Constraints field or to no node of its own at all. Restating them where the
+// node also carries them is the safe half of that trade. Collection bounds are
+// not restated (CarrierConstraintsOf).
 func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
 	ref := js.GetSchema()
 	if ref == nil {
@@ -33,7 +34,7 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 	def, diags := annotation.EffectiveDefault(use.DefaultChain(ref), pointer, c.ProvenanceAt)
 	p.Default = def
 	diags = append(diags, fillPropertyVisibility(c, p, use.Site(ref).Chain(), pointer)...)
-	diags = append(diags, fillPropertyConstraints(c, p, ref, use.Voices, pointer)...)
+	diags = append(diags, fillPropertyConstraints(c, ts, p, ref, use.Voices, pointer)...)
 	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
@@ -58,18 +59,18 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*oas3.Schema
 			"so the field is visible in none", p.WireName)}
 }
 
-// fillPropertyConstraints attaches the property's scalar constraints, and the
-// exclusive modifier that reached none of them, to the property itself.
-// ir.Property is the carrier at this position: a property's schema is read
-// through CarriedRef, so it hoists no node of its own to hold either.
+// fillPropertyConstraints attaches the property's constraints, and the exclusive
+// modifier that reached none of them, to the property itself. ir.Property is the
+// carrier at this position: a property's schema is read through CarriedRef, so
+// it hoists no node of its own to hold either.
 //
 // It reads ref and its voices and never the $ref target, which is why no referent
 // reaches it: bounds conjoin rather than override, so a referent's bound merged
 // here under use-site precedence would publish the wider of the two as the whole
 // truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillPropertyConstraints(c lowering.Ctx, p *ir.Property, ref *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := ConstraintsOf(c, &p.Unmodeled, ref, voices, pointer)
+func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
+	cons, diags := CarrierConstraintsOf(c, ts, &p.Unmodeled, ref, voices, p.Type, pointer)
 	p.Constraints = cons
 	return diags
 }

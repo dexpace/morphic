@@ -63,20 +63,21 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 		out.Target = id
 		return out, nil
 	}
-	id, diags := internAlias(c, ts, s, pointer, ref)
+	id, diags := internReferenceAlias(c, ts, s, pointer, ref)
 	out.Target = id
 	return out, diags
 }
 
 // declaresPositionScoped reports whether s writes anything that binds the
 // position it is written at rather than the shape it lowers to — an annotation
-// attachDeclaredAnnotations records, a value constraint internAlias carries, a
+// attachDeclaredAnnotations records, a bound internReferenceAlias carries, a
 // keyword recordDeclarationResidue keeps, or one PreserveUnknownKeywords keeps.
 // It is the gate on hoisting an alias, so it must stay in step with what those
 // actually keep: a keyword listed here but stored nowhere would hoist an empty
 // node, and one stored but missing here would still be dropped.
 func declaresPositionScoped(c lowering.Ctx, s *oas3.Schema) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
+		annotation.DeclaresAny(s, collectionBoundKeywords) ||
 		declaresValidationOnly(s) || annotation.DeclaresAny(s, residueKeywords) ||
 		declaresContentVocabulary(s) || declaresDynamicRef(s) ||
 		annotation.DeclaresAny(s, annotation.DialectKeywords) ||

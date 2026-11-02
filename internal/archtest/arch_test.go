@@ -394,7 +394,11 @@ var rules = map[string][]string{
 	// its options are called are answered through the contract, so no parser is
 	// named here. It reads a run's documents through its own reader package.
 	"engine": {module + "/barrier", module + "/ir", module + "/ir/irverify", module + "/compilers",
-		module + "/compilers/openapi", module + "/engine/reader", module + "/pass"},
+		module + "/compilers/openapi", module + "/engine/cache", module + "/engine/reader", module + "/pass"},
+	// Where a run's entries are kept between processes, and what names a build:
+	// files published through the atomic replace, and read as a source is. What
+	// an entry holds is the engine's, so it reaches nothing of the pipeline.
+	"engine/cache": {module + "/engine/internal/atomicfile", module + "/engine/reader"},
 	// What a run's references and settings name, read from disk, the network or
 	// memory. It reaches the contract whose reader it implements and nothing
 	// else, so a caller compiling directly reads as the engine does without
@@ -413,8 +417,8 @@ var rules = map[string][]string{
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
 	// dispatches the commands and renders help, on pflag's parse. What it prints
 	// it asks the engine's renderer and writer for.
-	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/output", module + "/engine/report",
-		"github.com/spf13/cobra", "github.com/spf13/pflag"},
+	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/cache", module + "/engine/output",
+		module + "/engine/report", "github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	// The census command: tooling outside the pipeline, like the harness command
 	// above. It compiles specs through the engine, lists them as the harness does,

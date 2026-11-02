@@ -73,6 +73,18 @@ func TestComplete_OutputOffersJSONFiles(t *testing.T) {
 	assert.Equal(t, cobra.ShellCompDirectiveFilterFileExt, directive)
 }
 
+// TestComplete_CacheDirOffersDirectories holds both commands, which share the
+// flag: a directory is what it names, and a file offered there would be one the
+// cache could never use.
+func TestComplete_CacheDirOffersDirectories(t *testing.T) {
+	t.Parallel()
+	for _, command := range []string{"compile", "validate"} {
+		got, directive := complete(t, command, "--cache-dir", "")
+		assert.Empty(t, got, command)
+		assert.Equal(t, cobra.ShellCompDirectiveFilterDirs, directive, command)
+	}
+}
+
 // TestComplete_HelpOffersCommandsButNotItself holds both halves of the filter:
 // the commands help can describe are offered with their summaries, while help
 // and the completion entry point itself are not commands anyone asks about.

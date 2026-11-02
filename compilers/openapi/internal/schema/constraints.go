@@ -5,9 +5,11 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
@@ -55,6 +57,61 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 	return diags
 }
 
+// CarrierConstraintsOf is ConstraintsOf for the carrier of a position of type t.
+// A position owning its node leaves the collection bounds to it, one home per
+// declaration, so the carrier reads the value bounds alone. One owning none can
+// have written a collection bound only beside a reference, since the census
+// hoists an alias to keep any other, so the carrier reads it there
+// (referenceConstraintsOf). PreserveRefSiteKeywords draws the same line.
+func CarrierConstraintsOf(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, t ir.TypeRef, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+	if LoweredToOwnNode(c, ts, pointer, t) {
+		return ConstraintsOf(c, p, s, voices, pointer)
+	}
+	return referenceConstraintsOf(c, p, s, voices, pointer)
+}
+
+// referenceConstraintsOf is ConstraintsOf for a position that lowered to a
+// reference, a $ref site, a collapsed union, an expanded $dynamicRef or a
+// refinement: no node of its own holds the collection bounds it wrote, so they
+// join its value bounds on the alias or carrier it owns
+// (docs/compilers/openapi.md#constraints). A voice's collection bound folds into
+// nothing, so its branch keeps it (GitHub #1312).
+func referenceConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
+	cons, diags := ConstraintsOf(c, p, s, voices, pointer)
+	if s == nil || !slices.ContainsFunc(collectionBoundKeywords, func(k string) bool { return referenceHolds(s, k) }) {
+		return cons, diags
+	}
+	if cons == nil {
+		cons = &ir.Constraints{}
+	}
+	if referenceHolds(s, "minItems") {
+		cons.MinItems = s.MinItems
+	}
+	if referenceHolds(s, "maxItems") {
+		cons.MaxItems = s.MaxItems
+	}
+	cons.UniqueItems = referenceHolds(s, "uniqueItems")
+	return cons, diags
+}
+
+// referenceHolds reports whether referenceConstraintsOf fills the collection
+// bound keyword from s, which is the census's whole test at a reference, so a
+// bound ir.Constraints cannot state stays verbatim: a count the parser misread
+// (annotation.CountIsExact), and a false uniqueItems, which a plain bool cannot
+// tell from unset and which would stop an alias being a decorator.
+func referenceHolds(s *oas3.Schema, keyword string) bool {
+	switch keyword {
+	case "minItems":
+		return annotation.CountIsExact(s, keyword, s.MinItems)
+	case "maxItems":
+		return annotation.CountIsExact(s, keyword, s.MaxItems)
+	case "uniqueItems":
+		return s.GetUniqueItems()
+	default:
+		return false
+	}
+}
+
 // valueConstraintKeywords are the keywords annotation.Constraints reads into an
 // ir.Constraints, sorted — which is both the order declaredConstraints walks
 // them in and what makes the list comparable to the reader it must keep pace
@@ -64,11 +121,15 @@ func stampConstraintDiags(c lowering.Ctx, diags []ir.Diagnostic, pointer jsontex
 // (declaresValueConstraints) and by the recorder that keeps the ones no node can
 // hold (declaredConstraints), so the two can never disagree about what a schema
 // wrote. Collection bounds are absent because they belong to the collection
-// nodes and are read by collectionConstraints, not here.
+// nodes, or to what a reference owns, and are read by collectionConstraints or
+// referenceConstraintsOf, not here.
 var valueConstraintKeywords = []string{
 	"exclusiveMaximum", "exclusiveMinimum", "maxLength", "maxProperties",
 	"maximum", "minLength", "minProperties", "minimum", "multipleOf", "pattern",
 }
+
+// collectionBoundKeywords are the keywords collectionConstraints reads.
+var collectionBoundKeywords = []string{"maxItems", "minItems", "uniqueItems"}
 
 // declaresValueConstraints reports whether s sets any keyword
 // annotation.Constraints reads. It does not call it: that reports a malformed
