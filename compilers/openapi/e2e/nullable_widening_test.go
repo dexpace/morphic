@@ -352,3 +352,23 @@ func TestNullableWidening_ACompositionKeepsTheMarker(t *testing.T) {
 		assert.False(t, union.Variants[1].Type.Nullable)
 	}
 }
+
+// TestNullableWidening_DisabledKeepsItAtASharedNode pins that a nullable the
+// dialect does not define reaches the IR where the position lowers to a shared
+// node and has no carrier, on an alias hoisted for it, as a keyword the model
+// does not name does.
+func TestNullableWidening_DisabledKeepsItAtASharedNode(t *testing.T) {
+	t.Parallel()
+	doc, diags := compileNullable(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    A: {type: array, items: {type: integer, nullable: true}}
+`, true)
+	alias, ok := doc.Types["t/anon/components/schemas/A/items"]
+	require.True(t, ok)
+	assert.Equal(t, `true`, string(unmodeledEntry(t, alias.Common().Unmodeled, "openapi:nullable").Value))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/unknown-schema-keyword",
+		"/components/schemas/A/items/nullable"))
+}

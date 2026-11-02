@@ -503,3 +503,49 @@ func TestTakeString_AppliesValidAndReadsAsTheParserDoes(t *testing.T) {
 		})
 	}
 }
+
+// TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep pins that the question a
+// position asks to tell whether it needs a node has UnknownKeywordsIn's answer:
+// a keyword no one has decided about, kept with a null it writes where no
+// vocabulary types the keyword, but not where one does.
+func TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name, schema string
+		want         bool
+	}{
+		{"a keyword no vocabulary defines", "{type: string, k: 1}\n", true},
+		{"one written null", "{type: string, k: null}\n", true},
+		{"none", "{type: string}\n", false},
+		{"one decided about", "{type: string, $comment: c}\n", false},
+		{"a keyword of the dialect the model names no field for", "{dependentRequired: {a: [b]}}\n", true},
+		{"the same written null", "{dependentRequired: null}\n", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := schemaFromYAML(t, tc.schema)
+			assert.Equal(t, tc.want, WritesUnknownKeyword(s))
+			var kept ir.Unmodeled
+			UnknownKeywordsIn(&kept, s, "/s", func(p jsontext.Pointer, _ ...jsontext.Pointer) ir.Provenance {
+				return ir.Provenance{Pointer: p}
+			})
+			assert.Equal(t, tc.want, len(kept) > 0)
+		})
+	}
+}
+
+// TestWritesKeywordLeftOut_TellsANullThatStatesNothing pins what a reader
+// listing a schema's keys asks of each: a null for a keyword of the dialect is
+// the keyword left out, while one that is a value stays written, as an
+// instance's, an extension's, and that of a key the census keeps.
+func TestWritesKeywordLeftOut_TellsANullThatStatesNothing(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "{title: t, description: null, dependentRequired: ~, const: null, x-e: null, k: null}\n")
+	for key, want := range map[string]bool{
+		"description": true, "dependentRequired": true,
+		"const": false, "x-e": false, "k": false, "title": false, "absent": false,
+	} {
+		assert.Equal(t, want, WritesKeywordLeftOut(s, key), key)
+	}
+}

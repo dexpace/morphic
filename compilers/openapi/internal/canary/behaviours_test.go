@@ -38,6 +38,7 @@ func canaries() map[string]func(t *testing.T) {
 		"undecoded-scalar":       undecodedScalar,
 		"unmodeled-keywords":     unmodeledKeywords,
 		"null-schema-is-false":   nullSchemaIsFalse,
+		"null-type-is-empty":     nullTypeIsEmpty,
 		"overlay-alias-clone":    overlayAliasClone,
 		"trailing-empty-token":   trailingEmptyToken,
 		"context-unread":         contextUnread,

@@ -368,6 +368,36 @@ func TestParams_SchemaVisibilityKeptUnderUnmodeled(t *testing.T) {
 	}
 }
 
+// TestParams_KeepWhatAnyCarrierKeeps pins the keepers a parameter shares with a
+// property. A parameter whose schema owns no node once kept neither the content
+// vocabulary nor a $dynamicRef that did not expand, and reported neither, which
+// is the silent loss a property never had, as it called them itself.
+func TestParams_KeepWhatAnyCarrierKeeps(t *testing.T) {
+	t.Parallel()
+	_, svc, diags := compileService(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths:
+  /x:
+    get:
+      parameters:
+        - {name: enc, in: query, schema: {contentEncoding: base64}}
+        - {name: dyn, in: query, schema: {$dynamicRef: '#ghost'}}
+      responses: {'200': {description: ok}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	params := paramsOf(t, svc)
+
+	require.Contains(t, params["enc"].Unmodeled, "openapi:contentEncoding")
+	assert.Equal(t, ir.ReasonNoIRHome, params["enc"].Unmodeled["openapi:contentEncoding"].Reason)
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+		"/paths/~1x/get/parameters/0/schema/contentEncoding"), "content-vocabulary")
+
+	require.Contains(t, params["dyn"].Unmodeled, "openapi:$dynamicRef")
+	assert.Equal(t, ir.ReasonDegradedLowering, params["dyn"].Unmodeled["openapi:$dynamicRef"].Reason)
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
+		"/paths/~1x/get/parameters/1/schema/$dynamicRef"), "was not expanded")
+}
+
 // TestParams_SchemaDefaultIsNotAlsoKeptVerbatim is the other side of that list:
 // `default` is a residue keyword too, but Parameter.Default is a real home for
 // it, so a verbatim copy beside it would give one declaration two homes.

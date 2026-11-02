@@ -199,7 +199,18 @@ it sees. Changes made together in one bump are listed together under it.
     did not ask to exclude ([unions](./unions.md)): a type array naming `integer` and `number` or
     repeating a type, and an enum whose entry repeats or lowers to the top type. The compiler had
     set it, leaving such a union to refuse what its schema admits.
-- **0.24.0** — a security requirement keeps a scheme the compiler resolved no mechanism for
+- **0.24.0** — two shape changes made together, neither of which a document compiled today sets:
+  - `Docs` gained `Refs`, the spans of `Description` that name a type, each a `DocRef`
+    ([annotations](./annotations.md#references-in-prose)). They replace the `{t:TypeID}` tokens
+    `Description` was documented to hold, which no compiler wrote, so `{t:` in a description is now
+    text and nothing else. A consumer that scanned descriptions for tokens must read `Refs`.
+  - `ErrorCase` and `OAuthFlow` gained `Inferred`, and a promotion is now recorded on the node
+    keeping its extension, whichever node holds the field it fills
+    ([promotion](./unmodeled.md#promotion)). Where a node with a `Provenance` holds the field, as in
+    every promotion the OpenAPI compiler makes, nothing moves.
+
+  A consumer pinned to 0.23.0 refuses the document as another generation's.
+- **0.25.0** — a security requirement keeps a scheme the compiler resolved no mechanism for
   ([auth](./auth.md#unresolved-schemes)). `AuthKind` gained `unresolved`, and auth IDs the
   `unresolved` namespace ([identity](./identity.md#unresolved-schemes)), which every OpenAPI document
   declares under `idSpaces.auth`, whether or not it mints there. The OpenAPI compiler had dropped
@@ -207,5 +218,5 @@ it sees. Changes made together in one bump are listed together under it.
   lost the option. It also read a name whose value reads as no list of strings as not written, so
   `{name: null}` read as the empty option, and such a name now stands. A `securitySchemes` entry
   yielding no mechanism had lowered to nothing, and now lowers to that kind whether or not a
-  requirement names it. A consumer pinned to 0.23.0 finds those operations naming a kind it has no
+  requirement names it. A consumer pinned to 0.24.0 finds those operations naming a kind it has no
   reading for, where it read them as inheriting the service's credentials.

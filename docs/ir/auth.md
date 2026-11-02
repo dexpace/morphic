@@ -44,6 +44,8 @@ type OAuthFlow struct {
     Scopes                   []OAuthScope // source order, each name once
     TokenEndpointAuthMethods []string     // IANA "OAuth Token Endpoint Authentication Methods" values
     Unmodeled                Unmodeled
+    Inferred                 Inferred     // the heuristics that read a fact out of Unmodeled
+                                          // ([promotion](./unmodeled.md#promotion))
 }
 
 type OAuthScope struct { Name, Description string }

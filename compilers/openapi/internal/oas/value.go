@@ -21,13 +21,14 @@ import (
 // value checks the value a field is written with: its shape, then what its
 // shape allows, then the objects it holds. A field whose shape another package
 // owns is left to it, bar a number outside the field's range, such as a
-// multipleOf of 0, which that package reads as the number it is, quoted or not.
+// multipleOf of 0, which that package reads as the number it is, quoted or not,
+// and a null, which that package reads as the field left out.
 func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	node := nodeview.Deref(val)
 	ptr := f.at.ptr.AppendToken(fld.Name)
 	shape, ok := w.shapeOf(fld, node)
 	if !ok {
-		if fld.ShapeOwner == "" || outOfRange(fld.Shape, node) {
+		if fld.ShapeOwner == "" || outOfRange(fld.Shape, node) || isNull(node) {
 			w.mismatch(f, fld, node, ptr)
 		}
 		return
@@ -87,15 +88,12 @@ const (
 )
 
 // nullRead says how a null written for the field is read at minor m. The schema
-// lowering reads one for a keyword whose value is a schema as left out, and one
-// for another object's schema as the empty schema, a value. It reads one for a
-// Schema Object's other keywords several ways, so that is the wrong value
-// (GitHub #1069). A null for an optional field is otherwise left out; for a
-// required field it is the value that is missing, reported by whichever package
-// owns the rule.
+// lowering reads one for another object's schema as the empty schema, a value
+// of the wrong shape, and one for any keyword of a Schema Object as left out. A
+// null for an optional field is otherwise left out; for a required field it is
+// the value that is missing, reported by whichever package owns the rule.
 func (f frame) nullRead(fld Field, m Minor) nullReading {
-	holdsSchema := fld.Shape == Nested && fld.Of == Schema
-	if holdsSchema != (f.obj.Kind == Schema) {
+	if fld.Shape == Nested && fld.Of == Schema && f.obj.Kind != Schema {
 		return wrongValue
 	}
 	if fld.Required.Holds(m) {

@@ -145,9 +145,15 @@ type Discriminator struct
 	"property" PropID omitempty
 	"propertyName" string omitempty
 
+type DocRef struct
+	"endByte" int
+	"startByte" int
+	"type" TypeID
+
 type Docs struct
 	"description" string omitempty
 	"externalDocs" []Link omitempty
+	"refs" []DocRef omitempty
 	"summary" string omitempty
 
 type Document struct
@@ -207,6 +213,7 @@ type ErrorCase struct
 	"docs" Docs
 	"fault" string omitempty
 	"headers" []Header omitempty
+	"inferred" Inferred omitempty
 	"name" Naming
 	"payload" *Payload omitzero
 	"retryable" *bool omitzero
@@ -413,6 +420,7 @@ type Naming struct
 
 type OAuthFlow struct
 	"authorizationURL" string omitempty
+	"inferred" Inferred omitempty
 	"kind" string omitempty
 	"refreshURL" string omitempty
 	"scopes" []OAuthScope omitempty
