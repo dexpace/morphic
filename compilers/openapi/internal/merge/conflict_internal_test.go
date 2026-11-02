@@ -170,7 +170,7 @@ func TestClassify_StructuralVsPrimitiveIsDisjoint(t *testing.T) {
 		"primitive vs model is a provable conflict")
 }
 
-// The tests below reach constraintsConflict and mergeConstraints for keywords
+// The tests below reach constraintsConflict and Constraints for keywords
 // no OpenAPI spec can drive them through. ir.Constraints is one struct
 // shared by every user of the type (properties and lists alike), and the
 // OpenAPI compiler does not yet populate Precision, Scale, PatternMessage, or
@@ -210,21 +210,21 @@ func TestConstraintsConflict_UniqueItemsNeverConflicts(t *testing.T) {
 	}
 }
 
-func TestMergeConstraints_UniqueItemsIntersectsToTrue(t *testing.T) {
+func TestConstraints_UniqueItemsIntersectsToTrue(t *testing.T) {
 	t.Parallel()
 	// allOf is an intersection: a collection satisfying both branches must be
 	// unique whenever either branch requires it, so the merge always adopts
 	// true and never downgrades true back to false.
-	dst := mergeConstraints(&ir.Constraints{UniqueItems: false}, &ir.Constraints{UniqueItems: true})
+	dst := Constraints(&ir.Constraints{UniqueItems: false}, &ir.Constraints{UniqueItems: true})
 	require.NotNil(t, dst)
 	assert.True(t, dst.UniqueItems, "dst adopts true from src")
 
-	dst = mergeConstraints(&ir.Constraints{UniqueItems: true}, &ir.Constraints{UniqueItems: false})
+	dst = Constraints(&ir.Constraints{UniqueItems: true}, &ir.Constraints{UniqueItems: false})
 	require.NotNil(t, dst)
 	assert.True(t, dst.UniqueItems, "dst is never downgraded from true to false")
 }
 
-func TestMergeConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
+func TestConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
 	t.Parallel()
 	// Every keyword ir.Constraints carries: dst leaves each one unset, so the
 	// merge must adopt all of them from src, not just the ones exercised by
@@ -248,7 +248,7 @@ func TestMergeConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
 		MinProps:       &five,
 		MaxProps:       &ten,
 	}
-	merged := mergeConstraints(&ir.Constraints{}, src)
+	merged := Constraints(&ir.Constraints{}, src)
 	require.NotNil(t, merged)
 	assert.Same(t, src.Min, merged.Min)
 	assert.Same(t, src.ExclusiveMin, merged.ExclusiveMin)
@@ -268,7 +268,7 @@ func TestMergeConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
 	assert.Same(t, src.MaxProps, merged.MaxProps)
 }
 
-func TestMergeConstraints_ABoundTakesItsTighterValue(t *testing.T) {
+func TestConstraints_ABoundTakesItsTighterValue(t *testing.T) {
 	t.Parallel()
 	// Under allOf every bound holds, so each keyword both sides set takes the
 	// value admitting fewer, whichever side wrote it. Both orders are folded,
@@ -285,19 +285,19 @@ func TestMergeConstraints_ABoundTakesItsTighterValue(t *testing.T) {
 	}
 	for name, pair := range map[string][2]*ir.Constraints{"looser first": {loose, tight}, "tighter first": {tight, loose}} {
 		first := *pair[0]
-		assert.Equal(t, tight, mergeConstraints(&first, pair[1]), name)
+		assert.Equal(t, tight, Constraints(&first, pair[1]), name)
 	}
 }
 
-func TestMergeConstraints_AKeywordWithNoOrderKeepsTheFirst(t *testing.T) {
+func TestConstraints_AKeywordWithNoOrderKeepsTheFirst(t *testing.T) {
 	t.Parallel()
 	a := &ir.Constraints{Pattern: "^a$", PatternMessage: "a", Precision: new(int64(4)), Scale: new(int64(2))}
 	b := &ir.Constraints{Pattern: "^b$", PatternMessage: "b", Precision: new(int64(9)), Scale: new(int64(1))}
 	merged := *a
-	assert.Equal(t, a, mergeConstraints(&merged, b))
+	assert.Equal(t, a, Constraints(&merged, b))
 }
 
-func TestMergeConstraints_APairWithNoMeetKeepsTheFirst(t *testing.T) {
+func TestConstraints_APairWithNoMeetKeepsTheFirst(t *testing.T) {
 	t.Parallel()
 	// A pair no one value states is reported by constraintsConflict, and the
 	// field keeps the first of it: a failed meet writes nothing, since what it
@@ -305,17 +305,17 @@ func TestMergeConstraints_APairWithNoMeetKeepsTheFirst(t *testing.T) {
 	a := &ir.Constraints{MultipleOf: new(ir.BigVal("3")), Min: new(ir.BigVal("1"))}
 	b := &ir.Constraints{MultipleOf: new(ir.BigVal("nan")), Min: new(ir.BigVal("nan"))}
 	merged := *a
-	assert.Equal(t, a, mergeConstraints(&merged, b))
+	assert.Equal(t, a, Constraints(&merged, b))
 }
 
-func TestMergeConstraints_NilOperands(t *testing.T) {
+func TestConstraints_NilOperands(t *testing.T) {
 	t.Parallel()
 	// A nil dst adopts src wholesale; a nil src leaves dst untouched; both nil
 	// stays nil.
 	full := &ir.Constraints{Pattern: "^a$"}
-	assert.Same(t, full, mergeConstraints(nil, full), "nil dst adopts src wholesale")
-	assert.Same(t, full, mergeConstraints(full, nil), "nil src leaves dst untouched")
-	assert.Nil(t, mergeConstraints(nil, nil))
+	assert.Same(t, full, Constraints(nil, full), "nil dst adopts src wholesale")
+	assert.Same(t, full, Constraints(full, nil), "nil src leaves dst untouched")
+	assert.Nil(t, Constraints(nil, nil))
 }
 
 func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
@@ -345,4 +345,15 @@ func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/lit-a"), ref("t/model")))
 	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/absent"), ref("t/prim/string")))
 	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/prim/string"), ref("t/absent")))
+}
+
+// TestMeets_ANoOrderPairIsNoMeet pins what Meets asks of constraintsConflict: two
+// ordered bounds always meet, and two values of a keyword with no order meet only
+// where they are one.
+func TestMeets_ANoOrderPairIsNoMeet(t *testing.T) {
+	t.Parallel()
+	assert.True(t, Meets(&ir.Constraints{MaxLength: new(int64(3))}, &ir.Constraints{MaxLength: new(int64(5))}))
+	assert.True(t, Meets(&ir.Constraints{Pattern: "a"}, &ir.Constraints{Pattern: "a"}))
+	assert.False(t, Meets(&ir.Constraints{Pattern: "a"}, &ir.Constraints{Pattern: "b"}))
+	assert.True(t, Meets(nil, &ir.Constraints{Pattern: "b"}), "nothing conflicts with nothing")
 }
