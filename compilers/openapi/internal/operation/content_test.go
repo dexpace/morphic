@@ -382,17 +382,17 @@ func TestContent_FullPipeline(t *testing.T) {
 	assert.NotEmpty(t, filePart.Headers)
 	assert.True(t, tagsPart.Multi)
 
-	// Response: multiple media types kept, example + examples, headers, links raw.
+	// Response: multiple media types kept, example + examples, headers, a link.
 	resp := upload.Responses[0]
 	require.NotNil(t, resp.Payload)
 	assert.Len(t, resp.Payload.Contents, 2)
 	assert.GreaterOrEqual(t, len(resp.Payload.Contents[0].Examples), 2)
 	assert.NotEmpty(t, resp.Headers)
-	_, hasLinks := resp.Unmodeled["openapi:links"]
-	assert.True(t, hasLinks)
+	require.Len(t, resp.Links, 1)
+	assert.Equal(t, upload.ID, resp.Links[0].Operation, "a link may lead back to its own operation")
 
 	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct),
-		"nothing this spec declares is degraded; links are kept verbatim without a report; got %+v", diags)
+		"nothing this spec declares is degraded; got %+v", diags)
 }
 
 func TestContent_OctetAndErrorMulti(t *testing.T) {

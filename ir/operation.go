@@ -251,6 +251,8 @@ type Response struct {
 	Payload *Payload `json:"payload,omitzero"`
 	// Headers are the response metadata fields.
 	Headers []Header `json:"headers,omitempty"`
+	// Links are the requests the response leads to, in source order.
+	Links []OperationLink `json:"links,omitempty"`
 	// StatusCodeProp is the output member populated from the runtime HTTP status
 	// line (Smithy @httpResponseCode, TypeSpec non-literal @statusCode); the
 	// member is suppressed from the body.
@@ -302,6 +304,8 @@ type ErrorCase struct {
 	// Headers are the error response's metadata fields — Retry-After and the
 	// rate-limit family live here.
 	Headers []Header `json:"headers,omitempty"`
+	// Links are the requests the error response leads to, in source order.
+	Links []OperationLink `json:"links,omitempty"`
 	// Fault is "" | "client" | "server" — protocol-neutral fault classification
 	// (Smithy @error; OpenAPI 4XX/5XX is its HTTP lowering). Drives exception
 	// hierarchies and default status synthesis.
@@ -538,15 +542,15 @@ type PropPath struct {
 	Segments []PropID `json:"segments,omitempty"`
 }
 
-// InputPath addresses a value an operation's request carries: a parameter, or
-// a member within one, or a member of the request body
+// InputPath addresses a value an operation's request carries: a parameter or a
+// member within one, or the request body or a member within it
 // (docs/ir/interaction-patterns.md).
 type InputPath struct {
 	// Param is the ID of the parameter the path roots in; nil = the request
 	// body, which Segments then walk into.
 	Param *ParamID `json:"param,omitzero"`
 	// Segments are the ordered property IDs walked from the parameter or the
-	// body; no entry is empty, and a path into the body has one at least.
+	// body; no entry is empty, and none at all addresses the root whole.
 	Segments []PropID `json:"segments,omitempty"`
 }
 

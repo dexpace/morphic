@@ -12,8 +12,8 @@ components:
   responses:
     Used:
       description: reached from the paths
-      # Kept as written, links and all: nothing follows this reference, so the
-      # link it names is kept on the document too.
+      # The link's reference is followed, so the entry it names lowers onto the
+      # response and is not kept on the document beside it.
       links: {next: {$ref: '#/components/links/Next'}}
     Unused: {description: nothing names this one}
   parameters:

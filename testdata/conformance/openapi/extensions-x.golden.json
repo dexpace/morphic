@@ -169,22 +169,24 @@
                       }
                     }
                   ],
+                  "links": [
+                    {
+                      "name": {
+                        "source": "self",
+                        "canonical": "self"
+                      },
+                      "operation": "op/openapi/paths/~1widgets/get",
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/200/links/self"
+                      }
+                    }
+                  ],
                   "docs": {
                     "description": "ok"
                   },
                   "unmodeled": {
-                    "openapi:links": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "self": {
-                          "operationId": "listWidgets"
-                        }
-                      },
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1widgets/get/responses/200/links"
-                      }
-                    },
                     "openapi:x-mark": {
                       "reason": "vendor_extension",
                       "value": "XRESPONSE",
@@ -209,23 +211,25 @@
                       }
                     ]
                   },
+                  "links": [
+                    {
+                      "name": {
+                        "source": "retry",
+                        "canonical": "retry"
+                      },
+                      "operation": "op/openapi/paths/~1widgets/get",
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1widgets/get/responses/404/links/retry"
+                      }
+                    }
+                  ],
                   "fault": "client",
                   "docs": {
                     "description": "gone"
                   },
                   "unmodeled": {
-                    "openapi:links": {
-                      "reason": "no_ir_home",
-                      "value": {
-                        "retry": {
-                          "operationId": "listWidgets"
-                        }
-                      },
-                      "provenance": {
-                        "source": 0,
-                        "pointer": "/paths/~1widgets/get/responses/404/links"
-                      }
-                    },
                     "openapi:x-mark": {
                       "reason": "vendor_extension",
                       "value": "XERRORRESPONSE",

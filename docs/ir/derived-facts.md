@@ -132,7 +132,7 @@ Every other entity is keyed by a position that names it, its holder's key extend
 | field argument | its property, and its name |
 | header | the response, error, default or stream item declaring it, and its name in lower case |
 | enum member | its enum, and the member's key ([member identity](./enums.md#member-identity)) |
-| server | the service or operation naming it, and its URL template |
+| server | the service or operation naming it, or the response and link that name it, and its URL template |
 | callback operation with no name of its own | the operation declaring it, the callback's name and the method; the runtime expression is a detail of where the request goes, so a rewritten one keeps the key |
 | anonymous type | a parameter's schema; the content of a request, a response, an error or a default, by the conditions and media type, and that content's stream item and file contents; a stream's events and initial message; an RPC input; a long-running operation's polling and final types; an auth scheme's credentials; a property's or a header's type, and what its encoding decodes to; a catch-all's value, key and patterns; a list's element, a map's key and value, a tuple's element by its position and its rest, and a scalar's base; an anonymous model another composes in place, by the composing model's key and `allOf`; and a variant's type, by the tag a discriminator maps to it, its wire name in a key-tagged union, else its declared name |
 

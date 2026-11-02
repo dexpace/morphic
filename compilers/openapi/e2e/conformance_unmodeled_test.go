@@ -1029,35 +1029,117 @@ func assertResidue(t *testing.T, p ir.Unmodeled, want map[string]string) {
 	}
 }
 
-// assertResponseLinks pins a response's links: neither ir.Response nor
-// ir.ErrorCase has a field for the link objects OpenAPI declares there, so they
-// are kept verbatim rather than dropped while the operation they name lowers
-// normally.
-//
-// Both status ranges, because only the success one used to keep them: the same
-// declaration survived on a 2xx and vanished on a 4xx, with no diagnostic either
-// way, purely because the error branch had no links rule of its own
-// (GitHub #275).
-func assertResponseLinks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-	op, ok := opByName(doc, "createOrder")
-	require.True(t, ok)
-	require.Len(t, op.Responses, 1)
-	entry := unmodeledEntry(t, op.Responses[0].Unmodeled, "openapi:links")
-	assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-	assert.JSONEq(t,
-		`{"GetOrder":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/id"}}}`,
-		string(entry.Value))
+// assertResponseLinks pins how a response's links lower
+// (docs/compilers/openapi.md#links): onto a success response, an error case and
+// a default alike, in source order; each kind of value at the parameter,
+// member or header it reads; a $ref'd link at its declaration; the server a
+// link names registered; and a link no ir.LinkValue spells kept verbatim,
+// whole, with an info. Every link is declared before the operation it leads
+// to.
+func assertResponseLinks(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	create, get, replace, audit := linkOp(t, doc, "createOrder"), linkOp(t, doc, "getOrder"),
+		linkOp(t, doc, "replaceOrder"), linkOp(t, doc, "audit")
+	require.Len(t, create.Responses, 1)
+	byName := map[string]ir.OperationLink{}
+	order := make([]string, 0, len(create.Responses[0].Links))
+	for _, l := range create.Responses[0].Links {
+		byName[l.Name.Source] = l
+		order = append(order, l.Name.Source)
+	}
+	assert.Equal(t, []string{"GetOrder", "ByLocation", "Replace", "ByCustomer", "Audit"}, order,
+		"in source order, the link kept verbatim left out")
 
-	require.Len(t, op.Errors, 1)
-	errEntry := unmodeledEntry(t, op.Errors[0].Unmodeled, "openapi:links")
-	assert.Equal(t, ir.ReasonNoIRHome, errEntry.Reason)
-	assert.JSONEq(t,
-		`{"GetConflicting":{"operationId":"getOrder","parameters":{"orderId":"$response.body#/existingId"}}}`,
-		string(errEntry.Value),
-		"an error response keeps its links by the same rule the success one does")
+	orderID := linkParam(t, get, "orderId")
+	assertLink(t, byName["GetOrder"], get.ID, []ir.LinkParam{
+		{Param: orderID, Value: responseMembers("Order/properties/id")},
+		{Param: linkParam(t, get, "verbose"), Value: ir.LinkValue{Kind: ir.LinkConstant, Constant: &ir.Value{Kind: ir.ValueBool, Bool: true}}},
+		{Param: linkParam(t, get, "X-Request-Id"), Value: requestParam(linkParam(t, create, "X-Request-Id"))},
+	}, nil)
+	assert.Equal(t, "The order just created.", byName["GetOrder"].Docs.Description)
+	assert.Contains(t, byName["GetOrder"].Unmodeled, "openapi:x-follow", "an extension on the link stays on it")
 
-	_, ok = opByName(doc, "getOrder")
-	assert.True(t, ok, "the operation a link names is an ordinary operation")
+	location := create.Responses[0].Headers[0].ID
+	assertLink(t, byName["ByLocation"], get.ID, []ir.LinkParam{
+		{Param: orderID, Value: ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{In: "header", Segments: []ir.PropID{location}}}},
+	}, nil)
+	assert.Equal(t, jsontext.Pointer("/components/links/ByLocation"), byName["ByLocation"].Provenance.Pointer)
+
+	wholeRequest := ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{}}
+	assertLink(t, byName["Replace"], replace.ID, []ir.LinkParam{
+		{Param: linkParam(t, replace, "orderId"), Value: responseMembers("Order/properties/id")},
+	}, &wholeRequest)
+	require.NotNil(t, byName["Replace"].Server, "the server the link names")
+	assert.Equal(t, "https://write.example.com", doc.Servers[*byName["Replace"].Server].URLTemplate)
+
+	assertLink(t, byName["ByCustomer"], get.ID, []ir.LinkParam{{Param: orderID, Value: ir.LinkValue{
+		Kind: ir.LinkRequest, Request: &ir.InputPath{Segments: []ir.PropID{
+			componentProp("OrderInput/properties/customer"), componentProp("Customer/properties/id"),
+		}},
+	}}}, nil)
+	assertLink(t, byName["Audit"], audit.ID, []ir.LinkParam{
+		{Param: linkParam(t, audit, "status"), Value: ir.LinkValue{Kind: ir.LinkStatus}},
+		{Param: linkParam(t, audit, "method"), Value: ir.LinkValue{Kind: ir.LinkMethod}},
+	}, &ir.LinkValue{Kind: ir.LinkURL})
+
+	kept := unmodeledEntry(t, create.Responses[0].Unmodeled, "openapi:links/ByTag")
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, `{"operationId":"getOrder","parameters":{"orderId":"$response.body#/tags/0"}}`, string(kept.Value))
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, "openapi/untyped-link", "/paths/~1orders/post/responses/201/links/ByTag"))
+
+	require.Len(t, create.Errors, 1)
+	require.Len(t, create.Errors[0].Links, 1, "an error response's links lower by the same rule")
+	assertLink(t, create.Errors[0].Links[0], get.ID, []ir.LinkParam{
+		{Param: orderID, Value: responseMembers("Conflict/properties/existingId")},
+	}, nil)
+	require.NotNil(t, create.Default)
+	require.Len(t, create.Default.Links, 1, "so do the default's")
+	assertLink(t, create.Default.Links[0], create.ID, nil, &wholeRequest)
+}
+
+// linkOp returns the operation named name.
+func linkOp(t *testing.T, doc *ir.Document, name string) ir.Operation {
+	t.Helper()
+	op, ok := opByName(doc, name)
+	require.True(t, ok, "the document declares %s", name)
+	return op
+}
+
+// linkParam returns the ID of op's parameter named name.
+func linkParam(t *testing.T, op ir.Operation, name string) ir.ParamID {
+	t.Helper()
+	for _, p := range op.Params {
+		if p.Name.Source == name {
+			return p.ID
+		}
+	}
+	require.Failf(t, "no parameter", "%s declares no parameter %q", op.ID, name)
+	return ""
+}
+
+// componentProp is the ID of the property a component schema declares at the
+// path under components/schemas.
+func componentProp(path string) ir.PropID {
+	return ir.PropID("p/openapi/components/schemas/" + path)
+}
+
+// responseMembers is a link value reading the response body's member at the
+// component property path.
+func responseMembers(path string) ir.LinkValue {
+	return ir.LinkValue{Kind: ir.LinkResponse, Response: &ir.PropPath{Segments: []ir.PropID{componentProp(path)}}}
+}
+
+// requestParam is a link value reading the request's parameter id.
+func requestParam(id ir.ParamID) ir.LinkValue {
+	return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Param: &id}}
+}
+
+// assertLink holds link to its target, parameters and body.
+func assertLink(t *testing.T, link ir.OperationLink, target ir.OpID, params []ir.LinkParam, body *ir.LinkValue) {
+	t.Helper()
+	assert.Equal(t, target, link.Operation, "link %s leads to its target", link.Name.Source)
+	assert.Equal(t, params, link.Params, "link %s passes its parameters", link.Name.Source)
+	assert.Equal(t, body, link.Body, "link %s passes its body", link.Name.Source)
 }
 
 // assertCoDeclaredKeywords pins the keywords a schema writes that compete for
@@ -1313,9 +1395,9 @@ func assertMergedReaders(t *testing.T, doc *ir.Document, op ir.Operation) {
 	require.Len(t, op.Bindings.HTTP[0].ParamBindings, 1)
 	assert.True(t, op.Bindings.HTTP[0].ParamBindings[0].AllowEmptyValue, "the merged allowEmptyValue is read")
 	require.Len(t, op.Responses, 1)
-	assertKept(t, op.Responses[0].Unmodeled, []keptEntry{
-		{"openapi:links", `{"self":{"operationId":"getMerged"}}`, "/paths/~1merged/get/responses/200/links"},
-	})
+	require.Len(t, op.Responses[0].Links, 1, "the merged links map is read")
+	assert.Equal(t, "self", op.Responses[0].Links[0].Name.Source)
+	assert.Equal(t, op.ID, op.Responses[0].Links[0].Operation)
 	require.Len(t, op.Responses[0].Headers, 1)
 	assert.Equal(t, "simple", op.Responses[0].Headers[0].Style, "the merged header style is read")
 	post, ok := opByName(doc, "postMerged")

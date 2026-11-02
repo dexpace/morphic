@@ -31,7 +31,8 @@ type PropPath struct {
                        // can live in response/message headers, not just bodies
     Segments []PropID
 }
-type InputPath struct{ Param *ParamID; Segments []PropID } // nil Param = the request body
+type InputPath struct{ Param *ParamID; Segments []PropID } // nil Param = the request body;
+                                                            // no Segments = the root whole
 // InputPath.Param, like Idempotency.TokenParam, names a parameter of the operation
 // carrying it: another operation's ParamID, or a field argument's, is a well-formed
 // reference to the wrong parameter, and pass.Validate rejects it
@@ -40,9 +41,9 @@ type InputPath struct{ Param *ParamID; Segments []PropID } // nil Param = the re
 
 An input the pagination reads is an `InputPath`: a parameter and, for a member of one, the path
 into it, or, with no parameter, a path into the request body, since a search endpoint taking its
-cursor or page size as body fields is as common as one taking them as query parameters. A path into
-the body names a member, so it has a segment at least (`ir/input-path-empty`). `TotalCount` counts
-items and `TotalPages` pages, the two totals an API returns.
+cursor or page size as body fields is as common as one taking them as query parameters. With no
+segment either, it is the request body whole, as a [link](./responses.md#links) can pass it on.
+`TotalCount` counts items and `TotalPages` pages, the two totals an API returns.
 
 `Stop` is when iteration ends, which the source states and no consumer can recover from the other
 fields: the same cursor shape ends at an empty page on one API and at an empty next cursor on

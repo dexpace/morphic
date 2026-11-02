@@ -46,7 +46,7 @@ webhooks:
 
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc, _, diags := operation.LowerService(ctx, c, compile.NewTypes(), servers.NewRegistry(), schemes)
+	svc, _, diags := operation.LowerService(ctx, c, compile.NewTypes(), servers.NewRegistry(), schemes, &operation.Links{})
 
 	assert.Empty(t, diags)
 	assert.Empty(t, svc.Groups, "neither the path loop nor the webhook loop lowered an operation")
