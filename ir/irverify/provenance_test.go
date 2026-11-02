@@ -262,9 +262,9 @@ func TestVerify_AWriterIsAnOverlayWritingIntoTheSource(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc := &ir.Document{Sources: sources, Types: ir.TypeRegistry{"t/x/M": &ir.Model{TypeCommon: ir.TypeCommon{
+			doc := &ir.Document{Sources: sources, Types: ir.TypeRegistry{"t/x/M": &ir.Model{
 				ID: "t/x/M", Provenance: ir.Provenance{Source: tc.source, Pointer: "/m", WrittenBy: tc.writer},
-			}}}}
+			}}}
 			assert.Equal(t, tc.want, violationPaths(irverify.Verify(doc), "ir/provenance-writer"))
 		})
 	}

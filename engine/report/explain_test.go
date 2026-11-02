@@ -424,7 +424,6 @@ func TestExplain_ReadsOnlyTheSourcesCoordinates(t *testing.T) {
 	const pet = jsontext.Pointer("/components/schemas/Pet")
 	sources := []ir.SourceInfo{{Format: "openapi@3.1"}, {Format: "overlay@1.0.0"}, {Format: "openapi@3.1"}}
 	at := func(id ir.TypeID, prov ir.Provenance) *ir.Model { return &ir.Model{ID: id, Provenance: prov} }
-	finding := func(code string, prov ir.Provenance) ir.Diagnostic { return diag(code, prov) }
 	doc := &ir.Document{Sources: sources, Types: registry(
 		at("t/0-other", ir.Provenance{Source: 2, Pointer: pet}),
 		at("t/1-source", ir.Provenance{Source: 0, Pointer: pet}),
@@ -433,11 +432,11 @@ func TestExplain_ReadsOnlyTheSourcesCoordinates(t *testing.T) {
 		at("t/4-unheld", ir.Provenance{Source: 7, Pointer: pet + "/properties/gone"}),
 		at("t/5-overlay-file", ir.Provenance{Source: 1, Pointer: pet + "/properties/x"}),
 	)}
-	written := finding("written", ir.Provenance{Source: 0, Pointer: pet, WrittenBy: 1})
+	written := diag("written", ir.Provenance{Source: 0, Pointer: pet, WrittenBy: 1})
 	diags := []ir.Diagnostic{
-		finding("source", ir.Provenance{Source: 0, Pointer: pet}), written,
-		finding("overlay-file", ir.Provenance{Source: 1, Pointer: pet}),
-		finding("other", ir.Provenance{Source: 2, Pointer: pet}), finding("unheld", ir.Provenance{Source: 7, Pointer: pet}),
+		diag("source", ir.Provenance{Source: 0, Pointer: pet}), written,
+		diag("overlay-file", ir.Provenance{Source: 1, Pointer: pet}),
+		diag("other", ir.Provenance{Source: 2, Pointer: pet}), diag("unheld", ir.Provenance{Source: 7, Pointer: pet}),
 	}
 
 	got := report.Explain(doc, diags, pet)
