@@ -87,8 +87,9 @@ func (n *Namer) documentName(doc bind.DocID) string {
 
 // ownerOf returns the hint of the schema whose key is tokens[i], held at the
 // position tokens[:i] leads to: a component schema's key, the owner of the
-// content a media type's schema or itemSchema belongs to, a parameter's name
-// and a header's key. ok is false for a schema nothing names an owner of.
+// content a media type's schema or itemSchema belongs to, or the key of the
+// components/mediaTypes entry declaring it, a parameter's name and a header's
+// key. ok is false for a schema nothing names an owner of.
 func (n *Namer) ownerOf(doc bind.DocID, tokens []string, kinds []bind.Kind, i int) (string, bool) {
 	holder := pointerOf(tokens[:i])
 	switch kinds[i] {
@@ -99,12 +100,7 @@ func (n *Namer) ownerOf(doc bind.DocID, tokens []string, kinds []bind.Kind, i in
 	case bind.KindHeader:
 		return ids.DeclarationHint(holder, holder.LastToken()), true
 	case bind.KindMediaType:
-		// The media type is keyed under its holder's content: holder is
-		// <owner>/content/<media type>.
-		if i < 2 {
-			return "", false
-		}
-		hint, ok := n.contentOwner(doc, holder.Parent().Parent(), kinds[i-2])
+		hint, ok := n.mediaTypeOwner(doc, holder, kinds[:i])
 		if ok && tokens[i] == "itemSchema" {
 			return compile.SubHint(hint, "item"), true
 		}
@@ -112,6 +108,20 @@ func (n *Namer) ownerOf(doc bind.DocID, tokens []string, kinds []bind.Kind, i in
 	default:
 		return "", false
 	}
+}
+
+// mediaTypeOwner returns the hint of the owner of the media type at holder,
+// above which kinds lie: a components/mediaTypes entry is its own, by its key,
+// and any other is keyed under its owner's content, holder being
+// <owner>/content/<media type> (contentOwner).
+func (n *Namer) mediaTypeOwner(doc bind.DocID, holder jsontext.Pointer, kinds []bind.Kind) (string, bool) {
+	if section, name, ok := ids.ComponentEntry(holder); ok && section == "mediaTypes" {
+		return name, true
+	}
+	if len(kinds) < 2 {
+		return "", false
+	}
+	return n.contentOwner(doc, holder.Parent().Parent(), kinds[len(kinds)-2])
 }
 
 // contentOwner returns the hint of the object at at, of kind k, whose content

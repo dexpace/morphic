@@ -4,6 +4,7 @@
 package operation_test
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 )
 
 // pathItemRefUnmountedSpec mounts no operation on either side of the reference:
-// the use site writes item-level constructs and the referent declares none.
+// the use site writes item-level constructs and the referent only a summary.
 const pathItemRefUnmountedSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -148,7 +149,8 @@ func TestPathItemRefSiblings_UnmountedCallbackKeepsSiblings(t *testing.T) {
 }
 
 // pathItemRefUnmountedCollisionSpec declares the same constructs on both sides
-// of a $ref neither side mounts an operation for.
+// of a $ref neither side mounts an operation for, and two on the referent
+// alone.
 const pathItemRefUnmountedCollisionSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -157,34 +159,46 @@ paths:
     summary: use summary
     x-both: use
     bogusBoth: {responses: {"200": {description: USE}}}
+    parameters:
+      - {name: both, in: query, description: USE, schema: {type: string}}
   /b:
     summary: ref summary
+    description: ref description
     x-both: ref
     bogusBoth: {responses: {"200": {description: REF}}}
+    parameters:
+      - {name: both, in: query, description: REF, schema: {type: string}}
+      - {name: far, in: query, description: REF, schema: {type: string}}
 `
 
 // TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite pins precedence on
 // the carrier an item mounting no operation uses: the use site keeps every
-// construct there too, and a summary, which that carrier keeps from neither
-// side, is reported as colliding nowhere.
+// construct both sides declare, its summary and its parameters included, and
+// the referent keeps what the use site does not declare, each at its own
+// pointer.
 func TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, pathItemRefUnmountedCollisionSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	svc := doc.Services[0]
-	for key, want := range map[string]string{
-		"openapi:pathItem/paths/~1a/x-both":    `"use"`,
-		"openapi:pathItem/paths/~1a/bogusBoth": `{"responses":{"200":{"description":"USE"}}}`,
+	for key, want := range map[string]struct{ value, at string }{
+		"openapi:pathItem/paths/~1a/x-both":    {`"use"`, "/paths/~1a/x-both"},
+		"openapi:pathItem/paths/~1a/bogusBoth": {`{"responses":{"200":{"description":"USE"}}}`, "/paths/~1a/bogusBoth"},
+		"openapi:pathItem/paths/~1a/summary":   {`"use summary"`, "/paths/~1a/summary"},
+		"openapi:pathItem/paths/~1a/parameters/both/query": {
+			`{"name":"both","in":"query","description":"USE","schema":{"type":"string"}}`, "/paths/~1a/parameters/0"},
+		"openapi:pathItem/paths/~1a/description": {`"ref description"`, "/paths/~1b/description"},
+		"openapi:pathItem/paths/~1a/parameters/far/query": {
+			`{"name":"far","in":"query","description":"REF","schema":{"type":"string"}}`, "/paths/~1b/parameters/1"},
 	} {
 		entry, ok := svc.Unmodeled[key]
 		require.True(t, ok, key)
-		assert.JSONEq(t, want, string(entry.Value), key)
-		assert.True(t, strings.HasPrefix(string(entry.Provenance.Pointer), "/paths/~1a/"), key)
+		assert.JSONEq(t, want.value, string(entry.Value), key)
+		assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(want.at)}, entry.Provenance, key)
 	}
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/x-both"))
-	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/bogusBoth"))
-	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/summary"),
-		"neither summary is kept, so neither is the one kept")
+	for _, at := range []string{"x-both", "bogusBoth", "summary", "parameters/0"} {
+		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/"+at), at)
+	}
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
 }

@@ -39,7 +39,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	ext.work.steps = budget.New(budget.AtMost(limit))
 	at := pointerAt(0, overlay.Origin{})
-	pass := newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
+	pass := newResolution(t.Context(), doc, Siblings{}, MediaTypes{}, self, opts, &ext)
 	pass.run(t.Context(), doc)
 	return ext.work, append(pass.diags(sitePlacer(at, Others{})), crossed(at, &ext)...)
 }
