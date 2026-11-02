@@ -63,4 +63,18 @@ pinned exactly, `emitters/golang` alone may import it ([package layout](../../pa
 upgrade reruns the spike's cases as tests of the adapter.
 
 Go's extractor ([surface verification](../../surface-verification.md)) reads the existing package's
-exported API, as `apidiff` does.
+exported API with `go/types`, and each record it builds carries the IR ID its declaration's
+`Origin` names, which no Go tool records.
+
+`golang.org/x/exp/apidiff` compares two Go packages and labels each change compatible or not, which
+is the Go half of the structural channel's question. It is the test oracle for Go's severity, not
+the differ and not the severity function: over the surface corpus, a differential test holds each
+structural verdict Go's `verify.Severity` gives to apidiff's on the same two generated packages, and
+a disagreement is either a severity bug or a divergence the severity's documentation states. It
+cannot be the differ, since its records carry no IR ID, nor the severity, since it answers only
+whether a caller's Go code builds: given an enum gaining a constant it says compatible, which it is
+for a caller's code, while the behavioral channel still reports what a deployed SDK reading a closed
+response enum meets ([surface
+verification](../../surface-verification.md#what-a-change-record-carries)). As a test-only
+dependency it needs no compatibility promise from `x/exp`, which gives none; it was under active
+development, BSD-3-Clause, at the October 2026 revision measured.

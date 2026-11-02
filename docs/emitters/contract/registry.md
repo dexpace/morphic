@@ -40,6 +40,9 @@ type Capabilities struct {
     WriteIntegrate  bool          // supports additive merge into a live repo (../write-integrate.md)
     SurfaceVerify   bool          // produces a verify.Surface (../surface-verification.md)
     CrossVersion    bool          // reads every version snapshot's routes (../docs-and-mock.md)
+    Rows            []string      // the capability-matrix rows it honors, by key
+                                  // (../verification.md)
+    Verify          Verify        // how its output is built and checked (../verification.md)
     Protocols       []string      // "http", "grpc", "message", "graphql", "otp"
     Lifecycle       Lifecycle     // "hidden" | "experimental" | "stable" | "sunset"; required
     Successor       TargetKey     // the target replacing a sunset one; "" when none does
