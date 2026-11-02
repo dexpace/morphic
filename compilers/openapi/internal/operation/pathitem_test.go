@@ -673,6 +673,7 @@ info: {title: T, version: "1"}
 paths:
   /a:
     summary: the path
+    description: the path at length
     x-path: 1
     bogus1: {k: 1}
     bogus2: [1, 2]
@@ -681,6 +682,7 @@ paths:
     post: {x-own: 1, responses: {"200": {description: ok}}}
   /b:
     $ref: '#/components/pathItems/P'
+    summary: the use site
     bogus3: 1
 components:
   pathItems:
@@ -695,7 +697,8 @@ components:
 // is computed once a mount and copied onto each operation, rather than
 // recomputed for each with compile.Diags left to drop the repeated findings
 // (GitHub #414). /b holds each layer of a $ref'd mount to it. The documentation
-// note is sited at each operation, so each still gets one.
+// note is sited at each operation, so each gets one however many keywords the
+// layers write: /a writes both, and each layer of /b one.
 func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 	t.Parallel()
 	svc, diags := serviceAsReported(t, keptOncePerMountSpec)
@@ -727,9 +730,9 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 		methods, keys []string
 	}{
 		{"/paths/~1a", []string{"get", "put", "post"},
-			[]string{"pathItem/bogus1", "pathItem/bogus2", "pathItem/x-path", "pathItem/summary"}},
+			[]string{"pathItem/bogus1", "pathItem/bogus2", "pathItem/x-path", "pathItem/summary", "pathItem/description"}},
 		{"/paths/~1b", []string{"get", "delete"},
-			[]string{"pathItem/bogus3", "pathItem/bogus4", "pathItem/description"}},
+			[]string{"pathItem/bogus3", "pathItem/bogus4", "pathItem/summary", "pathItem/description"}},
 	} {
 		for _, method := range tc.methods {
 			op, ok := ops[ir.OpID("op/openapi"+tc.mount+"/"+method)]
