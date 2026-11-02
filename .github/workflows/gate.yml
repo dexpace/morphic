@@ -14,14 +14,16 @@ concurrency:
 # The gate runs as two jobs side by side. Every check is a Makefile target, and
 # `make gate` runs them all.
 #
-# Both jobs first set each tracked file's time from its content, because Go keys
-# a cached test result on the size, mode and time of every file the test opens,
-# and a checkout gives every file a new time.
+# Only the suite job reads a cached test result: the checks job runs go test
+# only with -fuzz and -bench, which go help test does not list as cacheable. So
+# the suite job first sets each tracked file's time from its content, because Go
+# keys a cached test result on the size, mode and time of every file the test
+# opens, and a checkout gives every file a new time.
 #
 # A run on main restores the cache the previous run of the same job, toolchain
-# and go.sum saved, clears the test results in it, runs every test, drops
-# $GOCACHE/fuzz and saves. Clearing keeps the builds and the module cache, so
-# main rebuilds only what its commit changed, but it reruns every test and so
+# and go.sum saved, drops $GOCACHE/fuzz and saves. In the suite job it also
+# clears the test results first. Clearing keeps the builds and the module cache,
+# so main rebuilds only what its commit changed, but it reruns every test and so
 # cannot replay a stale pass. A pull request restores that save, reuses the
 # results of the tests its change leaves alone, and never saves.
 #
@@ -63,17 +65,6 @@ jobs:
             ${{ steps.toolchain.outputs.gomodcache }}
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
           restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-
-      # Go keys a cached test result on the time of each file a test opens, and
-      # a checkout gives every file a new one. This dates them from content.
-      - &filetimes
-        name: date files by content
-        run: make filetimes
-      # Not -count=1, which stores no results: a pull request would then find
-      # none to reuse. This writes an expiry that voids the restored ones.
-      - &clear-test-results
-        name: clear restored test results
-        if: github.event_name == 'push'
-        run: go clean -testcache
       - name: gofmt
         run: make fmt
       - name: vet
@@ -129,11 +120,18 @@ jobs:
       # their bound (#1010).
       - name: build
         run: make build
+      # Go keys a cached test result on the time of each file a test opens, and
+      # a checkout gives every file a new one. This dates them from content.
       # After build, as any git status, go build's VCS stamping included, gives
       # .git a new time that the tests listing the module root hash. Nothing may
       # run git between this step and test.
-      - *filetimes
-      - *clear-test-results
+      - name: date files by content
+        run: make filetimes
+      # Not -count=1, which stores no results: a pull request would then find
+      # none to reuse. This writes an expiry that voids the restored ones.
+      - name: clear restored test results
+        if: github.event_name == 'push'
+        run: go clean -testcache
       - name: test
         run: make coverage
       - *drop-fuzz
