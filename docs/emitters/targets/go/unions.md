@@ -43,6 +43,30 @@ The fallback ([the shared rule](../../refine/unions.md#a-value-no-variant-recogn
 variant, `PaymentUnknown`, holding the value as `jsontext.Value`. It re-encodes as the same JSON
 value, though json/v2 normalizes whitespace and string escapes as it writes.
 
+## An inclusive union
+
+An inclusive union ([the shared rule](../../refine/unions.md#a-value-several-variants-admit)) holds
+every variant a value admits, so it is a struct with a pointer per variant and no interface:
+
+```go
+type Target struct {        // anyOf: [Zone, Account], which one value can fit
+    Zone    *Zone           // set when Zone admits the value
+    Account *Account        // set when Account admits it, beside Zone or alone
+    Unknown jsontext.Value  // an open union's fallback, never set beside a variant
+}
+```
+
+- **A pointer per variant**, whatever the variant's Go type, so nil means "does not admit it" for a
+  slice or a string too. Each field is named as the variant's wrapper in a closed sum is, so two
+  variants that lower to one Go type stay apart.
+- **The struct declares the codec pair**, as a closed sum's struct does. `UnmarshalJSONFrom` buffers
+  the value (`dec.ReadValue()`), decodes it into each variant under `dec.Options()`, and keeps each
+  that admits it: the decode succeeds, and the unexported presence check generated beside the
+  variant's `Validate`, which reads no `Constraints`, finds every required member. `MarshalJSONTo`
+  writes the merge.
+- **`Validate` reports a struct with no field set**, and validates each field that is. With no sum
+  to close, it has no marker, no wrapper and no switch-completeness test.
+
 ## Discriminators
 
 `LowerDiscriminator` emits a tag-dispatched `UnmarshalJSONFrom` that peeks the discriminator
