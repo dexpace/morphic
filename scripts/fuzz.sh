@@ -20,6 +20,20 @@ cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 
 mode="${1:-${FUZZTIME:-5s}}"
 
+# A search's budget is a duration or a count, as go test reads -fuzztime. Anything
+# else is refused here, before every target builds only to reject it: a mistyped
+# mode would otherwise spend minutes reaching that error.
+budget='^([0-9]+x|([0-9]+(\.[0-9]+)?(ns|us|ms|s|m|h))+)$'
+case "$mode" in
+check | prune) ;;
+*)
+	if ! [[ "$mode" =~ $budget ]]; then
+		echo "fuzz.sh: $mode is not check, prune, a duration such as 5s or a count such as 100x" >&2
+		exit 2
+	fi
+	;;
+esac
+
 # Targets held out of the search, each naming the issue that must close before
 # it comes back. A search is not the place to rediscover a bug that is already
 # filed: it spends its whole budget re-finding one input and reddens every
