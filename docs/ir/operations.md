@@ -142,7 +142,8 @@ design](../emitters/refine/redaction.md#a-stability-tier).
   on an OpenAPI Parameter Object would sit at a schema pointer a `$ref` can name, the collision
   invariant 3 forbids. A schema that owns a node keeps the redaction there, and `Secret` is the
   per-use form a property already has, which TypeSpec's `@secret` on a property bound to a header or
-  query lowers to. No refine step reads it yet, as none reads `Sensitive` (#895).
+  query lowers to. The plan reads it beside `Sensitive`
+  ([redaction](../emitters/refine/redaction.md#a-redacted-value)).
 
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is
