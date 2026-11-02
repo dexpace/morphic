@@ -241,16 +241,25 @@ it sees. Changes made together in one bump are listed together under it.
     ([`extension-promotion`](../compilers/openapi.md#extension-promotion)), listing the marker the
     target lists ([promotion](./unmodeled.md#promotion)). These shapes are unchanged, so to a
     consumer pinned to 0.26.0 such an operation reads as live and such a value as plain.
-- **0.28.0** — four changes to the type nodes, made together:
+- **0.28.0** — `time` holds no offset, as `datetime` does beside `datetime_offset`
+  ([primitives](./primitives.md#offsets)). The OpenAPI compiler had lowered `format: time`, RFC
+  3339's `full-time`, to `time`, and now keeps it as a `Scalar` over `string` whose `Encoding.Name`
+  is `time`, as it keeps any format it has no primitive for. `time-local` lowers to `time`, and
+  `date-time-local` to `datetime`, which no compiler had written, where each had been such a
+  `Scalar`. An `Enum` takes those primitives as its `ValueType` where its members fit them, and one
+  declaring `format: time` keeps the format verbatim under `Unmodeled`. A consumer pinned to 0.27.0
+  that reads `time` as carrying an offset finds values with none, and one reading the `time-local`
+  or `date-time-local` encodings no longer finds them.
+- **0.29.0** — four changes to the type nodes, made together:
   - `Union` gained `Closed` and `InputOnly`. `Closed` is false for an open union, whose payload may
     hold a variant it does not list; every union the OpenAPI compiler lowers is closed, since a
     `oneOf` or `anyOf` is. `InputOnly` marks a union only a request carries, as `Model.InputOnly`
-    marks an input object. Both are always written. A consumer pinned to 0.27.0 refuses the document
+    marks an input object. Both are always written. A consumer pinned to 0.28.0 refuses the document
     for its unknown members.
   - `Literal` gained `ValueType`, the primitive the source types its value as, so an integer and a
     number of one value, or a string and a date, are told apart where they were one `Value`, with
     the type or format kept verbatim under `Unmodeled`. Those entries are no longer written where
-    the value fits what was declared, so a consumer pinned to 0.27.0 that read them finds nothing.
+    the value fits what was declared, so a consumer pinned to 0.28.0 that read them finds nothing.
   - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
     `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
     catch-all as the top type beside a closure that forbade the same keys. A consumer pinned to

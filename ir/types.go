@@ -62,7 +62,7 @@ const (
 	PrimDecimal128 PrimKind = "decimal128"
 	// PrimDate is a calendar date without time.
 	PrimDate PrimKind = "date"
-	// PrimTime is a time of day without date.
+	// PrimTime is a time of day without date or offset.
 	PrimTime PrimKind = "time"
 	// PrimDatetime is a date and time without offset.
 	PrimDatetime PrimKind = "datetime"
