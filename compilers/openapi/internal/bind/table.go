@@ -21,8 +21,9 @@ import (
 // MaxSteps bounds the work the load phase lets one table cost: each node
 // read, token walked, hop followed and document opened is a step. The source
 // and every document it names are each held to the compiler's node budget
-// before they get here, so this is far above what any admitted document costs,
-// and only a document built to multiply that work meets it.
+// before they get here, so this is far above what a pass over any admitted
+// document costs, and only documents built to multiply that work meet it, as a
+// chain of them read a pass a link (readHeld) can.
 const MaxSteps = 1 << 26
 
 // Config is what a table needs from the compile reading it.
@@ -136,18 +137,17 @@ type binder struct {
 	hops      map[Position]Hop
 	chains    map[Position]Chain
 	loops     []Loop
-	stopped   bool
 }
 
 // Bind reads every schema reference the source tree src holds, and every
 // position a reference reaches through it, into a table, within the budget. It
 // stops once ctx is done, leaving a table its caller must not read.
 //
-// It reads in passes, each a set operation, since whether a URI is an identifier
-// depends on what the documents read declare, and which are read on what the
-// URIs name. Only the last pass's answers stand, so no declaration order
-// reaches one (reread). Each turn but the last reads a document or declarations
-// no turn read before (identifiers.commit), so they end.
+// It reads in passes, since whether a URI is an identifier depends on what the
+// documents read declare, and which are read on what the URIs name. Each pass
+// reads every reference again, and only the last one's answers stand, so no
+// declaration order reaches one (reread). Each but the last reads what none
+// before it read (identifiers.commit), so they end.
 func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
 	d := newDocs(src, cfg, w)
@@ -174,10 +174,7 @@ func run(b *binder) *Table {
 	b.find.walk(rootOf(Source, sDocument), false)
 	b.ids.begin()
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
-	for more := true; more; more = b.find.walkPending() {
-		if b.stopped = b.work.over(); b.stopped {
-			break
-		}
+	for more := true; more && !b.work.over(); more = b.find.walkPending() {
 		b.settle(t)
 	}
 	b.placeLoops()
@@ -186,29 +183,39 @@ func run(b *binder) *Table {
 
 // reread reports whether the pass b, ended, must be run again: what the
 // documents it reached declare changes a URI it asked for, so an answer it gave
-// is not theirs, or it held back documents absolute URIs name, which it now
-// reads, as no document it read answers for them (OAS 3.1 §4.3.1). They are
-// read together, a pass for all rather than one each, so one may declare
-// another's URI, read then for nothing. A document only an earlier pass reached
-// declares nothing.
+// is not theirs, or it held back documents absolute URIs name (readHeld). A
+// document only an earlier pass reached declares nothing. The pass the budget
+// runs out in, wherever in it, is the last, and its answers stand, so no pass
+// begins with nothing to spend.
 func reread(b *binder) bool {
-	if b.stopped {
+	if b.work.over() {
 		return false
 	}
 	b.find.identifyAll()
-	if b.ids.commit(b.docs.reached) {
-		return true
+	if !b.ids.commit(b.docs.reached) {
+		if len(b.held) == 0 {
+			return false
+		}
+		readHeld(b)
 	}
-	if len(b.held) == 0 {
-		return false
-	}
+	return !b.work.over()
+}
+
+// readHeld reads the documents the pass b held back, as no document it read
+// answers for their URIs (OAS 3.1 §4.3.1), so the next pass reads against what
+// they declare. They are read together, a pass for all rather than one each, so
+// one may declare another's URI, read then for nothing, and a document one of
+// them names waits for the pass after: a chain of them costs a pass a link. b
+// reached none of them, should it be the last.
+func readHeld(b *binder) {
+	reached := maps.Clone(b.docs.reached)
 	for _, name := range slices.Sorted(maps.Keys(b.held)) {
 		// Its failure is kept for the pass that asks for it again (docs.open).
 		_, _ = b.docs.open(name)
 	}
 	b.find.identifyAll()
 	b.ids.commit(b.docs.reached)
-	return true
+	b.docs.reached = reached
 }
 
 // rootOf is the root at the root of document id, read at s.

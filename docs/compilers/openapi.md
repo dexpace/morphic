@@ -393,8 +393,9 @@ documents declare, so that no pass agrees with the one before it, every document
 it does from the pass that would read against what an earlier one read. A pass reads the documents
 absolute URIs name only once what the documents it reached declare changes no URI it asked for, and
 reads them together, so one of them may declare another's URI, whose document is then read for
-nothing. A pointer passing a reference object reads on where the resolver resolved that, in
-whichever document, and a `$ref` written in another document's content is read in that
+nothing. Each pass reads every reference again, so a chain of documents each named by an absolute
+URI costs a pass a link. A pointer passing a reference object reads on where the resolver resolved
+that, in whichever document, and a `$ref` written in another document's content is read in that
 document. What a `$ref` lands on in another document lowers where that document declares it; one in
 the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
 ends on — an annotation, a form body's parts, a file body or a discriminator — whichever documents
@@ -439,9 +440,11 @@ model, so a schema under an extension answers no such pointer from its own `$def
 an `$id` itself, and an `$id` raw YAML writes above it makes it no resource of its own: as OAS 3.1
 reads a schema with no `$id`, the document is its base, and its root holds none.
 
-Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs out,
-the `$ref`s past it left unresolved. A `<<` merge chain deeper than the levels a mapping's merges
-are expanded to (`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning,
+Binding is held to one work budget, which every pass spends, reported as an
+`openapi/budget-exceeded` error once it runs out. The pass it runs out in is the last: the `$ref`s
+past it are left unresolved, and one it answered keeps that answer, though a later pass might have
+changed it. A `<<` merge chain deeper than the levels a mapping's merges are expanded to
+(`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning,
 and a `$ref` past it is left unresolved, as is one that reads a key past it: a key its pointer
 names, an `$id` that may give the base it is read against, or, for a `#/$defs/...` pointer, a
 definition the rule reads before the one that would answer. So is a plain name no schema declares
@@ -481,7 +484,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
   `schema.TestSchema_ARefThroughAnEmptyRefLendsNothing`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
-  `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
+  `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_ThePassTheBudgetRunsOutInStands`,
+  `bind.TestBind_CountsWorkLinearInTheDocument`,
   `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,
   `e2e.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
   `e2e.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,

@@ -4,6 +4,7 @@
 package bind_test
 
 import (
+	"cmp"
 	"encoding/json/jsontext"
 	"fmt"
 	"slices"
@@ -102,6 +103,47 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 	assert.Positive(t, stopped, "some limit stops a chain partway")
 	assert.Positive(t, stoppedMappings, "some limit stops a mapping value")
 	assert.Positive(t, missing, "some limit stops before a site is read")
+}
+
+// TestBind_ThePassTheBudgetRunsOutInStands pins that the pass the budget runs
+// out in is the last, wherever in it the budget does: the least budget that
+// reads the document held for the next pass is one the first pass fits, and it
+// and one step less keep that pass's answers rather than begin one with nothing
+// to spend. A document read for a pass that never runs is not one the table
+// reached.
+func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
+	t.Parallel()
+	const src = head + "components:\n  schemas:\n    A: {$ref: 'https://x.test/s#/S'}\n" +
+		"    B: {$ref: '#/components/schemas/T'}\n    C: {$ref: '#/components/schemas/T'}\n    T: {type: integer}\n"
+	docs := map[string]string{"https://x.test/s": "S: {type: string}\n"}
+	bindAt := func(limit budget.Limit) (*bind.Table, []string) {
+		cfg, reads := recordingDocuments(t, docs)
+		cfg.Limit = limit
+		return bound(t, src, cfg), *reads
+	}
+	full, _ := bindAt(budget.Unbounded())
+	require.False(t, full.Exhausted())
+	require.Equal(t, bind.Resolved, entryAt(t, full, "/components/schemas/A").Chain.Status)
+
+	least, stood := 0, 0
+	for limit := 1; limit < full.Steps(); limit++ {
+		cut, reads := bindAt(budget.AtMost(limit))
+		if len(reads) == 0 {
+			continue
+		}
+		least = cmp.Or(least, limit)
+		if e, ok := cut.Entry(at("/components/schemas/A")); ok && e.Hop.Reason == bind.Held {
+			stood++
+			held := docNamed(t, cut, "https://x.test/s")
+			assert.True(t, cut.Document(held).Unreached, "limit %d: the first pass stands, which reached no held document", limit)
+		}
+	}
+	require.Positive(t, stood, "some limit reads the held document for a pass that never runs")
+	for _, limit := range []int{least - 1, least} {
+		first, _ := bindAt(budget.AtMost(limit))
+		assert.Len(t, first.Entries(), len(full.Entries()), "limit %d: the first pass answered every site", limit)
+		assert.Equal(t, bind.Held, entryAt(t, first, "/components/schemas/A").Hop.Reason, "limit %d", limit)
+	}
 }
 
 // deepMerge writes a document whose component A takes its $ref through a
