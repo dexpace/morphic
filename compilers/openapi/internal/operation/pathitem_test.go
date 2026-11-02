@@ -688,10 +688,10 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 
 	var keys []string
 	for _, d := range diags {
-		switch {
-		case d.Code == diag.UnknownObjectKey:
+		switch d.Code {
+		case diag.UnknownObjectKey:
 			keys = append(keys, string(d.Provenance.Pointer))
-		case d.Code == diag.DegradedConstruct:
+		case diag.DegradedConstruct:
 			assert.Failf(t, "documentation is reported", "%s: %s", d.Provenance.Pointer, d.Message)
 		}
 	}
