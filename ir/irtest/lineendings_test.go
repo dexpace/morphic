@@ -126,8 +126,8 @@ func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 // listDirectories lists each directory in dirs, which are relative to root.
 //
 // go test keys a cached result on what the process opens, and a file opened
-// inside the module is checked by its size, mode and time, which a checkout
-// dates alike on every file. A file git lists for the first time is not opened
+// inside the module is checked by its size, mode and time, which `make filetimes`
+// sets alike on every checkout. A file git lists for the first time is not opened
 // yet, so only a listing of its directory changes what the log holds and
 // reruns the test.
 // The files opened here include every nested .gitattributes, so this covers
