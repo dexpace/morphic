@@ -687,10 +687,11 @@ func (ft fileTypes) testingParams(fn *ast.FuncDecl) []string {
 // typeParams maps each of fn's type parameters to whether its constraint is a
 // testing type. Every one of them is in scope in each constraint, where it
 // reads as no testing type, so a constraint pointing to another type
-// parameter, [U *T, T testing.TB], is not read. Nor is a constraint with a ~
-// term or a union, [T ~*testing.T] or [T *testing.T | ptr], though either
-// can fail through (*t).Fatal when its terms share *testing.T as their
-// underlying type.
+// parameter, [U *T, T testing.TB], is not read. Nor is any ~ term or union
+// over the testing types, in the constraint or in an interface it names, as
+// in [T ~*testing.B], [T *testing.T | ptr] or [T tc] with
+// type tc interface{ ~*testing.T }, though such a parameter can fail through
+// (*t).Fatal.
 func (ft fileTypes) typeParams(fn *ast.FuncDecl) map[string]bool {
 	if fn.Type.TypeParams == nil {
 		return nil
@@ -858,7 +859,8 @@ func selectorFails(sel *ast.SelectorExpr, call *ast.CallExpr, params []string, n
 
 // receiver returns the identifier x is, through parentheses and one
 // dereference: a parameter that points to an interface calls its methods as
-// (*t).Helper().
+// (*t).Helper(). A conversion is not read, so (*testing.T)(t).Fatal(1) fails
+// through no parameter and (*testing.T)(t).Helper() helps none.
 func receiver(x ast.Expr) (*ast.Ident, bool) {
 	x = ast.Unparen(x)
 	if star, ok := x.(*ast.StarExpr); ok {
