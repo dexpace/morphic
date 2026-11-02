@@ -56,7 +56,7 @@ func FuzzNewBigVal_AcceptedFormsAreJSONValid(f *testing.F) {
 	for _, seed := range bigValAdversarialSeeds {
 		f.Add(seed)
 	}
-	for _, form := range ircases.DecimalForms {
+	for _, form := range ircases.DecimalForms() {
 		f.Add(form)
 	}
 

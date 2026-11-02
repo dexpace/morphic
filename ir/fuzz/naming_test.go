@@ -58,7 +58,7 @@ func FuzzCanonicalWords_Properties(f *testing.F) {
 	for _, seed := range adversarialRunes {
 		f.Add(seed)
 	}
-	for _, tc := range ircases.Canonical {
+	for _, tc := range ircases.Canonical() {
 		f.Add(tc.In)
 	}
 
@@ -87,12 +87,12 @@ func assertWithinTwiceTheLength(t *testing.T, name, got string) {
 // they answer alike. The seeds supply what a search seldom finds, words one
 // edit from a canonical form.
 func FuzzHasCanonicalWords_AgreesWithCanonicalWords(f *testing.F) {
-	for _, tc := range ircases.Canonical {
+	for _, tc := range ircases.Canonical() {
 		for _, words := range append(ircases.NearMisses(tc.Want), tc.Want) {
 			f.Add(tc.In, words)
 		}
 	}
-	for _, tc := range ircases.HasCanonical {
+	for _, tc := range ircases.HasCanonical() {
 		f.Add(tc.Name, tc.Words)
 	}
 	for _, seed := range adversarialRunes {

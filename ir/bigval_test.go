@@ -16,7 +16,7 @@ import (
 
 func TestNewBigVal_AcceptsDecimalForms(t *testing.T) {
 	t.Parallel()
-	for _, s := range ircases.DecimalForms {
+	for _, s := range ircases.DecimalForms() {
 		t.Run(s, func(t *testing.T) {
 			t.Parallel()
 			v, err := ir.NewBigVal(s)

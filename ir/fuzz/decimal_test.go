@@ -23,9 +23,9 @@ const maxRationalExp = 4096
 // NewBigVal stores unchanged. Taking them from the slices their own tests keep
 // means a spelling added there reaches here.
 func decimalSeeds() []string {
-	seeds := append([]string{}, ircases.DecimalSpellings...)
+	seeds := ircases.DecimalSpellings()
 	seeds = append(seeds, bigValAdversarialSeeds...)
-	return append(seeds, ircases.DecimalForms...)
+	return append(seeds, ircases.DecimalForms()...)
 }
 
 // FuzzParseDecimal_ReadsWhatNewBigValKeeps searches for a literal the two

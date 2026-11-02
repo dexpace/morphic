@@ -98,6 +98,7 @@ var testSupport = map[string]string{
 	"internal/jsonshape": "the IR's JSON shape, which IRVersion's pin test describes and the census counts",
 	"internal/keydoc":    "the one reader of the keyed documents, for the tests holding each to the code",
 	"internal/leakcheck": "the goroutine leak check each test binary's TestMain runs",
+	"internal/testspec":  "the specs the tests of the CLI, the harness and the compiler share",
 	"internal/ircases":   "the tables the tests of package ir and its fuzz targets share",
 }
 

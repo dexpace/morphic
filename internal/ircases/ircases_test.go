@@ -32,3 +32,36 @@ func TestNearMisses_AreOneEditFromTheWords(t *testing.T) {
 		})
 	}
 }
+
+// TestCanonical_IsFreshOnEachCall pins that a caller's edit to its rows never
+// reaches the next caller, which a shared slice would let through.
+func TestCanonical_IsFreshOnEachCall(t *testing.T) {
+	t.Parallel()
+	rows := ircases.Canonical()
+	rows[0].Want = "edited"
+	assert.NotEqual(t, "edited", ircases.Canonical()[0].Want)
+}
+
+// TestHasCanonical_IsFreshOnEachCall pins the same of the comparison rows.
+func TestHasCanonical_IsFreshOnEachCall(t *testing.T) {
+	t.Parallel()
+	rows := ircases.HasCanonical()
+	rows[0].Words = "edited"
+	assert.NotEqual(t, "edited", ircases.HasCanonical()[0].Words)
+}
+
+// TestDecimalForms_IsFreshOnEachCall pins the same of the canonical forms.
+func TestDecimalForms_IsFreshOnEachCall(t *testing.T) {
+	t.Parallel()
+	forms := ircases.DecimalForms()
+	forms[0] = "edited"
+	assert.NotEqual(t, "edited", ircases.DecimalForms()[0])
+}
+
+// TestDecimalSpellings_IsFreshOnEachCall pins the same of the spellings.
+func TestDecimalSpellings_IsFreshOnEachCall(t *testing.T) {
+	t.Parallel()
+	spellings := ircases.DecimalSpellings()
+	spellings[0] = "edited"
+	assert.NotEqual(t, "edited", ircases.DecimalSpellings()[0])
+}
