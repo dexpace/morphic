@@ -180,6 +180,8 @@ pass/        Layer 1 — IR → IR passes. Imports ir and ir/irfacts.
 emitters/*   Layer 2 — imports ir, ir/irfacts + emitter contract; never compiler. (Not built yet.)
 engine/      Layer 3 — orchestration; imports everything below. It owns every read, write and
              rendering, so a second driver needs nothing from the CLI:
+  cache/     what a run compiled, kept on disk between processes, and what names a build.
+             Imports reader and internal/atomicfile.
   reader/    what a run's references name, from disk, the network or memory. Imports compilers.
   report/    diagnostics and --explain, rendered for a person. Imports ir only.
   output/    the IR document to a stream or a file, through engine/internal/atomicfile.
