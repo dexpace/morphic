@@ -8,6 +8,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -53,6 +54,7 @@ func TestFuzzPackages_PlantedImportsAreJudged(t *testing.T) {
 		{"a test-support package", "ir/fuzz/x_test.go", module + "/ir/irtest", true},
 		{"a nested test-support package", "a/fuzz/x_test.go", module + "/compilers/openapi/internal/openapitest", true},
 		{"a tooling package under internal", "ir/fuzz/x_test.go", module + "/internal/decls", true},
+		{"a tooling package under internal outside testSupport", "ir/fuzz/x_test.go", module + "/internal/census", true},
 		{"a program under cmd", "ir/fuzz/x_test.go", module + "/cmd/morphic", true},
 		{"a shared table", "ir/fuzz/x_test.go", module + "/internal/ircases", false},
 		{"the other shared table", "a/fuzz/x_test.go", module + "/internal/testspec", false},
@@ -77,6 +79,27 @@ func TestFuzzPackages_PlantedImportsAreJudged(t *testing.T) {
 			assert.Contains(t, violations[0], tc.imp)
 		})
 	}
+}
+
+// TestFuzzPackages_JudgeEveryImportOfEveryFileOfEveryPackage plants the refused
+// import late at each level of the walk: second in its file, in the second file
+// of its package, in the second package. A walk that stops after the first
+// import, file or package finds less than the two violations required.
+func TestFuzzPackages_JudgeEveryImportOfEveryFileOfEveryPackage(t *testing.T) {
+	t.Parallel()
+	const tooling = "github.com/stretchr/testify/assert"
+	root := t.TempDir()
+	writeImporter(t, filepath.Join(root, "a", "fuzz", "x_test.go"), tooling)
+	writeImporter(t, filepath.Join(root, "ir", "fuzz", "a_test.go"), "testing")
+	src := "package planted\n\nimport (\n\t_ \"testing\"\n\t_ \"" + tooling + "\"\n)\n"
+	require.NoError(t, os.WriteFile(filepath.Join(root, "ir", "fuzz", "b_test.go"), []byte(src), 0o644))
+
+	violations, found, err := fuzzPackageViolations(root)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a/fuzz", "ir/fuzz"}, found)
+	require.Len(t, violations, 2)
+	assert.Contains(t, violations[0], filepath.Join("a", "fuzz", "x_test.go"))
+	assert.Contains(t, violations[1], filepath.Join("ir", "fuzz", "b_test.go"))
 }
 
 // TestFuzzPackages_OnlyFuzzDirectoriesOutsideTestdataAreFound plants
