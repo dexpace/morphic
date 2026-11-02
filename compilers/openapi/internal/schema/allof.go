@@ -452,7 +452,7 @@ func unmergedBranchKeys(bs *oas3.Schema, consumes func(key string) bool) []strin
 	declared := rawMappingKeys(bs.GetRootNode())
 	out := make([]string, 0, len(declared))
 	for _, key := range declared {
-		if consumes(key) {
+		if consumes(key) || annotation.WritesKeywordLeftOut(bs, key) {
 			continue
 		}
 		out = append(out, key)
@@ -492,8 +492,7 @@ func declaresObjectOnly(bs *oas3.Schema) bool {
 // branchExcludesObject reports whether the branch declares a type set with no
 // `object` in it. An undeclared type set excludes nothing.
 func branchExcludesObject(bs *oas3.Schema) bool {
-	types := bs.GetType()
-	return len(types) > 0 && !slices.Contains(types, oas3.SchemaTypeObject)
+	return writesType(bs) && !slices.Contains(bs.GetType(), oas3.SchemaTypeObject)
 }
 
 // rawMappingKeys returns the keys a YAML mapping effectively writes, a

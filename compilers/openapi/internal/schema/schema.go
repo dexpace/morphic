@@ -129,6 +129,8 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 		return ts.PrimRef(ir.PrimAny), nil
 	}
 	if js.IsBool() {
+		// The parser reads a body as false too when a keyword beneath it fails to
+		// decode under its own name, so a false here may be no false (GitHub #1299).
 		if b := js.GetBool(); b != nil && !*b {
 			id, diags := falseSchema(c, ts, pointer)
 			return ir.TypeRef{Target: id}, diags
@@ -189,10 +191,9 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schem
 	diags := missingArrayItems(c, schema, pointer)
 	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer)
 	diags = append(diags, bodyDiags...)
-	// A body's census ran inside lower(), against the node the walk actually
-	// built, which is the only thing that can answer it. A collapsed union and a
-	// refinement built none, so they take a $ref site's census, and its verdict
-	// homes an alias.
+	// A body's census ran where its node was built, the only thing that can
+	// answer it. One lowering to a reference built none, so it takes a $ref
+	// site's census, and its verdict homes an alias.
 	keeps := keepsAtOutcome(c, ts, schema, target, pointer)
 	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, keeps.holdsAny())
 	diags = append(diags, homeDiags...)
@@ -263,13 +264,10 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer
 	switch {
 	case len(types) > 1:
 		// A multi-typed schema lowers one variant per declared type, each from
-		// this same schema, so an applicator with no home in one variant has one
-		// in another: `{type: [string, object], properties: {...}}` puts the
-		// property set on the object variant. The homes here are the variants',
-		// not the Union's, so the applicator check does not apply. A keyword no
-		// declared type's variant holds, such as a discriminator with no object
-		// variant, is dropped (GitHub #852).
-		return lowerUnion(c, ts, depth, s, pointer, types)
+		// this same schema, so the homes are the variants', not the Union's, and
+		// the type set itself is what built them.
+		id, diags := lowerUnion(c, ts, depth, s, pointer, types)
+		return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), []string{"type"}, pointer)...)
 	case len(types) == 1:
 		return unhomed(lowerTyped(c, ts, depth, s, pointer, types[0]))
 	default:
@@ -411,13 +409,22 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 		skipped, d.won, d.won, skipped))
 }
 
+// writesType reports whether s writes a type. A YAML null, which the parser reads
+// as a type spelled "" (docs/parser-library.md#null-type-is-empty), declares
+// none: `type: null` is the keyword left out, unlike `type: "null"`
+// (docs/compilers/openapi.md#null-keywords).
+func writesType(s *oas3.Schema) bool {
+	return slices.ContainsFunc(s.GetType(), func(t oas3.SchemaType) bool { return t != "" })
+}
+
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
-// member removed; nullability is normalized onto the TypeRef, not the type set.
+// member removed, and any null that declares none (writesType); nullability is
+// normalized onto the TypeRef, not the type set.
 func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 	types := s.GetType()
 	out := make([]oas3.SchemaType, 0, len(types))
 	for _, t := range types {
-		if t == oas3.SchemaTypeNull {
+		if t == oas3.SchemaTypeNull || t == "" {
 			continue
 		}
 		out = append(out, t)

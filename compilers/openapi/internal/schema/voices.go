@@ -92,7 +92,7 @@ func allOfDecides(s *oas3.Schema) bool {
 // keyword agrees with every other conjunct writing it, s's own keywords among
 // them. The answer reads the whole set, so no conjunct takes precedence and no
 // order decides. Two bounds that differ disagree: nothing here intersects them
-// (GitHub #10).
+// (GitHub #10). A null keyword writes nothing (WritesKeywordLeftOut).
 func voicesAmong(s *oas3.Schema, comp allOfComposition) []bool {
 	first := map[string]*oas3.Schema{}
 	split := map[string]bool{}
@@ -100,7 +100,7 @@ func voicesAmong(s *oas3.Schema, comp allOfComposition) []bool {
 		var entries []string
 		for _, keyword := range rawMappingKeys(conjunct.GetRootNode()) {
 			entry, fold := foldEntry(conjunct, keyword)
-			if !fold {
+			if !fold || annotation.WritesKeywordLeftOut(conjunct, keyword) {
 				continue
 			}
 			entries = append(entries, entry)
@@ -202,8 +202,8 @@ func foldingBranches(s *oas3.Schema) []*oas3.Schema {
 
 // declaresScoped reports whether a voice writes what only the position can hold,
 // as declaresPositionScoped asks of the schema written there.
-func declaresScoped(voices []annotation.Voice) bool {
-	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(v.Node) })
+func declaresScoped(c lowering.Ctx, voices []annotation.Voice) bool {
+	return slices.ContainsFunc(voices, func(v annotation.Voice) bool { return declaresPositionScoped(c, v.Node) })
 }
 
 // recordVoicedResidue is recordDeclarationResidue for what voices write, each

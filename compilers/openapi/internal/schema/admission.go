@@ -351,10 +351,11 @@ func (w *admission) written(s *oas3.Schema) admitted {
 	return out
 }
 
-// writtenKinds reads a schema's `type`, or a type implied by what it declares.
+// writtenKinds reads a schema's `type`, or a type implied by what it declares. A
+// null `type` writes none (writesType).
 func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
 	types := s.GetType()
-	if len(types) == 0 {
+	if !writesType(s) {
 		if props := s.GetProperties(); props != nil && props.Len() > 0 {
 			return kindObject
 		}
@@ -440,7 +441,7 @@ func (w *admission) itemsWithin(a, b admitted) bool {
 // restates reports whether what held admits, read from from, says all that js
 // writes: the same schema written twice, nothing a keyword of js adds, or no value
 // at all, which is within anything. A keyword no reading compares, a $ref among
-// them, says what it cannot tell.
+// them, says what it cannot tell, and a null one says nothing.
 func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if !held.reachable() || w.sameText(from, js) {
 		return true
@@ -450,7 +451,7 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 		return false
 	}
 	return !slices.ContainsFunc(rawMappingKeys(s.GetRootNode()), func(key string) bool {
-		return !w.holds(held, s, key)
+		return !annotation.WritesKeywordLeftOut(s, key) && !w.holds(held, s, key)
 	})
 }
 

@@ -81,6 +81,7 @@ var idPositions = map[string]idRule{
 	"Content.Encoding":             idRequired,
 	"CtorValue.Scalar":             idRequired,
 	"Discriminator.Mapping":        idRequired,
+	"DocRef.Type":                  idRequired,
 	"HTTPParamBinding.BodyPath":    idRequired,
 	"HTTPParamBinding.Param":       idRequired,
 	"HTTPParamBinding.ParamPath":   idRequired,

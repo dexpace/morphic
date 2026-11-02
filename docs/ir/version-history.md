@@ -199,3 +199,26 @@ it sees. Changes made together in one bump are listed together under it.
     did not ask to exclude ([unions](./unions.md)): a type array naming `integer` and `number` or
     repeating a type, and an enum whose entry repeats or lowers to the top type. The compiler had
     set it, leaving such a union to refuse what its schema admits.
+- **0.24.0** — two shape changes made together, neither of which a document compiled today sets:
+  - `Docs` gained `Refs`, the spans of `Description` that name a type, each a `DocRef`
+    ([annotations](./annotations.md#references-in-prose)). They replace the `{t:TypeID}` tokens
+    `Description` was documented to hold, which no compiler wrote, so `{t:` in a description is now
+    text and nothing else. A consumer that scanned descriptions for tokens must read `Refs`.
+  - `ErrorCase` and `OAuthFlow` gained `Inferred`, and a promotion is now recorded on the node
+    keeping its extension, whichever node holds the field it fills
+    ([promotion](./unmodeled.md#promotion)). Where a node with a `Provenance` holds the field, as in
+    every promotion the OpenAPI compiler makes, nothing moves.
+
+  A consumer pinned to 0.23.0 refuses the document as another generation's.
+- **0.25.0** — no shape change; two changes to what a compiled document holds, made together:
+  - An `allOf` no conjunct can make an object is no `Model`, short of the cases
+    [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
+    conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
+    OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
+    rules one out, so a consumer pinned to 0.24.0 finds a `Scalar`, an `Enum` or a reference where
+    it found a `Model`.
+  - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
+    ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
+    symbols an emitter generates from such a hint are renamed.
+
+  A consumer pinned to 0.24.0 refuses the document as another generation's.

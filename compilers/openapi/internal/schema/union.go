@@ -49,8 +49,9 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schem
 		diags = append(diags, unionDiags...)
 		return def
 	})
-	ref, nullDiags := schemaNullRef(c, tid, s, siteAt(pointer))
-	return ref, append(diags, nullDiags...)
+	owner, unhomedDiags := preserveUnhomedKeywords(c, ts, s, pointer, tid, dispatch{})
+	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
+	return ref, slices.Concat(diags, unhomedDiags, nullDiags)
 }
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
@@ -647,6 +648,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 		diags = append(diags, unionDiags...)
 		return def
 	})
+	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
 		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants"))
 }
@@ -714,8 +716,7 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 //
 // The enclosing schema's value constraints are read as lowerAllOf reads them
 // (GitHub #407). Each variant carries a copy, since a bound on the schema
-// constrains both sides of the disjunction and this path never runs the
-// pointer's own census.
+// constrains both sides of the disjunction.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}

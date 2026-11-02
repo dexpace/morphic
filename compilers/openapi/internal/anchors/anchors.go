@@ -117,9 +117,10 @@ func children(view *nodeview.View, n *yaml.Node, f frame) []frame {
 }
 
 // record indexes the anchor val names at pointer. A value that is not a
-// non-empty scalar names nothing a $dynamicRef could spell.
+// non-empty scalar names nothing a $dynamicRef could spell, and a null is the
+// keyword left out (docs/compilers/openapi.md#null-keywords), not a name "null".
 func (x Index) record(val *yaml.Node, pointer jsontext.Pointer) {
-	if val == nil || val.Kind != yaml.ScalarNode || val.Value == "" {
+	if val == nil || val.Kind != yaml.ScalarNode || val.Value == "" || val.ShortTag() == "!!null" {
 		return
 	}
 	x.byName[val.Value] = append(x.byName[val.Value], pointer)

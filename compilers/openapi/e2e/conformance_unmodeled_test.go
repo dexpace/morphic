@@ -12,6 +12,8 @@ package e2e_test // external test package — exercises only the public API
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1270,4 +1272,126 @@ func assertKept(t *testing.T, got ir.Unmodeled, want []keptEntry) {
 		assert.Equal(t, w.value, string(entry.Value), w.key)
 		assert.Equal(t, jsontext.Pointer(w.at), entry.Provenance.Pointer, w.key)
 	}
+}
+
+// assertKeywordsAtEveryOutcome pins that the census runs at each outcome of a
+// schema, keeping what the outcome has no field for and reporting what it
+// lowered to, and that what the outcome consumes is neither kept nor reported.
+func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	kept := []struct {
+		name  string
+		owner ir.TypeDef
+		keys  []string
+		shape string
+	}{
+		{"Bare", typeByName(doc, "Bare"), []string{"format", "minLength"}, `a node of kind "union"`},
+		{"Dist", typeByName(doc, "Dist"), []string{"format", "maxItems"}, "a union of models"},
+		{"Dyn", typeByName(doc, "Dyn"), []string{"discriminator", "format"}, "$dynamicRef expands to"},
+		{"NoObjectVariant", typeByName(doc, "NoObjectVariant"), []string{"properties"}, `a node of kind "union"`},
+		{"NoArrayVariant", typeByName(doc, "NoArrayVariant"), []string{"items", "maxItems"}, `a node of kind "union"`},
+		{"NoRouting", typeByName(doc, "NoRouting"), []string{"discriminator"}, `a node of kind "union"`},
+		{"NoBound", typeByName(doc, "NoBound"), []string{"pattern"}, `a node of kind "union"`},
+	}
+	for _, tc := range kept {
+		t.Run(tc.name, func(t *testing.T) {
+			want := make([]string, 0, len(tc.keys))
+			for _, keyword := range tc.keys {
+				want = append(want, "openapi:"+keyword)
+				assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, tc.owner.Common().Unmodeled, "openapi:"+keyword).Reason)
+			}
+			assert.ElementsMatch(t, want, slices.Collect(maps.Keys(tc.owner.Common().Unmodeled)),
+				"what the outcome consumes is not kept")
+			pointer := "/components/schemas/" + tc.name
+			assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", pointer))
+			i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool {
+				return d.Code == "openapi/degraded-construct" && string(d.Provenance.Pointer) == pointer
+			})
+			require.GreaterOrEqual(t, i, 0)
+			assert.Contains(t, diags[i].Message, tc.shape)
+			assert.Contains(t, diags[i].Message, strings.Join(tc.keys, ", "))
+		})
+	}
+
+	carrier, ok := typeByName(doc, "Carrier").(*ir.Model)
+	require.True(t, ok)
+	dyn, ok := propByWire(carrier, "dyn")
+	require.True(t, ok)
+	assert.Equal(t, componentID("Node"), dyn.Type.Target, "a carrier keeps the reference, not an alias")
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, dyn.Unmodeled, "openapi:maxItems").Reason)
+
+	beside := typeByName(doc, "BesideAUnion").Common().Unmodeled
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, beside, "openapi:oneOf").Reason)
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, beside, "openapi:discriminator").Reason,
+		"no variant routes by the discriminator written for the union")
+
+	assert.Empty(t, typeByName(doc, "Homed").Common().Unmodeled, "each keyword reached a variant")
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Homed"))
+}
+
+// assertUnknownKeywordsAtSharedNodes pins that a keyword no field of the model
+// names reaches the IR at a position that lowers to a shared node and has no
+// carrier, on an alias hoisted for it, and that a position writing only a
+// keyword already decided about hoists none.
+func assertUnknownKeywordsAtSharedNodes(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for at, key := range map[string]string{
+		"components/schemas/Items/items":                               "k-items",
+		"components/schemas/ItemsRef/items":                            "k-itemsref",
+		"components/schemas/Map/additionalProperties":                  "k-map",
+		"components/schemas/Union/oneOf/0":                             "k-branch",
+		"paths/~1a/get/responses/200/content/application~1json/schema": "k-content",
+	} {
+		owner, ok := doc.Types[ir.TypeID("t/anon/"+at)]
+		require.True(t, ok, at)
+		assert.Equal(t, `1`, string(unmodeledEntry(t, owner.Common().Unmodeled, "openapi:"+key).Value), at)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/unknown-schema-keyword", "/"+at+"/"+key))
+	}
+	plain, ok := typeByName(doc, "Plain").(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimString), plain.Elem.Target, "no alias for a keyword no one keeps")
+}
+
+// assertNullKeywords pins the reading of a null keyword on the shapes that once
+// read it another way. e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut
+// sweeps every keyword.
+func assertNullKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, name := range []string{"Described", "Bounded", "Unhomed", "Enumerated", "Identified"} {
+		assert.Empty(t, typeByName(doc, name).Common().Unmodeled, name)
+	}
+	bounded, ok := typeByName(doc, "Bounded").(*ir.Scalar)
+	require.True(t, ok)
+	assert.Nil(t, bounded.Constraints)
+	typed, ok := typeByName(doc, "Typed").(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimAny), typed.Base.Target, "type: null declares no type")
+	assert.Equal(t, []ir.Severity{ir.SeverityWarning}, diagsAt(diags, "openapi/validation/validation-type-mismatch",
+		"/components/schemas/Bounded/maximum"))
+
+	values, ok := typeByName(doc, "Values").(*ir.Model)
+	require.True(t, ok)
+	c, ok := propByWire(values, "c")
+	require.True(t, ok)
+	literal, ok := doc.Types[c.Type.Target].(*ir.Literal)
+	require.True(t, ok, "a null const is the value it says")
+	assert.Equal(t, ir.ValueNull, literal.Value.Kind)
+	d, ok := propByWire(values, "d")
+	require.True(t, ok)
+	require.NotNil(t, d.Default)
+	assert.Equal(t, ir.ValueNull, d.Default.Kind)
+}
+
+// assertDiscriminatorAliasedBranch pins that a mapping naming the type a
+// variant aliases routes to that variant, by a keyword of any kind beside the
+// branch's $ref and by a mapping spelled as a reference or a bare name, and that
+// a target naming a variant itself stays on it.
+func assertDiscriminatorAliasedBranch(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for name, key := range map[string]string{"Pet": "cat", "Unknown": "cat"} {
+		u, ok := typeByName(doc, name).(*ir.Union)
+		require.True(t, ok, name)
+		require.NotNil(t, u.Discriminator, name)
+		assert.Equal(t, u.Variants[0].Type.Target, u.Discriminator.Mapping[key], name)
+		assert.NotEqual(t, componentID("Cat"), u.Variants[0].Type.Target, "%s: the branch keeps its alias", name)
+	}
+	pet, ok := typeByName(doc, "Pet").(*ir.Union)
+	require.True(t, ok)
+	assert.Equal(t, componentID("Dog"), pet.Discriminator.Mapping["dog"])
 }

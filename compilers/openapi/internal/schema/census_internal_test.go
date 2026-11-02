@@ -37,6 +37,18 @@ func TestRecordUnhomedKeywords_MissingOwner(t *testing.T) {
 	assertInternalInvariant(t, diags)
 }
 
+// TestPreserveVariantsUnhomed_NeedsAUnion drives the two states its callers
+// cannot produce, each having just interned the Union under id: no node there,
+// and a node of another kind, which has no variants to ask.
+func TestPreserveVariantsUnhomed_NeedsAUnion(t *testing.T) {
+	t.Parallel()
+	l := NewRawLowerer(&soa.OpenAPI{})
+	assertInternalInvariant(t, preserveVariantsUnhomed(l.Ctx, l.Types, &oas3.Schema{}, "t/anon/missing", distributedShape, nil, "/p"))
+
+	l.Types.Register("t/anon/scalar", &ir.Scalar{ID: "t/anon/scalar"})
+	assertInternalInvariant(t, preserveVariantsUnhomed(l.Ctx, l.Types, &oas3.Schema{}, "t/anon/scalar", distributedShape, nil, "/p"))
+}
+
 // TestKeywordHome_AnUnknownKeywordIsHomedNowhere reaches the arm censusKeywords
 // cannot reach today, the way TestDeclaresFamily_AnUnknownNameDeclaresNothing
 // reaches its own: every keyword unhomedKeywords asks about is one with a case

@@ -156,7 +156,7 @@ func (w *admission) conjuncts(s *oas3.Schema, comp allOfComposition) []conjunct 
 
 // saysKind reports whether s writes what kind of value it admits.
 func saysKind(s *oas3.Schema) bool {
-	return len(s.GetType()) > 0 || enumWritten(s) || s.GetConst() != nil
+	return writesType(s) || enumWritten(s) || s.GetConst() != nil
 }
 
 // refBranchOf returns the conjunct holding the one $ref branch, if any.
@@ -280,12 +280,13 @@ type keptBranch struct {
 func (k outcomeKeeps) holdsAny() bool { return len(k.keywords) > 0 || len(k.branches) > 0 }
 
 // keepsAtOutcome returns what the position s is written at keeps, having lowered
-// to target: a refinement's census and the branches it left, or a collapsed
-// union's census, which lowers to a reference as well.
+// to target: a refinement's census and the branches it left, or the census of
+// any other outcome lowering to a reference (referenceOutcomeKeywords).
 func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer) outcomeKeeps {
 	r, refined := refinementOf(c, s, pointer)
 	if !refined {
-		return outcomeKeeps{keywords: collapsedUnhomedKeywords(s), shape: collapsedShape}
+		keywords, shape := referenceOutcomeKeywords(c, s, pointer)
+		return outcomeKeeps{keywords: keywords, shape: shape}
 	}
 	k := outcomeKeeps{shape: refinedShape, comp: r.comp}
 	if r.principal != nil {

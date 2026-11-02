@@ -6,6 +6,7 @@ package schema_test
 import (
 	"encoding/json/jsontext"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -301,4 +302,21 @@ func TestAllOf_UnpreservableBranchIsNotAnnounced(t *testing.T) {
 	assert.True(t, openapitest.HasDiag(diags, diag.UnpreservableConstruct))
 	assert.Empty(t, openapitest.PreservationClaims(diags),
 		"no degradation is announced for a branch that was not kept")
+}
+
+// TestAllOf_ANullTypeExcludesNoObject pins that a branch's `type: null` is the
+// keyword left out, so what it keeps as residue is reported as an info, not as
+// the warning a type excluding object draws. A branch writing properties keeps
+// the allOf a composition, where a branch's type is weighed against an object.
+func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, openapitest.ComponentSpec(`    S: {allOf: [{type: null, minItems: 1}, {properties: {p: {}}}]}
+`))
+	var severities []ir.Severity
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct && strings.Contains(d.Message, "inline allOf branch") {
+			severities = append(severities, d.Severity)
+		}
+	}
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severities)
 }
