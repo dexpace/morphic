@@ -600,6 +600,35 @@ func TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth(t *testing.T) {
 	assert.Equal(t, relUnrelated, j.relate(ref("t/held-min"), ref("t/held-bare")), "as what a list holds")
 }
 
+// TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn pins whose copies a
+// list's hoisted elements are. Copying is judged against where each declaration
+// was written, its document included, so the elements of two lists written in
+// another document are one element, and a default on one is its declaration's.
+func TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn(t *testing.T) {
+	t.Parallel()
+	const elsewhere = 1
+	at := func(n int) ir.Provenance { return ir.Provenance{Source: elsewhere, Pointer: declaredAt(n)} }
+	element := func(id string, n int) *ir.Scalar {
+		p := at(n)
+		p.Pointer += "/items"
+		return &ir.Scalar{ID: ir.TypeID(id), Anonymous: true, Provenance: p, Base: new(primRef(ir.PrimString)), Encoding: &ir.Encoding{Name: "x"}}
+	}
+	reg := narrowingRegistry()
+	reg["t/e0"], reg["t/e1"] = element("t/e0", 0), element("t/e1", 1)
+	reg["t/l0"] = &ir.List{ID: "t/l0", Anonymous: true, Provenance: at(0), Elem: ref("t/e0")}
+	reg["t/l1"] = &ir.List{ID: "t/l1", Anonymous: true, Provenance: at(1), Elem: ref("t/e1"), Constraints: &ir.Constraints{MaxItems: new(int64(5))}}
+	value := ir.Value{Kind: ir.ValueList, List: []ir.Value{str("a")}}
+	first, second := nthDecl(0, "t/l0"), nthDecl(1, "t/l1")
+	first.prop.Provenance, second.prop.Provenance = at(0), at(1)
+	first.prop.Default = &value
+	g, recorded := stubMerger(reg)
+
+	got := g.fold([]declaration{first, second})
+
+	assert.Equal(t, &value, got.Default)
+	assert.Empty(t, *recorded)
+}
+
 // TestFold_ATypeTheRegistryDoesNotHoldHoldsNoBounds pins the guard behind a
 // dangling reference: it says nothing of its bounds, and a value written against
 // it is its declaration's own, as on any type the fold keeps.

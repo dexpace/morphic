@@ -293,7 +293,7 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 
 func TestRelation_Flipped(t *testing.T) {
 	t.Parallel()
-	for _, r := range []relation{relUnrelated, relDisjoint, relOverlap, relSame} {
+	for _, r := range []relation{relUnrelated, relDisjoint, relOverlap, relSame, relMeet} {
 		assert.Equal(t, r, r.flipped())
 	}
 	assert.Equal(t, relBNarrower, relANarrower.flipped())

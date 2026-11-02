@@ -345,13 +345,12 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 	if v.Kind == ir.ValueNull {
 		return nullable
 	}
-	judge := typeJudge{Resolve: f.g.Resolve}
-	own := allBounds(judge, &f.decls[i].prop)
-	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), own), v, 0) {
+	winner, own := &f.decls[f.winner].prop, &f.decls[i].prop
+	judge := typeJudge{Resolve: f.g.Resolve, written: [2]ir.Provenance{winner.Provenance, own.Provenance}}
+	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), v, 0) {
 		return false
 	}
-	winner, written := f.decls[f.winner].prop.Type, f.decls[i].prop.Type
-	if len(f.conjuncts) == 0 && (f.rel[f.winner][i] == relSame || alike(judge, winner, written)) {
+	if len(f.conjuncts) == 0 && (f.rel[f.winner][i] == relSame || alike(judge, winner.Type, own.Type)) {
 		return true
 	}
 	ref := f.merged.Type

@@ -76,7 +76,8 @@ type typeJudge struct {
 // same target; a degraded Any node, which is unrelated to every type; the top
 // type, which loses to anything else; then arms, and classify for a pair arms
 // leaves unrelated. Every pair gets its verdict here, a field's types and two
-// containers' members alike.
+// containers' members alike, but that a tuple's positions compare only for a field
+// (boundedNodes) and that a member has no node to meet in (contained).
 func (j typeJudge) relate(a, b ir.TypeRef) relation { return j.relateAt(a, b, 0) }
 
 // relateAt is relate at a nesting depth.

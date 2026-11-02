@@ -1119,7 +1119,7 @@ instance types meet; an overlap where their kinds share values or a `const` meet
 in a kind or another `const`; and unrelated where nothing says what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
 and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
-types and as two containers' members.
+types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
 
 The field takes the type of the declaration whose type is the same as, or narrower than, the most
 declarations' types, the first of them on a tie. Where one declaration's type is within every other's
@@ -1361,6 +1361,11 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet`,
   `merge.TestFold_AValueIsHeldToTheBoundsOthersBring`,
   `merge.TestFold_ANodesBoundsJudgeAValueWrittenAgainstItsOwnKind`,
+  `merge.TestFold_AValueOfABroaderMemberIsJudgedByTheField`,
+  `merge.TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn`,
+  `merge.TestFold_ADroppedDeclarationsBoundsStayOffAMintedNode`,
+  `merge.TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth`,
+  `merge.TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth`,
   `schema.TestAllOf_ABoundTakesItsTightestValueInEitherOrder`,
   `schema.TestAllOf_ANodesBoundsReachTheFieldInEitherOrder`,
   `schema.TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder`,

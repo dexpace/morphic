@@ -64,18 +64,17 @@ func commonStep(x, y ir.BigVal) (ir.BigVal, bool) {
 	if multiple, ok := isMultipleOf(b, a); ok && multiple {
 		return y, true
 	}
-	lcm := leastCommonMultiple(a, b)
-	_, err := lcm.Decimal()
+	lcm, err := ir.NewBigVal(leastCommonMultiple(a, b))
 	return lcm, err == nil
 }
 
-// leastCommonMultiple returns the least common multiple of two positive numbers.
+// leastCommonMultiple spells the least common multiple of two positive numbers.
 // Read each as a coefficient and the exponent of its last digit, and count both
 // in units of the lower exponent: a's coefficient grows by 10^shift. Past the
 // powers of 2 and 5 in b's coefficient, fewer than 4 per digit, a further power
 // of ten only scales the result, so k of them are multiplied out and the other
 // shift-k stay in the exponent, which keeps a wide shift from being built.
-func leastCommonMultiple(a, b ir.Decimal) ir.BigVal {
+func leastCommonMultiple(a, b ir.Decimal) string {
 	if lowestExponent(a) < lowestExponent(b) {
 		a, b = b, a
 	}
@@ -87,7 +86,7 @@ func leastCommonMultiple(a, b ir.Decimal) ir.BigVal {
 	if exp := lowestExponent(a) - k; exp != 0 {
 		lcm += "e" + strconv.FormatInt(exp, 10)
 	}
-	return ir.BigVal(lcm)
+	return lcm
 }
 
 // scaled returns d's coefficient times 10^k.
