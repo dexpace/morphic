@@ -804,12 +804,12 @@ that lowers to; its examples stay on its node, as any target's do
 ([`schema-examples`](#schema-examples)). A `default` a `$ref` lends across a conjunct admitting less
 than it does counts only where the position takes it, and with no such conjunct it reads as beside
 the `$ref`, whatever the target's own type says of it. A `default` written with the value set is the
-position's own, in the set or not, as a plain `enum`'s is. A sole `$ref` composed
-with nothing a `Model` alone holds, a decorator ([annotations](../ir/annotations.md#decorators)) or a
-bound beside it, lends a carrier what it would lend written alone, since the visibility and `default`
-of the use have no other home. A composition writing what only a `Model` holds
-([`allof-refinement`](#allof-refinement)) holds what it composes as `Base` and `Mixins`, which lends a
-carrier nothing.
+position's own, in the set or not, as a plain `enum`'s is. A composition of a sole `$ref`, a decorator
+([annotations](../ir/annotations.md#decorators)) or a bound beside it, lends a carrier what the `$ref`
+would lend written alone, since the visibility and `default` of the use have no other home. One where
+a conjunct writes what only a `Model` holds, or that points 2 to 4 of
+[`allof-refinement`](#allof-refinement) keep composing, holds what it composes as `Base` and `Mixins`,
+which lends a carrier nothing.
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
   `schema-ref-siblings-30`, `allof-refinement`
@@ -1072,7 +1072,8 @@ be, with nothing lost, where:
 
 An `enum` or a `const` beside the `allOf` wins the election of
 [`competing-keywords`](#competing-keywords) first, so it is no refinement, though a `$ref` the
-`allOf` writes alone speaks for it as a narrowed one does below.
+`allOf` writes alone speaks for it as a narrowed one does below. That `allOf` stays verbatim: its
+branches fold nothing, and its `$ref` lowers nothing.
 
 The principal is chosen from the whole set:
 
@@ -1151,13 +1152,15 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_DecidedByTheSetInEveryOrder`, `schema.TestRefinement_TwinsTheRefSpelling`,
   `schema.TestRefinement_StructuralKeywordsPartFromTheRefSpelling`,
   `schema.TestRefinement_ABranchHoldsWhatItsNodeDoes`,
+  `schema.TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds`,
   `schema.TestRefinement_FlattensAsItsFlatSpelling`,
   `schema.TestRefinement_PastItsBudgetStaysAComposition`,
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
   `schema.TestRefinement_ACappedBranchStaysAComposition`
 - Status: partly built: conjuncts sharing no value are reported only where an inline `type` says so
-  (#1215), a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition (#661), and a
-  structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes (#1067).
+  (#1215), a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition (#661), a
+  structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes (#1067), and an
+  `allOf` an `enum` or a `const` beside it passes over stays verbatim (#1309).
 
 ### `allof-beside-ref`
 

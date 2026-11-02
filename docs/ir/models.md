@@ -198,16 +198,17 @@ are typed `TypeRef` rather than "reference to a `Model`" for exactly that reason
 would mean dropping a branch the source wrote, against invariant 2. What is *shaped* like `allOf` is
 the composition itself: one referent per conjunct, resolved by reference. Emitters that can only
 render model inheritance are the ones that must lower a non-`Model` conjunct to something their
-target can express. An `allOf` none of whose conjuncts can make an object composes nothing: it is
-[a use of one of them](#an-allof-no-object-satisfies).
+target can express. An `allOf` none of whose conjuncts can make an object has nothing to compose, so
+short of the limits [below](#an-allof-no-object-satisfies) it is a use of one of them.
 
 ## An allOf no object satisfies
 
 A `Model` says its value is an object, and `allOf: [{type: integer}, {type: integer, format: int32}]`
 admits none, so it is no composition. An `allOf` no conjunct can make an object lowers to one use of
-the conjunct that decides it, by the OpenAPI compiler's rule
-[`allof-refinement`](../compilers/openapi.md#allof-refinement): a reference to its `$ref`, a node at
-an inline branch's own pointer, and an alias only where the position writes what no carrier holds.
+the conjunct that decides it, short of the cases the OpenAPI compiler's rule
+[`allof-refinement`](../compilers/openapi.md#allof-refinement) keeps composing, two `$ref`s or a union
+on a branch among them: a reference to its `$ref`, a node at an inline branch's own pointer, and an
+alias only where the position writes what no carrier holds.
 At `cloudflare/api-schemas` @`319dc756` that is 517 of the 3,654 positions lowering an `allOf`, 408 of
 them a single `$ref` entry.
 
