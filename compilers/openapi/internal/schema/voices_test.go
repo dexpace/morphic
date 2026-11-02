@@ -145,6 +145,20 @@ func TestVoices_AgreeingConjunctsSayItOnce(t *testing.T) {
 	assert.Len(t, m.Examples, 1)
 }
 
+// TestVoices_ANullKeywordWritesNothing pins a branch writing a keyword as null,
+// which reads as the keyword left out: it disagrees with no conjunct, so what
+// another branch writes folds, in either order, as it does with the key removed.
+func TestVoices_ANullKeywordWritesNothing(t *testing.T) {
+	t.Parallel()
+	for _, branches := range []string{"{description: null}, {description: d}", "{description: d}, {description: null}"} {
+		doc, _ := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+branches+"]}"))
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok, branches)
+		assert.Equal(t, "d", m.Docs.Description, branches)
+		assert.Empty(t, m.Unmodeled, branches)
+	}
+}
+
 // TestVoices_ADisagreementIsReportedAsOne pins the words a kept branch draws: its
 // keywords have homes, so the report names the disagreement that kept them from
 // folding, in a composition and in a refinement, and says neither that the node

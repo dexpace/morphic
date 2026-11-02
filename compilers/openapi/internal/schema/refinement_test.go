@@ -1437,6 +1437,18 @@ func TestRefinement_ItemsItCannotRenderRestateNothing(t *testing.T) {
 	}
 }
 
+// TestRefinement_ANullKeywordRestatesNothingMore pins items restating a $ref's
+// but for a keyword written as null, which reads as left out: the branch says
+// nothing the $ref does not, so the position keeps no branch.
+func TestRefinement_ANullKeywordRestatesNothingMore(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3", "    Arr: {type: array, items: {type: string}}\n"+
+		"    S: {allOf: [{$ref: '#/components/schemas/Arr'}, {items: {type: string, description: null}}]}\n"))
+	td := typeByName(doc, "S")
+	require.NotNil(t, td)
+	assert.Empty(t, td.Common().Unmodeled)
+}
+
 // TestRefinement_AnEmptyAllOfOnABranchIsKept pins a branch writing `allOf: []`:
 // nothing flattens it, so its keyword stays, as in a composition.
 func TestRefinement_AnEmptyAllOfOnABranchIsKept(t *testing.T) {
