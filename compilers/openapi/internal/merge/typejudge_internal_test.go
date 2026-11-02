@@ -58,6 +58,47 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/list-int"] = &ir.List{ID: "t/list-int", Elem: integer}
 	reg["t/list-i32"] = &ir.List{ID: "t/list-i32", Elem: i32}
 	reg["t/list-i32-null"] = &ir.List{ID: "t/list-i32-null", Elem: nullable(i32)}
+	bound := func(lo, hi int64) *ir.Constraints {
+		c := &ir.Constraints{}
+		if lo > 0 {
+			c.MinItems = &lo
+		}
+		if hi > 0 {
+			c.MaxItems = &hi
+		}
+		return c
+	}
+	reg["t/list-i32-min2"] = &ir.List{ID: "t/list-i32-min2", Elem: i32, Constraints: bound(2, 0)}
+	reg["t/list-i32-max"] = &ir.List{ID: "t/list-i32-max", Elem: i32, Constraints: bound(0, 5)}
+	reg["t/list-int-min1"] = &ir.List{ID: "t/list-int-min1", Elem: integer, Constraints: bound(1, 0)}
+	reg["t/list-int-min2"] = &ir.List{ID: "t/list-int-min2", Elem: integer, Constraints: bound(2, 0)}
+	reg["t/list-int-max"] = &ir.List{ID: "t/list-int-max", Elem: integer, Constraints: bound(0, 5)}
+	reg["t/list-i32-described"] = &ir.List{ID: "t/list-i32-described", Elem: i32, Docs: ir.Docs{Description: "d"}}
+	reg["t/list-int-described"] = &ir.List{ID: "t/list-int-described", Elem: integer, Docs: ir.Docs{Description: "d"}}
+	reg["t/lists-min"] = &ir.List{ID: "t/lists-min", Elem: ref("t/list-i32-min")}
+	reg["t/lists-min2"] = &ir.List{ID: "t/lists-min2", Elem: ref("t/list-i32-min2")}
+	reg["t/lists-max"] = &ir.List{ID: "t/lists-max", Elem: ref("t/list-i32-max")}
+	reg["t/map-bare"] = &ir.MapT{ID: "t/map-bare", Value: i32}
+	reg["t/map-min"] = &ir.MapT{ID: "t/map-min", Value: i32, Constraints: &ir.Constraints{MinProps: new(int64(1))}}
+	reg["t/map-max"] = &ir.MapT{ID: "t/map-max", Value: i32, Constraints: &ir.Constraints{MaxProps: new(int64(5))}}
+	encoded := func(id ir.TypeID, c *ir.Constraints) *ir.Scalar {
+		return &ir.Scalar{ID: id, Base: &integer, Encoding: &ir.Encoding{Name: "x"}, Constraints: c}
+	}
+	reg["t/scalar-enc-min"] = encoded("t/scalar-enc-min", &ir.Constraints{Min: new(ir.BigVal("1"))})
+	reg["t/scalar-enc-max"] = encoded("t/scalar-enc-max", &ir.Constraints{Max: new(ir.BigVal("5"))})
+	reg["t/scalar-enc-a"] = encoded("t/scalar-enc-a", &ir.Constraints{Pattern: "^a$"})
+	reg["t/scalar-enc-b"] = encoded("t/scalar-enc-b", &ir.Constraints{Pattern: "^b$"})
+	tuple := func(id ir.TypeID, c *ir.Constraints, rest *ir.TypeRef, elems ...ir.TypeRef) *ir.Tuple {
+		return &ir.Tuple{ID: id, Elems: elems, Rest: rest, Constraints: c}
+	}
+	reg["t/tuple"] = tuple("t/tuple", nil, nil, i32)
+	reg["t/tuple-min"] = tuple("t/tuple-min", bound(1, 0), nil, i32)
+	reg["t/tuple-max"] = tuple("t/tuple-max", bound(0, 3), nil, i32)
+	reg["t/tuple-long"] = tuple("t/tuple-long", nil, nil, i32, i32)
+	reg["t/tuple-int"] = tuple("t/tuple-int", nil, nil, integer)
+	reg["t/tuple-null"] = tuple("t/tuple-null", nil, nil, nullable(i32))
+	reg["t/tuple-rest"] = tuple("t/tuple-rest", nil, &i32, i32)
+	reg["t/tuple-rest-int"] = tuple("t/tuple-rest-int", nil, &integer, i32)
 	reg["t/list-i32-min"] = &ir.List{ID: "t/list-i32-min", Elem: i32, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-int-min"] = &ir.List{ID: "t/list-int-min", Elem: integer, Constraints: &ir.Constraints{MinItems: &minItems}}
 	reg["t/list-i32-twin"] = &ir.List{ID: "t/list-i32-twin", Elem: i32}
@@ -151,7 +192,32 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a list declared apart against a hoisted copy", "t/list-i32", "t/list-i32-h1", relANarrower},
 		{"a map declared apart against a hoisted copy", "t/map-int", "t/map-int-h", relANarrower},
 		{"a list another document hoists at the declaration's pointer", "t/list-i32-other", "t/list-i32-h1", relANarrower},
-		{"two lists of one element, one constrained", "t/list-i32", "t/list-i32-min", relOverlap},
+		{"two lists of one element, one constrained", "t/list-i32-min", "t/list-i32", relANarrower},
+		{"two lists of one element, one bound tighter", "t/list-i32-min2", "t/list-i32-min", relANarrower},
+		{"two lists of one element, each adding a bound", "t/list-i32-min", "t/list-i32-max", relMeet},
+		{"a narrower element and bounds that say all the other's do", "t/list-i32-min2", "t/list-int-min1", relANarrower},
+		{"a narrower element and looser bounds", "t/list-i32-min", "t/list-int-min2", relOverlap},
+		{"a narrower element and a bound only the broader says", "t/list-i32-min", "t/list-int-max", relOverlap},
+		{"two lists of one element differing beside a bound", "t/list-i32-described", "t/list-i32-max", relOverlap},
+		{"a narrower element holding detail the broader lacks", "t/list-i32-described", "t/list-int", relANarrower},
+		{"a narrower element holding the detail the broader holds", "t/list-i32-described", "t/list-int-described", relANarrower},
+		{"a narrower element lacking detail the broader holds", "t/list-i32", "t/list-int-described", relOverlap},
+		{"two lists of lists whose elements meet", "t/lists-min", "t/lists-max", relOverlap},
+		{"two lists of lists, one element tighter", "t/lists-min2", "t/lists-min", relANarrower},
+		{"two maps of one value, each adding a bound", "t/map-min", "t/map-max", relMeet},
+		{"two maps of one value, one constrained", "t/map-min", "t/map-bare", relANarrower},
+		{"two scalars alike but for a bound", "t/scalar-enc-min", "t/scalar-enc", relANarrower},
+		{"two scalars, each adding a bound", "t/scalar-enc-min", "t/scalar-enc-max", relMeet},
+		{"two scalars differing in a keyword with no order", "t/scalar-enc-a", "t/scalar-enc-b", relMeet},
+		{"two scalars differing beside their bounds", "t/scalar-enc-min", "t/scalar-int", relOverlap},
+		{"two tuples, each adding a bound", "t/tuple-min", "t/tuple-max", relMeet},
+		{"two tuples, one constrained", "t/tuple-min", "t/tuple", relANarrower},
+		{"two tuples of different lengths", "t/tuple", "t/tuple-long", relUnrelated},
+		{"two tuples whose positions differ", "t/tuple", "t/tuple-int", relUnrelated},
+		{"two tuples whose positions admit null apart", "t/tuple", "t/tuple-null", relUnrelated},
+		{"a tuple with a rest against one with none", "t/tuple", "t/tuple-rest", relUnrelated},
+		{"two tuples whose rests differ", "t/tuple-rest", "t/tuple-rest-int", relUnrelated},
+		{"a tuple against a list", "t/tuple", "t/list-i32", relUnrelated},
 		{"disjoint elements overlap in the empty list", "t/list-str", "t/list-i32", relOverlap},
 		{"disjoint elements where one list is never empty", "t/list-str", "t/list-int-min", relDisjoint},
 		{"a minItems of zero admits the empty list", "t/list-str", "t/list-int-min0", relOverlap},
@@ -227,7 +293,7 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 
 func TestRelation_Flipped(t *testing.T) {
 	t.Parallel()
-	for _, r := range []relation{relUnrelated, relDisjoint, relOverlap, relSame} {
+	for _, r := range []relation{relUnrelated, relDisjoint, relOverlap, relSame, relMeet} {
 		assert.Equal(t, r, r.flipped())
 	}
 	assert.Equal(t, relBNarrower, relANarrower.flipped())

@@ -297,3 +297,21 @@ func TestAssertProbeExample_ChecksTheSingleExampleValue(t *testing.T) {
 	openapitest.AssertProbeExample(r, nil)
 	assert.True(t, r.failed(), "a dropped example must be reported")
 }
+
+// TestNodeConstraints_ReadsEachKindThatHoldsThem pins the four kinds a test reads
+// bounds off, and the failure on a node that holds none it reads.
+func TestNodeConstraints_ReadsEachKindThatHoldsThem(t *testing.T) {
+	t.Parallel()
+	c := &ir.Constraints{}
+	for _, td := range []ir.TypeDef{
+		&ir.Scalar{Constraints: c}, &ir.List{Constraints: c}, &ir.MapT{Constraints: c}, &ir.Tuple{Constraints: c},
+	} {
+		r := &recorder{}
+		assert.Same(t, c, openapitest.NodeConstraints(r, td), "%T", td)
+		assert.False(t, r.failed(), "%T", td)
+	}
+
+	r := &recorder{}
+	assert.Nil(t, openapitest.NodeConstraints(r, &ir.Model{}))
+	assert.True(t, r.failed(), "a model holds none it reads")
+}

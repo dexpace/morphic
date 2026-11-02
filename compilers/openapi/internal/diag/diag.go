@@ -220,13 +220,13 @@ const (
 	// with disagreeing values. The judgment finds the types narrower (no
 	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
 	// not narrow) or disjoint; only disjoint types, a scalar against a structure
-	// and two structures of different instance types conflict. A conflicting
-	// constraint keyword (minimum: 10 vs. exclusiveMinimum: 10) is usually
-	// satisfiable, but no simple merge states it, so the merge keeps a
-	// source-order winner.
+	// and two structures of different instance types conflict. A constraint
+	// keyword no one value states, such as two patterns, is usually satisfiable,
+	// but the merge can keep only a source-order winner. A bound meets, so it
+	// never reports here.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
-	// Unmodeled (merge.keepLosingDeclaration); #10 records intersecting bounds.
+	// Unmodeled (merge.keepLosingDeclaration).
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at

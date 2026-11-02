@@ -561,34 +561,32 @@ func TestCollectionBound_BesideARefIn30IsReadAsIn31(t *testing.T) {
 
 // TestCollectionBound_ARedeclaredFieldFoldsIt pins the merge over a bound the
 // carrier holds (docs/compilers/openapi.md#allof-redeclared-property): as a
-// value bound does, it is adopted from the side that writes it, and two sides
-// disagreeing keep the first with a report naming the keyword.
+// value bound does, it joins the intersection of the declarations, the larger
+// minItems and the smaller maxItems in either order, and is not also kept.
 func TestCollectionBound_ARedeclaredFieldFoldsIt(t *testing.T) {
 	t.Parallel()
 	ref := "{$ref: '#/components/schemas/Tags', "
 	for _, tc := range []struct {
 		name, a, b string
 		want       *ir.Constraints
-		conflicts  int
 	}{
-		{"agreeing", ref + "minItems: 1}", ref + "minItems: 1}", &ir.Constraints{MinItems: new(int64(1))}, 0},
+		{"agreeing", ref + "minItems: 1}", ref + "minItems: 1}", &ir.Constraints{MinItems: new(int64(1))}},
 		{"each its own", ref + "minItems: 1}", ref + "maxItems: 2}",
-			&ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(2))}, 0},
-		{"disagreeing", ref + "minItems: 1}", ref + "minItems: 2}", &ir.Constraints{MinItems: new(int64(1))}, 1},
+			&ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(2))}},
+		{"the larger minItems second", ref + "minItems: 1}", ref + "minItems: 2}", &ir.Constraints{MinItems: new(int64(2))}},
+		{"the larger minItems first", ref + "minItems: 2}", ref + "minItems: 1}", &ir.Constraints{MinItems: new(int64(2))}},
+		{"the smaller maxItems", ref + "maxItems: 5}", ref + "maxItems: 3}", &ir.Constraints{MaxItems: new(int64(3))}},
+		{"uniqueItems from either", ref + "minItems: 1}", ref + "uniqueItems: true}",
+			&ir.Constraints{MinItems: new(int64(1)), UniqueItems: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := settledSpec(t, tagsSchema, tc.a, tc.b)
-			openapitest.RequireNoErrorDiags(t, diags)
 
 			p := propertyOf(t, doc, "T", "v")
 			assert.Equal(t, tc.want, p.Constraints)
-			assert.NotContains(t, p.Unmodeled, "openapi:minItems", "the fold reads the typed field")
-			conflicts := conflictDiags(diags)
-			assert.Len(t, conflicts, tc.conflicts)
-			for _, d := range conflicts {
-				assert.Contains(t, d.Message, "conflicting minItems (1 and 2)")
-			}
+			assert.Empty(t, p.Unmodeled, "the fold reads the typed field")
+			assert.Empty(t, diags)
 		})
 	}
 }
