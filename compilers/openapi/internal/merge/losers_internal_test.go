@@ -90,17 +90,15 @@ func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 
 // TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing pins the side the
 // entry must not appear on: agreeing declarations discard nothing, so an entry
-// would be noise. A constraint conflict is the other side — the merge keeps the
-// first declaration's keyword and drops the redeclaration's, which is a loss
-// like any other until the bounds are intersected instead (GitHub #10), and
-// the entry records what the merge dropped rather than deciding what it should
-// have kept.
+// would be noise. A keyword no one value states is the other side: the merge
+// keeps the first declaration's and drops the redeclaration's, which is a loss
+// like any other, and the entry records what the merge dropped rather than
+// deciding what it should have kept.
 func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 	})
-	ten, twenty := int64(10), int64(20)
 	agreeing := ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}}
 
 	agreeing = foldTwo(g, agreeing, ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/b")}, unread(t))
@@ -110,20 +108,20 @@ func TestKeepLosingDeclaration_AgreeingDeclarationsKeepNothing(t *testing.T) {
 
 	bounded := ir.Property{
 		WireName: "code", Type: ir.TypeRef{Target: "t/str"},
-		Constraints: &ir.Constraints{MaxLength: &ten},
+		Constraints: &ir.Constraints{Pattern: "^a$"},
 	}
 	bounded = foldTwo(g, bounded, ir.Property{
 		WireName: "code", Type: ir.TypeRef{Target: "t/str"},
-		Constraints: &ir.Constraints{MaxLength: &twenty},
+		Constraints: &ir.Constraints{Pattern: "^b$"},
 		Provenance:  ptrAt("/b"),
-	}, written(`{"type":"string","maxLength":20}`))
+	}, written(`{"type":"string","pattern":"^b$"}`))
 
 	require.Len(t, *recorded, 1, "the constraint conflict is still diagnosed")
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
 	assert.Equal(t, ir.Unmodeled{
 		"openapi:conflicting-redeclaration/b": {
 			Reason:     ir.ReasonDegradedLowering,
-			Value:      ir.RawValue(`{"type":"string","maxLength":20}`),
+			Value:      ir.RawValue(`{"type":"string","pattern":"^b$"}`),
 			Provenance: ir.Provenance{Pointer: "/b"},
 		},
 	}, bounded.Unmodeled, "the keyword the merge dropped is kept with the declaration that wrote it")

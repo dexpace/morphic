@@ -61,6 +61,8 @@ func (w *walker) mismatch(f frame, fld Field, node *yaml.Node, ptr jsontext.Poin
 		switch f.nullRead(fld, w.minor) {
 		case leftOut:
 			sev, null = ir.SeverityWarning, "; it is null, which is read as the field left out"
+		case noScopes:
+			sev, null = ir.SeverityWarning, "; it is null, which is read as listing no scopes"
 		case missingElsewhere:
 			return
 		}
@@ -79,6 +81,10 @@ const (
 	leftOut
 	// missingElsewhere: as a missing field, which another package reports.
 	missingElsewhere
+	// noScopes: as a security requirement's name listing no scopes, a warning.
+	// The name is no field to leave out: it stands whatever its value
+	// (docs/compilers/openapi.md#security-requirements).
+	noScopes
 )
 
 // nullRead says how a null written for the field is read at minor m. The schema
@@ -101,6 +107,10 @@ func (f frame) nullRead(fld Field, m Minor) nullReading {
 			return missingElsewhere
 		}
 		return wrongValue
+	}
+	// A requirement's name stands whatever its value, so it is no optional field.
+	if f.obj.Kind == SecurityRequirement {
+		return noScopes
 	}
 	return leftOut
 }

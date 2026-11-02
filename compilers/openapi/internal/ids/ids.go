@@ -55,10 +55,11 @@ const (
 	OpenAPISpace compile.Space = "openapi"
 	AnonSpace    compile.Space = "anon"
 	// ComposedSpace holds what no schema or declaration in the source occupies:
-	// the Models synthesized for distributed union variants
-	// (docs/ir/models.md#composition-beside-a-union) and for a field redeclared
-	// as several models, and the identity of a field whose first declaration
-	// another model carries (docs/compilers/openapi.md#allof-redeclared-property).
+	// the Models for distributed union variants
+	// (docs/ir/models.md#composition-beside-a-union), the node a field's
+	// declarations compose or meet to, and the identity of a field whose first
+	// declaration another model carries
+	// (docs/compilers/openapi.md#allof-redeclared-property).
 	// A $ref naming the pointer must keep resolving to what is written there. A
 	// variant's path ends in oneOf or anyOf and an index, and a field's in
 	// properties and a name, so the two never meet. ForPointer yields only the
@@ -119,7 +120,7 @@ func Namespaces(others ...Document) compile.Namespaces {
 		ir.IDKindType:       {OpenAPISpace, AnonSpace, ComposedSpace},
 		ir.IDKindOp:         {OpenAPISpace},
 		ir.IDKindProp:       {OpenAPISpace, ComposedSpace},
-		ir.IDKindAuth:       {OpenAPISpace},
+		ir.IDKindAuth:       {OpenAPISpace, compile.UnresolvedSpace},
 		ir.IDKindService:    {OpenAPISpace},
 		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
 		ir.IDKindParam:      {OpenAPISpace},
@@ -179,10 +180,10 @@ func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(AnonSpace), string(pointer))
 }
 
-// ComposedType returns the stable ID of the Model synthesized at pointer in d:
+// ComposedType returns the stable ID of the node synthesized at pointer in d:
 // a distributed union variant's branch
 // (docs/ir/models.md#composition-beside-a-union), or the declaration naming a
-// field redeclared as several models.
+// field whose declarations compose or meet to a node none of them wrote.
 func (d Document) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(pointer))
 }
@@ -253,7 +254,19 @@ func DefaultServer() ir.ServerID { return compile.ServerID(DefaultServerSpace, "
 
 // Auth returns the stable ID of the named security scheme.
 func Auth(name string) ir.AuthID {
-	return compile.AuthID(OpenAPISpace, string(Ptr("components", "securitySchemes", name)))
+	return compile.AuthID(OpenAPISpace, string(schemePointer(name)))
+}
+
+// UnresolvedAuth returns the stable ID of the scheme a name that reaches no
+// mechanism lowers to: the pointer a declaration of it has, in a namespace of its
+// own, so neither a reference nor an entry at that pointer reaches it.
+func UnresolvedAuth(name string) ir.AuthID {
+	return compile.AuthID(compile.UnresolvedSpace, string(schemePointer(name)))
+}
+
+// schemePointer returns where the security scheme called name is declared.
+func schemePointer(name string) jsontext.Pointer {
+	return Ptr("components", "securitySchemes", name)
 }
 
 // Service returns the stable ID of the service for the given source index.
