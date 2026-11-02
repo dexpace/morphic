@@ -61,10 +61,11 @@ quarantined=""
 readonly max_targets=16
 
 # Minimizing is bounded tightly. The flag governs every new input that adds
-# coverage as well as a found crash, a worker minimizing runs no search, and left
-# at its 60s default it would dominate the run. A shorter bound can leave a
-# crash's reproducer and each new corpus entry less minimal; the reproducer is
-# written out either way.
+# coverage as well as a found crash, a worker minimizing runs no search (go1.27
+# internal/fuzz: fuzz.go's queueForMinimization, worker.go's loop), and left at
+# its 60s default it would dominate the run. A shorter bound can leave a crash's
+# reproducer and each new corpus entry less minimal; the reproducer is written
+# out either way.
 readonly minimize_time=1s
 
 # What prune keeps of each target's corpus. Go never trims the directory, so
