@@ -77,8 +77,16 @@ func IsRefSite(js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
 // is a $ref, so use-site annotations can fall back to the referent, and nil
 // otherwise or where the chain ends on none.
 func (s Scope) TargetSchema(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) *oas3.Schema {
+	target, _ := s.TargetAt(js, ref)
+	return target
+}
+
+// TargetAt is TargetSchema with the position the schema is read at, for a reader
+// keeping what it reads of a target per target rather than per use.
+func (s Scope) TargetAt(js *oas3.JSONSchema[oas3.Referenceable], ref *oas3.Schema) (*oas3.Schema, bind.Position) {
 	if !IsRefSite(js, ref) {
-		return nil
+		return nil, bind.Position{}
 	}
-	return s.Bindings.End(js).GetSchema()
+	entry, _ := s.Bindings.Entry(js)
+	return s.Bindings.End(js).GetSchema(), entry.Chain.End
 }
