@@ -80,10 +80,12 @@ type TypeCommon struct {
 	Tags []string `json:"tags,omitempty"`
 	// Sensitive requests whole-type redaction (Smithy @sensitive on shapes,
 	// OpenAPI `format: password`), shared by every type whose Base reaches this
-	// one; Property.Secret is the per-use form.
+	// one; Secret on a Property or a Parameter is the per-use form.
 	Sensitive bool `json:"sensitive"`
-	// Access is "" for public or "internal" for a type outside the exported SDK
-	// surface (protobuf editions export/local, TCGC @access(internal)).
+	// Access is "" for public or "internal" for a type the source declares
+	// outside its public surface, for every target (protobuf editions
+	// export/local, Smithy @internal via policy). A per-language surface
+	// decision is not this fact (docs/ir/boundaries.md#access).
 	Access string `json:"access,omitempty"`
 	// Deprecation marks the type as deprecated with optional migration guidance.
 	Deprecation *Deprecation `json:"deprecation,omitzero"`

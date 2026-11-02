@@ -40,6 +40,10 @@ type Merger struct {
 type declaration struct {
 	prop   ir.Property
 	source Source
+	// secretBy names the heuristics that set prop.Secret, empty where a keyword
+	// declared it. prop.Provenance.Inferred cannot say: one marker covers every
+	// fact a promotion read into the declaration.
+	secretBy ir.Inferred
 }
 
 // fold returns the property decls make together under allOf intersection
@@ -361,10 +365,13 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 }
 
 // foldUse settles who sends the field and sees it: required and secret where
-// any declaration says so, and visible only in the lifecycles every
-// declaration admits (mergeVisibility). Declarations that empty a set none had
-// emptied on its own are reported where the last of them is written; nothing
-// is discarded, so nothing is kept.
+// any declaration says so, and visible only in the lifecycles every declaration
+// admits (mergeVisibility). The field holds the first declaration's provenance,
+// so a later one's promoted redaction brings its marker (secretBy) in either
+// order, and a declared one brings none, whatever else that declaration's
+// marker covers. Declarations that empty a set none had emptied on its own are
+// reported where the last of them is written; nothing is discarded, so nothing
+// is kept.
 func (f *folding) foldUse() {
 	for i, d := range f.decls {
 		f.merged.Required = f.merged.Required || d.prop.Required
@@ -372,6 +379,7 @@ func (f *folding) foldUse() {
 		if i == 0 {
 			continue
 		}
+		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, d.secretBy)
 		visibility := mergeVisibility(f.merged.Visibility, d.prop.Visibility)
 		if visibility.None && !f.merged.Visibility.None && !d.prop.Visibility.None {
 			f.note(i, ir.SeverityWarning, diag.DisjointVisibility,
@@ -399,10 +407,10 @@ func (f *folding) foldDocs() {
 }
 
 // foldAnnotations settles the field's deprecation and XML hints as foldDocs
-// settles its docs: neither is bound to a shape. A property's provenance names
-// a heuristic only for a deprecation one promoted from an extension
-// (lowering.PromoteDeprecation), so the field takes the marker of the
-// declaration whose deprecation it keeps, whichever declaration that is.
+// settles its docs: neither is bound to a shape. A promotion marks the
+// declaration it read (lowering.Promoter.Deprecation), so the field takes the
+// marker of the declaration whose deprecation it keeps, whichever declaration
+// that is.
 func (f *folding) foldAnnotations() {
 	f.merged.Deprecation = firstWritten(f, "deprecation", func(_ int, p *ir.Property) (*ir.Deprecation, bool) {
 		return p.Deprecation, p.Deprecation != nil
