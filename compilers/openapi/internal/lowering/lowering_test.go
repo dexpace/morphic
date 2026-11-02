@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -20,7 +19,6 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/anchors"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -568,6 +566,47 @@ func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 	assert.False(t, ok, "the context it was made from is unchanged")
 }
 
+// TestWithLoaded_CarriesTheMediaTypeUsesOnACopy holds where a lowering reads
+// the model of a content entry written as a $ref: from the load phase's, on the
+// copy WithLoaded returns, while the context it was made from knows the entry
+// is one and holds no model of it.
+func TestWithLoaded_CarriesTheMediaTypeUsesOnACopy(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/M'}
+            text/plain: {schema: {type: string}}
+components:
+  mediaTypes:
+    M: {schema: {type: string}}
+`)
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	carrying := base.WithLoaded(doc)
+	item, ok := doc.Doc.GetPaths().Get("/a")
+	require.True(t, ok)
+	response, ok := item.GetObject().Get().GetResponses().Get("200")
+	require.True(t, ok)
+	content := response.GetObject().GetContent()
+
+	use, isUse := carrying.MediaTypeUse(content.GetOrZero("application/json"))
+	require.True(t, isUse)
+	assert.True(t, use.IsReference(), "the copy reads the load phase's model")
+	_, isUse = carrying.MediaTypeUse(content.GetOrZero("text/plain"))
+	assert.False(t, isUse, "an entry written inline is no use")
+
+	use, isUse = base.MediaTypeUse(content.GetOrZero("application/json"))
+	assert.True(t, isUse)
+	assert.Nil(t, use, "the context it was made from holds no model")
+}
+
 // TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex pins that a context carrying
 // the load phase's results reads the raw YAML a walk leaves the model for
 // through an index, where the one it was made from asks the library, which
@@ -584,59 +623,38 @@ func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
 	assert.NotNil(t, base.WithLoaded(doc).RefScope().Holds)
 }
 
-// TestDynamicAnchorSites_ReportsATruncatedWalkOnce pins what a reader is told
-// when the $dynamicAnchor index is partial. Truncation only ever drops
-// declarations, and a dropped duplicate reads as "declared exactly once", the
-// count that expands, so an unreported truncation would turn an ambiguous
-// reference into a confident one. The index is built once for every copy of
-// the context, so the warning is too.
-func TestDynamicAnchorSites_ReportsATruncatedWalkOnce(t *testing.T) {
-	t.Parallel()
-	// The walk descends into every key, so an extension at the document root
-	// nests the tree past the cap without any schema lowering seeing it.
-	deep := strings.Repeat("{a: ", anchors.MaxDepth) + "1" + strings.Repeat("}", anchors.MaxDepth)
-	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n") + "x-deep: " + deep + "\n"
-	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
-	require.NoError(t, err)
-	openapitest.RequireNoErrorDiags(t, diags)
-	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
-
-	sites, got := c.DynamicAnchorSites("m")
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A"}, sites, "the index is built even when partial")
-	require.Len(t, got, 1, "the truncation is announced: %+v", got)
-	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
-	assert.Contains(t, got[0].Message, "not verified")
-
-	_, again := c.InScope(c.RefScope()).DynamicAnchorSites("absent")
-	assert.Empty(t, again, "a copy reads the built index and does not announce it again")
-
-	bare := lowering.Ctx{Doc: doc.Doc}
-	_, first := bare.DynamicAnchorSites("m")
-	_, second := bare.DynamicAnchorSites("m")
-	assert.Len(t, first, 1, "a context New did not build keeps no index")
-	assert.Len(t, second, 1, "so it builds one, and announces it, on every ask")
-}
-
-// TestDynamicAnchorSites_ReadsACompleteIndexQuietly pins the ordinary case: a
-// document the walk reads whole names each anchor's sites and reports
-// nothing, and a context holding no document finds none.
-func TestDynamicAnchorSites_ReadsACompleteIndexQuietly(t *testing.T) {
+// TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument pins that the sites are
+// the table's for the document c reads, every one of them counted, and that a
+// context given no bindings finds none and reads as whole.
+func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	t.Parallel()
 	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n    B: {$dynamicAnchor: m}\n")
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
 
-	sites, got := c.DynamicAnchorSites("m")
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A", "/components/schemas/B"}, sites)
-	assert.Empty(t, got)
+	sites, whole := c.DynamicAnchorSites("m")
+	assert.Equal(t, []bind.Position{{Pointer: "/components/schemas/A"}, {Pointer: "/components/schemas/B"}}, sites)
+	assert.True(t, whole)
 
-	sites, got = lowering.Ctx{}.DynamicAnchorSites("m")
+	sites, whole = lowering.Ctx{}.DynamicAnchorSites("m")
 	assert.Empty(t, sites)
-	assert.Empty(t, got)
+	assert.True(t, whole)
+}
+
+// TestPosition_PlacesWhatADocumentHolds pins that a context reading the source,
+// or a document at its own coordinates, places a pointer, and that one reading
+// another document's content at the source's places nothing.
+func TestPosition_PlacesWhatADocumentHolds(t *testing.T) {
+	t.Parallel()
+	p, placed := lowering.Ctx{}.Position("/a")
+	assert.True(t, placed)
+	assert.Equal(t, bind.Position{Pointer: "/a"}, p)
+
+	_, placed = lowering.Ctx{}.InScope(resolve.Scope{Foreign: true, Holder: "other.yaml"}).Position("/a")
+	assert.False(t, placed)
 }
 
 // TestNew_CarriesTheLimits pins that the budgets reach the walk through the

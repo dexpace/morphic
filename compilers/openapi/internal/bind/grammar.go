@@ -46,6 +46,9 @@ const (
 	sSecurityScheme
 	sObject
 	sRawEntries
+	// sLoose is a position of a document that is no OpenAPI document, which no
+	// grammar places: read as a schema for what it declares (docs.identityState).
+	sLoose
 )
 
 // fields maps the fields an object state defines to the state each leads to,
@@ -138,6 +141,12 @@ func schemaFields() map[string]state {
 	return m
 }
 
+// unmodelled maps the fields an object state defines that the parser's model
+// names no member for, and the load phase models itself, to the state each
+// leads to: OpenAPI 3.2's components/mediaTypes (GitHub #856). They are kept
+// apart from fields, which mirrors the model (TestGrammar_FieldsAreTheModels).
+var unmodelled = map[state]map[string]state{sComponents: {"mediaTypes": sMediaTypeMap}}
+
 // entries maps a container state to the state of each of its entries.
 var entries = map[state]state{
 	sSchemaMap:         sSchema,
@@ -166,13 +175,14 @@ var entries = map[state]state{
 // entries: those the specification gives patterned fields of their own.
 var extensible = map[state]bool{sPaths: true, sResponses: true, sCallback: true}
 
-// referenceKinds holds the states of the objects the parser models as a
-// reference object when they write a $ref: the parser's resolver, not this
-// package, resolves those, and a pointer read through one reads on in the
-// object it names.
+// referenceKinds holds the states of the objects modelled as a reference object
+// when they write a $ref: the parser's own kinds, and a Media Type Object, which
+// the load phase models (GitHub #856). The parser's resolver, not this package,
+// resolves those, and a pointer read through one reads on in the object it
+// names.
 var referenceKinds = map[state]bool{
 	sPathItem: true, sParameter: true, sHeader: true, sRequestBody: true, sResponse: true, sCallback: true,
-	sExample: true, sLink: true, sSecurityScheme: true,
+	sExample: true, sLink: true, sSecurityScheme: true, sMediaType: true,
 }
 
 // step is the state one token below s.
@@ -182,6 +192,8 @@ func step(s state, token string) state {
 		return sRaw
 	case sValue, sObject:
 		return sValue
+	case sLoose:
+		return looseStep(token)
 	}
 	if e, ok := entries[s]; ok {
 		if strings.HasPrefix(token, "x-") && extensible[s] {
@@ -192,7 +204,25 @@ func step(s state, token string) state {
 	if next, ok := fields[s][token]; ok {
 		return next
 	}
+	if next, ok := unmodelled[s][token]; ok {
+		return next
+	}
 	return sRaw
+}
+
+// looseStep is the state one token below a position of a document no grammar
+// places: a keyword of a schema reads as it does in one, so a literal or a value
+// holds nothing and a schema map holds schemas; an extension is raw, as a
+// schema's is; and any other key stays loose, since a document of schemas keeps
+// them under keys of its own.
+func looseStep(token string) state {
+	if strings.HasPrefix(token, "x-") {
+		return sRaw
+	}
+	if next, ok := fields[sSchema][token]; ok {
+		return next
+	}
+	return sLoose
 }
 
 // stateOf is the state tokens reach from s.

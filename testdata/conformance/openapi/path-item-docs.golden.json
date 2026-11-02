@@ -269,6 +269,24 @@
       "servers": [
         "server/default"
       ],
+      "unmodeled": {
+        "openapi:pathItem/paths/~1archive/description": {
+          "reason": "no_ir_home",
+          "value": "Reserved for archived pets; nothing is served here yet.",
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1archive/description"
+          }
+        },
+        "openapi:pathItem/paths/~1archive/summary": {
+          "reason": "no_ir_home",
+          "value": "Pet archive",
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1archive/summary"
+          }
+        }
+      },
       "provenance": {
         "source": 0
       }
@@ -287,11 +305,22 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "path item declares no operation this compiler lowers; what else it writes is kept beside it, having no operation to hold it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1archive"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "path-item-docs.yaml",
-      "hash": "b6a7b4af97bda527e50e35d3d60aa65fc2bd82647d945da557d50360db015550"
+      "hash": "10fbff95f5f1d0bf07ce6cc8e4dd479b56f5468586ba776b5fdb67b3ff5c6740"
     }
   ]
 }

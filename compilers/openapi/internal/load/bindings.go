@@ -62,8 +62,8 @@ func (b bound) placer(at func(jsontext.Pointer) ir.Provenance) func(bind.Positio
 // pointer through one reads on where the parser resolved it: ends says where
 // each one's chain ended, in whichever document writes it
 // (resolution.ends). reader reads other documents, or is nil when none is read.
-func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, reader *external,
-	ends map[refSite]referenceEnd,
+func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
+	reader *external, ends map[refSite]referenceEnd,
 ) bound {
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
 		Refuse: self.escapes.refusal(), Limit: budget.AtMost(bind.MaxSteps),
@@ -76,7 +76,7 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sour
 	}
 	table := bind.Bind(ctx, self.root, cfg)
 	bd := typed.NewBuilder(table)
-	indexWalk(bd, walkSource(ctx, doc, sibs), bind.Position{})
+	indexWalk(bd, walkSource(ctx, doc, sibs, media), bind.Position{})
 	indexEnds(ctx, bd, table, ends, self)
 	return bound{bindings: bd.Bindings(), built: bd.Build(ctx)}
 }
@@ -228,7 +228,8 @@ func bindingDiags(place func(bind.Position) ir.Provenance, table *bind.Table) []
 	if table.Truncated() {
 		diags = append(diags, diag.Newf(ir.SeverityWarning, diag.DegradedConstruct, at,
 			"a mapping merges through `<<` deeper than %d levels, which resolving the schema $refs does not "+
-				"expand; a $ref past that, or one that reads a key past it, is left unresolved", nodeview.MergeDepthLimit))
+				"expand; a $ref past that, or one that reads a key past it, is left unresolved, and where that "+
+				"mapping is a schema, no $dynamicRef in its document is expanded", nodeview.MergeDepthLimit))
 	}
 	return diags
 }

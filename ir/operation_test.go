@@ -311,6 +311,7 @@ func TestContent_JSONContract(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 		},
+		Docs:      ir.Docs{Summary: "One form.", Description: "The body as a form."},
 		Unmodeled: populatedUnmodeled(),
 	})
 }
@@ -532,10 +533,10 @@ func TestPropPath_JSONContract(t *testing.T) {
 	})
 }
 
-// TestParamPath_JSONContract pins ParamPath's omitempty contract (both fields
-// are optional) and that a populated ParamPath round-trips with its segments
+// TestInputPath_JSONContract pins InputPath's omitempty contract (both fields
+// are optional) and that a populated InputPath round-trips with its segments
 // in walk order.
-func TestParamPath_JSONContract(t *testing.T) {
+func TestInputPath_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.InputPath{}, `{}`,
 		ir.InputPath{Param: new(ir.ParamID("param/x/filter")), Segments: []ir.PropID{"p/outer", "p/inner"}})

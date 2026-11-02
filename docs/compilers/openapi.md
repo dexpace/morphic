@@ -342,17 +342,31 @@ on the order references are read in. In either mode a `$ref` naming a URL whose 
 directory; a file whose name holds a colon is written `./a:b.yaml`. A document outside fails each
 reference naming it, and with no reader no document is read.
 
-Each document read is a `Document.Sources` entry after the source and its overlay, ordered by its
-location from the source's directory, and what it declares lowers there, as the source's own lowers
-where the source declares it: a schema a `$ref` lands on, and a parameter, request body, response,
-header, example, callback, path item or security scheme a reference brings in, with the schemas
-inline in it. A reference object written in what another document brings in is resolved against that
-document, as the source's are against the source, and what it names lowers where it is declared, in
-whichever document, the source included. What a document declares names its entry in its
-`Provenance`, and has IDs in that document's namespaces, the source's qualified by its location
-(`t/openapi@common.yaml/components/schemas/Pet`, [identity](../ir/identity.md)), so one
-pointer in two documents is two nodes. An operation and a parameter keep the IDs of the mount that
-lowers them.
+Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
+ordered by its location from the source's directory, and what it declares lowers there, as the
+source's own lowers where the source declares it: a schema a `$ref` lands on, and a parameter,
+request body, response, header, example, callback, path item, security scheme or media type a
+reference brings in, with the schemas inline in it. A reference object written in what another
+document brings in is resolved against that document, as the source's are against the source, and
+what it names lowers where it is declared, in whichever document, the source included. What a
+document declares names its entry in its `Provenance`, and has IDs in that document's namespaces,
+the source's qualified by its location (`t/openapi@common.yaml/components/schemas/Pet`,
+[identity](../ir/identity.md)), so one pointer in two documents is two nodes. An operation and a
+parameter keep the IDs of the mount that lowers them.
+
+A content entry OpenAPI 3.2 lets a document write as a Reference Object, and an entry of
+`components/mediaTypes`, is a reference object like any other, though the parser models neither
+([`media-type-references`](../parser-library.md#media-type-references)): the load phase models each,
+wherever a walk meets it, and hands it to the parser's resolver as it hands every other kind, so it
+is read under the same reader, budgets and refusals, a chain of entries is followed as any chain is,
+and what one reaches is held to the table ([`validation`](#validation)). What it names lowers once,
+at the pointer declaring it, however many content entries reach it, with the references it holds
+resolved where it is declared. The resolver reads a `$ref` into the source through the model, whose
+own Media Type Object is no reference it can take, so each one the source writes is held where the
+resolver looks first, and the source's media type references are resolved once its walk has held
+them all: a `$ref` to an inline content entry reaches it, as one to an inline parameter does. One
+the parser faults building a reference from is reported once, as an `openapi/validation` error where
+it is written, and lowers nothing.
 
 A schema `$ref`, and a discriminator mapping value spelled as one, is bound by the compiler itself,
 never by the parser's resolver
@@ -365,23 +379,44 @@ read from the root of that resource, as RFC 6901 reads one: an index is a decima
 zero, a pointer ending in `/` names a member whose key is empty, and a fragment holding a second `#`
 names nothing. Under an `$id` a pointer names a position of the resource, with no fallback, and `#`
 names the schema writing the `$id`; under none, `#` names the document's root. A plain-name
-fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, and a
-URI an `$id` declares names that schema, as one a `$ref`'s document part names; a name or a URI two
-schemas declare names neither, and a name 2020-12's grammar refuses is declared by none
-([`validation`](#validation) reports it). Identifiers are read only where the OpenAPI grammar places
-a schema in the source, so one in an example, an extension, the fields beside a reference object's
-`$ref`, or another document declares none. An `$id` names the URI its part before the `#` resolves
-to against the base above it, by RFC 3986 where that base is a URI and as a `$ref`'s document is
-placed where it is a file's path, and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
+fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, in the
+source or another document, so a name under an `$id` is that `$id`'s resource's and not its
+document's, and a URI an `$id` declares names that schema, as one a `$ref`'s document part names; a
+name or a URI two schemas declare names neither, and a name 2020-12's grammar refuses is declared by
+none ([`validation`](#validation) reports it). Identifiers are read only where a schema is placed:
+by the OpenAPI grammar in the source and in another document whose root names an `openapi` version,
+so one in an example, an extension or the fields beside a reference object's `$ref` declares none. A
+document that names none has no grammar, so it is read as a document of schemas: its root and any
+key of no schema vocabulary hold schemas, and within one a keyword reads as it does in the source,
+so one in a literal, a value or an extension declares none, and the document's root may be a schema
+or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
+it is read. An `$id` names the URI its part before the `#` resolves to against the base above it, by
+RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
+and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
 holding it starts no resource, and one naming the source, however spelled, returns to the
 document's. A URI no schema declares names the document at that URI, read as any other is: one read
 against an `$id` is the URI the `$id` makes of it, never the file of that name beside the source,
 and is judged for refusal as written while only relative paths moved its base, and as that URI once
-an absolute `$id` did. A pointer passing a reference object reads on where the resolver resolved
-that, in whichever document, and a `$ref` written in another document's content is read in that
-document. What a `$ref` lands on in another document lowers where that document declares it; one in
-the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
+an absolute `$id` did. Every document a reached reference names is parsed before any reference is
+deemed unresolvable, as OAS 3.1.1 §4.3.1 requires, so a URI a document declares answers as that
+identifier whichever reference comes first, and is never refused. References are read in passes
+over the same set, each against the URIs the documents the last one reached declare, and only the
+last pass's answers stand, so no declaration order reaches an answer. A document a pass read as a
+location before another declared that URI is reached by no later pass, so it declares nothing,
+lowers nothing and is no `Document.Sources` entry. Where what a pass reaches turns on what those
+documents declare, so that no pass agrees with the one before it, every document read declares what
+it does from the pass that would read against what an earlier one read. A pass reads the documents
+absolute URIs name once its walks are done, together, and goes on, reading again only the references
+that waited for them, while what the documents it reached declare changes no URI it asked for, one a
+waiting reference asked for included. So a chain of documents each named by an absolute URI, none
+declaring a URI a reference asked for, is read in one pass, its cost growing with its length. Where
+one does, the pass is read again: a document held beside one declaring its URI is then read for
+nothing, and a chain in which each document declares the URI the one before it asked for costs a
+pass per link. A pointer passing a reference object reads on where the resolver resolved that, in
+whichever document, and a `$ref` written in another document's content is read in that document.
+What a `$ref` lands on in another document lowers where that document declares it; one in the source
+lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
 ends on — an annotation, a form body's parts, a file body or a discriminator — whichever documents
 the chain passes, as its type names that schema. An empty `$ref` names the document's root, which
 holds no schema, so a chain reaching one ends on none and lends nothing, as any chain that fails
@@ -424,17 +459,21 @@ model, so a schema under an extension answers no such pointer from its own `$def
 an `$id` itself, and an `$id` raw YAML writes above it makes it no resource of its own: as OAS 3.1
 reads a schema with no `$id`, the document is its base, and its root holds none.
 
-Binding is held to one work budget, reported as an `openapi/budget-exceeded` error once it runs out,
-the `$ref`s past it left unresolved. A `<<` merge chain deeper than the levels a mapping's merges
-are expanded to (`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning,
+Binding is held to one work budget, which every pass spends, reported as an
+`openapi/budget-exceeded` error once it runs out. The pass it runs out in is the last: the `$ref`s
+past it are left unresolved, and one it answered keeps that answer, though a later pass might have
+changed it. A `<<` merge chain deeper than the levels a mapping's merges are expanded to
+(`nodeview.MergeDepthLimit`) is reported as an `openapi/degraded-construct` warning,
 and a `$ref` past it is left unresolved, as is one that reads a key past it: a key its pointer
 names, an `$id` that may give the base it is read against, or, for a `#/$defs/...` pointer, a
 definition the rule reads before the one that would answer. So is a plain name no schema declares
-where a schema merging past the bound may; a URI is read as a location all the same. A chain of
+where a schema merging past the bound may; a URI is read as a location all the same, and a
+`$dynamicRef` in that document is not expanded ([`dynamic-ref`](#dynamic-ref)). A chain of
 references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 
-- Cases: `schema-identifiers`
-- Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`
+- Cases: `schema-identifiers`, `component-media-types-32`
+- Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
+  `openapi/validation`
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestGolden_SplitSpec`, `e2e.TestExternalContent_ARefInItNamesItsOwnDocument`,
   `e2e.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
@@ -465,11 +504,22 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestExternalContent_ARefLendsItsUseSiteWhatItsTypeReaches`,
   `schema.TestSchema_ARefThroughAnEmptyRefLendsNothing`,
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
-  `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_CountsWorkLinearInTheDocument`,
+  `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_ThePassTheBudgetRunsOutInStands`,
+  `bind.TestBind_CountsWorkLinearInTheDocument`,
+  `bind.TestBind_CountsWorkLinearAcrossHeldDocuments`,
   `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,
   `e2e.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
   `e2e.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,
   `load.TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`,
+  `bind.TestBind_ReadsWhatAnotherDocumentDeclares`, `bind.TestBind_ReadsBelowAnIDOfAnotherDocument`,
+  `bind.TestBind_AnIDNamingItsDocumentReturnsToIt`, `bind.TestBind_AnIdentifierIsNoLocationToFetch`,
+  `bind.TestBind_AHeldDocumentMayDeclareAnothersURI`,
+  `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
+  `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`,
+  `bind.TestBind_DeclarationOrderReachesNoAnswer`,
+  `bind.TestBind_ADocumentNoPassReachesDeclaresNothing`,
+  `bind.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
+  `bind.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
   `e2e.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
@@ -477,15 +527,32 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `canary.TestBindingOracle_AgreesWithTheLibrary`,
   `load.TestResolve_AFindingNamesTheDocumentItIsIn`,
   `load.TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder`,
-  `e2e.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`
+  `e2e.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`,
+  `operation.TestMediaTypeRef_OneDeclarationIsOneType`,
+  `operation.TestMediaTypeRef_ReferencesInsideTheDeclarationResolve`,
+  `operation.TestMediaTypeRef_AnUnresolvedRefLowersNothing`,
+  `load.TestLoad_AMediaTypeRefEndsOnTheDeclarationsOwnModel`,
+  `load.TestLoad_AMediaTypeRefToNoObjectIsReportedAsOne`,
+  `load.TestResolve_AMediaTypeUseTheParserFaultsOnIsReportedOnce`,
+  `resolve.TestReferenceEnd_NamesWhereAMediaTypeReferenceEnds`,
+  `load.TestResolve_EveryKindOfObjectIsValidated`,
+  `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`,
+  `operation.TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). Another document's identifiers are not read, so a plain name naming one of its resources
-  is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
-  path (#936); a remote document can make the compiler request a private address (#937); and a
-  remote document reaching a local file is refused naming only its last such `$ref` (#940). A
-  reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
-  unresolved reference object's message ends in the resolver's own wording, unless its chain ends
-  on a position holding no object of its kind (#809).
+  (#604). An absolute-path `$ref` in a remote document is read as a local path (#936); a remote
+  document can make the compiler request a private address (#937); and a remote document reaching a
+  local file is refused naming only its last such `$ref` (#940). A reference object's pointer
+  holding a character above U+FFFF is refused as malformed (#516), and an unresolved reference
+  object's message ends in the resolver's own wording, unless its chain ends on a position holding
+  no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file a
+  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040), and a
+  chain of documents each declaring the URI the one before it asked for costs a binding pass per
+  link (#1372). A reference object reaching raw YAML of the source leaves the references inside what
+  it reaches unresolved (#1320), and one whose pointer ends in `/` declares what it reaches at a
+  second pointer (#1330). A reference object whose `$ref` the model decodes no string from, such as
+  a plain date or a scalar under a local tag, lowers nothing, and nothing reports it (#1280). A
+  schema `$ref` whose pointer passes through a reference object's alias lowers what it reaches a
+  second time, at the pointer it spells (#1359).
 
 ### `reference-cycles`
 
@@ -582,17 +649,18 @@ vendor extension that converts to no JSON is [`vendor-extensions`](#vendor-exten
 ### `unmodeled-dialect-fields`
 
 A source revision may add a field the bundled parser's model names no member for; OpenAPI 3.2's
-`Response.summary`, XML `nodeType`, the nested Encoding fields, a Media Type Object's `description`
-and `components/mediaTypes` are the live set. Such a field is read off the raw node by a reader of
-its own, and the object census is *told* which keys that reader took: the census grades a key by the
-parser's model, so left alone it reports a field the document defines as an undefined key. The
-reader runs whatever version the document declares, as
+`Response.summary`, XML `nodeType`, the nested Encoding fields, a Media Type Object's `description`,
+`components/mediaTypes` and a content entry written as a Reference Object are the live set. Such a
+field is read off the raw node by a reader of its own, and the object census is *told* which keys
+that reader took: the census grades a key by the parser's model, so left alone it reports a field
+the document defines as an undefined key. The reader runs whatever version the document declares, as
 [`later-version-construct`](#later-version-construct) requires, so the census never calls such a
 field undefined.
 
 The census is told what the reader actually took, never a key list by version. A value the parser
 would decode as a string goes to its home — `summary` into `Docs.Summary`, `nodeType` into
-`XMLHints.NodeType` — and is not also kept verbatim, because one declaration gets one structural
+`XMLHints.NodeType`, a body's Media Type Object's `description` into `Content.Docs` — and is not
+also kept verbatim, because one declaration gets one structural
 home ([annotations](../ir/annotations.md#one-structural-home-per-declaration)). A value of
 another shape, or a non-empty `nodeType` outside the five the specification defines, is kept
 verbatim at the key and pointer the census itself uses, under `degraded_lowering`, with an
@@ -601,18 +669,19 @@ A key the raw mapping does not present directly — merged in through `<<` — i
 the census still reports it, as an `openapi/unknown-key-unreachable` warning
 ([`unknown-keys`](#unknown-keys)). An empty or null value is read as unset. A reading with no IR
 home is kept under `no_ir_home`, with an info `openapi/degraded-construct` at the field: the nested
-Encoding fields, a Media Type Object's `description`, since `ir.Content` has no docs, and the
-`components/mediaTypes` section, which is kept whole
-([`unreferenced-components`](#unreferenced-components)). A content entry written as a `$ref` into
-that section lowers without what it names, the reference kept verbatim under `degraded_lowering`
-with an `openapi/degraded-construct` warning at it.
+Encoding fields, and a Media Type Object's `description` at a parameter's or header's content
+entry, whose carrier has no docs for the one media type it names. The load phase models
+`components/mediaTypes` and each content entry written as a `$ref`, which the parser models as
+neither a section nor a reference, and the reference is followed as any other is
+([`references`](#references)); each entry no reference reaches is kept
+([`unreferenced-components`](#unreferenced-components)).
 
 - Cases: `response-summary-32`, `xml-nodetype-32`, `nested-encoding-32`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`, `openapi/unknown-key-unreachable`
 - Tests: `operation.TestResponses_SummaryNoReaderTakesIsStillReported`,
   `annotation.TestRead_NodeTypeOnlyADefinedValueIsPlaced`,
-  `operation.TestContent_MediaTypeDescriptionIsKept`
-- Status: partly built: no reference into `components/mediaTypes` is followed (#856).
+  `operation.TestContent_MediaTypeDescriptionReachesItsDocs`,
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
 
 ### `unreferenced-components`
 
@@ -622,12 +691,15 @@ disappears in silence. Every component section with no registry is therefore kep
 lowering reached is preserved verbatim at
 `Document.Unmodeled["openapi:components/<section>/<name>"]` under `no_ir_home`, at the entry's own
 pointer, with no diagnostic. The sections are `responses`, `parameters`, `examples`,
-`requestBodies`, `headers`, `links`, `callbacks` and `pathItems`; `components/schemas` and
-`components/securitySchemes` are lowered unconditionally. 3.2's `components/mediaTypes`, into which
-no reference is followed, is kept whole as `openapi:components/mediaTypes`, with an info
-`openapi/degraded-construct` at the section. A section is read as the parser reads it, through `<<`
-merge keys, so a merged-in entry is kept under its own name, and an entry whose key is no scalar
-under the empty name the parser reads it by ([`validation`](#validation) reports the key).
+`requestBodies`, `headers`, `links`, `callbacks`, `pathItems` and 3.2's `mediaTypes`, which is read
+at every version, as [`unmodeled-dialect-fields`](#unmodeled-dialect-fields) reads a field the
+parser does not model; `components/schemas` and `components/securitySchemes` are lowered
+unconditionally. A section is read as the parser reads it, through `<<` merge keys, so a merged-in
+entry is kept under its own name, and an entry whose key is no scalar under the empty name the
+parser reads it by ([`validation`](#validation) reports the key). Where the components merge
+through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
+an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
+kept.
 
 *Referenced* means a lowering followed a reference to the entry, not that some `$ref` string names
 it. The resolution every non-schema reference passes through records each position in the source its
@@ -651,9 +723,9 @@ promotion pass from mistaking one for an oversight.
 - Codes: `openapi/degraded-construct`
 - Tests: `document.TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget`,
   `document.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
-  `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
-- Status: partly built: no reference into `components/mediaTypes` is followed, so the section is
-  kept whole however much of it a document uses (#856).
+  `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`,
+  `document.TestUnreferencedComponents_MergeDepthBoundIsReported`,
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
 
 ## 3. Names and values
 
@@ -690,7 +762,7 @@ is never set. These names are what an emitter renders, so a change to how one is
 is composed from, one for each way the naming composes one.
 
 - Cases: `neutral-naming`, `empty-names`
-- Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
+- Tests: `ids.TestComponentSchema_ClassifiesEveryPointer`,
   `schema.TestEnumMemberIDs_NamesThatCanonicalizeToNothingStillGetIDs`,
   `schema.TestInlinePosition_HintIsTheSameInBothOrders`,
   `operation.TestContent_ASharedBodyOrHeaderIsNamedForItsDeclaration`,
@@ -808,9 +880,13 @@ than override, so each position keeps the ones it declared and none is copied to
 A Reference Object's own siblings are the annotations of the use site. OpenAPI lets the entry that
 writes a `$ref` carry `summary` and `description` beside it, and the pair describes *that use* of
 the referenced object rather than the object. Where the IR has a docs field at the position — a
-parameter, a response or error case, a header, an example, a request body, a security scheme — both
-are read off the entry and folded over the declaration's docs field by field, a sibling the entry
-writes winning and one it omits leaving the declaration's value standing. A component that is itself
+parameter, a response or error case, a header, an example, a request body, a security scheme, a
+body's media type — both are read off the entry and folded over the declaration's docs field by
+field, a sibling the entry writes winning and one it omits leaving the declaration's value standing.
+A parameter's or header's content entry has no docs field of its own, so what the fold takes there
+is kept verbatim under `no_ir_home`, each from the position writing it, with an info
+`openapi/degraded-construct`; one an alias of the chain writes in another document, which this
+compiler does not place, is reported with an `openapi/degraded-construct` warning instead. A component that is itself
 a `$ref` (an alias) is a use of what it names, so the fold runs along the whole chain from the
 declaration outward: an alias's siblings override the declaration's, and a use site's override the
 alias's. The fold applies at every version whose parser presents the siblings, which is all of them:
@@ -822,8 +898,16 @@ permitted. OpenAPI 3.0 goes further, admitting no key beside a `$ref` and saying
 ignored; there the fold is the 3.1 reading, and each sibling it reads is reported with an
 `openapi/later-version-construct` warning ([`later-version-construct`](#later-version-construct)).
 
-- Cases: `ref-site-docs`, `later-version-constructs`
-- Codes: `openapi/later-version-construct`
+- Cases: `ref-site-docs`, `later-version-constructs`, `component-media-types-32`
+- Codes: `openapi/later-version-construct`, `openapi/degraded-construct`
+- Tests: `operation.TestMediaTypeRef_UseSiteDocsFoldAlongTheChain`,
+  `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported`,
+  `operation.TestContent_MediaTypeRefIsFollowed`,
+  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`
+- Status: partly built: a key beside a `$ref` other than `summary` and `description` is dropped with
+  no record (#1321). At a parameter's or header's content entry, a `summary` the media type's
+  declaration writes, which a Media Type Object does not define, loses its entry to the one the fold
+  takes, and is reported as represented in no form (#396).
 
 ### `use-bound-annotations`
 
@@ -2074,7 +2158,7 @@ of its own, since reading it so loses nothing.
 - Tests: `e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut`,
   `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
   `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
-  `anchors.TestBuild_ANullAnchorNamesNothing`,
+  `bind.TestDynamicAnchors_ANullAnchorNamesNothing`,
   `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`
 - Status: partly built: a keyword written `null` beneath the same keyword, such as an `items` inside
   an `items`, turns the outer position into the `false` schema (#1299).
@@ -2160,34 +2244,44 @@ anywhere on the path between a reference and a candidate anchor makes the refere
 
 A reference is irreducible — and is then kept verbatim under `openapi:$dynamicRef`
 (`degraded_lowering`) with an info `openapi/degraded-construct` at it naming which case it was —
-when the name is declared more than once (the target is back under the evaluation path's control),
-when it is unresolvable, names another document, or is not a plain fragment, when its value is not a
-string at all, when a resource boundary stands between it and the anchor as above, when expanding it
-would close a cycle of aliases (a `$ref` cycle is refused outright for the same reason, and
-expansion must not mint one the refusal cannot see), or when it is co-declared with a `$ref`, a
-`oneOf`/`anyOf`, a shape of its own, or one of `items`/`prefixItems`/`required` — an expansion takes
-its target whole, so it has nowhere to put a sibling applicator. One further case is irreducible in
-the OpenAPI compiler specifically: an anchor declared anywhere but the top level of
-`components/schemas` has no ID that is stable without consulting the registry, and resolving it
-would make the reference depend on which position happened to lower first
+when the name is declared more than once in its document (the target is back under the evaluation
+path's control), when it is unresolvable, names another document, or is not a plain fragment, when
+its value is not a string at all, when a resource boundary stands between it and the anchor as
+above, when expanding it would close a cycle of aliases (a `$ref` cycle is refused outright for the
+same reason, and expansion must not mint one the refusal cannot see), or when it is co-declared with
+a `$ref`, a `oneOf`/`anyOf`, a shape of its own, or one of `items`/`prefixItems`/`required` — an
+expansion takes its target whole, so it has nowhere to put a sibling applicator. One further case is
+irreducible in the OpenAPI compiler specifically: in the source, an anchor declared anywhere but the
+top level of `components/schemas` has no ID that is stable without consulting the registry, and
+resolving it would make the reference depend on which position happened to lower first
 ([models](../ir/models.md#composition-beside-a-union)), so it is preserved instead.
 
-Anchors are counted through YAML aliases and merge keys, so an anchor reached only by an alias still
-makes its name a duplicate. The walk is bounded by depth and by node count, and says so when it
-truncates, once, with an `openapi/degraded-construct` warning at the document, since a truncated
-index undercounts declarations and an undercount is what turns "irreducible" into a confident
-expansion. A keyword written beside a reference that expands is read as one beside a `$ref` is
+A `$dynamicRef` is read against the anchors of the document it is written in, by this same rule, so
+one in another document expands to the type lowered where that document declares its anchor, in that
+document's namespace ([identity](../ir/identity.md#across-documents)), never to a source anchor of
+that name. There any position may hold the anchor, since a reference hoists what it reaches
+([`references`](#references)), and the schema an expansion reaches is read and validated as one a
+`$ref` reaches. What a reference resolved to where no position of its document places it reads no
+anchors, so a `$dynamicRef` in it is kept.
+
+Anchors are the identifiers [`references`](#references) reads, where it reads them, so one in an
+example or an extension declares nothing, and one read through a YAML alias or a merge key is a
+declaration where it is placed, so an anchor reached only by an alias still makes its name a
+duplicate. A resource boundary is read the same way, so a property named `$id` is none. A document
+read short of the whole, by the budget or by a merge past
+[`references`](#references)' bound, may hide a second declaration, and a merge past it may hide an
+`$id`, so a `$dynamicRef` resting on either is kept, since an undercount is what would turn
+"irreducible" into a confident expansion; the warning that reports the bound says so. A keyword
+written beside a reference that expands is read as one beside a `$ref` is
 ([`shape-applicator`](#shape-applicator)).
 
 - Cases: `dynamic-ref`, `keywords-at-every-outcome`
 - Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
-  `anchors.TestBuild_CountsWhatAnAliasBringsIn`,
-  `lowering.TestDynamicAnchorSites_ReportsATruncatedWalkOnce`
-- Status: partly built: a merge chain past the view's merge bound hides an `$id`, so a `$dynamicRef`
-  can expand across a resource boundary (#401), and the truncation warning names the walk's own
-  bounds when the merge bound stopped it (#454). A `$dynamicRef` written in another document is not
-  expanded, since only the source's anchors are indexed (#1031).
+  `schema.TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn`,
+  `bind.TestDynamicAnchors_CountsWhatADocumentDeclares`,
+  `bind.TestDynamicAnchors_SaysWhenTheCountProvesNothing`,
+  `bind.TestInOwnResource_ReadsTheResourceAPositionIsIn`
 
 ### `content-vocabulary`
 
@@ -2316,10 +2410,13 @@ path item's list is registered even where every one of its operations overrides 
 not: one a nearer layer of a mount overrides, which [`path-item-ref-fields`](#path-item-ref-fields)
 reports rather than lowers, and one written by a component path item no reference reaches, kept
 whole with that component ([`unreferenced-components`](#unreferenced-components)). A path item that
-mounts no operation registers its servers too, named by nothing, and keeps its `x-*` names on the
-service instead, or on the declaring operation's HTTP binding for a callback expression, under
-`openapi:pathItem/<item pointer>/<key>`, the item's pointer in the key since one carrier holds every
-such item; it is reported as one `openapi/degraded-construct` warning at the mount.
+mounts no operation registers its servers too, named by nothing, and keeps what else it writes on
+the service instead, or on the declaring operation's HTTP binding for a callback expression: its
+`x-*` names and undeclared keys under `openapi:pathItem/<item pointer>/<key>`, its summary and
+description as [`path-item-docs`](#path-item-docs) says, and its parameters as
+[`parameters`](#parameters) says. The item's pointer is in every key, since one carrier holds every
+such item, and a component item two paths mount is kept once per mount. It is reported as one
+`openapi/degraded-construct` warning at the mount.
 
 - Cases: `webhooks`, `callbacks`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
@@ -2327,24 +2424,32 @@ such item; it is reported as one `openapi/degraded-construct` warning at the mou
   `operation.TestOperations_OwnServersOverrideThePathItems`,
   `operation.TestOperations_ServersEachLevelAlone`,
   `servers.TestRegistry_DeclaredOneDeclarationLowersOnce`,
-  `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`
+  `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`,
+  `operation.TestPathItem_WithNoOperationKeepsEachMountApart`
 - Status: open: an explicitly empty list declares nothing to name, as an absent one does, and
   whether it should override the list above it is undecided (#1081).
 
 ### `path-item-docs`
 
 A path item's own `summary` and `description`, at the same three mounts, lower to the `PathDocs`
-of each operation's HTTP binding ([http-binding](../ir/http-binding.md#path-documentation)),
+of each HTTP binding of each operation it mounts ([http-binding](../ir/http-binding.md#path-documentation)),
 with nothing reported, rather than merged into the operation's `Docs`: `ir.Docs` holds the
 operation's own pair, and a path item's documents the path, so merging would need a precedence rule
 and would attach documentation the operation's author never wrote, an inference invariant 6 places
 in policy. Each keyword is read where the nearest layer of a `$ref`'d path item declares it
-([`path-item-ref-fields`](#path-item-ref-fields)).
+([`path-item-ref-fields`](#path-item-ref-fields)). A path item that mounts no operation has no
+binding to hold the pair, so it keeps it where it keeps what else it writes
+([`path-item-servers`](#path-item-servers)), with the item's pointer in the scope, under
+`openapi:pathItem/<item pointer>/summary` and `openapi:pathItem/<item pointer>/description`, since
+one carrier holds every such item; the warning announcing that item covers them, so they draw no
+finding of their own.
 
 - Cases: `path-item-docs`, `path-item-ref-siblings`
-- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`, `operation.TestPathItem_DocsAddNoMarker`
-- Status: partly built: a path item that mounts no operation drops its own summary and description
-  in silence (#383).
+- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`, `operation.TestPathItem_DocsAddNoMarker`,
+  `operation.TestPathItem_DocsKeepApartFromAnOperationsOwnKeys`,
+  `operation.TestPathItem_KeepsWhatItDeclaresOncePerMount`,
+  `operation.TestPathItem_WithNoOperationKeepsItsDocs`,
+  `operation.TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite`
 
 ### `path-item-ref-fields`
 
@@ -2428,12 +2533,20 @@ operation's mount pointer, its name and its location ([identity](../ir/identity.
 repeating an earlier entry's `name` and `in`, its `$ref`s resolved, which OpenAPI forbids, keeps
 every occurrence, each repeat's ID ending in its occurrence number, and is reported as an
 `openapi/duplicate-parameter` error at the repeat. Every list the source writes is checked, whether
-or not it lowers, and a list another document writes where it lowers; the rule table
-([`validation`](#validation)) states this rule and leaves it to this one.
+or not it lowers, and a list another document writes where it lowers or where a path item that
+mounts no operation keeps it; the rule table
+([`validation`](#validation)) states this rule and leaves it to this one. A path item that mounts
+no operation has none to merge its parameters into, so it keeps each entry as written, a `$ref`
+included, where it keeps what else it writes ([`path-item-servers`](#path-item-servers)), under
+`openapi:pathItem/<item pointer>/parameters/<name>/<in>`, the path its ID would be derived from, a
+repeat's ending in its occurrence number (`no_ir_home`).
 
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`
 - Codes: `openapi/duplicate-parameter`
-- Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`
+- Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
+  `operation.TestPathItem_WithNoOperationKeepsItsParameters`,
+  `operation.TestPathItem_WithNoOperationNumbersARepeatedParameter`,
+  `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`
 - Status: partly built: an undeclared `explode` is written out as the location's default, which
   erases whether the document declared it (#627); header parameters whose names differ only in case
   are two parameters, unreported (#635); and a list only a `$ref` reaches is never checked for
@@ -2559,8 +2672,13 @@ Every media type of a `content` map lowers to one `Content` apiece, in source or
 elected primary ([responses](../ir/responses.md)). `Content.MediaType` is the key as written
 — case, parameters and wildcards kept, so `application/json` and `Application/JSON` are two Contents
 — and its `Type` is the media type's `schema`, hoisted at `<owner>/content/<key>/schema` with the
-key escaped as a pointer token, or the top type where it writes none. A request body's keys also go,
-as written and in order, to `HTTPBinding.RequestContentTypes`. A response whose `content` is absent
+key escaped as a pointer token, or the top type where it writes none. An entry written as a `$ref`
+lowers what it names under its own key, its schema hoisted and named where the media type is
+declared, after its key there when that is `components/mediaTypes` ([`references`](#references)),
+and one whose `$ref` resolves to nothing lowers no `Content`. A media type's `description` and the
+`summary` and `description` beside its `$ref` are its `Content.Docs`
+([`reference-object-siblings`](#reference-object-siblings)). A request body's keys also go, as
+written and in order, to `HTTPBinding.RequestContentTypes`. A response whose `content` is absent
 or empty has no `Payload` ([`request-body`](#request-body) for the request side). A key is
 classified on a copy that is lowercased, since a media type's names are case-insensitive (RFC 6838
 §4.2), trimmed and cut at its first `;`, and the IR never keeps the copy: `multipart/*` and
@@ -2570,10 +2688,12 @@ classified on a copy that is lowercased, since a media type's names are case-ins
 ([`streaming-media`](#streaming-media)). No other key is classified, so `application/*+json`,
 `text/*` and `*/*` are Contents like any other.
 
-- Cases: `media-type-spelling`, `multi-content`
+- Cases: `media-type-spelling`, `multi-content`, `component-media-types-32`
 - Tests: `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
-  `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`
+  `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
+  `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
+  `naming.TestAt_NamesASchemaAfterItsOwner`
 - Status: partly built: a malformed media-type key, a multipart body that is not an object, and a
   body on a GET pass in silence (#649).
 
