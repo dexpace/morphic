@@ -560,6 +560,21 @@ func nullSchemaIsFalse(t *testing.T) {
 	}
 }
 
+// nullTypeIsEmpty pins null-type-is-empty: a type written as a YAML null, alone
+// or as an item, decodes as a type spelled "".
+func nullTypeIsEmpty(t *testing.T) {
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(
+		"A: {type: null}", "B: {type: [string, null]}", `C: {type: "null"}`)))
+	require.NoError(t, err)
+	for name, want := range map[string][]oas3.SchemaType{
+		"A": {""}, "B": {oas3.SchemaTypeString, ""}, "C": {oas3.SchemaTypeNull},
+	} {
+		js, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		assert.Equal(t, want, js.GetSchema().GetType(), revisit(t, result{report: name}))
+	}
+}
+
 // mergeKeys pins merge-keys: a mapping's merged pairs come first, an earlier
 // source winning and none overriding the mapping's own key; a source writing a
 // key twice gives its first copy; and a `<<` naming no mapping merges nothing,

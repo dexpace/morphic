@@ -191,11 +191,12 @@ breaks a rule of its version and still says what it means: a key outside the pat
 specification gives, a key a mapping writes twice, a number or a boolean where a string belongs, a
 field written where the specification gives it no effect (`validation-no-effect`), or a `null`
 written for an optional field, which is read as the field left out, by the rules that bind it to
-other fields as well. A Schema Object's keyword whose value is a schema is such a field, since the
-schema lowering reads its `null` as left out too ([`null-schema`](#null-schema)). A `null` written
+other fields as well. Every keyword of a Schema Object is such a field, since the schema lowering
+reads its `null` as left out too ([`null-keywords`](#null-keywords)), a numeric bound included,
+whose shape the table otherwise leaves to that lowering. A `null` written
 as a schema entry, which is another object's `schema`, a component, or an entry of a map or a list
 of schemas, is an error, since that lowering reads it as the empty schema, a value, and a list
-counts it among its entries; so is one for a Schema Object's other keywords. One written for a field
+counts it among its entries. One written for a field
 whose requirement another rule reports is left to that rule.
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
@@ -240,8 +241,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a document a reference reaches is held to the source's minor until which
-  minor governs it is settled (#839), and a `null` for a Schema Object's keyword whose value is no
-  schema is an error however the schema lowering reads it, which is several ways (#1069).
+  minor governs it is settled (#839).
 
 ### `minor-required-fields`
 
@@ -680,7 +680,10 @@ is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such n
 the documents and the position alone, read where the position is written, so no lowering order
 changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
 `$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
-is never set.
+is never set. These names are what an emitter renders, so a change to how one is derived moves
+`IRVersion` ([ir-version](../ir/ir-version.md)), and
+`testdata/golden/openapi/hint_positions.yaml` writes the positions within one document that a hint
+is composed from, one for each way the naming composes one.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
@@ -690,7 +693,8 @@ is never set.
   `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`,
   `schema.TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds`,
   `schema.TestUnionVariant_AWholeDocumentIsNamedForIt`, `naming.TestAt_NamesASchemaAfterItsOwner`,
-  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`
+  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`,
+  `e2e.TestGolden_HintPositions`
 - Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662).
 
 ### `values`
@@ -849,12 +853,15 @@ lands on the property, parameter or header that carries it, the referent's under
 field by field ([`ref-use-site`](#ref-use-site)). A parameter's or header's own `description` wins
 over its schema's. `deprecated: true` on a parameter or header and on its schema each deprecate it,
 neither one's `false` clearing the other. A request body's `description` lands on its Payload
-([`request-body`](#request-body)), and a response's payload states no docs of its own.
+([`request-body`](#request-body)), and a response's payload states no docs of its own. OpenAPI has
+no syntax for naming a type in prose, so a `description` is kept as written and no span of it is
+marked ([references in prose](../ir/annotations.md#references-in-prose)).
 
 - Cases: `docs-summary-desc`, `deprecation`
 - Tests: `operation.TestOperation_DeprecatedIsCarried`,
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
-  `operation.TestContent_RequestBodyDocsReachThePayload`
+  `operation.TestContent_RequestBodyDocsReachThePayload`,
+  `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
 - Status: partly built: a deprecation cannot name its replacement, which the IR has no field for
   (#670).
 
@@ -927,10 +934,8 @@ model does not name.
   `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
   `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`
-- Status: partly built: a `nullable` its dialect does not define, read with the policy off, is kept
-  nowhere at a position that lowers to a shared node and carries no property or parameter, as no
-  keyword the schema model does not name is there (#1053), and a 3.0 `nullable` with no `type`
-  beside it, which has no effect, draws no report once the policy is off (#1070).
+- Status: partly built: a 3.0 `nullable` with no `type` beside it, which has no effect, draws no
+  report once the policy is off (#1070).
 
 ### `schema-examples`
 
@@ -1406,18 +1411,18 @@ exclusive unless two listed types overlap: `integer` and `number`, the one pair 
 do, since every integer is a number, or a type listed twice, which [`validation`](#validation)
 reports. Two variants the types resolve to one primitive, as a width does
 ([`numeric-formats`](#numeric-formats)), stay two. The bounds a carried schema writes land on its
-property or parameter ([`constraints`](#constraints)). No keyword census runs over the union, since
-each variant is built from the whole schema and holds what its own type admits
-([`shape-applicator`](#shape-applicator)).
+property or parameter ([`constraints`](#constraints)). Each variant is built from the whole schema,
+so the keyword census asks the variants rather than the union: a keyword or bound some variant holds
+is homed, and one none holds is kept on the union ([`shape-applicator`](#shape-applicator)).
 
-- Cases: `type-array-numeric`
+- Cases: `keywords-at-every-outcome`, `type-array-numeric`
 - Tests: `schema.TestLower_MultiTypeUnion`,
   `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestLower_ATypeListedTwiceIsNotExclusive`,
   `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
-- Status: partly built: a keyword or bound that no variant holds, as at a component, where no
-  carrier takes a bound, is dropped in silence (#852); and a multi-typed base's discriminator routes
-  to no subtype (#853).
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a value
+  bound lands on any variant with a `Constraints` field, whether or not it constrains that variant's
+  type (#1310).
 
 ### `union-null-variant`
 
@@ -1510,7 +1515,8 @@ validation logic, so it is kept under `validation_only` with the keyword family 
 [boundaries](../ir/boundaries.md#validation-only-constructs) and reported as an info
 `openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)).
 
-- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`
+- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
+  `keywords-at-every-outcome`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
 - Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
@@ -1580,19 +1586,27 @@ takes the smallest in byte order as its `DiscriminatorValue`
 is not a property of the document, with every key kept in the base's `Mapping` and the election
 reported as an info `openapi/degraded-construct` at the subtype. A discriminator beside a node that
 routes by none is kept verbatim by [`shape-applicator`](#shape-applicator), and one beside a union
-written with structure is [`union-beside-structure`](#union-beside-structure)'s.
+written with structure is [`union-beside-structure`](#union-beside-structure)'s. A union's mapping
+names a variant, what `pass/discriminator-missing-variant` holds it to and what an emitter routes
+by, so a target naming a type that one variant's branch aliases, for a keyword written beside that
+branch's `$ref`, lowers to that variant. A type two variants alias stays the target, since nothing
+in the mapping says which, and that is reported as any target that is no variant is. A target naming
+a position that writes a `$ref`, other than a component or a variant, is read through to what the
+`$ref` names, whatever is written beside it: an alias there is neither a variant nor a subtype.
 
 - Cases: `oneof-discriminated`, `discriminator-inheritance`, `discriminator-default-mapping`,
-  `discriminator-alias-mapping`, `nullable-union-discriminator`
+  `discriminator-alias-mapping`, `nullable-union-discriminator`, `discriminator-aliased-branch`
 - Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
 - Tests: `schema.TestHomelessDiscriminator_IsKeptBesideEveryOtherNode`,
   `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`,
-  `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`
+  `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`,
+  `schema.TestDiscriminatorMapping_RoutesToTheVariantAliasingItsTarget`,
+  `schema.TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget`,
+  `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
-  mapping to a component that is a `$ref` to a subtype fails validation (#844), a keyword beside a
-  union branch's `$ref` breaks a mapping to its component (#847), and a mapping to a property whose
-  `$ref` has a sibling names an unused alias (#764). Open: inferring a discriminator from pinned tag
-  values, as an injectable policy (#659).
+  mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
+  type two variants alias, which a valid document can write (#1298). Open: inferring a
+  discriminator from pinned tag values, as an injectable policy (#659).
 
 ### `discriminator-value`
 
@@ -1801,17 +1815,20 @@ homed by a `Model` or `Union` that routes by it and by nothing else, so one besi
 the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the same way. At a
 `$ref` position the census runs on the alias the use-site rule of
 [models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
-than the referent. One limit is
-deliberate: a multi-typed schema (`type: [string, object]`) is exempt, because it lowers one variant
-per declared type from the same schema and the homes are the variants'.
+than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union
+holds what a node of its kind holds. A collapsed union and an expanded `$dynamicRef` lower to a
+reference, so they are read as a `$ref` position is. A multi-typed schema
+(`type: [string, object]`) and a union distributed over its branches are built from the one schema
+per variant, so the census asks the variants, and a keyword is homed where any holds it: a
+distributed union's `properties` are consumed, and a `format` or `maxItems` beside them is kept on
+the union, under a report naming a union of models.
 
-- Cases: `unhomed-keywords`, `empty-enum`
+- Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
-- Status: partly built: a keyword beside a multi-typed schema that no variant holds is dropped in
-  silence (#852). Open: whether `format: set` on an array reads as `uniqueItems` (#638).
+- Status: partly built. Open: whether `format: set` on an array reads as `uniqueItems` (#638).
 
 ### `string-formats`
 
@@ -1933,6 +1950,30 @@ verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing r
   `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
   `annotation.TestIsNullLiteral_TellsANullFromFalse`
 
+### `null-keywords`
+
+A `null` written for a keyword of a Schema Object is read as that keyword left out, whatever the
+keyword and whatever node the schema lowers to, as [`null-schema`](#null-schema) reads one whose
+value is a schema: no keyword admits it, so it states nothing, and the schema lowers exactly as it
+does with the key removed. A `null` bound draws no `openapi/invalid-numeric-literal`, `type: null`
+declares no type, unlike `type: "null"`, and nothing is kept verbatim for want of a home. `const`,
+`default` and `example` hold an instance, of which `null` is one, so a `null` there is that value
+([`enum-const`](#enum-const), [`nullable`](#nullable)), as an `enum` member is. A keyword of no
+vocabulary has no type to break and is kept with the `null` it wrote, as
+[`unknown-keys`](#unknown-keys) keeps any value. The load phase reports each such `null` at the node
+as the warning a field left out draws ([`validation`](#validation)); the lowering reports nothing
+of its own, since reading it so loses nothing.
+
+- Cases: `null-keywords`
+- Codes: `openapi/invalid-numeric-literal`
+- Tests: `e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut`,
+  `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
+  `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
+  `anchors.TestBuild_ANullAnchorNamesNothing`,
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`
+- Status: partly built: a keyword written `null` beneath the same keyword, such as an `items` inside
+  an `items`, turns the outer position into the `false` schema (#1299).
+
 ## 7. Schemas: keywords beyond the shape
 
 ### `constraints`
@@ -1965,10 +2006,8 @@ it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
   `schema.TestConstraints_LosslessNumericLiterals`,
   `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`
-- Status: partly built: a bound beside a `oneOf` or `anyOf` that lowers to a `Union` is dropped in
-  silence (#848), and so is one beside a multi-typed schema that no carrier holds
-  ([`type-arrays`](#type-arrays), #852); and an integer bound past what a 64-bit integer holds
-  lowers as `0`, unreported (#1050).
+- Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported
+  (#1050).
 
 ### `validation-only`
 
@@ -2017,9 +2056,10 @@ Anchors are counted through YAML aliases and merge keys, so an anchor reached on
 makes its name a duplicate. The walk is bounded by depth and by node count, and says so when it
 truncates, once, with an `openapi/degraded-construct` warning at the document, since a truncated
 index undercounts declarations and an undercount is what turns "irreducible" into a confident
-expansion.
+expansion. A keyword written beside a reference that expands is read as one beside a `$ref` is
+([`shape-applicator`](#shape-applicator)).
 
-- Cases: `dynamic-ref`
+- Cases: `dynamic-ref`, `keywords-at-every-outcome`
 - Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
   `anchors.TestBuild_CountsWhatAnAliasBringsIn`,
@@ -2379,11 +2419,15 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 A parameter schema's `xml`, and its `readOnly` and `writeOnly`, are kept verbatim in the parameter's
 `Unmodeled` (`no_ir_home`), reported as an info `openapi/degraded-construct` at the keyword, since
 `ir.Parameter` has no field for either. The `xml` of a schema that owns a node of its own stays on
-that node's `XMLHints` instead.
+that node's `XMLHints` instead. A schema with no node of its own keeps there too what any carrier
+keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
+did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
+([`unknown-keys`](#unknown-keys)).
 
 - Cases: `param-xml-residue`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestParams_SchemaVisibilityKeptUnderUnmodeled`,
+  `operation.TestParams_KeepWhatAnyCarrierKeeps`,
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
   `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`
 
@@ -2847,12 +2891,14 @@ beneath the scope its extensions use (`openapi:info/<key>`, `openapi:pathItem/<k
 [`vendor-extensions`](#vendor-extensions)). A path item's is judged like any other, a value carrying
 a YAML anchor included. A schema keyword no field of the schema model names is kept the same way,
 reported as an info `openapi/unknown-schema-keyword`, because JSON Schema obliges an implementation
-to ignore a keyword it does not know; `$comment`, `$dynamicAnchor` and `$dynamicRef` are decided
-elsewhere and left out. So is a keyword the model names and the dialect the schema is read in does
-not define, which only `nullable` is, with the nullable-widening policy off
-([`nullable`](#nullable)). One object contributes at most `annotation.MaxUnknownKeys` keys, taken in
-byte order after the keys another reader already kept at the same pointer are set aside, and the
-rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the object.
+to ignore a keyword it does not know, and a position that lowers to a shared node and carries no
+property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
+`$dynamicRef` are decided elsewhere and left out. A keyword the model names and the dialect the
+schema is read in does not define, which only `nullable` is, with the nullable-widening policy off
+([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
+taken in byte order after the keys another reader already kept at the same pointer are set aside,
+and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
+object.
 Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`, where
 `openapi:<key>` is already held by a construct written elsewhere on a carrier two objects share, a
 parameter's own key and its schema's keyword, whichever lowered first surviving; and
@@ -2860,16 +2906,17 @@ parameter's own key and its schema's keyword, whichever lowered first surviving;
 compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read,
 kept and reported as a written one is.
 
-- Cases: `path-item-anchored-key`
+- Cases: `path-item-anchored-key`, `unknown-keywords-at-shared-nodes`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
   `openapi/unknown-key-budget`, `openapi/unknown-key-entry-taken`, `openapi/unknown-key-unreachable`
 - Tests: `e2e.TestUnknownKeys_KeptAtEveryObject`,
   `e2e.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
-  `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`
+  `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
+  `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
+  `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
-  (#396), and a schema keyword at a position that lowers to a shared node and carries no property or
-  parameter is kept nowhere and reported by nothing (#1053).
+  (#396).
 
 ### `extension-promotion`
 
@@ -2880,7 +2927,7 @@ policy is `Options.Promotions`, on by default: its `Targets` replace the default
 `x-sunset` to `Deprecation.RemovalDate`, and `x-extensible-enum` to an `Enum`'s openness — and its
 `Disabled` turns it off. A deprecation member is filled on an operation, a parameter, a header, a
 property, a type node or a security scheme that is deprecated; on one that is not, the key annotates
-nothing and stays where it is. A node a promotion writes into lists the marker `extension-promotion`
+nothing and stays where it is. The node keeping the extension lists the marker `extension-promotion`
 in its `Provenance.Inferred`, and the extension stays in `Unmodeled` untouched.
 
 A value the mapped field cannot hold — anything but text, for the four `Deprecation` members — is
@@ -2907,6 +2954,7 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
   `lowering.TestPromoteEnumOpenness_WritesNothing`,
+  `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
 - Status: partly built: the default mapping covers only deprecation and extensible enums (#656); two
   keys mapped to one field resolve by sort order in silence (#655); a mapping cannot say which

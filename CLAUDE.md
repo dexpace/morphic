@@ -239,6 +239,11 @@ These all exist already — extend them rather than building a parallel mechanis
   a shape change unless its row says what meaning changed. A bump moves the constant, appends a
   row and adds an entry to `docs/ir/version-history.md`; `ir/testdata/shape.golden.txt` diffs the
   shape.
+- **Name pin**: `TestIRVersion_PinsTheNames` holds `ir.IRVersion` to what emitters render identifiers
+  from, through the `names` column of the same table: `ir/testdata/names.golden.txt` lists the word
+  grammar's answer for every window it decides and the hints of
+  `testdata/golden/openapi/hint_positions.yaml`. A name changed at an unmoved version fails, a Go
+  release moving Unicode among them.
 - **Capability conformance corpus** (`testdata/conformance/`): one minimal spec per
   `ir-spec-matrix.md` row per format that can express it, asserting lossless capture. This is what
   keeps "lossless by default" honest. The row↔spec mapping is machine-read, not prose: matrix rows
