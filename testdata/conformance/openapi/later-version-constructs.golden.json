@@ -151,15 +151,8 @@
                                 }
                               }
                             ],
-                            "unmodeled": {
-                              "openapi:description": {
-                                "reason": "no_ir_home",
-                                "value": "One book per line.",
-                                "provenance": {
-                                  "source": 0,
-                                  "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/description"
-                                }
-                              }
+                            "docs": {
+                              "description": "One book per line."
                             }
                           }
                         ]
@@ -387,26 +380,11 @@
                   {
                     "mediaType": "application/json",
                     "type": {
-                      "target": "t/prim/any",
+                      "target": "t/openapi/components/schemas/Book",
                       "nullable": false
                     },
-                    "unmodeled": {
-                      "openapi:$ref": {
-                        "reason": "degraded_lowering",
-                        "value": "#/components/mediaTypes/Book",
-                        "provenance": {
-                          "source": 0,
-                          "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref"
-                        }
-                      },
-                      "openapi:description": {
-                        "reason": "no_ir_home",
-                        "value": "The book to add.",
-                        "provenance": {
-                          "source": 0,
-                          "pointer": "/paths/~1books/post/requestBody/content/application~1json/description"
-                        }
-                      }
+                    "docs": {
+                      "description": "The book to add."
                     }
                   }
                 ],
@@ -871,20 +849,6 @@
     }
   ],
   "unmodeled": {
-    "openapi:components/mediaTypes": {
-      "reason": "no_ir_home",
-      "value": {
-        "Book": {
-          "schema": {
-            "$ref": "#/components/schemas/Book"
-          }
-        }
-      },
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/mediaTypes"
-      }
-    },
     "openapi:components/pathItems/Health": {
       "reason": "no_ir_home",
       "value": {
@@ -1366,15 +1330,6 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "a media type's description has no IR home; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1books/get/responses/200/content/application~1jsonl/description"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
       "message": "prefixEncoding is positional and has no per-item IR home; it and any itemEncoding are kept under Unmodeled",
       "provenance": {
         "source": 0,
@@ -1406,24 +1361,6 @@
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1books/post/requestBody/content/multipart~1form-data/encoding/cover/itemEncoding"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/degraded-construct",
-      "message": "a media type written as a $ref is not followed by this compiler yet (GitHub #856); the entry lowers as written, and the reference is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1books/post/requestBody/content/application~1json/$ref"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "components/mediaTypes is not resolved by this compiler yet (GitHub #856); kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/mediaTypes"
       }
     },
     {

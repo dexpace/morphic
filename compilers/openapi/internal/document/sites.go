@@ -39,7 +39,7 @@ func documentUnknownKeys(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
 	all := sites(c)
 	diags := make([]ir.Diagnostic, 0, len(all))
 	for _, s := range all {
-		diags = append(diags, annotation.UnknownKeysUnder(p, s.model, c.ProvenanceAt, s.owner, s.scope)...)
+		diags = append(diags, annotation.UnknownKeysUnder(p, s.model, c.ProvenanceAt, s.owner, s.scope, s.taken...)...)
 	}
 	return diags
 }
@@ -55,6 +55,9 @@ type site struct {
 	scope string
 	owner jsontext.Pointer
 	model extensible
+	// taken lists the keys a reader of the compiler's own reads on the object,
+	// which the parser's model names no member for.
+	taken []string
 }
 
 // extensible is a parsed object that carries x-* extensions.
@@ -75,12 +78,15 @@ func sites(c lowering.Ctx) []site {
 	info := c.Doc.GetInfo()
 	infoPtr := ids.Ptr("info")
 	out := []site{
-		{"", "", c.Doc},
-		{"info", infoPtr, info},
-		{"info/contact", infoPtr + ids.Ptr("contact"), info.GetContact()},
-		{"info/license", infoPtr + ids.Ptr("license"), info.GetLicense()},
-		{"externalDocs", ids.Ptr("externalDocs"), c.Doc.GetExternalDocs()},
-		{"components", ids.Ptr("components"), c.Doc.GetComponents()},
+		{scope: "", owner: "", model: c.Doc},
+		{scope: "info", owner: infoPtr, model: info},
+		{scope: "info/contact", owner: infoPtr + ids.Ptr("contact"), model: info.GetContact()},
+		{scope: "info/license", owner: infoPtr + ids.Ptr("license"), model: info.GetLicense()},
+		{scope: "externalDocs", owner: ids.Ptr("externalDocs"), model: c.Doc.GetExternalDocs()},
+		// The load phase reads OpenAPI 3.2's mediaTypes at every version, and
+		// retainUnreferencedComponents keeps each entry no reference reached.
+		{scope: "components", owner: ids.Ptr("components"), model: c.Doc.GetComponents(),
+			taken: []string{"mediaTypes"}},
 	}
 	for i, t := range c.Doc.GetTags() {
 		if t == nil {
@@ -89,8 +95,8 @@ func sites(c lowering.Ctx) []site {
 		index := strconv.Itoa(i)
 		ptr := ids.Ptr("tags", index)
 		out = append(out,
-			site{"tags/" + index, ptr, t},
-			site{"tags/" + index + "/externalDocs", ptr + ids.Ptr("externalDocs"), t.GetExternalDocs()})
+			site{scope: "tags/" + index, owner: ptr, model: t},
+			site{scope: "tags/" + index + "/externalDocs", owner: ptr + ids.Ptr("externalDocs"), model: t.GetExternalDocs()})
 	}
 	return out
 }

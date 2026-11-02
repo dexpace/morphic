@@ -62,8 +62,8 @@ func (b bound) placer(at func(jsontext.Pointer) ir.Provenance) func(bind.Positio
 // pointer through one reads on where the parser resolved it: ends says where
 // each one's chain ended, in whichever document writes it
 // (resolution.ends). reader reads other documents, or is nil when none is read.
-func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, reader *external,
-	ends map[refSite]referenceEnd,
+func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
+	reader *external, ends map[refSite]referenceEnd,
 ) bound {
 	cfg := bind.Config{Self: self.path, Locate: self.locate, Beside: sibs.Beside, Written: self.escapes.original,
 		Refuse: self.escapes.refusal(), Limit: budget.AtMost(bind.MaxSteps),
@@ -76,7 +76,7 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sour
 	}
 	table := bind.Bind(ctx, self.root, cfg)
 	bd := typed.NewBuilder(table)
-	indexWalk(bd, walkSource(ctx, doc, sibs), bind.Position{})
+	indexWalk(bd, walkSource(ctx, doc, sibs, media), bind.Position{})
 	indexEnds(ctx, bd, table, ends, self)
 	return bound{bindings: bd.Bindings(), built: bd.Build(ctx)}
 }

@@ -202,8 +202,10 @@ var rules = map[string][]string{
 	// oas, each within its budget through budget. It reaches resolve to read
 	// which mapping values name a position in the source as the lowering will,
 	// and the library's pointer walk, directly and through navigation, to tell a
-	// hop that walked a document's bytes and to walk a document as it does. It
-	// reaches nothing that lowers — at this point there is no document to lower.
+	// hop that walked a document's bytes and to walk a document as it does, and
+	// the library's core models to tell its marshaller of the media type
+	// reference it builds (load.MediaTypes). It reaches nothing that lowers — at
+	// this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -221,6 +223,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/openapi/core",
 		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Recognition of a source from its bytes, before the compile. It reaches load
@@ -238,7 +241,8 @@ var rules = map[string][]string{
 	// lands, annotation to ask whether a referenced position declares a body at
 	// all, navigation to walk a pointer through the model as the resolver does,
 	// compile for the registry it looks IDs up in, the library's openapi package
-	// to name each kind of reference once (ReferenceEnd), and yaml to stop a walk
+	// and core models to name each kind of reference once (ReferenceEnd), the
+	// one it names no alias for included (ReferencedMediaType), and yaml to stop a walk
 	// at raw YAML, which holds none. It reaches nothing that lowers — following a
 	// reference far enough to lower its target recurses back into the schema
 	// walk, so that stays with the walk.
@@ -251,6 +255,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/navigation",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/openapi/core",
 		"github.com/speakeasy-api/openapi/references",
 		"go.yaml.in/yaml/v3"},
 	// allOf property reconciliation. It reaches annotation for the one field a

@@ -782,7 +782,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		})
 		want := referencePairs(t, doc1)
 
-		resolveWith(t.Context(), doc2, Siblings{}, sourceDocument{path: path}, Options{}, nil)
+		resolveWith(t.Context(), doc2, Siblings{}, MediaTypes{}, sourceDocument{path: path}, Options{}, nil)
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {
@@ -888,6 +888,6 @@ x-lib: {S: just a string}
 // reports.
 func resolvedDiags(t *testing.T, doc *soa.OpenAPI, path string) []ir.Diagnostic {
 	t.Helper()
-	return resolveWith(t.Context(), doc, Siblings{}, sourceDocument{path: path}, Options{}, nil).
+	return resolveWith(t.Context(), doc, Siblings{}, MediaTypes{}, sourceDocument{path: path}, Options{}, nil).
 		diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{}))
 }

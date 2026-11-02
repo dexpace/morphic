@@ -172,7 +172,7 @@ func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 	t.Parallel()
 	doc := modelOf(t, siblingSpec)
 	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
-	sites := walkSites(walkSource(t.Context(), doc, sibs))
+	sites := walkSites(walkSource(t.Context(), doc, sibs, MediaTypes{}))
 
 	index := func(site string) int {
 		t.Helper()
@@ -189,7 +189,7 @@ func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 	assert.Less(t, put, index("/paths/~1b"), "the fields are walked before the next path")
 	assert.Less(t, put, index("/paths/~1a/put/callbacks/cb/{$request.body#~1url}/delete"))
 	count := 0
-	for item := range walkSource(t.Context(), doc, sibs) {
+	for item := range walkSource(t.Context(), doc, sibs, MediaTypes{}) {
 		_ = item.Match(soa.Matcher{Operation: func(op *soa.Operation) error {
 			if op == sibs.list[0].Item.Put() {
 				count++
@@ -198,7 +198,7 @@ func TestWalkSource_WalksTheFieldsWhereTheSourceWritesThem(t *testing.T) {
 		}})
 	}
 	assert.Equal(t, 1, count, "a model is walked once, where it was found, though an alias reaches it twice")
-	assert.Equal(t, walkSites(soa.Walk(t.Context(), doc)), walkSites(walkSource(t.Context(), doc, Siblings{})),
+	assert.Equal(t, walkSites(soa.Walk(t.Context(), doc)), walkSites(walkSource(t.Context(), doc, Siblings{}, MediaTypes{})),
 		"with no model the walk is the document's own")
 }
 
@@ -210,7 +210,7 @@ func TestWalkSource_StopsWhenTheReaderDoes(t *testing.T) {
 	sibs, _ := modelSiblings(t.Context(), doc, scan.InSource(0))
 	for _, stopAt := range []string{"/paths/~1b", "/paths/~1a/put"} {
 		var last string
-		for item := range walkSource(t.Context(), doc, sibs) {
+		for item := range walkSource(t.Context(), doc, sibs, MediaTypes{}) {
 			last = string(item.Location.ToJSONPointer())
 			if last == stopAt {
 				break
@@ -233,7 +233,7 @@ func TestWalkSource_ReleasesEveryWalkItOpens(t *testing.T) {
 	before := runtime.NumGoroutine()
 	for range reads {
 		stopped := false
-		for item := range walkSource(t.Context(), doc, sibs) {
+		for item := range walkSource(t.Context(), doc, sibs, MediaTypes{}) {
 			if strings.HasPrefix(string(item.Location.ToJSONPointer()), nested) {
 				stopped = true
 				break
@@ -259,7 +259,7 @@ func TestWalkSource_WalksADocumentWithoutModelsAsTheLibraryDoes(t *testing.T) {
 	for _, spec := range []string{siblingSpec, siblingSpec + "x-pad: [" + strings.Repeat("{a: b}, ", 200) + "]\n"} {
 		doc := modelOf(t, spec)
 		library := testing.AllocsPerRun(10, func() { drain(soa.Walk(t.Context(), doc)) })
-		source := testing.AllocsPerRun(10, func() { drain(walkSource(t.Context(), doc, Siblings{})) })
+		source := testing.AllocsPerRun(10, func() { drain(walkSource(t.Context(), doc, Siblings{}, MediaTypes{})) })
 		overheads = append(overheads, source-library)
 	}
 	assert.LessOrEqual(t, overheads[0], 4.0, "a few allocations for the walk, none per item")

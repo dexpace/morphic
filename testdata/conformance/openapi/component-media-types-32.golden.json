@@ -81,16 +81,37 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/prim/any",
+                          "target": "t/openapi/components/schemas/Event",
                           "nullable": false
                         },
+                        "examples": [
+                          {
+                            "name": "one",
+                            "value": {
+                              "kind": "object",
+                              "object": [
+                                {
+                                  "name": "id",
+                                  "value": {
+                                    "kind": "string",
+                                    "str": "e1"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ],
+                        "docs": {
+                          "summary": "Every event.",
+                          "description": "One event."
+                        },
                         "unmodeled": {
-                          "openapi:$ref": {
-                            "reason": "degraded_lowering",
-                            "value": "#/components/mediaTypes/Event",
+                          "openapi:x-note": {
+                            "reason": "vendor_extension",
+                            "value": "from the component",
                             "provenance": {
                               "source": 0,
-                              "pointer": "/paths/~1events/get/responses/200/content/application~1json/$ref"
+                              "pointer": "/components/mediaTypes/Event/x-note"
                             }
                           }
                         }
@@ -164,16 +185,36 @@
                       {
                         "mediaType": "application/json",
                         "type": {
-                          "target": "t/prim/any",
+                          "target": "t/openapi/components/schemas/Event",
                           "nullable": false
                         },
+                        "examples": [
+                          {
+                            "name": "one",
+                            "value": {
+                              "kind": "object",
+                              "object": [
+                                {
+                                  "name": "id",
+                                  "value": {
+                                    "kind": "string",
+                                    "str": "e1"
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        ],
+                        "docs": {
+                          "description": "One event."
+                        },
                         "unmodeled": {
-                          "openapi:$ref": {
-                            "reason": "degraded_lowering",
-                            "value": "#/components/mediaTypes/Event",
+                          "openapi:x-note": {
+                            "reason": "vendor_extension",
+                            "value": "from the component",
                             "provenance": {
                               "source": 0,
-                              "pointer": "/paths/~1events~1{id}/get/responses/200/content/application~1json/$ref"
+                              "pointer": "/components/mediaTypes/Event/x-note"
                             }
                           }
                         }
@@ -273,18 +314,6 @@
       "positional": false,
       "inputOnly": false
     },
-    "t/prim/any": {
-      "kind": "primitive",
-      "id": "t/prim/any",
-      "name": {},
-      "anonymous": false,
-      "docs": {},
-      "sensitive": false,
-      "provenance": {
-        "source": -1
-      },
-      "prim": "any"
-    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -312,63 +341,24 @@
     }
   },
   "unmodeled": {
-    "openapi:components/mediaTypes": {
+    "openapi:components/mediaTypes/Unused": {
       "reason": "no_ir_home",
       "value": {
-        "Event": {
-          "examples": {
-            "one": {
-              "value": {
-                "id": "e1"
-              }
-            }
-          },
-          "schema": {
-            "$ref": "#/components/schemas/Event"
-          },
-          "x-note": "from the component"
+        "schema": {
+          "type": "string"
         }
       },
       "provenance": {
         "source": 0,
-        "pointer": "/components/mediaTypes"
+        "pointer": "/components/mediaTypes/Unused"
       }
     }
   },
-  "diagnostics": [
-    {
-      "severity": "warning",
-      "code": "openapi/degraded-construct",
-      "message": "a media type written as a $ref is not followed by this compiler yet (GitHub #856); the entry lowers as written, and the reference is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1events/get/responses/200/content/application~1json/$ref"
-      }
-    },
-    {
-      "severity": "warning",
-      "code": "openapi/degraded-construct",
-      "message": "a media type written as a $ref is not followed by this compiler yet (GitHub #856); the entry lowers as written, and the reference is kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1events~1{id}/get/responses/200/content/application~1json/$ref"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "components/mediaTypes is not resolved by this compiler yet (GitHub #856); kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/mediaTypes"
-      }
-    }
-  ],
   "sources": [
     {
       "format": "openapi@3.2",
       "path": "component-media-types-32.yaml",
-      "hash": "38d2d2ba356fbadfb5ec31c1be6fef82f446f5ed16ece632ee4a6cdeba3cf0b0"
+      "hash": "54bbca1167ce0d1d206d89b3ea848f88082908729a04e1bc369e7de6407bbc91"
     }
   ]
 }

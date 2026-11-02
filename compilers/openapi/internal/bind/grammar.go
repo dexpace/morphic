@@ -138,6 +138,12 @@ func schemaFields() map[string]state {
 	return m
 }
 
+// unmodelled maps the fields an object state defines that the parser's model
+// names no member for, and the load phase models itself, to the state each
+// leads to: OpenAPI 3.2's components/mediaTypes (GitHub #856). They are kept
+// apart from fields, which mirrors the model (TestGrammar_FieldsAreTheModels).
+var unmodelled = map[state]map[string]state{sComponents: {"mediaTypes": sMediaTypeMap}}
+
 // entries maps a container state to the state of each of its entries.
 var entries = map[state]state{
 	sSchemaMap:         sSchema,
@@ -166,13 +172,14 @@ var entries = map[state]state{
 // entries: those the specification gives patterned fields of their own.
 var extensible = map[state]bool{sPaths: true, sResponses: true, sCallback: true}
 
-// referenceKinds holds the states of the objects the parser models as a
-// reference object when they write a $ref: the parser's resolver, not this
-// package, resolves those, and a pointer read through one reads on in the
-// object it names.
+// referenceKinds holds the states of the objects modelled as a reference object
+// when they write a $ref: the parser's own kinds, and a Media Type Object, which
+// the load phase models (GitHub #856). The parser's resolver, not this package,
+// resolves those, and a pointer read through one reads on in the object it
+// names.
 var referenceKinds = map[state]bool{
 	sPathItem: true, sParameter: true, sHeader: true, sRequestBody: true, sResponse: true, sCallback: true,
-	sExample: true, sLink: true, sSecurityScheme: true,
+	sExample: true, sLink: true, sSecurityScheme: true, sMediaType: true,
 }
 
 // step is the state one token below s.
@@ -190,6 +197,9 @@ func step(s state, token string) state {
 		return e
 	}
 	if next, ok := fields[s][token]; ok {
+		return next
+	}
+	if next, ok := unmodelled[s][token]; ok {
 		return next
 	}
 	return sRaw

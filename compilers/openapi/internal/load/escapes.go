@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -385,8 +386,10 @@ func (e *escapes) restoreTrees() {
 // The models are the ones the lowering reads (see restorer) and the schemas
 // built for the bindings' landings, and a fault finding them is returned with
 // where it stopped; the trees are put back either way.
-func (e *escapes) restore(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, built []typed.Built) (jsontext.Pointer, error) {
-	return e.restoreFrom(ctx, walkSource(ctx, doc, sibs), built)
+func (e *escapes) restore(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes,
+	built []typed.Built,
+) (jsontext.Pointer, error) {
+	return e.restoreFrom(ctx, walkSource(ctx, doc, sibs, media), media, built)
 }
 
 // restoreFault reports the fault restore ended on, at the model it ended at,
@@ -400,13 +403,16 @@ func restoreFault(at func(jsontext.Pointer) ir.Provenance, site jsontext.Pointer
 }
 
 // restoreFrom is restore over a walk of the source the caller supplies, so a
-// test can hand it one that panics.
-func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem], built []typed.Built) (jsontext.Pointer, error) {
+// test can hand it one that panics. media yields the media type references in
+// what a chain reaches, as it does in the source's walk.
+func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem], media MediaTypes,
+	built []typed.Built,
+) (jsontext.Pointer, error) {
 	if e.empty() {
 		return "", nil // no model holds a rewritten value, so nothing is walked
 	}
 	defer e.restoreTrees()
-	r := &restorer{esc: e, seen: map[any]bool{}, walked: map[any]bool{}}
+	r := &restorer{esc: e, media: media, seen: map[any]bool{}, walked: map[any]bool{}}
 	site, err := eachSighting(items, restoring, func(_ jsontext.Pointer, _ soa.Locations, model any) error {
 		r.add(model)
 		return nil
@@ -425,6 +431,7 @@ func (e *escapes) restoreFrom(ctx context.Context, items iter.Seq[soa.WalkItem],
 // once.
 type restorer struct {
 	esc    *escapes
+	media  MediaTypes
 	seen   map[any]bool
 	walked map[any]bool
 	queue  []record
@@ -479,12 +486,12 @@ func (r *restorer) addObject(ctx context.Context, rec record) {
 	}
 	r.walked[rec.object] = true
 	r.add(rec.object)
-	eachWithin(ctx, rec, func(model any) { r.add(model) })
+	eachWithin(r.media.within(ctx, rec.walk(ctx)), func(model any) { r.add(model) })
 }
 
-// eachWithin calls visit with each model the walk of rec's object yields.
-func eachWithin(ctx context.Context, rec record, visit func(model any)) {
-	for item := range rec.walk(ctx) {
+// eachWithin calls visit with each model items yields.
+func eachWithin(items iter.Seq[soa.WalkItem], visit func(model any)) {
+	for item := range items {
 		// Match returns only what its matcher does, and this one never fails.
 		_ = item.Match(soa.Matcher{Any: func(model any) error {
 			visit(model)
@@ -527,6 +534,8 @@ func refCopies(model any) (node *yaml.Node, put func(string), ok bool) {
 	case *soa.ReferencedCallback:
 		return copiesOf(&r.Reference, &r.GetCore().Reference)
 	case *soa.ReferencedSecurityScheme:
+		return copiesOf(&r.Reference, &r.GetCore().Reference)
+	case *refscope.ReferencedMediaType:
 		return copiesOf(&r.Reference, &r.GetCore().Reference)
 	default:
 		return nil, nil, false

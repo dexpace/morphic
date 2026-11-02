@@ -226,3 +226,8 @@ it sees. Changes made together in one bump are listed together under it.
   lowers to a reference had kept them verbatim under `Unmodeled`. No key changed. A consumer pinned
   to 0.25.0 that reads those entries no longer finds them, and a consumer that reads `ir.Decorated`
   finds such an alias is no longer a decorator, since it says something of the value.
+- **0.27.0** — `Content` gained `Docs`: a media type's own documentation, as against the body's
+  ([payloads](./payloads.md)). The OpenAPI compiler writes there an OpenAPI 3.2 Media Type Object's
+  `description`, which it had kept verbatim under `Unmodeled` as `openapi:description`, and the
+  `summary` and `description` beside a content entry's `$ref` into `components/mediaTypes`, which
+  it now follows. A consumer pinned to 0.26.0 refuses the document as another generation's.

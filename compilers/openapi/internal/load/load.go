@@ -129,8 +129,10 @@ type Document struct {
 	// zero value — nothing applied — is the answer for a compile with no overlay.
 	Overlay overlay.Origin
 	// Siblings holds the fields the source writes beside its path items' $refs,
-	// modelled and resolved with the document.
-	Siblings Siblings
+	// modelled and resolved with the document, and MediaTypes the media types
+	// it reuses, which the parser does not model.
+	Siblings   Siblings
+	MediaTypes MediaTypes
 	// Others is every document a reference read beside the source, in the
 	// order Document.Sources lists them after the source and its overlay.
 	Others Others
@@ -221,10 +223,10 @@ func (o Options) rebuilder(ctx context.Context, data []byte, root *yaml.Node) fu
 // reading past a path item $ref into the fields beside it, less any resolved
 // already reports (see besideRefs).
 func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	resolved []ir.Diagnostic,
+	media MediaTypes, resolved []ir.Diagnostic,
 ) []ir.Diagnostic {
-	diags := listRepeats(at, sibs, walkSource(ctx, doc, sibs))
-	return append(diags, besideRefs(at, sibs, walkSource(ctx, doc, sibs), resolved)...)
+	diags := listRepeats(at, sibs, walkSource(ctx, doc, sibs, media))
+	return append(diags, besideRefs(at, sibs, walkSource(ctx, doc, sibs, media), resolved)...)
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is

@@ -176,6 +176,8 @@ components:
     Err: {description: e, content: {application/json: {schema: {type: object}}}}
   headers:
     Trace: {schema: {type: object}}
+  mediaTypes:
+    Events: {schema: {type: object}, itemSchema: {type: object}}
   pathItems:
     Item:
       get:
@@ -188,9 +190,10 @@ components:
 // for, as the grammar reads where it is written: a request body by its
 // component's key or the operationId of the operation declaring it, else
 // "request"; a response by its component's key, else "response"; a parameter
-// by its name, its content included; a header by its key; an itemSchema as
-// its media type's item. Each holds wherever the operation is written: a path
-// item, a callback, a webhook or a component path item.
+// by its name, its content included; a header by its key; a
+// components/mediaTypes entry by its key; an itemSchema as its media type's
+// item. Each holds wherever the operation is written: a path item, a
+// callback, a webhook or a component path item.
 func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 	t.Parallel()
 	tb := table(t, ownersSpec, nil)
@@ -221,6 +224,9 @@ func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 		{"a header, by its key", op + "/responses/200/headers/X-Rate/schema", "X-Rate"},
 		{"a header's content", op + "/responses/200/headers/X-Body" + json, "X-Body"},
 		{"a component header, by its key", "/components/headers/Trace/schema", "Trace"},
+		{"a component media type, by its key", "/components/mediaTypes/Events/schema", "Events"},
+		{"a component media type's itemSchema, as its item", "/components/mediaTypes/Events/itemSchema",
+			compile.SubHint("Events", "item")},
 		{"a callback's request body", op + "/callbacks/onEvent/{$request.body#~1url}/post/requestBody" + json,
 			"notify_request"},
 		{"a webhook's request body", "/webhooks/hook/post/requestBody" + json, "onHook_request"},

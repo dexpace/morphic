@@ -183,6 +183,11 @@ type Content struct {
 	File *FileInfo `json:"file,omitzero"`
 	// Examples are content-level example values.
 	Examples []Example `json:"examples,omitempty"`
+	// Docs is this media type's own documentation, as against the body's
+	// (Payload.Docs): an OpenAPI 3.2 Media Type Object's description, and a
+	// summary or description written beside a $ref to one, which documents
+	// this use of it. Omitted when empty, as Payload.Docs is.
+	Docs Docs `json:"docs,omitzero"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }
