@@ -19,7 +19,7 @@ import (
 // Scalar that keeps the format, byte excepted: the schema walk reads it before
 // the table, as base64-encoded bytes.
 //
-// No row maps to its bare type's kind, which leaves the format nowhere
+// No row maps to its bare type's kind, which would leave the format nowhere
 // (TestFormatTable_EveryRowDistinguishesTheBareType).
 var formatTable = map[string]ir.PrimKind{
 	"string":                 ir.PrimString,
