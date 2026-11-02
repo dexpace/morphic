@@ -85,10 +85,11 @@ func endOf[S any, R interface {
 }
 
 // ReferenceEnd is EndOf for a reference object of each of the library's kinds,
-// which a walk through the document meets as values of any type, and false for
-// any other value, a schema included. It is the one place this package lists
-// them, for the readers of a chain that cannot name its kind: the lowering
-// asks where the walk to a pointer passes into another document.
+// and of ReferencedMediaType, which a walk through the document meets as values
+// of any type, and false for any other value, a schema included. It is the one
+// place this package lists them, for the readers of a chain that cannot name
+// its kind: the lowering asks where the walk to a pointer passes into another
+// document.
 func ReferenceEnd(node any) (End, bool) {
 	switch r := node.(type) {
 	case *soa.ReferencedPathItem:
@@ -109,6 +110,8 @@ func ReferenceEnd(node any) (End, bool) {
 		return endOf[soa.ReferencedCallback](r)
 	case *soa.ReferencedSecurityScheme:
 		return endOf[soa.ReferencedSecurityScheme](r)
+	case *ReferencedMediaType:
+		return endOf[ReferencedMediaType](r)
 	default:
 		return End{}, false
 	}

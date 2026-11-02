@@ -15,9 +15,11 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/references"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -41,26 +43,74 @@ type resolvable interface {
 // what those reach in other documents (GitHub #751). It reports each failure at
 // the $ref that failed (GitHub #385), once the pass's diags are asked for. It
 // runs ResolveAllReferences' own walk, since that call names no reference.
-func resolveWith(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, opts Options,
-	reader *external,
+func resolveWith(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
+	opts Options, reader *external,
 ) *resolution {
-	p := newResolution(ctx, doc, sibs, self, opts, reader)
+	p := newResolution(ctx, doc, sibs, media, self, opts, reader)
 	p.run(ctx, doc)
 	return p
 }
 
 // run is resolveWith's work over doc, the document p was made for: the
-// source's reference objects, then those of each object they reached in
-// another document, in the order reached (see elsewhere).
+// source's reference objects, its media type references last, once the walk
+// has held every media type they may name (holdMediaType), then those of each
+// object they reached in another document, in the order reached (see
+// elsewhere). A media type reference names only a media type, so no other
+// kind's chain passes one, and the order among them is the walk's.
 func (p *resolution) run(ctx context.Context, doc *soa.OpenAPI) {
-	site, err := eachReference(walkSource(ctx, doc, p.sibs), resolverPanics, func(site jsontext.Pointer, r resolvable) error {
-		p.visit(ctx, refSite{pointer: site}, r, p.opts)
+	var media []visitedRef
+	site, err := eachModel(walkSource(ctx, doc, p.sibs, p.media), resolverPanics, func(site jsontext.Pointer, model any) error {
+		at := refSite{pointer: site}
+		switch m := model.(type) {
+		case mediaFault:
+			p.faulted(at, m)
+		case *refscope.ReferencedMediaType:
+			if !m.IsReference() {
+				p.holdMediaType(doc, site, m)
+				return nil
+			}
+			media = append(media, visitedRef{site: at, r: m})
+		case resolvable:
+			if m.IsReference() {
+				p.visit(ctx, at, m, p.opts)
+			}
+		}
 		return nil
 	})
 	p.fail(refSite{pointer: site}, err)
-	for e, ok := p.away.next(); ok && ctx.Err() == nil; e, ok = p.away.next() {
-		p.fail(e.at, eachReferenceIn(ctx, e, func(site refSite, r resolvable) { p.visit(ctx, site, r, e.opts) }))
+	for i := 0; i < len(media) && ctx.Err() == nil; i++ {
+		p.visit(ctx, media[i].site, media[i].r, p.opts)
 	}
+	for e, ok := p.away.next(); ok && ctx.Err() == nil; e, ok = p.away.next() {
+		p.fail(e.at, eachReferenceIn(ctx, e, p.media, func(site refSite, r resolvable) { p.visit(ctx, site, r, e.opts) },
+			p.faulted))
+	}
+}
+
+// faulted reports f, a content entry the parser faulted building a reference
+// from, at site, the first place a walk met its mapping, and nowhere else.
+func (p *resolution) faulted(site refSite, f mediaFault) {
+	if p.reportedFaults[f.node] {
+		return
+	}
+	p.reportedFaults[f.node] = true
+	p.failures[site.doc] = append(p.failures[site.doc], diag.Newf(ir.SeverityError, diag.Validation,
+		pointerOnly(site.pointer), "this media type's $ref could not be read: %s", f.err.Error()))
+}
+
+// holdMediaType stores model, the model of a Media Type Object the source writes
+// at site that is no reference, where the resolver looks for what a $ref of the
+// source names before it reads the model: read in the model, the object there
+// is the library's own, which the resolver cannot take for a media type
+// reference (docs/parser-library.md#media-type-references). The key is the
+// resolver's own, the base it reads an internal $ref against and the pointer
+// it decodes, as external.holdObject keys what it holds.
+func (p *resolution) holdMediaType(doc *soa.OpenAPI, site jsontext.Pointer, model *refscope.ReferencedMediaType) {
+	if p.internal == "" {
+		return
+	}
+	doc.InitCache()
+	doc.StoreReferencedObjectInCache(p.internal+"#"+string(site), model)
 }
 
 // diags returns what the pass found, the source's failures first and then each
@@ -166,16 +216,23 @@ type resolution struct {
 	selfPath string
 	nameOf   func(string) string
 	// sibs is what the source writes beside its path items' $refs, walked
-	// after doc as the rest of the source.
-	sibs Siblings
+	// after doc as the rest of the source, and media the media types the
+	// parser does not model, walked with it (walkSource).
+	sibs  Siblings
+	media MediaTypes
 	// esc holds the $refs rewritten for the resolver to read, which a message
 	// quotes as the source writes them (GitHub #911).
 	esc *escapes
+	// internal is the document an internal $ref of the source resolves
+	// against, as the resolver names it (internalBase).
+	internal string
+	// reportedFaults holds each content entry whose fault the pass reported.
+	reportedFaults map[*yaml.Node]bool
 }
 
 // newResolution returns the pass over doc, the model of self, holding self
 // where the resolver looks for it when reader reads other documents.
-func newResolution(ctx context.Context, doc *soa.OpenAPI, sibs Siblings,
+func newResolution(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes,
 	self sourceDocument, opts Options, reader *external,
 ) *resolution {
 	resolveOpts := references.ResolveOptions{
@@ -186,10 +243,27 @@ func newResolution(ctx context.Context, doc *soa.OpenAPI, sibs Siblings,
 	if reader != nil {
 		resolveOpts.VirtualFS = *reader
 		resolveOpts.HTTPClient = *reader
-		reader.hold(ctx, sibs)
+		reader.hold(ctx, sibs, media)
 	}
-	return &resolution{opts: resolveOpts, reader: reader, sibs: sibs, esc: self.escapes, away: newElsewhere(),
+	return &resolution{opts: resolveOpts, reader: reader, sibs: sibs, media: media, esc: self.escapes,
+		internal: internalBase(doc, self.path), away: newElsewhere(), reportedFaults: map[*yaml.Node]bool{},
 		failures: map[string][]ir.Diagnostic{}, selfPath: self.path, nameOf: self.nameOf}
+}
+
+// internalBase is the document an internal $ref of doc, read from path,
+// resolves against, as the resolver names it: doc's $self where it writes one,
+// which the resolver rebases onto, else path. It is "" where the resolver
+// could not name it, so nothing is held under it.
+func internalBase(doc *soa.OpenAPI, path string) string {
+	base := path
+	if self := doc.GetSelf(); self != "" {
+		base = self
+	}
+	abs, err := references.ResolveAbsoluteReference(references.Reference("#"), base)
+	if err != nil {
+		return ""
+	}
+	return abs.AbsoluteReference
 }
 
 // visit resolves r, the reference written at site, under opts, which read it
@@ -209,6 +283,9 @@ func (p *resolution) visit(ctx context.Context, site refSite, r resolvable, opts
 		err = p.reader.settle(ctx, r, opts, err)
 	}
 	c := resolutionChain(r)
+	if p.media.adopt(c) {
+		c = resolutionChain(r)
+	}
 	p.away.reach(site, c, opts, p.nameOf)
 	p.visited = append(p.visited, visitedRef{site: site, r: r})
 	if err == nil {
@@ -261,6 +338,8 @@ func objectKind(r resolvable) string {
 		return "callback"
 	case *soa.ReferencedSecurityScheme:
 		return "security scheme"
+	case *refscope.ReferencedMediaType:
+		return "media type"
 	default:
 		return "object"
 	}

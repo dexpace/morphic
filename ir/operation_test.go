@@ -274,6 +274,7 @@ func TestContent_JSONContract(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 		},
+		Docs:      ir.Docs{Summary: "One form.", Description: "The body as a form."},
 		Unmodeled: populatedUnmodeled(),
 	})
 }

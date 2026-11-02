@@ -13,15 +13,20 @@ import (
 )
 
 // walkSource returns the walk of doc with the fields beside each path item $ref
-// walked right after the $ref, so every pass meets them in the order the source
-// writes them, as it meets an inline item's: which members of a failing chain
-// are reported follows that order (GitHub #767). A document with none, which is
-// nearly every one, is walked as the library walks it.
-func walkSource(ctx context.Context, doc *soa.OpenAPI, s Siblings) iter.Seq[soa.WalkItem] {
-	if len(s.list) == 0 {
-		return walk(ctx, doc)
+// interleaved (Siblings.interleaved), followed by each components/mediaTypes
+// entry m models, at its pointer, and each content entry written as a $ref
+// met on the way (within), so every pass meets them in the order the source
+// writes them. A document with neither, which is nearly every one, is walked
+// as the library walks it.
+func walkSource(ctx context.Context, doc *soa.OpenAPI, s Siblings, m MediaTypes) iter.Seq[soa.WalkItem] {
+	items := walk(ctx, doc)
+	if len(s.list) > 0 {
+		items = s.interleaved(ctx, items)
 	}
-	return s.interleaved(ctx, walk(ctx, doc))
+	if len(m.declared) > 0 {
+		items = m.followedByDeclared(ctx, items)
+	}
+	return m.within(ctx, items)
 }
 
 // interleaved yields items and, after each $ref whose fields were modelled where

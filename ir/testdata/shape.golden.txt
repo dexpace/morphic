@@ -108,6 +108,7 @@ type Contact struct
 	"url" string omitempty
 
 type Content struct
+	"docs" Docs omitzero
 	"encoding" map[PropID]PartEncoding omitempty
 	"examples" []Example omitempty
 	"file" *FileInfo omitzero

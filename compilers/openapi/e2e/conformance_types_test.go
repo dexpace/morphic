@@ -545,7 +545,7 @@ func assertLiteralConst(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for _, section := range []string{
 		"responses", "parameters", "examples", "requestBodies",
-		"headers", "links", "callbacks", "pathItems",
+		"headers", "links", "callbacks", "pathItems", "mediaTypes",
 	} {
 		key := "openapi:components/" + section + "/Unused"
 		entry, ok := doc.Unmodeled[key]
@@ -558,8 +558,6 @@ func assertUnreferencedComponents(t *testing.T, doc *ir.Document, diags []ir.Dia
 		"an entry a reference reaches is lowered, not also kept verbatim")
 	assert.Contains(t, doc.Unmodeled, "openapi:components/links/Next",
 		"a link the lowered response's links map names is kept: nothing follows that reference")
-	assert.Contains(t, doc.Unmodeled, "openapi:components/mediaTypes",
-		"3.2's mediaTypes is kept whole until a reference into it is followed (GitHub #856)")
 
 	op, ok := opByName(doc, "getA")
 	require.True(t, ok)

@@ -19,6 +19,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -79,7 +80,7 @@ func (t reachedTarget) at() refSite { return refSite{doc: t.siteDoc, pointer: t.
 // reported once, where it is placed (see locatorFor), and none the source's
 // own check made.
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, b bound, doc *soa.OpenAPI,
-	sibs Siblings, opts Options, self sourceDocument, away []awayRef,
+	sibs Siblings, media MediaTypes, opts Options, self sourceDocument, away []awayRef,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree, self.judged)
 	checks.esc, checks.others = self.escapes, b.others
@@ -91,7 +92,7 @@ func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenanc
 			targets = append(targets, t)
 		}
 	}
-	return checkReached(ctx, at, walkSource(ctx, doc, sibs), targets, checks)
+	return checkReached(ctx, at, walkSource(ctx, doc, sibs, media), targets, checks)
 }
 
 // builtTargets returns the targets the schemas built for landings make, each
@@ -174,6 +175,8 @@ func kindOf(r resolvable) (oas.Kind, bool) {
 		return oas.Callback, true
 	case *soa.ReferencedSecurityScheme:
 		return oas.SecurityScheme, true
+	case *refscope.ReferencedMediaType:
+		return oas.MediaType, true
 	default:
 		return 0, false
 	}

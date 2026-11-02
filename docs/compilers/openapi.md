@@ -343,14 +343,27 @@ reference naming it, and with no reader no document is read.
 Each document read is a `Document.Sources` entry after the source and its overlay, ordered by its
 location from the source's directory, and what it declares lowers there, as the source's own lowers
 where the source declares it: a schema a `$ref` lands on, and a parameter, request body, response,
-header, example, callback, path item or security scheme a reference brings in, with the schemas
-inline in it. A reference object written in what another document brings in is resolved against that
-document, as the source's are against the source, and what it names lowers where it is declared, in
-whichever document, the source included. What a document declares names its entry in its
-`Provenance`, and has IDs in that document's namespaces, the source's qualified by its location
-(`t/openapi@common.yaml/components/schemas/Pet`, [identity](../ir/identity.md)), so one
-pointer in two documents is two nodes. An operation and a parameter keep the IDs of the mount that
-lowers them.
+header, example, callback, path item, security scheme or media type a reference brings in, with the
+schemas inline in it. A reference object written in what another document brings in is resolved
+against that document, as the source's are against the source, and what it names lowers where it is
+declared, in whichever document, the source included. What a document declares names its entry in
+its `Provenance`, and has IDs in that document's namespaces, the source's qualified by its location
+(`t/openapi@common.yaml/components/schemas/Pet`, [identity](../ir/identity.md)), so one pointer in
+two documents is two nodes. An operation and a parameter keep the IDs of the mount that lowers them.
+
+A content entry OpenAPI 3.2 lets a document write as a Reference Object, and an entry of
+`components/mediaTypes`, is a reference object like any other, though the parser models neither
+([`media-type-references`](../parser-library.md#media-type-references)): the load phase models each,
+wherever a walk meets it, and hands it to the parser's resolver as it hands every other kind, so it
+is read under the same reader, budgets and refusals, a chain of entries is followed as any chain is,
+and what one reaches is held to the table ([`validation`](#validation)). What it names lowers once,
+at the pointer declaring it, however many content entries reach it, with the references it holds
+resolved where it is declared. The resolver reads a `$ref` into the source through the model, whose
+own Media Type Object is no reference it can take, so each one the source writes is held where the
+resolver looks first, and the source's media type references are resolved once its walk has held
+them all: a `$ref` to an inline content entry reaches it, as one to an inline parameter does. One
+the parser faults building a reference from is reported once, as an `openapi/validation` error where
+it is written, and lowers nothing.
 
 A schema `$ref`, and a discriminator mapping value spelled as one, is bound by the compiler itself,
 never by the parser's resolver
@@ -431,8 +444,9 @@ definition the rule reads before the one that would answer. So is a plain name n
 where a schema merging past the bound may; a URI is read as a location all the same. A chain of
 references that closes on itself is [`reference-cycles`](#reference-cycles)'.
 
-- Cases: `schema-identifiers`
-- Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`
+- Cases: `schema-identifiers`, `component-media-types-32`
+- Codes: `openapi/unresolved-ref`, `openapi/budget-exceeded`, `openapi/degraded-construct`,
+  `openapi/validation`
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestGolden_SplitSpec`, `e2e.TestExternalContent_ARefInItNamesItsOwnDocument`,
   `e2e.TestCompile_AResolutionFailureIsReportedOnceAtItsRef`,
@@ -475,7 +489,14 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `canary.TestBindingOracle_AgreesWithTheLibrary`,
   `load.TestResolve_AFindingNamesTheDocumentItIsIn`,
   `load.TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder`,
-  `e2e.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`
+  `e2e.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`,
+  `operation.TestMediaTypeRef_OneDeclarationIsOneType`,
+  `operation.TestMediaTypeRef_ReferencesInsideTheDeclarationResolve`,
+  `operation.TestMediaTypeRef_AnUnresolvedRefLowersNothing`,
+  `load.TestLoad_AMediaTypeRefEndsOnTheDeclarationsOwnModel`,
+  `load.TestLoad_AMediaTypeRefToNoObjectIsReportedAsOne`,
+  `load.TestResolve_AMediaTypeUseTheParserFaultsOnIsReportedOnce`,
+  `resolve.TestReferenceEnd_NamesWhereAMediaTypeReferenceEnds`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
   (#604). Another document's identifiers are not read, so a plain name naming one of its resources
   is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
@@ -483,7 +504,9 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   remote document reaching a local file is refused naming only its last such `$ref` (#940). A
   reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
   unresolved reference object's message ends in the resolver's own wording, unless its chain ends
-  on a position holding no object of its kind (#809).
+  on a position holding no object of its kind (#809). A reference object reaching raw YAML of the
+  source leaves the references inside what it reaches unresolved (#1320), and one whose pointer
+  ends in `/` declares what it reaches at a second pointer (#1330).
 
 ### `reference-cycles`
 
@@ -580,17 +603,18 @@ vendor extension that converts to no JSON is [`vendor-extensions`](#vendor-exten
 ### `unmodeled-dialect-fields`
 
 A source revision may add a field the bundled parser's model names no member for; OpenAPI 3.2's
-`Response.summary`, XML `nodeType`, the nested Encoding fields, a Media Type Object's `description`
-and `components/mediaTypes` are the live set. Such a field is read off the raw node by a reader of
-its own, and the object census is *told* which keys that reader took: the census grades a key by the
-parser's model, so left alone it reports a field the document defines as an undefined key. The
-reader runs whatever version the document declares, as
+`Response.summary`, XML `nodeType`, the nested Encoding fields, a Media Type Object's `description`,
+`components/mediaTypes` and a content entry written as a Reference Object are the live set. Such a
+field is read off the raw node by a reader of its own, and the object census is *told* which keys
+that reader took: the census grades a key by the parser's model, so left alone it reports a field
+the document defines as an undefined key. The reader runs whatever version the document declares, as
 [`later-version-construct`](#later-version-construct) requires, so the census never calls such a
 field undefined.
 
 The census is told what the reader actually took, never a key list by version. A value the parser
 would decode as a string goes to its home — `summary` into `Docs.Summary`, `nodeType` into
-`XMLHints.NodeType` — and is not also kept verbatim, because one declaration gets one structural
+`XMLHints.NodeType`, a body's Media Type Object's `description` into `Content.Docs` — and is not
+also kept verbatim, because one declaration gets one structural
 home ([annotations](../ir/annotations.md#one-structural-home-per-declaration)). A value of
 another shape, or a non-empty `nodeType` outside the five the specification defines, is kept
 verbatim at the key and pointer the census itself uses, under `degraded_lowering`, with an
@@ -599,18 +623,19 @@ A key the raw mapping does not present directly — merged in through `<<` — i
 the census still reports it, as an `openapi/unknown-key-unreachable` warning
 ([`unknown-keys`](#unknown-keys)). An empty or null value is read as unset. A reading with no IR
 home is kept under `no_ir_home`, with an info `openapi/degraded-construct` at the field: the nested
-Encoding fields, a Media Type Object's `description`, since `ir.Content` has no docs, and the
-`components/mediaTypes` section, which is kept whole
-([`unreferenced-components`](#unreferenced-components)). A content entry written as a `$ref` into
-that section lowers without what it names, the reference kept verbatim under `degraded_lowering`
-with an `openapi/degraded-construct` warning at it.
+Encoding fields, and a Media Type Object's `description` at a parameter's or header's content
+entry, whose carrier has no docs for the one media type it names. The load phase models
+`components/mediaTypes` and each content entry written as a `$ref`, which the parser models as
+neither a section nor a reference, and the reference is followed as any other is
+([`references`](#references)); each entry no reference reaches is kept
+([`unreferenced-components`](#unreferenced-components)).
 
 - Cases: `response-summary-32`, `xml-nodetype-32`, `nested-encoding-32`, `component-media-types-32`
 - Codes: `openapi/degraded-construct`, `openapi/unknown-key-unreachable`
 - Tests: `operation.TestResponses_SummaryNoReaderTakesIsStillReported`,
   `annotation.TestRead_NodeTypeOnlyADefinedValueIsPlaced`,
-  `operation.TestContent_MediaTypeDescriptionIsKept`
-- Status: partly built: no reference into `components/mediaTypes` is followed (#856).
+  `operation.TestContent_MediaTypeDescriptionReachesItsDocs`,
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
 
 ### `unreferenced-components`
 
@@ -620,12 +645,15 @@ disappears in silence. Every component section with no registry is therefore kep
 lowering reached is preserved verbatim at
 `Document.Unmodeled["openapi:components/<section>/<name>"]` under `no_ir_home`, at the entry's own
 pointer, with no diagnostic. The sections are `responses`, `parameters`, `examples`,
-`requestBodies`, `headers`, `links`, `callbacks` and `pathItems`; `components/schemas` and
-`components/securitySchemes` are lowered unconditionally. 3.2's `components/mediaTypes`, into which
-no reference is followed, is kept whole as `openapi:components/mediaTypes`, with an info
-`openapi/degraded-construct` at the section. A section is read as the parser reads it, through `<<`
-merge keys, so a merged-in entry is kept under its own name, and an entry whose key is no scalar
-under the empty name the parser reads it by ([`validation`](#validation) reports the key).
+`requestBodies`, `headers`, `links`, `callbacks`, `pathItems` and 3.2's `mediaTypes`, which is read
+at every version, as [`unmodeled-dialect-fields`](#unmodeled-dialect-fields) reads a field the
+parser does not model; `components/schemas` and `components/securitySchemes` are lowered
+unconditionally. A section is read as the parser reads it, through `<<` merge keys, so a merged-in
+entry is kept under its own name, and an entry whose key is no scalar under the empty name the
+parser reads it by ([`validation`](#validation) reports the key). Where the components merge
+through `<<` deeper than the levels a mapping's merges are expanded to (`nodeview.MergeDepthLimit`),
+an `openapi/degraded-construct` warning at `components` says so, and an entry past that depth is not
+kept.
 
 *Referenced* means a lowering followed a reference to the entry, not that some `$ref` string names
 it. The resolution every non-schema reference passes through records each position in the source its
@@ -649,9 +677,9 @@ promotion pass from mistaking one for an oversight.
 - Codes: `openapi/degraded-construct`
 - Tests: `document.TestUnreferencedComponents_ReferenceNothingFollowsKeepsItsTarget`,
   `document.TestUnreferencedComponents_ReadAsTheParserReadsThem`,
-  `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`
-- Status: partly built: no reference into `components/mediaTypes` is followed, so the section is
-  kept whole however much of it a document uses (#856).
+  `document.TestUnreferencedComponents_SelfReferenceByFileNameReaches`,
+  `document.TestUnreferencedComponents_MergeDepthBoundIsReported`,
+  `document.TestComponentMediaTypes_AnUnreferencedEntryIsKept`
 
 ## 3. Names and values
 
@@ -801,9 +829,13 @@ and none is copied to a use site
 A Reference Object's own siblings are the annotations of the use site. OpenAPI lets the entry that
 writes a `$ref` carry `summary` and `description` beside it, and the pair describes *that use* of
 the referenced object rather than the object. Where the IR has a docs field at the position — a
-parameter, a response or error case, a header, an example, a request body, a security scheme — both
-are read off the entry and folded over the declaration's docs field by field, a sibling the entry
-writes winning and one it omits leaving the declaration's value standing. A component that is itself
+parameter, a response or error case, a header, an example, a request body, a security scheme, a
+body's media type — both are read off the entry and folded over the declaration's docs field by
+field, a sibling the entry writes winning and one it omits leaving the declaration's value standing.
+A parameter's or header's content entry has no docs field of its own, so what the fold takes there
+is kept verbatim under `no_ir_home`, each from the position writing it, with an info
+`openapi/degraded-construct`; one an alias of the chain writes in another document, which this
+compiler does not place, is reported with an `openapi/degraded-construct` warning instead. A component that is itself
 a `$ref` (an alias) is a use of what it names, so the fold runs along the whole chain from the
 declaration outward: an alias's siblings override the declaration's, and a use site's override the
 alias's. The fold applies at every version whose parser presents the siblings, which is all of them:
@@ -815,8 +847,11 @@ permitted. OpenAPI 3.0 goes further, admitting no key beside a `$ref` and saying
 ignored; there the fold is the 3.1 reading, and each sibling it reads is reported with an
 `openapi/later-version-construct` warning ([`later-version-construct`](#later-version-construct)).
 
-- Cases: `ref-site-docs`, `later-version-constructs`
-- Codes: `openapi/later-version-construct`
+- Cases: `ref-site-docs`, `later-version-constructs`, `component-media-types-32`
+- Codes: `openapi/later-version-construct`, `openapi/degraded-construct`
+- Tests: `operation.TestMediaTypeRef_UseSiteDocsFoldAlongTheChain`,
+  `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported`,
+  `operation.TestContent_MediaTypeRefIsFollowed`
 
 ### `use-bound-annotations`
 
@@ -2525,7 +2560,12 @@ Every media type of a `content` map lowers to one `Content` apiece, in source or
 elected primary ([responses](../ir/responses.md)). `Content.MediaType` is the key as written
 — case, parameters and wildcards kept, so `application/json` and `Application/JSON` are two Contents
 — and its `Type` is the media type's `schema`, hoisted at `<owner>/content/<key>/schema` with the
-key escaped as a pointer token, or the top type where it writes none. A request body's keys also go,
+key escaped as a pointer token, or the top type where it writes none. An entry written as a `$ref`
+lowers what it names under its own key, the schema hoisted where the media type is declared, named
+for its `components/mediaTypes` key ([`references`](#references)), and one whose `$ref` resolves to
+nothing lowers no `Content`. A media type's `description` and the `summary` and `description` beside
+its `$ref` are its `Content.Docs` ([`reference-object-siblings`](#reference-object-siblings)). A
+request body's keys also go,
 as written and in order, to `HTTPBinding.RequestContentTypes`. A response whose `content` is absent
 or empty has no `Payload` ([`request-body`](#request-body) for the request side). A key is
 classified on a copy that is lowercased, since a media type's names are case-insensitive (RFC 6838
@@ -2536,10 +2576,12 @@ classified on a copy that is lowercased, since a media type's names are case-ins
 ([`streaming-media`](#streaming-media)). No other key is classified, so `application/*+json`,
 `text/*` and `*/*` are Contents like any other.
 
-- Cases: `media-type-spelling`, `multi-content`
+- Cases: `media-type-spelling`, `multi-content`, `component-media-types-32`
 - Tests: `operation.TestContent_AllMediaTypesKeptInOrder`,
   `operation.TestContent_MixedCaseFormContentKeepsEncoding`,
-  `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`
+  `lowering.TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas`,
+  `operation.TestContent_AMediaTypeRefHoldingNoStringLowersNothing`,
+  `naming.TestAt_NamesASchemaAfterItsOwner`
 - Status: partly built: a malformed media-type key, a multipart body that is not an object, and a
   body on a GET pass in silence (#649).
 

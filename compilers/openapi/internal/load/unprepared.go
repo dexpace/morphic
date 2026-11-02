@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -291,6 +292,8 @@ func emptyOf(obj resolvable) (any, bool) {
 		return &soa.ReferencedCallback{}, true
 	case *soa.ReferencedSecurityScheme:
 		return &soa.ReferencedSecurityScheme{}, true
+	case *refscope.ReferencedMediaType:
+		return &refscope.ReferencedMediaType{}, true
 	default:
 		return nil, false
 	}
@@ -398,12 +401,12 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 // handOver) and answered from the first pass's reads. That reaches no new
 // document, as both passes walk alike; one found unprepared is returned, an
 // internal fault (stillUnprepared).
-func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, opts Options,
-	rebuild func() (*soa.OpenAPI, error),
+func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
+	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, *external, *resolution, []usedDocument, error) {
 	read := newExternalReads(self, opts.MaxExternalDocuments)
 	reader := newExternal(ctx, doc, opts, read)
-	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
+	pass := resolveWith(ctx, doc, sibs, media, self, opts, &reader)
 	used := pass.used()
 	first := unprepared(doc, read, used)
 	// A rebuild reads no context. Each walk deciding on one finds what it looks
@@ -419,11 +422,13 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self 
 	}
 	again.InitCache()
 	// Modelled again, since the first models hold what the first pass resolved.
-	// Their faults are the first models', reported already.
+	// Their faults are the first models', reported already. The pass holds the
+	// media types it modelled (resolution.media).
 	sibs, _ = modelSiblings(ctx, again, nowhere)
+	media, _ = modelMediaTypes(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(ctx, again, opts, read)
-	pass = resolveWith(ctx, again, sibs, self, opts, &reader)
+	pass = resolveWith(ctx, again, sibs, media, self, opts, &reader)
 	return again, sibs, &reader, pass, unprepared(again, read, pass.used()), nil
 }
 
@@ -606,6 +611,8 @@ func resolutionChain(model any) chain {
 	case *soa.ReferencedCallback:
 		return recordsOf(r)
 	case *soa.ReferencedSecurityScheme:
+		return recordsOf(r)
+	case *refscope.ReferencedMediaType:
 		return recordsOf(r)
 	default:
 		return chain{}

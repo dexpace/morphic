@@ -42,6 +42,7 @@ func canaries() map[string]func(t *testing.T) {
 		"overlay-alias-clone":    overlayAliasClone,
 		"trailing-empty-token":   trailingEmptyToken,
 		"context-unread":         contextUnread,
+		"media-type-references":  mediaTypeReferences,
 	}
 }
 

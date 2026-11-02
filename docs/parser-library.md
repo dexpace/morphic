@@ -198,6 +198,48 @@ x-params:
   - `load.resolution.ends` hands the binder the node each chain reached, in whichever document writes
     the reference.
 
+### `media-type-references`
+
+The library models neither OpenAPI 3.2's `components/mediaTypes` nor a content entry written as a
+Reference Object: the Components Object has no field for the section, a content map holds a Media
+Type Object whatever its entry writes, so a `$ref` there decodes as an undefined key, and no walk
+yields a reference at either. Its generic reference over a Media Type Object, the one it names no
+alias for, builds from such an entry and resolves as any reference does: through raw YAML wherever
+the model holds nothing, as at `components/mediaTypes`, but not at a position where the model holds
+its own Media Type Object, which the resolver cannot take for a reference, unless its cache of
+referenced objects, which it asks before reading the model, holds one at that key. Its walk panics on
+that reference, a type it has no handler for, and its marshaller is told of its own kinds' core
+models when it is loaded.
+
+```yaml
+paths:
+  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/M'}                          # resolves
+            text/plain: {$ref: '#/paths/~1a/get/responses/200/content/application~1xml'}  # does not
+            application/xml: {schema: {type: string}}
+components:
+  mediaTypes:
+    M: {schema: {type: string}}
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/media-type-references`
+- Code:
+  - `resolve.ReferencedMediaType` names the reference the library names no alias for.
+  - `load.MediaTypes` models each `components/mediaTypes` entry and each content entry written as a
+    `$ref`, so every pass of the load phase walks them as the source's own reference objects.
+  - `load.modelItem` hands a walk a model the library's walk does not know, without asking the
+    library for a match it would panic building.
+  - `load.resolution.holdMediaType` holds each Media Type Object of the source where the resolver
+    looks before the model.
+  - `load.registerMediaTypeReference` tells the marshaller of the reference's core model, as the
+    library tells it of its own kinds'.
+
 ### `root-defs`
 
 A schema `$ref` to `#/$defs/X`, where `$defs` is written at the document's root, resolves to the

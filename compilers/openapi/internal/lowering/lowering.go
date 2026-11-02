@@ -149,6 +149,9 @@ type Ctx struct {
 // in RefScope would allocate each time.
 type loadResult struct {
 	siblings load.Siblings
+	// media is each components/mediaTypes entry and each content entry written
+	// as a $ref, modelled and resolved with the document (MediaTypeUse).
+	media load.MediaTypes
 	// names names the nodes built at the positions of the documents the
 	// bindings read, remembering each name (NameAt).
 	names *naming.Namer
@@ -236,7 +239,8 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, others: doc.Others, names: naming.New(doc.Bindings.Table()),
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others,
+		names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}}
 	c.typePositions = map[scopedPosition]bind.Position{}
@@ -278,6 +282,16 @@ func (c Ctx) Siblings() load.Siblings {
 		return load.Siblings{}
 	}
 	return c.loaded.siblings
+}
+
+// MediaTypeUse returns the model the load phase built of media, a content
+// entry, and whether media is written as a $ref (load.MediaTypes.Use). In a
+// context given no load result, one written so has no model.
+func (c Ctx) MediaTypeUse(media *soa.MediaType) (*resolve.ReferencedMediaType, bool) {
+	if c.loaded == nil {
+		return load.MediaTypes{}.Use(media)
+	}
+	return c.loaded.media.Use(media)
 }
 
 // Within returns c for lowering what the entry ref resolves to, in the scope
