@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -343,4 +345,82 @@ components:
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
 		})
 	}
+}
+
+// TestMediaTypeRef_ABodyAndAParameterFoldAlike holds the two readers of a
+// content entry's docs to one answer over every way the use site, the alias it
+// names and the declaration write a key: left out, empty, null or text. A
+// body's Content.Docs and what a parameter keeps verbatim each take the nearest
+// text, and a declaration's summary, which a Media Type Object does not define,
+// is no docs (docs/compilers/openapi.md#reference-object-siblings).
+func TestMediaTypeRef_ABodyAndAParameterFoldAlike(t *testing.T) {
+	t.Parallel()
+	spellings := []string{"absent", "empty", "null", "text"}
+	for _, key := range []string{"summary", "description"} {
+		for cell := range 64 {
+			writes := [3]string{spellings[cell%4], spellings[cell/4%4], spellings[cell/16]}
+			t.Run(key+"/"+strings.Join(writes[:], "-"), func(t *testing.T) {
+				t.Parallel()
+				assertFoldsAlike(t, key, writes)
+			})
+		}
+	}
+}
+
+// assertFoldsAlike compiles a body and a parameter naming one chain whose use
+// site, alias and declaration write key as writes spells it, and asserts both
+// take the text of the nearest position writing one that documents the entry,
+// from where it is written.
+func assertFoldsAlike(t *testing.T, key string, writes [3]string) {
+	t.Helper()
+	positions := [3]string{"use", "alias", "declaration"}
+	sibling := func(i int) string {
+		return map[string]string{"absent": "", "empty": ", " + key + ": ''", "null": ", " + key + ": null",
+			"text": ", " + key + ": From the " + positions[i] + "."}[writes[i]]
+	}
+	_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: f
+          in: query
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Alias'`+sibling(0)+`}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Alias'`+sibling(0)+`}
+components:
+  mediaTypes:
+    Alias: {$ref: '#/components/mediaTypes/M'`+sibling(1)+`}
+    M: {schema: {type: string}`+sibling(2)+`}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	written := [3]string{
+		"/paths/~1a/get/parameters/0/content/application~1json/",
+		"/components/mediaTypes/Alias/",
+		"/components/mediaTypes/M/",
+	}
+	want, wantAt := "", ""
+	for i, at := range written {
+		documents := key == "description" || positions[i] != "declaration"
+		if writes[i] == "text" && documents {
+			want, wantAt = "From the "+positions[i]+".", at+key
+			break
+		}
+	}
+	op := openapitest.FirstOp(t, svc)
+	docs := op.Responses[0].Payload.Contents[0].Docs
+	assert.Equal(t, want, map[string]string{"summary": docs.Summary, "description": docs.Description}[key])
+	require.Len(t, op.Params, 1)
+	kept, ok := op.Params[0].Unmodeled["openapi:content/application~1json/"+key]
+	if want == "" {
+		assert.False(t, ok && kept.Reason == ir.ReasonNoIRHome, "kept %s as docs: %s", key, kept.Value)
+		return
+	}
+	require.True(t, ok, "%s not kept", key)
+	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
+	assert.JSONEq(t, strconv.Quote(want), string(kept.Value))
+	assert.Equal(t, wantAt, string(kept.Provenance.Pointer))
 }

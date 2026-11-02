@@ -496,7 +496,9 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestLoad_AMediaTypeRefEndsOnTheDeclarationsOwnModel`,
   `load.TestLoad_AMediaTypeRefToNoObjectIsReportedAsOne`,
   `load.TestResolve_AMediaTypeUseTheParserFaultsOnIsReportedOnce`,
-  `resolve.TestReferenceEnd_NamesWhereAMediaTypeReferenceEnds`
+  `resolve.TestReferenceEnd_NamesWhereAMediaTypeReferenceEnds`,
+  `load.TestResolve_EveryKindOfObjectIsValidated`,
+  `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
   (#604). Another document's identifiers are not read, so a plain name naming one of its resources
   is reported unresolved (#1049). An absolute-path `$ref` in a remote document is read as a local
@@ -851,7 +853,8 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
 - Codes: `openapi/later-version-construct`, `openapi/degraded-construct`
 - Tests: `operation.TestMediaTypeRef_UseSiteDocsFoldAlongTheChain`,
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported`,
-  `operation.TestContent_MediaTypeRefIsFollowed`
+  `operation.TestContent_MediaTypeRefIsFollowed`,
+  `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`
 
 ### `use-bound-annotations`
 
