@@ -485,10 +485,10 @@ func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource
 // readStability reads a value as a tier.
 //
 // One key may also be a source of TargetDeprecation, whose reader takes what
-// names no tier: its word `deprecated` and its boolean are that target's
-// statement, and a value neither target can hold is its report. Answering those
-// here too would report one defect twice, or call a word misread that was read.
-// Another word no target reads, and any of these on a key only this target
+// names no tier: its word `deprecated` and a true are that target's statement,
+// and a value neither target can hold is its report. Answering those here too
+// would report one defect twice, or call a word misread that was read. Another
+// word no target reads, a false, and any of these on a key only this target
 // reads, is a misfit.
 func (p Promoter) readStability(src ExtensionSource, raw ir.RawValue) (ir.Stability, statement) {
 	if text, ok := extensionText(raw); ok {
