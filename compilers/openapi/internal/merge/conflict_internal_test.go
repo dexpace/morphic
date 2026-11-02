@@ -17,23 +17,23 @@ import (
 // a base-less opaque scalar, and a cyclic base chain. These exercise those
 // guards directly.
 
-func TestPrimKind_DanglingTargetIsNotResolved(t *testing.T) {
+func TestKindOf_DanglingTargetIsNotResolved(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(nil)
-	_, ok := judge(g).primKind(ir.TypeRef{Target: "t/missing"})
+	_, ok := judge(g).kindOf(ir.TypeRef{Target: "t/missing"})
 	assert.False(t, ok, "a target absent from the registry resolves to no primitive")
 }
 
-func TestPrimKind_BaselessScalarIsNotResolved(t *testing.T) {
+func TestKindOf_BaselessScalarIsNotResolved(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/opaque": &ir.Scalar{ID: "t/opaque"},
 	})
-	_, ok := judge(g).primKind(ir.TypeRef{Target: "t/opaque"})
+	_, ok := judge(g).kindOf(ir.TypeRef{Target: "t/opaque"})
 	assert.False(t, ok, "a base-less opaque scalar has no underlying primitive")
 }
 
-func TestPrimKind_CyclicBaseChainTerminates(t *testing.T) {
+func TestKindOf_CyclicBaseChainTerminates(t *testing.T) {
 	t.Parallel()
 	// A scalar whose Base points back at itself: the bounded walk must terminate
 	// and report no primitive rather than spin.
@@ -41,7 +41,7 @@ func TestPrimKind_CyclicBaseChainTerminates(t *testing.T) {
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/cycle": &ir.Scalar{ID: "t/cycle", Base: &self},
 	})
-	_, ok := judge(g).primKind(self)
+	_, ok := judge(g).kindOf(self)
 	assert.False(t, ok, "a cyclic base chain terminates without resolving")
 }
 
@@ -332,9 +332,9 @@ func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
 }
 
 // TestClassify_ALiteralOverlapsWhatHoldsValues pins that a literal against
-// another literal or against a type with a primitive kind is an overlap, never
-// silent, while a scalar literal against a structure still conflicts and a
-// dangling target stays silent.
+// another literal or against a type with a primitive kind no held format
+// narrows is an overlap, never silent, while a scalar literal against a
+// structure still conflicts and a dangling target stays silent.
 func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(judgeRegistry())
