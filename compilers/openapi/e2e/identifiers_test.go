@@ -73,10 +73,10 @@ func TestCompile_WhatAnotherDocumentDeclaresAnswersAReference(t *testing.T) {
 	assert.Contains(t, bad[0].Message, "no schema of the resource it names declares that name")
 }
 
-// TestCompile_AnIdentifierIsNeverRequested pins that a URI a document declares
-// reaches no network with external references allowed, in either declaration
-// order: its read waits for every document that could declare it.
-func TestCompile_AnIdentifierIsNeverRequested(t *testing.T) {
+// TestCompile_AnIdentifierIsNotRequested pins that a URI a document read during
+// the pass declares reaches no network with external references allowed, in
+// either declaration order: its read waits for the pass to end.
+func TestCompile_AnIdentifierIsNotRequested(t *testing.T) {
 	t.Parallel()
 	pet := "    Pet: {$ref: 'other.yaml#/Pet'}\n"
 	byID := "    ById: {$ref: 'https://x.test/pet'}\n"

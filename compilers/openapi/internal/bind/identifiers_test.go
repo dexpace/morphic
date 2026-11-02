@@ -125,8 +125,9 @@ func TestBind_ReadsBelowAnIDOfAnotherDocument(t *testing.T) {
 
 // TestBind_AnIdentifierIsNoLocationToFetch pins that a URI a document declares
 // answers as that identifier whichever reference comes first, and reaches no
-// network: the read of a document on the network waits for the documents that
-// could declare it. One no document declares is then read, once.
+// network: the read of a document on the network waits for the pass to end,
+// during which a document read declares it. One no document declares is then
+// read, once.
 func TestBind_AnIdentifierIsNoLocationToFetch(t *testing.T) {
 	t.Parallel()
 	const declaring = "S: {$id: 'https://x.test/s', type: string}\n"
