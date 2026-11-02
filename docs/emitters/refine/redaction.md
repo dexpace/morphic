@@ -15,11 +15,11 @@ type is sensitive. So the plan reads both once:
 
 - `TypePlan.Sensitive` is true of a type that is `Sensitive` or whose `Base` chain reaches one, read
   through `TypePlan.Alias` ([decorators](decorators.md)).
-- `TypePlan.Redacted` lists the flattened members of a model a value is redacted at: each one any of
-  its declarations marks `Secret`, an `Overridden` one included, as requiredness accumulates, or
-  whose type is sensitive. A member a later conjunct redeclares without `Secret` stays redacted,
-  which a reader of the one declaration a member takes would miss; the IR's flattening does not
-  carry it yet (#1211), so the plan reads the declarations itself.
+- `TypePlan.Redacted` lists the flattened members of a model a value is redacted at: each whose
+  `FlatProperty.Secret` is set, which the IR accumulates over every declaration of the member, an
+  `Overridden` one included, as it does requiredness ([the
+  flattening](../../ir/models.md#the-flattening)). A member a later conjunct redeclares without
+  `Secret` stays redacted, which a reader of the one declaration a member takes would miss.
 
 A value is redacted where its position is `Secret` or `Redacted`, or its type sensitive. A list's,
 a tuple's and a map's contents are redacted each on its own when their type is, and a map's keys
