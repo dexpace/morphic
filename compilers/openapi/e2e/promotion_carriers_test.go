@@ -46,9 +46,9 @@ var promotedCarrierRows = map[string][]string{
 // with, which is why it is spelled here rather than skipped when the IR is
 // read; each reason is held to the IR below, so an entry cannot outlive it.
 var unpromotedCarriers = map[string]string{
-	"EnumMember": "carries no Provenance, so rule 4 of docs/ir/unmodeled.md keeps promotion out until it gains one",
+	"EnumMember": "has no marker, so rule 4 of docs/ir/unmodeled.md leaves a key on it unread until it gains one",
 	"Message":    "the OpenAPI compiler builds none: a Message is an AsyncAPI node",
-	"Variant":    "carries no Provenance, so rule 4 of docs/ir/unmodeled.md keeps promotion out until it gains one",
+	"Variant":    "has no marker, so rule 4 of docs/ir/unmodeled.md leaves a key on it unread until it gains one",
 }
 
 // TestPromotionCarriers_NameEveryDeprecationCarrierInTheIR fails when the IR
@@ -73,18 +73,25 @@ func TestPromotionCarriers_NameEveryDeprecationCarrierInTheIR(t *testing.T) {
 
 	for _, n := range found {
 		name := n.Obj().Name()
-		field, _, _ := types.LookupFieldOrMethod(n, false, n.Obj().Pkg(), "Provenance")
-		_, hasProvenance := field.(*types.Var)
 		if _, promoted := promotedCarrierRows[name]; promoted {
-			assert.True(t, hasProvenance, "%s is promoted into, so rule 4 needs it to carry a Provenance", name)
+			assert.True(t, holdsField(n, "Provenance"),
+				"%s is promoted into, and PromoteDeprecation records in its Provenance", name)
 			continue
 		}
 		reason := unpromotedCarriers[name]
-		if strings.HasPrefix(reason, "carries no Provenance") {
-			assert.False(t, hasProvenance, "%s now carries a Provenance, so its exemption no longer holds: "+
-				"promote into it and move it to promotedCarrierRows", name)
+		if strings.HasPrefix(reason, "has no marker") {
+			assert.False(t, holdsField(n, "Provenance") || holdsField(n, "Inferred"),
+				"%s now has a marker, so its exemption no longer holds: "+
+					"promote into it and move it to promotedCarrierRows", name)
 		}
 	}
+}
+
+// holdsField reports whether n declares a field of that name or embeds one.
+func holdsField(n *types.Named, name string) bool {
+	field, _, _ := types.LookupFieldOrMethod(n, false, n.Obj().Pkg(), name)
+	_, isField := field.(*types.Var)
+	return isField
 }
 
 // TestPromotionCarriers_RowsAreTheOnesTheCorpusBuilds holds promotedCarrierRows

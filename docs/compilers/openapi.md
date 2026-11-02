@@ -680,7 +680,10 @@ is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such n
 the documents and the position alone, read where the position is written, so no lowering order
 changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
 `$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
-is never set.
+is never set. These names are what an emitter renders, so a change to how one is derived moves
+`IRVersion` ([ir-version](../ir/ir-version.md)), and
+`testdata/golden/openapi/hint_positions.yaml` writes the positions within one document that a hint
+is composed from, one for each way the naming composes one.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
@@ -690,7 +693,8 @@ is never set.
   `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`,
   `schema.TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds`,
   `schema.TestUnionVariant_AWholeDocumentIsNamedForIt`, `naming.TestAt_NamesASchemaAfterItsOwner`,
-  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`
+  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`,
+  `e2e.TestGolden_HintPositions`
 - Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662).
 
 ### `values`
@@ -849,12 +853,15 @@ lands on the property, parameter or header that carries it, the referent's under
 field by field ([`ref-use-site`](#ref-use-site)). A parameter's or header's own `description` wins
 over its schema's. `deprecated: true` on a parameter or header and on its schema each deprecate it,
 neither one's `false` clearing the other. A request body's `description` lands on its Payload
-([`request-body`](#request-body)), and a response's payload states no docs of its own.
+([`request-body`](#request-body)), and a response's payload states no docs of its own. OpenAPI has
+no syntax for naming a type in prose, so a `description` is kept as written and no span of it is
+marked ([references in prose](../ir/annotations.md#references-in-prose)).
 
 - Cases: `docs-summary-desc`, `deprecation`
 - Tests: `operation.TestOperation_DeprecatedIsCarried`,
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
-  `operation.TestContent_RequestBodyDocsReachThePayload`
+  `operation.TestContent_RequestBodyDocsReachThePayload`,
+  `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
 - Status: partly built: a deprecation cannot name its replacement, which the IR has no field for
   (#670).
 
@@ -2920,7 +2927,7 @@ policy is `Options.Promotions`, on by default: its `Targets` replace the default
 `x-sunset` to `Deprecation.RemovalDate`, and `x-extensible-enum` to an `Enum`'s openness — and its
 `Disabled` turns it off. A deprecation member is filled on an operation, a parameter, a header, a
 property, a type node or a security scheme that is deprecated; on one that is not, the key annotates
-nothing and stays where it is. A node a promotion writes into lists the marker `extension-promotion`
+nothing and stays where it is. The node keeping the extension lists the marker `extension-promotion`
 in its `Provenance.Inferred`, and the extension stays in `Unmodeled` untouched.
 
 A value the mapped field cannot hold — anything but text, for the four `Deprecation` members — is
@@ -2947,6 +2954,7 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
 - Codes: `openapi/degraded-construct`
 - Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
   `lowering.TestPromoteEnumOpenness_WritesNothing`,
+  `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
 - Status: partly built: the default mapping covers only deprecation and extensible enums (#656); two
   keys mapped to one field resolve by sort order in silence (#655); a mapping cannot say which
