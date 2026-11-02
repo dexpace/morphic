@@ -8,9 +8,9 @@ Unions are the hardest axis. How a target spells a union is its own ([Go](../tar
 `LowerUnions` reads the plan's wire shape (`TypePlan.Union`) and the target's capability. The
 tag-mode matrix (each a distinct serializer) is normative ([unions](../../ir/unions.md#tag-modes)):
 
-- `WireTagged=false` → untagged; variant inferred by validation (JSON oneOf/anyOf).
-  `Exclusive=true` = exactly-one; `false` = one-or-more (anyOf). An untagged union carries
-  no `Discriminator`.
+- `WireTagged=false` → untagged: no tag names the variant, which the value's shape decides (JSON
+  oneOf/anyOf). `Exclusive=true` = exactly-one; `false` = one-or-more (anyOf). An untagged union
+  carries no `Discriminator`.
 - `WireTagged=true` + `Discriminator` → the tag travels in the payload, where the discriminator
   locates it: an OpenAPI `discriminator`, GraphQL `__typename`, an Erlang tagged tuple. It sits
   inline among the variant's own members (the property `PropertyName` names, or the tuple element
@@ -49,14 +49,22 @@ seam buys and the fused-pipeline generator cannot have.
 
 ## A null a variant admits
 
-A variant admits `null` when its reference is `Nullable` or its type is the `null` literal. `null`
-holds nothing a variant could keep apart, so the union holds it itself: every reference to a union
-with such a variant lowers as a nullable reference does
+On an untagged union, `null` is the union's value, never a variant's. A variant admits `null` when
+`null` decodes into it: its reference is `Nullable`, or its type, read through decorators and alias
+scalars, is the `null` literal, `any`, or a union one of whose variants admits `null`. `null` holds
+nothing a variant could keep apart, so the union holds it itself: every reference to a union with
+such a variant lowers as a nullable reference does
 ([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never reaches a
-variant, and a variant admitting nothing else lowers to no member. Both spellings the compiler can
-give a null member (#618) then lower alike. The golden spec's single-result envelope declares
-`result` as `anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a
-string or `null`, the last held by the reference.
+variant, and a variant admitting nothing else lowers to no member. The rule reads through unions:
+`Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
+nullable, and holds it, where a rule read only at `Outer`'s own variants would let a `null` reach
+them and match none. Both spellings the compiler can give a null member (#618) then lower alike.
+The golden spec's single-result envelope declares `result` as
+`anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a string or
+`null`, the last held by the reference.
+
+Under a tag or a key, `null` is a variant's payload rather than the union's value, as in an
+envelope `{kind, value}` whose `value` is `null`: the tag names that variant, which keeps it.
 
 ## A value several variants admit
 
@@ -75,10 +83,14 @@ An `anyOf` lets one value satisfy several variants, and what the union holds the
 A tag picks one variant, so a discriminated or key-tagged union is never inclusive, whatever
 `Exclusive` says.
 
-A variant admits a value when the value decodes into it, with each codec, closed model, closed enum
-and literal refusing what it refuses, and every model the value reaches carries each member its
-`TypePlan.Required` lists. `Constraints` take no part, since they are validation's on every decoded
-value. So whether a variant admits a value never depends on a bound.
+A variant admits a value when the value fits it at every position it reaches: its JSON kind is one
+the position's type admits, `null` only where the position admits `null`; each closed model, closed
+enum and literal holds it; each scalar's codec reads its text; and every model it reaches carries
+each member its `TypePlan.Required` lists. That is a fact of the value and the IR, so every target
+sets the same variants, and a target's check decides it from the IR rather than from what its JSON
+library accepts: json/v2 decodes `null` into a Go `string` as `""` without an error. `Constraints`
+take no part, since they are validation's on every decoded value. So whether a variant admits a
+value never depends on a bound.
 
 Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, in
 declaration order, and sets every one that admits the value. If none admits it, the order
@@ -86,12 +98,32 @@ declaration order, and sets every one that admits the value. If none admits it, 
 on a closed one. Trying every variant is what `anyOf` asks: no step of the ladder above can tell
 whether a second variant admits a value too.
 
-Encoding writes the merge of what each set variant encodes. Objects merge member by member, in the
-order the first set variant writes them, then each later variant's new members; arrays merge element
-by element and must have one length; scalars must be equal. A member or element two variants write
-must be the same JSON value, numbers compared by value, and a disagreement is an encode error, never
-a silent pick. A union with no variant set refuses to encode and fails validation, and the fallback
-is never set beside a variant.
+Decoding stays linear in the value however inclusive unions nest. Whether a type admits a position
+of the value is decided once per type and position, and what the position decodes to at that type
+is decoded once and given to every set variant holding it there. Decoding each variant afresh would
+decode a position once per path to it: under a union of two models that both hold a list of the
+union, the innermost position of a value nested `d` deep would decode `2^d` times.
+
+Encoding writes one value that each set variant decodes back to what it holds. Objects merge member
+by member, in the order the first set variant writes them, then each later variant's new members,
+and arrays element by element, of one length. Where the set variants write a position differently,
+the merge writes the first of their texts that each set variant holding the position reads back as
+its own value. A `datetime_offset` variant may write `2025-01-01T00:00:00Z` for a timestamp that
+arrived as `2025-01-01T00:00:00.000+00:00`, which a `string` variant beside it holds as it arrived:
+the string's text is the one both read back, so it is the one written. A position with no such text
+is an encode error, never a silent pick, as a member two variants hold at different values is. A
+union with no variant set refuses to encode and fails validation, and the fallback is never set
+beside a variant.
+
+An inclusive union is valid when one set variant is, which is all `anyOf` asks. A variant can admit
+a value it does not validate, since admitting leaves bounds to validation: the golden spec's API
+Shield token sources are strings under two `pattern`s, so a header's value is admitted by the cookie
+variant too and fails only its pattern. Validation reports every set variant's failures when none
+passes, and refuses a union with no variant set.
+
+The set variants hold one value, so a member any of them redacts is redacted in all: where an SDK
+renders or logs an inclusive union, a position is redacted when a set variant holding it marks it
+`Secret` or types it `Sensitive`. Rendering one variant alone follows that variant's own type.
 
 This is not the optional-field merge [the rule above](#variant-identity-and-recognition) forbids.
 That merge pools the variants' properties into one bag, losing which variant a member belongs to and

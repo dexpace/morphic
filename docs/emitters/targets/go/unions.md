@@ -57,15 +57,21 @@ type Target struct {        // anyOf: [Zone, Account], which one value can fit
 ```
 
 - **A pointer per variant**, whatever the variant's Go type, so nil means "does not admit it" for a
-  slice or a string too. Each field is named as the variant's wrapper in a closed sum is, so two
-  variants that lower to one Go type stay apart.
-- **The struct declares the codec pair**, as a closed sum's struct does. `UnmarshalJSONFrom` buffers
-  the value (`dec.ReadValue()`), decodes it into each variant under `dec.Options()`, and keeps each
-  that admits it: the decode succeeds, and the unexported presence check generated beside the
-  variant's `Validate`, which reads no `Constraints`, finds every required member. `MarshalJSONTo`
-  writes the merge.
-- **`Validate` reports a struct with no field set**, and validates each field that is. With no sum
-  to close, it has no marker, no wrapper and no switch-completeness test.
+  slice or a string too. Each field takes the variant's part of the name its wrapper takes in a
+  closed sum, `Zone` where the wrapper would be `TargetZone`, so two variants that lower to one Go
+  type stay apart.
+- **The struct declares the codec pair**, as a closed sum's struct does. `UnmarshalJSONFrom` reads
+  the value once (`dec.ReadValue()`) and builds the struct from it in generated code rather than by
+  decoding it into each variant: that code decides which variants admit each position by the shared
+  rule, nullability included, which json/v2 does not check, and decodes each position once per
+  type, its leaves under `dec.Options()`. Variants holding one position at one type are given the
+  one value it decoded to, its slices and maps shared, so decoding never repeats beneath a position.
+  `MarshalJSONTo` writes the merge.
+- **`Validate` passes when a set field's `Validate` passes**, reports every set field's failures
+  when none does, and reports a struct with no field set. With no sum to close, it has no marker, no
+  wrapper and no switch-completeness test.
+- **`String` redacts** a member any set field holds as `Secret` or at a `Sensitive` type, in every
+  set field it renders.
 
 ## Discriminators
 
