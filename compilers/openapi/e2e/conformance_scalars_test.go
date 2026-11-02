@@ -177,6 +177,17 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), ws.Base.Target)
 	require.NotNil(t, ws.Encoding)
 	assert.Equal(t, "double", ws.Encoding.Name)
+
+	// time is an RFC 3339 full-time, whose offset the time primitive does not
+	// hold, so it keeps its format on a Scalar over string.
+	opens, ok := propByWire(h, "opens")
+	require.True(t, ok)
+	ts, ok := doc.Types[opens.Type.Target].(*ir.Scalar)
+	require.True(t, ok, "time selects no primitive, so it hoists a Scalar")
+	require.NotNil(t, ts.Base)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimString), ts.Base.Target)
+	require.NotNil(t, ts.Encoding)
+	assert.Equal(t, "time", ts.Encoding.Name)
 }
 
 // assertSelectedPrimitives pins the table's pairings this spec writes: each
@@ -199,7 +210,8 @@ func assertSelectedPrimitives(t *testing.T, doc *ir.Document, h *ir.Model) {
 		"amount": ir.PrimDecimal,
 		"big":    ir.PrimDecimal128,
 		"at":     ir.PrimDatetimeOffset,
-		"opens":  ir.PrimTime,
+		"starts": ir.PrimDatetime,
+		"closes": ir.PrimTime,
 		"ttl":    ir.PrimDuration,
 	} {
 		t.Run(wire, func(t *testing.T) {
