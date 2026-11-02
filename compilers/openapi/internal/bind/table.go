@@ -235,7 +235,9 @@ func settled(b *binder) bool {
 // documents it reached declare changed a URI it asked for, so an answer it gave
 // is not theirs (goOn). A document only an earlier pass reached declares
 // nothing. The pass the budget runs out in, wherever in it, is the last, and
-// its answers stand, so no pass begins with nothing to spend.
+// its answers stand, so no pass begins with nothing to spend. A chain of
+// documents each declaring the URI the one before it asked for, held or not,
+// so costs a pass per link (GitHub #1372).
 func reread(b *binder) bool {
 	return b.stale && !b.work.over()
 }

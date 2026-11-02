@@ -405,11 +405,13 @@ location before another declared that URI is reached by no later pass, so it dec
 lowers nothing and is no `Document.Sources` entry. Where what a pass reaches turns on what those
 documents declare, so that no pass agrees with the one before it, every document read declares what
 it does from the pass that would read against what an earlier one read. A pass reads the documents
-absolute URIs name once its walks are done, and only while what the documents it reached declare
-changes no URI it asked for. It reads them together, so one of them may declare another's URI, whose
-document is then read for nothing, and goes on, reading again only the references that waited for
-them, so a chain of documents each named by an absolute URI is read in one pass, its cost growing
-with its length. A pointer passing a reference object reads on where the resolver resolved that, in
+absolute URIs name once its walks are done, together, and goes on, reading again only the references
+that waited for them, while what the documents it reached declare changes no URI it asked for, one a
+waiting reference asked for included. So a chain of documents each named by an absolute URI, none
+declaring a URI a reference asked for, is read in one pass, its cost growing with its length. Where
+one does, the pass is read again: a document held beside one declaring its URI is then read for
+nothing, and a chain in which each document declares the URI the one before it asked for costs a
+pass per link. A pointer passing a reference object reads on where the resolver resolved that, in
 whichever document, and a `$ref` written in another document's content is read in that document.
 What a `$ref` lands on in another document lowers where that document declares it; one in the source
 lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
@@ -541,13 +543,14 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   holding a character above U+FFFF is refused as malformed (#516), and an unresolved reference
   object's message ends in the resolver's own wording, unless its chain ends on a position holding
   no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file a
-  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040). A
-  reference object reaching raw YAML of the source leaves the references inside what it reaches
-  unresolved (#1320), and one whose pointer ends in `/` declares what it reaches at a second pointer
-  (#1330). A reference object whose `$ref` the model decodes no string from, such as a plain date or
-  a scalar under a local tag, lowers nothing, and nothing reports it (#1280). A schema `$ref` whose
-  pointer passes through a reference object's alias lowers what it reaches a second time, at the
-  pointer it spells (#1359).
+  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040), and a
+  chain of documents each declaring the URI the one before it asked for costs a binding pass per
+  link (#1372). A reference object reaching raw YAML of the source leaves the references inside what
+  it reaches unresolved (#1320), and one whose pointer ends in `/` declares what it reaches at a
+  second pointer (#1330). A reference object whose `$ref` the model decodes no string from, such as
+  a plain date or a scalar under a local tag, lowers nothing, and nothing reports it (#1280). A
+  schema `$ref` whose pointer passes through a reference object's alias lowers what it reaches a
+  second time, at the pointer it spells (#1359).
 
 ### `reference-cycles`
 
