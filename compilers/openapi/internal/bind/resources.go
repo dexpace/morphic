@@ -70,7 +70,7 @@ type identifiers struct {
 	byDoc    map[DocID][]string
 	scanned  DocID
 	// asked is each URI a pass has asked for, whatever uris held, and readings
-	// each set of declarations a pass has read against.
+	// each set of documents counted a pass has begun with (reading).
 	asked    map[string]bool
 	readings map[string]bool
 	anchors  map[anchorKey][]Position
@@ -234,14 +234,11 @@ func (ix *identifiers) changes(uris map[string][]Position) bool {
 	return false
 }
 
-// reading names the declarations answering counts: those of the documents
-// counted, among all those read, which only grow.
+// reading names the declarations answering counts by the documents counted,
+// which settle them: each is read whole before a drain counts it (settled), and
+// what a document read and not counted declares answers nothing.
 func (ix *identifiers) reading() string {
-	declarations := 0
-	for _, at := range ix.declared {
-		declarations += len(at)
-	}
-	return fmt.Sprint(declarations, slices.Sorted(maps.Keys(ix.counted)))
+	return fmt.Sprint(slices.Sorted(maps.Keys(ix.counted)))
 }
 
 // lookupURI returns the root of the one resource uri identifies, and whether
