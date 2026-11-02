@@ -1,0 +1,18 @@
+openapi: 3.1.0
+info: {title: other, version: "1"}
+paths: {}
+components:
+  schemas:
+    Tree:
+      $dynamicAnchor: node
+      type: object
+      properties:
+        children: {type: array, items: {$dynamicRef: "#node"}}
+    Leaf: {$dynamicRef: "#node"}
+    Pet:
+      $id: https://pets.example.com/pet
+      type: object
+      properties:
+        tag: {$ref: "#tag"}
+      $defs:
+        Tag: {$anchor: tag, type: string}
