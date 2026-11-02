@@ -20,7 +20,7 @@ import (
 // seed comes back with a document.
 func FuzzCycleDetector(f *testing.F) {
 	addYAMLDir(f, cycleFixtureDir)
-	for _, spec := range testspec.RefShapedData {
+	for _, spec := range testspec.RefShapedData() {
 		f.Add([]byte(spec.Data))
 	}
 	f.Add([]byte(" "))         // whitespace-only: recoverable parser panic

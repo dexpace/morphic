@@ -17,7 +17,7 @@ import (
 
 func TestCanonicalWords_Conformance(t *testing.T) {
 	t.Parallel()
-	for _, tc := range ircases.Canonical {
+	for _, tc := range ircases.Canonical() {
 		t.Run(tc.Rule, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.Want, ir.CanonicalWords(tc.In), "input %q", tc.In)
@@ -31,7 +31,7 @@ func TestCanonicalWords_Conformance(t *testing.T) {
 // relies on to be decidable from the value alone.
 func TestCanonicalWords_IsIdempotent(t *testing.T) {
 	t.Parallel()
-	for _, tc := range ircases.Canonical {
+	for _, tc := range ircases.Canonical() {
 		t.Run(tc.Rule, func(t *testing.T) {
 			t.Parallel()
 			once := ir.CanonicalWords(tc.In)
@@ -42,7 +42,7 @@ func TestCanonicalWords_IsIdempotent(t *testing.T) {
 
 func TestHasCanonicalWords_ComparesAsTheGrammarRenders(t *testing.T) {
 	t.Parallel()
-	for _, tc := range ircases.HasCanonical {
+	for _, tc := range ircases.HasCanonical() {
 		t.Run(tc.Rule, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, tc.Want, ir.HasCanonicalWords(tc.Name, tc.Words), "%q against %q", tc.Name, tc.Words)
@@ -56,7 +56,7 @@ func TestHasCanonicalWords_ComparesAsTheGrammarRenders(t *testing.T) {
 // from it.
 func TestHasCanonicalWords_Conformance(t *testing.T) {
 	t.Parallel()
-	for _, tc := range ircases.Canonical {
+	for _, tc := range ircases.Canonical() {
 		t.Run(tc.Rule, func(t *testing.T) {
 			t.Parallel()
 			assert.True(t, ir.HasCanonicalWords(tc.In, tc.Want), "input %q", tc.In)

@@ -244,8 +244,9 @@ func TestDecimal_CmpOrdersEveryDecimalSpellingExactly(t *testing.T) {
 // split one. A map keyed by Decimal then holds one entry per value.
 func TestDecimal_EqualityIsOneValue(t *testing.T) {
 	t.Parallel()
-	for _, a := range ircases.DecimalSpellings {
-		for _, b := range ircases.DecimalSpellings {
+	spellings := ircases.DecimalSpellings()
+	for _, a := range spellings {
+		for _, b := range spellings {
 			da, db := mustParseDecimal(t, a), mustParseDecimal(t, b)
 
 			byCmp, byEq, byText := da.Cmp(db) == 0, da == db, da.String() == db.String()
@@ -308,7 +309,7 @@ func TestParseDecimal_ReadsAHugeLiteralWithoutAllocating(t *testing.T) {
 // through it, such as one a decoder produced, is refused rather than guessed at.
 func TestBigVal_DecimalReadsWhatNewBigValBuilt(t *testing.T) {
 	t.Parallel()
-	for _, s := range ircases.DecimalForms {
+	for _, s := range ircases.DecimalForms() {
 		v, err := ir.NewBigVal(s)
 		require.NoError(t, err, s)
 

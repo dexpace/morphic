@@ -503,7 +503,7 @@ func TestDetectCycles_ComponentOnlyCyclesLeftToResolver(t *testing.T) {
 // where no resolver reads one shows as that diagnostic.
 func TestCompile_RefShapedDataNotRefused(t *testing.T) {
 	t.Parallel()
-	for _, tc := range testspec.RefShapedData {
+	for _, tc := range testspec.RefShapedData() {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags, err := openapi.New().Compile(t.Context(),
