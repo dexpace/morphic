@@ -514,9 +514,9 @@ func TestCollectionBound_ReadsThePositionNotItsTarget(t *testing.T) {
 }
 
 // TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns pins
-// the third position that lowers to a reference. An expanded $dynamicRef runs no
-// census (GitHub #848), so a bound the reader cannot state is dropped there, not
-// kept; a false uniqueItems says nothing, and a count past int64 is no false 0.
+// the third position that lowers to a reference. Its census asks what the reader
+// filled, as a $ref site's does, so a bound the reader cannot state is kept
+// verbatim and reported rather than read as a false 0 or a stated false.
 func TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec(`    Node:
@@ -527,16 +527,22 @@ func TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns(t 
       type: object
       properties:
         carried: {$dynamicRef: '#node', maxItems: 3}
-        unread: {$dynamicRef: '#node', maxItems: 1e400}
+        unread: {$dynamicRef: '#node', maxItems: 1e400, uniqueItems: false}
     Element: {type: array, items: {$dynamicRef: '#node', maxItems: 4}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, propertyOf(t, doc, "Holder", "carried").Constraints)
-	assert.Nil(t, propertyOf(t, doc, "Holder", "unread").Constraints)
+	carried := propertyOf(t, doc, "Holder", "carried")
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, carried.Constraints)
+	assert.Empty(t, carried.Unmodeled, "a bound the carrier holds is not also kept")
+	unread := propertyOf(t, doc, "Holder", "unread")
+	assert.Nil(t, unread.Constraints)
+	assert.Equal(t, []string{"openapi:maxItems", "openapi:uniqueItems"}, unmodeledKeys(unread.Unmodeled))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Holder/properties/unread"))
 	alias, ok := doc.Types["t/anon/components/schemas/Element/items"].(*ir.Scalar)
 	require.True(t, ok)
 	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(4))}, alias.Constraints)
+	assert.Empty(t, alias.Unmodeled, "a bound the alias holds is not also kept")
 }
 
 // TestCollectionBound_BesideARefIn30IsReadAsIn31 pins the dialect the rule

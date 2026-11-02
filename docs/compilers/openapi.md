@@ -2003,9 +2003,8 @@ dialect's form (a boolean in 3.1 or 3.2, a number in 3.0) is dropped with an
 it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
-beside a `$ref` or a collapsed union that `Constraints` cannot state is kept the same way: a
-`uniqueItems` of `false`, which a bool cannot tell from one never written, and a count that does not
-fit in 64 bits.
+beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
+which a bool cannot tell from one never written, and a count that does not fit in 64 bits.
 
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
