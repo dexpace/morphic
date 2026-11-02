@@ -36,13 +36,13 @@ The procedure decided every existing field:
 2. **Derivations several artifacts expose** stay: `Return`, `Others`, `Errors`, `Auth`, `Bindings`,
    `Stream` and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
    `Inclusive`, `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared` and `Unflattened`
-   are read along the flattening walk ([TypePlan](types.md)), `Inclusive` is computed over every
-   pair of positions the document's unions reach
-   ([TypePlan](types.md#variants-that-can-share-a-value)), `Alias` classifies a decorator over
-   several of its fields and resolves its chain ([decorators](../refine/decorators.md)), and `Reach`
-   walks every operation ([output units](../refine/output-units.md)); SDKs and docs that disagreed
-   on any of them would mark a member optional, name a field's type, hold one variant where another
-   holds several, or place a type differently.
+   are read along the flattening walk ([TypePlan](types.md)), `Inclusive` closes over every pair of
+   unions' positions ([TypePlan](types.md#variants-that-can-share-a-value)), `Alias` classifies a
+   decorator over several of its fields and resolves its chain
+   ([decorators](../refine/decorators.md)), and `Reach` walks every operation ([output
+   units](../refine/output-units.md)); SDKs and docs that disagreed on any of them would mark a
+   member optional, name a field's type, hold one variant where another holds several, or place a
+   type differently.
 3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and idempotency
    ([OpPlan](operations.md)), a model's `Base`, `Implements` and `Mixins`, an enum's openness, value
    type, flags and fallback member, a union's variant list, and the operation-group tree
