@@ -2425,19 +2425,24 @@ such item, and a component item two paths mount is kept once per mount. It is re
 ### `path-item-docs`
 
 A path item's own `summary` and `description`, at the same three mounts, are kept verbatim on each
-operation it mounts, under `openapi:pathItemSummary` and `openapi:pathItemDescription`
+operation it mounts, under `openapi:pathItem/summary` and `openapi:pathItem/description`
 (`no_ir_home`), reported as an info `openapi/degraded-construct` at the operation, rather than
 merged into the operation's `Docs`: `ir.Docs` holds the operation's own pair, and a path item's
 documents the path, so merging would need a precedence rule and would attach documentation the
 operation's author never wrote — an inference, which invariant 6 places in policy rather than in a
-lowering. A path item that mounts no operation keeps the pair where it keeps what else it writes
-([`path-item-servers`](#path-item-servers)), under `openapi:pathItem/<item pointer>/summary` and
-`openapi:pathItem/<item pointer>/description`, since two such items on one carrier would collide on
-the fixed keys; the warning announcing that item covers them, so they draw no info of their own.
+lowering. The keys sit beneath the item's scope, as its extensions and undeclared keys do, so no
+key the operation's own census writes can spell one: the census escapes a `/` in the key it keeps.
+A path item that mounts no operation keeps the pair where it keeps what else it writes
+([`path-item-servers`](#path-item-servers)), with the item's pointer in the scope, under
+`openapi:pathItem/<item pointer>/summary` and `openapi:pathItem/<item pointer>/description`, since
+one carrier holds every such item; the warning announcing that item covers them, so they draw no
+info of their own.
 
 - Cases: `path-item-docs`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`,
+  `operation.TestPathItem_DocsKeepApartFromAnOperationsOwnKeys`,
+  `operation.TestPathItem_KeepsWhatItDeclaresOncePerMount`,
   `operation.TestPathItem_WithNoOperationKeepsItsDocs`,
   `operation.TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite`
 - Status: open: whether a path's documentation gets a typed home in the IR, rather than `Unmodeled`,
