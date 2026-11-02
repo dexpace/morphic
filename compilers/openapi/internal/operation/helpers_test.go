@@ -69,10 +69,10 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 	return svc, append(loadDiags, acc.List()...)
 }
 
-// serviceAsReported is serviceWithGrouping under GroupByTags, returning every
-// diagnostic after the load's as each phase reported it, before compile.Diags
-// drops a repeat: what a test needs to hold a lowering to reporting a finding
-// once rather than leave that to the dedupe.
+// serviceAsReported is serviceWithGrouping under GroupByTags, returning only the
+// diagnostics of the phases after the load, as each reported them, before
+// compile.Diags drops a repeat: what a test needs to hold a lowering to
+// reporting a finding once rather than leave that to the dedupe.
 func serviceAsReported(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	t.Helper()
 	var reported []ir.Diagnostic
