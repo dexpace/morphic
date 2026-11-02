@@ -180,6 +180,20 @@ func messageCases() []messageCase {
 				Flows: []ir.OAuthFlow{{Kind: "implicit", Scopes: []ir.OAuthScope{{Name: illFormed}, {Name: illFormed}}}}}}
 			return doc
 		}, "ir/oauth-scope-duplicate", fmt.Sprintf("oauth flow offers scope %q more than once", illFormed)},
+		{"auth kind in the unresolved space", func() *ir.Document {
+			const id ir.AuthID = "auth/unresolved/a"
+			doc := typesDoc()
+			doc.Auth = map[ir.AuthID]ir.AuthScheme{id: {ID: id, Name: named("a"), Kind: ir.AuthKind(illFormed)}}
+			return doc
+		}, "ir/unresolved-auth-space", fmt.Sprintf("auth scheme of kind %q is addressed in space \"unresolved\", "+
+			"and the kind unresolved and the space unresolved go together", illFormed)},
+		{"auth space of the unresolved kind", func() *ir.Document {
+			id := ir.AuthID("auth/" + illFormed + "/a")
+			doc := typesDoc()
+			doc.Auth = map[ir.AuthID]ir.AuthScheme{id: {ID: id, Name: named("a"), Kind: ir.AuthKindUnresolved}}
+			return doc
+		}, "ir/unresolved-auth-space", fmt.Sprintf("auth scheme of kind \"unresolved\" is addressed in space %q, "+
+			"and the kind unresolved and the space unresolved go together", illFormed)},
 		{"member scope", func() *ir.Document {
 			return typesDoc(&ir.Enum{ID: "t/x/E", Name: named("e"), Members: []ir.EnumMember{{
 				ID: ir.EnumMemberID("e/x/" + illFormed + "/k"), Name: named("k"), Value: ir.Value{Kind: ir.ValueString, Str: "k"},

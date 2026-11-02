@@ -29,7 +29,7 @@ import (
 // the two loops between path items and returns the groups filled so far; the
 // compiler's run sees ctx.Err() at the phase boundary after this and refuses,
 // rather than assembling a Document out of them.
-func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *servers.Registry) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
+func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *servers.Registry, schemes *auth.Registry) (ir.Service, []ir.TagDef, []ir.Diagnostic) {
 	svc := ir.Service{
 		ID:         ids.Service(c.SrcIndex),
 		Provenance: c.ProvenanceAt(""),
@@ -39,7 +39,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *s
 		svc.Name = compile.NamingFor(title)
 		svc.Docs.Description = info.GetDescription()
 	}
-	svcAuth, diags := auth.LowerSecurityRequirements(c, c.Doc.GetSecurity(), "")
+	svcAuth, diags := schemes.Requirements(c, c.Doc.GetSecurity(), "")
 	svc.Auth = svcAuth
 	svcServers, serverDiags := reg.Root(c)
 	svc.Servers = svcServers
@@ -52,7 +52,7 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *s
 	svc.Unmodeled = annotation.MergeUnmodeled(svc.Unmodeled, pathsExt)
 	diags = append(diags, pathsDiags...)
 	groups := newServiceGroups(c.Doc.GetTags())
-	w := walk{types: ts, claims: newOperationIDClaims(), servers: reg}
+	w := walk{types: ts, claims: newOperationIDClaims(), servers: reg, schemes: schemes}
 	diags = append(diags, lowerPaths(ctx, c, w, groups, &svc)...)
 	diags = append(diags, lowerWebhooks(ctx, c, w, groups, &svc)...)
 	// After both walks: whether an operationId is unique is a question about
@@ -64,13 +64,15 @@ func LowerService(ctx context.Context, c lowering.Ctx, ts *compile.Types, reg *s
 
 // walk is what lowering a service's operations accumulates across all of them,
 // whichever route mounts each: the type registry, the operationId claims judged
-// once every operation has lowered, and the server registry a path item's and
-// an operation's servers go into. One is built per service and handed down by
-// value, since each field is the shared accumulator itself.
+// once every operation has lowered, the server registry a path item's and an
+// operation's servers go into, and the scheme registry a requirement's names go
+// into. One is built per service and handed down by value, since each field is
+// the shared accumulator itself.
 type walk struct {
 	types   *compile.Types
 	claims  *operationIDClaims
 	servers *servers.Registry
+	schemes *auth.Registry
 }
 
 // opPointers pairs the two pointers every operation lowering needs. mount is
@@ -130,7 +132,7 @@ func lowerOperation(c lowering.Ctx, w walk, src *soa.Operation, opCtx opContext)
 	// has run: the grouping choice is known here, but the streaming reading is
 	// not known until the payloads are lowered.
 	opProv := c.ProvenanceAt(decl)
-	opAuth, diags := auth.LowerSecurityRequirements(c, src.Security, decl)
+	opAuth, diags := w.schemes.Requirements(c, src.Security, decl)
 	op := ir.Operation{
 		ID:   ids.Op(mount),
 		Name: operationName(src, opCtx.method, opCtx.key),

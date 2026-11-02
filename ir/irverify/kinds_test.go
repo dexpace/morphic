@@ -106,8 +106,8 @@ func authDoc(kind ir.AuthKind) *ir.Document {
 	}}}
 }
 
-// TestVerify_UndeclaredAuthKindIsAViolation covers the class the compiler-side
-// refusal closed one instance of. The empty kind is the shape that reached the
+// TestVerify_UndeclaredAuthKindIsAViolation covers the class the compiler's own
+// report closed one instance of. The empty kind is the shape that reached the
 // IR: a scheme interned naming no mechanism at all, indistinguishable from a
 // sound one to every check that reads only a key and an ID.
 func TestVerify_UndeclaredAuthKindIsAViolation(t *testing.T) {

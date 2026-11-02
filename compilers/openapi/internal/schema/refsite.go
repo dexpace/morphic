@@ -24,8 +24,9 @@ import (
 // they bind the position, not the referent, and cannot go on the target's
 // node; an alias over the target becomes their home. The alias carries the
 // position's constraints and annotations, and keeps verbatim the census
-// keywords, allOf and oneOf/anyOf written beside the $ref, because it has no
-// property set, member set, value or encoding of its own (GitHub #283, #406).
+// keywords those leave, allOf and oneOf/anyOf written beside the $ref, because
+// it has no property set, member set, value or encoding of its own (GitHub
+// #283, #406).
 //
 // At an annotation.HomeCarrier position no alias is hoisted: the carrier keeps
 // them through PreserveRefSiteKeywords (GitHub #114).

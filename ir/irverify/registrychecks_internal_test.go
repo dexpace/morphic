@@ -21,7 +21,8 @@ import (
 // tables themselves rather than through the walk.
 var registryChecks = []func(*ir.Document) []Violation{
 	checkRegistryKeys, checkIDs, checkMemberIDs, checkPrimIDs, checkPrimKinds, checkAuthKinds,
-	checkOAuthScopes, checkUnions, checkMaps, checkMapKeys, checkRequires, checkVersion, checkDocument,
+	checkUnresolvedSchemes, checkOAuthScopes, checkUnions, checkMaps, checkMapKeys, checkRequires,
+	checkVersion, checkDocument,
 }
 
 // registryCheckName is a registryChecks entry's function name, without its

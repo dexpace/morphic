@@ -31,6 +31,7 @@ type AuthKind string
 	const "sasl_scram_sha256"
 	const "sasl_scram_sha512"
 	const "symmetric_encryption"
+	const "unresolved"
 	const "user_password"
 	const "x509"
 

@@ -212,6 +212,21 @@ func TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional(t *testing.T) {
 	}
 }
 
+// TestCheck_ANullBesideARequirementsNameListsNoScopes pins that a security
+// requirement's null is no field left out: the name stands, as the lowering keeps
+// it, while any other value that is no list of strings is an error.
+func TestCheck_ANullBesideARequirementsNameListsNoScopes(t *testing.T) {
+	diags := run(t, "3.1.0", oas.SecurityRequirement, `{key: ~}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, mismatch, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Contains(t, diags[0].Message, "read as listing no scopes")
+
+	diags = run(t, "3.1.0", oas.SecurityRequirement, `{key: 5}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
+}
+
 // TestCheck_ANullReadAsLeftOutIsNoFieldToARule pins that a rule reads a null
 // as the field's own check does: one read as left out writes nothing, so it
 // excludes no other field, satisfies no choice, and is barred or idle nowhere,
