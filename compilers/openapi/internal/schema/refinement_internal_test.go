@@ -4,6 +4,7 @@
 package schema
 
 import (
+	"encoding/json/jsontext"
 	"fmt"
 	"math"
 	"runtime"
@@ -108,6 +109,23 @@ func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
 
 	s.AllOf = nil
 	assert.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, s), "the second ask reads what the first read")
+}
+
+// TestNullableVoices_ReadsASchemaOnce pins that the branches widening a schema
+// are read once a run, as its voicing is, since every use of the schema asks:
+// its allOf goes after the first read, so only a remembered answer stays.
+func TestNullableVoices_ReadsASchemaOnce(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
+    T: {allOf: [{$ref: '#/components/schemas/Str'}, {nullable: true}]}
+`))
+	s := declared(t, l, "T")
+	first := nullableVoices(l.Ctx, s)
+	require.Len(t, first, 1)
+	assert.Equal(t, jsontext.Pointer("/allOf/1"), first[0].pointer, "each branch at its pointer under the schema's")
+
+	s.AllOf = nil
+	assert.Equal(t, first, nullableVoices(l.Ctx, s), "the second ask reads what the first read")
 }
 
 // TestLendingBranches_LendsEachEntryOnce pins what a use of a wide composition

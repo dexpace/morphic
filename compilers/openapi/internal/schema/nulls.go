@@ -437,39 +437,50 @@ func (n *nulls) allOf(s *oas3.Schema, site nullSite) nullReading {
 // beside the allOf says, and widens all of s (widen), a `type` beside the allOf
 // included, where the declared reading leaves it conjoined. A branch whose own
 // keywords admit null said so by themselves, so widen said nothing of it, and it
-// is noted here. A 3.1 `type: [T, "null"]` on a conjunct stays conjoined, which
-// beside a $ref it does not (docs/compilers/openapi.md#allof-refinement).
+// is noted here, where s is written. A 3.1 `type: [T, "null"]` on a conjunct
+// stays conjoined, which beside a $ref it does not
+// (docs/compilers/openapi.md#allof-refinement).
 func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) nullReading {
-	if !widensAny(s) || !allOfDecides(s) {
-		return r
-	}
-	comp := allOfBranches(s, site.at)
-	for i, speaks := range voicesAmong(n.c, s) {
-		bs := comp.branches[i].schema.GetSchema()
-		if !speaks || bs.Nullable == nil || !foldsNullable(bs) {
-			continue
+	for _, e := range nullableVoices(n.c, s) {
+		r.lenient = nullAdmitted
+		if !site.ok {
+			break // a read across a $ref reports nothing, so one widening is all it needs
 		}
-		if r.declared != nullAdmitted && site.ok && n.keywords(bs, nullSite{}).declared == nullAdmitted {
-			n.found = append(n.found, nullFinding{at: comp.branches[i].pointer + ids.Ptr("nullable"), message: "nullable: true " +
+		if r.declared != nullAdmitted && n.keywords(e.schema.GetSchema(), nullSite{}).declared == nullAdmitted {
+			n.found = append(n.found, nullFinding{at: site.at + e.pointer + ids.Ptr("nullable"), message: "nullable: true " +
 				"is read as admitting null under the nullable-widening policy, though another conjunct of this allOf " +
 				"excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it " +
 				"is marked inferred"})
 		}
-		r.lenient = nullAdmitted
 	}
 	return r
 }
 
-// widensAny reports whether a branch of s's flattened allOf writes
-// `nullable: true`, the cheap question nearly every composition answers no to. A
-// branch folding `false` then disagrees with it, so widenByBranch asks no value.
-func widensAny(s *oas3.Schema) bool {
-	for st := range walkAllOf(s) {
-		if bs := st.schema.GetSchema(); bs != nil && bs.Nullable != nil && *bs.Nullable {
-			return true
+// nullableVoicesOf keys what nullableVoices read of one schema.
+type nullableVoicesOf struct {
+	schema *oas3.Schema
+}
+
+// nullableVoices returns the branches of s's flattened allOf, each at its pointer
+// under s's, that speak for s, write `nullable: true` and write no properties
+// (foldsNullable). Every use of s asks, so it is read once a run. A branch writing
+// `false` widens nothing, though it speaks where the only `true` beside it is on a
+// $ref branch, which no fold compares.
+func nullableVoices(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
+	return lowering.Remembered(c, nullableVoicesOf{s}, func() []allOfBranch {
+		if !allOfDecides(s) {
+			return nil
 		}
-	}
-	return false
+		comp := allOfBranches(s, "")
+		var out []allOfBranch
+		for i, speaks := range voicesAmong(c, s) {
+			e := comp.branches[i]
+			if bs := e.schema.GetSchema(); speaks && bs.Nullable != nil && *bs.Nullable && foldsNullable(bs) {
+				out = append(out, e)
+			}
+		}
+		return out
+	})
 }
 
 // conjunct reads one allOf branch, or what a $ref lands on. A `false` schema

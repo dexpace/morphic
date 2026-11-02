@@ -372,6 +372,16 @@ func TestNullableWidening_ABranchWidensTheAllOfHoldingIt(t *testing.T) {
 	assert.False(t, holderP(t, doc).Nullable)
 	assert.Contains(t, propertyOf(t, doc, "Holder", "p").Unmodeled, "openapi:allOf/1", "and with the policy off it stays kept")
 
+	// The one `true` is beside a $ref, which no fold compares, so the `false`
+	// branch speaks: it must widen nothing the spelling without it leaves alone.
+	for name, branch := range map[string]string{"nullable false": "{nullable: false, description: d}", "none": "{description: d}"} {
+		src := openapitest.HolderSpec("3.0.3",
+			"{type: string, allOf: [{$ref: '#/components/schemas/Plain', nullable: true}, "+branch+"]}", "")
+		doc, _ = compileNullable(t, src, false)
+		assert.False(t, holderP(t, doc).Nullable, "%s: a branch writing no true widens nothing", name)
+		assert.Equal(t, "d", propertyOf(t, doc, "Holder", "p").Docs.Description, name)
+	}
+
 	besideUnion := openapitest.HolderSpec("3.0.3",
 		"{oneOf: [{type: string}, {type: integer}], allOf: [{$ref: '#/components/schemas/Plain'}, {nullable: true}]}", "")
 	doc, _ = compileNullable(t, besideUnion, false)
