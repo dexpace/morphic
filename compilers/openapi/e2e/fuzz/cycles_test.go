@@ -12,8 +12,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// FuzzCycleDetector compiles arbitrary bytes seeded from every fixture in
-// testdata/openapi and the ref-shaped specs.
+// FuzzCycleDetector compiles arbitrary bytes seeded from every .yaml file
+// directly under testdata/openapi and the ref-shaped specs.
 // Whatever a source holds, the compile must not panic, overflow the stack or
 // hang, and must come back with a document or with a refusal: an error
 // diagnostic saying why no document came back, or a Go error alone, which an
