@@ -508,7 +508,9 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   unresolved reference object's message ends in the resolver's own wording, unless its chain ends
   on a position holding no object of its kind (#809). A reference object reaching raw YAML of the
   source leaves the references inside what it reaches unresolved (#1320), and one whose pointer
-  ends in `/` declares what it reaches at a second pointer (#1330).
+  ends in `/` declares what it reaches at a second pointer (#1330). A reference object whose `$ref`
+  the model decodes no string from, such as a plain date or a scalar under a local tag, lowers
+  nothing, and nothing reports it (#1280).
 
 ### `reference-cycles`
 
@@ -855,6 +857,8 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
   `operation.TestMediaTypeRef_DocsAnotherDocumentsAliasWritesAreReported`,
   `operation.TestContent_MediaTypeRefIsFollowed`,
   `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`
+- Status: partly built: a key beside a `$ref` other than `summary` and `description` is dropped with
+  no record (#1321).
 
 ### `use-bound-annotations`
 
@@ -2564,12 +2568,12 @@ elected primary ([responses](../ir/responses.md)). `Content.MediaType` is the ke
 — case, parameters and wildcards kept, so `application/json` and `Application/JSON` are two Contents
 — and its `Type` is the media type's `schema`, hoisted at `<owner>/content/<key>/schema` with the
 key escaped as a pointer token, or the top type where it writes none. An entry written as a `$ref`
-lowers what it names under its own key, the schema hoisted where the media type is declared, named
-for its `components/mediaTypes` key ([`references`](#references)), and one whose `$ref` resolves to
-nothing lowers no `Content`. A media type's `description` and the `summary` and `description` beside
-its `$ref` are its `Content.Docs` ([`reference-object-siblings`](#reference-object-siblings)). A
-request body's keys also go,
-as written and in order, to `HTTPBinding.RequestContentTypes`. A response whose `content` is absent
+lowers what it names under its own key, its schema hoisted and named where the media type is
+declared, after its key there when that is `components/mediaTypes` ([`references`](#references)),
+and one whose `$ref` resolves to nothing lowers no `Content`. A media type's `description` and the
+`summary` and `description` beside its `$ref` are its `Content.Docs`
+([`reference-object-siblings`](#reference-object-siblings)). A request body's keys also go, as
+written and in order, to `HTTPBinding.RequestContentTypes`. A response whose `content` is absent
 or empty has no `Payload` ([`request-body`](#request-body) for the request side). A key is
 classified on a copy that is lowercased, since a media type's names are case-insensitive (RFC 6838
 §4.2), trimmed and cut at its first `;`, and the IR never keeps the copy: `multipart/*` and
