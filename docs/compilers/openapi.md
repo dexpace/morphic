@@ -1421,14 +1421,15 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), a list or map whose
-  broader side carries detail the narrower lacks, a node adding a bound beside one adding other
-  detail, and a list or map whose members meet, are reported as an overlap and never narrowed
-  (#1042); two models alike in every property compose rather than collapse to one type (#1083); a
-  model and a map or a union are reported as types the merge does not compare (#1182), and so are two
-  lists, tuples or maps whose members are different models (#1180); a model, an alias of `{}` and
-  another model keep the first and report the rest (#1194); a model and the wrapper it
-  flattens that fold different sets only because the model stops at the flattening depth are refused
-  as `compile/registry-refused`, not told apart, since one declaration names both.
+  broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a
+  description or other detail of its own against a `const` it admits, a node adding a bound beside
+  one adding other detail, and a list or map whose members meet, are reported as an overlap and
+  never narrowed (#1042); two models alike in every property compose rather than collapse to one
+  type (#1083); a model and a map or a union are reported as types the merge does not compare
+  (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a model,
+  an alias of `{}` and another model keep the first and report the rest (#1194); a model and the
+  wrapper it flattens that fold different sets only because the model stops at the flattening depth
+  are refused as `compile/registry-refused`, not told apart, since one declaration names both.
 
 ### `allof-required`
 
