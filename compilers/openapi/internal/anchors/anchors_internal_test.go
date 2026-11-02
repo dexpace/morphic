@@ -132,6 +132,23 @@ func TestBuild_DocumentNodeUnwraps(t *testing.T) {
 	assert.True(t, x.Complete())
 }
 
+// TestBuild_ANullAnchorNamesNothing pins that a null $dynamicAnchor, in each of
+// its spellings, is the keyword left out, where its text would be a name a
+// $dynamicRef could spell. A quoted one is that name.
+func TestBuild_ANullAnchorNamesNothing(t *testing.T) {
+	t.Parallel()
+	var doc yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(`a: {$dynamicAnchor: null}
+b: {$dynamicAnchor: ~}
+c: {$dynamicAnchor: Null}
+d: {$dynamicAnchor: }
+e: {$dynamicAnchor: "null"}
+`), &doc))
+
+	x := Build(&doc)
+	assert.Equal(t, map[string][]jsontext.Pointer{"null": {"/e"}}, x.byName)
+}
+
 // TestBuild_StopsAtTheDepthCap pins the depth bound at its boundary. A raw tree
 // deeper than the cap is a legal document, so the walk must stop rather than
 // read on; an anchor within the cap is still indexed, and the truncation is

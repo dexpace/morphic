@@ -160,6 +160,7 @@ func conformanceCases() []conformanceCase {
 		{"allof-conflicting-type", assertAllOfConflictingType},
 		{"allof-narrowing-redeclaration", assertAllOfNarrowingRedeclaration},
 		{"allof-redeclared-models", assertAllOfRedeclaredModels},
+		{"allof-redeclared-bounds", assertAllOfRedeclaredBounds},
 		{"allof-position-constraints", assertAllOfPositionConstraints},
 		{"oneof-discriminated", assertOneOfDiscriminated},
 		{"anyof-discriminated", assertAnyOfDiscriminated},
@@ -181,6 +182,10 @@ func conformanceCases() []conformanceCase {
 		{"dependent-required", assertDependentRequired},
 		{"dialect-keywords", assertDialectKeywords},
 		{"dynamic-ref", assertDynamicRef},
+		{"keywords-at-every-outcome", assertKeywordsAtEveryOutcome},
+		{"unknown-keywords-at-shared-nodes", assertUnknownKeywordsAtSharedNodes},
+		{"null-keywords", assertNullKeywords},
+		{"discriminator-aliased-branch", assertDiscriminatorAliasedBranch},
 		{"schema-identifiers", assertSchemaIdentifiers},
 		{"type-array-numeric", assertTypeArrayNumeric},
 		{"enum-string", assertEnumString},
@@ -272,6 +277,7 @@ func conformanceCases() []conformanceCase {
 		{"reached-outside-model", assertReachedOutsideModel},
 		{"security-or-and", assertSecurityOrAnd},
 		{"security-root-empty", assertSecurityRootEmpty},
+		{"security-unresolved", assertSecurityUnresolved},
 	}
 }
 
@@ -317,5 +323,11 @@ func invalidCases() map[string][]string {
 		// A parameter and a header whose content holds several entries, where the
 		// specification requires exactly one.
 		"content-several-entries": {"openapi/validation/validation-entry-count"},
+		// Requirements naming a scheme the document does not hold: each name
+		// "MUST correspond to a security scheme". An entry naming no mechanism
+		// and one whose $ref reaches nothing are among what they name.
+		"security-unresolved": {
+			"openapi/unresolved-security-scheme", "openapi/incomplete-security-scheme", "openapi/unresolved-ref",
+		},
 	}
 }

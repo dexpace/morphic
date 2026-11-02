@@ -1,0 +1,191 @@
+openapi: 3.1.0
+info: {title: AllOfRedeclaredBounds, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # Every allOf branch holds, so a field two branches declare carries the
+    # intersection of their bounds, whichever comes first. Each pair is declared
+    # in both orders as models of their own, the looser bound first as well as
+    # last: the harness's order oracle reverses mappings and never swaps a
+    # sequence, so this fixture is the guard on branch order. A bound the field
+    # implies is no loss, so these models draw no diagnostic.
+    StringBoundsLooserFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, minLength: 1, maxLength: 20}
+        - type: object
+          properties:
+            p: {type: string, minLength: 2, maxLength: 10}
+    StringBoundsTighterFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, minLength: 2, maxLength: 10}
+        - type: object
+          properties:
+            p: {type: string, minLength: 1, maxLength: 20}
+    NumberBoundsLooserFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number, minimum: 1, exclusiveMaximum: 20}
+        - type: object
+          properties:
+            p: {type: number, minimum: 2, exclusiveMaximum: 10}
+    NumberBoundsTighterFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number, minimum: 2, exclusiveMaximum: 10}
+        - type: object
+          properties:
+            p: {type: number, minimum: 1, exclusiveMaximum: 20}
+    # Neither step divides the other, so the field holds the number whose
+    # multiples are exactly those both admit, which no declaration wrote.
+    StepsLooserFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number, multipleOf: 4}
+        - type: object
+          properties:
+            p: {type: number, multipleOf: 6}
+    StepsTighterFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: number, multipleOf: 6}
+        - type: object
+          properties:
+            p: {type: number, multipleOf: 4}
+    # A list, a map, a tuple and a string of an unknown format lower to a node
+    # holding their bounds. The node whose bounds say all the other's do is the
+    # field's type.
+    BareListFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: array, items: {type: string}}
+        - type: object
+          properties:
+            p: {type: array, items: {type: string}, maxItems: 5}
+    BoundedListFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: array, items: {type: string}, maxItems: 5}
+        - type: object
+          properties:
+            p: {type: array, items: {type: string}}
+    BareScalarFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, format: x-custom}
+        - type: object
+          properties:
+            p: {type: string, format: x-custom, maxLength: 5}
+    BareMapFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: object, additionalProperties: {type: string}}
+        - type: object
+          properties:
+            p: {type: object, additionalProperties: {type: string}, maxProperties: 5}
+    BareTupleFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: array, prefixItems: [{type: string}]}
+        - type: object
+          properties:
+            p: {type: array, prefixItems: [{type: string}], maxItems: 5}
+    # Each adds a bound the other lacks, so no declared node holds both, and the
+    # field's type is a node of its own in the composed namespace.
+    BothListBoundsLowerFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: array, items: {type: string}, minItems: 1}
+        - type: object
+          properties:
+            p: {type: array, items: {type: string}, maxItems: 5}
+    BothListBoundsUpperFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: array, items: {type: string}, maxItems: 5}
+        - type: object
+          properties:
+            p: {type: array, items: {type: string}, minItems: 1}
+    BothMapBounds:
+      allOf:
+        - type: object
+          properties:
+            p: {type: object, additionalProperties: {type: string}, minProperties: 1}
+        - type: object
+          properties:
+            p: {type: object, additionalProperties: {type: string}, maxProperties: 5}
+    BothScalarBounds:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, format: x-custom, minLength: 1}
+        - type: object
+          properties:
+            p: {type: string, format: x-custom, maxLength: 5}
+    BothTupleBounds:
+      allOf:
+        - type: object
+          properties:
+            p: {type: array, prefixItems: [{type: string}], minItems: 1}
+        - type: object
+          properties:
+            p: {type: array, prefixItems: [{type: string}], maxItems: 5}
+    # Two patterns have no one form, so the first stands, whichever it is, and the
+    # other's declaration is reported and kept whole.
+    PatternsAThenB:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, pattern: '^a'}
+        - type: object
+          properties:
+            p: {type: string, pattern: '^b'}
+    PatternsBThenA:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, pattern: '^b'}
+        - type: object
+          properties:
+            p: {type: string, pattern: '^a'}
+    # A default another declaration's bound refuses stays off the field, reported
+    # and kept at the declaration that wrote it. One its own bound refuses is that
+    # declaration's to answer for and stands.
+    DefaultPastAnotherBoundDefaultFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, default: hello}
+        - type: object
+          properties:
+            p: {type: string, maxLength: 3}
+    DefaultPastAnotherBoundBoundFirst:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, maxLength: 3}
+        - type: object
+          properties:
+            p: {type: string, default: hello}
+    DefaultPastItsOwnBound:
+      allOf:
+        - type: object
+          properties:
+            p: {type: string, maxLength: 3, default: hello}
+        - type: object
+          properties:
+            p: {type: string}

@@ -199,18 +199,39 @@ it sees. Changes made together in one bump are listed together under it.
     did not ask to exclude ([unions](./unions.md)): a type array naming `integer` and `number` or
     repeating a type, and an enum whose entry repeats or lowers to the top type. The compiler had
     set it, leaving such a union to refuse what its schema admits.
-- **0.24.0** — a stability tier and a parameter's redaction gained homes, and the OpenAPI compiler
+- **0.24.0** — two shape changes made together, neither of which a document compiled today sets:
+  - `Docs` gained `Refs`, the spans of `Description` that name a type, each a `DocRef`
+    ([annotations](./annotations.md#references-in-prose)). They replace the `{t:TypeID}` tokens
+    `Description` was documented to hold, which no compiler wrote, so `{t:` in a description is now
+    text and nothing else. A consumer that scanned descriptions for tokens must read `Refs`.
+  - `ErrorCase` and `OAuthFlow` gained `Inferred`, and a promotion is now recorded on the node
+    keeping its extension, whichever node holds the field it fills
+    ([promotion](./unmodeled.md#promotion)). Where a node with a `Provenance` holds the field, as in
+    every promotion the OpenAPI compiler makes, nothing moves.
+
+  A consumer pinned to 0.23.0 refuses the document as another generation's.
+- **0.25.0** — a security requirement keeps a scheme the compiler resolved no mechanism for
+  ([auth](./auth.md#unresolved-schemes)). `AuthKind` gained `unresolved`, and auth IDs the
+  `unresolved` namespace ([identity](./identity.md#unresolved-schemes)), which every OpenAPI document
+  declares under `idSpaces.auth`, whether or not it mints there. The OpenAPI compiler had dropped
+  such a requirement, so an `Auth` left with no option read as inheriting and one left with others
+  lost the option. It also read a name whose value reads as no list of strings as not written, so
+  `{name: null}` read as the empty option, and such a name now stands. A `securitySchemes` entry
+  yielding no mechanism had lowered to nothing, and now lowers to that kind whether or not a
+  requirement names it. A consumer pinned to 0.24.0 finds those operations naming a kind it has no
+  reading for, where it read them as inheriting the service's credentials.
+- **0.26.0** — a stability tier and a parameter's redaction gained homes, and the OpenAPI compiler
   reads more of a document's keys into fields it had:
   - `Operation` and `OperationGroup` gained `Stability`, a closed `alpha | beta | stable`, empty
     where a source states none ([operations](./operations.md#stability)), and `irverify` reports a
-    tier the IR does not declare (`ir/unknown-stability`). A consumer pinned to 0.23.0 cannot decode
+    tier the IR does not declare (`ir/unknown-stability`). A consumer pinned to 0.25.0 cannot decode
     a document that sets it.
   - `Parameter` gained `Secret`, the per-use redaction `Property.Secret` is, and the OpenAPI
     compiler no longer keeps a parameter's `format: password` under `Unmodeled`. A consumer pinned
-    to 0.23.0 that reads `openapi:format` on a parameter no longer finds it, and a parameter that
+    to 0.25.0 that reads `openapi:format` on a parameter no longer finds it, and a parameter that
     keeps redaction through a `$ref` now states it itself.
   - A vendor key can state `Deprecation` where no keyword does, `x-sensitive` sets `Sensitive` and
     `Secret`, and a property, header or parameter naming a `$ref` reads what the target's keys state
-    ([`extension-promotion`](../compilers/openapi.md#extension-promotion)). These shapes are
-    unchanged, so to a consumer pinned to 0.23.0 such an operation reads as live and such a value as
-    plain.
+    ([`extension-promotion`](../compilers/openapi.md#extension-promotion)), listing the marker the
+    target lists ([promotion](./unmodeled.md#promotion)). These shapes are unchanged, so to a
+    consumer pinned to 0.25.0 such an operation reads as live and such a value as plain.

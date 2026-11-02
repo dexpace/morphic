@@ -25,7 +25,8 @@ witnessing it.
 
 - Witnesses: `oneof-discriminated`, `anyof-discriminated`, `discriminator-inheritance`,
   `discriminator-inline-subtype`, `discriminator-default-mapping`, `discriminator-transitive`,
-  `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`
+  `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`,
+  `discriminator-aliased-branch`
 
 ### `untagged-unions`
 
@@ -37,7 +38,8 @@ witnessing it.
 - Witnesses: `allof-mixins`, `allof-inline-merge`, `allof-required-only`,
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-nested-inline`,
   `allof-ref-branch-siblings`, `allof-boolean-branch`, `allof-narrowing-redeclaration`,
-  `allof-redeclared-models`, `allof-position-constraints`, `codeclared-keywords`
+  `allof-redeclared-models`, `allof-redeclared-bounds`, `allof-position-constraints`,
+  `codeclared-keywords`
 
 ### `negation`
 
@@ -175,7 +177,7 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`, `security-root-empty`
+- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`
 
 ### `servers`
 

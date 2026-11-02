@@ -6,7 +6,9 @@ package lowering_test
 import (
 	"encoding/json/jsontext"
 	"go/types"
+	"os"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -515,6 +517,66 @@ func TestExtensionTarget_EveryDeclaredTargetHasAnApplier(t *testing.T) {
 	}
 }
 
+// targetFields names every field each target fills, as the table in
+// promotionDoc spells them: a target writing a field at several carriers names
+// each, so a carrier gained without a row fails here.
+var targetFields = map[lowering.ExtensionTarget][]string{
+	lowering.TargetDeprecation: {
+		"Operation.Deprecation", "Parameter.Deprecation", "Property.Deprecation",
+		"AuthScheme.Deprecation", "TypeCommon.Deprecation",
+	},
+	lowering.TargetDeprecationMessage:        {"Deprecation.Message"},
+	lowering.TargetDeprecationSince:          {"Deprecation.Since"},
+	lowering.TargetDeprecationRemovalVersion: {"Deprecation.RemovalVersion"},
+	lowering.TargetDeprecationRemovalDate:    {"Deprecation.RemovalDate"},
+	lowering.TargetEnumOpen:                  {"Enum.Closed"},
+	lowering.TargetStability:                 {"Operation.Stability"},
+	lowering.TargetRedaction:                 {"TypeCommon.Sensitive", "Property.Secret", "Parameter.Secret"},
+}
+
+// promotionDoc is the document whose table says what a promotion can fill.
+const promotionDoc = "../../../../docs/ir/unmodeled.md"
+
+// promotionTableFields returns the first column of the table in doc: the cells
+// alone, so a field the prose around the table names does not count as a row.
+func promotionTableFields(t *testing.T, doc string) string {
+	t.Helper()
+	_, section, found := strings.Cut(doc, "### What a promotion can fill\n")
+	require.True(t, found, "%s has no table of what a promotion can fill", promotionDoc)
+	section, _, _ = strings.Cut(section, "\n#")
+
+	var fields strings.Builder
+	for line := range strings.Lines(section) {
+		if cells := strings.Split(line, "|"); len(cells) == 5 {
+			fields.WriteString(cells[1])
+		}
+	}
+	return fields.String()
+}
+
+// TestExtensionTarget_EveryTargetIsInThePromotionTable holds the vocabulary to
+// the table, the direction ir's TestPromotionTable_EveryNodeCanRecord does not
+// read: that test holds each row to the structs, so a target with no row would
+// promote a fact nothing says which node records. A list of targets kept apart
+// from the code is how the table's predecessor drifted (GitHub #674).
+func TestExtensionTarget_EveryTargetIsInThePromotionTable(t *testing.T) {
+	t.Parallel()
+	doc, err := os.ReadFile(promotionDoc)
+	require.NoError(t, err)
+	fields := promotionTableFields(t, string(doc))
+
+	for _, target := range declaredTargets(t) {
+		filled, named := targetFields[target]
+		if !assert.True(t, named, "%s fills a field targetFields does not name", target) {
+			continue
+		}
+		for _, field := range filled {
+			assert.Contains(t, fields, "`"+field+"`",
+				"%s fills a field %s lists no row for, so nothing says which node records it", target, promotionDoc)
+		}
+	}
+}
+
 // TestPromoterEnumOpenness_ClearsClosedAndMarksTheNode pins the promotion the
 // vocabulary's one non-Deprecation target performs. Every enum the compiler
 // builds is closed, so the write here is the whole of what x-extensible-enum
@@ -622,8 +684,8 @@ func TestPromoterEnumOpenness_WritesNothing(t *testing.T) {
 
 // TestPromoterEnumOpenness_NonEnumCarrierIsTheWholeAnswer pins the nil cases,
 // which are the ordinary shape rather than a guard: most nodes an x-* key can
-// sit on are not enums, and a node with no provenance could not record the
-// guess (promotion rule 4).
+// sit on are not enums, and a node with nowhere to record the guess is not
+// promoted from (promotion rule 4).
 func TestPromoterEnumOpenness_NonEnumCarrierIsTheWholeAnswer(t *testing.T) {
 	t.Parallel()
 	c := promoter(lowering.ExtensionPromotions{})

@@ -47,6 +47,7 @@ deprecation	Deprecation w/ message
 stability	Stability tier (alpha/beta/stable)
 examples	Examples
 docs-summary-description	Docs: summary + description
+docs-type-references	Type references in documentation prose
 vendor-extensions	Vendor extensions / traits / directives
 one-way-operations	One-way (fire-and-forget) operations
 positional-encoding	Positional wire encoding (records as tuples)

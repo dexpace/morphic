@@ -24,6 +24,18 @@ const (
 	// item $ref, which the resolver reads in the item that $ref names (GitHub
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
+	// UnresolvedSecurityScheme reports a security requirement naming a scheme
+	// the compiler resolved no mechanism for, at the requirement, from
+	// auth.Registry: a name no securitySchemes entry declares, an entry naming no
+	// mechanism, or one that resolves to nothing. The requirement is kept, naming
+	// a scheme of kind unresolved (docs/ir/auth.md).
+	//
+	// An error, as a tag's parent naming no tag is: the name must correspond to
+	// a scheme, and what it means is missing
+	// (docs/compilers/openapi.md#validation). A code apart from UnresolvedRef,
+	// after which what was named is gone, so accepting this finding accepts no
+	// lost reference with it.
+	UnresolvedSecurityScheme = "openapi/unresolved-security-scheme"
 	// CyclicRef reports a degenerate cycle. A recursive YAML anchor is refused
 	// before the parser library overflows its stack on it
 	// (docs/parser-library.md#alias-cycle). A loop of schema $refs that never
@@ -209,13 +221,13 @@ const (
 	// with disagreeing values. The judgment finds the types narrower (no
 	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
 	// not narrow) or disjoint; only disjoint types, a scalar against a structure
-	// and two structures of different instance types conflict. A conflicting
-	// constraint keyword (minimum: 10 vs. exclusiveMinimum: 10) is usually
-	// satisfiable, but no simple merge states it, so the merge keeps a
-	// source-order winner.
+	// and two structures of different instance types conflict. A constraint
+	// keyword no one value states, such as two patterns, is usually satisfiable,
+	// but the merge can keep only a source-order winner. A bound meets, so it
+	// never reports here.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
-	// Unmodeled (merge.keepLosingDeclaration); #10 records intersecting bounds.
+	// Unmodeled (merge.keepLosingDeclaration).
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
@@ -284,13 +296,12 @@ const (
 	PathItemRefCollision = "openapi/path-item-ref-collision"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming its mechanism: `type`, or for type http the RFC 7235 `scheme`
-	// token. Nothing is interned for it and every requirement naming it is dropped
-	// (GitHub #294).
+	// token. It lowers to a scheme of kind unresolved, keeping what it wrote, and
+	// a requirement naming it stands (GitHub #294).
 	//
-	// Error, as for UnresolvedRef: the entry reached the IR in no form, so a
-	// reader told only that it was degraded would look for a scheme that is not
-	// there. The document is invalid either way, since OpenAPI requires both
-	// fields.
+	// An error: OpenAPI requires both fields, and what the entry means is missing
+	// (docs/compilers/openapi.md#validation), so a reader told only that it was
+	// degraded would look for a mechanism that is not there.
 	IncompleteSecurityScheme = "openapi/incomplete-security-scheme"
 	// OAuth2NoFlow reports an oauth2 securitySchemes entry that states no way to
 	// obtain a token: its flows object declares no flow — `flows: {}`, or only
@@ -299,9 +310,9 @@ const (
 	// REQUIRED-field rule finds missing is that rule's to report (GitHub #646).
 	// Placed at the declaration, which its same-document aliases share (#874).
 	//
-	// Reported, not refused as IncompleteSecurityScheme is: the IR states exactly
-	// what the document said, and refusing would drop the entry's text. A warning,
-	// like ReservedHeaderName, since the document lowers whole.
+	// A warning, where IncompleteSecurityScheme is an error, because no rule of
+	// the specification is broken: the IR states exactly what the document said.
+	// ReservedHeaderName is a warning alike, since the document lowers whole.
 	OAuth2NoFlow = "openapi/oauth2-no-flow"
 	// EmptyRequestContent reports a request body whose content map is empty, at
 	// the map. Every minor's schema admits it, and OpenAPI 3.2 says the map

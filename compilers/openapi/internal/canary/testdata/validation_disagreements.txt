@@ -236,6 +236,10 @@ testdata/conformance/openapi/later-version-constructs.yaml	106:19	later-version-
 testdata/conformance/openapi/later-version-constructs.yaml	109:11	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/later-version-constructs.yaml	109:35	later-version-construct	compiler	version-gate
 testdata/conformance/openapi/nested-encoding-32.yaml	19:17	validation-mutually-exclusive-fields	compiler	analogy
+testdata/conformance/openapi/null-keywords.yaml	16:7	validation-type-mismatch	library	null-keyword
+testdata/conformance/openapi/null-keywords.yaml	19:7	validation-invalid-schema	library	null-keyword
+testdata/conformance/openapi/null-keywords.yaml	19:7	validation-type-mismatch	library	null-keyword
+testdata/conformance/openapi/null-keywords.yaml	21:7	validation-type-mismatch	library	null-keyword
 testdata/conformance/openapi/numeric-precision.yaml	7:7	validation-invalid-syntax	library	numeric-literal
 testdata/conformance/openapi/numeric-precision.yaml	13:20	validation-type-mismatch	library	numeric-literal
 testdata/conformance/openapi/numeric-precision.yaml	66:20	validation-type-mismatch	library	numeric-literal
@@ -258,12 +262,16 @@ testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:95	later-version-con
 testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:111	later-version-construct	compiler	ref-siblings
 testdata/conformance/openapi/schema-ref-siblings-30.yaml	17:84	later-version-construct	compiler	ref-siblings
 testdata/conformance/openapi/security-schemes.yaml	46:21	validation-allowed-values	library	over-strict
+testdata/conformance/openapi/security-unresolved.yaml	97:7	validation-required-field	library	owned
+testdata/conformance/openapi/security-unresolved.yaml	102:7	validation-required-field	library	owned
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/yaml-merge-keys.yaml	41:30	validation-allowed-values	library	over-strict
 testdata/dangling/openapi/f07-discriminator.yaml	13:10	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f31-discriminator-empty-name.yaml	17:7	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml	7:7	validation-invalid-syntax	compiler	component-names
+testdata/golden/openapi/hint_positions.yaml	290:7	validation-invalid-syntax	compiler	component-names
+testdata/golden/openapi/hint_positions.yaml	294:7	validation-invalid-syntax	compiler	component-names
 testdata/openapi/cycle_alias_dual_position.yaml	5:16	validation-type-mismatch	library	duplicate-report
 testdata/openapi/cycle_alias_dual_position.yaml	5:16	validation-type-mismatch	library	duplicate-report
 testdata/openapi/cycle_duplicate_key.yaml	12:5	validation-duplicate-key	library	position

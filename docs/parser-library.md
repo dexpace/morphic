@@ -406,6 +406,28 @@ paths:
   - `annotation.UnknownKeysNamed` grades keys the caller found itself, for a path item.
   - `operation.undeclaredPathItemKeys` finds them in the operations map and the raw mapping.
 
+### `requirement-scopes`
+
+A Security Requirement Object's model holds a member only when its value reads as a list of strings.
+A name written with `null`, a scalar or a mapping is gone from `All`, `Keys` and `Get`, and so is
+one whose list holds a `null`, a non-scalar or a scalar the model does not decode
+([`undecoded-scalar`](#undecoded-scalar)), so `{key: null}` reads as `{}`, the empty option. The
+core still holds the name, with `Present` false, and a `<<` merge is already applied there.
+
+```yaml
+security:
+  - key:                     # the model holds no member, the core holds key
+  - key: 5                   # the same
+  - key: [read, null]        # the same
+  - key: [read, {}]          # the same
+  - key: [read, 2021-01-01]  # the same
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/requirement-scopes`
+- Code:
+  - `auth.Registry.requirement` reads an option's names and scopes from the core.
+
 ### `duplicate-key`
 
 A key written twice is read as its last occurrence through the model, which skips the earlier ones
@@ -503,6 +525,30 @@ components:
   - `value.Classify` reads a scalar by the tag the parser gave it.
   - `value.NumericLiteral` gives an `!!int` the number its prefix means.
 
+### `undecoded-scalar`
+
+The model decodes a string from a scalar the YAML decoder takes for one: a string, or a number or
+boolean, as its text. A `!!timestamp`, which any plain date is
+([`scalar-resolution`](#scalar-resolution)), a `!!binary` and a local tag are none of these. A string
+field so written reads as empty, and a Reference Object's `$ref` as no reference, so the load phase
+meets none, and the model holds no `summary` or `description` beside it either. The validator, which
+the compiler does not call, reports a type mismatch at each; the compiler's table reads any scalar
+as a string and reports neither. The core keeps the node, and what is written beside it.
+
+```yaml
+info: {title: 2021-01-01}    # GetTitle is empty
+components:
+  securitySchemes:
+    s: {$ref: 2021-01-01}    # IsReference is false, and the core holds the node
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/undecoded-scalar`
+- Code:
+  - `nodeview.Strings` reads a list's items by their text.
+  - `auth.unresolvableSchemeDiags` reads a broken `$ref` from its node.
+  - `auth.docsBeside` reads what is written beside it from the core.
+
 ### `unmodeled-keywords`
 
 The schema model has no field for `$dynamicRef`, `$dynamicAnchor`, `$comment`, `$vocabulary` or
@@ -542,6 +588,25 @@ components:
 - Code:
   - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
   - `annotation.IsFalseSchema` excludes a `null`, so no reader takes one for `false`.
+
+### `null-type-is-empty`
+
+A `type` written as a YAML `null`, rather than the string `"null"`, decodes as one type spelled
+`""`, as an item of a list does: `GetType` returns `[""]`, which no `SchemaType` constant names and
+which reads as a type written, where the keyword states nothing.
+
+```yaml
+components:
+  schemas:
+    A: {type: null}
+    B: {type: [string, null]}
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/null-type-is-empty`
+- Code:
+  - `schema.writesType` and `schema.effectiveTypes` pass over the `""`, so no reader takes it for a
+    type written.
 
 ### `context-unread`
 

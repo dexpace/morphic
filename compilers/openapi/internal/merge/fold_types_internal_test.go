@@ -428,7 +428,7 @@ func TestFold_IdenticalNodesAreOneType(t *testing.T) {
 		{"enums that differ in an extension's value", "t/enum/x-ext1", "t/enum/x-ext-valued", false, ""},
 		{"enums that differ in a description", "t/enum/x1", "t/enum/x-described", false, ""},
 		{"enums that differ in member order", "t/enum/x1", "t/enum/x-reordered", false, ""},
-		{"scalars that differ in a constraint", "t/hex/1", "t/hex/min", false, ""},
+		{"scalars that differ in a constraint", "t/hex/1", "t/hex/min", true, "t/hex/min"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

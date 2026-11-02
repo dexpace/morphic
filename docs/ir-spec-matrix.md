@@ -71,6 +71,7 @@ rows no spec names yet, which are the ones the next compiler will be first to bi
 | `stability` | Stability tier (alpha/beta/stable) | ⚠ x-* | ⚠ x-* | ⚠ @extension | ✅ @unstable | — | ⚠ x-* | ⚠ launch stages (AIP-181) | — |
 | `examples` | Examples | ✅ | ✅ | ✅ @example/@opExample | ✅ trait (input/output/error scenarios) | — | ✅ (header+payload pairs) | — | — |
 | `docs-summary-description` | Docs: summary + description | ✅ | ✅ | ✅ @doc/@summary | ✅ @documentation | ✅ description | ✅ | ✅ comments | ✅ -doc/EDoc |
+| `docs-type-references` | Type references in documentation prose | — | — | — | — | — | — | ⚠ `[Name][pkg.Type]` comment convention | ✅ EDoc {@link} |
 | `vendor-extensions` | Vendor extensions / traits / directives | ✅ x-* | ✅ x-* | ✅ decorators | ✅ traits | ✅ directives (ordered, repeatable) | ✅ x-* | ✅ options | ⚠ module attributes |
 | `one-way-operations` | One-way (fire-and-forget) operations | — | — | — | — | — | ✅ send w/o reply | — | ✅ cast |
 | `positional-encoding` | Positional wire encoding (records as tuples) | ⚠ prefixItems | — | ⚠ tuples | — | — | ⚠ items array | — | ✅ records/tuples |

@@ -36,6 +36,22 @@ func TestGolden(t *testing.T) {
 	irtest.CompareGolden(t, "../../../testdata/golden/openapi/petstore.golden.json", doc)
 }
 
+// TestGolden_HintPositions pins the IR of the spec written to hold one position
+// for each way a hint is composed from one within a document. ir's
+// TestIRVersion_PinsTheNames lists the hints this golden holds, so a hint moved
+// here moves IRVersion (docs/ir/ir-version.md).
+func TestGolden_HintPositions(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("../../../testdata/golden/openapi/hint_positions.yaml")
+	require.NoError(t, err)
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "hint_positions.yaml", Data: data}}, compilers.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	assertNoErrorDiags(t, diags)
+	irtest.CompareGolden(t, "../../../testdata/golden/openapi/hint_positions.golden.json", doc)
+}
+
 // TestGolden_SplitSpec pins the IR of a spec split across four files, read
 // from memory under the paths they are named by: each other document is a
 // Document.Sources entry after the source, ordered by its path from the

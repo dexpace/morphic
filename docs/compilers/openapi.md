@@ -191,12 +191,15 @@ breaks a rule of its version and still says what it means: a key outside the pat
 specification gives, a key a mapping writes twice, a number or a boolean where a string belongs, a
 field written where the specification gives it no effect (`validation-no-effect`), or a `null`
 written for an optional field, which is read as the field left out, by the rules that bind it to
-other fields as well. A Schema Object's keyword whose value is a schema is such a field, since the
-schema lowering reads its `null` as left out too ([`null-schema`](#null-schema)). A `null` written
+other fields as well. Every keyword of a Schema Object is such a field, since the schema lowering
+reads its `null` as left out too ([`null-keywords`](#null-keywords)), a numeric bound included,
+whose shape the table otherwise leaves to that lowering. A `null` written
 as a schema entry, which is another object's `schema`, a component, or an entry of a map or a list
 of schemas, is an error, since that lowering reads it as the empty schema, a value, and a list
-counts it among its entries; so is one for a Schema Object's other keywords. One written for a field
+counts it among its entries. One written for a field
 whose requirement another rule reports is left to that rule.
+A security requirement's name is no field to leave out: its `null` lists no scopes, and the name
+stands ([`security-requirements`](#security-requirements)).
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -240,8 +243,7 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
 - Status: partly built: a document a reference reaches is held to the source's minor until which
-  minor governs it is settled (#839), and a `null` for a Schema Object's keyword whose value is no
-  schema is an error however the schema lowering reads it, which is several ways (#1069).
+  minor governs it is settled (#839).
 
 ### `minor-required-fields`
 
@@ -658,10 +660,10 @@ promotion pass from mistaking one for an oversight.
 A name the document spells lowers to `Naming{Source, Canonical}`: the spelling as written, beside
 the word sequence [naming](../ir/naming.md) derives from it, at every position that spells one —
 `info.title`, a tag, an `operationId`, a parameter, response-header or property name, a component
-schema or security scheme key, an enum member's value as text, a 3.2 server `name`, and under
-`grouping=path-prefix` a first path segment. A name with no letter or digit (`***`, `>=`) keeps its
-`Source` and has no `Canonical`; an emitter names it by its characters
-([naming](../emitters/refine/naming.md)). A name spelled as the empty string is minted
+schema or security scheme key, a scheme a security requirement names, an enum member's value as
+text, a 3.2 server `name`, and under `grouping=path-prefix` a first path segment. A name with no
+letter or digit (`***`, `>=`) keeps its `Source` and has no `Canonical`; an emitter names it by its
+characters ([naming](../emitters/refine/naming.md)). A name spelled as the empty string is minted
 `Hint: "empty"` and no `Source` rather than passed through (an `operationId` of `""` is read as
 absent instead, [`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A
 component schema keyed `""` earns no named `TypeID`: it hoists anonymously at its own pointer
@@ -680,7 +682,10 @@ is named for the document (`./Cat.yaml` names its root `cat_yaml`). Every such n
 the documents and the position alone, read where the position is written, so no lowering order
 changes it: a union variant, or a composition branch holding a `$ref`, is named as the position the
 `$ref` lands on, in whichever document, and keeps its own name where that names nothing. `Aliases`
-is never set.
+is never set. These names are what an emitter renders, so a change to how one is derived moves
+`IRVersion` ([ir-version](../ir/ir-version.md)), and
+`testdata/golden/openapi/hint_positions.yaml` writes the positions within one document that a hint
+is composed from, one for each way the naming composes one.
 
 - Cases: `neutral-naming`, `empty-names`
 - Tests: `ids.TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry`,
@@ -690,7 +695,8 @@ is never set.
   `schema.TestComponentBody_SubtreeIsNamedByItsDeclaration`,
   `schema.TestUnionVariant_UnderPathsIsNamedAsTheNodeItHolds`,
   `schema.TestUnionVariant_AWholeDocumentIsNamedForIt`, `naming.TestAt_NamesASchemaAfterItsOwner`,
-  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`
+  `naming.TestAt_NamesABranchAfterItsTarget`, `naming.TestAt_NamesAStructureAReferenceReadsInsideRawYAML`,
+  `e2e.TestGolden_HintPositions`
 - Status: partly built: union variants and inline schemas ignore their `title` as a hint (#662).
 
 ### `values`
@@ -855,12 +861,15 @@ lands on the property, parameter or header that carries it, the referent's under
 field by field ([`ref-use-site`](#ref-use-site)). A parameter's or header's own `description` wins
 over its schema's. `deprecated: true` on a parameter or header and on its schema each deprecate it,
 neither one's `false` clearing the other. A request body's `description` lands on its Payload
-([`request-body`](#request-body)), and a response's payload states no docs of its own.
+([`request-body`](#request-body)), and a response's payload states no docs of its own. OpenAPI has
+no syntax for naming a type in prose, so a `description` is kept as written and no span of it is
+marked ([references in prose](../ir/annotations.md#references-in-prose)).
 
 - Cases: `docs-summary-desc`, `deprecation`
 - Tests: `operation.TestOperation_DeprecatedIsCarried`,
   `operation.TestHeaders_DeprecationUnionsWithTheSchema`,
-  `operation.TestContent_RequestBodyDocsReachThePayload`
+  `operation.TestContent_RequestBodyDocsReachThePayload`,
+  `e2e.TestDocs_TextShapedLikeAReferenceStaysText`
 - Status: partly built: a deprecation cannot name its replacement, which the IR has no field for
   (#670).
 
@@ -933,10 +942,8 @@ model does not name.
   `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
   `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`
-- Status: partly built: a `nullable` its dialect does not define, read with the policy off, is kept
-  nowhere at a position that lowers to a shared node and carries no property or parameter, as no
-  keyword the schema model does not name is there (#1053), and a 3.0 `nullable` with no `type`
-  beside it, which has no effect, draws no report once the policy is off (#1070).
+- Status: partly built: a 3.0 `nullable` with no `type` beside it, which has no effect, draws no
+  report once the policy is off (#1070).
 
 ### `schema-examples`
 
@@ -979,8 +986,9 @@ An `allOf` lowers to the composing `Model`'s `Base` and `Mixins`
 a discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; every other `$ref` entry
 becomes a `Mixin`; and an inline entry merges into the composing model's own `Properties`, each
 property keeping its own provenance ([`allof-inline-residue`](#allof-inline-residue),
-[`allof-redeclared-property`](#allof-redeclared-property)). So every branch stays reconstructible
-from the composition.
+[`allof-redeclared-property`](#allof-redeclared-property)). So every `$ref` entry stays composed
+and a declaration a fold drops stays kept, while what a declaration folded into a field adds lands
+on the field without its source.
 
 `allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
 enclosing list before the entries are classified: its own entries take its place, in source order
@@ -1074,9 +1082,10 @@ another model carries that declaration. The fold reads every declaration of the 
 once every type has lowered, and decides each fact from the whole set, so neither the order of the
 branches nor where a component is declared decides what the field holds; declaration order breaks
 only a tie, and the merge reports each one. One judgment compares two declarations' types and
-returns one of six verdicts: the same type, either one narrower, an overlap, disjoint, or unrelated.
-A disjoint pair is unsatisfiable but for a null both declarations admit: no other value satisfies
-both. An overlap shares values and is merely not narrowed to one. The arms are tried in this order.
+returns a verdict: the same type, either one narrower, two nodes that meet, an overlap, disjoint, or
+unrelated. A disjoint pair is unsatisfiable but for a null both declarations admit: no other value
+satisfies both. An overlap shares values and is merely not narrowed to one. The arms are tried in
+this order.
 `{}` loses to anything but the node a degraded lowering mints (an enum past its member budget, an
 unconvertible const), which is unrelated to every type; where `{}` loses, the winner's own null
 admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
@@ -1096,11 +1105,20 @@ same declaration written twice; a node declared elsewhere, a component or a sche
 in this document or another, wins over an inline copy of itself in either order, and two such nodes
 are two types the source declared apart, which overlap. Two lists, or two maps with one key, compare
 by element or value, nested up to a bound, and the narrower one wins only where it admits null no
-more widely than the other and the other holds no constraint, encoding, documentation, examples or
-`Unmodeled` the winner lacks; disjoint members still overlap where both admit null, or where both
-containers admit the empty one. Two alike in every member and in that detail are judged as two
-equal enums are: one type where both were written inline, the one declared elsewhere winning over
-an inline copy in either order, and two declared elsewhere overlapping. A structure is narrower than
+more widely than the other, its bounds say all the other's do, and the other holds nothing else the
+winner lacks, read as two `Scalar`s are but where each was declared: no encoding, documentation,
+examples, deprecation, XML hints or `Unmodeled`. Disjoint members still overlap where both admit
+null, or where both containers admit the empty one. Two tuples compare position by position, and
+relate only where every position, and what may follow the last, is one type; a tuple that a
+container or another tuple holds is not compared, since a tuple has a member per position where any
+other node has one, and comparing them nested would cost its width to the power of the depth. Two
+lists, maps or tuples alike in every member and in that detail are judged as two equal enums are:
+one type where both were written inline, the one declared elsewhere winning over an inline copy in
+either order, and two declared elsewhere overlapping. Two `Scalar`s, lists, maps or tuples alike in
+all but their bounds are judged by those bounds, wherever each was declared: the one whose bounds
+say all the other's do is narrower, and where neither does, or a keyword with no order differs, the
+two meet. Two that meet as a container's members overlap, since a fold builds a node for a field's
+own type and none for what it holds. A structure is narrower than
 one it says it is: an alias than the type it stands for, and a model than what it composes through
 `Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
 `const` object is narrower than a model saying nothing but `type: object`, and two such models are
@@ -1114,14 +1132,22 @@ instance types meet; an overlap where their kinds share values or a `const` meet
 in a kind or another `const`; and unrelated where nothing says what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
 and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
-types and as two containers' members.
+types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
 
-The field takes the type of the declaration whose type is the same as, or narrower than, the most
-declarations' types, the first of them on a tie. Where one declaration's type is within every other's
-it is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
-the same as or narrower than folds into the field, which adopts its shape detail; every other one is
-dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in every order,
-while `int32` and `uint32` alone keep the first declared and report the other.
+The field takes the type of the declaration whose type is the same as, narrower than, or meets the
+most declarations' types, the first of them on a tie. A declaration's type within every other's
+is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
+the same as or narrower than, or meets, folds into the field, which adopts its shape detail; every
+other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in
+every order, while `int32` and `uint32` alone keep the first declared and report the other.
+
+Two nodes that meet say what no declared node says, since each adds what the other lacks. The field
+takes a node the merge mints: all the winner's node holds, with the bounds of each declaration
+meeting it folded as a property's are, below. So `minItems: 1` beside `maxItems: 5` is one list
+holding both, in either order. It is anonymous, in the `composed` namespace, and derives from the
+declaration naming the field, as a composed model does below. Where that fold leaves the winner's
+bounds as they stand, because only a keyword with no order differs, the field keeps the winner's
+node and nothing is minted.
 
 Two models neither of which holds the other are the exception, since an instance satisfying both is
 a value of a type neither names. Where the declarations whose types no other declaration holds are
@@ -1173,24 +1199,46 @@ bit says, and one folded under another type says nothing of null. A `default` or
 broader declaration gives is taken only where the winning type admits it, judged per keyword and all
 or nothing. The winning type admits a value by its kind and by the constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
-`uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Constraints
-written on the property rather than the node are not judged. Nothing judges a value against a model,
-and no declaration's type is a composed field's own, so a composed field takes no value but a null
-it admits. A value the field does not take is reported in an info `openapi/degraded-construct` at
+`uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
+declaration's value is held by the same checks to each bound the field keeps that another
+declaration brought, on the property or on a node. A value is its declaration's own to answer for
+against a bound it states itself at the value the field keeps, so a default its own bound refuses
+stays, and against its own type, which is the field's where the two differ only in bounds. Nothing
+judges a value against a model, and no declaration's type is a composed field's own, so a composed
+field takes no value but a null it admits. A value the field does not take is reported in an info
+`openapi/degraded-construct` at
 each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
 first written is kept, and a declaration giving another is reported and kept; two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
-written before it. Constraint keywords merge
-over the declarations folded into the field, the first to set a keyword keeping it; the title,
-description, external links, deprecation, XML hints and each `Unmodeled` key over every declaration,
-the first to give one keeping it, and a declaration giving one differently is reported and kept. A
-field keeping the first declaration's identity keeps that declaration's provenance, and either way
-it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
-the one it keeps came from.
+written before it.
 
-The IR has no combinator for "string here, integer there", nor a second slot for a default, title,
-description, external link, examples, deprecation or XML hint another declaration already fills, so
+Constraint keywords fold over the declarations folded into the field, each taking the value that
+says what they all do, so no order decides it. `minimum`, `exclusiveMinimum`, `minLength`,
+`minItems` and `minProperties` take their largest value and `maximum`, `exclusiveMaximum`,
+`maxLength`, `maxItems` and `maxProperties` their smallest, by magnitude, a number written two ways
+keeping the first spelling; `uniqueItems` holds where any declaration sets it. A bound and its
+exclusive form are two keywords, each folding alone, and both apply. `multipleOf` takes whichever
+value is a multiple of the other, and otherwise their least common multiple, a number no
+declaration wrote, whose multiples are exactly those both admit. `pattern`, `patternMessage`,
+`precision` and `scale` have no order and no one value saying two of them, so the first declaration
+to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
+or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
+hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
+declaration giving one differently is reported and kept.
+
+A field keeping the first declaration's identity keeps that declaration's provenance, and either way
+it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
+the one it keeps came from. So a field names one source. `Provenance` holds one pointer, and what a
+folded declaration adds lands on the field with no record of which wrote it, so writing a keyword on
+one branch or on another compiles to the same `types`. A list of the declarations on `Property` was
+weighed and declined: it would say which declarations contributed and not which wrote each keyword,
+no consumer reads either, and a consumer needing it can take it as an ordinary versioned change ([IR
+version](../ir/ir-version.md)).
+
+The IR has no combinator for "string here, integer there", nor a second slot for a `pattern`,
+default, title, description, external link, examples, deprecation or XML hint another declaration
+already fills, so
 whatever of a declaration the fold cannot carry has nowhere to sit on the merged property, and with
 nowhere to sit it would go nowhere at all: a release in which a losing branch's type or default
 changed would produce no change in the document, which a consumer diffing two versions reads as
@@ -1205,8 +1253,11 @@ a byte slice, and one node keeps everything the redeclaration said at once — a
 written, a nullability, a default.
 
 Preservation is owed wherever something is dropped, which is wider than the disagreements worth a
-warning. Each diagnostic sits at the declaration that lost and names the one whose say the field
-kept. A dropped declaration is reported against the winner as an `openapi/conflicting-redeclaration`
+warning, and nothing is owed for what the field implies. A broader type and a looser bound say no
+more than the field does, and a release changing either changes no value the field admits, so
+neither is kept or reported. Each diagnostic sits at the declaration that lost and names the one
+whose say the field kept. A dropped declaration is reported against the winner as an
+`openapi/conflicting-redeclaration`
 warning where their types are incompatible — disjoint primitive kinds (`string` against `integer`,
 `uuid` against `date-time`), an enum none of whose members the other kind admits, a scalar against a
 structure, two structures of different instance types, or two lists or maps whose members share no
@@ -1222,10 +1273,11 @@ diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
 would leave one field asserting two contradictory things, with nothing downstream comparing a
 value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
-called a conflict. A declaration folded into the field is reported as well where it pins a
-constraint keyword the field keeps to another value, an `openapi/conflicting-redeclaration` warning
-naming the declaration the value was kept from, or gives a detail differently from the one kept, an
-info `openapi/degraded-construct`; differing only in nullability, it takes no entry: the merged
+called a conflict. A declaration folded into the field is reported as well where no one value says
+what it and the field say of a constraint keyword, an `openapi/conflicting-redeclaration` warning
+naming the declaration the value was kept from, or where it gives a detail differently from the one
+kept, an info `openapi/degraded-construct`; differing only in nullability, it takes no entry: the
+merged
 field admits null only where every folded declaration does, which is the conjunction a single
 schema's null verdicts fold under ([`nullable`](#nullable)).
 
@@ -1236,7 +1288,8 @@ a form part's flags read the merged field. A fold judges every pair of declarati
 field's first 64 at most; each later one is kept verbatim, unjudged, under an
 `openapi/budget-exceeded` error at the first of them.
 
-- Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`
+- Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
+  `allof-redeclared-bounds`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
 - Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
@@ -1309,6 +1362,28 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_ATieGoesToTheFirstAndIsReported`,
   `merge.TestFold_ADroppedFirstDeclarationIsKept`,
   `merge.TestFold_AConstraintConflictNamesTheDeclarationKeptFrom`,
+  `merge.TestFold_ABoundTakesItsTightestValueInEveryOrder`,
+  `merge.TestFold_AKeywordNoOneValueStatesIsKeptAndReported`,
+  `merge.TestCommonStep_HoldsTheMultiplesOfBoth`,
+  `merge.TestCommonStep_RefusesWhatItCannotRead`,
+  `merge.TestBoundsRelation_JudgesWhichSaysAllTheOtherDoes`,
+  `merge.TestFold_NodesThatMeetStandOnAMintedNode`,
+  `merge.TestFold_TheBoundsOfEveryDeclarationMeetInEveryOrder`,
+  `merge.TestFold_ANodeHoldingEveryBoundIsNotMinted`,
+  `merge.TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner`,
+  `merge.TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet`,
+  `merge.TestFold_AValueIsHeldToTheBoundsOthersBring`,
+  `merge.TestFold_ANodesBoundsJudgeAValueWrittenAgainstItsOwnKind`,
+  `merge.TestFold_AValueOfABroaderMemberIsJudgedByTheField`,
+  `merge.TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn`,
+  `merge.TestFold_ADroppedDeclarationsBoundsStayOffAMintedNode`,
+  `merge.TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth`,
+  `merge.TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth`,
+  `schema.TestAllOf_ABoundTakesItsTightestValueInEitherOrder`,
+  `schema.TestAllOf_ANodesBoundsReachTheFieldInEitherOrder`,
+  `schema.TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder`,
+  `schema.TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder`,
+  `schema.TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself`,
   `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
   `merge.TestFold_ADroppedDeclarationStillSaysWhatIsNotShape`,
   `merge.TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother`,
@@ -1327,16 +1402,15 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
-  two enums whose members fit each other's kind, two different literals), and a list or map whose
-  broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
+  two enums whose members fit each other's kind, two different literals), a list or map whose
+  broader side carries detail the narrower lacks, a node adding a bound beside one adding other
+  detail, and a list or map whose members meet, are reported as an overlap and never narrowed
   (#1042); two models alike in every property compose rather than collapse to one type (#1083); a
   model and a map or a union are reported as types the merge does not compare (#1182), and so are two
   lists, tuples or maps whose members are different models (#1180); a model, an alias of `{}` and
   another model keep the first and report the rest (#1194); a model and the wrapper it
   flattens that fold different sets only because the model stops at the flattening depth are refused
-  as `compile/registry-refused`, not told apart, since one declaration names both. Open:
-  intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted
-  value against the constraints written on the property (#10).
+  as `compile/registry-refused`, not told apart, since one declaration names both.
 
 ### `allof-required`
 
@@ -1413,18 +1487,18 @@ exclusive unless two listed types overlap: `integer` and `number`, the one pair 
 do, since every integer is a number, or a type listed twice, which [`validation`](#validation)
 reports. Two variants the types resolve to one primitive, as a width does
 ([`numeric-formats`](#numeric-formats)), stay two. The bounds a carried schema writes land on its
-property or parameter ([`constraints`](#constraints)). No keyword census runs over the union, since
-each variant is built from the whole schema and holds what its own type admits
-([`shape-applicator`](#shape-applicator)).
+property or parameter ([`constraints`](#constraints)). Each variant is built from the whole schema,
+so the keyword census asks the variants rather than the union: a keyword or bound some variant holds
+is homed, and one none holds is kept on the union ([`shape-applicator`](#shape-applicator)).
 
-- Cases: `type-array-numeric`
+- Cases: `keywords-at-every-outcome`, `type-array-numeric`
 - Tests: `schema.TestLower_MultiTypeUnion`,
   `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestLower_ATypeListedTwiceIsNotExclusive`,
   `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
-- Status: partly built: a keyword or bound that no variant holds, as at a component, where no
-  carrier takes a bound, is dropped in silence (#852); and a multi-typed base's discriminator routes
-  to no subtype (#853).
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a value
+  bound lands on any variant with a `Constraints` field, whether or not it constrains that variant's
+  type (#1310).
 
 ### `union-null-variant`
 
@@ -1517,7 +1591,8 @@ validation logic, so it is kept under `validation_only` with the keyword family 
 [boundaries](../ir/boundaries.md#validation-only-constructs) and reported as an info
 `openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)).
 
-- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`
+- Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
+  `keywords-at-every-outcome`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
 - Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
@@ -1587,19 +1662,27 @@ takes the smallest in byte order as its `DiscriminatorValue`
 is not a property of the document, with every key kept in the base's `Mapping` and the election
 reported as an info `openapi/degraded-construct` at the subtype. A discriminator beside a node that
 routes by none is kept verbatim by [`shape-applicator`](#shape-applicator), and one beside a union
-written with structure is [`union-beside-structure`](#union-beside-structure)'s.
+written with structure is [`union-beside-structure`](#union-beside-structure)'s. A union's mapping
+names a variant, what `pass/discriminator-missing-variant` holds it to and what an emitter routes
+by, so a target naming a type that one variant's branch aliases, for a keyword written beside that
+branch's `$ref`, lowers to that variant. A type two variants alias stays the target, since nothing
+in the mapping says which, and that is reported as any target that is no variant is. A target naming
+a position that writes a `$ref`, other than a component or a variant, is read through to what the
+`$ref` names, whatever is written beside it: an alias there is neither a variant nor a subtype.
 
 - Cases: `oneof-discriminated`, `discriminator-inheritance`, `discriminator-default-mapping`,
-  `discriminator-alias-mapping`, `nullable-union-discriminator`
+  `discriminator-alias-mapping`, `nullable-union-discriminator`, `discriminator-aliased-branch`
 - Codes: `openapi/degraded-construct`, `openapi/unresolved-ref`
 - Tests: `schema.TestHomelessDiscriminator_IsKeptBesideEveryOtherNode`,
   `schema.TestUnplacedDiscriminator_IsKeptAtEveryUnionSite`,
-  `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`
+  `e2e.TestMappingTargets_ADiscriminatorAReferenceReachesIsBoundWhereItSits`,
+  `schema.TestDiscriminatorMapping_RoutesToTheVariantAliasingItsTarget`,
+  `schema.TestDiscriminatorDefault_RoutesToTheVariantAliasingItsTarget`,
+  `schema.TestDiscriminatorMapping_TwoVariantsAliasingATypeRouteToNeither`
 - Status: partly built: an empty `propertyName` lowers to IR that `irverify` refuses (#882); a
-  mapping to a component that is a `$ref` to a subtype fails validation (#844), a keyword beside a
-  union branch's `$ref` breaks a mapping to its component (#847), and a mapping to a property whose
-  `$ref` has a sibling names an unused alias (#764). Open: inferring a discriminator from pinned tag
-  values, as an injectable policy (#659).
+  mapping to a component that is a `$ref` to a subtype fails validation (#844), and so does one to a
+  type two variants alias, which a valid document can write (#1298). Open: inferring a
+  discriminator from pinned tag values, as an injectable policy (#659).
 
 ### `discriminator-value`
 
@@ -1808,17 +1891,20 @@ homed by a `Model` or `Union` that routes by it and by nothing else, so one besi
 the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the same way. At a
 `$ref` position the census runs on the alias the use-site rule of
 [models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
-than the referent. One limit is
-deliberate: a multi-typed schema (`type: [string, object]`) is exempt, because it lowers one variant
-per declared type from the same schema and the homes are the variants'.
+than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union
+holds what a node of its kind holds. A collapsed union and an expanded `$dynamicRef` lower to a
+reference, so they are read as a `$ref` position is. A multi-typed schema
+(`type: [string, object]`) and a union distributed over its branches are built from the one schema
+per variant, so the census asks the variants, and a keyword is homed where any holds it: a
+distributed union's `properties` are consumed, and a `format` or `maxItems` beside them is kept on
+the union, under a report naming a union of models.
 
-- Cases: `unhomed-keywords`, `empty-enum`
+- Cases: `unhomed-keywords`, `empty-enum`, `keywords-at-every-outcome`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestObject_ACatchAllBesideARequiredNameStaysAModel`,
   `schema.TestUnhomedApplicator_KeptOnAListAndAnnounced`,
   `schema.TestUnhomedApplicator_FormatWithNoTypeIsKept`
-- Status: partly built: a keyword beside a multi-typed schema that no variant holds is dropped in
-  silence (#852). Open: whether `format: set` on an array reads as `uniqueItems` (#638).
+- Status: partly built. Open: whether `format: set` on an array reads as `uniqueItems` (#638).
 
 ### `string-formats`
 
@@ -1939,6 +2025,30 @@ verbatim whole, a `dependentSchemas` entry, stays in that value, since nothing r
   `schema.TestNullSchema_AnEntryIsTheEmptySchemaAndAKeywordIsLeftOut`,
   `annotation.TestIsNullLiteral_TellsANullFromFalse`
 
+### `null-keywords`
+
+A `null` written for a keyword of a Schema Object is read as that keyword left out, whatever the
+keyword and whatever node the schema lowers to, as [`null-schema`](#null-schema) reads one whose
+value is a schema: no keyword admits it, so it states nothing, and the schema lowers exactly as it
+does with the key removed. A `null` bound draws no `openapi/invalid-numeric-literal`, `type: null`
+declares no type, unlike `type: "null"`, and nothing is kept verbatim for want of a home. `const`,
+`default` and `example` hold an instance, of which `null` is one, so a `null` there is that value
+([`enum-const`](#enum-const), [`nullable`](#nullable)), as an `enum` member is. A keyword of no
+vocabulary has no type to break and is kept with the `null` it wrote, as
+[`unknown-keys`](#unknown-keys) keeps any value. The load phase reports each such `null` at the node
+as the warning a field left out draws ([`validation`](#validation)); the lowering reports nothing
+of its own, since reading it so loses nothing.
+
+- Cases: `null-keywords`
+- Codes: `openapi/invalid-numeric-literal`
+- Tests: `e2e.TestCompile_ANullKeywordLowersAsTheKeywordLeftOut`,
+  `e2e.TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut`,
+  `annotation.TestRawPropertyNode_ReadsANullKeywordAsLeftOut`,
+  `anchors.TestBuild_ANullAnchorNamesNothing`,
+  `oas.TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional`
+- Status: partly built: a keyword written `null` beneath the same keyword, such as an `items` inside
+  an `items`, turns the outer position into the `false` schema (#1299).
+
 ## 7. Schemas: keywords beyond the shape
 
 ### `constraints`
@@ -1971,10 +2081,8 @@ it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
   `schema.TestConstraints_LosslessNumericLiterals`,
   `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`
-- Status: partly built: a bound beside a `oneOf` or `anyOf` that lowers to a `Union` is dropped in
-  silence (#848), and so is one beside a multi-typed schema that no carrier holds
-  ([`type-arrays`](#type-arrays), #852); and an integer bound past what a 64-bit integer holds
-  lowers as `0`, unreported (#1050).
+- Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported
+  (#1050).
 
 ### `validation-only`
 
@@ -2023,9 +2131,10 @@ Anchors are counted through YAML aliases and merge keys, so an anchor reached on
 makes its name a duplicate. The walk is bounded by depth and by node count, and says so when it
 truncates, once, with an `openapi/degraded-construct` warning at the document, since a truncated
 index undercounts declarations and an undercount is what turns "irreducible" into a confident
-expansion.
+expansion. A keyword written beside a reference that expands is read as one beside a `$ref` is
+([`shape-applicator`](#shape-applicator)).
 
-- Cases: `dynamic-ref`
+- Cases: `dynamic-ref`, `keywords-at-every-outcome`
 - Codes: `openapi/dynamic-ref-expanded`, `openapi/degraded-construct`
 - Tests: `schema.TestDynamicRef_IrreducibleIsKeptAndSaysWhy`,
   `anchors.TestBuild_CountsWhatAnAliasBringsIn`,
@@ -2385,11 +2494,15 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 A parameter schema's `xml`, and its `readOnly` and `writeOnly`, are kept verbatim in the parameter's
 `Unmodeled` (`no_ir_home`), reported as an info `openapi/degraded-construct` at the keyword, since
 `ir.Parameter` has no field for either. The `xml` of a schema that owns a node of its own stays on
-that node's `XMLHints` instead.
+that node's `XMLHints` instead. A schema with no node of its own keeps there too what any carrier
+keeps: the content vocabulary ([`content-vocabulary`](#content-vocabulary)), a `$dynamicRef` that
+did not expand ([`dynamic-ref`](#dynamic-ref)) and a keyword nothing reads
+([`unknown-keys`](#unknown-keys)).
 
 - Cases: `param-xml-residue`
 - Codes: `openapi/degraded-construct`
 - Tests: `operation.TestParams_SchemaVisibilityKeptUnderUnmodeled`,
+  `operation.TestParams_KeepWhatAnyCarrierKeeps`,
   `operation.TestParams_SchemaVisibilityKeptWhenTheSchemaOwnsANode`,
   `operation.TestParams_SchemaXMLHintsStayOnAnOwnedNode`
 
@@ -2740,27 +2853,74 @@ Operation's — to an OR of ANDs: each requirement object one alternative, namin
 with the scopes it lists ([auth](../ir/auth.md)). An operation that writes no `security`
 inherits the document's, and one writing `security: []` is public; the two stay apart, absent
 against empty ([operations](../ir/operations.md)). The document's list keeps the same two
-spellings apart in `Service.Auth`. A requirement naming a scheme the section
-does not declare is reported as an `openapi/unresolved-ref` error at the requirement and dropped. An
-entry that omits the field naming its mechanism — `type`, or for `http` the `scheme` token — is
-interned as no scheme, reported as an `openapi/incomplete-security-scheme` error at the entry, and
-every requirement naming it is dropped. 3.2's device flow lowers to `Flows` beside the other flows,
-and `oauth2MetadataUrl` to `OAuth2MetadataURL`. An `oauth2` scheme whose `flows` declares no flow —
-`flows: {}`, only `x-*` and keys that name no flow, or only flows written null — and that has no
-`oauth2MetadataUrl` lowers as declared, reported as an `openapi/oauth2-no-flow` warning at the
-declaration; a `flows` left out, null or no mapping is the rule table's to report instead
+spellings apart in `Service.Auth`.
+
+A requirement names a scheme by its key under the source's `securitySchemes`, whichever document
+holds the requirement, matched exactly. A name that reaches no mechanism lowers to a scheme of kind
+`unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is reported as an
+`openapi/unresolved-security-scheme` error at each requirement.
+Nothing else about the requirement changes: the option keeps its other schemes, its scopes and its
+place in the list, so an operation stating its own requirement does not read as inheriting, and an
+option whose name reaches no mechanism does not vanish from the options beside it. The error stands
+however the rest lowers, since the specification requires the name to correspond to a scheme and
+what it means is missing ([`validation`](#validation)). A name stands whatever is beside it, whether
+or not it reaches a mechanism, since an option demands every scheme it names: a value that reads as
+no list of strings lists no scopes, a warning from the rule table for a `null` and an error for any
+other ([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
+writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)).
+
+A name reaches no mechanism in three ways. No entry declares it, and the scheme records no pointer,
+since no position writes it. Or its entry omits the field naming the mechanism — `type`, or for
+`http` the `scheme` token — which is reported as an `openapi/incomplete-security-scheme` error at
+the entry. Or its entry resolves to no object, whose `$ref` is reported as an `openapi/unresolved-ref`
+error at the entry, and whose other shapes the rule table reports
+([`minor-required-fields`](#minor-required-fields)). An entry lowers to that kind whether or not a
+requirement names it, recording its pointer and keeping what it wrote: its `description` and
+`deprecated`, the `summary` and `description` a Reference Object writes beside its `$ref`
+([`reference-object-siblings`](#reference-object-siblings)), its `type` and each mechanism field
+verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each reported as an info
+`openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
+A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error. An
+entry written as no object holds no field to keep. A `security` entry written as no object names
+nothing, so a list holding nothing else, though it writes entries, lowers to no option: it collapses
+to nil, beside the rule table's error, since `[]` would read as public. A `security` that is no list
+lowers as one left out, beside the rule table's finding, a warning for a `null` and otherwise an
+error.
+
+3.2's device flow lowers to `Flows` beside the other flows, and `oauth2MetadataUrl` to
+`OAuth2MetadataURL`. An `oauth2` scheme whose `flows` declares no flow — `flows: {}`, only `x-*` and
+keys that name no flow, or only flows written null — and that has no `oauth2MetadataUrl` lowers as
+declared, reported as an `openapi/oauth2-no-flow` warning at the declaration; a `flows` left out,
+null or no mapping is the rule table's to report instead
 ([`minor-required-fields`](#minor-required-fields)). The table states the rules this one reports, a
 requirement naming no scheme and a scheme naming no mechanism, and leaves them to it.
 
-- Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `oauth2-no-flow`
-- Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`, `openapi/unresolved-ref`
+- Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `security-unresolved`,
+  `oauth2-no-flow`
+- Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`,
+  `openapi/unresolved-security-scheme`, `openapi/unresolved-ref`
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
-  `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused`,
+  `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved`,
+  `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsWhatItWrote`,
+  `auth.TestLowerSecuritySchemes_AKeptTypeIsTheEntrysOwn`, `auth.TestLowerSecuritySchemes_ABrokenRefIsKept`,
+  `auth.TestSecurityRequirement_AnUnresolvedMemberKeepsItsOption`,
+  `auth.TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption`,
+  `auth.TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope`,
+  `auth.TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported`,
+  `auth.TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt`,
+  `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
+  `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
+  `e2e.TestSecurityUnresolved_ANameTwoDocumentsUseIsOneSchemeOfTheSource`,
+  `auth.TestSecurityRequirement_AnOperationsOwnUnresolvedListDoesNotInherit`,
+  `auth.TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil`,
   `auth.TestAuth_RequirementsOrOfAnds`
-- Status: partly built: a requirement naming an unknown scheme is dropped, so an operation whose
-  every requirement names one lowers as inheriting the service's security (#633); an unresolved
-  scheme name gets no near-miss hint (#694); and a scope a requirement repeats passes into the IR
-  undeduplicated (#738).
+- Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
+  unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
+  the IR undeduplicated (#738), a requirement whose only key is a `<<` naming no mapping lowers to
+  the empty option, beside the rule table's error (#1244), and a field written as the model does not
+  decode it reads as left out with no finding, so `scheme: 2021-01-01` names no mechanism and a
+  `security` list under a local tag inherits (#1280), and a `$ref` written as null refuses the whole
+  document (#1284).
 
 ### `security-scheme-fields`
 
@@ -2853,12 +3013,14 @@ beneath the scope its extensions use (`openapi:info/<key>`, `openapi:pathItem/<k
 [`vendor-extensions`](#vendor-extensions)). A path item's is judged like any other, a value carrying
 a YAML anchor included. A schema keyword no field of the schema model names is kept the same way,
 reported as an info `openapi/unknown-schema-keyword`, because JSON Schema obliges an implementation
-to ignore a keyword it does not know; `$comment`, `$dynamicAnchor` and `$dynamicRef` are decided
-elsewhere and left out. So is a keyword the model names and the dialect the schema is read in does
-not define, which only `nullable` is, with the nullable-widening policy off
-([`nullable`](#nullable)). One object contributes at most `annotation.MaxUnknownKeys` keys, taken in
-byte order after the keys another reader already kept at the same pointer are set aside, and the
-rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the object.
+to ignore a keyword it does not know, and a position that lowers to a shared node and carries no
+property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
+`$dynamicRef` are decided elsewhere and left out. A keyword the model names and the dialect the
+schema is read in does not define, which only `nullable` is, with the nullable-widening policy off
+([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
+taken in byte order after the keys another reader already kept at the same pointer are set aside,
+and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
+object.
 Two other outcomes also keep nothing and warn: `openapi/unknown-key-entry-taken`, where
 `openapi:<key>` is already held by a construct written elsewhere on a carrier two objects share, a
 parameter's own key and its schema's keyword, whichever lowered first surviving; and
@@ -2866,16 +3028,17 @@ parameter's own key and its schema's keyword, whichever lowered first surviving;
 compiler's reader expands, so it reads no pair for it. A key merged in within that depth is read,
 kept and reported as a written one is.
 
-- Cases: `path-item-anchored-key`
+- Cases: `path-item-anchored-key`, `unknown-keywords-at-shared-nodes`
 - Codes: `openapi/unknown-object-key`, `openapi/unknown-schema-keyword`,
   `openapi/unknown-key-budget`, `openapi/unknown-key-entry-taken`, `openapi/unknown-key-unreachable`
 - Tests: `e2e.TestUnknownKeys_KeptAtEveryObject`,
   `e2e.TestUnknownKeys_SchemaAndObjectAreGradedApart`,
   `annotation.TestUnknownKeysIn_BudgetBoundsWhatOneObjectContributes`,
-  `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`
+  `annotation.TestUndefinedKeywordsIn_KeepsWhatTheCallerNames`,
+  `annotation.TestWritesUnknownKeyword_AsksWhatTheCensusWouldKeep`,
+  `e2e.TestNullableWidening_DisabledKeepsItAtASharedNode`
 - Status: partly built: a parameter's key and its schema's keyword of one spelling share an entry
-  (#396), and a schema keyword at a position that lowers to a shared node and carries no property or
-  parameter is kept nowhere and reported by nothing (#1053).
+  (#396).
 
 ### `extension-promotion`
 
@@ -2886,9 +3049,9 @@ policy is `Options.Promotions`, on by default: its `Targets` replace the default
 key's value is an object holding several facts, the member of it to read. The list is the
 precedence: the first source stating a value fills the field, and a later one stating another is
 reported as an info `openapi/degraded-construct` at its own key. An absent member states nothing,
-and a key with no members to read is reported the same way, once however many sources read it. A
-node a promotion writes into lists the marker `extension-promotion` in its `Provenance.Inferred`,
-and the extension stays in `Unmodeled` untouched.
+and a key with no members to read is reported the same way, once however many sources read it. The
+node keeping the extension lists the marker `extension-promotion` in its `Provenance.Inferred`, as
+does a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled` untouched.
 
 `Deprecation` is filled on an operation, a parameter, a header, a property, a type node or a
 security scheme. A key can state the deprecation itself: the default reads `x-fern-availability`,
@@ -2966,6 +3129,7 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
   `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
   `lowering.TestPromoter_ReferentReadsWhatASchemaLends`,
+  `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
   `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,

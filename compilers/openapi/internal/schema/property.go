@@ -106,11 +106,21 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 		p.Examples = a.Examples
 	}
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, a.Unmodeled)
-	// nil node: this arm runs only when the schema lowered to no node of its own,
-	// so nothing here can be carrying an Encoding.
-	diags = append(diags, recordUnplacedContent(c, &p.Unmodeled, ref, nil, pointer)...)
-	diags = append(diags, recordUnexpandedDynamicRef(c, &p.Unmodeled, ref, pointer)...)
-	return append(diags, PreserveUnknownKeywords(c, &p.Unmodeled, ref, pointer)...)
+	return append(diags, PreserveCarriedKeywords(c, &p.Unmodeled, ref, pointer)...)
+}
+
+// PreserveCarriedKeywords keeps on p, a carrier's Unmodeled, what a schema that
+// lowered to no node of its own wrote and no field of the carrier holds: the
+// content vocabulary, an unexpanded $dynamicRef and any keyword nothing reads,
+// which attachDeclaredAnnotations keeps on a node. It is one call so that a
+// property, a header and a parameter cannot differ in what they keep, and it runs
+// last, as PreserveUnknownKeywords requires.
+func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	// nil node: only a schema with no node of its own comes here, so nothing here
+	// can be carrying an Encoding.
+	diags := recordUnplacedContent(c, p, s, nil, pointer)
+	diags = append(diags, recordUnexpandedDynamicRef(c, p, s, pointer)...)
+	return append(diags, PreserveUnknownKeywords(c, p, s, pointer)...)
 }
 
 // PromoteUse reads the vendor extensions into the deprecation and redaction of a

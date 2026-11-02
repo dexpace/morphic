@@ -21,13 +21,14 @@ import (
 // value checks the value a field is written with: its shape, then what its
 // shape allows, then the objects it holds. A field whose shape another package
 // owns is left to it, bar a number outside the field's range, such as a
-// multipleOf of 0, which that package reads as the number it is, quoted or not.
+// multipleOf of 0, which that package reads as the number it is, quoted or not,
+// and a null, which that package reads as the field left out.
 func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	node := nodeview.Deref(val)
 	ptr := f.at.ptr.AppendToken(fld.Name)
 	shape, ok := w.shapeOf(fld, node)
 	if !ok {
-		if fld.ShapeOwner == "" || outOfRange(fld.Shape, node) {
+		if fld.ShapeOwner == "" || outOfRange(fld.Shape, node) || isNull(node) {
 			w.mismatch(f, fld, node, ptr)
 		}
 		return
@@ -60,6 +61,8 @@ func (w *walker) mismatch(f frame, fld Field, node *yaml.Node, ptr jsontext.Poin
 		switch f.nullRead(fld, w.minor) {
 		case leftOut:
 			sev, null = ir.SeverityWarning, "; it is null, which is read as the field left out"
+		case noScopes:
+			sev, null = ir.SeverityWarning, "; it is null, which is read as listing no scopes"
 		case missingElsewhere:
 			return
 		}
@@ -78,18 +81,19 @@ const (
 	leftOut
 	// missingElsewhere: as a missing field, which another package reports.
 	missingElsewhere
+	// noScopes: as a security requirement's name listing no scopes, a warning.
+	// The name is no field to leave out: it stands whatever its value
+	// (docs/compilers/openapi.md#security-requirements).
+	noScopes
 )
 
 // nullRead says how a null written for the field is read at minor m. The schema
-// lowering reads one for a keyword whose value is a schema as left out, and one
-// for another object's schema as the empty schema, a value. It reads one for a
-// Schema Object's other keywords several ways, so that is the wrong value
-// (GitHub #1069). A null for an optional field is otherwise left out; for a
-// required field it is the value that is missing, reported by whichever package
-// owns the rule.
+// lowering reads one for another object's schema as the empty schema, a value
+// of the wrong shape, and one for any keyword of a Schema Object as left out. A
+// null for an optional field is otherwise left out; for a required field it is
+// the value that is missing, reported by whichever package owns the rule.
 func (f frame) nullRead(fld Field, m Minor) nullReading {
-	holdsSchema := fld.Shape == Nested && fld.Of == Schema
-	if holdsSchema != (f.obj.Kind == Schema) {
+	if fld.Shape == Nested && fld.Of == Schema && f.obj.Kind != Schema {
 		return wrongValue
 	}
 	if fld.Required.Holds(m) {
@@ -103,6 +107,10 @@ func (f frame) nullRead(fld Field, m Minor) nullReading {
 			return missingElsewhere
 		}
 		return wrongValue
+	}
+	// A requirement's name stands whatever its value, so it is no optional field.
+	if f.obj.Kind == SecurityRequirement {
+		return noScopes
 	}
 	return leftOut
 }
