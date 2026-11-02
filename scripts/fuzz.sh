@@ -20,15 +20,18 @@ cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 
 mode="${1:-${FUZZTIME:-10s}}"
 
-# A search's budget is a duration or a count, as go test reads -fuzztime. Anything
-# else is refused here, before every target builds only to reject it: a mistyped
-# mode would otherwise spend minutes reaching that error.
-budget='^([0-9]+x|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$'
+# A search's budget is a duration or a count above zero, with an optional
+# leading plus, as go test reads -fuzztime. Anything else is refused here, before
+# every target builds only to reject it: a mistyped mode would otherwise spend
+# minutes reaching that error. A value out of range, too large or below a
+# nanosecond, is left to go test to refuse, since the pattern reads syntax and
+# not size.
+budget='^\+?([0-9]+x|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$'
 case "$mode" in
 check | prune) ;;
 *)
-	if ! [[ "$mode" =~ $budget ]]; then
-		echo "fuzz.sh: $mode is not check, prune, a duration such as 5s or a count such as 100x" >&2
+	if ! [[ "$mode" =~ $budget ]] || [[ "$mode" != *[1-9]* ]]; then
+		echo "fuzz.sh: $mode is not check, prune, a duration above zero such as 5s or a count above zero such as 100x" >&2
 		exit 2
 	fi
 	;;
