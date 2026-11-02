@@ -195,7 +195,9 @@ func TestKeepOn_AnnouncesOnlyDocumentationThatLanded(t *testing.T) {
 		Provenance: ir.Provenance{Pointer: "/paths/~1a/summary"}}}
 
 	landed := &ir.Operation{}
-	assert.Len(t, keepOn(landed, kept), 1, "documentation that lands is announced")
+	notes := keepOn(landed, kept)
+	require.Len(t, notes, 1, "documentation that lands is announced")
+	assert.Equal(t, diag.DegradedConstruct, notes[0].Code)
 
 	own := ir.UnmodeledEntry{Value: ir.RawValue(`"the operation's"`), Provenance: ir.Provenance{Pointer: "/paths/~1a/get/x"}}
 	refused := &ir.Operation{Unmodeled: ir.Unmodeled{key: own}}

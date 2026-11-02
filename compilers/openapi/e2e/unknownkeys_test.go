@@ -373,9 +373,8 @@ components:
 		}
 	}
 	// An absence is only evidence where the reader ran, and the census runs once
-	// per operation lowered off a path item. Both items here have to reach it,
-	// the $ref'd one included, or the rows above hold over a walk that never
-	// looked.
+	// for each mount the walk reaches. Both items here have to reach it, the
+	// $ref'd one included, or the rows above hold over a walk that never looked.
 	for _, name := range []string{"getP", "getY"} {
 		_, ok := opByName(doc, name)
 		assert.True(t, ok, "%s lowers, so the census ran on the path item declaring it", name)

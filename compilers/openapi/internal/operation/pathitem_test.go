@@ -466,7 +466,7 @@ paths:
 // TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService covers the one path
 // item shape that reached applyPathItem through nothing.
 //
-// applyPathItem runs once per operation an item produces, so an item producing
+// applyPathItem ran once per operation an item produced, so an item producing
 // none lost its servers, its extensions and its undeclared keys whole, with no
 // diagnostic naming the loss. Its extensions go on the service now — the same
 // node the Paths Object's own extensions go to, and for the same reason: a path
@@ -777,6 +777,5 @@ func TestPathItem_DocsKeepApartFromAnOperationsOwnKeys(t *testing.T) {
 		assert.JSONEq(t, `"`+tc.text+`"`, string(entry.Value), "%s holds its own value", tc.key)
 		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
 	}
-	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.UnknownKeyEntryTaken, "/paths/~1a/get/pathItemSummary"),
-		"the operation's key is not reported as displaced")
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken), "no key is reported as reaching the IR in no form")
 }
