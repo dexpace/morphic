@@ -32,8 +32,8 @@ The procedure decided every existing field:
 
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `RequestContent` and the content each
    `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open` on a union and on an enum,
-   `Effects`, which a method sets where the IR states nothing, and `PagePlan`, an inferred one
-   included.
+   `Effects`, which a method sets where the IR states nothing, `Examples`, synthesized where none
+   is declared, and `PagePlan`, an inferred one included.
 2. **Derivations several artifacts expose** stay: `Return`, `Others`, `Errors`, `Auth`, `Bindings`,
    `Stream` and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
    `Inclusive`, `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared` and `Unflattened`

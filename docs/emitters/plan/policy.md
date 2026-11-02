@@ -23,6 +23,14 @@ type Policy struct {
                                        // variants admit decodes to (../refine/unions.md)
     MethodSemantics bool               // default on: an operation stating no effects takes
                                        // its method's (below)
+    Examples        ExamplePolicy      // default on, depth 3, 2 items: what may be synthesized
+                                       // where no example is declared (../docs-and-mock.md)
+}
+
+type ExamplePolicy struct {
+    Synthesize bool                    // off leaves an entity with none declared without one
+    MaxDepth   int                     // how deep a synthesized value nests
+    MaxItems   int                     // how many items a synthesized list or map holds
 }
 
 type PrimaryRule string                  // "lowest_2xx" | "unconditional" | "default"

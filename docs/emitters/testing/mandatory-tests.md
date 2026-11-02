@@ -221,4 +221,19 @@ throughout these documents.
     survive byte for byte, and its table of contents lists the user's headings; and a manifest of
     an older `Schema` is migrated, one of a newer refused
     ([write / integrate](../write-integrate.md)).
+39. **T-39 · Docs** — the docs emitter renders every response, error case and content an operation
+    declares, the primary first, and a type's request and response shapes apart, a write-only
+    property in no response table; every operation, page-worthy type and property has a route or
+    anchor, and two entities resolving to one URL is an error naming both, also when the URL
+    templates are changed; every link and `Docs.Refs` span resolves through the route plan; a
+    version switcher links one entity across snapshots and an entity a version lacks to that
+    version's page saying so; agent documents and `llms.txt` share the pages' URLs, escape spec
+    text and pass no raw HTML; and a sample comes from each SDK target, a missing one a diagnostic
+    ([docs and mocks](../docs-and-mock.md)).
+40. **T-40 · One set of examples** — a declared example is used everywhere and labelled authored;
+    where none is declared, the value synthesized is valid against its constraints, within the
+    policy's depth and item bounds, marked `Inferred`, identical across regenerations and in both
+    declaration orders, and the same in the docs, the samples, an SDK's tests and the mock; one the
+    synthesizer cannot make valid is reported and left out
+    ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
 

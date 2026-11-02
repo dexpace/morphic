@@ -15,11 +15,19 @@ func Build(doc *ir.Document, facts *irfacts.Index, pp Policy) (*Plan, []ir.Diagn
 type Plan struct {
     Ops     map[ir.OpID]OpPlan          // one entry per operation
     Types   map[ir.TypeID]TypePlan      // one entry per registry type
+    Examples map[string][]Example       // by the ID of each type, property, parameter and
+                                        // operation: its declared examples, else one
+                                        // synthesized (../docs-and-mock.md#one-set-of-examples)
     Version string                      // the plan's identity (below), which the plan cache
                                         // and the generation manifest key on
 }
 
 const Revision = 1                      // bumped with every change to what Build returns
+
+type Example struct {
+    Value    ir.Example                 // the example, as the IR spells one
+    Authored bool                       // declared by the document; false = synthesized, Inferred
+}
 ```
 
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
