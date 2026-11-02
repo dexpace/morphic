@@ -30,25 +30,10 @@ go build -o "$tool" ./cmd/morphic-vet
 # The module and the plant are vetted in one go: their findings, the file each
 # is in, must be exactly the plant. A finding in the module, or an error, names
 # a file of its own.
-#
-# go vet caches a package's findings, and replays them with the path they were
-# first reported under: a checkout of the same content at another path, sharing
-# the build cache, reports the plant by that other checkout's absolute path. So
-# each file is read as a path from the module root, ignoring the directories
-# above it.
 status=0
 go vet -vettool="$tool" ./... "./$reach" 2>"$work/vet.out" || status=$?
 got="$(sed -nE 's/^([^#][^:]*):[0-9]+:[0-9]+: .*/\1/p' "$work/vet.out")"
-ok=0
-case "$got" in
-*$'\n'*) ;; # more than one finding
-"$reach/reach.go" | */"$reach/reach.go")
-	if [[ "$status" -eq 1 ]]; then
-		ok=1
-	fi
-	;;
-esac
-if [[ "$ok" -ne 1 ]]; then
+if [[ "$got" != "$reach/reach.go" || "$status" -ne 1 ]]; then
 	echo "vet-rules: the one finding must be in $reach/reach.go (exit $status):" >&2
 	cat "$work/vet.out" >&2
 	exit 1
