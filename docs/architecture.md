@@ -488,8 +488,9 @@ directories (#1297). The build is the identity of the code, compilers and passes
 `cache.BuildID` hashes the executable, since a module version names neither a dirty tree nor the
 toolchain. It reads the file at the executable's path, as no portable call reads the image running,
 so a build installed as a run starts, before that read, is the one named: the run keeps what the
-old build compiled under the new build's key, and that entry answers the new build. The threshold is not covered, as a hit judges the verdict afresh, and neither is the
-format, which follows from the bytes and which finding is what a hit skips.
+old build compiled under the new build's key, and that entry answers the new build (#1318). The
+threshold is not covered, as a hit judges the verdict afresh, and neither is the format, which
+follows from the bytes and which finding is what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
