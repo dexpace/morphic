@@ -8,9 +8,10 @@ paths:
         "200":
           description: ok
           content:
-            # A content entry may reference a reusable Media Type Object. The
-            # reference is kept but not followed yet (GitHub #856).
-            application/json: {$ref: '#/components/mediaTypes/Event'}
+            # A content entry may reference a reusable Media Type Object, which
+            # lowers once, at its own pointer, however many entries name it.
+            # The summary beside the $ref documents this use of it.
+            application/json: {$ref: '#/components/mediaTypes/Event', summary: Every event.}
   /events/{id}:
     get:
       operationId: getEvent
@@ -20,15 +21,22 @@ paths:
         "200":
           description: ok
           content:
-            application/json: {$ref: '#/components/mediaTypes/Event'}
+            # An entry that is itself a $ref is followed to the one it names.
+            application/json: {$ref: '#/components/mediaTypes/EventAlias'}
 components:
   schemas:
     Event:
       type: object
       properties: {id: {type: string}}
+  examples:
+    One: {value: {id: e1}}
   mediaTypes:
     Event:
+      description: One event.
       schema: {$ref: '#/components/schemas/Event'}
       examples:
-        one: {value: {id: e1}}
+        one: {$ref: '#/components/examples/One'}
       x-note: from the component
+    EventAlias: {$ref: '#/components/mediaTypes/Event'}
+    # An entry no content entry references is kept on the document.
+    Unused: {schema: {type: string}}

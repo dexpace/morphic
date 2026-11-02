@@ -87,8 +87,10 @@ func TestBind_ReadsEachHop(t *testing.T) {
 			bind.NotSchema, "", bind.NoRole},
 		{"the map of a link's parameters", "    A: {$ref: '#/components/links/L/parameters'}\n" +
 			"  links:\n    L: {parameters: {p: {type: string}}}\n", bind.NotSchema, "", bind.NoRole},
-		{"a key the model lacks, read as raw YAML", "    A: {$ref: '#/components/mediaTypes/M/schema'}\n" +
-			"  mediaTypes:\n    M: {schema: {type: string}}\n", bind.NoReason, "/components/mediaTypes/M/schema", bind.Raw},
+		{"a key the model lacks, read as raw YAML", "    A: {$ref: '#/components/extras/M/schema'}\n" +
+			"  extras:\n    M: {schema: {type: string}}\n", bind.NoReason, "/components/extras/M/schema", bind.Raw},
+		{"a components/mediaTypes entry's schema, which the load phase models", "    A: {$ref: '#/components/mediaTypes/M/schema'}\n" +
+			"  mediaTypes:\n    M: {schema: {type: string}}\n", bind.NoReason, "/components/mediaTypes/M/schema", bind.Schema},
 		{"raw YAML that is no schema", "    A: {$ref: '#/x-lib/n'}\nx-lib: {n: 5}\n", bind.NotSchema, "", bind.NoRole},
 		{"a component the YAML writes as no schema, which the parser builds one at", "    A: {$ref: '#/components/schemas/B'}\n    B: 5\n",
 			bind.NoReason, "/components/schemas/B", bind.Schema},
