@@ -470,6 +470,61 @@ func TestAllOf_ARefToASiblingFieldIsDeclaredApart(t *testing.T) {
 	}
 }
 
+// TestAllOf_ATimeIsJudgedByItsGrammar pins the fold on a field one declaration
+// writes as format: time, which lowers to a Scalar the table pairs with no kind:
+// a full-time default is adopted and a const that is one narrows the field,
+// while a value with no offset, another string format and an enum of no time
+// are refused with a warning, and a node holding detail of its own is kept
+// beside the const. Each case is compiled in both branch orders.
+func TestAllOf_ATimeIsJudgedByItsGrammar(t *testing.T) {
+	t.Parallel()
+	const timed = "{type: string, format: time}"
+	for _, tc := range []struct {
+		name, a, b string
+		kind       ir.TypeKind // the field's type, or "" where the overlap keeps branch order
+		def        string      // the field's default, or "" for none
+		code       string      // the one diagnostic, or "" for none
+	}{
+		{"a full-time default", `{type: string, default: "12:00:00Z"}`, timed, ir.KindScalar, "12:00:00Z", ""},
+		{"a default with no offset", `{type: string, default: "12:00:00"}`, timed, ir.KindScalar, "", diag.DegradedConstruct},
+		{"a full-time const", timed, `{const: "12:00:00Z"}`, ir.KindLiteral, "", ""},
+		{"a const with no offset", timed, `{const: "12:00:00"}`, "", "", diag.ConflictingRedecl},
+		{"a date-time", timed, "{type: string, format: date-time}", "", "", diag.ConflictingRedecl},
+		{"a local time", timed, "{type: string, format: time-local}", "", "", diag.ConflictingRedecl},
+		{"an enum of no time", timed, "{type: string, enum: [a]}", "", "", diag.ConflictingRedecl},
+		{"a full-time const beside detail", "{type: string, format: time, description: d}", `{const: "12:00:00Z"}`,
+			"", "", diag.DegradedConstruct},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+				doc, diags := schema.LowerSpec(t, nonBareSpec("", order[0], order[1]))
+				m, ok := doc.Types[componentID("T")].(*ir.Model)
+				require.True(t, ok, "%v", order)
+				require.Len(t, m.Properties, 1, "%v", order)
+				prop := m.Properties[0]
+
+				if tc.kind != "" {
+					assert.Equal(t, tc.kind, doc.Types[prop.Type.Target].Kind(), "%v", order)
+				}
+				if tc.def == "" {
+					assert.Nil(t, prop.Default, "%v", order)
+				} else if assert.NotNil(t, prop.Default, "%v", order) {
+					assert.Equal(t, tc.def, prop.Default.Str, "%v", order)
+				}
+				if tc.code == "" {
+					assert.Empty(t, diags, "%v", order)
+					assert.Empty(t, prop.Unmodeled, "%v", order)
+					continue
+				}
+				require.Len(t, diags, 1, "%v: %v", order, reported(diags))
+				assert.Equal(t, tc.code, diags[0].Code, "%v", order)
+				assert.Len(t, prop.Unmodeled, 1, "the declaration not taken is kept (%v)", order)
+			}
+		})
+	}
+}
+
 // TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered pins that a
 // field redeclared as two $refs to components declared after the composing
 // schema is judged as it is when they are declared before it: two components
