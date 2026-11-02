@@ -13,3 +13,16 @@ lowers to the target's open form whatever `Closed` says, so a response carrying 
 version added decodes and keeps its value. Its constants still name only the members the document
 lists, which is all `Closed` asks of what the SDK sends.
 
+## A member on the wire
+
+A member's wire form is its `WireName` where it has one, else its `Value` as the JSON kind its
+enum's `ValueType` has: a string for a `string`, `date` or `uuid` enum, a number for an `integer`,
+`number` or `decimal` one, a boolean for a `bool` one. Every target writes that form and decodes by
+comparing a value with the members as JSON compares values, which is what an `enum` keyword
+compares, whatever `format` says: numbers by value, so `0.1` and `0.10` are one member, and
+everything else by its text. A target whose enum form holds only some value types lowers the others
+over the wire form ([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)),
+never over a form that would change the JSON kind, as a `bool` enum written as the string `"true"`
+would. On the golden spec (spec @319dc756, morphic @b206dc99) 1,069 enums are `bool`, 35 `integer`
+and 348 `number`, beside 6,862 `string` ones.
+

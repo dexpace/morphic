@@ -71,8 +71,10 @@ type Dependency struct {
   that type's literals, checks its constraints and knows whether it has methods. Any other type is
   known only through its row, and how it codes is the target's ([Go](../targets/go/types.md),
   [Kotlin](../targets/kotlin/types.md)). A literal of a mapped type (a default, a constant, an enum
-  value) is built by decoding the value's wire form through its codec, and a constraint on it is not
-  checked by the SDK, which the server still checks, reported once per key as an info
+  value) is built by decoding the value's wire form through its codec, an enum declared over the
+  wire form where the target's constants cannot hold the type
+  ([enums](../refine/enums.md#a-member-on-the-wire)), and a constraint on it is not checked by the
+  SDK, which the server still checks, reported once per key as an info
   `emitters/<target>/unchecked-constraint`. A row's codec goes with its type, so a declaration
   standing over the type keeps it by naming that type again rather than defining a new one
   ([scalars](../refine/scalars.md)), and a type only a user's row names is taken to have methods.

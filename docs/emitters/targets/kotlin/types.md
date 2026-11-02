@@ -26,3 +26,11 @@ the root's type, and its serializer, in every signature.
 
 An enum's forms are in the [lowering table](lowering.md). A Kotlin entry lives in its enum class and
 takes the member's name alone (`ACTIVE`, as the naming policy cases it).
+
+`kotlinx.serialization` writes an `enum class` as a string, its entry's `@SerialName`, which is a
+member's wire form only for a `string` enum ([a member on the
+wire](../../refine/enums.md#a-member-on-the-wire)). Any other closed enum is an `enum class` whose
+`KSerializer` is generated: it writes each entry's wire form as the value type's JSON kind, a
+boolean for `bool`, a number for `integer`, `number` and `decimal`, and decodes by comparing as JSON
+does. An entry of a value type a row maps, such as a `date`, holds the member as that row's type,
+`val value: LocalDate`, built through the row's codec when the class loads.

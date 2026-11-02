@@ -18,7 +18,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `Model` whose `Base` is no model, not a decorator | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position ([scalars](../../../ir/scalars.md)); a union base beside properties distributed over the variants as [models](../../../ir/models.md#composition-beside-a-union) distributes a union co-declared with a composition; anything else a diagnosed degrade |
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model ([`User`](models.md#user-in-go)) |
 | `Union` (four wire shapes, [unions](../../refine/unions.md#the-wire-shapes)) | a struct holding a sealed interface + marker + a wrapper per variant + a tag-dispatch (de)serializer on the struct; `Open` → an `Unknown` fallback; an inclusive `anyOf` → a struct with a pointer per variant ([unions](unions.md#an-inclusive-union)) |
-| `Enum` open/closed/flags | consts named by enum then member (`StatusActive`, [enums](types.md#enums)): closed→typed consts; open, or `TypePlan.Open`→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode |
+| `Enum` open/closed/flags | a named type over the value type's row, consts named by enum then member (`StatusActive`, [enums](types.md#enums)): closed→typed consts, strict decode; open, or `TypePlan.Open`→consts+`Unknown`; flags→bitset; `FallbackMember` on decode; a value type with no Go constant → a named `string` over the wire text, its codec writing the value type's JSON kind, + a `Value()` of the row's type |
 | `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode |
 | `Literal` | typed constant (incl. `symbol`) |
 | `External` | the type-table row for its `Identity` ([type table](../../contract/type-table.md)): imported library type + dep-manifest; no row → opaque handle, passthrough + diagnostic |
@@ -53,7 +53,7 @@ lowers to in Go.
 | `LowerConstraints` | field-level `validate` tags + a refine-built `Validate()` method structure |
 | `LowerUnions` | a struct holding a sealed interface + marker method + a wrapper per variant or subtype + a fallback on an open one; on an inclusive union, a struct with a pointer per variant |
 | `LowerDiscriminator` | tag-dispatched `UnmarshalJSONFrom` on the union's struct + typed factories |
-| `LowerOpenEnums` | closed → typed consts; open → `string`+consts+`Unknown(raw)`; flags → bitset |
+| `LowerOpenEnums` | closed → typed consts; open → consts+`Unknown(raw)`; flags → bitset; each over the value type's row, or the wire text where it has no constant |
 | `ExtractInterfaces` | Go interfaces / client interfaces for testability |
 | `LowerPagination` | auto-pager yielding `iter.Seq2[T, error]`; pacing left to policy |
 | `LowerStreaming` | a method per shape the operation offers; `Stream[T]` with `Recv()`/`Send()` over an element of any kind; a `bytes` side lowered as a file; terminal ends |
