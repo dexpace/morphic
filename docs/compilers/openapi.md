@@ -510,7 +510,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   source leaves the references inside what it reaches unresolved (#1320), and one whose pointer
   ends in `/` declares what it reaches at a second pointer (#1330). A reference object whose `$ref`
   the model decodes no string from, such as a plain date or a scalar under a local tag, lowers
-  nothing, and nothing reports it (#1280).
+  nothing, and nothing reports it (#1280). A schema `$ref` whose pointer passes through a reference
+  object's alias lowers what it reaches a second time, at the pointer it spells (#1359).
 
 ### `reference-cycles`
 
