@@ -68,10 +68,11 @@ const visitMeasurements = 20
 
 // fewestAllocs returns the fewest allocations one call of visit makes in
 // visitMeasurements measurements, stopping at the first that makes none, as no
-// later one can make fewer. The fewest, because under the race detector
-// sync.Pool drops a share of what it is handed, so a visit reaching a pool, as
-// jsontext.Value.IsValid does, allocates a random amount more than it must,
-// and never less: an average counts the drops.
+// later one can make fewer. The fewest, because a build with -race, which the
+// gate does not use here but a developer may, has sync.Pool drop a share of
+// what it is handed, so a visit reaching a pool, as jsontext.Value.IsValid
+// does, allocates a random amount more than it must, and never less: an
+// average counts the drops.
 func fewestAllocs(visit func()) float64 {
 	fewest := math.Inf(1)
 	for range visitMeasurements {
