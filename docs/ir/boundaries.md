@@ -52,8 +52,8 @@ are ([`whole-schema-fallbacks`](../compilers/openapi.md#whole-schema-fallbacks),
 `allOf` branch [`allof-false-branch`](../compilers/openapi.md#allof-false-branch)).
 
 - **JSON Schema shapes** — `oneOf`/`anyOf` co-declared with structural keywords that cannot be
-  distributed, competing keywords at one position, an inline `allOf` branch declaring more than the
-  merge consumes, a redeclared property the merge cannot fold whole, and a shape applicator the
+  distributed, competing keywords at one position, an inline `allOf` branch declaring what no reader
+  consumes, a redeclared property the merge cannot fold whole, and a shape applicator the
   lowered node cannot carry. Each is a rule of the OpenAPI compiler:
   [`union-beside-structure`](../compilers/openapi.md#union-beside-structure),
   [`competing-keywords`](../compilers/openapi.md#competing-keywords),

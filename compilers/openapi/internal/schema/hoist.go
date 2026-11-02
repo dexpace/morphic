@@ -77,7 +77,7 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCo
 func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(c, &kept, s, pointer)
+	cons, diags := ConstraintsOf(c, &kept, s, positionVoices(c, ts, s, pointer, target), pointer)
 	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
 }
 
@@ -88,7 +88,7 @@ func internAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer json
 func internReferenceAlias(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef,
 ) (ir.TypeID, []ir.Diagnostic) {
 	var kept ir.Unmodeled
-	cons, diags := referenceConstraintsOf(c, &kept, s, pointer)
+	cons, diags := referenceConstraintsOf(c, &kept, s, positionVoices(c, ts, s, pointer, target), pointer)
 	return internAliasHolding(c, ts, cons, kept, pointer, target), diags
 }
 

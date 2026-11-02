@@ -1,0 +1,1096 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "AllOfRefinement",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "AllOfRefinement",
+        "canonical": "all_of_refinement"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1zones~1{zone_id}/post",
+              "name": {
+                "source": "uploadToZone",
+                "canonical": "upload_to_zone"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1zones~1{zone_id}/post/parameters/zone_id/path",
+                  "name": {
+                    "source": "zone_id",
+                    "canonical": "zone_id"
+                  },
+                  "type": {
+                    "target": "t/openapi/components/schemas/Identifier",
+                    "nullable": false
+                  },
+                  "required": true,
+                  "constraints": {
+                    "maxLength": 32,
+                    "uniqueItems": false
+                  },
+                  "docs": {
+                    "summary": "An identifier",
+                    "description": "The zone"
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1zones~1{zone_id}/post/parameters/0"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/octet-stream",
+                    "type": {
+                      "target": "t/anon/paths/~1zones~1{zone_id}/post/requestBody/content/application~1octet-stream/schema",
+                      "nullable": false
+                    },
+                    "file": {
+                      "isText": false,
+                      "contentTypes": [
+                        "application/octet-stream"
+                      ]
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1zones~1{zone_id}/post/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1zones~1{zone_id}/post/responses/200/headers/X-Port",
+                      "name": {
+                        "source": "X-Port",
+                        "canonical": "x_port"
+                      },
+                      "wireName": "X-Port",
+                      "type": {
+                        "target": "t/openapi/components/schemas/Port",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": false,
+                      "docs": {},
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1zones~1{zone_id}/post/responses/200/headers/X-Port"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/zones/{zone_id}",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1zones~1{zone_id}/post/parameters/zone_id/path",
+                        "location": "path",
+                        "wireName": "zone_id",
+                        "style": "simple",
+                        "explode": false,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/octet-stream"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1zones~1{zone_id}/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Scores/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Scores/items",
+      "name": {
+        "hint": "scores_item"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "A score"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Scores/items"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Port",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Variants/oneOf/1": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Variants/oneOf/1",
+      "name": {
+        "hint": "variant_1"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "A port"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Variants/oneOf/1"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Port",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Zone/properties/mode/allOf/1": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Zone/properties/mode/allOf/1",
+      "name": {
+        "hint": "mode"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/mode/allOf/1"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Zone/properties/mode/allOf/1/s:set",
+          "name": {
+            "source": "set",
+            "canonical": "set"
+          },
+          "value": {
+            "kind": "string",
+            "str": "set"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Zone/properties/owner": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/Zone/properties/owner",
+      "name": {
+        "hint": "owner"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "The owner"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/owner"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Owner",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/anon/paths/~1zones~1{zone_id}/post/requestBody/content/application~1octet-stream/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1zones~1{zone_id}/post/requestBody/content/application~1octet-stream/schema",
+      "name": {
+        "hint": "upload_to_zone_request"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "The upload"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1zones~1{zone_id}/post/requestBody/content/application~1octet-stream/schema"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Blob",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1zones~1{zone_id}/post/responses/200/content/application~1json/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1zones~1{zone_id}/post/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {
+        "description": "The new zone"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1zones~1{zone_id}/post/responses/200/content/application~1json/schema"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Identifier",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Blob": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Blob",
+      "name": {
+        "source": "Blob",
+        "canonical": "blob"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Blob"
+      },
+      "base": {
+        "target": "t/prim/bytes",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Bounded": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Bounded",
+      "name": {
+        "source": "Bounded",
+        "canonical": "bounded"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bounded"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 3,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/Disjoint": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Disjoint",
+      "name": {
+        "source": "Disjoint",
+        "canonical": "disjoint"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:allOf/0": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "integer"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Disjoint/allOf/0"
+          }
+        },
+        "openapi:allOf/1": {
+          "reason": "degraded_lowering",
+          "value": {
+            "type": "string"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Disjoint/allOf/1"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Disjoint"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Identifier": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Identifier",
+      "name": {
+        "source": "Identifier",
+        "canonical": "identifier"
+      },
+      "anonymous": false,
+      "docs": {
+        "summary": "An identifier",
+        "description": "The identifier"
+      },
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:readOnly": {
+          "reason": "no_ir_home",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Identifier/readOnly"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Identifier"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      },
+      "constraints": {
+        "maxLength": 64,
+        "uniqueItems": false
+      }
+    },
+    "t/openapi/components/schemas/Mode": {
+      "kind": "enum",
+      "id": "t/openapi/components/schemas/Mode",
+      "name": {
+        "source": "Mode",
+        "canonical": "mode"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "What to do"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Mode"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/openapi/components/schemas/Mode/s:get",
+          "name": {
+            "source": "get",
+            "canonical": "get"
+          },
+          "value": {
+            "kind": "string",
+            "str": "get"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/openapi/components/schemas/Mode/s:set",
+          "name": {
+            "source": "set",
+            "canonical": "set"
+          },
+          "value": {
+            "kind": "string",
+            "str": "set"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/openapi/components/schemas/Owner": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Owner",
+      "name": {
+        "source": "Owner",
+        "canonical": "owner"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Owner"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Owner/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Owner/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Port": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Port",
+      "name": {
+        "source": "Port",
+        "canonical": "port"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Port"
+      },
+      "base": {
+        "target": "t/prim/integer",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Prim": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Prim",
+      "name": {
+        "source": "Prim",
+        "canonical": "prim"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Prim"
+      },
+      "base": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/PrimSwapped": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/PrimSwapped",
+      "name": {
+        "source": "PrimSwapped",
+        "canonical": "prim_swapped"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/PrimSwapped"
+      },
+      "base": {
+        "target": "t/prim/int32",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/ScanID": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/ScanID",
+      "name": {
+        "source": "ScanID",
+        "canonical": "scan_id"
+      },
+      "anonymous": false,
+      "docs": {
+        "description": "A scan"
+      },
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ScanID"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/Identifier",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Scores": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Scores",
+      "name": {
+        "source": "Scores",
+        "canonical": "scores"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Scores"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Scores/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Variants": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Variants",
+      "name": {
+        "source": "Variants",
+        "canonical": "variants"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Variants"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "identifier"
+          },
+          "type": {
+            "target": "t/openapi/components/schemas/Identifier",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "port"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Variants/oneOf/1",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/openapi/components/schemas/Zone": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Zone",
+      "name": {
+        "source": "Zone",
+        "canonical": "zone"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/owner",
+          "name": {
+            "source": "owner",
+            "canonical": "owner"
+          },
+          "wireName": "owner",
+          "type": {
+            "target": "t/anon/components/schemas/Zone/properties/owner",
+            "nullable": true,
+            "inferred": "nullable-widening"
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "only": [
+              "read",
+              "delete",
+              "query"
+            ],
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/owner"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/zone_id",
+          "name": {
+            "source": "zone_id",
+            "canonical": "zone_id"
+          },
+          "wireName": "zone_id",
+          "type": {
+            "target": "t/openapi/components/schemas/Identifier",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "only": [
+              "read",
+              "delete",
+              "query"
+            ],
+            "none": false
+          },
+          "constraints": {
+            "maxLength": 32,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "summary": "An identifier",
+            "description": "The zone"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/zone_id"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/port",
+          "name": {
+            "source": "port",
+            "canonical": "port"
+          },
+          "wireName": "port",
+          "type": {
+            "target": "t/openapi/components/schemas/Port",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/port"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/typed",
+          "name": {
+            "source": "typed",
+            "canonical": "typed"
+          },
+          "wireName": "typed",
+          "type": {
+            "target": "t/openapi/components/schemas/Identifier",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "only": [
+              "read",
+              "delete",
+              "query"
+            ],
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "examples": [
+            {
+              "value": {
+                "kind": "string",
+                "str": "x"
+              }
+            }
+          ],
+          "docs": {
+            "summary": "An identifier",
+            "description": "The identifier"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/typed"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/mode",
+          "name": {
+            "source": "mode",
+            "canonical": "mode"
+          },
+          "wireName": "mode",
+          "type": {
+            "target": "t/anon/components/schemas/Zone/properties/mode/allOf/1",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "What to do"
+          },
+          "unmodeled": {
+            "openapi:allOf/0": {
+              "reason": "degraded_lowering",
+              "value": {
+                "$ref": "#/components/schemas/Mode"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Zone/properties/mode/allOf/0"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/mode"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/width",
+          "name": {
+            "source": "width",
+            "canonical": "width"
+          },
+          "wireName": "width",
+          "type": {
+            "target": "t/openapi/components/schemas/Port",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:allOf/1": {
+              "reason": "degraded_lowering",
+              "value": {
+                "format": "int32",
+                "type": "integer"
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Zone/properties/width/allOf/1"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/width"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Zone/properties/scan",
+          "name": {
+            "source": "scan",
+            "canonical": "scan"
+          },
+          "wireName": "scan",
+          "type": {
+            "target": "t/openapi/components/schemas/ScanID",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "only": [
+              "read",
+              "delete",
+              "query"
+            ],
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "summary": "An identifier",
+            "description": "A scan"
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Zone/properties/scan"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/bytes": {
+      "kind": "primitive",
+      "id": "t/prim/bytes",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "bytes"
+    },
+    "t/prim/int32": {
+      "kind": "primitive",
+      "id": "t/prim/int32",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "int32"
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/inferred-nullable",
+      "message": "nullable: true is read as admitting null under the nullable-widening policy, though OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, and this schema writes none; a reference whose null rests on it is marked inferred",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/owner/allOf/1/nullable"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "the value set of this allOf narrows this $ref, and one node holds one value set, so the $ref is kept verbatim under Unmodeled; what its target says of the position still reaches it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/mode/allOf/0"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "this allOf lowered to a use of one of its conjuncts, which has no home for what this inline branch adds; the branch (format) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Zone/properties/width/allOf/1"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Disjoint/allOf/0"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type) is kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Disjoint/allOf/1"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "readOnly on a type declaration binds a use of the type, not the type; it is kept verbatim under Unmodeled and applied to a referencing property, header or parameter wherever that carrier has a field for it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Identifier/readOnly"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.0",
+      "path": "allof-refinement.yaml",
+      "hash": "9c2fd77afd9ac4271709aa52c3151944fc315f930b69be6e5dd9fa89762b1608"
+    }
+  ]
+}
