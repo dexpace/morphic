@@ -187,7 +187,8 @@ func pathItemOf(t *testing.T, src string) *soa.PathItem {
 // TestKeepOn_AnnouncesOnlyDocumentationThatLanded pins that the note saying an
 // operation holds its path's documentation follows the entry that landed: where
 // the operation already held the key, the entry is refused and reported, and no
-// note claims it was kept.
+// note claims it was kept. A description landing beside a refused summary is
+// still announced.
 func TestKeepOn_AnnouncesOnlyDocumentationThatLanded(t *testing.T) {
 	t.Parallel()
 	key := "openapi:pathItem/summary"
@@ -205,4 +206,15 @@ func TestKeepOn_AnnouncesOnlyDocumentationThatLanded(t *testing.T) {
 	assert.Equal(t, own, refused.Unmodeled[key], "the operation's own entry stays")
 	require.Len(t, diags, 1, "the refusal is reported, and nothing announces documentation that did not land")
 	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
+
+	kept["openapi:pathItem/description"] = ir.UnmodeledEntry{Reason: ir.ReasonNoIRHome,
+		Value: ir.RawValue(`"at length"`), Provenance: ir.Provenance{Pointer: "/paths/~1a/description"}}
+	mixed := &ir.Operation{Unmodeled: ir.Unmodeled{key: own}}
+	diags = keepOn(mixed, kept)
+	codes := make([]string, 0, len(diags))
+	for _, d := range diags {
+		codes = append(codes, d.Code)
+	}
+	assert.Equal(t, []string{diag.UnknownKeyEntryTaken, diag.DegradedConstruct}, codes,
+		"the summary is refused, and the description that landed is announced")
 }
