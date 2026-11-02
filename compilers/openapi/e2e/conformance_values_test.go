@@ -147,6 +147,49 @@ func assertRawPreservedDates(t *testing.T, doc *ir.Document) {
 	}
 }
 
+// assertRefCollectionBounds holds each position to the one home a collection
+// bound written for one use of a shared list has, and the one bound the census
+// leaves verbatim to the one report the whole document draws.
+func assertRefCollectionBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	minOne, maxThree := &ir.Constraints{MinItems: new(int64(1))}, &ir.Constraints{MaxItems: new(int64(3))}
+
+	for wire, want := range map[string]*ir.Constraints{"plain": nil, "beside": minOne, "nullable": maxThree} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		assert.Equal(t, want, p.Constraints, wire)
+		assert.Empty(t, p.Unmodeled, wire)
+	}
+	unstated, found := propByWire(holder, "unstated")
+	require.True(t, found)
+	assert.Nil(t, unstated.Constraints)
+	assert.Equal(t, ir.ReasonDegradedLowering, unstated.Unmodeled["openapi:uniqueItems"].Reason)
+
+	element, ok := doc.Types[componentID("Element")].(*ir.List)
+	require.True(t, ok)
+	alias, ok := doc.Types[element.Elem.Target].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, maxThree, alias.Constraints)
+
+	named, ok := doc.Types[componentID("Named")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{UniqueItems: true}, named.Constraints)
+
+	op, found := opByName(doc, "listTags")
+	require.True(t, found)
+	require.Len(t, op.Params, 1)
+	assert.Equal(t, minOne, op.Params[0].Constraints)
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(5))}, op.Responses[0].Headers[0].Constraints)
+	body, ok := doc.Types[op.Responses[0].Payload.Contents[0].Type.Target].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{UniqueItems: true}, body.Constraints)
+
+	assert.Len(t, diags, 1, "only the bound left verbatim is reported: %+v", diags)
+}
+
 func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	m, ok := doc.Types[componentID("S")].(*ir.Model)
 	require.True(t, ok)
