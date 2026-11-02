@@ -136,6 +136,41 @@ func TestAllOf_RedeclarationOrsSecret(t *testing.T) {
 	}
 }
 
+// TestAllOf_RedeclarationMarksAPromotedSecretOnly holds the marker of a folded
+// field to the redaction the declarations ask for. One a key asks for marks the
+// field in either order. A declared one does not, though its declaration lists
+// the marker for a promoted date the field drops with its deprecation, the
+// first declaration's being kept.
+func TestAllOf_RedeclarationMarksAPromotedSecretOnly(t *testing.T) {
+	t.Parallel()
+	const marker ir.Inferred = "extension-promotion"
+	bare := "            token: {type: string}\n"
+	keyed := "            token: {type: string, x-sensitive: true}\n"
+	deprecated := "            token: {type: string, deprecated: true}\n"
+	dated := "            token: {type: string, format: password, deprecated: true, x-sunset: \"2030-01-01\"}\n"
+	branch := "        - type: object\n          properties:\n"
+	for _, tc := range []struct {
+		name, first, second string
+		want                ir.Inferred
+	}{
+		{"a key's redaction second", bare, keyed, marker},
+		{"a key's redaction first", keyed, bare, marker},
+		{"a declared redaction beside a dropped promoted date", deprecated, dated, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.ComponentSpec("    Tokenish:\n      allOf:\n" +
+				branch + tc.first + branch + tc.second)
+			doc, _ := schema.LowerSpec(t, spec)
+			m, ok := doc.Types[componentID("Tokenish")].(*ir.Model)
+			require.True(t, ok, "Tokenish should be a model")
+			require.Len(t, m.Properties, 1, "token reconciles to a single property")
+			assert.True(t, m.Properties[0].Secret)
+			assert.Equal(t, tc.want, m.Properties[0].Provenance.Inferred)
+		})
+	}
+}
+
 func TestAllOf_ConflictingRedeclaredDescriptionDiagnosed(t *testing.T) {
 	t.Parallel()
 	// Two branches describe the same field differently. The first declaration in

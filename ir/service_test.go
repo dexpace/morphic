@@ -133,6 +133,7 @@ func TestOperationGroup_JSONContract(t *testing.T) {
 			Lifecycle:   map[string]ir.OpID{"create": "op/create", "read": "op/read"},
 		},
 		Availability: populatedAvailability(),
+		Stability:    ir.StabilityBeta,
 		Unmodeled:    populatedUnmodeled(),
 	})
 }
