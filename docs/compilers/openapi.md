@@ -2282,10 +2282,13 @@ path item's list is registered even where every one of its operations overrides 
 not: one a nearer layer of a mount overrides, which [`path-item-ref-fields`](#path-item-ref-fields)
 reports rather than lowers, and one written by a component path item no reference reaches, kept
 whole with that component ([`unreferenced-components`](#unreferenced-components)). A path item that
-mounts no operation registers its servers too, named by nothing, and keeps its `x-*` names on the
-service instead, or on the declaring operation's HTTP binding for a callback expression, under
-`openapi:pathItem/<item pointer>/<key>`, the item's pointer in the key since one carrier holds every
-such item; it is reported as one `openapi/degraded-construct` warning at the mount.
+mounts no operation registers its servers too, named by nothing, and keeps what else it writes on
+the service instead, or on the declaring operation's HTTP binding for a callback expression: its
+`x-*` names and undeclared keys under `openapi:pathItem/<item pointer>/<key>`, its summary and
+description as [`path-item-docs`](#path-item-docs) says, and its parameters as
+[`parameters`](#parameters) says. The item's pointer is in every key, since one carrier holds every
+such item, and a component item two paths mount is kept once per mount. It is reported as one
+`openapi/degraded-construct` warning at the mount.
 
 - Cases: `webhooks`, `callbacks`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
@@ -2293,7 +2296,8 @@ such item; it is reported as one `openapi/degraded-construct` warning at the mou
   `operation.TestOperations_OwnServersOverrideThePathItems`,
   `operation.TestOperations_ServersEachLevelAlone`,
   `servers.TestRegistry_DeclaredOneDeclarationLowersOnce`,
-  `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`
+  `operation.TestPathItem_WithNoOperationKeepsWhatItWroteOnTheService`,
+  `operation.TestPathItem_WithNoOperationKeepsEachMountApart`
 - Status: open: an explicitly empty list declares nothing to name, as an absent one does, and
   whether it should override the list above it is undecided (#1081).
 
@@ -2305,12 +2309,18 @@ operation it mounts, under `openapi:pathItemSummary` and `openapi:pathItemDescri
 merged into the operation's `Docs`: `ir.Docs` holds the operation's own pair, and a path item's
 documents the path, so merging would need a precedence rule and would attach documentation the
 operation's author never wrote — an inference, which invariant 6 places in policy rather than in a
-lowering.
+lowering. A path item that mounts no operation keeps the pair where it keeps what else it writes
+([`path-item-servers`](#path-item-servers)), under `openapi:pathItem/<item pointer>/summary` and
+`openapi:pathItem/<item pointer>/description`, since two such items on one carrier would collide on
+the fixed keys; the warning announcing that item covers them, so they draw no info of their own.
 
 - Cases: `path-item-docs`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
-- Status: partly built: a path item that mounts no operation drops its own summary and description
-  in silence (#383).
+- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`,
+  `operation.TestPathItem_WithNoOperationKeepsItsDocs`,
+  `operation.TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite`
+- Status: open: whether a path's documentation gets a typed home in the IR, rather than `Unmodeled`,
+  is undecided (#1319).
 
 ### `path-item-ref-fields`
 
@@ -2395,11 +2405,18 @@ repeating an earlier entry's `name` and `in`, its `$ref`s resolved, which OpenAP
 every occurrence, each repeat's ID ending in its occurrence number, and is reported as an
 `openapi/duplicate-parameter` error at the repeat. Every list the source writes is checked, whether
 or not it lowers, and a list another document writes where it lowers; the rule table
-([`validation`](#validation)) states this rule and leaves it to this one.
+([`validation`](#validation)) states this rule and leaves it to this one. A path item that mounts
+no operation has none to merge its parameters into, so it keeps each entry as written, a `$ref`
+included, where it keeps what else it writes ([`path-item-servers`](#path-item-servers)), under
+`openapi:pathItem/<item pointer>/parameters/<name>/<in>`, the path its ID would be derived from, a
+repeat's ending in its occurrence number (`no_ir_home`).
 
 - Cases: `param-styles`, `param-style-matrix`, `param-identity`
 - Codes: `openapi/duplicate-parameter`
-- Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`
+- Tests: `operation.TestParams_RepeatedNameAndLocationKeepsEveryParameter`,
+  `operation.TestPathItem_WithNoOperationKeepsItsParameters`,
+  `operation.TestPathItem_WithNoOperationNumbersARepeatedParameter`,
+  `operation.TestPathItem_WithNoOperationReportsARepeatInAnotherDocument`
 - Status: partly built: an undeclared `explode` is written out as the location's default, which
   erases whether the document declared it (#627); header parameters whose names differ only in case
   are two parameters, unreported (#635); and a list only a `$ref` reaches is never checked for

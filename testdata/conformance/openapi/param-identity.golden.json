@@ -404,6 +404,36 @@
       "servers": [
         "server/default"
       ],
+      "unmodeled": {
+        "openapi:pathItem/paths/~1archive~1a/parameters/since/query": {
+          "reason": "no_ir_home",
+          "value": {
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/pathItems/Reserved/parameters/0"
+          }
+        },
+        "openapi:pathItem/paths/~1archive~1b/parameters/since/query": {
+          "reason": "no_ir_home",
+          "value": {
+            "in": "query",
+            "name": "since",
+            "schema": {
+              "type": "string"
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/pathItems/Reserved/parameters/0"
+          }
+        }
+      },
       "provenance": {
         "source": 0
       }
@@ -448,11 +478,31 @@
       }
     }
   },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "path item declares no operation this compiler lowers; what else it writes is kept beside it, having no operation to hold it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1archive~1b"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "path item declares no operation this compiler lowers; what else it writes is kept beside it, having no operation to hold it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1archive~1a"
+      }
+    }
+  ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "param-identity.yaml",
-      "hash": "fe096857f926ffe6edad5fffb26570970364df401942bbaef06661e59e5b7cf0"
+      "hash": "9207345a9c620df627975a3e3cddae7a9ddc9caa9fbf92dc17299bc4beab3404"
     }
   ]
 }

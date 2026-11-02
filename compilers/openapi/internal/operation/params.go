@@ -470,20 +470,27 @@ func newParamLedger(mount jsontext.Pointer) *paramLedger {
 }
 
 // next returns the ID of the parameter holding name in in, written by the list
-// entry at entry, and the error a repeat raises there when c lowers another
-// document's content. The first holder has the bare ID and no error.
+// entry at entry, and what count reports there.
 func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Pointer) (ir.ParamID, []ir.Diagnostic) {
+	occurrence, diags := l.count(c, name, in, entry)
+	return ids.Param(l.mount, name, in, occurrence), diags
+}
+
+// count records the list entry at entry as one more holder of name in in, and
+// returns which holder it is, counting from one, and the error a repeat raises
+// there when c lowers another document's content. The first holder raises
+// none.
+func (l *paramLedger) count(c lowering.Ctx, name, in string, entry jsontext.Pointer) (int, []ir.Diagnostic) {
 	slot := paramSlot{name: name, in: in}
 	l.seen[slot]++
 	occurrence := l.seen[slot]
-	id := ids.Param(l.mount, name, in, occurrence)
 	if occurrence == 1 {
 		l.firstAt[slot] = entry
-		return id, nil
+		return occurrence, nil
 	}
 	if !c.RefScope().Foreign {
-		return id, nil
+		return occurrence, nil
 	}
-	return id, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
+	return occurrence, []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DuplicateParameter, entry,
 		"parameter %q in %q repeats the entry at %s", name, in, l.firstAt[slot])}
 }

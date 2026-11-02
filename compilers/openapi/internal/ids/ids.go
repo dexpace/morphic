@@ -215,7 +215,15 @@ func (d Document) Prop(pointer jsontext.Pointer) ir.PropID {
 // number follows the location (numbered) and equals no other parameter's ID:
 // that would take an operation mounted at another's parameters list.
 func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
-	return compile.ParamID(OpenAPISpace, string(numbered(mount+Ptr("parameters", name, in), occurrence)))
+	return compile.ParamID(OpenAPISpace, string(mount+ParamPath(name, in, occurrence)))
+}
+
+// ParamPath returns the path below a mount that Param mints the occurrence-th
+// holder of name in location in from. A path item that mounts no operation
+// keys each parameter it keeps verbatim by it, so a kept parameter and a
+// lowered one spell a slot alike.
+func ParamPath(name, in string, occurrence int) jsontext.Pointer {
+	return numbered(Ptr("parameters", name, in), occurrence)
 }
 
 // EnumMember returns the stable ID of the occurrence-th member, counting from
