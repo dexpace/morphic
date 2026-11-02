@@ -47,6 +47,13 @@ below, which keeps its bytes as they arrived — a degrade, never a whole-docume
 ([T-7](../testing/mandatory-tests.md)). That graceful-degradation margin is exactly what the ABI
 seam buys and the fused-pipeline generator cannot have.
 
+A `oneOf` admits exactly one variant, so a value two of its variants admit breaks the document. What
+it decodes to is `plan.Policy.ExclusiveMatch`'s ([plan policy](../plan/policy.md)): under `first`,
+the default, the variant recognition finds first, as a lenient reader of a document whose variants
+overlap needs; under `only`, a coded decode error, found by trying every variant whose kinds hold
+the value, as an inclusive union does below. A `oneOf` whose variants the plan proves disjoint
+([TypePlan](../plan/types.md#variants-that-can-share-a-value)) never meets the choice.
+
 ## A null a variant admits
 
 A variant admits `null` when its reference is `Nullable` or its type is the `null` literal. `null`
@@ -57,13 +64,6 @@ variant, and a variant admitting nothing else lowers to no member. Both spelling
 give a null member (#618) then lower alike. The golden spec's single-result envelope declares
 `result` as `anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a
 string or `null`, the last held by the reference.
-
-A `oneOf` admits exactly one variant, so a value two of its variants admit breaks the document. What
-it decodes to is `plan.Policy.ExclusiveMatch`'s ([plan policy](../plan/policy.md)): under `first`,
-the default, the variant recognition finds first, as a lenient reader of a document whose variants
-overlap needs; under `only`, a coded decode error, found by trying every variant whose kinds hold
-the value, as an inclusive union does below. A `oneOf` whose variants the plan proves disjoint
-([TypePlan](../plan/types.md#variants-that-can-share-a-value)) never meets the choice.
 
 ## A value several variants admit
 
