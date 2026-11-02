@@ -21,6 +21,9 @@ type Refiner interface {
 
 type Step interface {
     Name() string               // stable, for diagnostics + golden step-trace tests
+    Version() int               // bumped with every change to what it builds for some input;
+                                // the manifest records it
+                                // (../verification.md#during-steps-carry-versions)
     Apply(*Ctx) []ir.Diagnostic // appends typed nodes to the target AST under construction; idempotent
 }
 

@@ -90,3 +90,14 @@ value of exactly that type can hold, at any depth, one of the same shape — and
 the types whose shapes share its strongly connected component. A reference to a polymorphic base
 counts every subtype it may hold, so a subtype holding its own discriminated base is recursive. A
 cycle through composition alone, which the IR permits, is reported too.
+
+## Capability rows
+
+`Rows()` answers which rows of the [capability matrix](../ir-spec-matrix.md) a document exercises:
+for each row's stable key, the locations of the nodes that exercise it, sorted, such as every
+operation whose `Pagination` is set for `pagination`. One detector per row reads the facts the row
+names, and a test holds the detectors to the matrix's keys, as the conformance corpus is held to
+them: a row added to the matrix has a detector, or a reason no IR fact shows it. The engine reads
+`Rows` to tell a user, before generation, which rows a target does not honor
+([verification](../emitters/verification.md#before-what-a-target-honors)).
+

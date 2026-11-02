@@ -53,6 +53,12 @@ type EmitterOutput struct {
     Samples     map[ir.OpID]Sample  // an SDK target's usage sample per operation, for the docs
 }
 
+// Span is the lines one top-level declaration of a file holds, 1-based and inclusive.
+type Span struct {
+    From, To int
+    Origin   EntityID
+}
+
 // Sample is one operation's call as an SDK target spells it.
 type Sample struct {
     Language string                 // the fence's language, such as "go" or "kotlin"
@@ -78,6 +84,8 @@ type Artifact struct {
     Integrate    *IntegrateHint  // path-prefix stripping / tree-shake root for live-repo merge, and
                                  // whether the file is merged as blocks (../write-integrate.md)
     Origins      []EntityID      // IR IDs whose emission produced this file (drives ID-keyed prune)
+    Spans        []Span          // the lines each top-level declaration holds, by its Origin, so a
+                                 // toolchain's message maps to an entity (../verification.md)
 }
 ```
 

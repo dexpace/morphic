@@ -97,7 +97,7 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 **Other artifacts, and how the work is held**
 
 - [Docs and mock-server emitters](docs-and-mock.md), [write / integrate](write-integrate.md),
-  [surface verification](surface-verification.md).
+  [verifying a generation](verification.md), [surface verification](surface-verification.md).
 - [Package layout](packages.md), [mandatory tests](testing/mandatory-tests.md), the [behavior
   server](testing/behavior-server.md), the [milestone plan](milestones.md) and the [open
   questions](open-questions.md).

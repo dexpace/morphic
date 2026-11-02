@@ -236,4 +236,24 @@ throughout these documents.
     declaration orders, and the same in the docs, the samples, an SDK's tests and the mock; one the
     synthesizer cannot make valid is reported and left out
     ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
+41. **T-41 · Unhonored rows** — a document exercising a row a target does not honor draws
+    `emitters/<target>/unhonored-row` naming the row and its locations before `Generate` runs; a row
+    the target honors draws nothing; and every key of the capability matrix has a detector in
+    `irfacts.Rows` or a stated reason for none ([verification](../verification.md)).
+42. **T-42 · The verify stage** — every golden output of every target builds, lints and passes its
+    tests in the stage, its samples compiled in the snippet project; a planted compile error is
+    reported at the entity whose declaration holds it, through `Artifact.Spans`; a missing or old
+    toolchain skips that target's checks and says so, never reading as a pass; and a failing stage
+    leaves the destination untouched unless the caller lets the failure through
+    ([verification](../verification.md#after-the-output-builds)).
+43. **T-43 · The manifest checked** — every operation and type the plan emits has exactly one
+    manifest entry, a dropped and a doubled entry each an error; every symbol the manifest names
+    exists in the built output, a planted rename that skips the manifest reported
+    ([verification](../verification.md#after-the-manifest-says-what-the-output-holds)).
+44. **T-44 · Severity and versions** — each row of the seeded severity table, on every target and in
+    both channels; an enum gaining a member read in a response is behavioral breaking and, on Go,
+    structurally additive as apidiff agrees; Go's structural verdicts equal apidiff's over the
+    surface corpus; and a regeneration's bump follows the rule, a moved step version that changed an
+    artifact a patch and one that changed nothing none
+    ([surface verification](../surface-verification.md#the-version-a-regeneration-takes)).
 
