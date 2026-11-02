@@ -68,8 +68,9 @@ throughout these documents.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
     members and union variants after every name each scope of [reserved
     names](../refine/reserved-names.md) reserves, after characters alone and after names that begin
-    with a digit, and its groups after the standard-library packages its files import, generates
-    code that compiles on every target, with every template's declared names held to what it binds.
+    with a digit, and its groups after the standard-library packages its files import and after
+    every units name, generates code that compiles on every target, a `clean` of a Kotlin build
+    leaving every module's sources, with every template's declared names held to what it binds.
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
