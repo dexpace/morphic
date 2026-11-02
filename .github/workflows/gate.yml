@@ -5,7 +5,8 @@ on:
   pull_request:
 
 # A push to a pull request supersedes the run its previous push started. Runs on
-# main are never cancelled: each saves the caches the pull requests after it use.
+# main are never cancelled: each saves the cache the next run on main restores
+# and the pull requests after it use.
 concurrency:
   group: gate-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -13,11 +14,22 @@ concurrency:
 # The gate runs as two jobs side by side. Every check is a Makefile target, and
 # `make gate` runs them all.
 #
-# A run on main starts from empty Go build and module caches and saves what it
-# built. A pull request's run restores what the latest run of the same job on
-# main saved, so it rebuilds only what the change touches. Main never restores,
-# so each save holds one run's builds and the cache cannot grow from one commit
-# to the next.
+# Both jobs first set each tracked file's time from its content, because Go keys
+# a cached test result on the size, mode and time of every file the test opens,
+# and a checkout gives every file a new time.
+#
+# A run on main restores the cache the previous run of the same job, toolchain
+# and go.sum saved, clears the test results in it, runs every test, drops
+# $GOCACHE/fuzz and saves. Clearing keeps the builds and the module cache, so
+# main rebuilds only what its commit changed, but it reruns every test and so
+# cannot replay a stale pass. A pull request restores that save, reuses the
+# results of the tests its change leaves alone, and never saves.
+#
+# The cache stays bounded for three reasons. The go command deletes build cache
+# entries unused for five days, scanning once a day (cmd/go/internal/cache,
+# trimLimit and trimInterval). go.sum is in the key, so a dependency change
+# starts a cache afresh instead of adding to the module cache of the last. And
+# the fuzz corpus, which that trim never removes, is dropped before the save.
 jobs:
   checks:
     name: lint, fuzz, bench
@@ -43,20 +55,25 @@ jobs:
             echo "gomodcache=$(go env GOMODCACHE)"
           } >>"$GITHUB_OUTPUT"
       - &restore
-        name: restore main's caches
-        if: github.event_name == 'pull_request'
+        name: restore the previous run on main's caches
         uses: actions/cache/restore@v6
         with:
           path: |
             ${{ steps.toolchain.outputs.gocache }}
             ${{ steps.toolchain.outputs.gomodcache }}
-          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
-          restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-
+          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
+          restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-
       # Go keys a cached test result on the time of each file a test opens, and
       # a checkout gives every file a new one. This dates them from content.
       - &filetimes
         name: date files by content
         run: make filetimes
+      # Not -count=1, which stores no results: a pull request would then find
+      # none to reuse. This writes an expiry that voids the restored ones.
+      - &clear-test-results
+        name: clear restored test results
+        if: github.event_name == 'push'
+        run: go clean -testcache
       - name: gofmt
         run: make fmt
       - name: vet
@@ -82,6 +99,11 @@ jobs:
           name: fuzz-findings
           path: "**/testdata/fuzz/**"
           if-no-files-found: ignore
+      # The fuzz corpus has no cache of its own yet (#1273).
+      - &drop-fuzz
+        name: drop the fuzz corpus
+        if: github.event_name == 'push'
+        run: rm -rf "${{ steps.toolchain.outputs.gocache }}/fuzz"
       - &save
         name: save caches
         if: github.event_name == 'push'
@@ -90,7 +112,7 @@ jobs:
           path: |
             ${{ steps.toolchain.outputs.gocache }}
             ${{ steps.toolchain.outputs.gomodcache }}
-          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
+          key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
 
   suite:
     name: build, test (race detector, exactly 100% coverage)
@@ -111,6 +133,8 @@ jobs:
       # .git a new time that the tests listing the module root hash. Nothing may
       # run git between this step and test.
       - *filetimes
+      - *clear-test-results
       - name: test
         run: make coverage
+      - *drop-fuzz
       - *save
