@@ -35,8 +35,8 @@ func (c *correlator) seedTypes() {
 
 // namespaced puts each segment of a namespace before key.
 func namespaced(namespace []string, key string) string {
-	for i := len(namespace) - 1; i >= 0; i-- {
-		key = segment("ns", namespace[i]) + "/" + key
+	for _, part := range slices.Backward(namespace) {
+		key = segment("ns", part) + "/" + key
 	}
 	return key
 }
