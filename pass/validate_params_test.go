@@ -222,6 +222,30 @@ func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testin
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
 }
 
+// TestValidate_ParamReferences_StreamConditionsAreHeld pins that the input a
+// request or response stream is selected by is a reference like a pagination
+// input: one naming the operation's own parameter is clean, one naming another
+// operation's is reported at its field.
+func TestValidate_ParamReferences_StreamConditionsAreHeld(t *testing.T) {
+	t.Parallel()
+	streamed := func(id ir.OpID, own, cond ir.ParamID) ir.Operation {
+		op := paramRefOp(id, own, own, own, own)
+		op.RequestStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: ir.InputPath{Param: new(cond)}}}
+		op.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: ir.InputPath{Param: new(cond)}}}
+		return op
+	}
+	get := streamed("op/x/get", "param/x/get/p", "param/x/get/p")
+	post := streamed("op/x/post", "param/x/post/p", "param/x/get/p")
+
+	var at []string
+	for _, d := range validated(t, docWithOperations(get, post)) {
+		if d.Code == "pass/param-binding-mismatch" {
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"op/x/post/requestStream/condition", "op/x/post/responseStream/condition"}, at)
+}
+
 // TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean pins that
 // an empty token is no reference: it is how an operation that is not
 // token-keyed spells having none.
