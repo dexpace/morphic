@@ -513,3 +513,63 @@ paths:
 	assert.Equal(t, "9.0.0", op.Deprecation.RemovalVersion,
 		"both facts survive; neither overwrites the other")
 }
+
+// TestPromotion_ReplacementsResolveOnceTheDocumentIsWhole pins the replacement
+// target end to end: a policy mapping x-replaced-by fills each deprecated
+// node's ReplacedBy with the entity its name resolves to, an operation by an
+// operationId declared after it, a parameter beside it and a schema by its
+// components name, and a name naming nothing fills nothing and says so.
+func TestPromotion_ReplacementsResolveOnceTheDocumentIsWhole(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /old:
+    get:
+      operationId: getOld
+      deprecated: true
+      x-replaced-by: getNew
+      parameters:
+        - {name: limit, in: query, deprecated: true, x-replaced-by: query.pageSize, schema: {type: integer}}
+        - {name: pageSize, in: query, schema: {type: integer}}
+      responses: {"200": {description: ok}}
+  /gone:
+    get:
+      operationId: getGone
+      deprecated: true
+      x-replaced-by: [getNew, nothing]
+      responses: {"200": {description: ok}}
+  /new:
+    get:
+      operationId: getNew
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Old: {type: object, deprecated: true, x-replaced-by: New}
+    New: {type: object}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+				openapi.TargetDeprecationReplacedBy: {{Key: "x-replaced-by"}},
+			},
+		}}})
+	require.NoError(t, err)
+
+	getOld, ok := opByName(doc, "getOld")
+	require.True(t, ok)
+	getNew, ok := opByName(doc, "getNew")
+	require.True(t, ok)
+	require.NotNil(t, getOld.Deprecation)
+	assert.Equal(t, []ir.EntityRef{{Operation: getNew.ID}}, getOld.Deprecation.ReplacedBy)
+	require.NotNil(t, getOld.Params[0].Deprecation)
+	assert.Equal(t, []ir.EntityRef{{Param: getOld.Params[1].ID}}, getOld.Params[0].Deprecation.ReplacedBy)
+	assert.Equal(t, []ir.EntityRef{{Type: componentID("New")}}, doc.Types[componentID("Old")].Common().Deprecation.ReplacedBy)
+
+	getGone, ok := opByName(doc, "getGone")
+	require.True(t, ok)
+	assert.Empty(t, getGone.Deprecation.ReplacedBy, "a list naming one entity that does not exist fills nothing")
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", "/paths/~1gone/get/x-replaced-by"))
+	assert.Contains(t, getGone.Unmodeled, "openapi:x-replaced-by", "the extension survives its promotion")
+}

@@ -217,6 +217,7 @@ a row.
 |---|---|---|
 | `Operation.Deprecation`, `Parameter.Deprecation`, `Property.Deprecation`, `AuthScheme.Deprecation`, `Message.Deprecation`, `TypeCommon.Deprecation` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
 | `Deprecation.Message`, `Deprecation.Since`, `Deprecation.RemovalVersion`, `Deprecation.RemovalDate` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
+| `Deprecation.ReplacedBy` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `TypeCommon` | `Provenance.Inferred` |
 | `Enum.Closed`, `Enum.Flags`, `EnumMember.Name` | `Enum` | `Provenance.Inferred` |
 | `Union.Closed` | `Union` | `Provenance.Inferred` |
 | `Operation.Stability`, `Operation.Pagination`, `Operation.LongRunning`, `Operation.Idempotency` | `Operation` | `Provenance.Inferred` |
@@ -232,7 +233,8 @@ bare value with nowhere to write a key, so a key naming the members is a list on
 binding is reached from its parameter by `HTTPParamBinding.Param`, so a consumer asking whether
 `AllowReserved` was inferred reads the parameter it names. The rows of a deprecation and of `Secret`
 also name `TypeCommon`, the node of a `$ref`'s target, which lends a use what its keys state (rule
-3). A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is a
+3); a replacement is never lent, since it names an entity of its own node's class, which a use and
+its target are not. A promoted `Pagination` also sets its own `Inferred`, which says the value as a whole is a
 heuristic's ([plan policy](../emitters/plan/policy.md)).
 
 Three other places for the record were weighed:

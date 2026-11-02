@@ -16,7 +16,7 @@ document, read for what these consumers need.
 |---|---|---|
 | documentation shown to a person | `Docs` on every node that has any: the summary, the description as CommonMark exactly as written, the external links, and the spans of the description that name a type ([annotations](./annotations.md)) | carried |
 | examples per operation, parameter, type and media type | `Operation.Examples`, `Parameter.Examples`, `TypeCommon.Examples`, `Content.Examples` | carried |
-| a deprecation and when it ends | `Deprecation`: its message, the version it began in, and the removal as a version and as a date, each verbatim ([annotations](./annotations.md)) | carried |
+| a deprecation and when it ends | `Deprecation`: its message, the version it began in, the removal as a version and as a date, each verbatim, and what replaces it, by ID ([annotations](./annotations.md#replacements)) | carried |
 | tags as the structure of a reference | `Document.TagDefs` with each tag's documentation, parent and kind; `Operation.Tags`, every membership; `Service.Groups`, the section tree the tags describe ([services](./services.md)) | carried |
 | documentation a path shares among its operations | `HTTPBinding.PathDocs` on each operation the path mounts ([http-binding](./http-binding.md#path-documentation)) | carried |
 | how a response's values feed another operation | `Links` on the response, error case or default ([links](./responses.md#links)) | carried |

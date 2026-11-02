@@ -129,6 +129,7 @@ type Deprecation struct
 	"message" string omitempty
 	"removalDate" string omitempty
 	"removalVersion" string omitempty
+	"replacedBy" []EntityRef omitempty
 	"since" string omitempty
 
 type Diagnostic struct
@@ -186,6 +187,19 @@ type Encoding struct
 	"name" string omitempty
 	"schema" *TypeRef omitzero
 	"wireType" *TypeRef omitzero
+
+type EntityRef struct
+	"auth" AuthID omitempty
+	"channel" ChannelID omitempty
+	"group" GroupID omitempty
+	"member" EnumMemberID omitempty
+	"message" MessageID omitempty
+	"operation" OpID omitempty
+	"param" ParamID omitempty
+	"property" PropID omitempty
+	"server" ServerID omitempty
+	"service" ServiceID omitempty
+	"type" TypeID omitempty
 
 type Enum struct
 	embed TypeCommon
