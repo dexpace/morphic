@@ -138,9 +138,12 @@ func TestBuild_DocumentNodeUnwraps(t *testing.T) {
 func TestBuild_ANullAnchorNamesNothing(t *testing.T) {
 	t.Parallel()
 	var doc yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte(
-		"a: {$dynamicAnchor: null}\nb: {$dynamicAnchor: ~}\nc: {$dynamicAnchor: Null}\nd: {$dynamicAnchor: }\n"+
-			"e: {$dynamicAnchor: \"null\"}\n"), &doc))
+	require.NoError(t, yaml.Unmarshal([]byte(`a: {$dynamicAnchor: null}
+b: {$dynamicAnchor: ~}
+c: {$dynamicAnchor: Null}
+d: {$dynamicAnchor: }
+e: {$dynamicAnchor: "null"}
+`), &doc))
 
 	x := Build(&doc)
 	assert.Equal(t, map[string][]jsontext.Pointer{"null": {"/e"}}, x.byName)

@@ -30,8 +30,12 @@ import (
 func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 	t.Parallel()
 	const noPaths = "paths: {}\n"
-	const parameter = "paths:\n  /a:\n    get:\n      parameters: [{name: q, in: query, schema: {%s}}]\n" +
-		"      responses: {'200': {description: ok}}\n"
+	const parameter = `paths:
+  /a:
+    get:
+      parameters: [{name: q, in: query, schema: {%s}}]
+      responses: {'200': {description: ok}}
+`
 	positions := []struct {
 		name, paths, format string
 		contexts            []string
@@ -61,8 +65,12 @@ func TestCompile_ANullKeywordLowersAsTheKeywordLeftOut(t *testing.T) {
 							} else {
 								component = fmt.Sprintf(position.format, schema)
 							}
-							return fmt.Sprintf("openapi: %s\ninfo: {title: t, version: \"1\"}\n%s"+
-								"components:\n  schemas:\n    S: %s\n", version.name, paths, component)
+							return fmt.Sprintf(`openapi: %s
+info: {title: t, version: "1"}
+%scomponents:
+  schemas:
+    S: %s
+`, version.name, paths, component)
 						}
 						removed, removedDiags := compileSpecText(t, spec(strings.TrimSuffix(context, ", ")))
 						written, writtenDiags := compileSpecText(t, spec(context+fmt.Sprintf("%q: null", keyword)))
@@ -107,8 +115,11 @@ func TestCompile_ANullIdentifierLowersAsTheKeywordLeftOut(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			spec := func(written string) string {
-				return "openapi: 3.1.0\ninfo: {title: t, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:" +
-					fmt.Sprintf(tc.schemas, written)
+				return `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:` + fmt.Sprintf(tc.schemas, written)
 			}
 			removed, removedDiags := compileSpecText(t, spec(""))
 			written, writtenDiags := compileSpecText(t, spec(fmt.Sprintf(", %q: null", tc.keyword)))
