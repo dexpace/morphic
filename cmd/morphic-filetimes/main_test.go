@@ -469,6 +469,76 @@ func TestExecute_TwoCheckoutsEndIdentical(t *testing.T) {
 	assert.Empty(t, cmp.Diff(snapA, snapshot(t, a.dir)))
 }
 
+// TestExecute_DatesGitLast holds the root's .git entry to the directory time
+// and its dating to the run's last call, so that nothing the command does
+// follows it. Mutants: delete the call; move it ahead of the directory loop.
+func TestExecute_DatesGitLast(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	r.populate()
+	scramble(t, r.dir, time.Date(2021, 3, 4, 5, 6, 7, 8, time.UTC))
+	require.NoError(t, os.Chtimes(filepath.Join(r.dir, ".git"), time.Now(), time.Now()))
+
+	var names []string
+	sys := r.system()
+	sys.chtimes = func(name string, atime, mtime time.Time) error {
+		names = append(names, name)
+		return os.Chtimes(name, atime, mtime)
+	}
+	code, stdout, stderr := runSystem(sys)
+	require.Equal(t, 0, code, stderr)
+
+	assert.Equal(t, "morphic-filetimes: dated 5 files and 5 directories\n", stdout)
+	info, err := os.Lstat(filepath.Join(r.dir, ".git"))
+	require.NoError(t, err)
+	assert.Equal(t, dirTime().UnixNano(), info.ModTime().UnixNano())
+	require.NotEmpty(t, names)
+	assert.Equal(t, onDisk(r.dir, ".git"), names[len(names)-1])
+}
+
+// TestExecute_DatesALinkedWorktreesGitFile. In a linked worktree .git is a
+// file. Mutant: date .git only when Lstat says it is a directory.
+func TestExecute_DatesALinkedWorktreesGitFile(t *testing.T) {
+	t.Parallel()
+	r := newRepo(t)
+	r.populate()
+	linked := &repo{t: t, dir: filepath.Join(t.TempDir(), "linked")}
+	r.git("worktree", "add", "-q", "-b", "linked", linked.dir)
+	info, err := os.Lstat(filepath.Join(linked.dir, ".git"))
+	require.NoError(t, err)
+	require.True(t, info.Mode().IsRegular(), "a linked worktree's .git is a file")
+
+	code, _, stderr := linked.run()
+	require.Equal(t, 0, code, stderr)
+
+	info, err = os.Lstat(filepath.Join(linked.dir, ".git"))
+	require.NoError(t, err)
+	assert.Equal(t, dirTime().UnixNano(), info.ModTime().UnixNano())
+}
+
+// TestExecute_SkipsAnAbsentGit. With GIT_DIR elsewhere the root holds no .git
+// entry, so there is nothing to date. Mutant: return the not-exist error.
+func TestExecute_SkipsAnAbsentGit(t *testing.T) {
+	t.Parallel()
+	work, gitDir := t.TempDir(), filepath.Join(t.TempDir(), "repo.git")
+	env := append(hermeticEnv(), "GIT_DIR="+gitDir, "GIT_WORK_TREE="+work)
+	git := gitIn(work, env, maxGitOutput)
+	_, err := git("init", "-q", "-b", "main")
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(work, "f"), []byte("f\n"), 0o644))
+	_, err = git("add", "-A")
+	require.NoError(t, err)
+	_, err = git("commit", "-q", "-m", "f")
+	require.NoError(t, err)
+	_, err = os.Lstat(filepath.Join(work, ".git"))
+	require.ErrorIs(t, err, fs.ErrNotExist)
+
+	code, stdout, stderr := runSystem(system{dir: work, git: git, chtimes: os.Chtimes})
+
+	assert.Equal(t, 0, code, stderr)
+	assert.Equal(t, "morphic-filetimes: dated 1 files and 1 directories\n", stdout)
+}
+
 // TestExecute_ChangedContentChangesTheTime. Mutant: return a constant.
 func TestExecute_ChangedContentChangesTheTime(t *testing.T) {
 	t.Parallel()
@@ -690,6 +760,7 @@ func TestExecute_ReportsWhatFailsBeyondTheCommand(t *testing.T) {
 		{"a file cannot be dated", chtimesFailing("pkg/a.go"), `date "pkg/a.go": boom`},
 		{"a directory cannot be dated", chtimesFailing("svc"), `date directory "svc": boom`},
 		{"the top level cannot be dated", chtimesFailing("."), `date directory ".": boom`},
+		{"git cannot be dated", chtimesFailing(".git"), `date ".git": boom`},
 	}
 	for _, tc := range tests {
 		code, stdout, stderr := runSystem(tc.sys)

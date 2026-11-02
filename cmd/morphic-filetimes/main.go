@@ -55,6 +55,10 @@ const (
 
 	modeFile       = "100644"
 	modeExecutable = "100755"
+
+	// gitEntry is the name of the top level's repository entry: a directory,
+	// or a file in a linked worktree.
+	gitEntry = ".git"
 )
 
 const usage = "usage: morphic-filetimes"
@@ -197,8 +201,12 @@ func requireTopLevel(sys system) error {
 	return nil
 }
 
-// apply sets every file's time, then every directory's. A directory last, as
-// a write to its entries is what moves its own time on some systems.
+// apply sets every file's time, then every directory's, then the top level's
+// .git entry. A directory after its files, as a write to its entries is what
+// moves its own time on some systems. .git is last, and dated because Go hashes
+// every entry of a directory a test lists, the root among them; any later git
+// status moves it again. A root with no .git entry is skipped, and a symlinked
+// one has its target dated, not the link, which is out of scope.
 func apply(sys system, j job) error {
 	for _, s := range j.files {
 		if err := sys.chtimes(onDisk(sys.dir, s.path), s.at, s.at); err != nil {
@@ -210,6 +218,9 @@ func apply(sys system, j job) error {
 		if err := sys.chtimes(onDisk(sys.dir, d), at, at); err != nil {
 			return fmt.Errorf("date directory %q: %w", d, err)
 		}
+	}
+	if err := sys.chtimes(onDisk(sys.dir, gitEntry), at, at); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("date %q: %w", gitEntry, err)
 	}
 	return nil
 }
