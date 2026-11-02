@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -181,4 +182,25 @@ func pathItemOf(t *testing.T, src string) *soa.PathItem {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 	return pi
+}
+
+// TestKeepOn_AnnouncesOnlyDocumentationThatLanded pins that the note saying an
+// operation holds its path's documentation follows the entry that landed: where
+// the operation already held the key, the entry is refused and reported, and no
+// note claims it was kept.
+func TestKeepOn_AnnouncesOnlyDocumentationThatLanded(t *testing.T) {
+	t.Parallel()
+	key := "openapi:pathItem/summary"
+	kept := ir.Unmodeled{key: {Reason: ir.ReasonNoIRHome, Value: ir.RawValue(`"the path's"`),
+		Provenance: ir.Provenance{Pointer: "/paths/~1a/summary"}}}
+
+	landed := &ir.Operation{}
+	assert.Len(t, keepOn(landed, kept), 1, "documentation that lands is announced")
+
+	own := ir.UnmodeledEntry{Value: ir.RawValue(`"the operation's"`), Provenance: ir.Provenance{Pointer: "/paths/~1a/get/x"}}
+	refused := &ir.Operation{Unmodeled: ir.Unmodeled{key: own}}
+	diags := keepOn(refused, kept)
+	assert.Equal(t, own, refused.Unmodeled[key], "the operation's own entry stays")
+	require.Len(t, diags, 1, "the refusal is reported, and nothing announces documentation that did not land")
+	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
 }

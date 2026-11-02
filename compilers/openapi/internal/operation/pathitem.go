@@ -192,29 +192,21 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 // keepOn writes onto op a copy of each entry its mount's layers keep, and says
 // so when they hold the path item's documentation, which documents the path
 // rather than op. kept is computed once a mount, since nothing in it depends on
-// the operation; only the writing repeats (GitHub #414). Each value is cloned, so
-// no two operations share the bytes of one. Nothing op already holds shares a
-// key with them: each is keyed beneath pathItemScope, which none of op's own
-// writers spells, its census escaping a "/" in a key it keeps (GitHub #1323).
+// the operation; only the writing repeats (GitHub #414). An entry op already
+// holds is never replaced (annotation.CopyEntriesInto), though none should be:
+// every kept key sits beneath pathItemScope, which none of op's own writers
+// spells, its census escaping a "/" in a key it keeps (GitHub #1323).
 func keepOn(op *ir.Operation, kept ir.Unmodeled) []ir.Diagnostic {
-	if len(kept) == 0 {
-		return nil
-	}
-	if op.Unmodeled == nil {
-		op.Unmodeled = make(ir.Unmodeled, len(kept))
-	}
-	for key, entry := range kept {
-		entry.Value = entry.Value.Clone()
-		op.Unmodeled[key] = entry
-	}
+	diags := annotation.CopyEntriesInto(&op.Unmodeled, kept)
 	for _, keyword := range pathItemDocKeywords {
-		if _, ok := kept[annotation.EntryKey(pathItemScope, keyword)]; ok {
-			return []ir.Diagnostic{diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, withoutInferred(op.Provenance),
+		key := annotation.EntryKey(pathItemScope, keyword)
+		if entry, ok := kept[key]; ok && op.Unmodeled[key].Provenance == entry.Provenance {
+			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, withoutInferred(op.Provenance),
 				"path-item documentation kept under Unmodeled; it documents the path rather than this "+
-					"operation, and ir.Docs holds the operation's own summary and description")}
+					"operation, and ir.Docs holds the operation's own summary and description"))
 		}
 	}
-	return nil
+	return diags
 }
 
 // applyPathItem keeps on into what a path item declares that its operations
