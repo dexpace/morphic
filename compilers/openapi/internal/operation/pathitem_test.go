@@ -292,8 +292,8 @@ func TestPathItem_DocsKeptOnEveryRoute(t *testing.T) {
 	} {
 		op := openapitest.FindOp(t, doc, tc.op)
 		for _, field := range []struct{ key, keyword string }{
-			{"openapi:pathItemSummary", "summary"},
-			{"openapi:pathItemDescription", "description"},
+			{"openapi:pathItem/summary", "summary"},
+			{"openapi:pathItem/description", "description"},
 		} {
 			entry, ok := op.Unmodeled[field.key]
 			require.True(t, ok, "%s keeps its path item's %s", tc.op, field.keyword)
@@ -323,8 +323,8 @@ func TestPathItem_DocsAbsentKeepNothing(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	op := openapitest.FindOp(t, doc, "getP")
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItemSummary")
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItemDescription")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/summary")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/description")
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1p/get"))
 }
 
@@ -727,9 +727,9 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 		methods, keys []string
 	}{
 		{"/paths/~1a", []string{"get", "put", "post"},
-			[]string{"pathItem/bogus1", "pathItem/bogus2", "pathItem/x-path", "pathItemSummary"}},
+			[]string{"pathItem/bogus1", "pathItem/bogus2", "pathItem/x-path", "pathItem/summary"}},
 		{"/paths/~1b", []string{"get", "delete"},
-			[]string{"pathItem/bogus3", "pathItem/bogus4", "pathItemDescription"}},
+			[]string{"pathItem/bogus3", "pathItem/bogus4", "pathItem/description"}},
 	} {
 		for _, method := range tc.methods {
 			op, ok := ops[ir.OpID("op/openapi"+tc.mount+"/"+method)]
@@ -745,4 +745,38 @@ func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
 	ops["op/openapi/paths/~1a/get"].Unmodeled["openapi:pathItem/bogus1"].Value[0] = ' '
 	assert.JSONEq(t, `{"k":1}`, string(ops["op/openapi/paths/~1a/put"].Unmodeled["openapi:pathItem/bogus1"].Value),
 		"each operation owns its copy: writing through one leaves the others as declared")
+}
+
+// TestPathItem_DocsKeepApartFromAnOperationsOwnKeys pins that a path item's
+// documentation and an operation's own undeclared key never share an entry
+// (GitHub #1323). The pair is keyed beneath the item's scope, and the census
+// escapes the "/" of a key spelled like one, so each of the three values lands
+// under a key of its own and no finding says a key went unrepresented.
+func TestPathItem_DocsKeepApartFromAnOperationsOwnKeys(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /a:
+    summary: the path's summary
+    get:
+      operationId: getA
+      pathItemSummary: an undeclared key
+      pathItem/summary: a key spelled like the entry
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "getA")
+
+	for _, tc := range []struct{ key, text, at string }{
+		{"openapi:pathItemSummary", "an undeclared key", "/paths/~1a/get/pathItemSummary"},
+		{"openapi:pathItem~1summary", "a key spelled like the entry", "/paths/~1a/get/pathItem~1summary"},
+		{"openapi:pathItem/summary", "the path's summary", "/paths/~1a/summary"},
+	} {
+		entry, ok := op.Unmodeled[tc.key]
+		if !assert.True(t, ok, "%s is kept", tc.key) {
+			continue
+		}
+		assert.JSONEq(t, `"`+tc.text+`"`, string(entry.Value), "%s holds its own value", tc.key)
+		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
+	}
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.UnknownKeyEntryTaken, "/paths/~1a/get/pathItemSummary"),
+		"the operation's key is not reported as displaced")
 }

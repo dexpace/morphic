@@ -183,6 +183,14 @@
                 ]
               },
               "unmodeled": {
+                "openapi:pathItem/description": {
+                  "reason": "no_ir_home",
+                  "value": "Shared description",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/description"
+                  }
+                },
                 "openapi:pathItem/mergedBogus": {
                   "reason": "out_of_scope",
                   "value": {
@@ -197,15 +205,7 @@
                     "pointer": "/paths/~1merged/mergedBogus"
                   }
                 },
-                "openapi:pathItemDescription": {
-                  "reason": "no_ir_home",
-                  "value": "Shared description",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/description"
-                  }
-                },
-                "openapi:pathItemSummary": {
+                "openapi:pathItem/summary": {
                   "reason": "no_ir_home",
                   "value": "Shared summary",
                   "provenance": {
@@ -306,6 +306,14 @@
                 ]
               },
               "unmodeled": {
+                "openapi:pathItem/description": {
+                  "reason": "no_ir_home",
+                  "value": "Shared description",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1merged/description"
+                  }
+                },
                 "openapi:pathItem/mergedBogus": {
                   "reason": "out_of_scope",
                   "value": {
@@ -320,15 +328,7 @@
                     "pointer": "/paths/~1merged/mergedBogus"
                   }
                 },
-                "openapi:pathItemDescription": {
-                  "reason": "no_ir_home",
-                  "value": "Shared description",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/description"
-                  }
-                },
-                "openapi:pathItemSummary": {
+                "openapi:pathItem/summary": {
                   "reason": "no_ir_home",
                   "value": "Shared summary",
                   "provenance": {

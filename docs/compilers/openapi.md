@@ -2300,15 +2300,19 @@ such item; it is reported as one `openapi/degraded-construct` warning at the mou
 ### `path-item-docs`
 
 A path item's own `summary` and `description`, at the same three mounts, are kept verbatim on each
-operation it mounts, under `openapi:pathItemSummary` and `openapi:pathItemDescription`
+operation it mounts, under `openapi:pathItem/summary` and `openapi:pathItem/description`
 (`no_ir_home`), reported as an info `openapi/degraded-construct` at the operation, rather than
 merged into the operation's `Docs`: `ir.Docs` holds the operation's own pair, and a path item's
 documents the path, so merging would need a precedence rule and would attach documentation the
 operation's author never wrote — an inference, which invariant 6 places in policy rather than in a
-lowering.
+lowering. The keys sit beneath the item's scope, as its extensions and undeclared keys do, so no key
+the operation's own census writes can spell one: the census escapes a `/` in the key it keeps.
 
 - Cases: `path-item-docs`, `path-item-ref-siblings`
 - Codes: `openapi/degraded-construct`
+- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`,
+  `operation.TestPathItem_DocsKeepApartFromAnOperationsOwnKeys`,
+  `operation.TestPathItem_KeepsWhatItDeclaresOncePerMount`
 - Status: partly built: a path item that mounts no operation drops its own summary and description
   in silence (#383).
 

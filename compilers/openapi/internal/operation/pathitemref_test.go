@@ -51,7 +51,7 @@ func TestPathItemRefSiblings_IssueReproducer(t *testing.T) {
 	assert.Equal(t, "PUT", putA.Bindings.HTTP[0].Method)
 	assert.Equal(t, "/a", putA.Bindings.HTTP[0].URITemplate)
 
-	entry, ok := putA.Unmodeled["openapi:pathItemSummary"]
+	entry, ok := putA.Unmodeled["openapi:pathItem/summary"]
 	require.True(t, ok, "the summary written beside the $ref is kept")
 	assert.JSONEq(t, `"written beside the ref"`, string(entry.Value))
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/summary"), entry.Provenance.Pointer)
@@ -68,7 +68,7 @@ func TestPathItemRefSiblings_IssueReproducer(t *testing.T) {
 
 	// And the sibling's item-level constructs land on every operation mounted
 	// at that path, the referent's included.
-	assert.Contains(t, atA.Unmodeled, "openapi:pathItemSummary")
+	assert.Contains(t, atA.Unmodeled, "openapi:pathItem/summary")
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateOperationID, "/paths/~1a/get"),
 		"one declaration mounted twice is still the remount warning, unchanged")
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingOperationID))
@@ -235,7 +235,7 @@ func assertPathItemSiblingConstructs(t *testing.T, doc *ir.Document, op ir.Opera
 	t.Helper()
 	where := op.Name.Source
 
-	summary, ok := op.Unmodeled["openapi:pathItemSummary"]
+	summary, ok := op.Unmodeled["openapi:pathItem/summary"]
 	require.True(t, ok, "%s keeps the use site's path-item summary", where)
 	assert.JSONEq(t, `"written beside the ref"`, string(summary.Value))
 	assert.Equal(t, jsontext.Pointer(usePtr+"/summary"), summary.Provenance.Pointer)

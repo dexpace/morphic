@@ -154,9 +154,9 @@ func itemConstructs(l layer, docs bool) []itemConstruct {
 	for _, po := range pathOperations(l.item) {
 		add(constructOperation, string(po.seg), "the "+po.method+" operation", po.seg)
 	}
-	for _, f := range pathItemDocFields {
-		if docs && declaresText(l.item, f.keyword) {
-			add(constructDoc, f.keyword, "the "+f.keyword, ids.Ptr(f.keyword))
+	for _, keyword := range pathItemDocKeywords {
+		if docs && declaresText(l.item, keyword) {
+			add(constructDoc, keyword, "the "+keyword, ids.Ptr(keyword))
 		}
 	}
 	if len(l.item.GetServers()) > 0 {

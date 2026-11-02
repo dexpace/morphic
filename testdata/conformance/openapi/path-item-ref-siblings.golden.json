@@ -142,20 +142,20 @@
                     "pointer": "/paths/~1a/bogusBeside"
                   }
                 },
+                "openapi:pathItem/summary": {
+                  "reason": "no_ir_home",
+                  "value": "written beside the ref",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/summary"
+                  }
+                },
                 "openapi:pathItem/x-beside": {
                   "reason": "vendor_extension",
                   "value": "use",
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1a/x-beside"
-                  }
-                },
-                "openapi:pathItemSummary": {
-                  "reason": "no_ir_home",
-                  "value": "written beside the ref",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1a/summary"
                   }
                 }
               },
@@ -250,20 +250,20 @@
                     "pointer": "/paths/~1a/bogusBeside"
                   }
                 },
+                "openapi:pathItem/summary": {
+                  "reason": "no_ir_home",
+                  "value": "written beside the ref",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/summary"
+                  }
+                },
                 "openapi:pathItem/x-beside": {
                   "reason": "vendor_extension",
                   "value": "use",
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1a/x-beside"
-                  }
-                },
-                "openapi:pathItemSummary": {
-                  "reason": "no_ir_home",
-                  "value": "written beside the ref",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1a/summary"
                   }
                 }
               },
