@@ -116,9 +116,10 @@ jobs:
   # deliberate exception to main's (#1025), so make fuzz-prune bounds it before
   # each save.
   #
-  # This job alone may write to issues, and only the step that reports holds the
-  # token: the search runs the repository's code, with no credential left in
-  # .git/config by the checkout.
+  # This job alone may write to issues, and it runs only main's code or a writer's
+  # dispatch, never a pull request's. The checkout leaves no credential in
+  # .git/config, and the search step's environment holds no token, but setup-go
+  # and the reporting step are both handed one.
   fuzz:
     name: fuzz search
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
