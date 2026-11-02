@@ -219,8 +219,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -354,8 +353,7 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -527,8 +525,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

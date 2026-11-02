@@ -114,8 +114,7 @@
                     "requestContentTypes": [
                       "Multipart/Form-Data"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -179,8 +178,7 @@
                     "requestContentTypes": [
                       "Application/X-WWW-Form-Urlencoded; charset=utf-8"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -260,8 +258,7 @@
                     "requestContentTypes": [
                       "Application/Octet-Stream"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

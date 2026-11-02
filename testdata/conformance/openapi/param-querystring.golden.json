@@ -118,8 +118,7 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -191,8 +190,7 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -264,8 +262,7 @@
                         "contentType": "application/x-www-form-urlencoded"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

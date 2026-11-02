@@ -108,8 +108,7 @@
                     "method": "GET",
                     "uriTemplate": "/items",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

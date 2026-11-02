@@ -2311,16 +2311,16 @@ such item; it is reported as one `openapi/degraded-construct` warning at the mou
 
 ### `path-item-docs`
 
-A path item's own `summary` and `description`, at the same three mounts, are kept verbatim on each
-operation it mounts, under `openapi:pathItemSummary` and `openapi:pathItemDescription`
-(`no_ir_home`), reported as an info `openapi/degraded-construct` at the operation, rather than
-merged into the operation's `Docs`: `ir.Docs` holds the operation's own pair, and a path item's
-documents the path, so merging would need a precedence rule and would attach documentation the
-operation's author never wrote — an inference, which invariant 6 places in policy rather than in a
-lowering.
+A path item's own `summary` and `description`, at the same three mounts, lower to the `PathDocs`
+of each operation's HTTP binding ([http-binding](../ir/http-binding.md#path-documentation)),
+with nothing reported, rather than merged into the operation's `Docs`: `ir.Docs` holds the
+operation's own pair, and a path item's documents the path, so merging would need a precedence rule
+and would attach documentation the operation's author never wrote, an inference invariant 6 places
+in policy. Each keyword is read where the nearest layer of a `$ref`'d path item declares it
+([`path-item-ref-fields`](#path-item-ref-fields)).
 
 - Cases: `path-item-docs`, `path-item-ref-siblings`
-- Codes: `openapi/degraded-construct`
+- Tests: `operation.TestPathItem_DocsKeptOnEveryRoute`, `operation.TestPathItem_DocsAddNoMarker`
 - Status: partly built: a path item that mounts no operation drops its own summary and description
   in silence (#383).
 
@@ -2839,20 +2839,24 @@ status code. The gap is one the IR can close, so a promotion pass may read the e
 ### `webhooks`
 
 Each operation of a `webhooks` entry's path item lowers to an `Operation` mounted at its own
-pointer, in the synthesized `webhooks` group, its HTTP binding marked `IsWebhook`, with the entry's
-key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
+pointer, in the synthesized `webhooks` group, its HTTP binding's `Inbound` a webhook, with the
+entry's key as `WebhookName` and no `URITemplate`, since the key names an event rather than a path.
+Its `Auth` is what its own `security` states, and nothing when it writes none: the document's
+`security` describes requests clients send, and a webhook is one the API sends
+([auth](../ir/auth.md#inbound-operations)).
 
 - Cases: `webhooks`
-- Status: open: whether a webhook operation inherits the service's auth (#626).
 
 ### `callbacks`
 
 An operation's `callbacks` lower to its HTTP binding's `Callbacks`: for each runtime expression of
-each named callback, a `Callback` holding the expression as written and the `OpID`s of the
-operations its path item declares. Each of those lowers to an `Operation` of its own, mounted at its
-own pointer below the declaring operation's (`…/callbacks/<name>/<expression>/<method>`, the name
-escaped as one token), grouped as any other operation is, with the expression as its `URITemplate`
-([http-binding](../ir/http-binding.md)). A key is a runtime expression, by the grammar each
+each named callback, a `Callback` holding the callback's name and the expression as written and the
+`OpID`s of the operations its path item declares. Each of those lowers to an `Operation` of its own,
+mounted at its own pointer below the declaring operation's
+(`…/callbacks/<name>/<expression>/<method>`, the name escaped as one token), grouped as any other
+operation is, its binding's `Inbound` a callback, with the expression as its `URITemplate`
+([http-binding](../ir/http-binding.md#inbound-operations)), and inheriting no `security`, as a
+webhook does. A key is a runtime expression, by the grammar each
 minor gives, text embedding runtime expressions in braces, as OpenAPI's own example does, or a
 constant URL, which embeds none; one that is none of them is reported as an `openapi/validation`
 error, of the class `validation-invalid-format`, at the key ([`validation`](#validation)), and
@@ -2863,8 +2867,7 @@ lowers as written.
 - Tests: `operation.TestCallbacks_NameWithSlashKeepsItsOwnKey`,
   `oas.TestCheck_CallbackKeysAreRuntimeExpressions`
 - Status: partly built: callbacks declared on an operation inside a callback are dropped in silence
-  (#858); and a callback operation is not marked inbound, and a callback has no name (#625). Open:
-  whether a callback operation inherits the service's auth (#626).
+  (#858).
 
 ## 13. Security
 

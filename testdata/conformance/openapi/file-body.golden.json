@@ -127,8 +127,7 @@
                     "requestContentTypes": [
                       "application/octet-stream"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -208,8 +207,7 @@
                     "requestContentTypes": [
                       "application/octet-stream"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

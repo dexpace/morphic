@@ -22,9 +22,12 @@ type HTTPBinding struct {
     ChecksumRequired bool          // client MUST send a payload checksum (Smithy @httpChecksumRequired)
     PatchImplicitOptionality *bool // nil = protocol default (PATCH projections make properties
                                    // optional); false = disabled (TypeSpec @patch implicitOptionality)
-    IsWebhook   bool               // OpenAPI 3.1 webhooks: direction is inbound
+    Inbound     HTTPInbound        // "" = the client sends | "webhook" | "callback": the API sends
+                                   // the request and the client receives it
     WebhookName string             // OpenAPI 3.1 webhooks: the webhooks-map key, verbatim — an
                                    // event's name, not a path; only a webhook binding carries one
+    PathDocs    Docs               // the path's own documentation, shared by every operation on it
+                                   // (OpenAPI Path Item summary and description)
     Callbacks   []Callback         // out-of-band operations keyed by runtime expressions
     Unmodeled   Unmodeled
 }
@@ -60,7 +63,7 @@ type HTTPParamBinding struct {
     BodyPath   []PropID           // for body_property: where in the body model it lands (TypeSpec HttpProperty)
 }
 
-type Callback struct { Expression string; Operations []OpID }
+type Callback struct { Name, Expression string; Operations []OpID } // Name: the callbacks-map key
 ```
 
 `AllowEmptyValue` sits on the binding with a parameter's other serialization facts, the
@@ -75,13 +78,41 @@ prefix *and* still serialize at their modeled location, by spec. TypeSpec's `Htt
 flattening is the model here: nested `@header`/`@body` annotations resolve to explicit
 `(role, wire name, path)` bindings rather than restructured models.
 
-## Webhooks
+## Inbound operations
 
-An OpenAPI `webhooks` entry is keyed by the name of an event the provider sends, not by a URL: where
-the request goes is arranged outside the document, by an out-of-band registration for instance. Its
-operations' bindings carry that key in `WebhookName` and leave `URITemplate` empty, so a `{tenant}`
-in the key is part of a name rather than a variable nothing binds. `irverify` reports a route in the
-field `IsWebhook` does not select (`ir/webhook-route`). The key stays verbatim rather than becoming
-a `Naming`, because the operation's `Name` is what an emitter renders, synthesized from the method
-and this key when no `operationId` is declared, and an empty key is legal and would name nothing. A
-callback operation keeps its runtime expression in `URITemplate`.
+Most operations are requests the client sends. Some are requests the API sends and the client
+receives, and every consumer reads the two the opposite way round: a request the API sends is what
+an SDK decodes and a server would encode, so read-only and write-only projections flip, and the
+usage a type has (`irfacts`, [usage](./derived-facts.md#usage)) swaps input for output. `Inbound`
+states which an operation is, on the binding, since what routes the request differs by kind:
+
+- **A webhook** (`webhook`) is a request the API sends on an event, to a URL arranged outside the
+  document, by an out-of-band registration for instance. An OpenAPI `webhooks` entry is keyed by
+  the event's name, not by a URL, so its operations' bindings carry that key in `WebhookName` and
+  leave `URITemplate` empty: a `{tenant}` in the key is part of a name rather than a variable
+  nothing binds. The key stays verbatim rather than becoming a `Naming`, because the operation's
+  `Name` is what an emitter renders, synthesized from the method and this key when no
+  `operationId` is declared, and an empty key is legal and would name nothing.
+- **A callback** (`callback`) is a request the API sends to a URL an operation the client sent
+  supplies. Its binding keeps the runtime expression resolving that URL in `URITemplate`, and the
+  operation that declares it lists it among its binding's `Callbacks`, under the name the source
+  maps it by (`Callback.Name`, an OpenAPI callbacks-map key) and the expression.
+
+`irverify` reports a route in the field `Inbound` does not select (`ir/webhook-route`), a kind it
+does not declare (`ir/unknown-http-inbound`), and a callback whose two halves disagree: one marked
+that no binding lists (`ir/callback-unlisted`), or one listed that is not marked
+(`ir/callback-unmarked`). An inbound operation inherits no security requirement
+([auth](./auth.md#inbound-operations)).
+
+## Path documentation
+
+A path can be documented apart from any operation on it: an OpenAPI Path Item's `summary` and
+`description` apply to every operation the item mounts, and each operation may document itself
+too. `PathDocs` holds the first and `Operation.Docs` the second, so neither displaces the other and
+nothing is attributed to an operation its author did not write about. It sits on the binding beside
+the route it documents, written on every operation the path mounts as `URITemplate` is; a path
+mounting no operation has no binding to hold it. A format whose grouping construct carries the
+documentation, a TypeSpec interface or a Smithy resource, writes it on the `OperationGroup`
+([services](./services.md)), and an AsyncAPI channel's on the `Channel`
+([messaging](./messaging.md)); the IR has no path entity, and adding one for a pair of strings
+would make every route a node.

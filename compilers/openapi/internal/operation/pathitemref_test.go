@@ -51,10 +51,8 @@ func TestPathItemRefSiblings_IssueReproducer(t *testing.T) {
 	assert.Equal(t, "PUT", putA.Bindings.HTTP[0].Method)
 	assert.Equal(t, "/a", putA.Bindings.HTTP[0].URITemplate)
 
-	entry, ok := putA.Unmodeled["openapi:pathItemSummary"]
-	require.True(t, ok, "the summary written beside the $ref is kept")
-	assert.JSONEq(t, `"written beside the ref"`, string(entry.Value))
-	assert.Equal(t, jsontext.Pointer("/paths/~1a/summary"), entry.Provenance.Pointer)
+	assert.Equal(t, "written beside the ref", putA.Bindings.HTTP[0].PathDocs.Summary,
+		"the summary written beside the $ref documents the path")
 
 	// The referent's own operation keeps mounting at both paths: a use site that
 	// adds fields beside the $ref does not stop referencing it.
@@ -68,7 +66,7 @@ func TestPathItemRefSiblings_IssueReproducer(t *testing.T) {
 
 	// And the sibling's item-level constructs land on every operation mounted
 	// at that path, the referent's included.
-	assert.Contains(t, atA.Unmodeled, "openapi:pathItemSummary")
+	assert.Equal(t, "written beside the ref", atA.Bindings.HTTP[0].PathDocs.Summary)
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DuplicateOperationID, "/paths/~1a/get"),
 		"one declaration mounted twice is still the remount warning, unchanged")
 	assert.False(t, openapitest.HasDiag(diags, diag.ConflictingOperationID))
@@ -112,7 +110,7 @@ func TestPathItemRefSiblings_WebhookRoute(t *testing.T) {
 	sibling := openapitest.FindOp(t, doc, "siblingHook")
 	assert.Equal(t, ir.OpID("op/openapi/webhooks/hooked/post"), sibling.ID)
 	assert.Equal(t, jsontext.Pointer("/webhooks/hooked/post"), sibling.Provenance.Pointer)
-	assert.True(t, sibling.Bindings.HTTP[0].IsWebhook, "a webhook operation keeps its binding")
+	assert.Equal(t, ir.HTTPInboundWebhook, sibling.Bindings.HTTP[0].Inbound, "a webhook operation keeps its binding")
 
 	referent := openapitest.FindOp(t, doc, "refHook")
 	assert.Equal(t, ir.OpID("op/openapi/webhooks/hooked/get"), referent.ID)
@@ -235,10 +233,9 @@ func assertPathItemSiblingConstructs(t *testing.T, doc *ir.Document, op ir.Opera
 	t.Helper()
 	where := op.Name.Source
 
-	summary, ok := op.Unmodeled["openapi:pathItemSummary"]
-	require.True(t, ok, "%s keeps the use site's path-item summary", where)
-	assert.JSONEq(t, `"written beside the ref"`, string(summary.Value))
-	assert.Equal(t, jsontext.Pointer(usePtr+"/summary"), summary.Provenance.Pointer)
+	require.Len(t, op.Bindings.HTTP, 1)
+	assert.Equal(t, "written beside the ref", op.Bindings.HTTP[0].PathDocs.Summary,
+		"%s takes the use site's path-item summary", where)
 
 	assert.Equal(t, []string{"https://use.example"}, serversNamed(t, doc, op.Servers),
 		"%s is sent to the use site's servers", where)

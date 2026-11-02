@@ -121,8 +121,7 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

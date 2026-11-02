@@ -178,7 +178,10 @@
                       }
                     ],
                     "checksumRequired": false,
-                    "isWebhook": false
+                    "pathDocs": {
+                      "summary": "Shared summary",
+                      "description": "Shared description"
+                    }
                   }
                 ]
               },
@@ -195,22 +198,6 @@
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1merged/mergedBogus"
-                  }
-                },
-                "openapi:pathItemDescription": {
-                  "reason": "no_ir_home",
-                  "value": "Shared description",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/description"
-                  }
-                },
-                "openapi:pathItemSummary": {
-                  "reason": "no_ir_home",
-                  "value": "Shared summary",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/summary"
                   }
                 },
                 "openapi:x-big": {
@@ -301,7 +288,10 @@
                       "multipart/form-data"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": false
+                    "pathDocs": {
+                      "summary": "Shared summary",
+                      "description": "Shared description"
+                    }
                   }
                 ]
               },
@@ -318,22 +308,6 @@
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1merged/mergedBogus"
-                  }
-                },
-                "openapi:pathItemDescription": {
-                  "reason": "no_ir_home",
-                  "value": "Shared description",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/description"
-                  }
-                },
-                "openapi:pathItemSummary": {
-                  "reason": "no_ir_home",
-                  "value": "Shared summary",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1merged/summary"
                   }
                 }
               },
@@ -563,30 +537,12 @@
       }
     },
     {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/get"
-      }
-    },
-    {
       "severity": "warning",
       "code": "openapi/unknown-object-key",
       "message": "key \"mergedBogus\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1merged/mergedBogus"
-      }
-    },
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1merged/post"
       }
     }
   ],

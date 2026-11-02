@@ -22,24 +22,23 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestApplyPathItemDocs_WithoutRootNode pins that a declared pair whose source
-// node cannot be read keeps nothing, and announces nothing it did not keep.
-//
-// The input is synthetic, but the branch is not hypothetical: a pair merged in
-// through a `<<` chain deeper than nodeview.MergeDepthLimit is one the model
-// reads and the compiler's raw read does not, so a real document reaches here
-// with GetSummary non-empty.
-func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
+// TestApplyPathItemDocs_WritesTheBindingItIsGiven pins where the pair goes: the
+// PathDocs of the binding an operation was mounted by, read off the model as an
+// operation's own pair is, and nowhere for an operation with no binding, whose
+// carrier has none.
+func TestApplyPathItemDocs_WritesTheBindingItIsGiven(t *testing.T) {
 	t.Parallel()
-	l := newRawLowerer(&soa.OpenAPI{})
 	summary, description := "documented", "at length"
-	op := &ir.Operation{}
+	item := &soa.PathItem{Summary: &summary, Description: &description}
 
-	diags := applyPathItemDocs(l.ctx, onOperation(op),
-		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a", owners{}.cedes(0))
+	bound := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{}}}}
+	applyPathItemDocs(onOperation(bound), item, owners{}.cedes(0))
+	assert.Equal(t, ir.Docs{Summary: summary, Description: description}, bound.Bindings.HTTP[0].PathDocs)
+	assert.Nil(t, bound.Unmodeled, "nothing is kept verbatim")
 
-	assert.Nil(t, op.Unmodeled, "documentation with no raw node is not preserved")
-	assert.Empty(t, diags)
+	unbound := &ir.Operation{}
+	applyPathItemDocs(onOperation(unbound), item, owners{}.cedes(0))
+	assert.Empty(t, unbound.Bindings.HTTP, "an operation with no binding gains none")
 }
 
 // TestPathOperations_NilAdditionalOperationSkipped pins the guard on the

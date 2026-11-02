@@ -219,8 +219,7 @@
                             "contentType": "application/x-www-form-urlencoded"
                           }
                         ],
-                        "checksumRequired": false,
-                        "isWebhook": false
+                        "checksumRequired": false
                       }
                     ]
                   },
@@ -265,8 +264,7 @@
                         "method": "QUERY",
                         "uriTemplate": "/books",
                         "sharedRoute": false,
-                        "checksumRequired": false,
-                        "isWebhook": false
+                        "checksumRequired": false
                       }
                     ]
                   },
@@ -444,8 +442,7 @@
                       "multipart/form-data",
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -487,8 +484,7 @@
                     "method": "PURGE",
                     "uriTemplate": "/books",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -539,7 +535,7 @@
                     "method": "POST",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
+                    "inbound": "webhook",
                     "webhookName": "bookAdded"
                   }
                 ]

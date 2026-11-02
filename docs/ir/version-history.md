@@ -257,3 +257,17 @@ it sees. Changes made together in one bump are listed together under it.
     0.26.0 decoding the value as required fails on the missing member.
   - `ValueKind` gained `inf`, `neginf` and `nan`, the IEEE 754 non-finite numbers, each with no
     payload. No OpenAPI value is one, so no document the OpenAPI compiler writes holds them.
+- **0.29.0** — three changes to the HTTP binding, made together:
+  - `HTTPBinding.IsWebhook` became `Inbound`, a closed `webhook | callback`, empty for an operation
+    the client sends, so a callback operation is marked the way a webhook is, where only a reverse
+    lookup through its declaring operation's `Callbacks` showed it. `Callback` gained `Name`, the
+    callbacks-map key. A consumer pinned to 0.28.0 refuses the document for its unknown members,
+    and finds no `isWebhook` where it read one.
+  - `HTTPBinding` gained `PathDocs`, a path item's own summary and description, which the OpenAPI
+    compiler had kept on each operation under `openapi:pathItemSummary` and
+    `openapi:pathItemDescription` (`no_ir_home`) with an info report. Those keys and that report are
+    retired.
+  - An inbound operation's `Auth` now states only what it declares, inheriting no service, server
+    or document requirement ([auth](./auth.md#inbound-operations)). No key changed for this; a
+    consumer pinned to 0.28.0 reading a webhook with no `Auth` as inheriting hands it the client's
+    credentials.

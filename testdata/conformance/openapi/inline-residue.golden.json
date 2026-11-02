@@ -100,8 +100,7 @@
                     "method": "GET",
                     "uriTemplate": "/thing",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

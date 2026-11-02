@@ -86,8 +86,9 @@ type HTTPBinding struct {
 	// default (PATCH projections make properties optional); false = disabled
 	// (TypeSpec @patch implicitOptionality).
 	PatchImplicitOptionality *bool `json:"patchImplicitOptionality,omitzero"`
-	// IsWebhook marks an inbound webhook operation (OpenAPI 3.1 webhooks).
-	IsWebhook bool `json:"isWebhook"`
+	// Inbound says the API sends this request and the client receives it: a
+	// webhook or a callback. Empty is an operation the client sends.
+	Inbound HTTPInbound `json:"inbound,omitempty"`
 	// WebhookName is the webhooks-map key that declared a webhook operation,
 	// verbatim. The key names an event rather than a path, so braces in it are
 	// part of the name and not template variables. It is no Naming: the
@@ -95,6 +96,10 @@ type HTTPBinding struct {
 	// legal, would name nothing. irverify reports this field on a binding that is
 	// not a webhook, and URITemplate on one that is, as ir/webhook-route.
 	WebhookName string `json:"webhookName,omitempty"`
+	// PathDocs documents the path the binding mounts the operation on, shared
+	// by every operation on it (an OpenAPI Path Item's summary and description),
+	// as URITemplate is; the operation's own documentation is Operation.Docs.
+	PathDocs Docs `json:"pathDocs,omitzero"`
 	// Callbacks are out-of-band operations keyed by runtime expressions.
 	Callbacks []Callback `json:"callbacks,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
@@ -154,9 +159,27 @@ type HTTPParamBinding struct {
 	BodyPath []PropID `json:"bodyPath,omitempty"`
 }
 
+// HTTPInbound is who starts an HTTP operation the API sends rather than
+// receives (docs/ir/http-binding.md#inbound-operations).
+type HTTPInbound string
+
+// HTTP inbound kinds.
+const (
+	// HTTPInboundWebhook is a request the API sends on an event, to a URL
+	// arranged outside the document (OpenAPI webhooks).
+	HTTPInboundWebhook HTTPInbound = "webhook"
+	// HTTPInboundCallback is a request the API sends to a URL an operation the
+	// client sent supplies, which that operation's binding lists among its
+	// Callbacks (OpenAPI callbacks).
+	HTTPInboundCallback HTTPInbound = "callback"
+)
+
 // Callback is an out-of-band operation set keyed by a runtime expression
 // (docs/ir/http-binding.md).
 type Callback struct {
+	// Name is the key the source maps the callback by, verbatim (an OpenAPI
+	// callbacks-map key); one name may key several expressions.
+	Name string `json:"name,omitempty"`
 	// Expression is the runtime expression that resolves the callback URL.
 	Expression string `json:"expression,omitempty"`
 	// Operations are the callback operations keyed by that expression; no entry

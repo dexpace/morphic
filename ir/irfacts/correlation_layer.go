@@ -81,7 +81,7 @@ func operationKey(op *ir.Operation) string {
 		return ""
 	}
 	b := &op.Bindings.HTTP[0]
-	if b.IsWebhook {
+	if b.Inbound == ir.HTTPInboundWebhook {
 		return segment("webhook", b.Method+" "+b.WebhookName)
 	}
 	return segment("route", b.Method+" "+eraseVariables(b.URITemplate))
@@ -144,7 +144,8 @@ func (c *correlator) operation(key string, op *ir.Operation) {
 }
 
 // callbacks offers each unnamed operation op declares as a callback its key:
-// op's, then the method and the runtime expression keying it.
+// op's, then the callback's name and the method. The runtime expression is a
+// detail of where the request goes, so a rewritten expression keeps the key.
 func (c *correlator) callbacks(key string, op *ir.Operation) {
 	for _, b := range op.Bindings.HTTP {
 		for _, cb := range b.Callbacks {
@@ -154,7 +155,7 @@ func (c *correlator) callbacks(key string, op *ir.Operation) {
 					continue
 				}
 				method := target.Bindings.HTTP[0].Method
-				c.offerOperation(child(key, "callback", method+" "+cb.Expression), target)
+				c.offerOperation(child(child(key, "callback", cb.Name), "method", method), target)
 			}
 		}
 	}

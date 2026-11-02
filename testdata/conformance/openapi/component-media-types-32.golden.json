@@ -110,8 +110,7 @@
                     "method": "GET",
                     "uriTemplate": "/events",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -204,8 +203,7 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

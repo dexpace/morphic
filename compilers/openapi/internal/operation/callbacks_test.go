@@ -28,7 +28,7 @@ func TestWebhooks_PathItemRefResolved(t *testing.T) {
 	doc, _ := parseFull(t, webhookRefSpec)
 	op := openapitest.FindOp(t, doc, "onPing")
 	require.NotEmpty(t, op.Bindings.HTTP)
-	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound)
 	assert.Equal(t, "ping", op.Bindings.HTTP[0].WebhookName,
 		"a webhook reached through a $ref'd path item still names its event")
 	assert.Empty(t, op.Bindings.HTTP[0].URITemplate)
@@ -93,6 +93,15 @@ func TestCallbacks_NameWithSlashKeepsItsOwnKey(t *testing.T) {
 	slashed, ok := kept["openapi:callbacks/a~1x-b/x-c"]
 	require.True(t, ok, `the callback named "a/x-b" keeps its own x-c escaped; got %v`, kept)
 	assert.JSONEq(t, `"FROM_A_SLASH_XB"`, string(slashed.Value))
+
+	var names []string
+	for _, cb := range openapitest.FindOp(t, doc, "postP").Bindings.HTTP[0].Callbacks {
+		names = append(names, cb.Name)
+		cbOp := openapitest.FindOp(t, doc, map[string]string{"a": "cbA", "a/x-b": "cbB"}[cb.Name])
+		assert.Equal(t, []ir.OpID{cbOp.ID}, cb.Operations, "callback %q lists its own operation", cb.Name)
+		assert.Equal(t, ir.HTTPInboundCallback, cbOp.Bindings.HTTP[0].Inbound, "%s is marked a callback", cbOp.ID)
+	}
+	assert.ElementsMatch(t, []string{"a", "a/x-b"}, names, "each callback keeps the name it is mapped by, verbatim")
 }
 
 // TestCallbacks_RefSharedAcrossParentsKeepsDistinctOpIDs is the core scenario
@@ -184,7 +193,7 @@ func TestWebhooks_RefdPathItemSharedAcrossHooksKeepsDistinctOpIDs(t *testing.T) 
 	ops := opsByID(t, doc, idA, idB)
 	require.Contains(t, ops, idA, "each webhook keeps its own mount identity")
 	require.Contains(t, ops, idB, "each webhook keeps its own mount identity")
-	assert.True(t, ops[idA].Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, ir.HTTPInboundWebhook, ops[idA].Bindings.HTTP[0].Inbound)
 	assert.Equal(t, "onA", ops[idA].Bindings.HTTP[0].WebhookName,
 		"each mount names its own event")
 	assert.Equal(t, "onB", ops[idB].Bindings.HTTP[0].WebhookName)

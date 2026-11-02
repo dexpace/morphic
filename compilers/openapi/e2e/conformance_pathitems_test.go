@@ -19,7 +19,7 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	op, ok := opByName(doc, "onNewPet")
 	require.True(t, ok)
 	require.Len(t, op.Bindings.HTTP, 1)
-	assert.True(t, op.Bindings.HTTP[0].IsWebhook, "webhook operation carries IsWebhook")
+	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound, "webhook operation carries IsWebhook")
 	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
 	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
 	assertOwnServersOverrideThePathItems(t, doc, op, "https://hooks-override.example.com",
@@ -41,7 +41,7 @@ func assertWebhooks(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 		require.GreaterOrEqual(t, i, 0, "the webhook keyed %q is mounted", hook.key)
 		require.Len(t, ops[i].Bindings.HTTP, 1)
 		b := ops[i].Bindings.HTTP[0]
-		assert.True(t, b.IsWebhook)
+		assert.Equal(t, ir.HTTPInboundWebhook, b.Inbound)
 		assert.Equal(t, hook.key, b.WebhookName, "the key, verbatim")
 		assert.Empty(t, b.URITemplate, "a webhook has no URI template")
 		assert.Equal(t, hook.hint, ops[i].Name.Hint)
@@ -153,8 +153,9 @@ func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagno
 		"a sibling operation is declared where it is mounted, not at the item it references")
 	assert.Equal(t, []string{"PUT"}, methodsOf(sibling))
 
+	assert.Equal(t, "written beside the ref", sibling.Bindings.HTTP[0].PathDocs.Summary,
+		"the summary the use site declares documents the path")
 	for _, tc := range []struct{ key, value, at string }{
-		{"openapi:pathItemSummary", `"written beside the ref"`, "/paths/~1a/summary"},
 		{"openapi:pathItem/x-beside", `"use"`, "/paths/~1a/x-beside"},
 		{"openapi:pathItem/bogusBeside", `{"responses":{"200":{"description":"BESIDE"}}}`,
 			"/paths/~1a/bogusBeside"},
@@ -179,10 +180,10 @@ func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	atA := opByID(t, doc, "op/openapi/paths/~1a/get")
 	assert.Equal(t, "getB", atA.Name.Source)
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atA.Provenance.Pointer)
-	assert.Contains(t, atA.Unmodeled, "openapi:pathItemSummary")
+	assert.Equal(t, "written beside the ref", atA.Bindings.HTTP[0].PathDocs.Summary)
 	atB := opByID(t, doc, "op/openapi/paths/~1b/get")
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atB.Provenance.Pointer)
-	assert.NotContains(t, atB.Unmodeled, "openapi:pathItemSummary",
+	assert.Empty(t, atB.Bindings.HTTP[0].PathDocs.Summary,
 		"the referent's own path keeps only what it declares")
 }
 
@@ -241,27 +242,21 @@ func assertPathItemDocs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	assert.Empty(t, createPet.Docs.Summary,
 		"and an operation that documents nothing has nothing invented for it")
 
-	// And the decision is announced at the operation that carries the entry,
-	// once, rather than being taken silently.
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
-		diagsAt(diags, "openapi/degraded-construct", "/paths/~1pets/get"))
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
-		diagsAt(diags, "openapi/degraded-construct", "/webhooks/petDeleted/post"))
+	// The pair reaches a field, so nothing is announced.
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/paths/~1pets/get"))
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/webhooks/petDeleted/post"))
 }
 
-// assertPathItemDocsKept checks one operation kept the pair its own path item
-// declared, under the keys that name which object the text came from.
+// assertPathItemDocsKept checks one operation's HTTP binding documents the path
+// with the pair its own path item declared, and that nothing of it stayed
+// verbatim.
 func assertPathItemDocsKept(t *testing.T, op ir.Operation, summary, description string) {
 	t.Helper()
-	kept, ok := op.Unmodeled["openapi:pathItemSummary"]
-	require.True(t, ok, "the path item's summary is kept on %s", op.ID)
-	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
-	assert.JSONEq(t, `"`+summary+`"`, string(kept.Value))
-
-	kept, ok = op.Unmodeled["openapi:pathItemDescription"]
-	require.True(t, ok, "the path item's description is kept on %s", op.ID)
-	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
-	assert.JSONEq(t, `"`+description+`"`, string(kept.Value))
+	require.Len(t, op.Bindings.HTTP, 1)
+	assert.Equal(t, ir.Docs{Summary: summary, Description: description}, op.Bindings.HTTP[0].PathDocs,
+		"the path item's pair documents the path on %s", op.ID)
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItemSummary")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItemDescription")
 }
 
 // assertPathItemOperations pins that every operation a 3.2 path item declares
@@ -289,7 +284,7 @@ func assertPathItemOperations(t *testing.T, doc *ir.Document, _ []ir.Diagnostic)
 
 	onFlush, ok := opByName(doc, "onFlush")
 	require.True(t, ok)
-	assert.True(t, onFlush.Bindings.HTTP[0].IsWebhook,
+	assert.Equal(t, ir.HTTPInboundWebhook, onFlush.Bindings.HTTP[0].Inbound,
 		"a webhook mount marks the binding whichever field declared the operation")
 	assert.Equal(t, "cacheFlushed", onFlush.Bindings.HTTP[0].WebhookName,
 		"the webhooks-map key names the event")

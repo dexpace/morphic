@@ -130,8 +130,7 @@
                     "requestContentTypes": [
                       "application/x-ndjson"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -197,8 +196,7 @@
                     "requestContentTypes": [
                       "application/x-ndjson"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -263,8 +261,7 @@
                     "method": "GET",
                     "uriTemplate": "/mixed",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -333,8 +330,7 @@
                     "method": "GET",
                     "uriTemplate": "/negotiated",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -403,8 +399,7 @@
                     "method": "GET",
                     "uriTemplate": "/feed",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -466,8 +461,7 @@
                     "method": "GET",
                     "uriTemplate": "/sequence",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -533,8 +527,7 @@
                     "requestContentTypes": [
                       "application/geo+json-seq"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

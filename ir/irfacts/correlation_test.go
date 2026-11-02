@@ -52,7 +52,7 @@ func TestCorrelation_KeysAnOperationByNameElseRoute(t *testing.T) {
 	t.Parallel()
 	unnamed := namedOp("op/test/b", "", "/b/{id}/c{?q}")
 	hook := ir.Operation{ID: "op/test/hook", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{
-		{Method: "POST", IsWebhook: true, WebhookName: "created"},
+		{Method: "POST", Inbound: ir.HTTPInboundWebhook, WebhookName: "created"},
 	}}}
 	open := namedOp("op/test/open", "", "/x/{y")
 	bare := ir.Operation{ID: "op/test/bare"}
@@ -219,7 +219,7 @@ func TestCorrelation_KeysACallbackThroughTheOperationDeclaringIt(t *testing.T) {
 	t.Parallel()
 	parent := namedOp("op/test/sub", "subscribe", "/sub")
 	parent.Bindings.HTTP[0].Callbacks = []ir.Callback{{
-		Expression: "{$request.body#/url}",
+		Name: "on/event", Expression: "{$request.body#/url}",
 		Operations: []ir.OpID{"op/test/cb", "op/test/named", "op/test/nobinding", "op/test/missing"},
 	}}
 	cb := ir.Operation{ID: "op/test/cb", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "POST"}}}}
@@ -229,15 +229,15 @@ func TestCorrelation_KeysACallbackThroughTheOperationDeclaringIt(t *testing.T) {
 	// keyed by its own route would settle first.
 	unnamedParent := namedOp("op/test/sub2", "", "/sub2")
 	unnamedParent.Bindings.HTTP[0].Method = "POST"
-	unnamedParent.Bindings.HTTP[0].Callbacks = []ir.Callback{{Expression: "{$url}", Operations: []ir.OpID{"op/test/cb2"}}}
+	unnamedParent.Bindings.HTTP[0].Callbacks = []ir.Callback{{Name: "on", Expression: "{$url}", Operations: []ir.OpID{"op/test/cb2"}}}
 	cb2 := ir.Operation{ID: "op/test/cb2", Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{Method: "POST", URITemplate: "{$url}"}}}}
 	doc := opsDoc([]ir.Operation{parent, cb, named, noBinding, unnamedParent, cb2})
 	got := keysOf(irfacts.New(doc), "op/test/cb", "op/test/named", "op/test/nobinding", "op/test/cb2")
 	want := map[string]string{
-		"op/test/cb":        "op:subscribe/callback:POST {$request.body#~1url}",
+		"op/test/cb":        "op:subscribe/callback:on~1event/method:POST",
 		"op/test/named":     "op:onEvent",
 		"op/test/nobinding": "",
-		"op/test/cb2":       "route:POST ~1sub2/callback:POST {$url}",
+		"op/test/cb2":       "route:POST ~1sub2/callback:on/method:POST",
 	}
 	assert.Empty(t, cmp.Diff(want, got))
 }

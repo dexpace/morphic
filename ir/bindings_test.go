@@ -32,16 +32,17 @@ func TestOpBindings_JSONContract(t *testing.T) {
 }
 
 // TestHTTPBinding_JSONContract pins HTTPBinding's omitempty contract —
-// SharedRoute, ChecksumRequired, and IsWebhook are plain bools that must
-// always serialize as declared facts ("not shared", "no checksum required",
-// "not a webhook"), while every other field stays optional — and that a fully
+// SharedRoute and ChecksumRequired are plain bools that must always serialize
+// as declared facts ("not shared", "no checksum required"), while every other
+// field stays optional, Inbound among them, whose absence is an operation the
+// client sends — and that a fully
 // populated HTTPBinding — param bindings, content types, response body path,
 // success-status map, compression, PATCH optionality override, and callbacks —
 // round-trips.
 func TestHTTPBinding_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.HTTPBinding{},
-		`{"sharedRoute":false,"checksumRequired":false,"isWebhook":false}`,
+		`{"sharedRoute":false,"checksumRequired":false}`,
 		ir.HTTPBinding{
 			Method:      "PATCH",
 			URITemplate: "/users/{id}",
@@ -57,10 +58,11 @@ func TestHTTPBinding_JSONContract(t *testing.T) {
 			Compression:              &ir.RequestCompression{Encodings: []string{"gzip", "br"}},
 			ChecksumRequired:         true,
 			PatchImplicitOptionality: new(false),
-			IsWebhook:                true,
+			Inbound:                  ir.HTTPInboundWebhook,
 			WebhookName:              "newPet",
+			PathDocs:                 ir.Docs{Summary: "the path", Description: "every operation on it"},
 			Callbacks: []ir.Callback{
-				{Expression: "$request.body#/callbackUrl", Operations: []ir.OpID{"op/callback"}},
+				{Name: "onEvent", Expression: "$request.body#/callbackUrl", Operations: []ir.OpID{"op/callback"}},
 			},
 			Unmodeled: populatedUnmodeled(),
 		})

@@ -435,8 +435,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

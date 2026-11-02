@@ -67,6 +67,7 @@ type BigVal string
 
 type Callback struct
 	"expression" string omitempty
+	"name" string omitempty
 	"operations" []OpID omitempty
 
 type Channel struct
@@ -272,10 +273,11 @@ type HTTPBinding struct
 	"checksumRequired" bool
 	"compression" *RequestCompression omitzero
 	"hostPrefix" string omitempty
-	"isWebhook" bool
+	"inbound" HTTPInbound omitempty
 	"method" string omitempty
 	"paramBindings" []HTTPParamBinding omitempty
 	"patchImplicitOptionality" *bool omitzero
+	"pathDocs" Docs omitzero
 	"requestContentTypes" []string omitempty
 	"responseBodyPath" *PropPath omitzero
 	"sharedRoute" bool
@@ -283,6 +285,10 @@ type HTTPBinding struct
 	"unmodeled" Unmodeled omitempty
 	"uriTemplate" string omitempty
 	"webhookName" string omitempty
+
+type HTTPInbound string
+	const "callback"
+	const "webhook"
 
 type HTTPLocation string
 	const "body"

@@ -190,8 +190,7 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -260,8 +259,7 @@
                     "method": "GET",
                     "uriTemplate": "/y",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -407,8 +405,7 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -465,8 +462,7 @@
                     "method": "GET",
                     "uriTemplate": "/members",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -533,8 +529,7 @@
                     "method": "PUT",
                     "uriTemplate": "/members",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -593,8 +588,7 @@
                     "method": "POST",
                     "uriTemplate": "/members",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -649,8 +643,7 @@
                     "method": "DELETE",
                     "uriTemplate": "/members",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -712,8 +705,7 @@
                     "method": "PATCH",
                     "uriTemplate": "/members",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

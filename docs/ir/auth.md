@@ -85,6 +85,19 @@ one value its kind implies. Nil means the source declares no shape. No compiler 
 building that type out of an extension would mint a node ([identity](./identity.md#the-id-grammar)),
 which is a design of its own.
 
+## Inbound operations
+
+An operation whose HTTP binding is `Inbound` ([http-binding](./http-binding.md#inbound-operations))
+is a request the API sends and the client receives, so a requirement the service, a server or the
+document states, which says how a client authenticates to the API, does not describe it. Such an
+operation inherits no requirement: its `Auth` is what its own declaration states, read as how the
+API authenticates to the receiver, and nil states none. An OpenAPI webhook writing `security` keeps
+it there; one writing none has nil, though the document's top-level `security` names schemes, since
+that list is the client's. Reading nil as inheriting would hand a webhook the client's API key, a
+credential the receiver never sees. The alternatives were weighed: inheriting matches the rule for
+every other operation, and is wrong for the one direction the requirement does not cover; refusing
+an inbound operation any `Auth` would drop what a document says of how the API signs a delivery.
+
 ## Unresolved schemes
 
 A requirement names its schemes, and a name can reach no mechanism: nothing declares it, what
