@@ -98,7 +98,7 @@
                 ]
               },
               "unmodeled": {
-                "openapi:pathItemDescription": {
+                "openapi:pathItem/description": {
                   "reason": "no_ir_home",
                   "value": "Everything addressable at /pets.",
                   "provenance": {
@@ -106,7 +106,7 @@
                     "pointer": "/paths/~1pets/description"
                   }
                 },
-                "openapi:pathItemSummary": {
+                "openapi:pathItem/summary": {
                   "reason": "no_ir_home",
                   "value": "Pet collection",
                   "provenance": {
@@ -167,7 +167,7 @@
                 ]
               },
               "unmodeled": {
-                "openapi:pathItemDescription": {
+                "openapi:pathItem/description": {
                   "reason": "no_ir_home",
                   "value": "Everything addressable at /pets.",
                   "provenance": {
@@ -175,7 +175,7 @@
                     "pointer": "/paths/~1pets/description"
                   }
                 },
-                "openapi:pathItemSummary": {
+                "openapi:pathItem/summary": {
                   "reason": "no_ir_home",
                   "value": "Pet collection",
                   "provenance": {
@@ -228,7 +228,7 @@
                 ]
               },
               "unmodeled": {
-                "openapi:pathItemDescription": {
+                "openapi:pathItem/description": {
                   "reason": "no_ir_home",
                   "value": "Delivered once the pet exists.",
                   "provenance": {
@@ -236,7 +236,7 @@
                     "pointer": "/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/description"
                   }
                 },
-                "openapi:pathItemSummary": {
+                "openapi:pathItem/summary": {
                   "reason": "no_ir_home",
                   "value": "Creation callback",
                   "provenance": {
@@ -298,7 +298,7 @@
                 ]
               },
               "unmodeled": {
-                "openapi:pathItemDescription": {
+                "openapi:pathItem/description": {
                   "reason": "no_ir_home",
                   "value": "Delivered when a pet is removed.",
                   "provenance": {
@@ -306,7 +306,7 @@
                     "pointer": "/webhooks/petDeleted/description"
                   }
                 },
-                "openapi:pathItemSummary": {
+                "openapi:pathItem/summary": {
                   "reason": "no_ir_home",
                   "value": "Pet deleted",
                   "provenance": {

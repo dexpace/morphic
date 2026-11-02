@@ -255,15 +255,23 @@ it sees. Changes made together in one bump are listed together under it.
   `description`, which it had kept verbatim under `Unmodeled` as `openapi:description`, and the
   `summary` and `description` beside a content entry's `$ref` into `components/mediaTypes`, which
   it now follows. A consumer pinned to 0.28.0 refuses the document as another generation's.
-- **0.30.0** — no shape change; two changes to what a compiled document holds, made together:
+- **0.30.0** — the OpenAPI compiler keeps a path item's own `summary` and `description` on each
+  operation it mounts under `openapi:pathItem/summary` and `openapi:pathItem/description`, beneath
+  the scope its extensions and undeclared keys already took, rather than under
+  `openapi:pathItemSummary` and `openapi:pathItemDescription`
+  ([`path-item-docs`](../compilers/openapi.md#path-item-docs)). No shape changed. A consumer pinned
+  to 0.29.0 that reads the old keys no longer finds the path's text there. Where an operation writes
+  an undeclared key of that name, it finds that key's value, which 0.29.0 let the path's text
+  replace.
+- **0.31.0** — no shape change; two changes to what a compiled document holds, made together:
   - An `allOf` no conjunct can make an object is no `Model`, short of the cases
     [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
     conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
     OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
-    rules one out, so a consumer pinned to 0.29.0 finds a `Scalar`, an `Enum` or a reference where
+    rules one out, so a consumer pinned to 0.30.0 finds a `Scalar`, an `Enum` or a reference where
     it found a `Model`.
   - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
     ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
     symbols an emitter generates from such a hint are renamed.
 
-  A consumer pinned to 0.29.0 refuses the document as another generation's.
+  A consumer pinned to 0.30.0 refuses the document as another generation's.

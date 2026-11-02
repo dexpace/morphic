@@ -4,6 +4,8 @@
 package annotation
 
 import (
+	"encoding/json/jsontext"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -221,4 +223,61 @@ func TestUnderlayUnmodeled_ANearerEntryStands(t *testing.T) {
 
 	assert.Equal(t, ir.Unmodeled{"x-b": far}, underlayUnmodeled(nil, ir.Unmodeled{"x-b": far}))
 	assert.Nil(t, underlayUnmodeled(nil, nil), "nothing to add allocates nothing")
+}
+
+// TestCopyEntriesInto_KeepsWhatTheCarrierHolds pins that a copied entry never
+// replaces one the carrier already holds: the held one stays, the copy is
+// reported missing from that carrier, and every other entry lands with bytes of
+// its own.
+func TestCopyEntriesInto_KeepsWhatTheCarrierHolds(t *testing.T) {
+	t.Parallel()
+	entry := func(value, pointer string) ir.UnmodeledEntry {
+		return ir.UnmodeledEntry{Reason: ir.ReasonOutOfScope, Value: ir.RawValue(value),
+			Provenance: ir.Provenance{Pointer: jsontext.Pointer(pointer)}}
+	}
+	held := entry(`"own"`, "/paths/~1a/get/k")
+	p := ir.Unmodeled{"openapi:k": held}
+	src := ir.Unmodeled{"openapi:k": entry(`2`, "/paths/~1a/k"), "openapi:x-a": entry(`1`, "/paths/~1a/x-a")}
+
+	diags := CopyEntriesInto(&p, src)
+
+	assert.Equal(t, held, p["openapi:k"], "the entry the carrier held stays")
+	require.Len(t, diags, 1)
+	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
+	assert.Equal(t, jsontext.Pointer("/paths/~1a/k"), diags[0].Provenance.Pointer, "sited at the copy that was refused")
+	assert.Contains(t, diags[0].Message, `"/paths/~1a/get/k"`, "naming the construct that holds the entry")
+	assert.NotContains(t, diags[0].Message, "in no form", "another carrier may hold the copy, so the IR is not said to lack it")
+	p["openapi:x-a"].Value[0] = '9'
+	assert.JSONEq(t, `1`, string(src["openapi:x-a"].Value), "the copy owns its bytes")
+
+	var unset ir.Unmodeled
+	assert.Empty(t, CopyEntriesInto(&unset, src))
+	assert.Len(t, unset, 2, "a carrier holding nothing takes every entry")
+	var untouched ir.Unmodeled
+	assert.Nil(t, CopyEntriesInto(&untouched, nil))
+	assert.Nil(t, untouched, "nothing to copy allocates nothing")
+}
+
+// TestCopyEntriesInto_ReportsInKeyOrder pins that the refused entries are
+// reported in key order rather than the order a map iterates in. Go iterates a
+// map of eight or fewer entries as a rotation of the order they were written in,
+// so eight keys written sorted would let an unsorted report pass one run in
+// eight. Sixty-four, written in reverse, leave the order to the map's hash seed.
+func TestCopyEntriesInto_ReportsInKeyOrder(t *testing.T) {
+	t.Parallel()
+	const refused = 64
+	p, src, want := ir.Unmodeled{}, ir.Unmodeled{}, make([]string, refused)
+	for i := refused - 1; i >= 0; i-- {
+		key := fmt.Sprintf("openapi:k%02d", i)
+		p[key] = ir.UnmodeledEntry{Value: ir.RawValue(`1`), Provenance: ir.Provenance{Pointer: "/held"}}
+		src[key] = ir.UnmodeledEntry{Value: ir.RawValue(`2`), Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + key)}}
+		want[i] = "/" + key
+	}
+
+	diags := CopyEntriesInto(&p, src)
+	got := make([]string, 0, len(diags))
+	for _, d := range diags {
+		got = append(got, string(d.Provenance.Pointer))
+	}
+	assert.Equal(t, want, got)
 }
