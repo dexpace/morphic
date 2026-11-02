@@ -16,7 +16,7 @@ const (
 func plantKinds(k ir.ValueKind, s shade) int {
 	switch k { // want "missing cases in switch of type ir.ValueKind: ir.ValueCtor (exhaustive)"
 	case ir.ValueNull, ir.ValueBool, ir.ValueString, ir.ValueNumber, ir.ValueBytes, ir.ValueSymbol,
-		ir.ValueList, ir.ValueObject, ir.ValueRefKind:
+		ir.ValueList, ir.ValueObject, ir.ValueRefKind, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
 		return 1
 	default:
 		return 0
