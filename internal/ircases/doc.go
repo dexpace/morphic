@@ -6,6 +6,6 @@
 // infrastructure outside the compile pipeline, and imports only the standard
 // library, because those targets run in a test binary kept small on purpose: a
 // fuzz run pays on every execution for all the code the binary links. Each
-// table is a function returning a fresh slice, so no test can change what
-// another reads.
+// table is an unexported variable that a function hands out a copy of, so no
+// test can change what another reads.
 package ircases

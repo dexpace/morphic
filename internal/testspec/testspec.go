@@ -3,6 +3,8 @@
 
 package testspec
 
+import "slices"
+
 // Tiny is a minimal but non-empty OpenAPI 3.1 document with a single /ping
 // operation, titled "Tiny" so tests can assert the compiled document's Name.
 const Tiny = `openapi: 3.1.0
@@ -47,10 +49,11 @@ type RefShapedSpec struct {
 // RefShapedData returns specs where a structure shaped like a $ref sits outside
 // a schema position, or aliases are used without a loop, so nothing in them is a
 // cycle. The end-to-end test pins that, and the cycle detector's fuzz target
-// seeds from the same rows. Each call returns a fresh slice.
-func RefShapedData() []RefShapedSpec {
-	return []RefShapedSpec{
-		{"example-data-cycle", `openapi: 3.1.0
+// seeds from the same rows. Each call returns a copy.
+func RefShapedData() []RefShapedSpec { return slices.Clone(refShapedData) }
+
+var refShapedData = []RefShapedSpec{
+	{"example-data-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 components:
@@ -61,7 +64,7 @@ components:
         p: {$ref: '#/components/schemas/A/example/q'}
         q: {$ref: '#/components/schemas/A/example/p'}
 `},
-		{"default-data-cycle", `openapi: 3.1.0
+	{"default-data-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 components:
@@ -72,12 +75,12 @@ components:
         p: {$ref: '#/components/schemas/A/default/q'}
         q: {$ref: '#/components/schemas/A/default/p'}
 `},
-		{"extension-cycle", `openapi: 3.1.0
+	{"extension-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 x-foo: {a: {$ref: '#/x-foo/b'}, b: {$ref: '#/x-foo/a'}}
 `},
-		{"responses-ref-cycle", `openapi: 3.1.0
+	{"responses-ref-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 components:
@@ -85,7 +88,7 @@ components:
     A: {$ref: '#/components/responses/B'}
     B: {$ref: '#/components/responses/A'}
 `},
-		{"allof-wrapped-cycle", `openapi: 3.1.0
+	{"allof-wrapped-cycle", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 components:
@@ -93,11 +96,11 @@ components:
     A: {allOf: [{$ref: '#/components/schemas/B'}]}
     B: {allOf: [{$ref: '#/components/schemas/A'}]}
 `},
-		// The four cases below are the negative controls for GitHub #26: each uses
-		// the same alias/merge/contentSchema shapes as the crashing reproducers, but
-		// legally (no degenerate cycle), so neither the alias scan nor the binder may
-		// start reporting valid documents it previously accepted.
-		{"legal-anchor-reuse", `openapi: 3.1.0
+	// The four cases below are the negative controls for GitHub #26: each uses
+	// the same alias/merge/contentSchema shapes as the crashing reproducers, but
+	// legally (no degenerate cycle), so neither the alias scan nor the binder may
+	// start reporting valid documents it previously accepted.
+	{"legal-anchor-reuse", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 x-anchors: {s: &s {type: object}}
@@ -106,7 +109,7 @@ components:
     A: *s
     B: {type: object, properties: {p: *s}}
 `},
-		{"legal-merge-key", `openapi: 3.1.0
+	{"legal-merge-key", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 x-anchors: {base: &base {description: base schema}}
@@ -114,14 +117,14 @@ components:
   schemas:
     A: {<<: *base, type: object}
 `},
-		{"legal-content-schema", `openapi: 3.1.0
+	{"legal-content-schema", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 components:
   schemas:
     A: {type: string, contentMediaType: application/json, contentSchema: {type: object}}
 `},
-		{"legal-alias-ref-terminates", `openapi: 3.1.0
+	{"legal-alias-ref-terminates", `openapi: 3.1.0
 info: {title: t, version: '1'}
 paths: {}
 x-anchors: {ref: &r '#/components/schemas/B'}
@@ -130,5 +133,4 @@ components:
     A: {$ref: *r}
     B: {type: object}
 `},
-	}
 }
