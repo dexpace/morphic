@@ -185,6 +185,67 @@ func TestBind_ALocationADocumentDeclaresIsThatIdentifier(t *testing.T) {
 	assert.False(t, table.Document(docNamed(t, table, "/z.yaml")).Unreached)
 }
 
+// TestBind_ADocumentNoPassReachesDeclaresNothing pins the document a pass read
+// as a location before another declared that URI. Once no pass reaches it, what
+// it declares answers for nothing, so a URI it and a reached document declare
+// names the reached one's, and its merge past the bound is no verdict of the
+// table, in either order.
+func TestBind_ADocumentNoPassReachesDeclaresNothing(t *testing.T) {
+	t.Parallel()
+	var deep strings.Builder
+	deep.WriteString("x-c0: &c0 {description: d}\n")
+	for i := 1; i <= 70; i++ {
+		fmt.Fprintf(&deep, "x-c%d: &c%d {<<: *c%d}\n", i, i, i-1)
+	}
+	docs := map[string]string{
+		"/a.yaml": deep.String() + "T: {$id: 'https://x.test/u', type: integer}\nW: {<<: *c70}\n",
+		"/z.yaml": "S: {$id: 'a.yaml', T: {type: boolean}, $defs: {V: {$id: 'https://x.test/u', type: string}}}\n",
+	}
+	refs := []string{"    A: {$ref: 'a.yaml#/T'}\n", "    Z: {$ref: 'z.yaml#/S'}\n", "    U: {$ref: 'https://x.test/u'}\n"}
+	for _, order := range [][]int{{0, 1, 2}, {2, 1, 0}} {
+		src := head + "components:\n  schemas:\n"
+		for _, i := range order {
+			src += refs[i]
+		}
+		cfg := resolving
+		cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+		table := bound(t, src, cfg)
+
+		e := entryAt(t, table, "/components/schemas/U")
+		require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+		assert.Equal(t, bind.Position{Doc: docNamed(t, table, "/z.yaml"), Pointer: "/S/$defs/V"}, e.Hop.Target)
+		assert.True(t, table.Document(docNamed(t, table, "/a.yaml")).Unreached)
+		assert.False(t, table.Truncated(), "a merge past the bound where nothing is reached decides nothing")
+	}
+}
+
+// TestBind_AReadingNoPassSettlesCountsEveryDocument pins the input no pass
+// settles: a document reached only through a URI it declares a second time.
+// Counted, it is not reached, and uncounted, it is, so once a pass would return
+// to what one read before, every document read counts and the passes end, the
+// URI naming neither schema, in either order.
+func TestBind_AReadingNoPassSettlesCountsEveryDocument(t *testing.T) {
+	t.Parallel()
+	docs := map[string]string{
+		"/e.yaml":        "A: {type: string}\nU: {$id: 'https://x.test/u', properties: {p: {$ref: 'file:///d.yaml#/D'}}}\n",
+		"file:///d.yaml": "D: {$id: 'https://x.test/u', type: integer}\n",
+	}
+	refs := []string{"    X: {$ref: 'https://x.test/u'}\n", "    Y: {$ref: 'e.yaml#/A'}\n"}
+	for _, order := range [][]int{{0, 1}, {1, 0}} {
+		src := head + "components:\n  schemas:\n"
+		for _, i := range order {
+			src += refs[i]
+		}
+		cfg := resolving
+		cfg.Open = func(name string) (*yaml.Node, error) { return openapitest.YAMLDocument(t, docs[name]), nil }
+		cfg.Limit = budget.AtMost(1 << 16)
+		table := bound(t, src, cfg)
+
+		require.False(t, table.Exhausted(), "the passes end within the budget")
+		assert.Equal(t, bind.DuplicateID, entryAt(t, table, "/components/schemas/X").Hop.Reason)
+	}
+}
+
 // TestBind_AURIASecondDocumentDeclaresNamesNeither pins that a URI answers from
 // every document read, not from the nearest: however deep the second declaration
 // lies, in a later pass than the first, the URI names neither, as two in one

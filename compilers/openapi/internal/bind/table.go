@@ -144,10 +144,10 @@ type binder struct {
 // stops once ctx is done, leaving a table its caller must not read.
 //
 // It reads in passes, each a set operation, since whether a URI is an identifier
-// depends on what the documents read declare, and which are read depends on
-// what the URIs name. Only the last pass's answers stand, so no declaration
-// order reaches one (reread). Each turn but the last adds a URI or reads a
-// document.
+// depends on what the documents read declare, and which are read on what the
+// URIs name. Only the last pass's answers stand, so no declaration order
+// reaches one (reread). Each turn but the last reads a document or declarations
+// no turn read before (identifiers.commit), so they end.
 func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
 	d := newDocs(src, cfg, w)
@@ -172,7 +172,7 @@ func newBinder(cfg Config, d *docs, w *work, ids *identifiers) *binder {
 // run answers every reference the pass b reaches.
 func run(b *binder) *Table {
 	b.find.walk(rootOf(Source, sDocument), false)
-	b.ids.commit()
+	b.ids.begin()
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
 	for more := true; more; more = b.find.walkPending() {
 		if b.stopped = b.work.over(); b.stopped {
@@ -184,18 +184,19 @@ func run(b *binder) *Table {
 	return t
 }
 
-// reread reports whether the pass b, ended, must be run again: a document it
-// read declares a URI it asked for, so an answer it gave is not the final index's,
-// or it held back a document an absolute URI names, which it now reads, since
-// no document left unread could answer for it. OAS 3.1 §4.3.1 has every document
-// parsed before a reference is deemed unresolvable, and a URI an identifier
-// answers is no location to fetch.
+// reread reports whether the pass b, ended, must be run again: what the
+// documents it reached declare changes a URI it asked for, so an answer it gave
+// is not theirs, or it held back documents absolute URIs name, which it now
+// reads together, since no document it read could answer for them. OAS 3.1
+// §4.3.1 has every document parsed before a reference is deemed unresolvable,
+// and a URI an identifier answers is no location to fetch. A document only an
+// earlier pass reached declares nothing.
 func reread(b *binder) bool {
 	if b.stopped {
 		return false
 	}
 	b.find.identifyAll()
-	if b.ids.commit() {
+	if b.ids.commit(b.docs.reached) {
 		return true
 	}
 	if len(b.held) == 0 {
@@ -206,7 +207,7 @@ func reread(b *binder) bool {
 		_, _ = b.docs.open(name)
 	}
 	b.find.identifyAll()
-	b.ids.commit()
+	b.ids.commit(b.docs.reached)
 	return true
 }
 
@@ -258,8 +259,9 @@ func (b *binder) table(t *Table) *Table {
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
 	t.ends, t.roots, t.res, t.ids = b.find.ends, b.find.roots, b.resources, b.ids
 	for id, d := range b.docs.list {
-		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !b.docs.reached[DocID(id)]})
-		t.truncated = t.truncated || d.view.Exhausted()
+		reached := b.docs.reached[DocID(id)]
+		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !reached})
+		t.truncated = t.truncated || reached && d.view.Exhausted()
 	}
 	reach := b.attribute(t)
 	for at := range b.find.landings {
@@ -437,9 +439,10 @@ func (t *Table) Limit() budget.Limit { return t.limit }
 // or answered OverBudget.
 func (t *Table) Exhausted() bool { return t.exhausted }
 
-// Truncated reports whether a mapping the table read merges through `<<`
-// deeper than the view expands (nodeview.MergeDepthLimit), so that a site past
-// the bound may be missing, and a position past it read as holding nothing.
+// Truncated reports whether a mapping of a document the table reached merges
+// through `<<` deeper than the view expands (nodeview.MergeDepthLimit), so that
+// a site past the bound may be missing, and a position past it read as holding
+// nothing.
 func (t *Table) Truncated() bool { return t.truncated }
 
 // Unread returns why a schema $ref the table holds no entry for went unread:

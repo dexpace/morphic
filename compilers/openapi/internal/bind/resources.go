@@ -5,6 +5,8 @@ package bind
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
+	"maps"
 	"net/url"
 	"slices"
 	"strings"
@@ -49,19 +51,25 @@ func (r resources) document(id DocID) resource {
 // in. Only schemas are read (docs.identityState).
 //
 // A plain name is asked only of a document already open, so it answers once
-// that document is read. A URI names no document, so one a document declares
-// waits in pending for the pass to end, and no answer depends on which
-// reference opened that document first (reread).
+// that document is read. A URI names no document, so a pass reads one against
+// what the documents the pass before it reached declare (reread).
 type identifiers struct {
 	// resources is every resource read, each document's own among them, which
 	// a walk's frame names by index; own is the index of each document's.
 	resources []resource
 	own       map[DocID]int32
-	uris      map[string][]Position
-	pending   map[string][]Position
-	// asked is each URI a pass has asked for, whatever uris held.
-	asked   map[string]bool
-	anchors map[anchorKey][]Position
+	// declared is each URI an $id names, by the schemas declaring it, in every
+	// document read, and uris those of them the documents counted declare,
+	// which alone answer, or all of them once every is set (commit).
+	declared map[string][]Position
+	uris     map[string][]Position
+	counted  map[DocID]bool
+	every    bool
+	// asked is each URI a pass has asked for, whatever uris held, and readings
+	// each set of declarations a pass has read against.
+	asked    map[string]bool
+	readings map[string]bool
+	anchors  map[anchorKey][]Position
 	// dynamic is every $dynamicAnchor by document and name, in any resource: a
 	// reference expands only against the one declaration a document makes of
 	// a name, so one in a resource of its own counts (docs/compilers/openapi.md#dynamic-ref).
@@ -87,8 +95,9 @@ type dynamicKey struct {
 // newIdentifiers returns an index holding no identifier, whose first resource
 // is source, the source document's own.
 func newIdentifiers(source resource) *identifiers {
-	return &identifiers{resources: []resource{source}, own: map[DocID]int32{Source: 0}, uris: map[string][]Position{},
-		pending: map[string][]Position{}, asked: map[string]bool{}, anchors: map[anchorKey][]Position{},
+	return &identifiers{resources: []resource{source}, own: map[DocID]int32{Source: 0},
+		declared: map[string][]Position{}, uris: map[string][]Position{}, counted: map[DocID]bool{Source: true},
+		asked: map[string]bool{}, readings: map[string]bool{}, anchors: map[anchorKey][]Position{},
 		dynamic: map[dynamicKey][]Position{}, truncated: map[DocID]bool{}, read: map[DocID]bool{}}
 }
 
@@ -110,7 +119,7 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node)
 	switch {
 	case rooted:
 		res.root = at
-		ix.pending[res.uri] = append(ix.pending[res.uri], at)
+		ix.declared[res.uri] = append(ix.declared[res.uri], at)
 		ix.resources = append(ix.resources, res)
 		in = int32(len(ix.resources) - 1)
 	case res != held:
@@ -132,18 +141,65 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node)
 	return in
 }
 
-// commit makes the URIs declared since it last ran answer, and reports whether
-// a pass asked for one of them, whose answer is then not the one the final index
-// gives: a URI it was told none declares, or one a second schema now declares,
-// which so names neither.
-func (ix *identifiers) commit() bool {
-	stale := false
-	for uri, at := range ix.pending {
-		ix.uris[uri] = append(ix.uris[uri], at...)
-		stale = stale || ix.asked[uri]
+// commit makes the URIs the documents counted declare answer, and reports
+// whether that changes the declarations of a URI a pass asked for, so its
+// answer is not theirs: a document read since declares it, or one a pass no
+// longer reaches withdraws it (Document.Unreached). Where what is reached turns
+// on what is declared, no pass may agree with the one before it, so once a
+// change would return to declarations a pass read against, every document read
+// counts, as one read declares what it declares however it was reached, and
+// that only grows.
+func (ix *identifiers) commit(counted map[DocID]bool) bool {
+	ix.counted = maps.Clone(counted)
+	uris := ix.answering()
+	if !ix.every && ix.changes(uris) && ix.readings[ix.reading()] {
+		ix.every = true
+		uris = ix.answering()
 	}
-	clear(ix.pending)
-	return stale
+	changed := ix.changes(uris)
+	ix.uris = uris
+	return changed
+}
+
+// begin makes the declarations commit counts answer for a pass, and notes that
+// a pass read against them.
+func (ix *identifiers) begin() {
+	ix.uris = ix.answering()
+	ix.readings[ix.reading()] = true
+}
+
+// answering returns the declarations commit counts, by URI.
+func (ix *identifiers) answering() map[string][]Position {
+	uris := map[string][]Position{}
+	for uri, at := range ix.declared {
+		for _, p := range at {
+			if ix.every || ix.counted[p.Doc] {
+				uris[uri] = append(uris[uri], p)
+			}
+		}
+	}
+	return uris
+}
+
+// changes reports whether uris changes the declarations of a URI a pass asked
+// for from those it read.
+func (ix *identifiers) changes(uris map[string][]Position) bool {
+	for uri := range ix.asked {
+		if !slices.Equal(uris[uri], ix.uris[uri]) {
+			return true
+		}
+	}
+	return false
+}
+
+// reading names the declarations answering counts: those of the documents
+// counted, among all those read, which only grow.
+func (ix *identifiers) reading() string {
+	declarations := 0
+	for _, at := range ix.declared {
+		declarations += len(at)
+	}
+	return fmt.Sprint(declarations, slices.Sorted(maps.Keys(ix.counted)))
 }
 
 // lookupURI returns the root of the one resource uri identifies, and whether

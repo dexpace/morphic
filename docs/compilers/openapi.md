@@ -341,14 +341,14 @@ directory; a file whose name holds a colon is written `./a:b.yaml`. A document o
 reference naming it, and with no reader no document is read.
 
 Each document a reference reaches is a `Document.Sources` entry after the source and its overlay,
-ordered by its location from the source's directory, and what it declares lowers there, as the source's own lowers
-where the source declares it: a schema a `$ref` lands on, and a parameter, request body, response,
-header, example, callback, path item or security scheme a reference brings in, with the schemas
-inline in it. A reference object written in what another document brings in is resolved against that
-document, as the source's are against the source, and what it names lowers where it is declared, in
-whichever document, the source included. What a document declares names its entry in its
-`Provenance`, and has IDs in that document's namespaces, the source's qualified by its location
-(`t/openapi@common.yaml/components/schemas/Pet`, [identity](../ir/identity.md)), so one
+ordered by its location from the source's directory, and what it declares lowers there, as the
+source's own lowers where the source declares it: a schema a `$ref` lands on, and a parameter,
+request body, response, header, example, callback, path item or security scheme a reference brings
+in, with the schemas inline in it. A reference object written in what another document brings in is
+resolved against that document, as the source's are against the source, and what it names lowers
+where it is declared, in whichever document, the source included. What a document declares names its
+entry in its `Provenance`, and has IDs in that document's namespaces, the source's qualified by its
+location (`t/openapi@common.yaml/components/schemas/Pet`, [identity](../ir/identity.md)), so one
 pointer in two documents is two nodes. An operation and a parameter keep the IDs of the mount that
 lowers them.
 
@@ -367,16 +367,16 @@ fragment names the schema of that resource declaring it as its `$anchor` or `$dy
 source or another document, so a name under an `$id` is that `$id`'s resource's and not its
 document's, and a URI an `$id` declares names that schema, as one a `$ref`'s document part names; a
 name or a URI two schemas declare names neither, and a name 2020-12's grammar refuses is declared by
-none ([`validation`](#validation) reports it). Identifiers are read only where a schema is placed: by
-the OpenAPI grammar in the source and in another document whose root names an `openapi` version, so
-one in an example, an extension or the fields beside a reference object's `$ref` declares none. A
+none ([`validation`](#validation) reports it). Identifiers are read only where a schema is placed:
+by the OpenAPI grammar in the source and in another document whose root names an `openapi` version,
+so one in an example, an extension or the fields beside a reference object's `$ref` declares none. A
 document that names none has no grammar, so it is read as a document of schemas: its root and any
-key of no schema vocabulary hold schemas, and within one a keyword reads as it does in the source, so
-one in a literal, a value or an extension declares none, and the document's root may be a schema or
-a map of them. An `$id` gives its base to what is written below it by the same reading, wherever it
-is read. An `$id` names the URI its part before the `#` resolves
-to against the base above it, by RFC 3986 where that base is a URI and as a `$ref`'s document is
-placed where it is a file's path, and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
+key of no schema vocabulary hold schemas, and within one a keyword reads as it does in the source,
+so one in a literal, a value or an extension declares none, and the document's root may be a schema
+or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
+it is read. An `$id` names the URI its part before the `#` resolves to against the base above it, by
+RFC 3986 where that base is a URI and as a `$ref`'s document is placed where it is a file's path,
+and identifiers match as RFC 3986 §6.2.2 normalizes them. One with
 a fragment that is not empty names none, as 2020-12 admits none, one naming the URI of the resource
 holding it starts no resource, and one naming the source, however spelled, returns to the
 document's. A URI no schema declares names the document at that URI, read as any other is: one read
@@ -384,12 +384,17 @@ against an `$id` is the URI the `$id` makes of it, never the file of that name b
 and is judged for refusal as written while only relative paths moved its base, and as that URI once
 an absolute `$id` did. Every document a reached reference names is parsed before any reference is
 deemed unresolvable, as OAS 3.1.1 §4.3.1 requires, so a URI a document declares answers as that
-identifier whichever reference comes first, is never fetched, and is never refused. References are
-read in passes over the same set, each against the URIs the last one's documents declared, and only
-the last pass's answers stand, so no declaration order reaches an answer. A pass reads a document
-an absolute URI names only once no other document it can read is left to declare that URI, and one
-a later identifier made unnecessary is read but lowers nothing and is no `Document.Sources` entry. A pointer passing a reference object reads on where the resolver resolved
-that, in whichever document, and a `$ref` written in another document's content is read in that
+identifier whichever reference comes first, and is never refused. References are read in passes
+over the same set, each against the URIs the documents the last one reached declare, and only the
+last pass's answers stand, so no declaration order reaches an answer. A document a pass read as a
+location before another declared that URI is reached by no later pass, so it declares nothing,
+lowers nothing and is no `Document.Sources` entry. Where what a pass reaches turns on what those
+documents declare, so that no pass agrees with the one before it, every document read declares what
+it does from the pass that would read against what an earlier one read. A pass reads the documents
+absolute URIs name only once what the documents it reached declare changes no URI it asked for, and
+reads them together, so one of them may declare another's URI, whose document is then read for
+nothing. A pointer passing a reference object reads on where the resolver resolved that, in
+whichever document, and a `$ref` written in another document's content is read in that
 document. What a `$ref` lands on in another document lowers where that document declares it; one in
 the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
 ends on — an annotation, a form body's parts, a file body or a discriminator — whichever documents
@@ -484,6 +489,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestBind_ReadsWhatAnotherDocumentDeclares`, `bind.TestBind_ReadsBelowAnIDOfAnotherDocument`,
   `bind.TestBind_AnIdentifierIsNoLocationToFetch`, `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
   `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`, `bind.TestBind_DeclarationOrderReachesNoAnswer`,
+  `bind.TestBind_ADocumentNoPassReachesDeclaresNothing`,
+  `bind.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
   `e2e.TestReferenceEnds_AnEndTheBinderCannotPlaceSaysWhy`,
   `bind.TestTable_SaysWhyARefWentUnread`,
   `bind.TestBind_SaysAKeyMayLiePastTheMergeBound`,
