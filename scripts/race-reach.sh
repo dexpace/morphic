@@ -3,9 +3,12 @@
 # race-reach.sh runs the go test command it is given over the one race planted
 # in internal/archtest/testdata/racereach, and requires the run to fail with a
 # data race whose stack names the plant's file. The Makefile passes the command
-# `make race` runs, so that shows the command runs the race detector at all: one
-# without -race, or a build that hides the plant, would leave the listed packages
-# just as green.
+# `make race` runs, so that shows the command runs the race detector at all, and
+# alone: a run without -race, or with coverage merged in, which hides the plant,
+# would leave the listed packages just as green. The coverage half rests on how
+# the toolchain lays out instrumented code (GitHub #1271), so a later toolchain
+# may stop hiding the plant; that weakens the check and never fails a correct
+# recipe.
 #
 # Usage: race-reach.sh go test [flags]
 set -euo pipefail
@@ -27,9 +30,9 @@ status=0
 "$@" -count=1 "./$plant" >"$work/race.out" 2>&1 || status=$?
 if [[ "$status" -eq 0 ]] ||
 	! grep -q '^WARNING: DATA RACE$' "$work/race.out" ||
-	! grep -qE "$plant/racereach_test\.go:[0-9]+" "$work/race.out"; then
-	echo "race-reach: $plant must fail with a data race in $plant/racereach_test.go (exit $status):" >&2
+	! grep -qE "$plant/racereach\.go:[0-9]+" "$work/race.out"; then
+	echo "race-reach: $plant must fail with a data race in $plant/racereach.go (exit $status):" >&2
 	cat "$work/race.out" >&2
 	exit 1
 fi
-echo "race-reach: the race detector reports the race planted in $plant/racereach_test.go"
+echo "race-reach: the race detector reports the race planted in $plant/racereach.go"

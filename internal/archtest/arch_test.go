@@ -474,6 +474,10 @@ var rules = map[string][]string{
 	// scripts/vet-rules.sh.
 	"internal/lintrules/testdata/planted": {module + "/ir"},
 	"internal/lintrules/testdata/reach":   {module + "/ir"},
+	// The one race scripts/race-reach.sh requires `go test -race` to report. Its
+	// accesses are production code so that coverage instruments them; it imports
+	// nothing.
+	"internal/archtest/testdata/racereach": {},
 }
 
 // exempt names the production packages deliberately outside the layering rules,
