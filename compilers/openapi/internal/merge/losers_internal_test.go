@@ -68,9 +68,9 @@ func TestKeepLosingDeclaration_EveryLoserSurvivesItsSiblings(t *testing.T) {
 	m := &ir.Model{}
 	idx, settle := indexOver(m, g)
 
-	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}, unread(t))
-	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}, written(`{"type":"integer"}`))
-	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/bool"}, Provenance: ptrAt("/c")}, written(`{"type":"boolean"}`))
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt("/a")}, unread(t), "")
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/int"}, Provenance: ptrAt("/b")}, written(`{"type":"integer"}`), "")
+	idx.MergeProperty(ir.Property{WireName: "id", Type: ir.TypeRef{Target: "t/bool"}, Provenance: ptrAt("/c")}, written(`{"type":"boolean"}`), "")
 	settle()
 
 	require.Len(t, m.Properties, 1, "three declarations still reconcile to one property")

@@ -12,7 +12,7 @@ package ir
 // docs/ir/ir-version.md holds that policy, docs/ir/version-history.md what each
 // bump changed, and TestIRVersion_PinsTheEncodedShape and
 // TestIRVersion_PinsTheNames hold it to the shape and the names.
-const IRVersion = "0.26.0"
+const IRVersion = "0.27.0"
 
 // CompatibleVersion reports whether a document stamped version can be read by
 // this build: exact equality with IRVersion, per docs/ir/ir-version.md. A
