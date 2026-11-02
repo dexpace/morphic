@@ -17,25 +17,25 @@ import (
 // tests can fail it: no test can make its own binary unreadable.
 var buildID = cache.BuildID
 
-// engineFor builds the engine opts ask for: one keeping its documents in the
-// directory --cache-dir names, under this executable's identity, or the plain
-// one. An executable that cannot be read, as a mode of 0111 allows, leaves no
+// cacheOptions returns the engine options --cache-dir, naming dir, asks for: a
+// cache in that directory under this executable's identity, or none without the
+// flag. An executable that cannot be read, as a mode of 0111 allows, leaves no
 // key sound, which costs the run its cache and a warning, and nothing else. A
 // stop meanwhile ends the run, as it would at any other step.
-func engineFor(ctx context.Context, opts specOptions, stderr io.Writer) (*engine.Engine, error) {
-	if opts.cacheDir == "" {
-		return newEngine()
+func cacheOptions(ctx context.Context, dir string, stderr io.Writer) ([]engine.Option, error) {
+	if dir == "" {
+		return nil, nil
 	}
 	build, err := buildID(ctx)
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, ctxErr
 	}
-	dir, dirErr := cache.NewDir(opts.cacheDir)
-	if err = errors.Join(err, dirErr); err != nil {
+	store, storeErr := cache.NewDir(dir)
+	if err = errors.Join(err, storeErr); err != nil {
 		warnCache(stderr, err)
-		return newEngine()
+		return nil, nil
 	}
-	return newEngine(engine.WithCache(dir, build))
+	return []engine.Option{engine.WithCache(store, build)}, nil
 }
 
 // warnCache reports err, why the run could not use its cache, on one line of

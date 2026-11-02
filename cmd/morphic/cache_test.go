@@ -197,16 +197,16 @@ func TestRun_CacheDirAnUnreadableBuildWarns(t *testing.T) {
 	assert.Empty(t, listed, "no key was sound, so nothing was kept")
 }
 
-// TestEngineFor_AStopWhileNamingTheBuildEndsTheRun stops the run there, and no
-// warning blames the cache for it.
-func TestEngineFor_AStopWhileNamingTheBuildEndsTheRun(t *testing.T) {
+// TestCacheOptions_AStopWhileNamingTheBuildEndsTheRun stops the run there, and
+// no warning blames the cache for it.
+func TestCacheOptions_AStopWhileNamingTheBuildEndsTheRun(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	var stderr bytes.Buffer
-	eng, err := engineFor(ctx, specOptions{cacheDir: t.TempDir()}, &stderr)
+	cached, err := cacheOptions(ctx, t.TempDir(), &stderr)
 	require.ErrorIs(t, err, context.Canceled)
-	assert.Nil(t, eng)
+	assert.Nil(t, cached)
 	assert.Empty(t, stderr.String())
 }
 

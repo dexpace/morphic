@@ -215,7 +215,11 @@ func specArgs(cmd *cobra.Command, args []string) error {
 func runPipeline(
 	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
 ) (res *engine.Result, code int, err error) {
-	eng, err := engineFor(ctx, opts, stderr)
+	cached, err := cacheOptions(ctx, opts.cacheDir, stderr)
+	if err != nil {
+		return nil, 0, failure(err)
+	}
+	eng, err := newEngine(cached...)
 	if err != nil {
 		return nil, 0, failure(err)
 	}
