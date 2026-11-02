@@ -83,7 +83,8 @@ func serviceAsReported(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 }
 
 // walkService loads src and runs the phases beneath the service walk, then the
-// walk itself under grouping, handing report each phase's diagnostics in turn.
+// walk itself under grouping and the link resolution after it, handing report
+// each phase's diagnostics in turn.
 // It returns the service and the load's diagnostics.
 func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
 	report func([]ir.Diagnostic),
@@ -100,10 +101,13 @@ func walkService(t *testing.T, src string, grouping lowering.GroupingStrategy,
 
 	schemes, schemeDiags := auth.LowerSecuritySchemes(c)
 	report(schemeDiags)
-	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, servers.NewRegistry(), schemes)
+	srv := servers.NewRegistry()
+	var links operation.Links
+	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, srv, schemes, &links)
 	report(svcDiags)
-	_, finished := types.Finish(t.Context())
+	reg, finished := types.Finish(t.Context())
 	report(finished)
+	report(links.Resolve(c, &svc, reg, srv))
 	return svc, loadDiags
 }
 

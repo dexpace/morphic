@@ -18,7 +18,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -39,8 +38,9 @@ const (
 // them, and the default, which answers every status the others leave and so
 // states neither class, to Default. opDeclPtr is the operation's own
 // declaration pointer, so a $ref'd response interns its content once at its
-// component pointer rather than once per mount site (issue #107).
-func lowerResponses(c lowering.Ctx, ts *compile.Types, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
+// component pointer rather than once per mount site (issue #107). Each
+// response's links go to links, which resolves them once the service is whole.
+func lowerResponses(c lowering.Ctx, ts *compile.Types, links *Links, op *ir.Operation, src *soa.Operation, opDeclPtr jsontext.Pointer) []ir.Diagnostic {
 	// GetResponses never returns nil (it addresses an always-present map), so the
 	// loop simply yields nothing when no responses are declared.
 	resps := src.GetResponses()
@@ -74,16 +74,18 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, op *ir.Operation, src *so
 		// statusConditions lets the success side record no status at all.
 		// TestStatusRange_NamesNoStatus is what pins the pairing.
 		if isErrorRange(rng) {
-			ec, ecDiags := lowerErrorCase(rc, ts, r, code, rng, rptr, rr)
+			ec, drafts, ecDiags := lowerErrorCase(rc, ts, r, code, rng, rptr, rr)
 			diags = append(diags, ecDiags...)
+			links.add(op.ID, responseSlot{list: slotErrors, index: len(op.Errors)}, drafts)
 			op.Errors = append(op.Errors, ec)
 		} else {
-			resp, respDiags := lowerResponse(rc, ts, r, code, statusConditions(rng, named), rptr, rr)
+			resp, drafts, respDiags := lowerResponse(rc, ts, r, code, statusConditions(rng, named), rptr, rr)
 			diags = append(diags, respDiags...)
+			links.add(op.ID, responseSlot{list: slotResponses, index: len(op.Responses)}, drafts)
 			op.Responses = append(op.Responses, resp)
 		}
 	}
-	diags = append(diags, lowerDefaultResponse(c, ts, op, resps, opDeclPtr)...)
+	diags = append(diags, lowerDefaultResponse(c, ts, links, op, resps, opDeclPtr)...)
 	return append(diags, duplicateStatusKeyDiags(c, byRange, opDeclPtr+ids.Ptr("responses"))...)
 }
 
@@ -93,16 +95,17 @@ func lowerResponses(c lowering.Ctx, ts *compile.Types, op *ir.Operation, src *so
 // (docs/ir/responses.md), so the compiler classes it as neither: whether it is
 // the success response, an error, or both is a reading of the API, which the
 // plan makes under its policy.
-func lowerDefaultResponse(c lowering.Ctx, ts *compile.Types, op *ir.Operation,
+func lowerDefaultResponse(c lowering.Ctx, ts *compile.Types, links *Links, op *ir.Operation,
 	resps *soa.Responses, opDeclPtr jsontext.Pointer,
 ) []ir.Diagnostic {
 	def, dc, dptr := lowering.Declared[soa.Response](c, resps.GetDefault(), opDeclPtr+ids.Ptr("responses", defaultResponseKey))
 	if def == nil {
 		return nil
 	}
-	resp, diags := lowerResponse(dc, ts, def, defaultResponseKey,
+	resp, drafts, diags := lowerResponse(dc, ts, def, defaultResponseKey,
 		statusConditions(statusRange(defaultResponseKey)), dptr, resps.GetDefault())
 	op.Default = &resp
+	links.add(op.ID, responseSlot{list: slotDefault}, drafts)
 	return diags
 }
 
@@ -126,13 +129,13 @@ func duplicateStatusKeyDiags(c lowering.Ctx, byRange map[ir.StatusRange][]string
 }
 
 // lowerResponse lowers one success or default response: its naming, status
-// condition, payload (all media types), headers, docs, and any raw links
-// preserved for later promotion. code is the responses-map key the response is
-// declared under and conds is what that key resolved to, which is nothing at
-// all when it named no status (see statusConditions). ref is the entry the
-// document wrote there, which carries the summary and description a Reference
-// Object may put beside its $ref.
-func lowerResponse(c lowering.Ctx, ts *compile.Types, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []ir.Diagnostic) {
+// condition, payload (all media types), headers and docs, and drafts its
+// links. code is the responses-map key the response is declared under and
+// conds is what that key resolved to, which is nothing at all when it named no
+// status (see statusConditions). ref is the entry the document wrote there,
+// which carries the summary and description a Reference Object may put beside
+// its $ref.
+func lowerResponse(c lowering.Ctx, ts *compile.Types, r *soa.Response, code string, conds ir.ResponseConditions, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.Response, []linkDraft, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, r, code, rptr, ref)
 	resp := ir.Response{
 		Name:       parts.name,
@@ -142,7 +145,7 @@ func lowerResponse(c lowering.Ctx, ts *compile.Types, r *soa.Response, code stri
 		Docs:       parts.docs,
 		Unmodeled:  parts.unmodeled,
 	}
-	return resp, diags
+	return resp, parts.links, diags
 }
 
 // responseParts is everything a Response Object lowers to before its status
@@ -154,11 +157,12 @@ type responseParts struct {
 	headers   []ir.Header
 	docs      ir.Docs
 	unmodeled ir.Unmodeled
+	links     []linkDraft
 }
 
 // lowerResponseParts lowers what a Response Object declares regardless of the
-// status it answers to: naming, payload, headers, docs, and any raw links or
-// extensions preserved for later promotion.
+// status it answers to: naming, payload, headers, docs and extensions, and the
+// drafts of its links.
 //
 // It is one function for both status classes so nothing can depend on which
 // class reached a declaration first: a response mounted as a success and an
@@ -173,6 +177,9 @@ func lowerResponseParts(c lowering.Ctx, ts *compile.Types, r *soa.Response, code
 	summary, taken, summaryDiags := responseSummary(c, &parts.unmodeled, r, rptr)
 	diags = append(diags, summaryDiags...)
 	parts.docs = resolve.UseDocs[soa.Response](ref, ir.Docs{Summary: summary, Description: r.GetDescription()})
+	links, linkDiags := draftLinks(c, r, rptr)
+	parts.links = links
+	diags = append(diags, linkDiags...)
 	return parts, append(diags, preserveResponseExtras(c, &parts.unmodeled, r, rptr, taken...)...)
 }
 
@@ -189,21 +196,12 @@ func responseSummary(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr json
 }
 
 // preserveResponseExtras keeps what a Response Object declares that has no home
-// on its node: its links map, its x-* extensions, and the undefined keys other
-// than taken (responseSummary's). One helper serves ir.Response and
-// ir.ErrorCase, so neither keeps a construct the other drops (GitHub #275).
-//
-// The links entry carries ReasonNoIRHome and no diagnostic, since nothing is
-// degraded and the IR could add a links field. A Link Object inside it gets no
-// entry or census: this compiler lowers none, and a keyed entry would duplicate
-// the node above. A components/links entry it names is kept on the document
-// (GitHub #616).
+// on its node: its x-* extensions, and the undefined keys other than taken
+// (responseSummary's). One helper serves ir.Response and ir.ErrorCase, so
+// neither keeps a construct the other drops (GitHub #275).
 func preserveResponseExtras(c lowering.Ctx, p *ir.Unmodeled, r *soa.Response, rptr jsontext.Pointer, taken ...string) []ir.Diagnostic {
-	_, diags := annotation.PreserveNodeInto(p, "openapi:links",
-		nodeview.Child(r.GetRootNode(), "links"), ir.ReasonNoIRHome, c.ProvenanceAt(rptr+ids.Ptr("links")))
-	ext, extDiags := annotation.ExtensionsFrom(r.GetExtensions(), c.ProvenanceAt, rptr)
+	ext, diags := annotation.ExtensionsFrom(r.GetExtensions(), c.ProvenanceAt, rptr)
 	*p = annotation.MergeUnmodeled(*p, ext)
-	diags = append(diags, extDiags...)
 	return append(diags, annotation.UnknownKeysIn(p, r, c.ProvenanceAt, rptr, taken...)...)
 }
 
@@ -223,15 +221,15 @@ func responseName(code string) ir.Naming {
 }
 
 // lowerErrorCase lowers one error response into an ErrorCase: naming, status
-// condition, payload, headers, docs and fault classification, plus any raw
-// links preserved for later promotion.
+// condition, payload, headers, docs and fault classification, and drafts its
+// links.
 //
 // Everything but the condition and the fault is lowerResponseParts' work, the
 // helper the success side calls, so a shared declaration lowers one way (GitHub
 // #422). code is the responses-map key, the only record of how the source
 // spelled a status its range cannot state ("4XX"); ref is the entry written
 // here.
-func lowerErrorCase(c lowering.Ctx, ts *compile.Types, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []ir.Diagnostic) {
+func lowerErrorCase(c lowering.Ctx, ts *compile.Types, r *soa.Response, code string, rng ir.StatusRange, rptr jsontext.Pointer, ref *soa.ReferencedResponse) (ir.ErrorCase, []linkDraft, []ir.Diagnostic) {
 	parts, diags := lowerResponseParts(c, ts, r, code, rptr, ref)
 	ec := ir.ErrorCase{
 		Name:       parts.name,
@@ -242,7 +240,7 @@ func lowerErrorCase(c lowering.Ctx, ts *compile.Types, r *soa.Response, code str
 		Docs:       parts.docs,
 		Unmodeled:  parts.unmodeled,
 	}
-	return ec, diags
+	return ec, parts.links, diags
 }
 
 // statusRange maps an OpenAPI response key to an inclusive status range: "200"

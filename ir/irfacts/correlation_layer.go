@@ -128,10 +128,12 @@ func (c *correlator) operation(key string, op *ir.Operation) {
 		at := child(key, "response", conditions(r.Conditions))
 		c.payload(at, r.Payload)
 		c.headers(at, r.Headers)
+		c.linkServers(at, r.Links)
 	}
 	if def := op.Default; def != nil {
 		c.payload(part(key, "default"), def.Payload)
 		c.headers(part(key, "default"), def.Headers)
+		c.linkServers(part(key, "default"), def.Links)
 	}
 	c.stream(part(key, "responseStream"), op.ResponseStream)
 	if lro := op.LongRunning; lro != nil {
@@ -217,6 +219,7 @@ func (c *correlator) errorCases(key string, es []ir.ErrorCase) {
 		at := child(key, "error", conditions(es[i].Conditions))
 		c.payload(at, es[i].Payload)
 		c.headers(at, es[i].Headers)
+		c.linkServers(at, es[i].Links)
 	}
 }
 
@@ -226,6 +229,18 @@ func (c *correlator) servers(key string, ids []ir.ServerID) {
 	for _, id := range ids {
 		if s, ok := c.doc.Servers[id]; ok {
 			c.offer(child(key, "server", s.URLTemplate), string(id), nil)
+		}
+	}
+}
+
+// linkServers offers each server a link of links names the key of the response
+// carrying the link, key, then the link's name and the server's URL template.
+// A link names no other entity it does not reach through an ID keyed
+// elsewhere.
+func (c *correlator) linkServers(key string, links []ir.OperationLink) {
+	for i := range links {
+		if s := links[i].Server; s != nil {
+			c.servers(child(key, "link", links[i].Name.Source), []ir.ServerID{*s})
 		}
 	}
 }

@@ -28,7 +28,7 @@ type PagePlan struct {                // item-type unwrap is a PLAN decision
     Strategy   ir.PageStrategy
     ItemType   *ir.TypeRef            // element type items resolve to, unwrapped from the envelope
     ItemPath   *ir.PropPath           // where items live — a PATH (may be nested / in headers)
-    CursorIn   *ir.InputPath          // a parameter, or a member of the request body
+    CursorIn   *ir.InputPath          // a parameter, the request body, or a member of either
     CursorOut  *ir.PropPath
     Stop       []ir.PageStop          // the source's stop rules; empty = none stated or guessed
     Inferred   bool                   // heuristic pagination (may be disabled by policy)

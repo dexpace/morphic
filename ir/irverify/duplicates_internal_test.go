@@ -318,6 +318,7 @@ var identityClasses = map[string]string{
 	"StreamingMode":   "streaming direction, not an identity",
 	"IdempotencyKind": "idempotency class, not an identity",
 	"PageStop":        "a condition that ends pagination, not an identity",
+	"LinkValueKind":   "where a link reads a value from, not an identity",
 	"PageStrategy":    "pagination mechanism, not an identity",
 	"HTTPInbound":     "who sends an HTTP operation, the client or the API, not an identity",
 	"HTTPLocation":    "HTTP wire location of a parameter, not an identity",

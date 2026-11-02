@@ -74,9 +74,10 @@ func newRawLowerer(doc *soa.OpenAPI) *lowerer {
 }
 
 // lowerServiceSpec loads src and runs the phases the service walk needs beneath
-// it — component schemas, then security schemes — before the walk itself. It
-// drives LowerService directly rather than the compiler, which is what lets a
-// test in this package hold an unexported lowering to what the walk did with it.
+// it — component schemas, then security schemes — before the walk itself, and
+// the link resolution after it. It drives LowerService directly rather than the
+// compiler, which is what lets a test in this package hold an unexported
+// lowering to what the walk did with it.
 //
 // It returns the service rather than the document being assembled: nothing here
 // asks what the compiler would have built around it.
@@ -87,10 +88,13 @@ func lowerServiceSpec(t *testing.T, src string) (ir.Service, []ir.Diagnostic) {
 	schemes, authDiags := auth.LowerSecuritySchemes(l.ctx)
 	l.diags.AppendAll(authDiags)
 
-	svc, _, svcDiags := LowerService(t.Context(), l.ctx, l.types, servers.NewRegistry(), schemes)
+	srv := servers.NewRegistry()
+	var links Links
+	svc, _, svcDiags := LowerService(t.Context(), l.ctx, l.types, srv, schemes, &links)
 	l.out.Auth = schemes.Schemes()
 	l.diags.AppendAll(svcDiags)
-	_, finished := l.types.Finish(t.Context())
+	reg, finished := l.types.Finish(t.Context())
 	l.diags.AppendAll(finished)
+	l.diags.AppendAll(links.Resolve(l.ctx, &svc, reg, srv))
 	return svc, append(loadDiags, l.diags.List()...)
 }

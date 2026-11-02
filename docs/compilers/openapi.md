@@ -704,9 +704,9 @@ kept.
 *Referenced* means a lowering followed a reference to the entry, not that some `$ref` string names
 it. The resolution every non-schema reference passes through records each position in the source its
 chain lands on, and the retention runs after every other lowering and keeps what that record lacks.
-A `$ref` written where nothing follows it — in a response's verbatim `links` map, under an `x-`
-extension, inside an example's literal value, inside an entry that is itself not lowered — carries
-nothing of its target into the IR, so the target is kept; and a reference spelled another way than
+A `$ref` written where nothing follows it — under an `x-` extension, inside an example's literal
+value, inside an entry that is itself not lowered — carries nothing of its target into the IR, so
+the target is kept; and a reference spelled another way than
 its target's key, percent-encoded or naming this document by its file, still reaches the entry it
 resolves to, so that entry is not kept beside its lowering. Deciding this from the `$ref` strings
 instead would answer both questions by a reading of its own, and wrongly: it drops the first kind of
@@ -2968,13 +2968,49 @@ map, which OpenAPI says SHALL be ignored, lowers as declared and is reported as 
 
 ### `links`
 
-A response's `links` are kept verbatim under `openapi:links` (`no_ir_home`), with no diagnostic, on
-the `Response` and the `ErrorCase` alike: the two are lowerings of one Response Object, so a
-construct kept on only the success one would make a declaration survive or vanish on nothing but its
-status code. The gap is one the IR can close, so a promotion pass may read the entry later.
+A response's `links` lower to `Links` on the `Response`, the `ErrorCase` or the `Default` that
+carries them, in source order ([links](../ir/responses.md#links)): the three are lowerings of one
+Response Object, so a construct kept on only one would make a declaration survive or vanish on its
+status code alone. A link is resolved once every operation has lowered and the type registry is
+whole, since it may name an operation declared after it and a member of a type the registry builds
+last. Each `$ref` in the map is followed, so the `components/links` entry it names lowers there and
+is not also kept on the document ([`unreferenced-components`](#unreferenced-components)).
+
+1. Its target is the operation its `operationId` names, or the one its `operationRef` points to
+   in this document: the operation mounted at that position, else the one declared there when it is
+   mounted once.
+2. Each `parameters` key names a parameter of the target: as `<in>.<name>`, or as a name alone that
+   one parameter carries, a header's matched in any case. Each parameter is given one value.
+3. Each value, and the `requestBody`, is a constant, or a runtime expression written whole. `$url`,
+   `$method` and `$statusCode` lower to their kinds; `$request.<path|query|header>.<name>` to the
+   parameter the operation answered binds there; `$response.header.<name>` to the header the
+   response declares; and a `body` reference to the body whole, or to the chain of members its
+   pointer walks from the root of every content of that body, which every content must walk alike.
+4. Its `server` registers as a server at the link's own pointer, and its extensions and undeclared
+   keys stay on it.
+
+A link that does not lower whole is kept verbatim on its response under `openapi:links/<name>`
+(`no_ir_home`), as it resolved, with a finding at its entry in the links map:
+
+1. An `openapi/invalid-link` warning when it names its operation both ways or neither, or its target,
+   a parameter it names or a value it reads names nothing the document declares or names it more
+   than once, or a value breaks the runtime-expression grammar or reads a response's query or path.
+2. An `openapi/untyped-link` info when the link is sound but reads what no link value spells: an
+   operation of another document or one mounted more than once, a request value no parameter of the
+   operation answered binds, a header the response does not declare, a body the document does not
+   describe, a member reached through an array index, a map, a union or any type but a model,
+   members the contents of a body disagree on, a string an expression is substituted into, or a
+   constant the IR has no value for.
 
 - Cases: `response-links`
-- Status: not built: no IR field holds a link yet (#669).
+- Codes: `openapi/invalid-link`, `openapi/untyped-link`
+- Tests: `operation.TestLinks_AFindingKeepsTheLinkWhole`, `operation.TestLinks_ResolvedFormsLower`,
+  `operation.TestLinks_EveryValueKindLowers`, `operation.TestLinks_ErrorsAndDefaultsCarryLinks`,
+  `operation.TestLinks_ASharedResponseResolvesPerOperation`,
+  `operation.TestLinks_MediaTypesDisagreeingOnAMember`,
+  `operation.TestLinks_LowerAlikeInEitherDeclarationOrder`, `operation.TestParseExpression_ReadsTheGrammar`,
+  `operation.TestEmbedsExpression_FindsAnExpressionInBraces`,
+  `e2e.TestUnpreservable_AnnouncementNeverOutrunsTheEntry`
 
 ## 12. Webhooks and callbacks
 

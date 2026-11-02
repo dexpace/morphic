@@ -59,6 +59,7 @@ rows no spec names yet, which are the ones the next compiler will be first to bi
 | `streaming-client` | Streaming: client / bidi | ⚠ request media type, inferred | — | ✅ client · ⚠ bidi | ✅ | — | ✅ | ✅ | ⚠ cast/info flows |
 | `events-channels` | Events / pub-sub channels | ✅ webhooks (3.1) | — | ✅ events/sse | — | ✅ subscriptions | ✅ channels | — | ✅ gen_event/info |
 | `callbacks` | Callbacks / request-reply | ✅ callbacks | — | — | — | — | ✅ reply (static + dynamic address) | — | ⚠ From-reply |
+| `operation-links` | Links from a response to the operation it leads to | ✅ links | — | — | ⚠ @references (to a resource) | — | — | ⚠ resource_reference (to a resource) | — |
 | `pagination` | Pagination (first-class) | ⚠ x-* / links | — | ✅ @list/@pageItems + prev/first/last links | ✅ paginated trait | ⚠ connections | — | ⚠ AIP-158 | — |
 | `long-running-operations` | Long-running operations | ⚠ x-* | — | ⚠ Azure.Core @pollingOperation | ⚠ smithy.waiters | — | — | ⚠ google.longrunning | ⚠ send_request |
 | `idempotency` | Idempotency | ⚠ verb semantics | ⚠ | — | ✅ idempotent/@idempotencyToken | — | — | ✅ idempotency_level | — |

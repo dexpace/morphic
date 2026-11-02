@@ -79,8 +79,6 @@ member 0 0 HTTPParamBinding.pathPattern
 member 0 0 HTTPParamBinding.prefix
 member 0 0 Idempotency.kind
 member 0 0 Idempotency.tokenParam
-member 0 0 InputPath.param
-member 0 0 InputPath.segments
 member 0 0 List.encoding
 member 0 0 LongRunning.finalOperation
 member 0 0 LongRunning.finalStateVia
@@ -153,9 +151,7 @@ member 0 0 Pagination.totalCount
 member 0 0 Pagination.totalPages
 member 0 0 Parameter.availability
 member 0 0 Parameter.valueFrom
-member 0 0 PropPath.in
 member 0 0 PropPath.root
-member 0 0 PropPath.segments
 member 0 0 Property.args
 member 0 0 Property.availability
 member 0 0 Property.clientOptional
