@@ -15,10 +15,11 @@ import (
 // retainedSections are the components sections with no registry. Schemas and
 // security schemes are lowered whole and unconditionally; an entry of one of
 // these reaches the IR only where a lowering follows a reference to it.
-// components/mediaTypes is kept whole instead until a reference into it is
-// followed (GitHub #856).
+// mediaTypes is OpenAPI 3.2's, which the parser does not model and the load
+// phase does (load.MediaTypes).
 func retainedSections() []string {
-	return []string{"responses", "parameters", "examples", "requestBodies", "headers", "links", "callbacks", "pathItems"}
+	return []string{"responses", "parameters", "examples", "requestBodies", "headers", "links", "callbacks",
+		"pathItems", "mediaTypes"}
 }
 
 // retainUnreferencedComponents keeps every entry of a retainedSections section
@@ -50,22 +51,4 @@ func retainUnreferencedComponents(c lowering.Ctx) (ir.Unmodeled, []ir.Diagnostic
 			"components merges through `<<` deeper than %d levels; entries past that are not kept", nodeview.MergeDepthLimit))
 	}
 	return out, diags
-}
-
-// keepComponentMediaTypes keeps the components/mediaTypes map OpenAPI 3.2 adds
-// verbatim on the document, read as the parser reads it, at the entry and
-// pointer the components census would use, so the census leaves it alone. The
-// parser models no such section and this compiler does not resolve a reference
-// into it yet (GitHub #856), so the map has no IR home. It is kept at every
-// version, as load reports it below 3.2 (diag.LaterVersionConstruct).
-func keepComponentMediaTypes(c lowering.Ctx, p *ir.Unmodeled) []ir.Diagnostic {
-	mediaTypes := nodeview.Child(nodeview.Child(c.Doc.GetRootNode(), "components"), "mediaTypes")
-	at := ids.Ptr("components", "mediaTypes")
-	kept, diags := annotation.PreserveNodeInto(p, annotation.EntryKey("components", "mediaTypes"),
-		mediaTypes, ir.ReasonNoIRHome, c.ProvenanceAt(at))
-	if !kept {
-		return diags
-	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-		"components/mediaTypes is not resolved by this compiler yet (GitHub #856); kept verbatim under Unmodeled"))
 }
