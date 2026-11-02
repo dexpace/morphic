@@ -72,6 +72,8 @@ var generations = []generation{
 	{version: "0.28.0", format: 1, shape: "95513b85fff38d2a30f15f5ade55c6a7da8e8de77377a6458c5ccc98fb561023",
 		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
 		meaning: "time holds no offset, a time with one keeps its format on a Scalar, and datetime is written"},
+	{version: "0.29.0", format: 1, shape: "6bfe88caeaba9ab3e709bd7f2be11d11debba311b0fa55df760971a4659ea3db",
+		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

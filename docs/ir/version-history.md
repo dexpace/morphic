@@ -250,3 +250,8 @@ it sees. Changes made together in one bump are listed together under it.
   declaring `format: time` keeps the format verbatim under `Unmodeled`. A consumer pinned to 0.27.0
   that reads `time` as carrying an offset finds values with none, and one reading the `time-local`
   or `date-time-local` encodings no longer finds them.
+- **0.29.0** — `Content` gained `Docs`: a media type's own documentation, as against the body's
+  ([payloads](./payloads.md)). The OpenAPI compiler writes there an OpenAPI 3.2 Media Type Object's
+  `description`, which it had kept verbatim under `Unmodeled` as `openapi:description`, and the
+  `summary` and `description` beside a content entry's `$ref` into `components/mediaTypes`, which
+  it now follows. A consumer pinned to 0.28.0 refuses the document as another generation's.
