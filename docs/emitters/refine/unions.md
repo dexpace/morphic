@@ -49,12 +49,14 @@ seam buys and the fused-pipeline generator cannot have.
 
 ## A null a variant admits
 
-A variant whose reference is `Nullable` admits `null`, and `null` holds nothing a variant could keep
-apart, so the union holds it itself. Every reference to a union with a nullable variant lowers as a
-nullable reference does ([optionality](models.md#optionality--nullability--presence-inv8)), and a
-`null` never reaches a variant. The golden spec's single-result envelope declares `result` as
-`anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a string or
-`null`, the last held by the reference.
+A variant admits `null` when its reference is `Nullable` or its type is the `null` literal. `null`
+holds nothing a variant could keep apart, so the union holds it itself: every reference to a union
+with such a variant lowers as a nullable reference does
+([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never reaches a
+variant, and a variant admitting nothing else lowers to no member. Both spellings the compiler can
+give a null member (#618) then lower alike. The golden spec's single-result envelope declares
+`result` as `anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a
+string or `null`, the last held by the reference.
 
 ## A value several variants admit
 

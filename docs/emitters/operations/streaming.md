@@ -26,8 +26,10 @@ decode](../plan/responses.md#a-body-that-does-not-decode)). What a stream yields
 `Recv`:
 
 - an `Element` lowers as a field of its type does ([lowering table](../refine/lowering-table.md)),
-  whatever its kind. A stream ends after a variant whose `Variant.Event.Terminal` is true, so an
-  event union needs nothing of its own. Under `FrameMembers` the element decodes from the frame's
+  whatever its kind. A stream ends after an element holding a variant whose
+  `Variant.Event.Terminal` is true, any of the several an [inclusive
+  union](../refine/unions.md#a-value-several-variants-admit) holds included, so an event union
+  needs nothing of its own. Under `FrameMembers` the element decodes from the frame's
   `data`, `event`, `id` and `retry`, and otherwise from its `data`.
 - no `Element` yields each frame's text, unread.
 - a `bytes` side has no frames: a side the client reads lowers as a file does ([return

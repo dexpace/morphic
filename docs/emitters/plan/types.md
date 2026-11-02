@@ -79,16 +79,17 @@ every other shape. What admitting a value means is in
 admitting no value in common, by these rules, and a pair none of them separates can share one:
 
 - **Kinds.** Their JSON kinds have none in common. A variant's kinds are its type's: object for a
-  model or a map, array for a list or a tuple, its wire kind for a primitive, its values' for an
-  enum or a literal, its variants' for a union, its root's for a scalar, its base's for a model that
-  only stands over one, and every kind for `any`. A nullable reference adds `null`, except a
-  variant's own, whose `null` the union holds
-  ([unions](../refine/unions.md#a-null-a-variant-admits)), and an integer is a number too.
+  model or a map, array for a list, a tuple or a `Positional` model, its wire kind for a primitive,
+  its values' for an enum or a literal, its variants' for a union, its root's for a scalar, its
+  base's for a model that only stands over one, and every kind for `any`. A nullable reference adds
+  `null`, and an integer is a number too. A variant's own `null` is the union's
+  ([unions](../refine/unions.md#a-null-a-variant-admits)), so the rules leave it out, and a variant
+  admitting only `null` takes no part.
 - **Values.** Each admits finitely many values, as a closed enum, a literal or a union of them does,
   and no value is in both, compared as JSON values.
-- **Members.** Both are models, read through `Flattened`, and one requires a member the other either
-  does not declare and is closed, or declares at a position disjoint from it by these rules. A pair
-  already being compared counts as sharing, so a cycle of models ends the walk.
+- **Members.** Both are models laid out by name, read through `Flattened`, and one requires a member
+  the other either does not declare and is closed, or declares at a position disjoint from it by
+  these rules. A pair already being compared counts as sharing, so a cycle of models ends the walk.
 
 The rules are sound, not complete. A pair they leave sharing may still admit no common value, as a
 `date` and a `uuid` string do, and is then inclusive: it holds every value correctly, though more

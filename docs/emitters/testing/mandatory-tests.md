@@ -147,7 +147,8 @@ throughout these documents.
     write at different values is an encode error, and a union with neither set refuses to encode.
     An `anyOf` the plan proves disjoint, by JSON kind, by enum values and by a member one model
     requires and the other cannot hold, lowers as a closed sum and decodes each value into the one
-    variant admitting it, and a `null` two nullable variants admit is held by the reference, as a
-    nullable one's is. A value no variant admits takes the fallback on an open union and is a coded
-    error on a closed one ([unions](../refine/unions.md#a-value-several-variants-admit),
+    variant admitting it. A `null` that two nullable variants admit, or a `null` literal variant
+    does, is held by the reference, as a nullable one's is. A value no variant admits takes the
+    fallback on an open union and is a coded error on a closed one
+    ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
