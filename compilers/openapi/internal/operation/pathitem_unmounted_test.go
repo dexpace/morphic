@@ -245,12 +245,12 @@ components:
 `)
 	openapitest.RequireNoErrorDiags(t, diags)
 
-	var want []keptEntry
-	for _, mount := range []string{"/paths/~1a", "/paths/~1b"} {
-		want = append(want,
-			keptEntry{"openapi:pathItem" + mount + "/summary", `"reserved"`, "/components/pathItems/Reserved/summary"},
-			keptEntry{"openapi:pathItem" + mount + "/parameters/q/query",
-				`{"name": "q", "in": "query", "schema": {"type": "string"}}`, "/components/pathItems/Reserved/parameters/0"})
-	}
-	assertKept(t, doc.Services[0].Unmodeled, want)
+	const decl = "/components/pathItems/Reserved"
+	const param = `{"name": "q", "in": "query", "schema": {"type": "string"}}`
+	assertKept(t, doc.Services[0].Unmodeled, []keptEntry{
+		{"openapi:pathItem/paths/~1a/summary", `"reserved"`, decl + "/summary"},
+		{"openapi:pathItem/paths/~1a/parameters/q/query", param, decl + "/parameters/0"},
+		{"openapi:pathItem/paths/~1b/summary", `"reserved"`, decl + "/summary"},
+		{"openapi:pathItem/paths/~1b/parameters/q/query", param, decl + "/parameters/0"},
+	})
 }
