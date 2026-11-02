@@ -139,8 +139,9 @@ func validationOnlyNote(note ir.Provenance, label string) ir.Diagnostic {
 // CopyEntriesInto writes onto p a copy of each entry of src, its value cloned,
 // for a reader keeping one set of entries on several carriers. Unlike
 // MergeUnmodeled it never replaces an entry p holds: that one stays, and the
-// entry from src, which reached the IR in no form, is reported as the census
-// reports one (diag.UnknownKeyEntryTaken), in key order.
+// entry from src is reported missing from p (diag.UnknownKeyEntryTaken), in
+// key order as the census reports. Another carrier may hold it, so the finding
+// does not say the IR lacks it.
 func CopyEntriesInto(p *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
 	if len(src) == 0 {
 		return nil
@@ -160,9 +161,18 @@ func CopyEntriesInto(p *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
 	slices.Sort(taken)
 	var diags []ir.Diagnostic
 	for _, key := range taken {
-		diags = append(diags, occupiedEntryDiag(key, src[key].Provenance, (*p)[key].Provenance.Pointer))
+		diags = append(diags, refusedCopyDiag(key, src[key].Provenance, (*p)[key].Provenance.Pointer))
 	}
 	return diags
+}
+
+// refusedCopyDiag reports an entry CopyEntriesInto left off a carrier that
+// already holds its key. Unlike occupiedEntryDiag it claims no loss from the IR,
+// since the other carriers the entry is copied onto may hold it.
+func refusedCopyDiag(entry string, at ir.Provenance, held jsontext.Pointer) ir.Diagnostic {
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken, at,
+		"%s is already held by the construct at %q, so the node holding that construct keeps no copy of this one",
+		entry, held)
 }
 
 // MergeUnmodeled overlays src onto dst, allocating dst on first write.

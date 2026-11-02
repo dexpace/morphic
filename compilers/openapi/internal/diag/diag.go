@@ -391,9 +391,10 @@ const (
 	// The carriers holding more than one object's entries are where two constructs
 	// can spell one entry: a parameter's own keys and the keywords its schema had
 	// no home for share one unscoped namespace on ir.Parameter. Copying a path
-	// item's entries onto an operation is guarded the same way
-	// (annotation.CopyEntriesInto). Warning rather than error because the document
-	// is otherwise lowered whole, and the entry that did survive is in it.
+	// item's entries onto an operation is guarded too (annotation.CopyEntriesInto),
+	// refusing a key on that operation alone. Warning rather than error because
+	// the document is otherwise lowered whole, and the entry that did survive is
+	// in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
 	// InvalidLocationKeyword reports a style, explode or allowReserved at in:
 	// querystring, at the keyword. OpenAPI 3.2 binds the whole query string from

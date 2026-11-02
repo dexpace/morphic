@@ -212,8 +212,8 @@ func TestMergeUnmodeled_AllocatesOnlyOnFirstWrite(t *testing.T) {
 
 // TestCopyEntriesInto_KeepsWhatTheCarrierHolds pins that a copied entry never
 // replaces one the carrier already holds: the held one stays, the copy is
-// reported as reaching the IR in no form, and every other entry lands with bytes
-// of its own.
+// reported missing from that carrier, and every other entry lands with bytes of
+// its own.
 func TestCopyEntriesInto_KeepsWhatTheCarrierHolds(t *testing.T) {
 	t.Parallel()
 	entry := func(value, pointer string) ir.UnmodeledEntry {
@@ -231,6 +231,7 @@ func TestCopyEntriesInto_KeepsWhatTheCarrierHolds(t *testing.T) {
 	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
 	assert.Equal(t, jsontext.Pointer("/paths/~1a/k"), diags[0].Provenance.Pointer, "sited at the copy that was refused")
 	assert.Contains(t, diags[0].Message, `"/paths/~1a/get/k"`, "naming the construct that holds the entry")
+	assert.NotContains(t, diags[0].Message, "in no form", "another carrier may hold the copy, so the IR is not said to lack it")
 	p["openapi:x-a"].Value[0] = '9'
 	assert.JSONEq(t, `1`, string(src["openapi:x-a"].Value), "the copy owns its bytes")
 
