@@ -1,10 +1,10 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-// This file covers promotion: reading a vendor extension into the typed IR
-// field it is the only OpenAPI spelling for. It belongs to no single source
-// file — the policy is on the compiler's options, the reading is one function
-// beneath both walks, and it is applied at every carrier that can record it.
+// This file covers promotion: reading a vendor extension into a typed IR field.
+// It belongs to no single source file — the policy is on the compiler's options,
+// the reading is one type beneath both walks, and it is applied at every carrier
+// that can record it.
 package e2e_test // external test package — exercises only the public API
 
 import (
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
@@ -98,6 +99,70 @@ func assertExtensionPromotion(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 
 	assertEnumOpenness(t, doc)
 	assertPromotionDeclined(t, doc, diags)
+	assertKeyDeprecates(t, doc)
+	assertMemberKeys(t, doc, diags)
+}
+
+// assertKeyDeprecates sweeps the carriers of a deprecation a key states with no
+// keyword beside it. Each is a node the compiler builds on its own path, so a
+// path that stops reading the key fails on its own row.
+func assertKeyDeprecates(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	op, ok := opByName(doc, "keyDeprecates")
+	require.True(t, ok)
+	param, ok := openapitest.ParamBySource(op, "byKey")
+	require.True(t, ok)
+	require.Len(t, op.Responses, 1)
+	header, ok := headerByWire(op.Responses[0].Headers, "X-By-Key")
+	require.True(t, ok)
+	model, ok := doc.Types[componentID("ByKey")].(*ir.Model)
+	require.True(t, ok)
+	prop, ok := propByWire(model, "p")
+	require.True(t, ok)
+	scheme, ok := doc.Auth["auth/openapi/components/securitySchemes/byKey"]
+	require.True(t, ok)
+
+	for name, carrier := range map[string]promotionCarrier{
+		"operation":   {op.Deprecation, op.Provenance, op.Unmodeled},
+		"parameter":   {param.Deprecation, param.Provenance, param.Unmodeled},
+		"header":      {header.Deprecation, header.Provenance, header.Unmodeled},
+		"type":        {model.Deprecation, model.Provenance, model.Unmodeled},
+		"property":    {prop.Deprecation, prop.Provenance, prop.Unmodeled},
+		"auth scheme": {scheme.Deprecation, scheme.Provenance, scheme.Unmodeled},
+	} {
+		require.NotNil(t, carrier.deprecation, "%s: the key is the only statement", name)
+		assert.Equal(t, ir.Inferred("extension-promotion"), carrier.provenance.Inferred, name)
+		assert.Contains(t, carrier.unmodeled, "openapi:x-fern-availability", name)
+	}
+	assert.Equal(t, "2031-01-01", param.Deprecation.RemovalDate, "a member fills what the key created")
+}
+
+// assertMemberKeys holds the default mapping's other spellings of a member, and
+// the two ways an object-valued key misfits, to one report each.
+func assertMemberKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	t.Helper()
+	for _, tc := range []struct {
+		op   string
+		want ir.Deprecation
+	}{
+		{"messageKey", ir.Deprecation{Message: "use getY instead", RemovalDate: "2030-06-01"}},
+		{"objectKey", ir.Deprecation{Message: "goes away", RemovalDate: "2030-01-01"}},
+		{"textForAnObject", ir.Deprecation{}},
+		{"numberForAMember", ir.Deprecation{}},
+		{"firstKeyWins", ir.Deprecation{Message: "the first key"}},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, tc.op)
+		require.NotNil(t, op.Deprecation, tc.op)
+		assert.Equal(t, tc.want, *op.Deprecation, tc.op)
+	}
+	info := []ir.Severity{ir.SeverityInfo}
+	assert.Equal(t, info, diagsAt(diags, "openapi/degraded-construct", "/paths/~1members/post/x-cfDeprecation"),
+		"one key read by two sources is one report")
+	assert.Equal(t, info, diagsAt(diags, "openapi/degraded-construct", "/paths/~1members/patch/x-forge-sunset/date"),
+		"located at the member")
+	assert.Equal(t, info, diagsAt(diags, "openapi/degraded-construct",
+		"/paths/~1members/delete/x-stainless-deprecation-message"), "the key that lost")
 }
 
 // assertEnumOpenness is the corpus row for GitHub #427 and the matrix's
@@ -201,8 +266,8 @@ func TestPromotion_DisabledKeepsExtensionsAndNothingElse(t *testing.T) {
 func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 	t.Parallel()
 	own := openapi.Options{Promotions: openapi.ExtensionPromotions{
-		Targets: map[string]openapi.ExtensionTarget{
-			"x-gone-in": openapi.TargetDeprecationRemovalVersion,
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetDeprecationRemovalVersion: {{Key: "x-gone-in"}},
 		},
 	}}
 	doc := compileClean(t, deprecatedOpSpec, own)
@@ -214,30 +279,29 @@ func TestPromotion_TargetsReplaceTheDefaults(t *testing.T) {
 	assert.Equal(t, ir.Inferred("extension-promotion"), op.Provenance.Inferred)
 }
 
-// TestPromotion_DefaultTargetsAreTheOnesApplied holds the exported mapping to
-// the one the compiler applies. Two transcriptions of one mapping is one of
-// them going stale unnoticed, and the exported one is what a caller changing it
-// starts from.
-func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
-	t.Parallel()
-	defaults := openapi.DefaultExtensionPromotions()
-	require.NotEmpty(t, defaults, "an empty mapping would make this vacuous")
-
-	// Every default key is written twice, on a deprecated operation and on an
-	// enum, because the targets live on two carriers and a key reaching only the
-	// wrong one would read as a mapping that fills nothing.
-	keys := ""
-	for key := range defaults {
-		keys += "      " + key + ": filled\n"
+// defaultKeySpec is a document one default source fills one target of: the key,
+// writing value at its member if it has one, sits on a deprecated operation, on
+// an undeprecated one and on an enum, since the targets live on those carriers
+// and a key reaching only the wrong one would read as a mapping that fills
+// nothing.
+func defaultKeySpec(src openapi.ExtensionSource, value string) string {
+	written := "      " + src.Key + ": " + value + "\n"
+	if src.Member != "" {
+		written = "      " + src.Key + ": {" + src.Member + ": " + value + "}\n"
 	}
-	spec := `openapi: 3.1.0
+	return `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /x:
     get:
       operationId: getX
       deprecated: true
-` + keys + `      responses:
+` + written + `      responses:
+        "200":
+          description: ok
+    put:
+      operationId: putX
+` + written + `      responses:
         "200":
           description: ok
 components:
@@ -245,33 +309,80 @@ components:
     E:
       type: string
       enum: [a, b]
-` + keys
-	doc := compileClean(t, spec, openapi.Options{})
-	op, ok := opByName(doc, "getX")
-	require.True(t, ok)
-	require.NotNil(t, op.Deprecation)
-	enum, ok := doc.Types[componentID("E")].(*ir.Enum)
-	require.True(t, ok)
+` + written
+}
 
-	// Read off the defaults rather than listing the pairs, so a mapping this
-	// test does not know about fails here instead of going unread.
-	fields := map[openapi.ExtensionTarget]string{
-		openapi.TargetDeprecationMessage:        op.Deprecation.Message,
-		openapi.TargetDeprecationSince:          op.Deprecation.Since,
-		openapi.TargetDeprecationRemovalVersion: op.Deprecation.RemovalVersion,
-		openapi.TargetDeprecationRemovalDate:    op.Deprecation.RemovalDate,
-		openapi.TargetEnumOpen:                  filledWhen(!enum.Closed),
-	}
-	named := map[openapi.ExtensionTarget]bool{}
-	for key, target := range defaults {
-		got, known := fields[target]
+// defaultTargetRead says of each target what value states it and how to read the
+// field it fills. The deprecation members are read off the deprecated operation,
+// and the deprecation itself off the one with no keyword.
+var defaultTargetRead = map[openapi.ExtensionTarget]struct {
+	value string
+	field func(doc *ir.Document, deprecated, plain ir.Operation) string
+}{
+	openapi.TargetDeprecation: {"deprecated", func(_ *ir.Document, _, plain ir.Operation) string {
+		return filledWhen(plain.Deprecation != nil)
+	}},
+	openapi.TargetDeprecationMessage: {"filled", func(_ *ir.Document, op, _ ir.Operation) string {
+		return op.Deprecation.Message
+	}},
+	openapi.TargetDeprecationSince: {"filled", func(_ *ir.Document, op, _ ir.Operation) string {
+		return op.Deprecation.Since
+	}},
+	openapi.TargetDeprecationRemovalVersion: {"filled", func(_ *ir.Document, op, _ ir.Operation) string {
+		return op.Deprecation.RemovalVersion
+	}},
+	openapi.TargetDeprecationRemovalDate: {"filled", func(_ *ir.Document, op, _ ir.Operation) string {
+		return op.Deprecation.RemovalDate
+	}},
+	openapi.TargetEnumOpen: {"filled", func(doc *ir.Document, _, _ ir.Operation) string {
+		enum, ok := doc.Types[componentID("E")].(*ir.Enum)
+		return filledWhen(ok && !enum.Closed)
+	}},
+	openapi.TargetStability: {"beta", func(_ *ir.Document, _, plain ir.Operation) string {
+		return filledWhen(plain.Stability == ir.StabilityBeta)
+	}},
+	openapi.TargetRedaction: {"true", func(doc *ir.Document, _, _ ir.Operation) string {
+		return filledWhen(doc.Types[componentID("E")].Common().Sensitive)
+	}},
+}
+
+// TestPromotion_DefaultTargetsAreTheOnesApplied holds the exported mapping to
+// the one the compiler applies, one document per source. Two transcriptions of
+// one mapping is one of them going stale unnoticed, and the exported one is what
+// a caller changing it starts from.
+//
+// A default key is read off the mapping rather than listed, so a source this
+// test does not know about fails here instead of going unread, and a target with
+// no default key has to stay empty.
+func TestPromotion_DefaultTargetsAreTheOnesApplied(t *testing.T) {
+	t.Parallel()
+	defaults := openapi.DefaultExtensionPromotions()
+	require.NotEmpty(t, defaults, "an empty mapping would make this vacuous")
+
+	for target, sources := range defaults {
+		read, known := defaultTargetRead[target]
 		require.True(t, known, "%s is a default target this test reads no field for", target)
-		assert.Equal(t, "filled", got, "%s is filled by its default key %s", target, key)
-		named[target] = true
+		for _, src := range sources {
+			t.Run(string(target)+"/"+src.String(), func(t *testing.T) {
+				t.Parallel()
+				doc, _, err := openapi.New().Compile(t.Context(),
+					[]compilers.Source{{Path: "spec.yaml", Data: []byte(defaultKeySpec(src, read.value))}},
+					compilers.Options{FormatOptions: openapi.Options{}})
+				require.NoError(t, err)
+				deprecated, ok := opByName(doc, "getX")
+				require.True(t, ok)
+				plain, ok := opByName(doc, "putX")
+				require.True(t, ok)
+				require.NotNil(t, deprecated.Deprecation)
+
+				assert.Equal(t, "filled", read.field(doc, deprecated, plain), "%s is filled by %s", target, src)
+			})
+		}
 	}
-	for target, got := range fields {
-		if !named[target] {
-			assert.Empty(t, got, "%s is filled by no default key, so it stays empty", target)
+	for target := range defaultTargetRead {
+		if _, mapped := defaults[target]; !mapped {
+			assert.Equal(t, openapi.TargetDeprecationRemovalVersion, target,
+				"only the removal version has no default key, as no convention spells one")
 		}
 	}
 }
@@ -286,6 +397,89 @@ func filledWhen(promoted bool) string {
 	return ""
 }
 
+// TestPromotion_TwoKeysResolveByThePolicyNotTheirSpelling is the public face of
+// the precedence a mapping states: on one document, naming two keys in either
+// order fills the field from the first, and reports the other at its key. It
+// was the key that sorted last, in silence.
+func TestPromotion_TwoKeysResolveByThePolicyNotTheirSpelling(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    get:
+      operationId: getX
+      deprecated: true
+      x-alpha-msg: FROM-ALPHA
+      x-zulu-msg: FROM-ZULU
+      responses:
+        "200":
+          description: ok
+`
+	alpha, zulu := openapi.ExtensionSource{Key: "x-alpha-msg"}, openapi.ExtensionSource{Key: "x-zulu-msg"}
+	for _, tc := range []struct {
+		order []openapi.ExtensionSource
+		want  string
+		loser string
+	}{
+		{[]openapi.ExtensionSource{alpha, zulu}, "FROM-ALPHA", "/paths/~1x/get/x-zulu-msg"},
+		{[]openapi.ExtensionSource{zulu, alpha}, "FROM-ZULU", "/paths/~1x/get/x-alpha-msg"},
+	} {
+		t.Run(tc.want, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+				compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+					Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+						openapi.TargetDeprecationMessage: tc.order,
+					},
+				}}})
+			require.NoError(t, err)
+			op, ok := opByName(doc, "getX")
+			require.True(t, ok)
+			require.NotNil(t, op.Deprecation)
+			assert.Equal(t, tc.want, op.Deprecation.Message)
+			assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, "openapi/degraded-construct", tc.loser))
+			assert.Len(t, diags, 1)
+		})
+	}
+}
+
+// TestPromotion_AnEnumsKeysReportWhatTheyLoseToo holds the enum carrier to the
+// reports every other carrier makes. The reading reports here as anywhere, and
+// a declaration has to pass that on, so a disagreement or a key with no member
+// to read reaches the compile's list rather than ending at the node.
+func TestPromotion_AnEnumsKeysReportWhatTheyLoseToo(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths: {}
+components:
+  schemas:
+    Disagrees: {type: string, enum: [a, b], x-first: false, x-second: true}
+    NotAnObject: {type: string, enum: [a, b], x-holder: open}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: "spec.yaml", Data: []byte(spec)}},
+		compilers.Options{FormatOptions: openapi.Options{Promotions: openapi.ExtensionPromotions{
+			Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+				openapi.TargetEnumOpen: {{Key: "x-first"}, {Key: "x-second"}, {Key: "x-holder", Member: "open"}},
+			},
+		}}})
+	require.NoError(t, err)
+
+	for _, name := range []string{"Disagrees", "NotAnObject"} {
+		enum, ok := doc.Types[componentID(name)].(*ir.Enum)
+		require.True(t, ok, name)
+		assert.True(t, enum.Closed, name)
+		assert.Empty(t, enum.Provenance.Inferred, name)
+	}
+	info := []ir.Severity{ir.SeverityInfo}
+	assert.Equal(t, info, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Disagrees/x-second"))
+	assert.Equal(t, info, diagsAt(diags, "openapi/degraded-construct", "/components/schemas/NotAnObject/x-holder"))
+	assert.Len(t, diags, 2)
+}
+
 // TestPromotion_RemovalDateAndVersionAreSeparateFacts pins why a scheduled
 // removal is two fields rather than one field carrying which spelling it holds
 // (GitHub #417). A document can state both — a sunset date and the release it
@@ -293,9 +487,9 @@ func filledWhen(promoted bool) string {
 func TestPromotion_RemovalDateAndVersionAreSeparateFacts(t *testing.T) {
 	t.Parallel()
 	both := openapi.Options{Promotions: openapi.ExtensionPromotions{
-		Targets: map[string]openapi.ExtensionTarget{
-			"x-sunset":  openapi.TargetDeprecationRemovalDate,
-			"x-gone-in": openapi.TargetDeprecationRemovalVersion,
+		Targets: map[openapi.ExtensionTarget][]openapi.ExtensionSource{
+			openapi.TargetDeprecationRemovalDate:    {{Key: "x-sunset"}},
+			openapi.TargetDeprecationRemovalVersion: {{Key: "x-gone-in"}},
 		},
 	}}
 	spec := `openapi: 3.1.0

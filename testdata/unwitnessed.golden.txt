@@ -134,6 +134,7 @@ member 0 0 Operation.parameterVisibility
 member 0 0 Operation.returnTypeVisibility
 member 0 0 OperationGroup.availability
 member 0 0 OperationGroup.resource
+member 0 0 OperationGroup.stability
 member 0 0 OperationGroup.unmodeled
 member 0 0 Pagination.firstLink
 member 0 0 Pagination.inferred
@@ -256,7 +257,6 @@ value 0 0 PageStrategy "token"
 value 0 0 PresenceKind "explicit"
 value 0 0 PresenceKind "implicit"
 value 0 0 PresenceKind "required"
-value 0 0 PrimKind "datetime"
 value 0 0 PrimKind "float"
 value 0 0 TypeKind "external"
 value 0 0 ValueKind "ctor"
