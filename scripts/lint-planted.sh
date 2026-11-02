@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
 #
 # lint-planted.sh holds the rules .golangci.yml configures, which a clean tree
-# cannot prove, to the tree and to findings planted for them. It runs
-# golangci-lint with the repository's configuration and the linters in $linters
-# only, over the module and the packages under
-# internal/lintrules/testdata/planted, where each line ending in
+# cannot prove, to findings planted for them. It runs golangci-lint with the
+# repository's configuration and the linters in $linters only, over the packages
+# under internal/lintrules/testdata/planted, where each line ending in
 # `// want "<message> (<linter>)"` holds something a rule exists to refuse, a
 # quote in the message written \". It fails unless the plants draw exactly the
-# marked findings and the module draws none.
+# marked findings.
 #
 # The module alone cannot prove a rule: one that recognizes nothing leaves it as
 # clean as one that works. The plants also pin what must draw nothing, such as
 # encoding/json/v2 or a test file's forced assertion, so a rule cannot pass by
 # matching everything either.
+#
+# It says nothing of the module itself. That is the lint step's: `make lint` in
+# `make gate` and the golangci-lint action in CI, each run before this and each
+# enabling every linter here, as the loop below requires. Run alone, this script
+# does not show the module clean.
 #
 # It reads golangci-lint's JSON output with jq, which CI's runner and recent
 # macOS ship.
@@ -63,15 +67,13 @@ if [[ -z "$want" ]]; then
 	exit 1
 fi
 
-# The module and the plants are linted in one go; ./... does not reach into
-# testdata, so the plants are named apart. Exit codes past --issues-exit-code, a
-# configuration that does not load among them, end the script. A finding's file
-# and line are fields of the JSON, so none goes unread, and one with no file is
-# a stray. The warnings about exclusions for linters this run leaves out are
-# dropped.
+# Exit codes past --issues-exit-code, a configuration that does not load among
+# them, end the script. A finding's file and line are fields of the JSON, so none
+# goes unread, and one with no file is a stray. The warnings about exclusions for
+# linters this run leaves out are dropped.
 if ! golangci-lint run --enable-only "$linters" \
 	--issues-exit-code 0 --max-issues-per-linter 0 --max-same-issues 0 \
-	--output.json.path "$work/issues.json" ./... "./$testdata/planted/..." >/dev/null 2>"$work/stderr"; then
+	--output.json.path "$work/issues.json" "./$testdata/planted/..." >/dev/null 2>"$work/stderr"; then
 	cat "$work/stderr" >&2
 	exit 1
 fi
@@ -84,4 +86,4 @@ if [[ "$got" != "$want" ]]; then
 	diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") >&2 || true
 	exit 1
 fi
-echo "lint-planted: the module is clean and the $(printf '%s\n' "$want" | wc -l | tr -d ' ') planted findings are drawn, nothing else"
+echo "lint-planted: the $(printf '%s\n' "$want" | wc -l | tr -d ' ') planted findings are drawn, nothing else"
