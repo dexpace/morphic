@@ -77,6 +77,8 @@ var generations = []generation{
 	{version: "0.30.0", format: 1, shape: "6bfe88caeaba9ab3e709bd7f2be11d11debba311b0fa55df760971a4659ea3db",
 		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
 		meaning: "an operation keeps its path item's summary and description beneath the path item's key scope"},
+	{version: "0.31.0", format: 1, shape: "1d5ac686e769ead1aa2e3d0bb6bf33153ce8adbf2298495fe6bc75c634afb886",
+		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

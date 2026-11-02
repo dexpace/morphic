@@ -70,6 +70,13 @@ const (
 	// boolean `false` is honoured rather than inverted (extensionOpenness).
 	TargetEnumOpen ExtensionTarget = "enum.open"
 
+	// TargetUnionOpen clears ir.Union.Closed, saying a payload may hold a
+	// variant the union does not list. It names the fact for TargetEnumOpen's
+	// reason: a oneOf or anyOf is closed by definition. No default key names
+	// it, since no spelling for an open union has become common; a document
+	// that writes one names its own mapping.
+	TargetUnionOpen ExtensionTarget = "union.open"
+
 	// TargetStability fills ir.Operation.Stability. The words a value may use
 	// are stabilityTier's.
 	TargetStability ExtensionTarget = "stability"
@@ -366,12 +373,28 @@ func (p Promoter) EnumOpenness(unmodeled ir.Unmodeled, e *ir.Enum, prov *ir.Prov
 	if e == nil || prov == nil {
 		return nil
 	}
-	open, _, diags := firstStated(unmodeled, p.targets[TargetEnumOpen], reading[bool]{
-		target: TargetEnumOpen,
+	return p.openness(unmodeled, TargetEnumOpen, &e.Closed, prov)
+}
+
+// UnionOpenness clears u.Closed when the vendor extensions kept in unmodeled
+// state the union open, and marks prov with the heuristic when they do, as
+// EnumOpenness opens an enum.
+func (p Promoter) UnionOpenness(unmodeled ir.Unmodeled, u *ir.Union, prov *ir.Provenance) []ir.Diagnostic {
+	if u == nil || prov == nil {
+		return nil
+	}
+	return p.openness(unmodeled, TargetUnionOpen, &u.Closed, prov)
+}
+
+// openness clears *closed and marks prov when a source of target in unmodeled
+// states openness (extensionOpenness).
+func (p Promoter) openness(unmodeled ir.Unmodeled, target ExtensionTarget, closed *bool, prov *ir.Provenance) []ir.Diagnostic {
+	open, _, diags := firstStated(unmodeled, p.targets[target], reading[bool]{
+		target: target,
 		read:   func(_ ExtensionSource, raw ir.RawValue) (bool, statement) { return extensionOpenness(raw), states },
 	})
 	if open {
-		e.Closed = false
+		*closed = false
 		prov.Inferred = ir.JoinInferred(prov.Inferred, ExtensionPromotionHeuristic)
 	}
 	return diags

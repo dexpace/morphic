@@ -196,7 +196,9 @@
           "dog": "t/openapi/components/schemas/Dog"
         },
         "inferred": false
-      }
+      },
+      "closed": true,
+      "inputOnly": false
     },
     "t/prim/bool": {
       "kind": "primitive",

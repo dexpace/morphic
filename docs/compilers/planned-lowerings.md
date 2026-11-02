@@ -22,7 +22,7 @@ highlights, and the list moves to a specification of its own when the compiler l
 - scalars → Scalar chains, constructors in values → Value.Ctor
 - `@encode`/`@format` → Encoding triple
 - `@encodedName` → WireNameByFormat at property AND type level
-- unions w/ named variants → Union, `@discriminated` → WireTagged +
+- unions w/ named variants → closed Union, `@discriminated` → WireTagged +
   Discriminator.PropertyName/Envelope/EnvelopeValueName
 - `| null` → Nullable
 - visibility classes (incl. custom, `@invisible` → Visibility.None) → Visibility, op overrides →
@@ -58,7 +58,7 @@ highlights, and the list moves to a specification of its own when the compiler l
 - structures → Model, mixins → Mixins (non-structure mixins flattened — spec-sanctioned)
 - `document` → Any
 - map shapes → MapT (key shape → Key, nil for `smithy.api#String`, `@length` → Constraints)
-- unions → WireTagged Union, member `@jsonName` → Variant.WireName
+- unions → open WireTagged Union (`Closed` false), member `@jsonName` → Variant.WireName
 - enum/intEnum → Enum (open by default)
 - `@sparse` → element Nullable
 - traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` →
@@ -95,7 +95,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 - [GraphQL binding](../ir/graphql-binding.md)
 - interfaces (incl. interface hierarchies) → Abstract models + Implements
 - field arguments → Property.Args
-- input objects → `InputOnly` models, `@oneOf` inputs → WireTagged Exclusive Union
+- input objects → `InputOnly` models, `@oneOf` inputs → closed `InputOnly` WireTagged Exclusive
+  Union; output unions → open Unions (`Closed` false)
 - non-null wrapping → Required/Nullable (all `[T!]!` combinations via per-layer list nodes)
 - defaults on args AND input fields → Default (list-input coercion normalized)
 - custom scalars → Scalar{Base: nil}, `@specifiedBy` → Unmodeled
@@ -124,7 +125,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 ## Protobuf
 
 - messages → Model w/ WireIDs
-- oneof → WireTagged Exclusive Union w/ variant WireIDs + Flatten on the synthetic wrapper property
+- oneof → WireTagged Exclusive Union, open (`Closed` false: an unknown field leaves no case set), w/
+  variant WireIDs + Flatten on the synthetic wrapper property
   (oneof members are top-level wire fields; synthetic oneofs from proto3 `optional` do NOT lower to
   unions — they are presence markers)
 - presence disciplines → Property.Presence (never Nullable)
@@ -132,6 +134,7 @@ highlights, and the list moves to a specification of its own when the compiler l
 - map/repeated → MapT/List (a `string` map key → nil Key; packed/expanded → List.Encoding)
 - groups / editions DELIMITED → nested Model + Encoding "delimited"
 - scalar wire variants (sint/fixed) → Encoding
+- non-finite float defaults (`inf`, `-inf`, `nan`) → Value kinds `inf`, `neginf`, `nan`
 - `extend` fields → Property.ExtensionOf, extension ranges → Model.ExtensionRanges
 - well-known types → External (wrapper types → External or nullable primitive per injectable policy)
 - custom options → namespaced Unmodeled (proto-JSON), file options keyed by path in

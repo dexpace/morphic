@@ -244,7 +244,9 @@
           "dog": "t/openapi/components/schemas/Dog"
         },
         "inferred": false
-      }
+      },
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Unknown": {
       "kind": "union",
@@ -290,7 +292,9 @@
           "cat": "t/anon/components/schemas/Unknown/oneOf/0"
         },
         "inferred": false
-      }
+      },
+      "closed": true,
+      "inputOnly": false
     },
     "t/prim/string": {
       "kind": "primitive",

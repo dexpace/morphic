@@ -478,6 +478,12 @@ func appliers() []func(lowering.Promoter, ir.Unmodeled) (bool, []ir.Diagnostic) 
 			return !enum.Closed, diags
 		},
 		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
+			u := ir.Union{Closed: true}
+			var prov ir.Provenance
+			diags := p.UnionOpenness(unmodeled, &u, &prov)
+			return !u.Closed, diags
+		},
+		func(p lowering.Promoter, unmodeled ir.Unmodeled) (bool, []ir.Diagnostic) {
 			var tier ir.Stability
 			var prov ir.Provenance
 			diags := p.Stability(unmodeled, &tier, &prov)
@@ -530,6 +536,7 @@ var targetFields = map[lowering.ExtensionTarget][]string{
 	lowering.TargetDeprecationRemovalVersion: {"Deprecation.RemovalVersion"},
 	lowering.TargetDeprecationRemovalDate:    {"Deprecation.RemovalDate"},
 	lowering.TargetEnumOpen:                  {"Enum.Closed"},
+	lowering.TargetUnionOpen:                 {"Union.Closed"},
 	lowering.TargetStability:                 {"Operation.Stability"},
 	lowering.TargetRedaction:                 {"TypeCommon.Sensitive", "Property.Secret", "Parameter.Secret"},
 }
@@ -1133,4 +1140,44 @@ func TestPromoter_KeysListsWhatThePolicyReads(t *testing.T) {
 	}).Keys())
 	assert.Equal(t, []string{"x-a", "x-b"}, got)
 	assert.Empty(t, slices.Collect(promoter(lowering.ExtensionPromotions{Disabled: true}).Keys()))
+}
+
+// TestPromoterUnionOpenness_OpensOnAMappedKey pins the union twin of the enum
+// promotion: no default key names TargetUnionOpen, so a union opens only under a
+// mapping that names one, and then as an enum does, on any value but an
+// explicit false, marking the node once.
+func TestPromoterUnionOpenness_OpensOnAMappedKey(t *testing.T) {
+	t.Parallel()
+	mapped := mapping(lowering.TargetUnionOpen, lowering.ExtensionSource{Key: "x-open"})
+	tests := []struct {
+		name   string
+		policy lowering.ExtensionPromotions
+		value  string
+		open   bool
+	}{
+		{"a mapped key", mapped, `true`, true},
+		{"a bare mapped key", mapped, `null`, true},
+		{"an explicit false", mapped, `false`, false},
+		{"the default mapping, which names no key for it", lowering.ExtensionPromotions{}, `true`, false},
+		{"a key mapped to the enum target", mapping(lowering.TargetEnumOpen, lowering.ExtensionSource{Key: "x-open"}), `true`, false},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			u := ir.Union{Closed: true}
+			var prov ir.Provenance
+			diags := promoter(tc.policy).UnionOpenness(ir.Unmodeled{"openapi:x-open": vendorExtension(tc.value)}, &u, &prov)
+			assert.Empty(t, diags)
+			assert.Equal(t, !tc.open, u.Closed)
+			if tc.open {
+				assert.Equal(t, lowering.ExtensionPromotionHeuristic, prov.Inferred)
+			} else {
+				assert.Empty(t, prov.Inferred, "nothing was inferred, so nothing is marked")
+			}
+		})
+	}
+	assert.Nil(t, promoter(mapped).UnionOpenness(ir.Unmodeled{"openapi:x-open": vendorExtension(`true`)}, nil, &ir.Provenance{}))
+	u := ir.Union{Closed: true}
+	assert.Nil(t, promoter(mapped).UnionOpenness(ir.Unmodeled{"openapi:x-open": vendorExtension(`true`)}, &u, nil))
+	assert.True(t, u.Closed, "with nowhere to record the guess, none is made")
 }

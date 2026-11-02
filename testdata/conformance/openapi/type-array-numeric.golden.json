@@ -94,7 +94,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Measure": {
       "kind": "union",
@@ -133,7 +135,9 @@
         }
       ],
       "exclusive": false,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/Sized": {
       "kind": "union",
@@ -172,7 +176,9 @@
         }
       ],
       "exclusive": false,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/prim/int32": {
       "kind": "primitive",

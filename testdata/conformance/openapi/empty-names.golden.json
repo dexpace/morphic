@@ -157,7 +157,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/List/properties/": {
       "kind": "list",
@@ -323,7 +325,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/anon/components/schemas/Mixed/properties//enum/0": {
       "kind": "literal",
@@ -341,7 +345,8 @@
       "value": {
         "kind": "number",
         "num": "1"
-      }
+      },
+      "valueType": "number"
     },
     "t/anon/components/schemas/Mixed/properties//enum/1": {
       "kind": "literal",
@@ -359,7 +364,8 @@
       "value": {
         "kind": "string",
         "str": "a"
-      }
+      },
+      "valueType": "string"
     },
     "t/anon/components/schemas/Patterns/properties/": {
       "kind": "model",

@@ -191,7 +191,8 @@
       "value": {
         "kind": "string",
         "str": "2021-01-01"
-      }
+      },
+      "valueType": "string"
     },
     "t/openapi/components/schemas/R": {
       "kind": "model",

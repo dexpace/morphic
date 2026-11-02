@@ -694,7 +694,9 @@
       "discriminator": {
         "propertyName": "k",
         "inferred": false
-      }
+      },
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/S": {
       "kind": "model",

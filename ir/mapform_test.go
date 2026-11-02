@@ -23,7 +23,7 @@ func mapModel() *ir.Model {
 		Docs: ir.Docs{Description: "labels"},
 		AdditionalProps: &ir.AdditionalProps{
 			Key:   &ir.TypeRef{Target: "t/prim/int64"},
-			Value: ir.TypeRef{Target: "t/prim/string", Nullable: true},
+			Value: &ir.TypeRef{Target: "t/prim/string", Nullable: true},
 		},
 		Constraints: &ir.Constraints{MinProps: &minProps},
 	}
@@ -42,7 +42,7 @@ func TestAsMap_CarriesWhatAMapHolds(t *testing.T) {
 	want := &ir.MapT{
 		TypeCommon:  m.TypeCommon,
 		Key:         m.AdditionalProps.Key,
-		Value:       m.AdditionalProps.Value,
+		Value:       *m.AdditionalProps.Value,
 		Constraints: m.Constraints,
 	}
 	assert.Empty(t, cmp.Diff(want, mt))

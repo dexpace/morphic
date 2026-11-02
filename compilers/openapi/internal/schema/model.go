@@ -190,8 +190,8 @@ func requireMembers(m *ir.Model, required []string) {
 // `additionalProperties: true` types the catch-all as the top type, as `{}`
 // does: the two are one schema in JSON Schema, and both state that members
 // beyond the declared ones are allowed. Only an absent keyword writes no
-// catch-all. Neither spelling touches Additional, which this sets only for
-// `false` and `unevaluatedProperties: false`.
+// catch-all, unless patterns need one. Neither spelling touches Additional,
+// which this sets only for `false` and `unevaluatedProperties: false`.
 func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	var diags []ir.Diagnostic
 	ap := s.GetAdditionalProperties()
@@ -203,13 +203,13 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 	default:
 		ref, refDiags := Ref(c, ts, depth, ap, pointer+ids.Ptr("additionalProperties"))
 		diags = append(diags, refDiags...)
-		m.AdditionalProps = &ir.AdditionalProps{Value: ref}
+		m.AdditionalProps = &ir.AdditionalProps{Value: &ref}
 	}
 	patterns, patternDiags := patternProps(c, ts, depth, s, pointer)
 	diags = append(diags, patternDiags...)
 	if len(patterns) > 0 {
 		if m.AdditionalProps == nil {
-			m.AdditionalProps = &ir.AdditionalProps{Value: ts.PrimRef(ir.PrimAny)}
+			m.AdditionalProps = &ir.AdditionalProps{Value: restBesidePatterns(ts, m)}
 		}
 		m.AdditionalProps.Patterns = patterns
 	}
@@ -217,6 +217,17 @@ func fillAdditional(c lowering.Ctx, ts *compile.Types, depth int, m *ir.Model, s
 		m.Additional = ir.AdditionalClosedAfterComposition
 	}
 	return diags
+}
+
+// restBesidePatterns types the keys no pattern matches where additionalProperties
+// says nothing of them: the top type, as JSON Schema admits any such key, or no
+// type at all beside `additionalProperties: false`, which admits none.
+func restBesidePatterns(ts *compile.Types, m *ir.Model) *ir.TypeRef {
+	if m.Additional == ir.AdditionalClosed {
+		return nil
+	}
+	top := ts.PrimRef(ir.PrimAny)
+	return &top
 }
 
 // patternProps lowers patternProperties into pattern/value bindings in source

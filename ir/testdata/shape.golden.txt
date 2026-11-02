@@ -8,7 +8,7 @@ type AdditionalMode string
 type AdditionalProps struct
 	"key" *TypeRef omitzero
 	"patterns" []PatternProps omitempty
-	"value" TypeRef
+	"value" *TypeRef omitzero
 
 type Any struct
 	embed TypeCommon
@@ -346,6 +346,7 @@ type List struct
 type Literal struct
 	embed TypeCommon
 	"value" Value
+	"valueType" PrimKind omitempty
 	method (*Literal) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
 	method (*Literal) UnmarshalJSONFrom(*encoding/json/jsontext.Decoder) error
 
@@ -847,8 +848,10 @@ type TypeRegistry map[TypeID]TypeDef
 
 type Union struct
 	embed TypeCommon
+	"closed" bool
 	"discriminator" *Discriminator omitzero
 	"exclusive" bool
+	"inputOnly" bool
 	"variants" []Variant omitempty
 	"wireTagged" bool
 	method (*Union) MarshalJSONTo(*encoding/json/jsontext.Encoder) error
@@ -883,7 +886,10 @@ type ValueKind string
 	const "bool"
 	const "bytes"
 	const "ctor"
+	const "inf"
 	const "list"
+	const "nan"
+	const "neginf"
 	const "null"
 	const "number"
 	const "object"

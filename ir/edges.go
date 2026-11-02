@@ -234,7 +234,7 @@ func (w *edgeWalk) additional(a *AdditionalProps) {
 	if a == nil {
 		return
 	}
-	w.ref(&a.Value)
+	w.ref(a.Value)
 	w.ref(a.Key)
 	for i := range a.Patterns {
 		w.ref(&a.Patterns[i].Value)

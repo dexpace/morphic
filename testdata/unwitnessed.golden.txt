@@ -211,6 +211,7 @@ member 0 0 TypeCommon.mediaTypeHint
 member 0 0 TypeCommon.namespace
 member 0 0 TypeCommon.tags
 member 0 0 TypeCommon.wireNameByFormat
+member 0 0 Union.inputOnly
 member 0 0 Value.ctor
 member 0 0 Value.ref
 member 0 0 ValueRef.member
@@ -260,5 +261,8 @@ value 0 0 PresenceKind "required"
 value 0 0 PrimKind "float"
 value 0 0 TypeKind "external"
 value 0 0 ValueKind "ctor"
+value 0 0 ValueKind "inf"
+value 0 0 ValueKind "nan"
+value 0 0 ValueKind "neginf"
 value 0 0 ValueKind "ref"
 value 0 0 ValueKind "symbol"
