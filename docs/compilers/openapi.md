@@ -1197,8 +1197,13 @@ composition distributed across a union keeps every branch on each variant
 Folding needs no precedence, because a branch that disagrees with any conjunct on one of these, the
 keywords beside the `allOf` among them, folds nothing, in every order: the keywords beside the
 `allOf` stand, and each branch writing that keyword otherwise stays whole, with its report. Two
-keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Bounds are
-never intersected, so `maxLength: 3` beside `maxLength: 5` is a disagreement like any other.
+keywords a position keeps in one entry, `if` and `then` say, are compared as that entry. Value bounds
+agree where they meet, as a redeclared field's do
+([`allof-redeclared-property`](#allof-redeclared-property)): `maxLength: 3` beside `maxLength: 5`
+folds to `3`, and `multipleOf: 4` beside `multipleOf: 6` to `12`, whatever their order, a number
+written two ways keeping the first spelling. Two `pattern`s have no one value, and neither has a 3.0
+`exclusiveMinimum` with no bound beside it, which fills no field, so each disagrees with another
+written differently.
 
 A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
@@ -1236,10 +1241,12 @@ every entry reads that one twice.
   `schema.TestAllOf_KeptEntryOfAKeptWrapperIsKeptTwice`,
   `schema.TestVoices_AKeywordFoldsWhereTheAllOfWouldKeepIt`,
   `schema.TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder`,
+  `schema.TestVoices_BoundsMeetInEveryOrder`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
   `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`
-- Status: partly built: two conjuncts writing one bound differently stay kept, not intersected (#10).
+- Status: partly built: a collection bound on a branch over a `$ref` stays with its branch, where one
+  beside the `allOf` reaches `Constraints` (#1312).
 
 ### `allof-redeclared-property`
 

@@ -18,9 +18,9 @@ import (
 
 // ConstraintsOf returns the value constraints s and its voices write, or nil
 // where they write none, for the node or carrier at pointer to hold, so a node a
-// position owns, a property and a parameter read them alike. A voice agrees with
-// s wherever both write a bound, so no bound is intersected
-// (docs/compilers/openapi.md#allof-inline-residue).
+// position owns, a property and a parameter read them alike. A bound several
+// write meets (merge.Constraints): a voice speaks only where its bounds meet
+// every other writer's (docs/compilers/openapi.md#allof-inline-residue).
 //
 // p is the Unmodeled map of the node or carrier the constraints land on. A 3.0
 // exclusive modifier with no bound beside it to modify, which no ir.Constraints

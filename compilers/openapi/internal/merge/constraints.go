@@ -146,6 +146,14 @@ func strKeyword(name string, slot func(*ir.Constraints) *string) constraintKeywo
 	}
 }
 
+// Meets reports whether one set of constraints says what a and b both do: no
+// keyword both pin to values no one value holds (constraintsConflict), so
+// Constraints folds them losing nothing.
+func Meets(a, b *ir.Constraints) bool {
+	_, _, conflict := constraintsConflict(a, b)
+	return !conflict
+}
+
 // constraintsConflict reports the first keyword of constraintKeywords that two
 // constraint sets pin to values no one value holds: its index and the
 // disagreement. A keyword set on one side only is no conflict, and neither is a

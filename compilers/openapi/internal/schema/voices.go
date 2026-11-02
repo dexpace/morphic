@@ -98,11 +98,10 @@ type voicesOf struct {
 
 // voicesAmong reports, for each branch of s's flattened allOf, whether it folds:
 // it is inline, it writes something for the position, and each such keyword
-// agrees with every other conjunct writing it, s's own keywords among them. The
-// answer reads the whole set, so no conjunct takes precedence and no order
-// decides. Two bounds that differ disagree: nothing here intersects them (GitHub
-// #10). A null keyword writes nothing (WritesKeywordLeftOut). Every use of s
-// asks, so it is read once a run.
+// agrees with every other conjunct writing it, s's own keywords among them
+// (agreement). The answer reads the whole set, so no conjunct takes precedence
+// and no order decides. A null keyword writes nothing (WritesKeywordLeftOut).
+// Every use of s asks, so it is read once a run.
 func voicesAmong(c lowering.Ctx, s *oas3.Schema) []bool {
 	return voicingOf(c, s).speaks
 }
@@ -117,45 +116,26 @@ type voicing struct {
 
 // voicingOf reads s's voicing once a run.
 func voicingOf(c lowering.Ctx, s *oas3.Schema) voicing {
-	return lowering.Remembered(c, voicesOf{s}, func() voicing { return readVoices(s) })
+	return lowering.Remembered(c, voicesOf{s}, func() voicing { return readVoices(c, s) })
 }
 
-// readVoices reads what voicingOf remembers, rendering each conjunct's value
-// once: the first writer's is compared with every later one's.
-func readVoices(s *oas3.Schema) voicing {
-	first := map[string]foldRendering{}
-	split := map[string]bool{}
-	write := func(conjunct *oas3.Schema) []string {
-		var entries []string
-		for _, keyword := range rawMappingKeys(conjunct.GetRootNode()) {
-			entry, fold := foldEntry(conjunct, keyword)
-			if !fold || annotation.WritesKeywordLeftOut(conjunct, keyword) {
-				continue
-			}
-			entries = append(entries, entry)
-			rendered := foldValue(conjunct, entry)
-			if held, ok := first[entry]; !ok {
-				first[entry] = rendered
-			} else if !held.agrees(rendered) {
-				split[entry] = true
-			}
-		}
-		return entries
-	}
+// readVoices reads what voicingOf remembers.
+func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
+	a := newAgreement(c)
 	lent := map[string]bool{}
-	for _, entry := range write(s) {
+	for _, entry := range a.write(s) {
 		lent[entry] = true
 	}
 	comp := allOfBranches(s, "")
 	writes := make([][]string, len(comp.branches))
 	for i, e := range comp.branches {
 		if bs := e.schema.GetSchema(); bs != nil && isInlineBranch(e.schema) {
-			writes[i] = write(bs)
+			writes[i] = a.write(bs)
 		}
 	}
 	out := voicing{speaks: make([]bool, len(comp.branches)), lends: make([]bool, len(comp.branches))}
 	for i, entries := range writes {
-		out.speaks[i] = len(entries) > 0 && !slices.ContainsFunc(entries, func(entry string) bool { return split[entry] })
+		out.speaks[i] = len(entries) > 0 && !slices.ContainsFunc(entries, a.apart)
 		if !out.speaks[i] {
 			continue
 		}
@@ -227,9 +207,10 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 
 // lendingBranches returns the schemas of the branches of s that fold, for a use
 // reading what s lends it, but those writing only what s or such a branch before
-// them writes: every writer of an entry agrees (voicesAmong), so a reader taking
-// the nearest takes the same value from any of them, and a use of s pays for each
-// entry once, not for each branch repeating it.
+// them writes: the writers of an entry a use reads agree (voicesAmong), so a
+// reader taking the nearest takes the same value from any of them, and a use of s
+// pays for each entry once, not for each branch repeating it. Value bounds, which
+// agree by meeting, are no such entry: a use never reads them through its $ref.
 func lendingBranches(c lowering.Ctx, s *oas3.Schema) []*oas3.Schema {
 	if !allOfDecides(s) {
 		return nil

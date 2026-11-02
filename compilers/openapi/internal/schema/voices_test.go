@@ -93,7 +93,7 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 		"beside the allOf": {"{description: a, allOf: [" + ref + ", {description: b}]}", []string{"openapi:allOf/1"}},
 		"a third agreeing": {"{allOf: [" + ref + ", {title: t}, {title: t}, {title: u}]}",
 			[]string{"openapi:allOf/1", "openapi:allOf/2", "openapi:allOf/3"}},
-		"two bounds": {"{allOf: [" + ref + ", {maxProperties: 2}, {maxProperties: 3}]}",
+		"two patterns": {"{allOf: [" + ref + ", {pattern: a}, {pattern: b}]}",
 			[]string{"openapi:allOf/1", "openapi:allOf/2"}},
 		"a flag": {"{allOf: [" + ref + ", {readOnly: true}, {readOnly: false}]}",
 			[]string{"openapi:allOf/1", "openapi:allOf/2"}},
@@ -129,6 +129,51 @@ func TestVoices_ABranchDisagreeingFoldsNothingInEveryOrder(t *testing.T) {
 	require.True(t, ok)
 	assert.Empty(t, m.Docs.Summary)
 	assert.Empty(t, m.Docs.Description, "no precedence chooses between two descriptions")
+}
+
+// TestVoices_BoundsMeetInEveryOrder pins value bounds two conjuncts write apart:
+// they meet as a redeclared field's do, each taking what they say together, in
+// either order, unless a writer states no value, as a lone 3.0 exclusive modifier
+// does, where two spellings disagree as any other keyword's.
+func TestVoices_BoundsMeetInEveryOrder(t *testing.T) {
+	t.Parallel()
+	const ref = "{$ref: '#/components/schemas/Base'}"
+	for name, tc := range map[string]struct {
+		version, a, b string
+		want          *ir.Constraints
+	}{
+		"a count": {"3.1.0", "{maxProperties: 9}", "{maxProperties: 4}", &ir.Constraints{MaxProps: new(int64(4))}},
+		"a step":  {"3.1.0", "{multipleOf: 4}", "{multipleOf: 6}", &ir.Constraints{MultipleOf: new(ir.BigVal("12"))}},
+		"a bound and its exclusive form": {"3.1.0", "{minimum: 1}", "{exclusiveMinimum: 2}",
+			&ir.Constraints{Min: new(ir.BigVal("1")), ExclusiveMin: new(ir.BigVal("2"))}},
+		"a 3.0 modifier": {"3.0.3", "{minimum: 5, exclusiveMinimum: true}", "{minimum: 3}",
+			&ir.Constraints{Min: new(ir.BigVal("3")), ExclusiveMin: new(ir.BigVal("5"))}},
+	} {
+		for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+			doc, diags := parseFull(t, openapitest.ComponentSpecVer(tc.version,
+				"    Base: {type: object}\n    S: {allOf: ["+ref+", "+order[0]+", "+order[1]+"]}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok, name)
+			assert.Equal(t, tc.want, m.Constraints, "%s: %v", name, order)
+			assert.Empty(t, m.Unmodeled, "%s: %v", name, order)
+		}
+	}
+
+	doc, _ := parseFull(t, voicesDoc("{maxProperties: 3, allOf: ["+ref+", {maxProperties: 5}]}"))
+	m, ok := typeByName(doc, "S").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MaxProps: new(int64(3))}, m.Constraints, "a bound beside the allOf meets one on a branch")
+	assert.Empty(t, m.Unmodeled)
+
+	for _, order := range []string{"{exclusiveMinimum: true}, {exclusiveMinimum: false}", "{exclusiveMinimum: false}, {exclusiveMinimum: true}"} {
+		doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3",
+			"    Base: {type: object}\n    S: {allOf: ["+ref+", "+order+"]}\n"))
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok)
+		assert.Contains(t, m.Unmodeled, "openapi:allOf/1", order)
+		assert.Contains(t, m.Unmodeled, "openapi:allOf/2", order)
+	}
 }
 
 // TestVoices_AgreeingConjunctsSayItOnce pins that a keyword two conjuncts write

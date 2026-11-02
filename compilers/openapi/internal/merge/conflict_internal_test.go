@@ -346,3 +346,14 @@ func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/absent"), ref("t/prim/string")))
 	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/prim/string"), ref("t/absent")))
 }
+
+// TestMeets_ANoOrderPairIsNoMeet pins what Meets asks of constraintsConflict: two
+// ordered bounds always meet, and two values of a keyword with no order meet only
+// where they are one.
+func TestMeets_ANoOrderPairIsNoMeet(t *testing.T) {
+	t.Parallel()
+	assert.True(t, Meets(&ir.Constraints{MaxLength: new(int64(3))}, &ir.Constraints{MaxLength: new(int64(5))}))
+	assert.True(t, Meets(&ir.Constraints{Pattern: "a"}, &ir.Constraints{Pattern: "a"}))
+	assert.False(t, Meets(&ir.Constraints{Pattern: "a"}, &ir.Constraints{Pattern: "b"}))
+	assert.True(t, Meets(nil, &ir.Constraints{Pattern: "b"}), "nothing conflicts with nothing")
+}

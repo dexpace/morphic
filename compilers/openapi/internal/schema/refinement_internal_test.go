@@ -211,7 +211,7 @@ func TestReadVoices_RendersEachValueOnce(t *testing.T) {
 		for range 3 {
 			runtime.ReadMemStats(&stats)
 			before := stats.TotalAlloc
-			read := readVoices(s)
+			read := readVoices(l.Ctx, s)
 			runtime.ReadMemStats(&stats)
 			least = min(least, stats.TotalAlloc-before)
 			require.Len(t, read.speaks, later+1)

@@ -1554,7 +1554,7 @@ func TestRefinement_ABranchDisagreeingStaysWhole(t *testing.T) {
         two: {allOf: [{description: b}, {description: a}, `+ref+`]}
     Items:
       type: array
-      items: {allOf: [`+ref+`, {maxLength: 2}, {maxLength: 3}]}
+      items: {allOf: [`+ref+`, {pattern: a}, {pattern: b}]}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Len(t, withCode(diags, diag.DegradedConstruct), 6)
@@ -1571,7 +1571,7 @@ func TestRefinement_ABranchDisagreeingStaysWhole(t *testing.T) {
 	items, ok := typeByName(doc, "Items").(*ir.List)
 	require.True(t, ok)
 	alias := aliasAt(t, doc, items.Elem)
-	assert.Nil(t, alias.Constraints, "no bound stands for the two")
+	assert.Nil(t, alias.Constraints, "no pattern stands for the two")
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/1")
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/2")
 }
