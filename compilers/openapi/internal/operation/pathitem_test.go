@@ -583,6 +583,8 @@ func TestPathItem_UnmountedAnnouncementSaysWhatLanded(t *testing.T) {
 	}{
 		{"servers alone", "{servers: [{url: 'https://a.example'}]}", []string{servers}},
 		{"an extension alone", "{x-a: 1}", []string{kept}},
+		{"a summary alone", "{summary: s}", []string{kept}},
+		{"a parameter alone", "{parameters: [{name: q, in: query, schema: {type: string}}]}", []string{kept}},
 		{"both", "{servers: [{url: 'https://a.example'}], x-a: 1}", []string{servers, kept}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -651,14 +653,15 @@ paths:
 
 // TestPathItem_WithNoOperationAndNothingToKeepIsSilent holds the other half: an
 // item that produces no operation and wrote nothing beside it has lost nothing,
-// so there is nothing to keep and nothing to announce.
+// so there is nothing to keep and nothing to announce. An empty summary and
+// description document nothing either.
 func TestPathItem_WithNoOperationAndNothingToKeepIsSilent(t *testing.T) {
 	t.Parallel()
 	svc, diags := serviceWithGrouping(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
   /empty: {}
-  /described: {summary: s, description: d}
+  /blank: {summary: "", description: ""}
 `, lowering.GroupByTags)
 
 	assert.Empty(t, svc.Unmodeled)

@@ -5,6 +5,10 @@ paths:
     $ref: "#/components/pathItems/Shared"
   /a:
     $ref: "#/components/pathItems/Shared"
+  /archive/b:
+    $ref: "#/components/pathItems/Reserved"
+  /archive/a:
+    $ref: "#/components/pathItems/Reserved"
   /items/{id}:
     parameters:
       - {name: id, in: path, required: true, schema: {type: string}}
@@ -24,3 +28,9 @@ components:
         - {name: limit, in: query, schema: {type: integer}}
       get:
         responses: {"200": {description: ok}}
+    Reserved:
+      # A path item that mounts no operation has none to merge its parameters
+      # into, so each mount keeps them as written, under its own pointer and the
+      # path the parameter's ID would be derived from.
+      parameters:
+        - {name: since, in: query, schema: {type: string}}

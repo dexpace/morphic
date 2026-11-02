@@ -143,10 +143,8 @@ type itemConstruct struct {
 }
 
 // itemConstructs returns what l declares, in the order its findings are
-// reported. docs says whether the mount keeps an item's summary and
-// description, which only one mounting an operation does, so an unmounted pair
-// collides with none.
-func itemConstructs(l layer, docs bool) []itemConstruct {
+// reported.
+func itemConstructs(l layer) []itemConstruct {
 	var out []itemConstruct
 	add := func(kind, name, label string, rel jsontext.Pointer) {
 		out = append(out, itemConstruct{key: constructOf(kind, name), label: label, rel: rel})
@@ -155,7 +153,7 @@ func itemConstructs(l layer, docs bool) []itemConstruct {
 		add(constructOperation, string(po.seg), "the "+po.method+" operation", po.seg)
 	}
 	for _, f := range pathItemDocFields {
-		if docs && declaresText(l.item, f.keyword) {
+		if declaresText(l.item, f.keyword) {
 			add(constructDoc, f.keyword, "the "+f.keyword, ids.Ptr(f.keyword))
 		}
 	}
@@ -214,20 +212,19 @@ func (o owners) cedes(i int) func(key string) bool {
 
 // precedence returns which of layers keeps each construct, and one finding for
 // each declaration a nearer layer takes over, sited at the keeper's and naming
-// the other's position, so neither is silent. docs says whether the mount keeps
-// summaries and descriptions (see itemConstructs). One layer, every mount with
+// the other's position, so neither is silent. One layer, every mount with
 // nothing beside a $ref, keeps all it declares.
 //
 // A farther layer is looked up by key, never scanned, so the work is the
 // constructs times the layers, which the reference chain bound caps.
-func precedence(layers []layer, docs bool) (owners, []ir.Diagnostic) {
+func precedence(layers []layer) (owners, []ir.Diagnostic) {
 	if len(layers) == 1 {
 		return nil, nil
 	}
 	decls := make([][]itemConstruct, len(layers))
 	first := make([]map[string]itemConstruct, len(layers))
 	for i, l := range layers {
-		decls[i] = itemConstructs(l, docs)
+		decls[i] = itemConstructs(l)
 		first[i] = firstDeclared(decls[i])
 	}
 	owner := owners{}

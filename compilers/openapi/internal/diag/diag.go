@@ -170,8 +170,9 @@ const (
 	// OpenAPI forbids. The rule table states the rule and leaves it here, where
 	// every entry is read through its $ref: every list the source writes is
 	// checked whether or not it lowers (load), and a list another document
-	// writes where it lowers (the parameter lowering). A lowered list keeps
-	// every occurrence, each repeat's ID ending in its occurrence number.
+	// writes where it lowers (the parameter lowering) or where a path item
+	// mounting no operation keeps it. Either keeps every occurrence, each
+	// repeat's ID or key ending in its occurrence number.
 	//
 	// An error, as the specification forbids the repeat.
 	DuplicateParameter = "openapi/duplicate-parameter"
