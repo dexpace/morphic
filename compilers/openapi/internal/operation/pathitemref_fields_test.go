@@ -67,7 +67,7 @@ func TestPathItemRefSiblings_AChainCarriesTheFieldsBesideEachRef(t *testing.T) {
 	} {
 		op := opByPath(t, doc, method, "/a")
 		assert.Equal(t, decl, op.Provenance.Pointer, "%s at /a is declared where the chain writes it", method)
-		summary, ok := op.Unmodeled["openapi:pathItemSummary"]
+		summary, ok := op.Unmodeled["openapi:pathItem/summary"]
 		require.True(t, ok)
 		assert.JSONEq(t, `"from a"`, string(summary.Value))
 		assert.Equal(t, []string{"https://b.example"}, serversNamed(t, doc, op.Servers),
