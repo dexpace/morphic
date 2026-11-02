@@ -41,11 +41,11 @@ var censusKeywords = []string{
 // rather than re-deriving lower()'s dispatch, so the two cannot drift apart.
 //
 // A nil td is a position lowered to a reference (referenceOutcomeKeywords, or a
-// $ref site). Its alias carries only the position's constraints and
-// annotations, and the target's fields are the referent's, so a `format` beside
-// a $ref must not read the referent's Encoding as its home. Every keyword is
-// homeless there but a null-only `type` and a redaction `format`, which
-// annotation readers hold.
+// $ref site), whose target's fields are the referent's: a `format` beside a $ref
+// must not read the referent's Encoding as its home. Every keyword is homeless
+// there but a null-only `type` and a redaction `format`, which annotation
+// readers hold, and a collection bound the position's constraints hold
+// (referenceHolds).
 func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	switch keyword {
 	case "properties", "patternProperties", "additionalProperties":
@@ -63,7 +63,8 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// Either collection node, since collectionConstraints fills both. That is
 		// also why valueConstraintKeywords leaves them out, which puts them in this
 		// census rather than in declaredConstraints.
-		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
+		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple) ||
+			(ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read
@@ -240,7 +241,7 @@ func unhomedAcross(s *oas3.Schema, nodes []ir.TypeDef, handled []string) []strin
 // plus allOf. handled passes through so an allOf branch spelled as a $ref still
 // routes its own `required` to requireMembers.
 //
-// allOf is as homeless here as every census keyword, because none of the
+// allOf is as homeless here as a structural keyword, because none of the
 // $ref-site callers goes through dispatchOf, so it never wins an election.
 // Adding it to censusKeywords instead would also hit ordinarily composed
 // schemas, since keywordHome has no arm saying a Model built from a winning
@@ -266,10 +267,10 @@ const (
 // referenceOutcomeKeywords returns the census keywords s writes when it lowers
 // to a reference to a node that is not its own, and what it lowered to: a
 // collapsed union (lowerOneOfAnyOf), or an expanded $dynamicRef, which a
-// lowering of s decides first. It is nil for any other outcome. Every keyword
-// is homeless there, as the target belongs to its declaration as a $ref site's
-// does to the referent (keywordHome's nil td). Those two write few: neither
-// expands or collapses beside a shape (GitHub #595).
+// lowering of s decides first. It is nil for any other outcome. The target
+// belongs to its declaration as a $ref site's does to the referent, so only
+// what the position's alias or carrier holds is homed (keywordHome's nil td).
+// Those two write few: neither expands or collapses beside a shape (GitHub #595).
 func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) ([]string, string) {
 	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
 		return unhomedKeywords(s, nil, nil), expandedShape

@@ -1003,8 +1003,9 @@ An `allOf` lowers to the composing `Model`'s `Base` and `Mixins`
 a discriminator hierarchy, or the sole `$ref` entry, becomes `Base`; every other `$ref` entry
 becomes a `Mixin`; and an inline entry merges into the composing model's own `Properties`, each
 property keeping its own provenance ([`allof-inline-residue`](#allof-inline-residue),
-[`allof-redeclared-property`](#allof-redeclared-property)). So every branch stays reconstructible
-from the composition.
+[`allof-redeclared-property`](#allof-redeclared-property)). So every `$ref` entry stays composed
+and a declaration a fold drops stays kept, while what a declaration folded into a field adds lands
+on the field without its source.
 
 `allOf` is associative, so an inline entry writing a non-empty `allOf` is flattened into the
 enclosing list before the entries are classified: its own entries take its place, in source order
@@ -1098,9 +1099,10 @@ another model carries that declaration. The fold reads every declaration of the 
 once every type has lowered, and decides each fact from the whole set, so neither the order of the
 branches nor where a component is declared decides what the field holds; declaration order breaks
 only a tie, and the merge reports each one. One judgment compares two declarations' types and
-returns one of six verdicts: the same type, either one narrower, an overlap, disjoint, or unrelated.
-A disjoint pair is unsatisfiable but for a null both declarations admit: no other value satisfies
-both. An overlap shares values and is merely not narrowed to one. The arms are tried in this order.
+returns a verdict: the same type, either one narrower, two nodes that meet, an overlap, disjoint, or
+unrelated. A disjoint pair is unsatisfiable but for a null both declarations admit: no other value
+satisfies both. An overlap shares values and is merely not narrowed to one. The arms are tried in
+this order.
 `{}` loses to anything but the node a degraded lowering mints (an enum past its member budget, an
 unconvertible const), which is unrelated to every type; where `{}` loses, the winner's own null
 admission stands alone, since `{}` admits null yet lowers non-nullable. Two bare primitives compare
@@ -1120,11 +1122,20 @@ same declaration written twice; a node declared elsewhere, a component or a sche
 in this document or another, wins over an inline copy of itself in either order, and two such nodes
 are two types the source declared apart, which overlap. Two lists, or two maps with one key, compare
 by element or value, nested up to a bound, and the narrower one wins only where it admits null no
-more widely than the other and the other holds no constraint, encoding, documentation, examples or
-`Unmodeled` the winner lacks; disjoint members still overlap where both admit null, or where both
-containers admit the empty one. Two alike in every member and in that detail are judged as two
-equal enums are: one type where both were written inline, the one declared elsewhere winning over
-an inline copy in either order, and two declared elsewhere overlapping. A structure is narrower than
+more widely than the other, its bounds say all the other's do, and the other holds nothing else the
+winner lacks, read as two `Scalar`s are but where each was declared: no encoding, documentation,
+examples, deprecation, XML hints or `Unmodeled`. Disjoint members still overlap where both admit
+null, or where both containers admit the empty one. Two tuples compare position by position, and
+relate only where every position, and what may follow the last, is one type; a tuple that a
+container or another tuple holds is not compared, since a tuple has a member per position where any
+other node has one, and comparing them nested would cost its width to the power of the depth. Two
+lists, maps or tuples alike in every member and in that detail are judged as two equal enums are:
+one type where both were written inline, the one declared elsewhere winning over an inline copy in
+either order, and two declared elsewhere overlapping. Two `Scalar`s, lists, maps or tuples alike in
+all but their bounds are judged by those bounds, wherever each was declared: the one whose bounds
+say all the other's do is narrower, and where neither does, or a keyword with no order differs, the
+two meet. Two that meet as a container's members overlap, since a fold builds a node for a field's
+own type and none for what it holds. A structure is narrower than
 one it says it is: an alias than the type it stands for, and a model than what it composes through
 `Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
 `const` object is narrower than a model saying nothing but `type: object`, and two such models are
@@ -1138,14 +1149,22 @@ instance types meet; an overlap where their kinds share values or a `const` meet
 in a kind or another `const`; and unrelated where nothing says what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
 and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
-types and as two containers' members.
+types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
 
-The field takes the type of the declaration whose type is the same as, or narrower than, the most
-declarations' types, the first of them on a tie. Where one declaration's type is within every other's
-it is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
-the same as or narrower than folds into the field, which adopts its shape detail; every other one is
-dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in every order,
-while `int32` and `uint32` alone keep the first declared and report the other.
+The field takes the type of the declaration whose type is the same as, narrower than, or meets the
+most declarations' types, the first of them on a tie. A declaration's type within every other's
+is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
+the same as or narrower than, or meets, folds into the field, which adopts its shape detail; every
+other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in
+every order, while `int32` and `uint32` alone keep the first declared and report the other.
+
+Two nodes that meet say what no declared node says, since each adds what the other lacks. The field
+takes a node the merge mints: all the winner's node holds, with the bounds of each declaration
+meeting it folded as a property's are, below. So `minItems: 1` beside `maxItems: 5` is one list
+holding both, in either order. It is anonymous, in the `composed` namespace, and derives from the
+declaration naming the field, as a composed model does below. Where that fold leaves the winner's
+bounds as they stand, because only a keyword with no order differs, the field keeps the winner's
+node and nothing is minted.
 
 Two models neither of which holds the other are the exception, since an instance satisfying both is
 a value of a type neither names. Where the declarations whose types no other declaration holds are
@@ -1197,24 +1216,46 @@ bit says, and one folded under another type says nothing of null. A `default` or
 broader declaration gives is taken only where the winning type admits it, judged per keyword and all
 or nothing. The winning type admits a value by its kind and by the constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
-`uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Constraints
-written on the property rather than the node are not judged. Nothing judges a value against a model,
-and no declaration's type is a composed field's own, so a composed field takes no value but a null
-it admits. A value the field does not take is reported in an info `openapi/degraded-construct` at
+`uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
+declaration's value is held by the same checks to each bound the field keeps that another
+declaration brought, on the property or on a node. A value is its declaration's own to answer for
+against a bound it states itself at the value the field keeps, so a default its own bound refuses
+stays, and against its own type, which is the field's where the two differ only in bounds. Nothing
+judges a value against a model, and no declaration's type is a composed field's own, so a composed
+field takes no value but a null it admits. A value the field does not take is reported in an info
+`openapi/degraded-construct` at
 each declaration that wrote it, which is kept verbatim beside the field. Of the values it takes, the
 first written is kept, and a declaration giving another is reported and kept; two values are one
 where they are one JSON value, a number by its magnitude and an object by its members in any order.
 Values are refused before one is kept, so a value the field takes is never lost to a refused one
-written before it. Constraint keywords merge
-over the declarations folded into the field, the first to set a keyword keeping it; the title,
-description, external links, deprecation, XML hints and each `Unmodeled` key over every declaration,
-the first to give one keeping it, and a declaration giving one differently is reported and kept. A
-field keeping the first declaration's identity keeps that declaration's provenance, and either way
-it names the heuristic that promoted its deprecation from an extension, wherever the deprecation it
-keeps came from.
+written before it.
 
-The IR has no combinator for "string here, integer there", nor a second slot for a default, title,
-description, external link, examples, deprecation or XML hint another declaration already fills, so
+Constraint keywords fold over the declarations folded into the field, each taking the value that
+says what they all do, so no order decides it. `minimum`, `exclusiveMinimum`, `minLength`,
+`minItems` and `minProperties` take their largest value and `maximum`, `exclusiveMaximum`,
+`maxLength`, `maxItems` and `maxProperties` their smallest, by magnitude, a number written two ways
+keeping the first spelling; `uniqueItems` holds where any declaration sets it. A bound and its
+exclusive form are two keywords, each folding alone, and both apply. `multipleOf` takes whichever
+value is a multiple of the other, and otherwise their least common multiple, a number no
+declaration wrote, whose multiples are exactly those both admit. `pattern`, `patternMessage`,
+`precision` and `scale` have no order and no one value saying two of them, so the first declaration
+to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
+or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
+hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
+declaration giving one differently is reported and kept.
+
+A field keeping the first declaration's identity keeps that declaration's provenance, and either way
+it names the heuristic that promoted its deprecation from an extension, wherever the deprecation it
+keeps came from. So a field names one source. `Provenance` holds one pointer, and what a folded
+declaration adds lands on the field with no record of which wrote it, so writing a keyword on one
+branch or on another compiles to the same `types`. A list of the declarations on `Property` was
+weighed and declined: it would say which declarations contributed and not which wrote each keyword,
+no consumer reads either, and a consumer needing it can take it as an ordinary versioned change
+([IR version](../ir/ir-version.md)).
+
+The IR has no combinator for "string here, integer there", nor a second slot for a `pattern`,
+default, title, description, external link, examples, deprecation or XML hint another declaration
+already fills, so
 whatever of a declaration the fold cannot carry has nowhere to sit on the merged property, and with
 nowhere to sit it would go nowhere at all: a release in which a losing branch's type or default
 changed would produce no change in the document, which a consumer diffing two versions reads as
@@ -1229,8 +1270,11 @@ a byte slice, and one node keeps everything the redeclaration said at once — a
 written, a nullability, a default.
 
 Preservation is owed wherever something is dropped, which is wider than the disagreements worth a
-warning. Each diagnostic sits at the declaration that lost and names the one whose say the field
-kept. A dropped declaration is reported against the winner as an `openapi/conflicting-redeclaration`
+warning, and nothing is owed for what the field implies. A broader type and a looser bound say no
+more than the field does, and a release changing either changes no value the field admits, so
+neither is kept or reported. Each diagnostic sits at the declaration that lost and names the one
+whose say the field kept. A dropped declaration is reported against the winner as an
+`openapi/conflicting-redeclaration`
 warning where their types are incompatible — disjoint primitive kinds (`string` against `integer`,
 `uuid` against `date-time`), an enum none of whose members the other kind admits, a scalar against a
 structure, two structures of different instance types, or two lists or maps whose members share no
@@ -1246,10 +1290,11 @@ diagnostic. A dropped declaration's `default`, constraints and examples go with
 its type rather than folding onto the winner — they describe the shape that lost, and adopting them
 would leave one field asserting two contradictory things, with nothing downstream comparing a
 value's kind to its property's type; this is keyed on the type being dropped, not on the drop being
-called a conflict. A declaration folded into the field is reported as well where it pins a
-constraint keyword the field keeps to another value, an `openapi/conflicting-redeclaration` warning
-naming the declaration the value was kept from, or gives a detail differently from the one kept, an
-info `openapi/degraded-construct`; differing only in nullability, it takes no entry: the merged
+called a conflict. A declaration folded into the field is reported as well where no one value says
+what it and the field say of a constraint keyword, an `openapi/conflicting-redeclaration` warning
+naming the declaration the value was kept from, or where it gives a detail differently from the one
+kept, an info `openapi/degraded-construct`; differing only in nullability, it takes no entry: the
+merged
 field admits null only where every folded declaration does, which is the conjunction a single
 schema's null verdicts fold under ([`nullable`](#nullable)).
 
@@ -1260,7 +1305,8 @@ a form part's flags read the merged field. A fold judges every pair of declarati
 field's first 64 at most; each later one is kept verbatim, unjudged, under an
 `openapi/budget-exceeded` error at the first of them.
 
-- Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`
+- Cases: `allof-conflicting-type`, `allof-narrowing-redeclaration`, `allof-redeclared-models`,
+  `allof-redeclared-bounds`
 - Codes: `openapi/conflicting-redeclaration`, `openapi/degraded-construct`, `openapi/budget-exceeded`
 - Tests: `merge.TestFold_NullabilityIntersectsWhenTargetsAgree`,
   `merge.TestFold_ADroppedTypeIsKeptEvenWhenItDoesNotConflict`,
@@ -1333,6 +1379,28 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_ATieGoesToTheFirstAndIsReported`,
   `merge.TestFold_ADroppedFirstDeclarationIsKept`,
   `merge.TestFold_AConstraintConflictNamesTheDeclarationKeptFrom`,
+  `merge.TestFold_ABoundTakesItsTightestValueInEveryOrder`,
+  `merge.TestFold_AKeywordNoOneValueStatesIsKeptAndReported`,
+  `merge.TestCommonStep_HoldsTheMultiplesOfBoth`,
+  `merge.TestCommonStep_RefusesWhatItCannotRead`,
+  `merge.TestBoundsRelation_JudgesWhichSaysAllTheOtherDoes`,
+  `merge.TestFold_NodesThatMeetStandOnAMintedNode`,
+  `merge.TestFold_TheBoundsOfEveryDeclarationMeetInEveryOrder`,
+  `merge.TestFold_ANodeHoldingEveryBoundIsNotMinted`,
+  `merge.TestFold_NodesDifferingInAKeywordNoOneValueStatesKeepTheWinner`,
+  `merge.TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet`,
+  `merge.TestFold_AValueIsHeldToTheBoundsOthersBring`,
+  `merge.TestFold_ANodesBoundsJudgeAValueWrittenAgainstItsOwnKind`,
+  `merge.TestFold_AValueOfABroaderMemberIsJudgedByTheField`,
+  `merge.TestFold_AValueOnAListInAnotherDocumentIsJudgedAsItsOwn`,
+  `merge.TestFold_ADroppedDeclarationsBoundsStayOffAMintedNode`,
+  `merge.TestTypeJudge_ATupleOfTuplesCostsItsWidthNotItsWidthToTheDepth`,
+  `merge.TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth`,
+  `schema.TestAllOf_ABoundTakesItsTightestValueInEitherOrder`,
+  `schema.TestAllOf_ANodesBoundsReachTheFieldInEitherOrder`,
+  `schema.TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder`,
+  `schema.TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder`,
+  `schema.TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself`,
   `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
   `merge.TestFold_ADroppedDeclarationStillSaysWhatIsNotShape`,
   `merge.TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother`,
@@ -1350,16 +1418,15 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`,
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
-  two enums whose members fit each other's kind, two different literals), and a list or map whose
-  broader side carries detail the narrower lacks, are reported as an overlap and never narrowed
+  two enums whose members fit each other's kind, two different literals), a list or map whose
+  broader side carries detail the narrower lacks, a node adding a bound beside one adding other
+  detail, and a list or map whose members meet, are reported as an overlap and never narrowed
   (#1042); two models alike in every property compose rather than collapse to one type (#1083); a
   model and a map or a union are reported as types the merge does not compare (#1182), and so are two
   lists, tuples or maps whose members are different models (#1180); a model, an alias of `{}` and
   another model keep the first and report the rest (#1194); a model and the wrapper it
   flattens that fold different sets only because the model stops at the flattening depth are refused
-  as `compile/registry-refused`, not told apart, since one declaration names both. Open:
-  intersecting the redeclared bounds and defaults rather than keeping one, and judging an adopted
-  value against the constraints written on the property (#10).
+  as `compile/registry-refused`, not told apart, since one declaration names both.
 
 ### `allof-required`
 
@@ -1455,9 +1522,10 @@ A `oneOf` or `anyOf` with exactly one branch that is not a bare `type: null`, be
 that are, lowers to a nullable reference to that branch's lowering rather than to a `Union`
 ([type-graph](../ir/type-graph.md#type-references)). The collapse is held to a `$ref` site's
 rule ([models](../ir/models.md#composition-entries)), since it too lowers to a reference: a
-keyword beside it that no reference holds — a `discriminator`, a `format` other than `password`, a
-collection bound — is kept verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or
-carrier owning the position, with an info `openapi/degraded-construct` at the position.
+collection bound beside it reaches what the position owns ([`constraints`](#constraints)), and a
+keyword beside it that no reference holds — a `discriminator`, a `format` other than `password` —
+is kept verbatim under `openapi:<keyword>` (`degraded_lowering`) on the node or carrier owning the
+position, with an info `openapi/degraded-construct` at the position.
 
 - Cases: `nullable-union-discriminator`, `nullable-31-ref`
 - Codes: `openapi/degraded-construct`
@@ -1834,10 +1902,11 @@ an alias of its own first: a shared primitive must never carry one declaration's
 `type` declared, or an object, an array or an enum — since it is homed by pairing with a type rather
 than by a node kind, and `password` is never unhomed ([`password`](#password)). The census reads
 `type`, `const`, `enum`, `minItems`, `maxItems` and `uniqueItems` beside these, so a collection
-bound on an object is kept the same way, and a keyword the elected lowering of
-[`competing-keywords`](#competing-keywords) never reads is too. `discriminator` joins the list,
-homed by a `Model` or `Union` that routes by it and by nothing else, so one beside any other node —
-the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the same way. At a
+bound on an object, a scalar or a position with no type is kept the same way, and a keyword the
+elected lowering of [`competing-keywords`](#competing-keywords) never reads is too. `discriminator`
+joins the list, homed by a `Model` or `Union` that routes by it and by nothing else, so one beside
+any other node — the top type, an enum, a literal, a scalar, an alias over a `$ref` — is kept the
+same way. At a
 `$ref` position the census runs on the alias the use-site rule of
 [models](../ir/models.md#composition-entries) hoists, since the siblings bind the position rather
 than the referent. Every outcome of a schema runs it, and each says what it lowered to. A union
@@ -2006,7 +2075,10 @@ of its own, since reading it so loses nothing.
 `minimum`, `maximum` and `multipleOf` lower to `Min`, `Max` and `MultipleOf`, and `minLength`,
 `maxLength` and `pattern` to `MinLength`, `MaxLength` and `Pattern` as written, in the `Constraints`
 of the node or carrier the position owns (a `Scalar`, a `Property` or a `Parameter`); `minItems`,
-`maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples); and
+`maxItems` and `uniqueItems` to the `List`'s, and a `Tuple`'s per [`tuples`](#tuples), which its
+carrier does not restate, or, where the position lowers to a reference (a `$ref` site, a collapsed
+union or an expanded `$dynamicRef`), to the `Constraints` of the alias or carrier it owns, whatever
+the target is; and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
@@ -2022,17 +2094,29 @@ dialect's form (a boolean in 3.1 or 3.2, a number in 3.0) is dropped with an
 `openapi/invalid-exclusive-bound` error. A bound beside a node with no `Constraints` field to take
 it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
-[`shape-applicator`](#shape-applicator) keeps a collection bound on an object.
+[`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
+beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
+which a bool cannot tell from one never written, and a count that does not fit in 64 bits.
 
-- Cases: `constraints`, `numeric-precision`
+- Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
   `openapi/degraded-construct`
 - Tests: `schema.TestConstraints_ExclusiveBoolean30`,
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
   `schema.TestConstraints_LosslessNumericLiterals`,
-  `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`
-- Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported
-  (#1050).
+  `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`,
+  `schema.TestCollectionBound_BesideAReferenceReachesTheAlias`,
+  `schema.TestCollectionBound_BesideAReferenceReachesTheCarrier`,
+  `schema.TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState`,
+  `schema.TestCollectionBound_ACarrierLeavesItToTheNodeItsPositionOwns`,
+  `schema.TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim`,
+  `schema.TestCollectionBound_ReadsThePositionNotItsTarget`,
+  `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
+  `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`
+- Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported,
+  everywhere but the collection bounds beside a reference (#1050); and a collection bound beside or
+  on a branch of an `allOf` over a `$ref` stays verbatim, since that `allOf` lowers to a `Model`
+  rather than a reference (#1269), and one on its branch also needs the branch to fold (#1312).
 
 ### `validation-only`
 
