@@ -5,6 +5,7 @@ package e2e_test
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -98,6 +99,7 @@ func assertAllOfNestedInline(t *testing.T, doc *ir.Document, diags []ir.Diagnost
 	assert.Equal(t, componentID("A"), described.Mixins[0].Target)
 	assert.Equal(t, componentID("B"), described.Mixins[1].Target)
 	assert.Contains(t, described.Unmodeled, "openapi:allOf/0", "the wrapper is kept whole")
+	assert.Equal(t, "grouped", described.Docs.Description, "and what it says of the position lands there")
 
 	for _, id := range []ir.TypeID{"t/composed/components/schemas/U/oneOf/0", "t/composed/components/schemas/U/oneOf/1"} {
 		variant, ok := doc.Types[id].(*ir.Model)
@@ -285,6 +287,129 @@ func assertAllOfPositionConstraints(t *testing.T, doc *ir.Document, diags []ir.D
 		"minProperties has a home now, so it is not also kept verbatim")
 	assert.Empty(t, diagsAt(diags, diag.DegradedConstruct, "/components/schemas/ViaAllOf"),
 		"and no diagnostic claims the node has no home for it")
+}
+
+// assertAllOfRefinement pins docs/compilers/openapi.md#allof-refinement: an allOf
+// no conjunct can make an object lowers as a use of the conjunct deciding it, at
+// every kind of position, and one that can stays a composition.
+func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	zone, ok := doc.Types[componentID("Zone")].(*ir.Model)
+	require.True(t, ok)
+	props := openapitest.PropsByWire(zone.Properties)
+
+	owner := props["owner"]
+	decorator, ok := doc.Types[owner.Type.Target].(*ir.Model)
+	require.True(t, ok, "an object target keeps its composition")
+	assert.Equal(t, "The owner", decorator.Docs.Description)
+	assert.Empty(t, decorator.Unmodeled, "nothing is left of the branch")
+	assert.True(t, owner.Type.Nullable)
+	assert.NotEmpty(t, owner.Type.Inferred, "the policy reads the null")
+	assert.Equal(t, []ir.Lifecycle{ir.LifecycleRead, ir.LifecycleDelete, ir.LifecycleQuery}, owner.Visibility.Only)
+
+	zoneID := props["zone_id"]
+	assert.Equal(t, componentID("Identifier"), zoneID.Type.Target, "the position is a use of the string")
+	assert.Equal(t, "The zone", zoneID.Docs.Description)
+	assert.Equal(t, "An identifier", zoneID.Docs.Summary, "the target speaks where the use does not")
+	require.NotNil(t, zoneID.Constraints)
+	assert.Equal(t, new(int64(32)), zoneID.Constraints.MaxLength)
+	assert.NotEmpty(t, zoneID.Visibility.Only, "what binds a use comes down from the target")
+
+	assert.Equal(t, componentID("Port"), props["port"].Type.Target)
+	assert.Empty(t, props["port"].Unmodeled, "a restated type keeps nothing")
+	assert.Equal(t, componentID("Identifier"), props["typed"].Type.Target)
+	assert.Len(t, props["typed"].Examples, 1)
+
+	mode := props["mode"]
+	narrowed, ok := doc.Types[mode.Type.Target].(*ir.Enum)
+	require.True(t, ok, "the enum is the value set")
+	assert.Len(t, narrowed.Members, 1)
+	assert.Equal(t, "What to do", mode.Docs.Description, "and the $ref it narrows still speaks")
+	unmodeledEntry(t, mode.Unmodeled, "openapi:allOf/0")
+
+	assert.Equal(t, componentID("Port"), props["width"].Type.Target, "a $ref beats a narrower inline type")
+	unmodeledEntry(t, props["width"].Unmodeled, "openapi:allOf/1")
+
+	scan := props["scan"]
+	assert.Equal(t, "A scan", scan.Docs.Description)
+	assert.NotEmpty(t, scan.Visibility.Only, "a use reads through a refinement to what it refines")
+
+	assertRefinedOperation(t, doc)
+	assertRefinedNodes(t, doc)
+	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+		"only Disjoint's branches are contradicted")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint/allOf/0", "/components/schemas/Disjoint/allOf/1"},
+		warningPointers(diags))
+}
+
+// assertRefinedOperation covers the positions an operation holds.
+func assertRefinedOperation(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	op := openapitest.FindOp(t, doc, "uploadToZone")
+	param, ok := openapitest.ParamBySource(op, "zone_id")
+	require.True(t, ok)
+	assert.Equal(t, componentID("Identifier"), param.Type.Target)
+	assert.Equal(t, "The zone", param.Docs.Description)
+	require.NotNil(t, param.Constraints)
+	assert.Equal(t, new(int64(32)), param.Constraints.MaxLength)
+
+	require.NotNil(t, op.Request)
+	require.Len(t, op.Request.Contents, 1)
+	assert.NotNil(t, op.Request.Contents[0].File, "a refinement of a binary string is a file body")
+
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+	assert.Equal(t, componentID("Port"), op.Responses[0].Headers[0].Type.Target)
+	require.NotNil(t, op.Responses[0].Payload)
+	alias, ok := doc.Types[op.Responses[0].Payload.Contents[0].Type.Target].(*ir.Scalar)
+	require.True(t, ok, "a content has no carrier, so its annotation hoists an alias")
+	require.NotNil(t, alias.Base)
+	assert.Equal(t, componentID("Identifier"), alias.Base.Target)
+	assert.Equal(t, "The new zone", alias.Docs.Description)
+}
+
+// assertRefinedNodes covers the components and the positions no carrier holds.
+func assertRefinedNodes(t *testing.T, doc *ir.Document) {
+	t.Helper()
+	scores, ok := doc.Types[componentID("Scores")].(*ir.List)
+	require.True(t, ok)
+	elem, ok := doc.Types[scores.Elem.Target].(*ir.Scalar)
+	require.True(t, ok, "an element's annotation hoists an alias")
+	assert.Equal(t, "A score", elem.Docs.Description)
+
+	variants, ok := doc.Types[componentID("Variants")].(*ir.Union)
+	require.True(t, ok)
+	require.Len(t, variants.Variants, 2)
+	assert.Equal(t, componentID("Identifier"), variants.Variants[0].Type.Target)
+	assert.Equal(t, "identifier", variants.Variants[0].Name.Hint)
+	assert.Equal(t, "port", variants.Variants[1].Name.Hint)
+
+	for _, name := range []string{"Prim", "PrimSwapped"} {
+		prim, ok := doc.Types[componentID(name)].(*ir.Scalar)
+		require.True(t, ok, "%s is a scalar, not an empty model", name)
+		require.NotNil(t, prim.Base)
+		assert.Equal(t, ir.PrimTypeID(ir.PrimInt32), prim.Base.Target, name)
+	}
+	bounded, ok := doc.Types[componentID("Bounded")].(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, bounded.Constraints)
+	assert.Equal(t, new(int64(3)), bounded.Constraints.MaxLength)
+
+	disjoint, ok := doc.Types[componentID("Disjoint")].(*ir.Model)
+	require.True(t, ok, "no value satisfies it, so nothing refines")
+	unmodeledEntry(t, disjoint.Unmodeled, "openapi:allOf/0")
+	unmodeledEntry(t, disjoint.Unmodeled, "openapi:allOf/1")
+}
+
+// warningPointers returns where each warning is reported, in order.
+func warningPointers(diags []ir.Diagnostic) []jsontext.Pointer {
+	var out []jsontext.Pointer
+	for _, d := range diags {
+		if d.Severity == ir.SeverityWarning {
+			out = append(out, d.Provenance.Pointer)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 func assertOneOfDiscriminated(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
