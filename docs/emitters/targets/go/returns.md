@@ -12,6 +12,9 @@ How each [return shape](../../operations/returns.md) lowers in Go.
   `func (c *Client) GetZoneWithResponse(ctx) (*Response[*Zone, GetZoneHeaders], error)`. The
   `Response`'s `Body` is `struct{}` for `void`, and its `Headers` is `struct{}` where they declare
   none.
+- **An envelope.** `GetZone` returns `*Zone`, and `GetZoneWithResponse`'s `Response` holds the
+  envelope in `Envelope any`, a `*GetZoneResponse` there and nil on an operation with no envelope,
+  as `OtherResponse.Body` holds a body of any kind.
 - **Another declared response.** With no body, `DeleteMethod` returns a nil `*Deleted` and a nil
   error, and a stream's `Recv` returns `io.EOF`.
 
