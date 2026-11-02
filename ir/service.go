@@ -78,6 +78,10 @@ type OperationGroup struct {
 	// Availability records the group's versioning timeline (TypeSpec interfaces
 	// are versionable).
 	Availability *Availability `json:"availability,omitzero"`
+	// Stability is the tier of every member stating none, nearest group first.
+	// It is read through the group, never copied onto a member
+	// (docs/ir/operations.md#stability).
+	Stability Stability `json:"stability,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
 }

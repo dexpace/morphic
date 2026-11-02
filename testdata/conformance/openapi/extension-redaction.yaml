@@ -1,0 +1,61 @@
+# x-sensitive asks for a value to be redacted, as format: password does, and
+# lands where it does: Sensitive on a node the position owns, Secret on a
+# property, header or parameter that owns none. Each position writes it once, so
+# a regression at one of them reddens on its own row.
+openapi: 3.1.0
+info: {title: ExtensionRedaction, version: "1.0.0"}
+paths:
+  /keys:
+    post:
+      operationId: keys
+      parameters:
+        - {name: onSchema, in: query, schema: {type: string, x-sensitive: true}}
+        - {name: onObject, in: query, x-sensitive: true, schema: {type: string}}
+        - {name: beside, in: query, schema: {$ref: '#/components/schemas/Plain', x-sensitive: true}}
+        # A schema owning a node keeps it there.
+        - {name: ownsNode, in: query, schema: {type: string, enum: [a, b], x-sensitive: true}}
+        - {name: stated, in: query, schema: {type: string, x-sensitive: false}}
+        - {name: misread, in: query, schema: {type: string, x-sensitive: "yes"}}
+        - {name: plain, in: query, schema: {type: string}}
+      requestBody:
+        content:
+          application/json:
+            schema: {type: string, x-sensitive: true}
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-On-Schema:
+              schema: {type: string, x-sensitive: true}
+            X-On-Object:
+              x-sensitive: true
+              schema: {type: string}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Login'}
+components:
+  schemas:
+    Tok: {type: string, x-sensitive: true}
+    Plain: {type: string}
+    # A model is a node like any other.
+    Credential:
+      type: object
+      x-sensitive: true
+      properties:
+        user: {type: string}
+    Login:
+      type: object
+      properties:
+        inline: {type: string, x-sensitive: true}
+        beside: {$ref: '#/components/schemas/Plain', x-sensitive: true}
+        ownsNode: {type: string, enum: [a, b], x-sensitive: true}
+        stated: {type: string, x-sensitive: false}
+        misread: {type: string, x-sensitive: 1}
+        plain: {type: string}
+    Bag:
+      type: object
+      additionalProperties: {type: string, x-sensitive: true}
+    Tokens:
+      type: array
+      items: {type: string, x-sensitive: true}
+    Either: {oneOf: [{type: string, x-sensitive: true}, {type: integer}]}
