@@ -69,7 +69,7 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}
 	return diags
 }
@@ -129,6 +129,8 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 		return ts.PrimRef(ir.PrimAny), nil
 	}
 	if js.IsBool() {
+		// The parser reads a body as false too when a keyword beneath it fails to
+		// decode under its own name, so a false here may be no false (GitHub #1299).
 		if b := js.GetBool(); b != nil && !*b {
 			id, diags := falseSchema(c, ts, pointer)
 			return ir.TypeRef{Target: id}, diags
@@ -189,40 +191,44 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schem
 	diags := missingArrayItems(c, schema, pointer)
 	target, bodyDiags := lowerSchemaBody(c, ts, depth, schema, pointer)
 	diags = append(diags, bodyDiags...)
-	// A body's census ran inside lower(), against the node the walk actually
-	// built, which is the only thing that can answer it. A collapsed union built
-	// none, so it takes a $ref site's census, and its verdict homes an alias.
-	unhomed := collapsedUnhomedKeywords(schema)
-	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, len(unhomed) > 0)
+	// A body's census ran where its node was built, the only thing that can
+	// answer it. One lowering to a reference built none, so it takes a $ref
+	// site's census, and its verdict homes an alias.
+	keeps := keepsAtOutcome(c, ts, schema, target, pointer)
+	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, keeps.holdsAny())
 	diags = append(diags, homeDiags...)
-	if home != annotation.HomeOwnNode {
+	diags = append(diags, recordPrincipalResidue(c, ts, schema, pointer, home)...)
+	if !keeps.holdsAny() || (home != annotation.HomeOwnNode && !LoweredToOwnNode(c, ts, pointer, ref)) {
 		return ref, diags // the carrier keeps them (PreserveRefSiteKeywords)
 	}
-	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, schema, unhomed, collapsedShape, pointer)...)
+	return ref, append(diags, keeps.recordOn(c, ts, ref.Target, schema, pointer)...)
 }
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
 func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	target, _, expanded, diags := dynamicExpansion(c, schema, pointer)
-	if expanded {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
-			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target))
+	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
+		// anchorHolds settled that the anchor resolves, by what resolveAt reads
+		// in c's own document, so nothing falls through: that would drop the
+		// $dynamicRef unrecorded, as recordUnexpandedDynamicRef keeps only one
+		// that does not expand, where an empty target fails irverify.
+		target, _ := resolveAt(c, ts, at, c.Bindings().At(at))
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
-		return ref, append(diags, nullDiags...)
+		return ref, append([]ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded,
+			pointer+ids.Ptr("$dynamicRef"),
+			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
-			return ref, slices.Concat(diags, unionDiags, nullDiags)
+			return ref, append(unionDiags, nullDiags...)
 		}
-		ref, unionDiags := lowerOneOfAnyOf(c, ts, depth, schema, pointer)
-		return ref, append(diags, unionDiags...)
+		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
-	return ref, slices.Concat(diags, bodyDiags, nullDiags)
+	return ref, append(bodyDiags, nullDiags...)
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. const,
@@ -247,20 +253,24 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		r, refines := refinementOf(c, s, pointer)
+		if !refines {
+			return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		}
+		if r.principal != nil {
+			return lowerPrincipal(c, ts, depth, r)
+		}
 	}
-	// won is "" — the schema declares no family, so the type set decides.
+	// won is "" — the schema declares no family, so the type set decides — or
+	// an allOf no branch of which decides what the position is.
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:
 		// A multi-typed schema lowers one variant per declared type, each from
-		// this same schema, so an applicator with no home in one variant has one
-		// in another: `{type: [string, object], properties: {...}}` puts the
-		// property set on the object variant. The homes here are the variants',
-		// not the Union's, so the applicator check does not apply. A keyword no
-		// declared type's variant holds, such as a discriminator with no object
-		// variant, is dropped (GitHub #852).
-		return lowerUnion(c, ts, depth, s, pointer, types)
+		// this same schema, so the homes are the variants', not the Union's, and
+		// the type set itself is what built them.
+		id, diags := lowerUnion(c, ts, depth, s, pointer, types)
+		return id, append(diags, preserveVariantsUnhomed(c, ts, s, id, nodeShape(ir.KindUnion), []string{"type"}, pointer)...)
 	case len(types) == 1:
 		return unhomed(lowerTyped(c, ts, depth, s, pointer, types[0]))
 	default:
@@ -402,13 +412,22 @@ func recordSkippedFamilies(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s
 		skipped, d.won, d.won, skipped))
 }
 
+// writesType reports whether s writes a type. A YAML null, which the parser reads
+// as a type spelled "" (docs/parser-library.md#null-type-is-empty), declares
+// none: `type: null` is the keyword left out, unlike `type: "null"`
+// (docs/compilers/openapi.md#null-keywords).
+func writesType(s *oas3.Schema) bool {
+	return slices.ContainsFunc(s.GetType(), func(t oas3.SchemaType) bool { return t != "" })
+}
+
 // effectiveTypes returns a schema's declared types with the JSON Schema "null"
-// member removed; nullability is normalized onto the TypeRef, not the type set.
+// member removed, and any null that declares none (writesType); nullability is
+// normalized onto the TypeRef, not the type set.
 func effectiveTypes(s *oas3.Schema) []oas3.SchemaType {
 	types := s.GetType()
 	out := make([]oas3.SchemaType, 0, len(types))
 	for _, t := range types {
-		if t == oas3.SchemaTypeNull {
+		if t == oas3.SchemaTypeNull || t == "" {
 			continue
 		}
 		out = append(out, t)

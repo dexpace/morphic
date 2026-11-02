@@ -152,9 +152,11 @@ func TestAllOf_MultiRefWithUnresolvedDoesNotAnchor(t *testing.T) {
 // schema's minItems, an error the load reports and parseFull tolerates.
 func TestAllOf_EmptyAllOfBesideNonObjectTypeNamesBoth(t *testing.T) {
 	t.Parallel()
-	doc, _ := parseFull(t, openapitest.ComponentSpec(nestedAB+`    M:
+	doc, _ := parseFull(t, openapitest.ComponentSpec(nestedAB+`    U: {properties: {u: {type: string}}}
+    M:
       allOf:
         - {type: string, allOf: []}
+        - {$ref: '#/components/schemas/U'}
 `))
 	msg := openapitest.DiagMessageAt(t, doc.Diagnostics, diag.DegradedConstruct,
 		ir.SeverityWarning, "/components/schemas/M/allOf/0")

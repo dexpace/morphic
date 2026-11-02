@@ -4,6 +4,7 @@
 package irverify
 
 import (
+	"reflect"
 	"strconv"
 
 	"github.com/dexpace/morphic/ir"
@@ -39,17 +40,61 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 	return vs
 }
 
-// checkAuthKinds asserts every interned auth scheme names a mechanism ir
-// declares.
+var streamingModeType = reflect.TypeFor[ir.StreamingMode]()
+
+// operationPath holds the types between a Document and its operations, the path
+// to every field of a type checkStreamingModes or checkStability holds
+// (TestOperationPath_ListsEveryCarrier).
+var operationPath = map[reflect.Type]bool{
+	reflect.TypeFor[*ir.Document]():        true,
+	reflect.TypeFor[ir.Document]():         true,
+	reflect.TypeFor[[]ir.Service]():        true,
+	reflect.TypeFor[ir.Service]():          true,
+	reflect.TypeFor[[]ir.OperationGroup](): true,
+	reflect.TypeFor[ir.OperationGroup]():   true,
+	reflect.TypeFor[[]ir.Operation]():      true,
+	reflect.TypeFor[ir.Operation]():        true,
+}
+
+// checkStreamingModes asserts every Operation.Streaming holds a mode ir
+// declares. An emitter switches on the mode to shape a method, and StreamingMode
+// is a plain string type, so nothing else rejects an invented one. The other
+// wire enums with no Valid method are not held yet (GitHub #1190).
+//
+// It prunes all but operationPath: shown every value, it cost each verified
+// compile 0.8% for one field of one struct.
+func checkStreamingModes(*ir.Document) walkCheck {
+	var vs []Violation
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Type() != streamingModeType {
+				return operationPath[v.Type()]
+			}
+			mode, ok := reflect.TypeAssert[ir.StreamingMode](v)
+			if !ok || mode.Valid() {
+				return false
+			}
+			vs = append(vs, Violation{
+				Code:    "ir/unknown-streaming-mode",
+				Message: "operation carries undeclared streaming mode " + strconv.Quote(string(mode)),
+				Path:    at.String(),
+			})
+			return false
+		},
+		report: reporting(&vs),
+	}
+}
+
+// checkAuthKinds asserts every interned auth scheme has a kind ir declares.
 //
 // Nothing else looks at what a scheme says (checkRegistryKeys and checkIDs hold
-// only its key and ID shape), so an empty or misspelled mechanism verifies like
+// only its key and ID shape), so an empty or misspelled kind verifies like
 // oauth2 (GitHub #295). Kind is the only AuthScheme field backed by a declared
 // constant set.
 //
-// This is the class-level guard for a defect one compiler already refuses at
-// the source (GitHub #294, #296): the refusal reports a spec spelling the
-// shape, and this covers a compiler that mints it from a clean spec.
+// This is the class-level guard for a defect one compiler already reports at
+// the source (GitHub #294, #296): that report covers a spec spelling the shape,
+// and this covers a compiler that mints it from a clean spec.
 func checkAuthKinds(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, scheme := range doc.Auth {
@@ -63,4 +108,32 @@ func checkAuthKinds(doc *ir.Document) []Violation {
 		})
 	}
 	return vs
+}
+
+var stabilityType = reflect.TypeFor[ir.Stability]()
+
+// checkStability asserts every stability names a tier ir declares, or none.
+// Stability is a plain string type with no decoder of its own, so a decoded
+// document carries an invented tier in unchallenged, and an emitter gating an
+// operation on the tier has no arm for one.
+//
+// It prunes all but operationPath, for checkStreamingModes's reason.
+func checkStability(*ir.Document) walkCheck {
+	var vs []Violation
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Type() != stabilityType {
+				return operationPath[v.Type()]
+			}
+			if tier := ir.Stability(v.String()); !tier.Valid() {
+				vs = append(vs, Violation{
+					Code:    "ir/unknown-stability",
+					Message: "stability names undeclared tier " + strconv.Quote(string(tier)),
+					Path:    at.String(),
+				})
+			}
+			return false
+		},
+		report: reporting(&vs),
+	}
 }

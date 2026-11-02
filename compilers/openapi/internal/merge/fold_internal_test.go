@@ -146,7 +146,7 @@ func TestFold_ADroppedFirstDeclarationIsKept(t *testing.T) {
 func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(narrowingRegistry())
-	maxLen := func(n int64) *ir.Constraints { return &ir.Constraints{MaxLength: &n} }
+	pattern := func(p string) *ir.Constraints { return &ir.Constraints{Pattern: p} }
 	d := func(at string, c *ir.Constraints) declaration {
 		return declaration{
 			prop:   ir.Property{WireName: "p", Type: primRef(ir.PrimString), Constraints: c, Provenance: ptrAt(jsontext.Pointer(at))},
@@ -154,10 +154,10 @@ func TestFold_AConstraintConflictNamesTheDeclarationKeptFrom(t *testing.T) {
 		}
 	}
 
-	got := g.fold([]declaration{d("/a", nil), d("/b", maxLen(5)), d("/c", maxLen(5)), d("/d", maxLen(6))})
+	got := g.fold([]declaration{d("/a", nil), d("/b", pattern("^x$")), d("/c", pattern("^x$")), d("/d", pattern("^y$"))})
 
 	require.NotNil(t, got.Constraints)
-	assert.Equal(t, int64(5), *got.Constraints.MaxLength)
+	assert.Equal(t, "^x$", got.Constraints.Pattern)
 	require.Len(t, *recorded, 1, "an agreeing declaration is no conflict")
 	assert.Equal(t, jsontext.Pointer("/d"), (*recorded)[0].Provenance.Pointer)
 	assert.Contains(t, (*recorded)[0].Message, "kept what the declaration at /b says over the one at /d",
@@ -267,6 +267,55 @@ func TestFold_AValueSpelledTwoWaysIsOneValue(t *testing.T) {
 	second := declaration{prop: ir.Property{WireName: "p", Type: primRef(ir.PrimAny), Default: &two, Provenance: ptrAt("/b")}, source: written(`{}`)}
 	g.fold([]declaration{first, second})
 	require.Len(t, *recorded, 1, "two values are still two")
+}
+
+// TestFold_ThePromotionMarkerFollowsTheSecretTaken is the marker pin for the
+// other annotation a promotion writes on a declaration. Secret folds by OR, so
+// the field takes it from a later declaration as readily as from the first, and
+// the field keeps the first's provenance: without the join, a redaction a
+// heuristic read would carry no trace of it. A declaration lends no marker for a
+// redaction it declared or does not ask for, whatever else was inferred of it,
+// and the answer is the same in either order.
+func TestFold_ThePromotionMarkerFollowsTheSecretTaken(t *testing.T) {
+	t.Parallel()
+	const marker ir.Inferred = "extension-promotion"
+	plain := stringAt("/allOf/0/properties/p", `{}`)
+	promoted := stringAt("/allOf/1/properties/p", `{}`)
+	promoted.prop.Secret = true
+	promoted.prop.Provenance.Inferred = marker
+	promoted.secretBy = marker
+	declared := stringAt("/allOf/2/properties/p", `{"format":"password"}`)
+	declared.prop.Secret = true
+	unrelated := stringAt("/allOf/3/properties/p", `{}`)
+	unrelated.prop.Provenance.Inferred = marker
+	// A declared redaction beside a marker a promoted deprecation drew: the field
+	// keeps the first declaration's deprecation, so nothing it keeps was inferred.
+	declaredMarked := stringAt("/allOf/4/properties/p", `{"format":"password"}`)
+	declaredMarked.prop.Secret = true
+	declaredMarked.prop.Provenance.Inferred = marker
+
+	for _, tc := range []struct {
+		name   string
+		decls  []declaration
+		secret bool
+		want   ir.Inferred
+	}{
+		{"a promoted redaction second", []declaration{plain, promoted}, true, marker},
+		{"a promoted redaction first", []declaration{promoted, plain}, true, marker},
+		{"beside a declared one", []declaration{declared, promoted}, true, marker},
+		{"beside a declared one, swapped", []declaration{promoted, declared}, true, marker},
+		{"a declared redaction alone", []declaration{plain, declared}, true, ""},
+		{"a marker that is no redaction's", []declaration{plain, unrelated}, false, ""},
+		{"a declared redaction's declaration marked for another fact", []declaration{plain, declaredMarked}, true, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			g, _ := stubMerger(narrowingRegistry())
+			got := g.fold(tc.decls)
+			assert.Equal(t, tc.secret, got.Secret)
+			assert.Equal(t, tc.want, got.Provenance.Inferred)
+		})
+	}
 }
 
 // TestFold_ThePromotionMarkerFollowsTheDeprecationKept pins that the field
@@ -418,16 +467,17 @@ func TestMerger_ReconcileReportsDisagreementAndKeepsAWinner(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/str"), dst.Type.Target, "the property already merged keeps its type")
 }
 
-func TestMerger_ResolvePrimKindReportsUnresolvableTargets(t *testing.T) {
+func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/str": &ir.Primitive{ID: "t/str", Prim: ir.PrimString},
 	})
 
-	kind, ok := judge(g).primKind(ir.TypeRef{Target: "t/str"})
+	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "t/str"})
 	require.True(t, ok)
-	assert.Equal(t, ir.PrimString, kind)
+	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Empty(t, kind.format)
 
-	_, ok = judge(g).primKind(ir.TypeRef{Target: "t/absent"})
+	_, ok = judge(g).kindOf(ir.TypeRef{Target: "t/absent"})
 	assert.False(t, ok, "a target the registry does not hold resolves to no kind")
 }

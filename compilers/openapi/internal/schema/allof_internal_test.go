@@ -102,7 +102,7 @@ func TestAllOfBranches_DepthCapKeepsWrapperVerbatim(t *testing.T) {
 			msg := openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct,
 				ir.SeverityInfo, "/components/schemas/M/"+path)
 			assert.Equal(t, "inline allOf branch is nested past the flattening depth of "+strconv.Itoa(MaxAllOfFlattenDepth)+
-				", so its own allOf was not flattened; only its properties and required list compose, and the branch is kept verbatim under Unmodeled", msg)
+				", so its own allOf was not flattened, and the branch is kept verbatim under Unmodeled", msg)
 		})
 	}
 }
@@ -211,7 +211,7 @@ func TestAllOfBranches_DepthCapNamesWhatElseTheWrapperWrites(t *testing.T) {
 		severity ir.Severity
 		want     string
 	}{
-		{"description", "description: Capped", ir.SeverityInfo, "the branch (description) is kept verbatim"},
+		{"a keyword nothing reads", "minItems: 1", ir.SeverityInfo, "the branch (minItems) is kept verbatim"},
 		{"non-object type", "type: string", ir.SeverityWarning, "the branch (type) is kept verbatim"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

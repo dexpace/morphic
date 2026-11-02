@@ -1,0 +1,32 @@
+openapi: 3.1.0
+info: {title: Null keywords, version: "1"}
+paths: {}
+components:
+  schemas:
+    Described:
+      type: string
+      description: null
+    Bounded:
+      type: number
+      maximum: null
+    Unhomed:
+      type: object
+      maxLength: null
+    Enumerated:
+      type: string
+      enum: null
+    Typed:
+      type: null
+    Identified:
+      type: string
+      $id: null
+      discriminator: null
+      readOnly: null
+    Values:
+      type: object
+      properties:
+        c:
+          const: null
+        d:
+          type: [string, "null"]
+          default: null

@@ -34,6 +34,11 @@ func (s Space) Qualified(document string) Space {
 // qualifier separates a space from the document it is qualified by.
 const qualifier = "@"
 
+// UnresolvedSpace is the space a scheme of kind ir.AuthKindUnresolved is minted
+// in, whichever format minted it. It is ir's spelling rather than a copy:
+// irverify reserves the space, for documents no compiler here wrote as well.
+const UnresolvedSpace Space = ir.IDSpaceUnresolved
+
 // The primitive leaves take no Space of their own here. Their ID is
 // ir.PrimTypeID, derived in ir beside the PrimKind that is the whole of a
 // primitive's identity — the one path no compiler owns, and so the one an ir

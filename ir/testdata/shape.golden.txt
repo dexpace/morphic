@@ -31,6 +31,7 @@ type AuthKind string
 	const "sasl_scram_sha256"
 	const "sasl_scram_sha512"
 	const "symmetric_encryption"
+	const "unresolved"
 	const "user_password"
 	const "x509"
 
@@ -107,6 +108,7 @@ type Contact struct
 	"url" string omitempty
 
 type Content struct
+	"docs" Docs omitzero
 	"encoding" map[PropID]PartEncoding omitempty
 	"examples" []Example omitempty
 	"file" *FileInfo omitzero
@@ -144,9 +146,15 @@ type Discriminator struct
 	"property" PropID omitempty
 	"propertyName" string omitempty
 
+type DocRef struct
+	"endByte" int
+	"startByte" int
+	"type" TypeID
+
 type Docs struct
 	"description" string omitempty
 	"externalDocs" []Link omitempty
+	"refs" []DocRef omitempty
 	"summary" string omitempty
 
 type Document struct
@@ -206,6 +214,7 @@ type ErrorCase struct
 	"docs" Docs
 	"fault" string omitempty
 	"headers" []Header omitempty
+	"inferred" Inferred omitempty
 	"name" Naming
 	"payload" *Payload omitzero
 	"retryable" *bool omitzero
@@ -412,6 +421,7 @@ type Naming struct
 
 type OAuthFlow struct
 	"authorizationURL" string omitempty
+	"inferred" Inferred omitempty
 	"kind" string omitempty
 	"refreshURL" string omitempty
 	"scopes" []OAuthScope omitempty
@@ -464,6 +474,7 @@ type Operation struct
 	"responses" []Response omitempty
 	"returnTypeVisibility" []string omitempty
 	"servers" []ServerID omitempty
+	"stability" Stability omitempty
 	"streaming" StreamingMode omitempty
 	"tags" []string omitempty
 	"unmodeled" Unmodeled omitempty
@@ -476,6 +487,7 @@ type OperationGroup struct
 	"name" Naming
 	"operations" []Operation omitempty
 	"resource" *ResourceInfo omitzero
+	"stability" Stability omitempty
 	"unmodeled" Unmodeled omitempty
 
 type PageStrategy string
@@ -516,6 +528,7 @@ type Parameter struct
 	"name" Naming
 	"provenance" Provenance
 	"required" bool
+	"secret" bool omitzero
 	"type" TypeRef
 	"unmodeled" Unmodeled omitempty
 	"valueFrom" *PropPath omitzero
@@ -733,6 +746,12 @@ type SourceInfo struct
 	"path" string
 	"selfURI" string omitempty
 
+type Stability string
+	const ""
+	const "alpha"
+	const "beta"
+	const "stable"
+
 type StatusRange struct
 	"from" int
 	"to" int
@@ -743,9 +762,9 @@ type StreamDetail struct
 	"requiresLength" bool
 
 type StreamingMode string
+	const ""
 	const "bidi"
 	const "client"
-	const "none"
 	const "server"
 
 type TagDef struct

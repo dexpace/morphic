@@ -40,12 +40,12 @@ var censusKeywords = []string{
 // lowered to, has the field the named keyword lowers into. It asks the node
 // rather than re-deriving lower()'s dispatch, so the two cannot drift apart.
 //
-// A nil td is a position lowered to a reference: a $ref site, or a collapsed
-// union (collapsedUnhomedKeywords). Its alias carries only the position's
-// constraints and annotations, and the target's fields are the referent's, so
-// a `format` beside a $ref must not read the referent's Encoding as its home.
-// Every keyword is homeless there but a null-only `type` and a redaction
-// `format`, which annotation readers hold.
+// A nil td is a position lowered to a reference (referenceOutcomeKeywords, or a
+// $ref site), whose target's fields are the referent's: a `format` beside a $ref
+// must not read the referent's Encoding as its home. Every keyword is homeless
+// there but a null-only `type` and a redaction `format`, which annotation
+// readers hold, and a collection bound the position's constraints hold
+// (referenceHolds).
 func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 	switch keyword {
 	case "properties", "patternProperties", "additionalProperties":
@@ -63,7 +63,8 @@ func keywordHome(td ir.TypeDef, s *oas3.Schema, keyword string) bool {
 		// Either collection node, since collectionConstraints fills both. That is
 		// also why valueConstraintKeywords leaves them out, which puts them in this
 		// census rather than in declaredConstraints.
-		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple)
+		return isKind(td, ir.KindList) || isKind(td, ir.KindTuple) ||
+			(ir.IsNilTypeDef(td) && referenceHolds(s, keyword))
 	case "const":
 		// Any counts as well as Literal. hoistLiteral degrades a value ir.Value
 		// cannot represent to the top type and reports it, so the const was read
@@ -115,13 +116,13 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 // formatHome reports whether the position's `format` reached a field. A Scalar
 // hoisted for it carries it in Encoding; a (type, format) pairing
 // spelling.Lookup knows selects a primitive, which carries the pairing in the
-// primitive kind itself. With no type declared there was no pairing to make
-// and nothing read it, and a node of any other kind has no Encoding field at
-// all.
+// primitive kind itself, as an Enum's ValueType does where enumValueType took
+// it. With no type declared there was no pairing to make and nothing read it,
+// and a node of any other kind has no Encoding field at all.
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 	// The redaction format names no shape, so no node kind is its home: the
 	// annotation readers hold it, as Sensitive on the node the position owns or
-	// Secret on its carrier, and verbatim at a parameter, which has no field.
+	// Secret on its carrier.
 	if annotation.DeclaresRedaction(s) {
 		return true
 	}
@@ -130,6 +131,9 @@ func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 		return n.Encoding != nil
 	case *ir.Primitive:
 		return len(effectiveTypes(s)) > 0
+	case *ir.Enum:
+		prim, paired := formatPrimitive(s)
+		return paired && n.ValueType == prim
 	default:
 		return false
 	}
@@ -206,18 +210,6 @@ func constraintsHome(td ir.TypeDef) bool {
 	}
 }
 
-// censusSchemaKeywords are the census keywords whose value is one schema, so a
-// null written for one states nothing (docs/compilers/openapi.md#null-schema).
-// Elsewhere a null may be a value: `const: null` writes one.
-var censusSchemaKeywords = map[string]bool{"additionalProperties": true, "items": true}
-
-// censusWrote reports whether s writes keyword for the census to read: its raw
-// node is present and, where the value is a schema, no null.
-func censusWrote(s *oas3.Schema, keyword string) bool {
-	node := annotation.RawPropertyNode(s, keyword)
-	return node != nil && (!censusSchemaKeywords[keyword] || !annotation.IsNullNode(node))
-}
-
 // unhomedKeywords returns the census keywords s declares that td has nowhere to
 // carry, in censusKeywords order. It reads the raw nodes for the reason
 // declaresValueConstraints does: a keyword the model layer failed to parse is
@@ -228,15 +220,19 @@ func censusWrote(s *oas3.Schema, keyword string) bool {
 // knows why they lost, and an allOf branch's `required` is consumed by
 // requireMembers. Recording them here too would report one keyword twice.
 func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
+	return unhomedAcross(s, []ir.TypeDef{td}, handled)
+}
+
+// unhomedAcross is unhomedKeywords for what any of nodes can carry.
+func unhomedAcross(s *oas3.Schema, nodes []ir.TypeDef, handled []string) []string {
 	out := make([]string, 0, len(censusKeywords))
 	for _, keyword := range censusKeywords {
-		if !censusWrote(s, keyword) || keywordHome(td, s, keyword) {
+		if annotation.RawPropertyNode(s, keyword) == nil || slices.Contains(handled, keyword) {
 			continue
 		}
-		if slices.Contains(handled, keyword) {
-			continue
+		if !slices.ContainsFunc(nodes, func(td ir.TypeDef) bool { return keywordHome(td, s, keyword) }) {
+			out = append(out, keyword)
 		}
-		out = append(out, keyword)
 	}
 	return out
 }
@@ -245,7 +241,7 @@ func unhomedKeywords(s *oas3.Schema, td ir.TypeDef, handled []string) []string {
 // plus allOf. handled passes through so an allOf branch spelled as a $ref still
 // routes its own `required` to requireMembers.
 //
-// allOf is as homeless here as every census keyword, because none of the
+// allOf is as homeless here as a structural keyword, because none of the
 // $ref-site callers goes through dispatchOf, so it never wins an election.
 // Adding it to censusKeywords instead would also hit ordinarily composed
 // schemas, since keywordHome has no arm saying a Model built from a winning
@@ -261,27 +257,31 @@ func refSiteUnhomedKeywords(s *oas3.Schema, handled []string) []string {
 	return unhomed
 }
 
-// collapsedShape describes what a collapsed union lowers to, for the diagnostic
+// What a position lowering to a reference lowered to, for the diagnostic
 // recordUnhomedAt reports.
-const collapsedShape = "a nullable reference to its one non-null branch"
+const (
+	collapsedShape = "a nullable reference to its one non-null branch"
+	expandedShape  = "a reference to the type its $dynamicRef expands to"
+)
 
-// collapsedUnhomedKeywords returns the census keywords s writes when its
-// oneOf/anyOf collapses to a nullable reference (lowerOneOfAnyOf), or nil when
-// it does not. Every one is homeless: the position lowers to a reference to its
-// branch's node, which belongs to the branch, as a $ref site's target belongs
-// to the referent (keywordHome's nil td). The census keywords such a schema can
-// write are the few neither declaresShape nor narrowsInstance counts, the
-// discriminator among them (GitHub #595). lowerSchemaBody's other outcomes
-// that skip lower(), a Union and an expanded $dynamicRef, run no census yet
-// (GitHub #848).
-func collapsedUnhomedKeywords(s *oas3.Schema) []string {
+// referenceOutcomeKeywords returns the census keywords s writes when it lowers
+// to a reference to a node that is not its own, and what it lowered to: a
+// collapsed union (lowerOneOfAnyOf), or an expanded $dynamicRef, which a
+// lowering of s decides first. It is nil for any other outcome. The target
+// belongs to its declaration as a $ref site's does to the referent, so only
+// what the position's alias or carrier holds is homed (keywordHome's nil td).
+// Those two write few: neither expands or collapses beside a shape (GitHub #595).
+func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) ([]string, string) {
+	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
+		return unhomedKeywords(s, nil, nil), expandedShape
+	}
 	if hasUnionSiblings(s) {
-		return nil
+		return nil, ""
 	}
 	if _, _, collapses := nullUnionCollapse(s, ""); !collapses {
-		return nil
+		return nil, ""
 	}
-	return unhomedKeywords(s, nil, nil)
+	return unhomedKeywords(s, nil, nil), collapsedShape
 }
 
 // preserveUnhomedKeywords keeps verbatim the census keywords and value
@@ -318,7 +318,7 @@ func preserveUnhomedKeywords(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, 
 		owner, aliasDiags = internAlias(c, ts, s, pointer, ir.TypeRef{Target: id})
 		diags = append(diags, aliasDiags...)
 	}
-	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, nodeShape(td.Kind()), pointer)...)
+	diags = append(diags, recordUnhomedKeywords(c, ts, owner, s, unhomed, positionShape(td, s), pointer)...)
 	return owner, append(diags, recordSkippedFamilies(c, ts, owner, s, d, pointer)...)
 }
 
@@ -328,6 +328,55 @@ const refSiteShape = "an alias over its $ref target"
 
 // nodeShape describes a node of kind k, for that same diagnostic.
 func nodeShape(kind ir.TypeKind) string { return fmt.Sprintf("a node of kind %q", kind) }
+
+// positionShape is nodeShape for the node td, the position's declaration s
+// lowered to. An Enum's ValueType is the home of any format the table pairs, so
+// an enum that left one verbatim says its members are why: its kind alone would
+// deny the home.
+func positionShape(td ir.TypeDef, s *oas3.Schema) string {
+	if e, ok := td.(*ir.Enum); ok {
+		if prim, paired := formatPrimitive(s); paired && !enumMembersAre(e.Members, prim) {
+			return fmt.Sprintf("an enum whose members are not all values of %s", prim)
+		}
+	}
+	return nodeShape(td.Kind())
+}
+
+// distributedShape describes the Union a body distributed across its variants
+// lowers to, for that same diagnostic.
+const distributedShape = "a union of models conjoining its body with each branch"
+
+// preserveVariantsUnhomed keeps verbatim on the Union at id what s declares that
+// no variant carries, for a Union each variant of which s itself builds: a type
+// array's (lowerUnion) and a distributed composition's (composedVariant). The
+// Union has no field for what they consume, so the census asks them; handled is
+// as unhomedKeywords takes it. A constraint reaches each variant that has the
+// field, one it cannot constrain included (GitHub #1310), so it is kept only
+// where none does.
+func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, shape string, handled []string, pointer jsontext.Pointer) []ir.Diagnostic {
+	td, ok, diags := registeredNode(c, ts, id, pointer)
+	if !ok {
+		return diags
+	}
+	u, isUnion := td.(*ir.Union)
+	if !isUnion {
+		return append(diags, c.DiagAt(ir.SeverityError, diag.InternalInvariant, pointer,
+			"internal: type %q is not the union its variants were built for", id))
+	}
+	nodes := make([]ir.TypeDef, 0, len(u.Variants))
+	for _, v := range u.Variants {
+		node, held, nodeDiags := registeredNode(c, ts, v.Type.Target, pointer)
+		diags = append(diags, nodeDiags...)
+		if held {
+			nodes = append(nodes, node)
+		}
+	}
+	unhomed := unhomedAcross(s, nodes, handled)
+	if !slices.ContainsFunc(nodes, constraintsHome) {
+		unhomed = append(unhomed, declaredConstraints(s)...)
+	}
+	return append(diags, recordUnhomedKeywords(c, ts, id, s, unhomed, shape, pointer)...)
+}
 
 // recordUnhomedKeywords stores each unhomed keyword on the node owner names.
 // shape describes what the position lowered to, so a reader is told which half

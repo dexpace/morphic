@@ -6,7 +6,8 @@
 //
 // It is a package of its own because both halves of the compiler reach it. The
 // compiler's run lowers the schemes once, before anything references them; the
-// service and operation walks lower requirements against the result. The
-// requirements cannot sit in the root, which those walks may not import, and
-// the schemes are the document's, no part of lowering an operation.
+// service and operation walks lower requirements against the Registry that
+// holds them. The requirements cannot sit in the root, which those walks may
+// not import, and the schemes are the document's, no part of lowering an
+// operation.
 package auth

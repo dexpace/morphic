@@ -19,11 +19,25 @@ import (
 // reads the schema's root mapping for the on-wire keyword as the parser reads
 // it (nodeview.Child), through its `<<` merges, and returns its value node,
 // which is where exact literals live.
+//
+// A null reads as absent, since no keyword admits one, unless the keyword's
+// value is an instance (holdsInstance), so every reader sees one keyword left
+// out (docs/compilers/openapi.md#null-keywords).
 func RawPropertyNode(s *oas3.Schema, key string) *yaml.Node {
 	if s == nil {
 		return nil
 	}
-	return nodeview.Child(s.GetRootNode(), key)
+	n := nodeview.Child(s.GetRootNode(), key)
+	if IsNullNode(n) && !holdsInstance(key) {
+		return nil
+	}
+	return n
+}
+
+// holdsInstance reports whether keyword's value is a JSON instance rather than
+// a value of the keyword's own type, so that a null is that value.
+func holdsInstance(keyword string) bool {
+	return keyword == "const" || keyword == "default" || keyword == "example"
 }
 
 // DeclaresAny reports whether s writes any of keywords. It reads the raw nodes

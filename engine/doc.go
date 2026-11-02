@@ -9,6 +9,6 @@
 // are called are the compiler's to answer.
 //
 // It also owns every read, write and rendering a run needs: engine/reader
-// reads what references name, engine/output writes the document, and
-// engine/report renders diagnostics.
+// reads what references name, engine/output writes the document,
+// engine/report renders diagnostics, and engine/cache keeps what a run compiled.
 package engine

@@ -40,3 +40,28 @@ func TestNormalizeMediaType_CollapsesTheSpellingsOneMediaTypeHas(t *testing.T) {
 		})
 	}
 }
+
+// TestHoldsOneDocument_AnswersOnlyForJSONAndXML holds the predicate to the syntaxes
+// known to hold one document. A json-seq suffix ends in neither suffix it reads,
+// and anything unnamed answers false: a vendor type may well repeat a structure.
+func TestHoldsOneDocument_AnswersOnlyForJSONAndXML(t *testing.T) {
+	t.Parallel()
+	for mediaType, want := range map[string]bool{
+		"application/json":                true,
+		"Application/JSON; charset=utf-8": true,
+		"application/problem+json":        true,
+		"application/xml":                 true,
+		"text/xml":                        true,
+		"application/atom+xml":            true,
+		"application/json-seq":            false,
+		"application/geo+json-seq":        false,
+		"application/jsonl":               false,
+		"application/x-ndjson":            false,
+		"text/event-stream":               false,
+		"multipart/mixed":                 false,
+		"application/vnd.acme.frames":     false,
+		"":                                false,
+	} {
+		assert.Equal(t, want, lowering.HoldsOneDocument(mediaType), "%q", mediaType)
+	}
+}

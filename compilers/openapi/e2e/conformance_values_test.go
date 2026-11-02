@@ -80,25 +80,20 @@ func assertNonScalarDefaults(t *testing.T, m *ir.Model) {
 // ir.Value one, and the raw-JSON one went on rewriting a date to RFC 3339 with
 // this fixture green (GitHub #242); assertRawPreservedDates is the other half.
 func assertYAMLTimestampScalars(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	// R's `not` announces the validation-only carve-out, and D's `format: date`
-	// announces that an ir.Enum has no Encoding field to put it in, so it is
-	// kept verbatim beside the enum rather than dropped. Those two are the only
-	// notices any site here is allowed to say, and neither is about a date: one
-	// that was dropped or degraded reports itself as a warning, which is what
-	// this fixture exists to catch.
+	// R's `not` announces the validation-only carve-out. That is the only notice
+	// any site here is allowed to say, and it is not about a date: one that was
+	// dropped or degraded reports itself as a warning, which is what this fixture
+	// exists to catch.
 	for _, d := range diags {
 		assert.Equal(t, ir.SeverityInfo, d.Severity,
 			"every unquoted date converts cleanly; nothing is dropped or degraded: %+v", d)
-		if d.Code == "openapi/degraded-construct" && d.Provenance.Pointer == "/components/schemas/D" {
-			continue
-		}
 		assert.Equal(t, "openapi/validation-only-keyword", d.Code,
 			"the validation-only carve-out is the only other notice this fixture expects: %+v", d)
 	}
 
 	d, ok := doc.Types[componentID("D")].(*ir.Enum)
 	require.True(t, ok, "D stays a closed Enum of the real dates, not a union of null literals")
-	assert.Equal(t, ir.PrimString, d.ValueType)
+	assert.Equal(t, ir.PrimDate, d.ValueType)
 	require.Len(t, d.Members, 2)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2021-01-01"}, d.Members[0].Value)
 	assert.Equal(t, ir.Value{Kind: ir.ValueString, Str: "2022-02-02"}, d.Members[1].Value)
@@ -150,6 +145,49 @@ func assertRawPreservedDates(t *testing.T, doc *ir.Document) {
 		assert.Equal(t, tc.want, string(entry.Value),
 			"%s keeps the date as written, not as RFC 3339 spells it", tc.key)
 	}
+}
+
+// assertRefCollectionBounds holds each position to the one home a collection
+// bound written for one use of a shared list has, and the one bound the census
+// leaves verbatim to the one report the whole document draws.
+func assertRefCollectionBounds(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	holder, ok := doc.Types[componentID("Holder")].(*ir.Model)
+	require.True(t, ok)
+	minOne, maxThree := &ir.Constraints{MinItems: new(int64(1))}, &ir.Constraints{MaxItems: new(int64(3))}
+
+	for wire, want := range map[string]*ir.Constraints{"plain": nil, "beside": minOne, "nullable": maxThree} {
+		p, found := propByWire(holder, wire)
+		require.True(t, found, wire)
+		assert.Equal(t, want, p.Constraints, wire)
+		assert.Empty(t, p.Unmodeled, wire)
+	}
+	unstated, found := propByWire(holder, "unstated")
+	require.True(t, found)
+	assert.Nil(t, unstated.Constraints)
+	assert.Equal(t, ir.ReasonDegradedLowering, unstated.Unmodeled["openapi:uniqueItems"].Reason)
+
+	element, ok := doc.Types[componentID("Element")].(*ir.List)
+	require.True(t, ok)
+	alias, ok := doc.Types[element.Elem.Target].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, maxThree, alias.Constraints)
+
+	named, ok := doc.Types[componentID("Named")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{UniqueItems: true}, named.Constraints)
+
+	op, found := opByName(doc, "listTags")
+	require.True(t, found)
+	require.Len(t, op.Params, 1)
+	assert.Equal(t, minOne, op.Params[0].Constraints)
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(5))}, op.Responses[0].Headers[0].Constraints)
+	body, ok := doc.Types[op.Responses[0].Payload.Contents[0].Type.Target].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{UniqueItems: true}, body.Constraints)
+
+	assert.Len(t, diags, 1, "only the bound left verbatim is reported: %+v", diags)
 }
 
 func assertConstraints(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {

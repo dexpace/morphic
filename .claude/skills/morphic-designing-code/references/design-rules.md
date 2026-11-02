@@ -25,8 +25,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   the run builds, never a walk or scan of its own per check or query. A fact is computed once, at
   the level owning it: a path item's, not once per operation it mounts.
 - **Why.** Each repeat was found and removed later: two parses and four walks per compile (#340),
-  seventeen walks per `irverify.Verify` (#1125), two walks building one list (#290), and a scan per
-  pointer hop that made resolution quadratic (#379). #414 is still open.
+  seventeen walks per `irverify.Verify` (#1125), two walks building one list (#290), a scan per
+  pointer hop that made resolution quadratic (#379), and per-operation path item entries (#414).
 - **Probe.** Count walks per run through a seam
   (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#counting-seam-for-optimizations`)
   and the work at n, 2n and 4n
@@ -90,8 +90,9 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 `bound-the-product`
 
 - **Rule.** A limit caps what the work grows with. Where cost is a product, such as depth times key
-  length or count times size, a bound per dimension leaves the product free: bound the product, or
-  the steps or bytes spent, through `compilers/openapi/internal/budget` in the OpenAPI compiler.
+  length, count times size or references times what they reach, a bound per dimension leaves the
+  product free: bound the product, or the steps or bytes spent, through
+  `compilers/openapi/internal/budget` in the OpenAPI compiler.
 - **Why.** A 4 MB document of about 1,000 nodes a few hundred levels deep, inside every bound, made
   the parser peak at 8.2 GB (#931).
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the

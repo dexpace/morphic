@@ -1,0 +1,38 @@
+openapi: 3.1.0
+# A collection bound written for one use of a shared list binds that use, so it
+# reaches the Constraints of what the position owns: the property, parameter or
+# header carrying it, or the alias hoisted where nothing carries it. `plain` is
+# the control, whose List holds its own bound and whose carrier restates nothing,
+# and `unstated` writes the one value a plain bool cannot tell from unset, which
+# stays verbatim.
+info: {title: RefCollectionBounds, version: "1.0.0"}
+paths:
+  /tags/{tags}:
+    get:
+      operationId: listTags
+      parameters:
+        - {name: tags, in: path, required: true, schema: {$ref: '#/components/schemas/Tags', minItems: 1}}
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-Tags: {schema: {$ref: '#/components/schemas/Tags', maxItems: 5}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Tags', uniqueItems: true}
+components:
+  schemas:
+    Tags: {type: array, items: {type: string}}
+    Holder:
+      type: object
+      properties:
+        plain: {type: array, items: {type: string}, minItems: 1}
+        beside: {$ref: '#/components/schemas/Tags', minItems: 1}
+        nullable:
+          oneOf: [{$ref: '#/components/schemas/Tags'}, {type: 'null'}]
+          maxItems: 3
+        unstated: {$ref: '#/components/schemas/Tags', uniqueItems: false}
+    Element:
+      type: array
+      items: {$ref: '#/components/schemas/Tags', maxItems: 3}
+    Named: {$ref: '#/components/schemas/Tags', uniqueItems: true}

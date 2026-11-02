@@ -58,6 +58,23 @@ Having no source position, a primitive names no source either: its `Provenance.S
 whole document declared a node every source reaches by kind. `irverify` holds no producer to this so
 far (#590).
 
+## Unresolved schemes
+
+A scheme of kind `unresolved` ([auth](./auth.md#unresolved-schemes)) is minted for a name that
+reaches no mechanism. Its ID is `auth/unresolved/<path>`, the path that format gives a declaration
+of that name: `auth/unresolved/components/securitySchemes/pages_upload_token`. The path is the
+name's, so a name is one node however many requirements use it, and none of them is first. The
+namespace keeps it from the pointer's own ID, even where a broken entry sits at that pointer. A
+scheme lowered from such an entry records the entry's pointer, as any node does. One nothing
+declares records none: no position writes it, and a pointer under `components` would name something
+the document does not hold, so `irverify` has no pointer to compare its path with, as it has none
+for `server/default`.
+
+`unresolved` is `ir.IDSpaceUnresolved`, one spelling for every format, since `irverify` holds the
+kind to it whichever format minted the scheme. A consumer reads the kind, an ID being opaque to it.
+The namespace is reserved, like `prim`: `irverify` reports a scheme of that kind outside it, and one
+of any other kind inside it (`ir/unresolved-auth-space`).
+
 ## Named entities
 
 Every named entity has an ID — including services (Thrift `service B extends A`, WSDL 2.0

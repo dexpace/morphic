@@ -1,0 +1,15 @@
+openapi: 3.1.0
+info: {title: TypeArrayNumeric, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # Every integer is a number, so the union is inclusive: 1 has both types.
+    Measure:
+      type: [number, integer]
+    # A width names one primitive under either numeric type.
+    Sized:
+      type: [integer, number]
+      format: int32
+    # Disjoint types stay exclusive.
+    Label:
+      type: [integer, string]

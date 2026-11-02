@@ -17,42 +17,42 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// TestFold_AConstraintDisagreementIsReported pins the second of the two
-// conflict routes. Two declarations that agree on type but pin one keyword to
-// different values fold to the first one's bound, so the other, which may be
+// TestFold_AKeywordNoOneValueStatesIsKeptAndReported pins the second of the two
+// conflict routes. Two declarations that agree on type but pin a keyword with no
+// order to different values fold to the first one's, so the other, which may be
 // the stricter, is discarded and must be announced.
-func TestFold_AConstraintDisagreementIsReported(t *testing.T) {
+func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(nil)
 	dst := ir.Property{
 		WireName:    "age",
 		Provenance:  ir.Provenance{Pointer: "/components/schemas/A/properties/age"},
-		Constraints: &ir.Constraints{Min: new(ir.BigVal("10"))},
+		Constraints: &ir.Constraints{Pattern: "^a$"},
 	}
 	src := ir.Property{
 		WireName:    "age",
 		Provenance:  ptrAt("/components/schemas/B/properties/age"),
-		Constraints: &ir.Constraints{Min: new(ir.BigVal("20"))},
+		Constraints: &ir.Constraints{Pattern: "^b$"},
 	}
 
-	dst = foldTwo(g, dst, src, written(`{"minimum":20}`))
+	dst = foldTwo(g, dst, src, written(`{"pattern":"^b$"}`))
 
 	require.Len(t, *recorded, 1)
-	assert.Equal(t, new(ir.BigVal("10")), dst.Constraints.Min, "the first bound is kept")
+	assert.Equal(t, "^a$", dst.Constraints.Pattern, "the first pattern is kept")
 	assert.Equal(t, ir.SeverityWarning, (*recorded)[0].Severity)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
-	assert.Contains(t, (*recorded)[0].Message, "conflicting minimum (10 and 20)")
+	assert.Contains(t, (*recorded)[0].Message, `conflicting pattern ("^a$" and "^b$")`)
 	assert.Contains(t, (*recorded)[0].Message, "/components/schemas/A/properties/age",
 		"the kept declaration is named")
 	assert.Contains(t, (*recorded)[0].Message, "/components/schemas/B/properties/age",
 		"and so is the discarded one")
 }
 
-// TestResolvePrimKind_EnumResolvesThroughItsValueType pins the enum case of the
+// TestKindOf_EnumResolvesThroughItsValueType pins the enum case of the
 // resolution walk. An enum member can itself be a scalar of the kind being
 // redeclared, so it must answer with its value type rather than staying
 // unresolved and falling through to the structural comparison.
-func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
+func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/enum": &ir.Enum{ID: "t/enum", ValueType: ir.PrimString},
@@ -62,13 +62,15 @@ func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
 		},
 	})
 
-	kind, ok := judge(g).primKind(ir.TypeRef{Target: "t/enum"})
+	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "t/enum"})
 	require.True(t, ok)
-	assert.Equal(t, ir.PrimString, kind)
+	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Empty(t, kind.format)
 
-	kind, ok = judge(g).primKind(ir.TypeRef{Target: "t/alias"})
+	kind, ok = judge(g).kindOf(ir.TypeRef{Target: "t/alias"})
 	require.True(t, ok, "a scalar's Base chain is followed to the enum behind it")
-	assert.Equal(t, ir.PrimString, kind)
+	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Empty(t, kind.format)
 }
 
 // TestFold_ALosingDetailIsKeptAndReported sweeps the fold's
@@ -183,7 +185,7 @@ func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
 	for _, k := range []ir.PrimKind{
 		ir.PrimNumber, ir.PrimInteger, ir.PrimInt32, ir.PrimInt64, ir.PrimString, ir.PrimDatetimeOffset,
 		ir.PrimURL, ir.PrimFloat64, ir.PrimUUID, ir.PrimUint32, ir.PrimBytes,
-		ir.PrimUint8, ir.PrimInt16, ir.PrimAny, ir.PrimBool, ir.PrimFloat32, ir.PrimTime,
+		ir.PrimUint8, ir.PrimInt16, ir.PrimAny, ir.PrimBool, ir.PrimFloat32, ir.PrimTime, ir.PrimDatetime,
 	} {
 		id := ir.TypeID("t/prim/" + string(k))
 		reg[id] = &ir.Primitive{ID: id, Prim: k}
@@ -205,7 +207,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	t.Parallel()
 	const broadPtr, narrowPtr = "/allOf/0/properties/p", "/allOf/1/properties/p"
 	half, big, hello := num("1.5"), num("5000000000"), str("hello")
-	badURL, commaTime, offsetDate := str("mailto:a b"), str("23:59:59,5Z"), str("2024-01-01T00:00:00+24:00")
+	badURL, commaTime, offsetDate := str("mailto:a b"), str("23:59:59,5"), str("2024-01-01T00:00:00+24:00")
 	null := ir.Value{Kind: ir.ValueNull}
 	for _, tc := range []struct {
 		name          string
@@ -225,7 +227,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 			func(p *ir.Property) { p.Default = &badURL }, "default", `{"type":"string","default":"mailto:a b"}`},
 		{"comma fraction time example", ir.PrimString, ir.PrimTime,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &commaTime}} }, "examples",
-			`{"type":"string","examples":["23:59:59,5Z"]}`},
+			`{"type":"string","examples":["23:59:59,5"]}`},
 		{"offset hour 24 date time example", ir.PrimString, ir.PrimDatetimeOffset,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &offsetDate}} }, "examples",
 			`{"type":"string","examples":["2024-01-01T00:00:00+24:00"]}`},
@@ -249,8 +251,8 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 				firstSrc, secondSrc = unread(t), written(tc.raw)
 				first.Provenance, second.Provenance = ptrAt(narrowPtr), ptrAt(broadPtr)
 			}
-			idx.MergeProperty(first, firstSrc)
-			idx.MergeProperty(second, secondSrc)
+			idx.MergeProperty(first, firstSrc, "")
+			idx.MergeProperty(second, secondSrc, "")
 			settle()
 
 			require.Len(t, m.Properties, 1, "%s", tc.name)
@@ -392,7 +394,7 @@ func mergeDecls(t *testing.T, decls ...decl) (ir.Property, []ir.Diagnostic) {
 		for i := range d.examples {
 			p.Examples = append(p.Examples, ir.Example{Value: &d.examples[i]})
 		}
-		idx.MergeProperty(p, written(d.raw))
+		idx.MergeProperty(p, written(d.raw), "")
 	}
 	settle()
 	require.Len(t, m.Properties, 1)

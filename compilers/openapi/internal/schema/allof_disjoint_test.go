@@ -208,7 +208,7 @@ func TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo(t *testing.T) {
 	}
 	require.Len(t, atBranch, 1, "%+v", doc.Diagnostics)
 	assert.Equal(t, ir.SeverityInfo, atBranch[0].Severity)
-	assert.Contains(t, atBranch[0].Message, "the branch (type, maxLength) is kept verbatim under Unmodeled")
+	assert.Contains(t, atBranch[0].Message, "the branch (type) is kept verbatim under Unmodeled")
 
 	s, ok := typeByName(doc, "S").(*ir.Model)
 	require.True(t, ok)

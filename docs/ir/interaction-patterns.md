@@ -55,7 +55,7 @@ acceptor lists and JMESPath matchers are preserved verbatim in `Operation.Unmode
 ## Streaming
 
 ```go
-type StreamingMode string      // "none" | "client" | "server" | "bidi"
+type StreamingMode string      // "" (none) | "client" | "server" | "bidi"
 
 type StreamDetail struct {
     Events  *TypeRef   // stream element type, of any kind; nil where the contents that stream
@@ -73,13 +73,17 @@ type StreamDetail struct {
 ```
 
 Streaming mode is on the operation core because it is protocol-independent (gRPC streams, SSE,
-WebSocket, Smithy event streams all project onto it). `Streaming` summarizes an operation, and a
-stream belongs to one content of its payload, so an OpenAPI operation can offer `application/json`
-beside `application/x-ndjson`, and the plan elects among them
+WebSocket, Smithy event streams all project onto it). An operation that does not stream holds the
+zero mode, as `IdempotencyUnknown` and `AdditionalUnspecified` are their fields' absent states, so
+such an operation encodes no member; a `"none"` spelling would add one to nearly every operation
+and say nothing `RequestStream` and `ResponseStream` do not. `Streaming` summarizes an operation,
+and a stream belongs to one content of its payload, so an OpenAPI operation can offer
+`application/json` beside `application/x-ndjson`, and the plan elects among them
 ([streams](../emitters/plan/streams.md)). The wire mechanism (SSE vs JSON Lines vs WS frames vs
 length-prefixed events) has no field of its own: over HTTP the streaming content's `MediaType`
 states it, another binding frames its own messages, and the plan derives which
 ([streams](../emitters/plan/streams.md)). `Content.Item` declares what one item is; a compiler that
-reads a stream from a media type alone names the content's `Type` as `Events`, a reading
-`Provenance.Inferred` marks. An element need not be a union, and `Variant.Event` applies only where
-it is one.
+reads a stream from a media type alone names what one frame holds as `Events`, a list `Type`'s
+`Elem`, else the `Type`, or `bytes` for a file, whose `Type` describes the whole, a reading
+`Provenance.Inferred` marks. An element need not
+be a union, and `Variant.Event` applies only where it is one.

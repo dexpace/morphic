@@ -53,6 +53,7 @@ class SweepTest(unittest.TestCase):
 
     def sweep(self, specs, limit=20):
         out = self.root / "out"
+        out.mkdir(exist_ok=True)
         results = sweep.compare(self.bins["base"], self.bins["head"], specs, out, [], limit, 2)
         buf = io.StringIO()
         # find_specs resolves each spec's path, so the root is resolved too: on macOS a temporary
@@ -112,7 +113,7 @@ class SweepTest(unittest.TestCase):
     def test_each_kind_of_difference_is_reported(self):
         code, results, text = self.sweep(sweep.find_specs([self.corpus]))
         self.assertEqual(code, 1)
-        what = {r[3].name: r[4] for r in results}
+        what = {r.spec.name: r.what for r in results}
         want = {"changed.yaml": "ir", "diag.yaml": "diagnostics", "error.yaml": "",
                 "exits.yaml": "exit(0->1)", "same.yaml": ""}
         self.assertEqual(what, want)
@@ -120,7 +121,7 @@ class SweepTest(unittest.TestCase):
         # Each spec's IR is 17 bytes, bar head's 3 for changed.yaml. The hint compares the IR,
         # where diagnostics alone would show an IR change as nothing.
         self.assertEqual(text, "".join([
-            f"sweep: 5 specs; outputs under {out}/runs/<n>/, a row per spec in {out}/results.tsv\n",
+            f"sweep: 5 specs; a row per spec in {out}/results.tsv\n",
             "  base exit codes: 0x4 1x1; IR bytes: 85\n",
             "  head exit codes: 0x3 1x2; IR bytes: 71\n",
             "sweep: 3 of 5 specs differ (n, then what):\n",
@@ -149,21 +150,29 @@ class SweepTest(unittest.TestCase):
         # test depend on how fast an interpreter starts on a loaded machine.
         slow = self.corpus / "slow.yaml"
         slow.write_text("openapi: 3.1.0\n# slow\n")
-        prefix = self.root / "slow"
-        self.assertEqual(sweep.compile_one(self.bins["head"], slow, prefix, [], 1), sweep.KILLED)
-        self.assertTrue(Path(f"{prefix}.ir").exists())
+        self.assertEqual(sweep.compile_one(self.bins["head"], slow, [], 1).code, sweep.KILLED)
+
+    def test_a_killed_compile_keeps_what_it_wrote(self):
+        # The timeout is raised here rather than reached, as how much a real compile writes before
+        # a limit depends on the machine's load. A side that wrote nothing can stay None.
+        spec = self.corpus / "same.yaml"
+        for written, want in (((b"part\n", b"warned\n"), (b"part\n", b"warned\n")),
+                              ((None, None), (b"", b""))):
+            with self.subTest(written=written):
+                killed = subprocess.TimeoutExpired("morphic", 1, *written)
+                with unittest.mock.patch.object(subprocess, "run", side_effect=killed):
+                    got = sweep.compile_one(self.bins["head"], spec, [], 1)
+                self.assertEqual(got, (sweep.KILLED, *want))
 
     def test_specs_that_fail_alike_agree_and_their_codes_are_printed(self):
         # The sweep judges nothing: a spec neither build finished agrees, and only its codes,
         # printed and written, show that it was compiled by neither.
         out = self.root / "out"
-        for n in (1, 2, 3):
-            (out / "runs" / str(n)).mkdir(parents=True)
-            for side in ("base", "head"):
-                (out / "runs" / str(n) / f"{side}.ir").write_text("")
-        results = [(1, sweep.KILLED, sweep.KILLED, self.corpus / "same.yaml", ""),
-                   (2, 2, 2, self.corpus / "diag.yaml", ""),
-                   (3, -9, -9, self.corpus / "error.yaml", "")]
+        out.mkdir()
+        results = [sweep.Result(1, self.corpus / "same.yaml", (sweep.KILLED, sweep.KILLED), (0, 0),
+                                "", None, ""),
+                   sweep.Result(2, self.corpus / "diag.yaml", (2, 2), (0, 0), "", None, ""),
+                   sweep.Result(3, self.corpus / "error.yaml", (-9, -9), (0, 0), "", None, "")]
         buf = io.StringIO()
         with redirect_stdout(buf):
             self.assertEqual(sweep.report(results, self.root, out), 0)
@@ -194,9 +203,175 @@ class SweepTest(unittest.TestCase):
         echo = self.root / "echo"
         echo.write_text(f"#!{sys.executable}\nimport sys\nprint(' '.join(sys.argv[1:]))\n")
         echo.chmod(0o755)
-        spec, prefix = self.corpus / "same.yaml", self.root / "echoed"
-        self.assertEqual(sweep.compile_one(echo, spec, prefix, args.flags, 20), 0)
-        self.assertEqual(Path(f"{prefix}.ir").read_text(), f"compile --opt a=b -- {spec}\n")
+        spec = self.corpus / "same.yaml"
+        got = sweep.compile_one(echo, spec, args.flags, 20)
+        self.assertEqual(got, (0, f"compile --opt a=b -- {spec}\n".encode(), b""))
+
+    def test_only_a_spec_that_differs_keeps_its_outputs(self):
+        self.sweep(sweep.find_specs([self.corpus]))
+        runs = self.root / "out" / "runs"
+        self.assertEqual(sorted(p.name for p in runs.iterdir()), ["1", "2", "4"])
+        self.assertEqual((runs / "1" / "base.ir").read_text(), '{"side": "same"}\n')
+        self.assertEqual((runs / "1" / "head.ir").read_text(), "{}\n")
+        self.assertEqual((runs / "2" / "head.diag").read_text(), "warning\n")
+
+    def test_a_rerun_leaves_no_outputs_of_an_earlier_one(self):
+        stale = self.root / "out" / "runs" / "5" / "base.ir"  # same.yaml, which agrees
+        stale.parent.mkdir(parents=True)
+        stale.write_text("from an earlier run")
+        self.sweep(sweep.find_specs([self.corpus]))
+        self.assertFalse(stale.exists())
+
+    def test_outputs_that_cannot_be_written_cost_the_diff_and_not_the_result(self):
+        # A file where the directory must go fails each write as a full disk would.
+        out = self.root / "out"
+        out.mkdir()
+        (out / "runs").write_text("")
+        code, results, text = self.sweep(sweep.find_specs([self.corpus]))
+        self.assertEqual(code, 1)
+        self.assertEqual([r.what for r in results],
+                         ["ir", "diagnostics", "", "exit(0->1)", ""])
+        self.assertIn("sweep: 3 of 5 specs differ", text)
+        self.assertIn("sweep: the outputs of 3 of them were not kept: ", text)
+        self.assertEqual(len((out / "results.tsv").read_text().splitlines()), 6)
+
+    def test_a_write_cut_short_leaves_no_part_of_a_pair(self):
+        run = self.root / "run"
+        run.mkdir()
+        (run / "head.diag").mkdir()  # the last of the four writes fails
+        why = sweep.keep(run, sweep.Output(0, b"a", b""), sweep.Output(0, b"b", b""))
+        self.assertIn("head.diag", why)
+        self.assertFalse(run.exists())
+
+    def test_a_table_cut_short_is_not_left_to_be_read(self):
+        table = self.root / "results.tsv"
+
+        def fill_then_fail(path, text):
+            with Path.open(path, "w") as f:
+                f.write(text[:4])
+            raise OSError(28, "No space left on device")
+
+        with unittest.mock.patch.object(Path, "write_text", fill_then_fail):
+            why = sweep.write_table([], table, str)
+        self.assertEqual(why, "no rows written: [Errno 28] No space left on device")
+        self.assertFalse(table.exists())
+
+    def test_a_table_that_cannot_be_written_leaves_what_was_found(self):
+        out = self.root / "out"
+        out.mkdir()
+        (out / "results.tsv").mkdir()
+        code, _, text = self.sweep(sweep.find_specs([self.corpus]))
+        self.assertEqual(code, 1)
+        self.assertIn("sweep: 5 specs; no rows written: ", text)
+        self.assertIn("  1  corpus/changed.yaml: ir\n", text)
+
+
+# A stand-in that opens its document with a version of its own, as cmd/morphic does: "moved" changes
+# the head's IR, "diag" its diagnostics, "late" puts the version past the first member, "gone" has
+# the head write nothing, and "failed" has neither side write a document.
+STAMPED = """#!{python}
+import sys
+spec = open(sys.argv[-1]).read()
+head = "{version}" != "0.1.0"
+if "failed" in spec or ("gone" in spec and head):
+    sys.exit(1)
+sys.stderr.write("warning\\n" if "diag" in spec and head else "")
+x = 2 if "moved" in spec and head else 1
+if "late" in spec:
+    print('{{"x": 1, "irVersion": "{version}"}}')
+else:
+    print('{{\\n  "irVersion": "{version}",\\n  "x": %d\\n}}' % x)
+"""
+
+
+class StampTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.TemporaryDirectory()
+        self.root = Path(self.dir.name).resolve()
+        self.bins = {}
+        for side, version in (("base", "0.1.0"), ("head", "0.2.0")):
+            b = self.root / side
+            b.write_text(STAMPED.format(python=sys.executable, version=version))
+            b.chmod(0o755)
+            self.bins[side] = b
+
+    def tearDown(self):
+        self.dir.cleanup()
+
+    def sweep(self, *names):
+        specs = []
+        for name in names:
+            specs.append(self.root / f"{name}.yaml")
+            specs[-1].write_text(f"openapi: 3.1.0\n# {name}\n")
+        out = self.root / "out"
+        out.mkdir()
+        results = sweep.compare(self.bins["base"], self.bins["head"], specs, out, [], 20, 2)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = sweep.report(results, self.root, out)
+        return code, results, buf.getvalue()
+
+    def test_a_spec_differing_in_its_stamp_alone_is_not_listed(self):
+        code, results, text = self.sweep("plain", "other")
+        self.assertEqual(code, 0)
+        self.assertEqual([r.what for r in results], [sweep.STAMP_ALONE] * 2)
+        self.assertEqual(text.splitlines()[3:], [
+            "sweep: irVersion 0.1.0 -> 0.2.0 on 2 of 2 specs, set aside below; 2 of them differ "
+            "in nothing else",
+            "sweep: no spec's exit code, IR or diagnostics differ"])
+        self.assertFalse((self.root / "out" / "runs").exists())
+        rows = (self.root / "out" / "results.tsv").read_text().splitlines()
+        self.assertEqual(rows[1], "1\t0\t0\tstamp\tplain.yaml")
+
+    def test_a_stamp_hides_nothing_past_it(self):
+        code, results, text = self.sweep("plain", "moved", "diag", "late", "gone", "failed")
+        self.assertEqual(code, 1)
+        self.assertEqual([r.what for r in results],
+                         [sweep.STAMP_ALONE, "ir", "diagnostics", "ir", "exit(0->1) ir", ""])
+        self.assertIn("on 3 of 6 specs, set aside below; 1 of them differ in nothing else\n", text)
+        self.assertIn("sweep: 4 of 6 specs differ", text)
+        self.assertNotIn("plain.yaml", text)
+        self.assertEqual(sorted((self.root / "out" / "runs").iterdir()),
+                         [self.root / "out" / "runs" / n for n in ("2", "3", "4", "5")])
+
+    def test_a_stamp_is_read_only_where_a_document_opens(self):
+        for ir, want in {b'{\n  "irVersion": "1",\n  "x": 1\n}\n': ("1", b',\n  "x": 1\n}\n'),
+                         b'{"irVersion":"1"}': ("1", b"}"),
+                         b'{"irVersion": ""}': ("", b"}"),
+                         b'{"irVersion": "\xff"}': ("\ufffd", b"}"),
+                         b'{"x": {"irVersion": "1"}}': (None, b'{"x": {"irVersion": "1"}}'),
+                         b'[{"irVersion": "1"}]': (None, b'[{"irVersion": "1"}]'),
+                         b"": (None, b"")}.items():
+            with self.subTest(ir=ir):
+                self.assertEqual(sweep.split_stamp(ir), want)
+
+    def test_one_version_on_both_sides_is_no_change_of_stamp(self):
+        self.bins["head"] = self.bins["base"]
+        code, results, text = self.sweep("plain")
+        self.assertEqual(code, 0)
+        self.assertEqual([(r.what, r.stamps) for r in results], [("", None)])
+        self.assertNotIn("irVersion", text)
+
+    def test_each_pair_of_versions_is_counted_on_its_own(self):
+        def result(n, what, stamps):
+            return sweep.Result(n, self.root / f"{n}.yaml", (0, 0), (0, 0), what, stamps, "")
+
+        results = [result(1, sweep.STAMP_ALONE, ("1", "2")), result(2, "ir", ("1", "2")),
+                   result(3, sweep.STAMP_ALONE, ("1", "3"))]
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            sweep.report(results, self.root, self.root)
+        self.assertIn("1 -> 2 on 2 of 3 specs, set aside below; 1 of them", buf.getvalue())
+        self.assertIn("1 -> 3 on 1 of 3 specs, set aside below; 1 of them", buf.getvalue())
+
+    def test_an_output_with_no_stamp_on_one_side_is_compared_whole(self):
+        stamped = sweep.Output(0, b'{"irVersion": "1"}', b"")
+        self.assertEqual(sweep.difference(stamped, sweep.Output(0, b"", b"")), ("ir", None))
+
+    def test_an_empty_stamp_still_differs_from_another(self):
+        empty = sweep.Output(0, b'{"irVersion": "", "x": 1}', b"")
+        stamped = sweep.Output(0, b'{"irVersion": "1", "x": 1}', b"")
+        self.assertEqual(sweep.difference(empty, stamped), (sweep.STAMP_ALONE, ("", "1")))
 
 
 # A go that fails every build, and one whose build writes a stand-in for cmd/morphic that prints
@@ -244,13 +419,17 @@ class MainTest(unittest.TestCase):
         return code, out.getvalue()
 
     def test_a_sweep_that_cannot_compare_exits_2(self):
+        a_file = self.specs / "a.yaml"
         cases = {"a base that names no commit": ["-b", "no-such-ref", str(self.specs)],
                  "a corpus with no document": ["-b", "HEAD", str(self.empty)],
-                 "a build that fails": ["-b", "HEAD", str(self.specs)]}
+                 "a build that fails": ["-b", "HEAD", str(self.specs)],
+                 "an OUTDIR that cannot be made": ["-b", "HEAD", "-o", str(a_file / "out"),
+                                                   str(self.specs)]}
         for case, argv in cases.items():
             with self.subTest(case=case):
                 code, out = self.sweep(FAILING_GO, *argv)
                 self.assertEqual(code, 2, out)
+                self.assertNotIn("Traceback", out)
 
     def test_a_base_the_branch_lacks_is_named_before_the_build(self):
         later = self.commit("later")

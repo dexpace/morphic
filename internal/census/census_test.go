@@ -316,7 +316,7 @@ func TestCensus_TellsAnExplicitlyEmptyAuthFromAnAbsentOne(t *testing.T) {
 	got := facts(t, c.Report())
 	assert.Equal(t, "1 2", got["member Operation.auth"], "public and secured, not inherited")
 	assert.Equal(t, "1 1", got["empty Operation.auth"], "explicitly public")
-	assert.Equal(t, "1 3", got[`value StreamingMode "" undeclared`], "no constant names a non-streaming operation")
+	assert.Equal(t, "1 3", got[`value StreamingMode ""`], "a non-streaming operation holds a declared mode")
 }
 
 func TestCensus_CountsATruncatedWalkAndKeepsWhatItReached(t *testing.T) {

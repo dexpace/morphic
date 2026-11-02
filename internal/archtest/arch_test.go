@@ -142,13 +142,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
-	// The $dynamicAnchor declarations of a source tree, which a $dynamicRef
-	// expands against. It reads the tree through nodeview, as the parser reads
-	// it, spells pointers through ids, counts the nodes it reads through budget,
-	// and reaches nothing that lowers.
-	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/budget",
-		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and budget for the steps its measure takes, and nothing
@@ -202,8 +195,10 @@ var rules = map[string][]string{
 	// oas, each within its budget through budget. It reaches resolve to read
 	// which mapping values name a position in the source as the lowering will,
 	// and the library's pointer walk, directly and through navigation, to tell a
-	// hop that walked a document's bytes and to walk a document as it does. It
-	// reaches nothing that lowers — at this point there is no document to lower.
+	// hop that walked a document's bytes and to walk a document as it does, and
+	// the library's core models to tell its marshaller of the media type
+	// reference it builds (load.MediaTypes). It reaches nothing that lowers — at
+	// this point there is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -221,6 +216,7 @@ var rules = map[string][]string{
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",
 		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/openapi/core",
 		"github.com/speakeasy-api/openapi/references",
 		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// Recognition of a source from its bytes, before the compile. It reaches load
@@ -238,10 +234,11 @@ var rules = map[string][]string{
 	// lands, annotation to ask whether a referenced position declares a body at
 	// all, navigation to walk a pointer through the model as the resolver does,
 	// compile for the registry it looks IDs up in, the library's openapi package
-	// to name each kind of reference once (ReferenceEnd), and yaml to stop a walk
-	// at raw YAML, which holds none. It reaches nothing that lowers — following a
-	// reference far enough to lower its target recurses back into the schema
-	// walk, so that stays with the walk.
+	// and core models to name each kind of reference once (ReferenceEnd), the
+	// one it names no alias for included (ReferencedMediaType), and yaml to stop
+	// a walk at raw YAML, which holds none. It reaches nothing that lowers —
+	// following a reference far enough to lower its target recurses back into
+	// the schema walk, so that stays with the walk.
 	"compilers/openapi/internal/resolve": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",
@@ -251,6 +248,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/navigation",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/openapi",
+		"github.com/speakeasy-api/openapi/openapi/core",
 		"github.com/speakeasy-api/openapi/references",
 		"go.yaml.in/yaml/v3"},
 	// allOf property reconciliation. It reaches annotation for the one field a
@@ -273,10 +271,9 @@ var rules = map[string][]string{
 	// one. It reaches load for the version grammar — the dialect question is asked
 	// of the document, and the grammar that answers it is the loader's — and for
 	// the schema bindings the load phase built, which its scope reads. It reaches
-	// naming for what each position is called, anchors for the $dynamicAnchor
-	// index it builds on first ask, and budget for the limits it holds.
+	// naming for what each position is called, and budget for the limits it
+	// holds.
 	"compilers/openapi/internal/lowering": {module + "/ir",
-		module + "/compilers/openapi/internal/anchors",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",
@@ -394,7 +391,11 @@ var rules = map[string][]string{
 	// its options are called are answered through the contract, so no parser is
 	// named here. It reads a run's documents through its own reader package.
 	"engine": {module + "/barrier", module + "/ir", module + "/ir/irverify", module + "/compilers",
-		module + "/compilers/openapi", module + "/engine/reader", module + "/pass"},
+		module + "/compilers/openapi", module + "/engine/cache", module + "/engine/reader", module + "/pass"},
+	// Where a run's entries are kept between processes, and what names a build:
+	// files published through the atomic replace, and read as a source is. What
+	// an entry holds is the engine's, so it reaches nothing of the pipeline.
+	"engine/cache": {module + "/engine/internal/atomicfile", module + "/engine/reader"},
 	// What a run's references and settings name, read from disk, the network or
 	// memory. It reaches the contract whose reader it implements and nothing
 	// else, so a caller compiling directly reads as the engine does without
@@ -413,8 +414,8 @@ var rules = map[string][]string{
 	// The CLI. Beyond the pipeline it reaches its command framework: cobra
 	// dispatches the commands and renders help, on pflag's parse. What it prints
 	// it asks the engine's renderer and writer for.
-	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/output", module + "/engine/report",
-		"github.com/spf13/cobra", "github.com/spf13/pflag"},
+	"cmd/morphic": {module + "/ir", module + "/engine", module + "/engine/cache", module + "/engine/output",
+		module + "/engine/report", "github.com/spf13/cobra", "github.com/spf13/pflag"},
 	"cmd/morphic-harness": {module + "/internal/harness"},
 	// The census command: tooling outside the pipeline, like the harness command
 	// above. It compiles specs through the engine, lists them as the harness does,

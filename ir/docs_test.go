@@ -12,11 +12,19 @@ import (
 // TestDocs_JSONContract pins Docs' omitempty contract — an entity with no
 // documentation at all must marshal to an empty object, not to a payload full
 // of empty-string noise — and that a fully populated Docs — summary,
-// CommonMark description with a cross-reference token, and multiple external
+// CommonMark description, a span of it naming a type, and multiple external
 // links — survives a JSON round trip.
 func TestDocs_JSONContract(t *testing.T) {
 	t.Parallel()
 	assertJSONContract(t, ir.Docs{}, `{}`, populatedDocs())
+}
+
+// TestDocRef_JSONContract pins that a DocRef keeps every field: a span opening
+// the description starts at 0, which omitting the key would leave a reader to
+// assume.
+func TestDocRef_JSONContract(t *testing.T) {
+	t.Parallel()
+	assertJSONContract(t, ir.DocRef{}, `{"startByte":0,"endByte":0,"type":""}`, ir.DocRef{StartByte: 1, EndByte: 2, Type: "t/x"})
 }
 
 // TestLink_JSONContract pins Link's omitempty contract (both fields are
