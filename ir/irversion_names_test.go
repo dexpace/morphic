@@ -133,9 +133,9 @@ func classOf(r rune) uint8 {
 	return class
 }
 
-// runeScan reads every rune once, at a cost the race detector makes worth
-// sharing, and returns the first printable rune of each class and how many
-// classes there are. The witnesses are derived rather than listed, so a class
+// runeScan reads every rune once, at a cost worth sharing among the tests, and
+// returns the first printable rune of each class and how many classes there
+// are. The witnesses are derived rather than listed, so a class
 // the Unicode tables gain is witnessed unasked.
 var runeScan = sync.OnceValues(func() ([]rune, int) {
 	var seen, witnessed [runeClasses]bool

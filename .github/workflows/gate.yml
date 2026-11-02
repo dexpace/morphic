@@ -106,7 +106,7 @@ jobs:
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
 
   suite:
-    name: build, test (race detector, exactly 100% coverage)
+    name: build, coverage (exactly 100%), race detector
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -125,15 +125,19 @@ jobs:
       # dates them from content.
       # After build, as any git status, go build's VCS stamping included, gives
       # .git a new time that the tests listing the module root hash. Nothing may
-      # run git between this step and test.
+      # run git between this step and the first test step.
       - name: date files by content
         run: make filetimes
       # Not -count=1, which stores no results: a pull request would then find
-      # none to reuse. This writes an expiry that voids the restored ones.
+      # none to reuse. This writes an expiry that voids the restored ones. It
+      # precedes both test steps, as the race step is a test run that would
+      # otherwise replay a pass main stored.
       - name: clear restored test results
         if: github.event_name == 'push'
         run: go clean -testcache
-      - name: test
+      - name: coverage
         run: make coverage
+      - name: race
+        run: make race
       - *drop-fuzz
       - *save
