@@ -1962,8 +1962,9 @@ dialect's form (a boolean in 3.1 or 3.2, a number in 3.0) is dropped with an
 it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
-beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
-which a bool cannot tell from one never written, and a count that does not fit in 64 bits.
+beside a `$ref` or a collapsed union that `Constraints` cannot state is kept the same way: a
+`uniqueItems` of `false`, which a bool cannot tell from one never written, and a count that does not
+fit in 64 bits.
 
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
@@ -1983,9 +1984,11 @@ which a bool cannot tell from one never written, and a count that does not fit i
 - Status: partly built: a bound beside a `oneOf` or `anyOf` that lowers to a `Union` is dropped in
   silence (#848), and so is one beside a multi-typed schema that no carrier holds
   ([`type-arrays`](#type-arrays), #852); an integer bound past what a 64-bit integer holds lowers
-  as `0`, unreported, everywhere but the collection bounds beside a reference (#1050); and a
-  collection bound beside or on a branch of an `allOf` over a `$ref` stays verbatim, since that
-  `allOf` lowers to a `Model` rather than a reference (#1269).
+  as `0`, unreported, everywhere but the collection bounds beside a reference (#1050); a collection
+  bound beside an expanded `$dynamicRef` that `Constraints` cannot state is dropped in silence,
+  since that outcome runs no census (#848); and a collection bound beside or on a branch of an
+  `allOf` over a `$ref` stays verbatim, since that `allOf` lowers to a `Model` rather than a
+  reference (#1269), and one on its branch also needs the branch to fold (#1312).
 
 ### `validation-only`
 
