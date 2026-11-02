@@ -192,6 +192,9 @@ cmd/morphic-census/
              engine + internal/census + internal/harness.
 cmd/morphic-covergate/
              Layer 4 — judges a coverage profile for `make coverage`; imports x/tools/cover.
+cmd/morphic-filetimes/
+             Layer 4 — dates tracked files by their content, so a test cache survives a checkout;
+             imports the stdlib only.
 cmd/morphic-vet/
              Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census,

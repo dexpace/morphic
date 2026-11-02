@@ -188,6 +188,13 @@ linters:
     # a run narrowed to some packages warns about each rule it did not reach.
     warn-unused: true
     rules:
+      # The command's name is a word misspell takes for a typo of "lifetimes",
+      # and its usage line, messages and tests spell it, as does the architecture
+      # test's rule for its package.
+      - path: ^(cmd/morphic-filetimes/|internal/archtest/arch_test\.go$)
+        linters:
+          - misspell
+        text: '`filetimes` is a misspelling of `lifetimes`'
       # A table-driven test is long because its table is long, and the table is
       # data. Splitting one to satisfy a size cap moves cases away from the
       # assertion that reads them, which is the opposite of what the cap is for.

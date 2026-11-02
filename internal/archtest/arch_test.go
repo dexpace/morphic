@@ -423,6 +423,9 @@ var rules = map[string][]string{
 	// The coverage gate's judge: tooling outside the pipeline, like the harness
 	// command above. x/tools/cover parses and merges the profile it judges.
 	"cmd/morphic-covergate": {"golang.org/x/tools/cover"},
+	// The command that dates tracked files by their content: tooling outside
+	// the pipeline, stdlib only, which runs git and os.Chtimes itself.
+	"cmd/morphic-filetimes": {},
 	// The go vet tool that runs internal/lintrules: tooling outside the pipeline,
 	// on unitchecker, the driver go vet speaks to.
 	"cmd/morphic-vet":   {module + "/internal/lintrules", "golang.org/x/tools/go/analysis/unitchecker"},
