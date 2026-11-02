@@ -408,11 +408,11 @@ it does from the pass that would read against what an earlier one read. A pass r
 absolute URIs name once its walks are done, and only while what the documents it reached declare
 changes no URI it asked for. It reads them together, so one of them may declare another's URI, whose
 document is then read for nothing, and goes on, reading again only the references that waited for
-them, so a chain of documents each named by an absolute URI costs what reading it once does. A
-pointer passing a reference object reads on where the resolver resolved that, in whichever
-document, and a `$ref` written in another document's content is read in that document.
-What a `$ref` lands on in another document lowers where that document declares it; one in
-the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
+them, so a chain of documents each named by an absolute URI is read in one pass, its cost growing
+with its length. A pointer passing a reference object reads on where the resolver resolved that, in
+whichever document, and a `$ref` written in another document's content is read in that document.
+What a `$ref` lands on in another document lowers where that document declares it; one in the source
+lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
 ends on — an annotation, a form body's parts, a file body or a discriminator — whichever documents
 the chain passes, as its type names that schema. An empty `$ref` names the document's root, which
 holds no schema, so a chain reaching one ends on none and lends nothing, as any chain that fails
@@ -511,7 +511,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestBind_AnIdentifierIsNoLocationToFetch`,
   `bind.TestBind_AHeldDocumentMayDeclareAnothersURI`,
   `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
-  `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`, `bind.TestBind_DeclarationOrderReachesNoAnswer`,
+  `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`,
+  `bind.TestBind_DeclarationOrderReachesNoAnswer`,
   `bind.TestBind_ADocumentNoPassReachesDeclaresNothing`,
   `bind.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
   `bind.TestBind_AReadingNoPassSettlesCountsEveryDocument`,
