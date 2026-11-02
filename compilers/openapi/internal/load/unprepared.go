@@ -434,7 +434,7 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media
 
 // anyUnready reports whether any document in missed, as the resolver parsed
 // it, holds a node readyForModel changes: an anchor, the one thing the fold's
-// skip reads, or a plain date, which the model reads as no string.
+// skip reads, or a mistagged scalar, which the model reads as no string.
 func anyUnready(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument) bool {
 	return anyParsed(ctx, doc, missed, unready)
 }
@@ -460,13 +460,18 @@ func anyParsed(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument,
 }
 
 // unready reports whether any node of the tree under root carries an anchor or
-// is a plain date, which readyForModel changes. It follows Content and never an
+// is mistagged, which readyForModel changes. It follows Content and never an
 // alias, so it visits each node once. The resolver parsed the tree from bytes
 // the reader admitted (external.prepare), so the walk's bound cuts none.
 func unready(ctx context.Context, root *yaml.Node) bool {
 	return nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		if n.Anchor != "" || plainDate(n) {
+		if n.Anchor != "" {
 			return nodeview.Stop
+		}
+		for i := range n.Content {
+			if mistagged(n, i) {
+				return nodeview.Stop
+			}
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root).Stopped
@@ -484,7 +489,7 @@ func stillUnprepared(place func(refSite) ir.Provenance, missed []usedDocument) [
 		reported[m.key] = true
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, place(m.site),
 			"internal: the second resolution read %s itself; "+
-				"anchored entries and plain dates in it may be misread (GitHub #538)", m.key))
+				"anchored entries and mistagged scalars in it may be misread (GitHub #538)", m.key))
 	}
 	return diags
 }

@@ -543,8 +543,8 @@ components:
 ### `scalar-resolution`
 
 The YAML parser tags a plain scalar by neither YAML version alone, and the compiler keeps the tag it
-gives ([`values`](compilers/openapi.md#values)) but a date's, which it tags a string
-([`undecoded-scalar`](#undecoded-scalar)). As in YAML 1.1, a leading `0` is octal, `0b` is
+gives ([`values`](compilers/openapi.md#values)) but a plain date's and a plain `<<` value's, which it
+tags a string ([`undecoded-scalar`](#undecoded-scalar)). As in YAML 1.1, a leading `0` is octal, `0b` is
 binary, `_` separates digits and a date is a `!!timestamp`. As in YAML 1.2, `0o` is octal and `yes`,
 `on` and the base-60 `1:30` are strings. So `0644` is 420, where 1.2's core schema reads 644, and
 `on` under `type: boolean` stays a string, where 1.1 reads true. OpenAPI recommends 1.2, and the
@@ -572,15 +572,17 @@ components:
 
 The model decodes a string from a scalar the YAML decoder takes for one: a string, or a number or
 boolean, as its text. A `!!timestamp`, which any plain date is
-([`scalar-resolution`](#scalar-resolution)), a `!!binary` and a local tag are none of these. A string
+([`scalar-resolution`](#scalar-resolution)), a `!!merge`, which a plain `<<` is wherever it stands,
+a `!!binary` and a local tag are none of these. A string
 field so written reads as empty, and a Reference Object's `$ref` as no reference, so the load phase
 meets none, and the model holds no `summary` or `description` beside it either. The validator, which
 the compiler does not call, reports a type mismatch at each; the compiler's table reads any scalar
 as a string and reports neither. The core keeps the node, and what is written beside it.
 
-OpenAPI holds YAML to its JSON schema ruleset, where a plain date is a string, so the compiler tags
-one a string in the source and each document it reads beside it before their models are built. A
-scalar tagged outright keeps its tag, and still reads as above (#1368).
+YAML 1.2, which OpenAPI recommends, reads a plain date and a plain `<<` as strings, so the compiler
+tags each a string in the source and each document it reads beside it before their models are
+built, but a `<<` key, which merges ([`merge-keys`](#merge-keys)). A scalar tagged outright keeps its
+tag, and still reads as above (#1368).
 
 ```yaml
 info: {title: 2021-01-01}    # GetTitle is empty
@@ -592,7 +594,7 @@ components:
 - Verified at: v1.26.0
 - Pinned by: `TestLibraryBehaviour/undecoded-scalar`
 - Code:
-  - `load.plainDate` finds a date written with no tag, which `load.readyForModel` tags a string.
+  - `load.mistagged` finds a plain date or `<<` value, which `load.readyForModel` tags a string.
   - `nodeview.Strings` reads a list's items by their text.
   - `auth.unresolvableSchemeDiags` reads a broken `$ref` from its node.
   - `auth.docsBeside` reads what is written beside it from the core.

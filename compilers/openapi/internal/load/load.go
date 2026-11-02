@@ -83,8 +83,8 @@ type Options struct {
 }
 
 // readyForModel readies every node of the model's source tree, in one walk: it
-// clears each anchor's name, and tags each plain date a string (plainDate).
-// root must not be nil.
+// clears each anchor's name, and tags each mistagged scalar a string. root
+// must not be nil.
 //
 // The parser skips an anchored mapping entry where the model folds entries into
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
@@ -93,28 +93,42 @@ type Options struct {
 // names. A document read through external is readied too (GitHub #501), and
 // replaces the resolver's own parse on a second resolution (GitHub #538).
 func readyForModel(ctx context.Context, root *yaml.Node) {
-	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
+	// An alias is a leaf of the walk: a recursive anchor cannot loop it. A scalar
+	// is judged from its parent, which knows whether it is a key.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		n.Anchor = ""
-		if plainDate(n) {
-			n.Tag = "!!str"
+		for i, c := range n.Content {
+			if mistagged(n, i) {
+				c.Tag = "!!str"
+			}
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
 }
 
-// plainDate reports whether n is a scalar the parser tagged a timestamp with no
-// tag written, which any unquoted date is
-// (docs/parser-library.md#scalar-resolution). OpenAPI holds YAML to its JSON
-// schema ruleset, which has no timestamp, so the source wrote the string it
-// spells. The model decodes no string from a timestamp, and reads a field so
-// written as left out (docs/parser-library.md#undecoded-scalar, GitHub #1280).
+// mistagged reports whether the i-th of n's Content is a scalar written with no
+// tag that the parser tags as no string where YAML 1.2, which OpenAPI
+// recommends, reads the string it spells: any date, a timestamp to the parser
+// (docs/parser-library.md#scalar-resolution), and a `<<` anywhere but a
+// mapping's key, the one place it merges. The model decodes no string from
+// either, so a field so written reads as left out
+// (docs/parser-library.md#undecoded-scalar, GitHub #1280).
 //
-// A scalar the source tags outright, `!!timestamp` or another, is no plain date:
-// what its tag reads as is GitHub #245's and #1368's to settle.
-func plainDate(n *yaml.Node) bool {
-	return n != nil && n.Kind == yaml.ScalarNode && n.Style&yaml.TaggedStyle == 0 &&
-		n.ShortTag() == "!!timestamp"
+// A scalar the source tags outright keeps its tag: what that reads as is
+// GitHub #245's and #1368's to settle.
+func mistagged(n *yaml.Node, i int) bool {
+	c := n.Content[i]
+	if c == nil || c.Kind != yaml.ScalarNode || c.Style&yaml.TaggedStyle != 0 {
+		return false
+	}
+	switch c.ShortTag() {
+	case "!!timestamp":
+		return true
+	case "!!merge":
+		return n.Kind != yaml.MappingNode || i%2 == 1
+	default:
+		return false
+	}
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not

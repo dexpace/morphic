@@ -4,6 +4,7 @@
 package e2e_test
 
 import (
+	"regexp"
 	"strings"
 	"testing"
 
@@ -16,11 +17,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// quotedDates returns src with each date the fixtures below write quoted, the
-// one spelling of the string a parser of every YAML version agrees on. Each
-// date ends its line, so no column after it moves.
+// fixtureDates lists each date the fixtures below write.
+var fixtureDates = []string{"2021-01-01", "2022-02-02", "2021-1-1", "2001-12-14T21:59:43.10Z", "2001-12-14 21:59:43.10"}
+
+// quotedDates returns src with each date in fixtureDates quoted, the one
+// spelling of the string a parser of every YAML version agrees on. Quoting
+// moves what follows a date on its line, and no fixture draws a finding there,
+// so each twin's positions hold.
 func quotedDates(src string) string {
-	for _, date := range []string{"2021-01-01", "2022-02-02", "2021-1-1", "2001-12-14T21:59:43.10Z", "2001-12-14 21:59:43.10"} {
+	for _, date := range fixtureDates {
 		src = strings.ReplaceAll(src, date, `"`+date+`"`)
 	}
 	return src
@@ -207,12 +212,12 @@ components:
 `},
 }
 
-// TestCompile_APlainDateCompilesAsItsQuotedTwin pins GitHub #1280. OpenAPI
-// holds YAML to its JSON schema ruleset, where an unquoted date is a string,
-// but the parser tags it a timestamp, from which its model decodes no string:
-// each field read as left out, and a $ref as no reference, with no diagnostic.
-// A document and its twin quoting each date must compile to one IR, their
-// diagnostics included, whether a finding is right or not.
+// TestCompile_APlainDateCompilesAsItsQuotedTwin pins GitHub #1280. YAML 1.2,
+// which OpenAPI recommends, has no timestamp and reads an unquoted date as a
+// string, but the parser tags it a timestamp, from which its model decodes no
+// string: each field read as left out, and a $ref as no reference, with no
+// diagnostic. A document and its twin quoting each date must compile to one
+// IR, their diagnostics included, whether a finding is right or not.
 func TestCompile_APlainDateCompilesAsItsQuotedTwin(t *testing.T) {
 	t.Parallel()
 	for _, tc := range datedFields {
@@ -229,6 +234,42 @@ func TestCompile_APlainDateCompilesAsItsQuotedTwin(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCompile_APlainMergeValueCompilesAsItsQuotedTwin holds the other scalar
+// the parser tags as no string where YAML 1.2 reads one, a `<<` written as a
+// value, which it tags a merge, to the same twin comparison. It takes each row
+// of datedFields with its dates written `<<`, but a row writing a date as a
+// key, where `<<` merges.
+func TestCompile_APlainMergeValueCompilesAsItsQuotedTwin(t *testing.T) {
+	t.Parallel()
+	dateKey := regexp.MustCompile(`(?m)(^|[{,])\s*\d{4}-\d{1,2}-\d{1,2}:`)
+	pairs := make([]string, 0, 2*len(fixtureDates))
+	for _, date := range fixtureDates {
+		pairs = append(pairs, date, "<<")
+	}
+	asMerges := strings.NewReplacer(pairs...)
+
+	ran := 0
+	for _, tc := range datedFields {
+		if dateKey.MatchString(tc.src) {
+			continue
+		}
+		ran++
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			src := asMerges.Replace(tc.src)
+			require.Contains(t, src, "<<", "sanity: the fixture writes a <<")
+
+			plain, _ := parseFull(t, src)
+			twin, _ := parseFull(t, strings.ReplaceAll(src, "<<", `"<<"`))
+
+			if diff := cmp.Diff(withoutSourceHash(twin), withoutSourceHash(plain)); diff != "" {
+				t.Errorf("the plain << compiled to other IR than its twin (-quoted +plain):\n%s", diff)
+			}
+		})
+	}
+	require.NotZero(t, ran, "sanity: a row writes no date as a key")
 }
 
 // TestCompile_APlainDateInAnExternalDocumentCompilesAsItsTwin extends the twin
