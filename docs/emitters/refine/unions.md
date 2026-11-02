@@ -33,8 +33,8 @@ survive for (de)serialization. **Unions never degrade to optional-field merges**
 *body* union into method arguments is an opt-in `ShapeHint` ([shaping
 hints](../contract/shaping-hints.md)), never a silent loss (the oagen counterexample, prior-art §1).
 A future TS/Python target lowers the *same* facts to a native `A | B | C`; the decision differs, the
-fact base is identical. What a union holds when a value satisfies several variants of an `anyOf` is
-#959's.
+fact base is identical. What a union holds when several variants of an `anyOf` admit one value is
+[below](#a-value-several-variants-admit).
 
 Within the untagged case, choosing *how* a variant is recognized on decode is refine's job, and
 ogen's `schema_gen_sum.go` is the battle-tested enumeration to lift: try, in order, explicit
@@ -46,6 +46,55 @@ refiner that finds no strategy emits a coded diagnostic and decodes every value 
 below, which keeps its bytes as they arrived — a degrade, never a whole-document failure
 ([T-7](../testing/mandatory-tests.md)). That graceful-degradation margin is exactly what the ABI
 seam buys and the fused-pipeline generator cannot have.
+
+## A null a variant admits
+
+A variant whose reference is `Nullable` admits `null`, and `null` holds nothing a variant could keep
+apart, so the union holds it itself. Every reference to a union with a nullable variant lowers as a
+nullable reference does ([optionality](models.md#optionality--nullability--presence-inv8)), and a
+`null` never reaches a variant. The golden spec's single-result envelope declares `result` as
+`anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a string or
+`null`, the last held by the reference.
+
+## A value several variants admit
+
+An `anyOf` lets one value satisfy several variants, and what the union holds then turns on
+`TypePlan.Inclusive`, which the plan proves once
+([TypePlan](../plan/types.md#variants-that-can-share-a-value)):
+
+- **Not inclusive.** No value is admitted by two variants, so holding the one that admits it loses
+  nothing, and the union lowers as a `oneOf` does: the target's closed sum, recognized as above.
+- **Inclusive.** The union holds every variant that admits the value, each whole and under its own
+  name: an optional member per variant, set when that variant admits the value. Holding only the
+  first would misname the value and drop what the others declare. An Access identity provider would
+  decode as whichever provider is listed first, whatever its `type`, and its own `config` members
+  would be lost.
+
+A tag picks one variant, so a discriminated or key-tagged union is never inclusive, whatever
+`Exclusive` says.
+
+A variant admits a value when the value decodes into it, with each codec, closed model, closed enum
+and literal refusing what it refuses, and every model the value reaches carries each member its
+`TypePlan.Required` lists. `Constraints` take no part, since they are validation's on every decoded
+value. So whether a variant admits a value never depends on a bound.
+
+Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, in
+declaration order, and sets every one that admits the value. If none admits it, the order
+[below](#a-value-no-variant-recognizes) applies: the fallback on an open union, a coded decode error
+on a closed one. Trying every variant is what `anyOf` asks: no step of the ladder above can tell
+whether a second variant admits a value too.
+
+Encoding writes the merge of what each set variant encodes. Objects merge member by member, in the
+order the first set variant writes them, then each later variant's new members; arrays merge element
+by element and must have one length; scalars must be equal. A member or element two variants write
+must be the same JSON value, numbers compared by value, and a disagreement is an encode error, never
+a silent pick. A union with no variant set refuses to encode and fails validation, and the fallback
+is never set beside a variant.
+
+This is not the optional-field merge [the rule above](#variant-identity-and-recognition) forbids.
+That merge pools the variants' properties into one bag, losing which variant a member belongs to and
+admitting values no variant admits. Here each variant keeps its identity and its whole shape, and
+validation still requires one.
 
 ## A value no variant recognizes
 

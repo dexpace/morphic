@@ -142,3 +142,12 @@ throughout these documents.
     open. An option beside it is taken in priority order, an option ANDing it with a declared scheme
     needs both, and the service's credentials are never sent in its place
     ([auth](../operations/auth.md#unresolved-schemes)).
+29. **T-29 · Inclusive unions** — on every target, an `anyOf` over two open models that one value
+    fits decodes that value into both and re-encodes it as an equal JSON value; a member the two
+    write at different values is an encode error, and a union with neither set refuses to encode.
+    An `anyOf` the plan proves disjoint, by JSON kind, by enum values and by a member one model
+    requires and the other cannot hold, lowers as a closed sum and decodes each value into the one
+    variant admitting it, and a `null` two nullable variants admit is held by the reference, as a
+    nullable one's is. A value no variant admits takes the fallback on an open union and is a coded
+    error on a closed one ([unions](../refine/unions.md#a-value-several-variants-admit),
+    [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
