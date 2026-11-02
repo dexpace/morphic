@@ -37,15 +37,15 @@ func lowerDiscriminator(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, m *ir
 	if d == nil {
 		return nil, nil
 	}
-	variantTypes := variantTargets(variants)
-	mapping, diags := discriminatorMapping(c, ts, d, variantTypes, pointer)
+	route := mappingRoute{variants: variantTargets(variants), referents: referencedVariants(c, ts, s, variants)}
+	mapping, diags := discriminatorMapping(c, ts, d, route, pointer)
 	disc := &ir.Discriminator{Mapping: mapping}
 	if pid, ok := propIDByName(m, d.GetPropertyName()); ok {
 		disc.Property = pid
 	} else {
 		disc.PropertyName = d.GetPropertyName()
 	}
-	defaultID, defaultDiags := discriminatorDefault(c, ts, d, variantTypes, pointer)
+	defaultID, defaultDiags := discriminatorDefault(c, ts, d, route, pointer)
 	disc.Default = defaultID
 	return disc, append(diags, defaultDiags...)
 }
@@ -64,12 +64,59 @@ func variantTargets(variants []ir.Variant) map[ir.TypeID]bool {
 	return targets
 }
 
+// mappingRoute is what a union's variants tell a mapping target: the types they
+// name, which readsThrough reads, and the one variant standing for each type a
+// branch's $ref names (referencedVariants). Both are nil for a model.
+type mappingRoute struct {
+	variants  map[ir.TypeID]bool
+	referents map[ir.TypeID]ir.TypeID
+}
+
+// routed is the type a mapping target resolving to id routes to: the variant
+// whose branch names id, which is an alias over it where a keyword is written
+// beside the branch's $ref, so the mapping names a variant, as pass.Validate
+// holds it and an emitter routes by it (GitHub #847).
+func (r mappingRoute) routed(id ir.TypeID) ir.TypeID {
+	if variant, ok := r.referents[id]; ok {
+		return variant
+	}
+	return id
+}
+
+// referencedVariants maps each type a branch's $ref names to its variant, for a
+// union's variants, built in branch order past the null branches. A type two
+// branches name maps to neither: a mapping naming it says nothing of which, so
+// it stays on the type, which is itself a variant unless both alias it, and
+// that pass.Validate reports, valid as the document is (GitHub #1298). It reads
+// the branches rather than the registry, so the answer turns on no lowering
+// order.
+func referencedVariants(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, variants []ir.Variant) map[ir.TypeID]ir.TypeID {
+	branches, _, _ := unionBranches(s)
+	branches = slices.DeleteFunc(slices.Clone(branches), isNullSchema)
+	if len(branches) != len(variants) {
+		return nil // a model's, which has no variants
+	}
+	referents := map[ir.TypeID]ir.TypeID{}
+	shared := map[ir.TypeID]bool{}
+	for i, b := range branches {
+		named, ok := resolveSchemaRef(c, ts, b) // false for one written inline
+		if !ok {
+			continue
+		}
+		_, twice := referents[named]
+		shared[named] = shared[named] || twice
+		referents[named] = variants[i].Type.Target
+	}
+	maps.DeleteFunc(referents, func(named, _ ir.TypeID) bool { return shared[named] })
+	return referents
+}
+
 // discriminatorMapping resolves a discriminator's wire-value-to-schema mapping
 // into TypeIDs, in source order. An entry that does not resolve yields one
 // error diagnostic and is dropped — never a synthesized ID that nothing backs
 // (issue #14). An all-dropped mapping collapses to nil, preserving infer-by-name
 // semantics and a clean round-trip.
-func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, variantTypes map[ir.TypeID]bool, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
+func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, route mappingRoute, pointer jsontext.Pointer) (map[string]ir.TypeID, []ir.Diagnostic) {
 	m := d.GetMapping()
 	if m == nil || m.Len() == 0 {
 		return nil, nil
@@ -77,7 +124,7 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 	var diags []ir.Diagnostic
 	out := make(map[string]ir.TypeID, m.Len())
 	for tag, target := range m.All() {
-		id, ok := resolveMappingTarget(c, ts, d, target, variantTypes)
+		id, ok := resolveMappingTarget(c, ts, d, target, route)
 		if !ok {
 			diags = append(diags, c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 				pointer+ids.Ptr("discriminator", "mapping", tag),
@@ -96,12 +143,12 @@ func discriminatorMapping(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminat
 // discriminatorDefault resolves an OpenAPI 3.2 defaultMapping to its target ID,
 // dropping it with one diagnostic when it does not resolve, as
 // discriminatorMapping drops an entry.
-func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, variantTypes map[ir.TypeID]bool, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
+func discriminatorDefault(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, route mappingRoute, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	dm := d.GetDefaultMapping()
 	if dm == "" {
 		return "", nil
 	}
-	id, ok := resolveMappingTarget(c, ts, d, dm, variantTypes)
+	id, ok := resolveMappingTarget(c, ts, d, dm, route)
 	if !ok {
 		return "", []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.UnresolvedRef,
 			pointer+ids.Ptr("discriminator", "defaultMapping"),
@@ -136,17 +183,19 @@ func mappingWhy(c lowering.Ctx, d *oas3.Discriminator, target string) string {
 // (docs/parser-library.md#mapping-unresolved); the compiler reads one as a
 // $ref written at the discriminator (resolve.Scope.MappingTarget). Hoisting
 // what it lands on gives the target one pointer-derived ID in either
-// declaration order (GitHub #530). variantTypes is as readsThrough takes it.
-func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, target string, variantTypes map[ir.TypeID]bool) (ir.TypeID, bool) {
+// declaration order (GitHub #530). The answer is routed to the variant standing
+// for it (mappingRoute).
+func resolveMappingTarget(c lowering.Ctx, ts *compile.Types, d *oas3.Discriminator, target string, route mappingRoute) (ir.TypeID, bool) {
 	if c.DeclaresSchema(target) {
-		return componentIDByName(target), true
+		return route.routed(componentIDByName(target)), true
 	}
 	at, decl, ok := c.RefScope().MappingTarget(d, target)
 	if !ok {
 		return "", false
 	}
-	at, decl = typePosition(c, at, decl, variantTypes)
-	return resolveAt(c, ts, at, decl)
+	at, decl = typePosition(c, at, decl, route.variants)
+	id, ok := resolveAt(c, ts, at, decl)
+	return route.routed(id), ok
 }
 
 // maxTypePositionHops bounds how many $ref positions typePosition reads
@@ -158,11 +207,10 @@ const maxTypePositionHops = 64
 // typePosition returns the position, in whichever document, whose type a
 // mapping target naming at names, and the schema held there, starting from
 // decl, unread at a source component. It is at unless the position reads
-// through (readsThrough): a $ref holding nothing an alias would only uses its
-// target's type, so it names the position the $ref does, as a union variant
-// there does (GitHub #758). A keyword beside a property's $ref stops it
-// (GitHub #764), and so does a $ref landing on nothing a type is read at,
-// whose own position, lowered as an alias that reports why, is named.
+// through (readsThrough): a $ref only uses its target's type, so it names the
+// position the $ref does, as a union variant there does (GitHub #758). A $ref
+// landing on nothing a type is read at stops it, and its own position, lowered
+// as an alias that reports why, is named.
 func typePosition(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
 	variantTypes map[ir.TypeID]bool,
 ) (bind.Position, *oas3.JSONSchema[oas3.Referenceable]) {
@@ -195,23 +243,18 @@ func sourceComponent(at bind.Position) bool {
 
 // readsThrough reports whether a mapping target naming at, where decl is
 // declared, names the position decl's $ref names instead (typePosition): not at
-// a component, nor where a keyword beside the $ref gives the position an alias
-// (refSiteHomesNothing).
+// a component, whose node is a type of its own.
 //
 // Nor where the node at pointer is in variantTypes, the types a union's
-// variants name, nil for a model. That variant is a $ref to the position, which
-// hoisted an alias there as a $ref to any position does, and the mapping must
-// name what the variant names. Read through, it named a type no variant names
-// (GitHub #758).
+// variants name, nil for a model: that variant is a $ref to the position, and
+// the mapping must name what the variant names (GitHub #758). Any other
+// position is no variant or subtype, whatever is written beside its $ref, so
+// the mapping means what the $ref names (GitHub #764).
 func readsThrough(c lowering.Ctx, at bind.Position, decl *oas3.JSONSchema[oas3.Referenceable],
 	variantTypes map[ir.TypeID]bool,
 ) bool {
 	_, named := ids.ComponentSchemaName(at.Pointer)
 	if named || ids.ComponentSchemaNamedEmpty(at.Pointer) || decl == nil {
-		return false
-	}
-	s := decl.GetSchema()
-	if !resolve.IsRefSite(decl, s) || !refSiteHomesNothing(s) {
 		return false
 	}
 	if len(variantTypes) == 0 {
@@ -402,8 +445,7 @@ func unvisitedRefTargets(refs *typed.Bindings, s *oas3.Schema, visited map[*oas3
 // deferDiscriminatorBesideUnion queues a settlement for each model that holds
 // the discriminator written beside the union lowerBesideUnmodeledUnion kept
 // verbatim on owner (discriminatorModels). A body that lowered to anything else
-// holds none: the census kept its discriminator where it kept the rest, except
-// on a multi-typed body with no object variant, which runs none (GitHub #852).
+// holds none: the census kept its discriminator where it kept the rest.
 func deferDiscriminatorBesideUnion(c lowering.Ctx, ts *compile.Types, owner ir.TypeID, s *oas3.Schema, pointer jsontext.Pointer) {
 	named := namedBranches(c, s)
 	for _, model := range discriminatorModels(ts, owner) {

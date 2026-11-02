@@ -543,6 +543,25 @@ components:
   - `annotation.IsNullLiteral` tells a `null` from `false` by its node.
   - `annotation.IsFalseSchema` excludes a `null`, so no reader takes one for `false`.
 
+### `null-type-is-empty`
+
+A `type` written as a YAML `null`, rather than the string `"null"`, decodes as one type spelled
+`""`, as an item of a list does: `GetType` returns `[""]`, which no `SchemaType` constant names and
+which reads as a type written, where the keyword states nothing.
+
+```yaml
+components:
+  schemas:
+    A: {type: null}
+    B: {type: [string, null]}
+```
+
+- Verified at: v1.26.0
+- Pinned by: `TestLibraryBehaviour/null-type-is-empty`
+- Code:
+  - `schema.writesType` and `schema.effectiveTypes` pass over the `""`, so no reader takes it for a
+    type written.
+
 ### `context-unread`
 
 Neither the model build nor a walk over a model reads its context. Handed a cancelled one,

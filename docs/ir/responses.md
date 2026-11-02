@@ -39,6 +39,8 @@ type ErrorCase struct {          // a response too: Name/Conditions/Payload/Head
                                   // (Smithy @retryable(throttling: true)); nil = unknown
     Docs       Docs
     Unmodeled  Unmodeled
+    Inferred   Inferred           // the heuristics that read a fact out of Unmodeled
+                                  // ([promotion](./unmodeled.md#promotion))
 }
 ```
 

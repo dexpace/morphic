@@ -199,3 +199,14 @@ it sees. Changes made together in one bump are listed together under it.
     did not ask to exclude ([unions](./unions.md)): a type array naming `integer` and `number` or
     repeating a type, and an enum whose entry repeats or lowers to the top type. The compiler had
     set it, leaving such a union to refuse what its schema admits.
+- **0.24.0** — two shape changes made together, neither of which a document compiled today sets:
+  - `Docs` gained `Refs`, the spans of `Description` that name a type, each a `DocRef`
+    ([annotations](./annotations.md#references-in-prose)). They replace the `{t:TypeID}` tokens
+    `Description` was documented to hold, which no compiler wrote, so `{t:` in a description is now
+    text and nothing else. A consumer that scanned descriptions for tokens must read `Refs`.
+  - `ErrorCase` and `OAuthFlow` gained `Inferred`, and a promotion is now recorded on the node
+    keeping its extension, whichever node holds the field it fills
+    ([promotion](./unmodeled.md#promotion)). Where a node with a `Provenance` holds the field, as in
+    every promotion the OpenAPI compiler makes, nothing moves.
+
+  A consumer pinned to 0.23.0 refuses the document as another generation's.
