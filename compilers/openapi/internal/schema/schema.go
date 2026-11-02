@@ -207,12 +207,15 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schem
 // the oneOf/anyOf dispatch that precede structural lowering.
 func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
 	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
-		if target, ok := resolveAt(c, ts, at, c.Bindings().At(at)); ok {
-			ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
-			return ref, append([]ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded,
-				pointer+ids.Ptr("$dynamicRef"),
-				"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
-		}
+		// anchorHolds settled that the anchor resolves, by what resolveAt reads
+		// in c's own document, so nothing falls through: that would drop the
+		// $dynamicRef unrecorded, as recordUnexpandedDynamicRef keeps only one
+		// that does not expand, where an empty target fails irverify.
+		target, _ := resolveAt(c, ts, at, c.Bindings().At(at))
+		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
+		return ref, append([]ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded,
+			pointer+ids.Ptr("$dynamicRef"),
+			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
