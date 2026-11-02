@@ -19,26 +19,53 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
 
 // TestApplyPathItemDocs_WritesTheBindingItIsGiven pins where the pair goes: the
-// PathDocs of the binding an operation was mounted by, read off the model as an
-// operation's own pair is, and nowhere for an operation with no binding, whose
-// carrier has none.
+// PathDocs keepOn writes into each binding of an operation the mount produced,
+// read off the model as an operation's own pair is, and nowhere for an
+// operation with no binding.
 func TestApplyPathItemDocs_WritesTheBindingItIsGiven(t *testing.T) {
 	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
 	summary, description := "documented", "at length"
 	item := &soa.PathItem{Summary: &summary, Description: &description}
+	var kept ir.Unmodeled
+	var docs ir.Docs
+	diags := applyPathItemDocs(l.ctx, onOperations(&kept, &docs), item, "/paths/~1a", owners{}.cedes(0))
 
-	bound := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{}}}}
-	applyPathItemDocs(onOperation(bound), item, owners{}.cedes(0))
-	assert.Equal(t, ir.Docs{Summary: summary, Description: description}, bound.Bindings.HTTP[0].PathDocs)
+	bound := &ir.Operation{Bindings: ir.OpBindings{HTTP: []ir.HTTPBinding{{}, {}}}}
+	diags = append(diags, keepOn(bound, kept, docs)...)
+	want := ir.Docs{Summary: summary, Description: description}
+	assert.Equal(t, want, bound.Bindings.HTTP[0].PathDocs)
+	assert.Equal(t, want, bound.Bindings.HTTP[1].PathDocs, "every binding of the operation documents the path")
 	assert.Nil(t, bound.Unmodeled, "nothing is kept verbatim")
+	assert.Empty(t, diags, "nothing is reported: the pair reached a field")
 
 	unbound := &ir.Operation{}
-	applyPathItemDocs(onOperation(unbound), item, owners{}.cedes(0))
+	assert.Empty(t, keepOn(unbound, kept, docs))
 	assert.Empty(t, unbound.Bindings.HTTP, "an operation with no binding gains none")
+}
+
+// TestApplyPathItemDocs_WithoutRootNode pins that an item mounting no operation,
+// whose declared pair has no source node to read, keeps nothing, and announces
+// nothing it did not keep.
+//
+// The input is synthetic, but the branch is not hypothetical: a pair merged in
+// through a `<<` chain deeper than nodeview.MergeDepthLimit is one the model
+// reads and the compiler's raw read does not, so a real document reaches here
+// with GetSummary non-empty.
+func TestApplyPathItemDocs_WithoutRootNode(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	summary, description := "documented", "at length"
+	var kept ir.Unmodeled
+	diags := applyPathItemDocs(l.ctx, onNearestNode(&kept, "/paths/~1a"),
+		&soa.PathItem{Summary: &summary, Description: &description}, "/paths/~1a", owners{}.cedes(0))
+	assert.Nil(t, kept, "documentation with no raw node is not preserved")
+	assert.Empty(t, diags)
 }
 
 // TestPathOperations_NilAdditionalOperationSkipped pins the guard on the
@@ -177,4 +204,20 @@ func pathItemOf(t *testing.T, src string) *soa.PathItem {
 	require.NoError(t, err)
 	require.Empty(t, valErrs, "the fixture parses cleanly")
 	return pi
+}
+
+// TestKeepOn_RefusesAnEntryTheOperationHolds pins that copying what a mount
+// keeps never replaces an entry the operation already holds: the entry is
+// refused and reported, and the operation's own stands.
+func TestKeepOn_RefusesAnEntryTheOperationHolds(t *testing.T) {
+	t.Parallel()
+	key := "openapi:pathItem/x-id"
+	kept := ir.Unmodeled{key: {Reason: ir.ReasonVendorExtension, Value: ir.RawValue(`"the path's"`),
+		Provenance: ir.Provenance{Pointer: "/paths/~1a/x-id"}}}
+	own := ir.UnmodeledEntry{Value: ir.RawValue(`"the operation's"`), Provenance: ir.Provenance{Pointer: "/paths/~1a/get/x"}}
+	refused := &ir.Operation{Unmodeled: ir.Unmodeled{key: own}}
+	diags := keepOn(refused, kept, ir.Docs{})
+	assert.Equal(t, own, refused.Unmodeled[key], "the operation's own entry stays")
+	require.Len(t, diags, 1, "the refusal is reported")
+	assert.Equal(t, diag.UnknownKeyEntryTaken, diags[0].Code)
 }

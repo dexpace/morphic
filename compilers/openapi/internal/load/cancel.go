@@ -9,14 +9,21 @@ import (
 	"iter"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // walk is the parser library's walk of start, stopped once ctx is done. The
 // library's walk reads no context (docs/parser-library.md#context-unread), so
 // every walk of a model the load phase makes goes through this one, asking ctx
 // before each item. A phase whose walk was cut short is never built on: the
-// next phase is refused before it starts (Options.enter).
+// next phase is refused before it starts (Options.enter). A media type
+// reference, which the library's walk does not know, is walked by
+// mediaTypeWalk.
 func walk[T any](ctx context.Context, start *T) iter.Seq[soa.WalkItem] {
+	if model, ok := any(start).(*refscope.ReferencedMediaType); ok {
+		return mediaTypeWalk(ctx, model)
+	}
 	return func(yield func(soa.WalkItem) bool) {
 		for item := range soa.Walk(ctx, start) {
 			if ctx.Err() != nil || !yield(item) {

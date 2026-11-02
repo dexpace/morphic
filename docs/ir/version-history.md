@@ -250,37 +250,50 @@ it sees. Changes made together in one bump are listed together under it.
   declaring `format: time` keeps the format verbatim under `Unmodeled`. A consumer pinned to 0.27.0
   that reads `time` as carrying an offset finds values with none, and one reading the `time-local`
   or `date-time-local` encodings no longer finds them.
-- **0.29.0** — four changes to the type nodes, made together:
+- **0.29.0** — `Content` gained `Docs`: a media type's own documentation, as against the body's
+  ([payloads](./payloads.md)). The OpenAPI compiler writes there an OpenAPI 3.2 Media Type Object's
+  `description`, which it had kept verbatim under `Unmodeled` as `openapi:description`, and the
+  `summary` and `description` beside a content entry's `$ref` into `components/mediaTypes`, which
+  it now follows. A consumer pinned to 0.28.0 refuses the document as another generation's.
+- **0.30.0** — the OpenAPI compiler keeps a path item's own `summary` and `description` on each
+  operation it mounts under `openapi:pathItem/summary` and `openapi:pathItem/description`, beneath
+  the scope its extensions and undeclared keys already took, rather than under
+  `openapi:pathItemSummary` and `openapi:pathItemDescription`
+  ([`path-item-docs`](../compilers/openapi.md#path-item-docs)). No shape changed. A consumer pinned
+  to 0.29.0 that reads the old keys no longer finds the path's text there. Where an operation writes
+  an undeclared key of that name, it finds that key's value, which 0.29.0 let the path's text
+  replace.
+- **0.31.0** — four changes to the type nodes, made together:
   - `Union` gained `Closed` and `InputOnly`. `Closed` is false for an open union, whose payload may
     hold a variant it does not list; every union the OpenAPI compiler lowers is closed, since a
     `oneOf` or `anyOf` is. `InputOnly` marks a union only a request carries, as `Model.InputOnly`
-    marks an input object. Both are always written. A consumer pinned to 0.28.0 refuses the document
+    marks an input object. Both are always written. A consumer pinned to 0.30.0 refuses the document
     for its unknown members.
   - `Literal` gained `ValueType`, the primitive the source types its value as, so an integer and a
     number of one value, or a string and a date, are told apart where they were one `Value`, with
     the type or format kept verbatim under `Unmodeled`. Those entries are no longer written where
-    the value fits what was declared, so a consumer pinned to 0.28.0 that read them finds nothing.
+    the value fits what was declared, so a consumer pinned to 0.30.0 that read them finds nothing.
   - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
     `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
     catch-all as the top type beside a closure that forbade the same keys. A consumer pinned to
-    0.26.0 decoding the value as required fails on the missing member.
+    0.30.0 decoding the value as required fails on the missing member.
   - `ValueKind` gained `inf`, `neginf` and `nan`, the IEEE 754 non-finite numbers, each with no
     payload. No OpenAPI value is one, so no document the OpenAPI compiler writes holds them.
-- **0.30.0** — three changes to the HTTP binding, made together:
+- **0.32.0** — three changes to the HTTP binding, made together:
   - `HTTPBinding.IsWebhook` became `Inbound`, a closed `webhook | callback`, empty for an operation
     the client sends, so a callback operation is marked the way a webhook is, where only a reverse
     lookup through its declaring operation's `Callbacks` showed it. `Callback` gained `Name`, the
-    callbacks-map key. A consumer pinned to 0.29.0 refuses the document for its unknown members,
+    callbacks-map key. A consumer pinned to 0.31.0 refuses the document for its unknown members,
     and finds no `isWebhook` where it read one.
   - `HTTPBinding` gained `PathDocs`, a path item's own summary and description, which the OpenAPI
-    compiler had kept on each operation under `openapi:pathItemSummary` and
-    `openapi:pathItemDescription` (`no_ir_home`) with an info report. Those keys and that report are
-    retired.
+    compiler had kept on each operation the item mounts under `openapi:pathItem/summary` and
+    `openapi:pathItem/description` (`no_ir_home`) with an info report. Those entries and that report
+    are retired there; an item mounting no operation still keeps its pair on the nearest node.
   - An inbound operation's `Auth` now states only what it declares, inheriting no service, server
     or document requirement ([auth](./auth.md#inbound-operations)). No key changed for this; a
-    consumer pinned to 0.29.0 reading a webhook with no `Auth` as inheriting hands it the client's
+    consumer pinned to 0.31.0 reading a webhook with no `Auth` as inheriting hands it the client's
     credentials.
-- **0.31.0** — pagination and streaming gained the facts declared pagination and conditional
+- **0.33.0** — pagination and streaming gained the facts declared pagination and conditional
   streams state:
   - `ParamPath` became `InputPath`, whose `Param` is optional: nil roots the path in the request
     body, so a search endpoint's body cursor or page size is an input. `Pagination` gained
@@ -289,5 +302,5 @@ it sees. Changes made together in one bump are listed together under it.
   - `StreamDetail` gained `Terminator`, the frame data that ends a stream and is no element (an
     SSE `data: [DONE]`), and `Condition`, the request input and value that ask for a stream an
     operation sends only when asked.
-  - No compiler fills these yet. A consumer pinned to 0.30.0 refuses a document that sets one, and
+  - No compiler fills these yet. A consumer pinned to 0.32.0 refuses a document that sets one, and
     finds a body input's `param` absent where it required one.
