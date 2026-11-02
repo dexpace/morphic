@@ -62,12 +62,12 @@
 `test-opens-its-inputs`
 
 - **Rule.** A test whose verdict rests on a file outside the module, or on one only a child
-  (`go list`, `git`) reads, opens in its own process the in-module files the child
-  reads, or one that changes with them. For a dependency, call `irtest.ReadModuleFiles`, held by
+  (`go list`, `git`) reads, opens in its own process the in-module files the child reads,
+  or one that changes with them. For a dependency, call `irtest.ReadModuleFiles`, held by
   `irtest.RequireOpensModuleFiles`. For a child's list, list each directory above it.
 - **Why.** `readDeclarers` read library sources from the module cache, which go test never
-  rechecks (#1272). Sweeping the child sites `grep -rn --include='*.go' -E 'exec.Command'` and
-  each `packages.Load` and `decls.Load`, found `ir/irtest`'s `git ls-files` tests; closed.
+  rechecks (#1272). Sweeping the child sites, `grep -rn --include='*.go' -E 'exec.Command'`
+  and each `packages.Load` and `decls.Load`, found `ir/irtest`'s `git ls-files` tests; closed.
 - **Probe.** `touch` the file the verdict rests on and rerun: the last `ok` must lack `(cached)`.
   For a list, in a scratch clone with its own `GOCACHE`, commit a file it would newly list, run
   `make filetimes`, and rerun without `-count=1`.
