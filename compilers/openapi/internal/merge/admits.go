@@ -81,19 +81,36 @@ func Admits(k ir.PrimKind, v ir.Value) bool {
 	case ir.PrimDate:
 		return v.Kind == ir.ValueString && parses("2006-01-02", v.Str)
 	case ir.PrimTime:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, false)
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, partialTime)
+	case ir.PrimDatetime:
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, localDateTime)
 	case ir.PrimDatetimeOffset:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, true)
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, dateTime)
 	case ir.PrimUUID:
 		return v.Kind == ir.ValueString && isUUID(v.Str)
 	case ir.PrimURL:
 		return v.Kind == ir.ValueString && isAbsoluteURI(v.Str)
 	case ir.PrimDuration:
 		return v.Kind == ir.ValueString && isDuration(v.Str)
-	case ir.PrimBytes, ir.PrimDatetime:
+	case ir.PrimBytes:
 		return false
 	default:
 		return false
+	}
+}
+
+// admitsFormat reports whether v is a value of the string format named
+// format, and whether the compiler holds that format's grammar at all, which
+// the name alone decides. It holds one for a format the table pairs with no
+// kind: time, RFC 3339's full-time, whose offset the time kind does not hold
+// (docs/ir/primitives.md#offsets). A format the table pairs with a kind is
+// judged as that kind, by Admits.
+func admitsFormat(format string, v ir.Value) (admits, held bool) {
+	switch format {
+	case "time":
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, fullTime), true
+	default:
+		return false, false
 	}
 }
 
