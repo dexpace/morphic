@@ -27,6 +27,7 @@ const disjointComponents = `    List: {type: array, items: {type: string}}
     NullObj: {type: [object, "null"]}
     Alias: {$ref: '#/components/schemas/List'}
     Composed: {allOf: [{$ref: '#/components/schemas/List'}]}
+    TypedComposed: {type: string, allOf: [{description: d}]}
     U: {oneOf: [{type: string}, {type: integer}]}
     Yes: true
 `
@@ -87,6 +88,14 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 			`{allOf: [{$ref: '#/components/schemas/Alias'}, ` + refObj + `]}`, "allOf/0: array, allOf/1: object"},
 		{"a $ref to a composition",
 			`{allOf: [{$ref: '#/components/schemas/Composed'}, ` + refObj + `]}`, "allOf/0: array, allOf/1: object"},
+		{"a $ref to a composition writing a type",
+			`{allOf: [{$ref: '#/components/schemas/TypedComposed'}, ` + refObj + `]}`, "allOf/0: string, allOf/1: object"},
+		{"boolean entries spend no budget",
+			`{allOf: [` + strings.Repeat(`true, `, 300) + refStr + `, ` + refObj + `]}`,
+			"allOf/300: string, allOf/301: object"},
+		{"a wide allOf the budget reaches",
+			`{allOf: [` + strings.Repeat(`{description: d}, `, 200) + refStr + `, ` + refObj + `]}`,
+			"allOf/200: string, allOf/201: object"},
 		{"a flattened wrapper",
 			`{allOf: [{allOf: [` + refStr + `, ` + refObj + `]}]}`,
 			"allOf/0/allOf/0: string, allOf/0/allOf/1: object"},
@@ -123,11 +132,12 @@ func TestAllOf_DisjointConjunctsReportOnceAtTheSchema(t *testing.T) {
 	}
 }
 
-// TestAllOf_ConjunctsSharingAValueStaySilent holds the readings that must not
-// report: a conjunct writing no type states nothing, and neither does a
-// boolean, an unresolved $ref or a keyword beside a $ref, a null both sides
-// admit is a value they share, and a lone conjunct contradicts nothing.
-func TestAllOf_ConjunctsSharingAValueStaySilent(t *testing.T) {
+// TestAllOf_DisjointReportStaysSilent holds the readings that must not report:
+// a conjunct writing no type states nothing, and neither does a boolean, an
+// unresolved $ref or a keyword beside a $ref; a null both sides admit is a value
+// they share; a lone conjunct narrowing the instance types contradicts nothing;
+// and an allOf that does not compose is not read.
+func TestAllOf_DisjointReportStaysSilent(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, s, extra string
@@ -151,7 +161,8 @@ func TestAllOf_ConjunctsSharingAValueStaySilent(t *testing.T) {
 			"    Cy: {allOf: [{$ref: '#/components/schemas/Cy'}, {$ref: '#/components/schemas/Cy'}]}\n", ""},
 		{"an unresolved $ref", `{allOf: [{$ref: '#/components/schemas/Ghost'}, ` + refObj + `]}`, "", ""},
 		{"a $ref landing on a boolean", `{allOf: [{$ref: '#/components/schemas/Yes'}, ` + refObj + `]}`, "", ""},
-		{"a keyword beside a $ref", `{allOf: [{$ref: '#/components/schemas/Str', type: object}]}`, "", ""},
+		{"a keyword beside a $ref, unread from 3.1 on too",
+			`{allOf: [{$ref: '#/components/schemas/Props', type: string}, {type: object}]}`, "", ""},
 		{"a type no dialect defines", `{type: widget, allOf: [` + refObj + `]}`, "", ""},
 		{"an enum passing the allOf over", `{enum: [a], allOf: [` + refStr + `, ` + refObj + `]}`, "", ""},
 		{"an allOf beside a $ref", `{$ref: '#/components/schemas/Str', allOf: [` + refObj + `]}`, "", ""},
@@ -178,6 +189,18 @@ func TestAllOf_ConjunctsSharingAValueStaySilent(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestAllOf_KeywordBesideARefStatesNothing holds a keyword beside a $ref entry
+// out of the reading where it decides the result: OpenAPI 3.0 ignores it, so an
+// untyped target and an object still share every object.
+func TestAllOf_KeywordBesideARefStatesNothing(t *testing.T) {
+	t.Parallel()
+	doc, _ := parseFull(t, openapitest.ComponentSpecVer("3.0.3", `    Props: {properties: {a: {type: string}}}
+    S: {allOf: [{$ref: '#/components/schemas/Props', type: string}, {type: object}]}
+`))
+
+	assert.Empty(t, disjointReports(doc.Diagnostics))
 }
 
 // TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport holds a schema composing

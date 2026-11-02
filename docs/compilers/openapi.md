@@ -1785,7 +1785,8 @@ past `MaxAllOfFlattenDepth`. An `allOf` that does not compose, one beside a `$re
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
-  `schema.TestAllOf_ConjunctsSharingAValueStaySilent`,
+  `schema.TestAllOf_DisjointReportStaysSilent`,
+  `schema.TestAllOf_KeywordBesideARefStatesNothing`,
   `schema.TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport`,
   `schema.TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo`,
   `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
