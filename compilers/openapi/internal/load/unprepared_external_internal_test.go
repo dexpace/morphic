@@ -327,7 +327,7 @@ func TestResolveExternal_StartsNoRebuildOnceACheckRefused(t *testing.T) {
 	srv, _ := countingServer(t, anchoredExternalDoc)
 	spec := rootReferencing(respelled(srv.URL, "HTTP") + "/ext.yaml")
 	resolve := func(ctx *ctxtest.Countdown) (rebuilt, late bool) {
-		_, _, _, _, _, err := resolveExternal(ctx, modelOf(t, spec), Siblings{},
+		_, _, _, _, _, err := resolveExternal(ctx, modelOf(t, spec), Siblings{}, MediaTypes{},
 			sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, func() (*soa.OpenAPI, error) {
 				rebuilt, late = true, ctx.Refused()
 				return modelOf(t, spec), nil

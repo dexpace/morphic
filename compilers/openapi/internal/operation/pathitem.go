@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json/jsontext"
 	"slices"
+	"strconv"
 	"strings"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
@@ -16,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -153,16 +155,24 @@ type mountedOp struct {
 // Each lowers from the nearest layer declaring it, in that layer's context and
 // below its declaration pointer, in mountedOperations' order; it takes every
 // layer's item parameters merged into its own, the mount's servers where it names
-// none (itemServers), and what every layer keeps (applyLayers). A mount lowering
-// none keeps what its layers declare in residue instead. route holds what the
-// route sets on every operation; each brings its own method, pointers and
-// parameters.
+// none (itemServers), and what the layers keep (keepOn). A mount lowering none
+// keeps what its layers declare in residue instead. route holds what the route
+// sets on every operation; each brings its own method, pointers and parameters.
 func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opContext, residue *ir.Unmodeled) ([]mountedOp, []ir.Diagnostic) {
 	ops := mountedOperations(layers)
-	owner, diags := precedence(layers, len(ops) > 0)
+	owner, diags := precedence(layers)
 	params := itemParams(layers)
 	named, serverDiags := itemServers(w.servers, layers, owner)
 	diags = append(diags, serverDiags...)
+	if len(ops) == 0 {
+		for i, l := range layers {
+			diags = append(diags, preserveUnmountedPathItem(l.in, onNearestNode(residue, mount), l.item,
+				mount, l.decl, owner.cedes(i), named)...)
+		}
+		return nil, diags
+	}
+	var kept ir.Unmodeled
+	diags = append(diags, applyLayers(layers, owner, onOperations(&kept))...)
 	mounted := make([]mountedOp, 0, len(ops))
 	for _, lo := range ops {
 		l, po := layers[lo.layer], lo.op
@@ -175,23 +185,35 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		if len(op.Servers) == 0 {
 			op.Servers = slices.Clone(named)
 		}
-		diags = append(diags, applyLayers(layers, owner, onOperation(&op))...)
+		diags = append(diags, keepOn(&op, kept)...)
 		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
 	}
-	if len(mounted) > 0 {
-		return mounted, diags
-	}
-	for i, l := range layers {
-		diags = append(diags, preserveUnmountedPathItem(l.in, onNearestNode(l.in, residue, mount), l.item,
-			mount, l.decl, owner.cedes(i), named)...)
-	}
-	return nil, diags
+	return mounted, diags
 }
 
-// applyPathItem keeps what a path item declares that its operations have no
-// home for: its documentation, x-* extensions and undeclared keys, each written
-// onto every operation the item declares, less what cedes says a nearer layer
-// of the mount keeps.
+// keepOn writes onto op a copy of each entry its mount's layers keep, and says
+// so when they hold the path item's documentation, which documents the path
+// rather than op. kept is computed once a mount, since nothing in it depends on
+// the operation; only the writing repeats (GitHub #414). An entry op already
+// holds is never replaced (annotation.CopyEntriesInto), though none should be:
+// every kept key sits beneath pathItemScope, which none of op's own writers
+// spells, its census escaping a "/" in a key it keeps (GitHub #1323).
+func keepOn(op *ir.Operation, kept ir.Unmodeled) []ir.Diagnostic {
+	diags := annotation.CopyEntriesInto(&op.Unmodeled, kept)
+	for _, keyword := range pathItemDocKeywords {
+		key := annotation.EntryKey(pathItemScope, keyword)
+		if entry, ok := kept[key]; ok && op.Unmodeled[key].Provenance == entry.Provenance {
+			return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, withoutInferred(op.Provenance),
+				"path-item documentation kept under Unmodeled; it documents the path rather than this "+
+					"operation, and ir.Docs holds the operation's own summary and description"))
+		}
+	}
+	return diags
+}
+
+// applyPathItem keeps, on the carrier into, what a path item declares that its
+// operations have no home for: its documentation, x-* extensions and undeclared
+// keys, less what cedes says a nearer layer of the mount keeps.
 //
 // They share one entry point because every route that lowers a path item (a
 // path, a webhook, a callback expression) must reach each, and a second call
@@ -209,37 +231,30 @@ func applyPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsont
 }
 
 // carrier is where a path item's own declarations are kept, and under what key
-// scope. A path item lowers to no node of its own, so they are held by each
-// operation it produced or, for an item that produced none, by the nearest node
-// holding an Unmodeled map (see onNearestNode), usually the service, where the
-// Paths Object's own extensions already go.
+// scope. A path item lowers to no node of its own, so they are copied onto each
+// operation it produced (keepOn) or, for an item that produced none, kept by the
+// nearest node holding an Unmodeled map (see onNearestNode), usually the
+// service, where the Paths Object's own extensions already go.
 //
 // scope carries the item's own pointer in the second case, because one service
 // holds every such item and a bare "pathItem" prefix would make two collide on
 // one key, the survivor decided by iteration order.
 type carrier struct {
-	unmodeled  *ir.Unmodeled
-	provenance ir.Provenance
+	unmodeled *ir.Unmodeled
 	// scope prefixes the keys built from a keyword name, as the extension and
 	// undeclared-key writers do.
 	scope string
-	// keepsDocs says whether the item's summary and description have a home here.
-	// Only an operation does: pathItemDocFields keys them by bare keyword, which
-	// two items on one service would collide on, and what a path item's
-	// documentation means beside an operation's own is the question GitHub #383
-	// is open on. An unmounted item's pair is dropped, as it was before this
-	// carrier existed — the entry above widens what is kept, never narrows it.
-	keepsDocs bool
 }
 
-// onOperation carries a path item's declarations on an operation it produced.
-func onOperation(op *ir.Operation) carrier {
-	return carrier{
-		unmodeled:  &op.Unmodeled,
-		provenance: withoutInferred(op.Provenance),
-		scope:      "pathItem",
-		keepsDocs:  true,
-	}
+// pathItemScope is the key scope a path item's declarations take on an
+// operation it mounts, as in openapi:pathItem/summary and openapi:pathItem/x-id.
+// An item mounting none extends it with its own pointer (onNearestNode).
+const pathItemScope = "pathItem"
+
+// onOperations carries a path item's declarations into kept, for keepOn to
+// copy onto every operation the mount produced.
+func onOperations(kept *ir.Unmodeled) carrier {
+	return carrier{unmodeled: kept, scope: pathItemScope}
 }
 
 // onNearestNode carries them on the nearest node holding an Unmodeled map, for
@@ -248,22 +263,15 @@ func onOperation(op *ir.Operation) carrier {
 // expression's, which is where the callback itself lives.
 //
 // mountPtr is the item's own mount pointer, and keys it apart from every other
-// item kept on that node. It is the provenance too: one node holds every such
-// item, so the node's own pointer would name none of them and two items would
-// produce one indistinguishable finding.
-func onNearestNode(c lowering.Ctx, u *ir.Unmodeled, mountPtr jsontext.Pointer) carrier {
-	return carrier{
-		unmodeled:  u,
-		provenance: c.ProvenanceAt(mountPtr),
-		scope:      "pathItem" + string(mountPtr),
-	}
+// item kept on that node.
+func onNearestNode(u *ir.Unmodeled, mountPtr jsontext.Pointer) carrier {
+	return carrier{unmodeled: u, scope: pathItemScope + string(mountPtr)}
 }
 
 // preserveUnmountedPathItem keeps what an item that produced no operation
 // wrote, and says so: a reader seeing its declarations away from any operation
-// needs to know why. It keeps what applyPathItem keeps on a carrier holding no
-// docs; the summary and description are dropped (GitHub #383). named is
-// itemServers' result.
+// needs to know why. It keeps what applyPathItem keeps, and the item's
+// parameters (keepItemParams). named is itemServers' result.
 //
 // The finding is sited in c's document, wrong for a layer another document
 // declares (GitHub #1164). It follows what landed, not what the item wrote: a
@@ -275,6 +283,7 @@ func preserveUnmountedPathItem(c lowering.Ctx, into carrier, pi *soa.PathItem, m
 ) []ir.Diagnostic {
 	before := len(*into.unmodeled)
 	diags := applyPathItem(c, into, pi, declPtr, cedes)
+	diags = append(diags, keepItemParams(c, into, pi, mountPtr, declPtr, cedes)...)
 	var landed []string
 	if len(named) > 0 && !cedes(constructOf(constructServers, "")) {
 		landed = append(landed, "its servers are registered, named by no operation")
@@ -350,48 +359,71 @@ func pathItemDeclares(pi *soa.PathItem, key string) bool {
 		strings.HasPrefix(key, "x-") || slices.Contains(pathItemFields, key)
 }
 
-// pathItemDocFields pairs each Path Item Object documentation keyword with the
-// Unmodeled key it is kept under. Both keys name the object the text came from:
-// an operation's own summary and description are what ir.Docs holds, so a plain
-// `openapi:summary` beside them would read as the operation's own.
-var pathItemDocFields = []struct{ keyword, key string }{
-	{"summary", "openapi:pathItemSummary"},
-	{"description", "openapi:pathItemDescription"},
-}
+// pathItemDocKeywords are the Path Item Object's documentation keywords. Each is
+// kept under its carrier's scope, as the item's extensions and undeclared keys
+// are: openapi:pathItem/summary on an operation, and the item's pointer inside
+// the scope for an item mounting none. The scope names the object the text came
+// from, since ir.Docs holds the operation's own summary and description, and it
+// keeps the key apart from every key the operation's own census writes (GitHub
+// #1323).
+var pathItemDocKeywords = []string{"summary", "description"}
 
 // applyPathItemDocs keeps a path item's summary and description verbatim under
-// Unmodeled on each operation it holds (GitHub #292).
+// Unmodeled on into: for the operations its mount produced (GitHub #292), which
+// keepOn announces, or beside what else an item mounting none keeps on the
+// nearest node, which preserveUnmountedPathItem announces (GitHub #383).
 //
 // They are kept, not merged into Docs: ir.Docs holds the operation's own, and
 // merging would have to rank the pair against it and attribute to an operation
 // text its author did not write (an inference; invariant 6). ReasonNoIRHome,
-// not a boundary, since the IR could grow a home (GitHub #383); the cost is the
+// not a boundary, since the IR could grow a home (GitHub #1319); the cost is the
 // pair repeated on every operation.
-//
-// Dropped silently: an unmounted item's pair (carrier.keepsDocs is false;
-// GitHub #383).
 func applyPathItemDocs(c lowering.Ctx, into carrier, pi *soa.PathItem, declPtr jsontext.Pointer,
 	cedes func(string) bool,
 ) []ir.Diagnostic {
-	if !into.keepsDocs || (pi.GetSummary() == "" && pi.GetDescription() == "") {
+	if pi.GetSummary() == "" && pi.GetDescription() == "" {
 		return nil
 	}
 	var diags []ir.Diagnostic
-	var kept bool
-	for _, f := range pathItemDocFields {
-		if cedes(constructOf(constructDoc, f.keyword)) {
+	for _, keyword := range pathItemDocKeywords {
+		if cedes(constructOf(constructDoc, keyword)) {
 			continue
 		}
-		wrote, fieldDiags := annotation.PreserveNodeInto(into.unmodeled, f.key,
-			nodeview.Child(pi.GetRootNode(), f.keyword), ir.ReasonNoIRHome,
-			c.ProvenanceAt(declPtr+ids.Ptr(f.keyword)))
+		_, fieldDiags := annotation.PreserveNodeInto(into.unmodeled, annotation.EntryKey(into.scope, keyword),
+			nodeview.Child(pi.GetRootNode(), keyword), ir.ReasonNoIRHome,
+			c.ProvenanceAt(declPtr+ids.Ptr(keyword)))
 		diags = append(diags, fieldDiags...)
-		kept = kept || wrote
 	}
-	if !kept {
-		return diags
+	return diags
+}
+
+// keepItemParams keeps the parameters of a path item that mounts no operation
+// verbatim on into (GitHub #1080). They lower only by merging into each
+// operation the item mounts (itemParams), and here there is none.
+//
+// Each entry is kept as written, a $ref included, under the item's scope and
+// the path ids.ParamPath gives its slot, numbered for a repeat as a parameter's
+// ID would be, less what cedes says a nearer layer keeps. An entry whose $ref
+// resolves to nothing has no slot: it is reported where the reference is
+// written, and lowers nowhere, as on an operation.
+func keepItemParams(c lowering.Ctx, into carrier, pi *soa.PathItem, mountPtr, declPtr jsontext.Pointer,
+	cedes func(string) bool,
+) []ir.Diagnostic {
+	var diags []ir.Diagnostic
+	ledger := newParamLedger(mountPtr)
+	for i, rp := range pi.GetParameters() {
+		slot, ok := paramKey(rp)
+		if !ok || cedes(constructOf(constructParameter, slot)) {
+			continue
+		}
+		p := resolve.Object[soa.Parameter](rp)
+		entry := declPtr + ids.Ptr("parameters", strconv.Itoa(i))
+		occurrence, repeatDiags := ledger.count(c, p.GetName(), string(p.GetIn()), entry)
+		diags = append(diags, repeatDiags...)
+		key := "openapi:" + into.scope + string(ids.ParamPath(p.GetName(), string(p.GetIn()), occurrence))
+		_, keepDiags := annotation.PreserveNodeInto(into.unmodeled, key, rp.GetCore().GetRootNode(),
+			ir.ReasonNoIRHome, c.ProvenanceAt(entry))
+		diags = append(diags, keepDiags...)
 	}
-	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, into.provenance,
-		"path-item documentation kept under Unmodeled; it documents the path rather than this "+
-			"operation, and ir.Docs holds the operation's own summary and description"))
+	return diags
 }
