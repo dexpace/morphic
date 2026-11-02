@@ -568,6 +568,47 @@ func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 	assert.False(t, ok, "the context it was made from is unchanged")
 }
 
+// TestWithLoaded_CarriesTheMediaTypeUsesOnACopy holds where a lowering reads
+// the model of a content entry written as a $ref: from the load phase's, on the
+// copy WithLoaded returns, while the context it was made from knows the entry
+// is one and holds no model of it.
+func TestWithLoaded_CarriesTheMediaTypeUsesOnACopy(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/M'}
+            text/plain: {schema: {type: string}}
+components:
+  mediaTypes:
+    M: {schema: {type: string}}
+`)
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	carrying := base.WithLoaded(doc)
+	item, ok := doc.Doc.GetPaths().Get("/a")
+	require.True(t, ok)
+	response, ok := item.GetObject().Get().GetResponses().Get("200")
+	require.True(t, ok)
+	content := response.GetObject().GetContent()
+
+	use, isUse := carrying.MediaTypeUse(content.GetOrZero("application/json"))
+	require.True(t, isUse)
+	assert.True(t, use.IsReference(), "the copy reads the load phase's model")
+	_, isUse = carrying.MediaTypeUse(content.GetOrZero("text/plain"))
+	assert.False(t, isUse, "an entry written inline is no use")
+
+	use, isUse = base.MediaTypeUse(content.GetOrZero("application/json"))
+	assert.True(t, isUse)
+	assert.Nil(t, use, "the context it was made from holds no model")
+}
+
 // TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex pins that a context carrying
 // the load phase's results reads the raw YAML a walk leaves the model for
 // through an index, where the one it was made from asks the library, which
