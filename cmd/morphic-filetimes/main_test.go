@@ -29,8 +29,26 @@ var (
 	windowTo   = time.Date(2009, 12, 29, 0, 0, 0, 0, time.UTC)
 )
 
-// hermeticEnv is what keeps a developer's git configuration, identity and
-// hooks out of a test: no global or system config, and an author set.
+// TestMain unsets every inherited GIT_ variable before any test runs. A git
+// hook, run by githooks(5), exports GIT_DIR and GIT_INDEX_FILE, and git -c
+// exports GIT_CONFIG_PARAMETERS, so the tests' own git would otherwise act on
+// the developer's repository and write fixture commits into it.
+func TestMain(m *testing.M) {
+	for _, kv := range os.Environ() {
+		name, _, _ := strings.Cut(kv, "=")
+		if !strings.HasPrefix(name, "GIT_") {
+			continue
+		}
+		if err := os.Unsetenv(name); err != nil {
+			fmt.Fprintf(os.Stderr, "cannot unset %s: %v\n", name, err)
+			os.Exit(1)
+		}
+	}
+	os.Exit(m.Run())
+}
+
+// hermeticEnv adds what a test's git needs beyond the clean environment
+// TestMain leaves: no global or system config, and an author and committer.
 func hermeticEnv() []string {
 	return []string{
 		"GIT_CONFIG_GLOBAL=/dev/null",
