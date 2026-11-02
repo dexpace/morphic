@@ -1890,9 +1890,10 @@ body. A branch writing any other keyword, such as `{type: string, const: a}`, `m
 or `format`, does not repeat the body, so it is judged as written: one that writes a `type`, a
 `properties` or another keyword declaring shape falls to the five shapes above, even beside a
 `not`, and one that only narrows, as `{required: [a], minProperties: 2}` does, stays validation
-logic. A `not` written inside a property is no repeat either. A property the schema only composes
-through `allOf` has no one declaration to repeat, so it does not repeat the body. Declarations are
-compared as written, so one spelling its keywords in another order is not alike.
+logic. A `not` written inside a property repeats the body only where the property is written
+alike. A property the schema only composes through `allOf` has no one declaration to repeat, so it
+does not repeat the body. Declarations are compared as written, so one spelling its keywords in
+another order is not alike.
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
   `keywords-at-every-outcome`, `union-restated-branches`

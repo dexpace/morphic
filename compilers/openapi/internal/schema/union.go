@@ -507,9 +507,12 @@ func restatesBody(body, branch *oas3.Schema) bool {
 	return true
 }
 
-// typeKeywords are the keywords a branch can repeat of a property with more
-// written beside the body's copy. Each means the same whatever stands beside
-// it, unlike additionalProperties, which reads the `properties` next to it.
+// typeKeywords are the keywords a branch may write of a property whose
+// declaration in the body writes more: those naming the property's type. The
+// list is closed, so any other keyword keeps the branch from being a repeat,
+// even written as the body writes it, rather than asking of each whether it
+// reads its siblings, as additionalProperties reads `properties`.
+// restatesProperty says why `$ref` and `nullable` must also agree.
 var typeKeywords = []string{"$ref", "type", "format", "nullable"}
 
 // restatesProperty reports whether branch, a union branch's declaration of a
