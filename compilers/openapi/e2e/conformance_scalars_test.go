@@ -43,6 +43,27 @@ func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.ValueNumber, e.Members[1].Value.Kind)
 	// BigVal member value preserves the full 64-bit integer.
 	assert.Equal(t, ir.BigVal("9007199254740993"), e.Members[1].Value.Num)
+
+	sized, ok := doc.Types[componentID("SizedCodes")].(*ir.Enum)
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimInt64, sized.ValueType)
+	assert.NotContains(t, sized.Unmodeled, "openapi:format", "ValueType holds the format")
+
+	oversized, ok := doc.Types[componentID("OversizedCodes")].(*ir.Enum)
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimInteger, oversized.ValueType, "no int8 holds 1000")
+	assert.Contains(t, oversized.Unmodeled, "openapi:format")
+}
+
+// assertTypeArrayNumeric pins that a type array's union admits what the array
+// does: one naming integer and number is inclusive, as every integer is a number.
+func assertTypeArrayNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for name, want := range map[string]bool{"Measure": false, "Sized": false, "Label": true} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, name)
+		require.Len(t, u.Variants, 2, name)
+		assert.Equal(t, want, u.Exclusive, name)
+	}
 }
 
 // assertEmptyEnum covers `enum: []`: legal JSON Schema whose value space holds
@@ -156,6 +177,17 @@ func assertScalarFormat(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.PrimTypeID(ir.PrimInteger), ws.Base.Target)
 	require.NotNil(t, ws.Encoding)
 	assert.Equal(t, "double", ws.Encoding.Name)
+
+	// time is an RFC 3339 full-time, whose offset the time primitive does not
+	// hold, so it keeps its format on a Scalar over string.
+	opens, ok := propByWire(h, "opens")
+	require.True(t, ok)
+	ts, ok := doc.Types[opens.Type.Target].(*ir.Scalar)
+	require.True(t, ok, "time selects no primitive, so it hoists a Scalar")
+	require.NotNil(t, ts.Base)
+	assert.Equal(t, ir.PrimTypeID(ir.PrimString), ts.Base.Target)
+	require.NotNil(t, ts.Encoding)
+	assert.Equal(t, "time", ts.Encoding.Name)
 }
 
 // assertSelectedPrimitives pins the table's pairings this spec writes: each
@@ -178,7 +210,8 @@ func assertSelectedPrimitives(t *testing.T, doc *ir.Document, h *ir.Model) {
 		"amount": ir.PrimDecimal,
 		"big":    ir.PrimDecimal128,
 		"at":     ir.PrimDatetimeOffset,
-		"opens":  ir.PrimTime,
+		"starts": ir.PrimDatetime,
+		"closes": ir.PrimTime,
 		"ttl":    ir.PrimDuration,
 	} {
 		t.Run(wire, func(t *testing.T) {
@@ -231,6 +264,9 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 		{"viaRef", componentID("Pw")},      // inherited from the referent, as deprecated is
 		{"viaAlias", componentID("Chain")}, // from the end of the $ref chain
 		{"beside", componentID("Plain")},   // written beside the $ref, binding the use
+		{"refined", componentID("Plain")},  // beside an allOf refining the $ref, or in a branch of it
+		{"inBranch", componentID("Plain")},
+		{"wrapped", componentID("Pw")}, // an allOf over a string is a use of it, inheriting as viaRef does
 	} {
 		p, ok := propByWire(login, tc.wire)
 		require.True(t, ok, tc.wire)
@@ -247,13 +283,6 @@ func assertSecretCarriers(t *testing.T, doc *ir.Document) {
 	require.True(t, ok)
 	assert.False(t, nullable.Secret, "the node holds it, not a copy on the use")
 	assert.Equal(t, ir.TypeRef{Target: componentID("Pw"), Nullable: true}, nullable.Type)
-	wrapped, ok := propByWire(login, "wrapped")
-	require.True(t, ok)
-	assert.False(t, wrapped.Secret, "the node holds it, not a copy on the use")
-	m, ok := doc.Types[wrapped.Type.Target].(*ir.Model)
-	require.True(t, ok, "an allOf over one $ref is a model")
-	require.NotNil(t, m.Base)
-	assert.Equal(t, componentID("Pw"), m.Base.Target)
 	chain, ok := doc.Types[componentID("Chain")].(*ir.Scalar)
 	require.True(t, ok, "an alias component is a Scalar")
 	require.NotNil(t, chain.Base)
@@ -318,13 +347,13 @@ func assertSecretOperation(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 	require.True(t, ok)
 	assert.Equal(t, ir.PrimTypeID(ir.PrimString), token.Type.Target, "a parameter owns no node for it")
 	assert.Equal(t, "the session token", token.Docs.Description)
-	require.Contains(t, token.Unmodeled, "openapi:format", "ir.Parameter has no field (GitHub #578)")
-	assert.Equal(t, ir.ReasonNoIRHome, token.Unmodeled["openapi:format"].Reason)
-	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
-		diagsAt(diags, "openapi/degraded-construct", "/paths/~1login/post/parameters/0/schema/format"))
+	assert.True(t, token.Secret, "a parameter is a property's kind of carrier (GitHub #578)")
+	assert.NotContains(t, token.Unmodeled, "openapi:format", "the field holds it")
+	assert.Empty(t, diagsAt(diags, "openapi/degraded-construct", "/paths/~1login/post/parameters/0/schema/format"))
 	key, ok := openapitest.ParamBySource(op, "api_key")
 	require.True(t, ok)
-	assert.Equal(t, componentID("Pw"), key.Type.Target, "a referent's redaction is its own node's")
+	assert.Equal(t, componentID("Pw"), key.Type.Target, "the redaction names no shape")
+	assert.True(t, key.Secret, "inherited from the referent, as at a property")
 	assert.NotContains(t, key.Unmodeled, "openapi:format")
 
 	str := ir.PrimTypeID(ir.PrimString)

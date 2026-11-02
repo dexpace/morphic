@@ -265,8 +265,8 @@ func TestOrderInvariant_UncompilableBaselineIsNotAFinding(t *testing.T) {
 	}
 }
 
-// TestDiffOrderInvariants_ReportsEachChannel drives the three ways a permutation
-// can differ, so each message is exercised rather than only the first.
+// TestDiffOrderInvariants_ReportsEachChannel drives each way a permutation can
+// differ, so each message is exercised rather than only the first.
 func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 	t.Parallel()
 	model := func(id ir.TypeID, wire string) *ir.Model {
@@ -303,6 +303,18 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 		assert.Contains(t, detail, "server registry depends on declaration order")
 	})
 
+	t.Run("an auth scheme that changed", func(t *testing.T) {
+		t.Parallel()
+		scheme := func(pointer jsontext.Pointer) *ir.Document {
+			return &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
+				"auth/x/a": {ID: "auth/x/a", Provenance: ir.Provenance{Pointer: pointer}},
+			}}
+		}
+		detail, ok := diffOrderInvariants(scheme("/a"), scheme("/b"), nil)
+		assert.False(t, ok)
+		assert.Contains(t, detail, "auth registry depends on declaration order")
+	})
+
 	t.Run("a different set of diagnostics", func(t *testing.T) {
 		t.Parallel()
 		other := &ir.Document{Types: ir.TypeRegistry{"t/x/A": model("t/x/A", "a")}}
@@ -311,6 +323,40 @@ func TestDiffOrderInvariants_ReportsEachChannel(t *testing.T) {
 		assert.False(t, ok)
 		assert.Contains(t, detail, "diagnostics depend on declaration order")
 	})
+}
+
+// TestDiffOrderInvariants_AFlowsScopesFollowTheSource pins that the auth registry
+// compares a flow's scopes as a set: they keep source order, which a permutation
+// reverses, while a changed scope still differs.
+func TestDiffOrderInvariants_AFlowsScopesFollowTheSource(t *testing.T) {
+	t.Parallel()
+	doc := func(scopes ...ir.OAuthScope) *ir.Document {
+		return &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
+			"auth/x/a": {ID: "auth/x/a", Flows: []ir.OAuthFlow{{Scopes: scopes}}},
+		}}
+	}
+	read, write := ir.OAuthScope{Name: "read"}, ir.OAuthScope{Name: "write"}
+
+	detail, ok := diffOrderInvariants(doc(read, write), doc(write, read), nil)
+	assert.True(t, ok, detail)
+
+	_, ok = diffOrderInvariants(doc(read, write), doc(read, ir.OAuthScope{Name: "admin"}), nil)
+	assert.False(t, ok)
+}
+
+// TestOrderInvariant_ReachesARequirementNamingNoMechanism calls the oracle on the
+// fixture that holds every shape such a requirement takes. harness.Check would
+// stop at its first error, before the oracle, so without this call nothing
+// permutes what a minted scheme is built from. Two of the fixture's paths name
+// one scheme, so the permutation swaps which requirement reaches it first.
+func TestOrderInvariant_ReachesARequirementNamingNoMechanism(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile(filepath.FromSlash("../../testdata/conformance/openapi/security-unresolved.yaml"))
+	require.NoError(t, err)
+
+	detail, ok := orderInvariant(context.Background(), "security-unresolved.yaml", data)
+
+	assert.True(t, ok, detail)
 }
 
 // TestDiagnosticSet_IgnoresLineAndColumnButKeepsWhetherPositioned pins the two

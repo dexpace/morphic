@@ -106,8 +106,8 @@ func authDoc(kind ir.AuthKind) *ir.Document {
 	}}}
 }
 
-// TestVerify_UndeclaredAuthKindIsAViolation covers the class the compiler-side
-// refusal closed one instance of. The empty kind is the shape that reached the
+// TestVerify_UndeclaredAuthKindIsAViolation covers the class the compiler's own
+// report closed one instance of. The empty kind is the shape that reached the
 // IR: a scheme interned naming no mechanism at all, indistinguishable from a
 // sound one to every check that reads only a key and an ID.
 func TestVerify_UndeclaredAuthKindIsAViolation(t *testing.T) {
@@ -132,6 +132,44 @@ func TestVerify_UndeclaredAuthKindIsAViolation(t *testing.T) {
 	}
 }
 
+// streamingDoc returns a clean document whose one operation has the given mode.
+func streamingDoc(mode ir.StreamingMode) *ir.Document {
+	doc := validDoc()
+	doc.Services = []ir.Service{{
+		ID:   "s/x/S",
+		Name: named("svc"),
+		Groups: []ir.OperationGroup{{
+			ID:         "g/x/S/g",
+			Name:       named("g"),
+			Operations: []ir.Operation{{ID: "op/x/S/a", Name: named("a"), Streaming: mode}},
+		}},
+	}}
+	return doc
+}
+
+// TestVerify_UndeclaredStreamingModeIsAViolation holds Operation.Streaming to the
+// modes ir declares. "none" is the spelling the empty mode replaced, so a
+// document still writing it is reported rather than read as a stream (GitHub
+// #978).
+func TestVerify_UndeclaredStreamingModeIsAViolation(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []ir.StreamingMode{"none", "duplex", "Server"} {
+		got := verifyDeclared(streamingDoc(mode))
+		require.Len(t, got, 1, "%q", mode)
+		assert.Equal(t, "ir/unknown-streaming-mode", got[0].Code, "%q", mode)
+		assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Streaming", got[0].Path, "%q", mode)
+	}
+}
+
+// TestVerify_DeclaredStreamingModesAreClean is the silent half: every declared
+// mode verifies, the empty one included, since most operations do not stream.
+func TestVerify_DeclaredStreamingModesAreClean(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []ir.StreamingMode{ir.StreamingNone, ir.StreamingClient, ir.StreamingServer, ir.StreamingBidi} {
+		assert.Empty(t, verifyDeclared(streamingDoc(mode)), "%q", mode)
+	}
+}
+
 // TestVerify_DeclaredAuthKindIsClean holds the silent half: the same document
 // with a mechanism ir declares must yield nothing.
 func TestVerify_DeclaredAuthKindIsClean(t *testing.T) {
@@ -140,6 +178,57 @@ func TestVerify_DeclaredAuthKindIsClean(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
 			assert.Empty(t, verifyDeclared(authDoc(kind)))
+		})
+	}
+}
+
+// TestVerify_UndeclaredStabilityIsAViolation holds the check at both carriers a
+// walk meets, nested groups included: the field is held by its type, so a
+// carrier the check named by hand would be the one a new struct escapes.
+func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
+	t.Parallel()
+	const op = "doc.Services[0].Groups[0].Operations[0].Stability"
+	tests := []struct {
+		name string
+		edit func(*ir.Document)
+		path string
+	}{
+		{"an operation", func(d *ir.Document) {
+			d.Services[0].Groups[0].Operations[0].Stability = "preview"
+		}, op},
+		{"a group", func(d *ir.Document) {
+			d.Services[0].Groups[0].Stability = "GA"
+		}, "doc.Services[0].Groups[0].Stability"},
+		{"a nested group", func(d *ir.Document) {
+			d.Services[0].Groups[0].Groups = []ir.OperationGroup{{ID: "g/x/nested", Stability: "Beta"}}
+		}, "doc.Services[0].Groups[0].Groups[0].Stability"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := opDoc(ir.Operation{ID: "op/x/S/op"})
+			tc.edit(doc)
+			var got []string
+			for _, v := range irverify.Verify(doc) {
+				if v.Code == "ir/unknown-stability" {
+					got = append(got, v.Path)
+				}
+			}
+			assert.Equal(t, []string{tc.path}, got)
+		})
+	}
+}
+
+// TestVerify_DeclaredStabilityIsClean is the other half: every declared tier
+// passes, and so does the empty value, which states none and is the shape of
+// most operations a compiler reads no tier for.
+func TestVerify_DeclaredStabilityIsClean(t *testing.T) {
+	t.Parallel()
+	for _, tier := range []ir.Stability{ir.StabilityUnstated, ir.StabilityAlpha, ir.StabilityBeta, ir.StabilityStable} {
+		t.Run(string(tier), func(t *testing.T) {
+			t.Parallel()
+			assert.NotContains(t, violationCodes(irverify.Verify(opDoc(ir.Operation{ID: "op/x/S/op", Stability: tier}))),
+				"ir/unknown-stability")
 		})
 	}
 }

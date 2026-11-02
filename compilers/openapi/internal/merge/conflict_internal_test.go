@@ -17,23 +17,23 @@ import (
 // a base-less opaque scalar, and a cyclic base chain. These exercise those
 // guards directly.
 
-func TestPrimKind_DanglingTargetIsNotResolved(t *testing.T) {
+func TestKindOf_DanglingTargetIsNotResolved(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(nil)
-	_, ok := judge(g).primKind(ir.TypeRef{Target: "t/missing"})
+	_, ok := judge(g).kindOf(ir.TypeRef{Target: "t/missing"})
 	assert.False(t, ok, "a target absent from the registry resolves to no primitive")
 }
 
-func TestPrimKind_BaselessScalarIsNotResolved(t *testing.T) {
+func TestKindOf_BaselessScalarIsNotResolved(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/opaque": &ir.Scalar{ID: "t/opaque"},
 	})
-	_, ok := judge(g).primKind(ir.TypeRef{Target: "t/opaque"})
+	_, ok := judge(g).kindOf(ir.TypeRef{Target: "t/opaque"})
 	assert.False(t, ok, "a base-less opaque scalar has no underlying primitive")
 }
 
-func TestPrimKind_CyclicBaseChainTerminates(t *testing.T) {
+func TestKindOf_CyclicBaseChainTerminates(t *testing.T) {
 	t.Parallel()
 	// A scalar whose Base points back at itself: the bounded walk must terminate
 	// and report no primitive rather than spin.
@@ -41,7 +41,7 @@ func TestPrimKind_CyclicBaseChainTerminates(t *testing.T) {
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/cycle": &ir.Scalar{ID: "t/cycle", Base: &self},
 	})
-	_, ok := judge(g).primKind(self)
+	_, ok := judge(g).kindOf(self)
 	assert.False(t, ok, "a cyclic base chain terminates without resolving")
 }
 
@@ -80,29 +80,25 @@ func TestClassify_MapAndModelAreOneObjectKind(t *testing.T) {
 	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/list"), ref("t/model")), "list against model")
 }
 
-// Every BigVal keyword rests on the same magnitude comparison, so it is driven
-// here over the literals that comparison has to get right: one value
-// under two spellings, and two values that genuinely differ — mostly at a
-// magnitude math/big will not build as a rational at all, with one in-range
-// row so a comparison that only handled the extremes would still be caught.
+// Every BigVal bound rests on one magnitude comparison, driven here over two
+// values that differ, mostly at a magnitude math/big will not build as a rational
+// at all. The larger and the smaller are asserted in both orders, so a comparison
+// that only took the first would be caught.
 //
-// Every literal is built through ir.NewBigVal, which is the only way a bound
-// reaches these helpers. A pair it refuses cannot arrive, so a row that used
-// one would say nothing about what the compiler compares.
-func TestBigValConflictDetails_CompareMagnitudesAtAnyScale(t *testing.T) {
+// Every literal is built through ir.NewBigVal, the only way a bound reaches these
+// helpers, so no row holds a pair that could not arrive.
+func TestLargerAndSmallerNumber_OrderMagnitudesAtAnyScale(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name         string
-		a, b         string
-		wantConflict bool
+		name            string
+		a, b            string
+		larger, smaller string
 	}{
-		{name: "one value, two spellings", a: "1e1000001", b: "10e1000000"},
-		{name: "one value, two spellings, in reverse", a: "10e1000000", b: "1e1000001"},
-		{name: "one value against a rational's own range", a: "1e2", b: "100"},
-		{name: "one exponent apart", a: "1e1000001", b: "1e1000002", wantConflict: true},
-		{name: "one leading digit apart", a: "1e1000001", b: "2e1000001", wantConflict: true},
-		{name: "a sign apart", a: "1e1000001", b: "-1e1000001", wantConflict: true},
-		{name: "too small for a rational, and unequal", a: "1e-1000001", b: "2e-1000001", wantConflict: true},
+		{name: "one exponent apart", a: "1e1000001", b: "1e1000002", larger: "1e1000002", smaller: "1e1000001"},
+		{name: "one leading digit apart", a: "1e1000001", b: "2e1000001", larger: "2e1000001", smaller: "1e1000001"},
+		{name: "a sign apart", a: "1e1000001", b: "-1e1000001", larger: "1e1000001", smaller: "-1e1000001"},
+		{name: "too small for a rational", a: "1e-1000001", b: "2e-1000001", larger: "2e-1000001", smaller: "1e-1000001"},
+		{name: "in a rational's own range", a: "3", b: "20", larger: "20", smaller: "3"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -112,12 +108,31 @@ func TestBigValConflictDetails_CompareMagnitudesAtAnyScale(t *testing.T) {
 			b, err := ir.NewBigVal(tc.b)
 			require.NoError(t, err, "%q is a literal a schema may write", tc.b)
 
-			_, boundOK := bigValConflictDetail("minimum", &a, &b)
-			assert.Equal(t, tc.wantConflict, boundOK, "minimum %s against %s", a, b)
+			for _, pair := range [][2]ir.BigVal{{a, b}, {b, a}} {
+				larger, ok := largerNumber(pair[0], pair[1])
+				require.True(t, ok, "%s and %s have an order", pair[0], pair[1])
+				assert.Equal(t, ir.BigVal(tc.larger), larger, "larger of %s and %s", pair[0], pair[1])
 
-			_, multipleOK := bigValConflictDetail("multipleOf", &a, &b)
-			assert.Equal(t, tc.wantConflict, multipleOK, "multipleOf %s against %s", a, b)
+				smaller, ok := smallerNumber(pair[0], pair[1])
+				require.True(t, ok, "%s and %s have an order", pair[0], pair[1])
+				assert.Equal(t, ir.BigVal(tc.smaller), smaller, "smaller of %s and %s", pair[0], pair[1])
+			}
 		})
+	}
+}
+
+// TestLargerAndSmallerNumber_KeepTheFirstSpellingOfOneNumber pins that one number
+// written twice meets to the first spelling, as a default written twice does: no
+// magnitude is decided by which came first.
+func TestLargerAndSmallerNumber_KeepTheFirstSpellingOfOneNumber(t *testing.T) {
+	t.Parallel()
+	for _, meet := range []func(x, y ir.BigVal) (ir.BigVal, bool){largerNumber, smallerNumber} {
+		got, ok := meet("10", "1e1")
+		require.True(t, ok)
+		assert.Equal(t, ir.BigVal("10"), got)
+		got, ok = meet("1e1", "10")
+		require.True(t, ok)
+		assert.Equal(t, ir.BigVal("1e1"), got)
 	}
 }
 
@@ -155,7 +170,7 @@ func TestClassify_StructuralVsPrimitiveIsDisjoint(t *testing.T) {
 		"primitive vs model is a provable conflict")
 }
 
-// The tests below reach constraintsConflict and mergeConstraints for keywords
+// The tests below reach constraintsConflict and Constraints for keywords
 // no OpenAPI spec can drive them through. ir.Constraints is one struct
 // shared by every user of the type (properties and lists alike), and the
 // OpenAPI compiler does not yet populate Precision, Scale, PatternMessage, or
@@ -195,21 +210,21 @@ func TestConstraintsConflict_UniqueItemsNeverConflicts(t *testing.T) {
 	}
 }
 
-func TestMergeConstraints_UniqueItemsIntersectsToTrue(t *testing.T) {
+func TestConstraints_UniqueItemsIntersectsToTrue(t *testing.T) {
 	t.Parallel()
 	// allOf is an intersection: a collection satisfying both branches must be
 	// unique whenever either branch requires it, so the merge always adopts
 	// true and never downgrades true back to false.
-	dst := mergeConstraints(&ir.Constraints{UniqueItems: false}, &ir.Constraints{UniqueItems: true})
+	dst := Constraints(&ir.Constraints{UniqueItems: false}, &ir.Constraints{UniqueItems: true})
 	require.NotNil(t, dst)
 	assert.True(t, dst.UniqueItems, "dst adopts true from src")
 
-	dst = mergeConstraints(&ir.Constraints{UniqueItems: true}, &ir.Constraints{UniqueItems: false})
+	dst = Constraints(&ir.Constraints{UniqueItems: true}, &ir.Constraints{UniqueItems: false})
 	require.NotNil(t, dst)
 	assert.True(t, dst.UniqueItems, "dst is never downgraded from true to false")
 }
 
-func TestMergeConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
+func TestConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
 	t.Parallel()
 	// Every keyword ir.Constraints carries: dst leaves each one unset, so the
 	// merge must adopt all of them from src, not just the ones exercised by
@@ -233,7 +248,7 @@ func TestMergeConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
 		MinProps:       &five,
 		MaxProps:       &ten,
 	}
-	merged := mergeConstraints(&ir.Constraints{}, src)
+	merged := Constraints(&ir.Constraints{}, src)
 	require.NotNil(t, merged)
 	assert.Same(t, src.Min, merged.Min)
 	assert.Same(t, src.ExclusiveMin, merged.ExclusiveMin)
@@ -253,51 +268,73 @@ func TestMergeConstraints_AdoptsEveryUnsetKeyword(t *testing.T) {
 	assert.Same(t, src.MaxProps, merged.MaxProps)
 }
 
-func TestMergeConstraints_LeavesSetKeywordsUntouched(t *testing.T) {
+func TestConstraints_ABoundTakesItsTighterValue(t *testing.T) {
 	t.Parallel()
-	// dst already sets every keyword exercised here; src's differing values
-	// must never overwrite dst's — first declaration wins, same as every
-	// other field the fold keeps first.
-	dstMin, srcMin := ir.BigVal("1"), ir.BigVal("99")
-	dst := &ir.Constraints{Min: &dstMin, Pattern: "^dst$", PatternMessage: "dst message", UniqueItems: true}
-	src := &ir.Constraints{Min: &srcMin, Pattern: "^src$", PatternMessage: "src message", UniqueItems: false}
-	merged := mergeConstraints(dst, src)
-	require.NotNil(t, merged)
-	assert.Same(t, &dstMin, merged.Min, "dst's Min is kept, src's is not adopted")
-	assert.Equal(t, "^dst$", merged.Pattern)
-	assert.Equal(t, "dst message", merged.PatternMessage)
-	assert.True(t, merged.UniqueItems, "true is never downgraded by a false src")
+	// Under allOf every bound holds, so each keyword both sides set takes the
+	// value admitting fewer, whichever side wrote it. Both orders are folded,
+	// so a merge keeping one side would fail one of them.
+	loose := &ir.Constraints{
+		Min: new(ir.BigVal("1")), ExclusiveMin: new(ir.BigVal("2")), Max: new(ir.BigVal("9")), ExclusiveMax: new(ir.BigVal("8")),
+		MinLength: new(int64(3)), MaxLength: new(int64(7)), MinItems: new(int64(3)), MaxItems: new(int64(7)),
+		MinProps: new(int64(3)), MaxProps: new(int64(7)), MultipleOf: new(ir.BigVal("2")),
+	}
+	tight := &ir.Constraints{
+		Min: new(ir.BigVal("4")), ExclusiveMin: new(ir.BigVal("5")), Max: new(ir.BigVal("6")), ExclusiveMax: new(ir.BigVal("5.5")),
+		MinLength: new(int64(4)), MaxLength: new(int64(6)), MinItems: new(int64(4)), MaxItems: new(int64(6)),
+		MinProps: new(int64(4)), MaxProps: new(int64(6)), MultipleOf: new(ir.BigVal("6")),
+	}
+	for name, pair := range map[string][2]*ir.Constraints{"looser first": {loose, tight}, "tighter first": {tight, loose}} {
+		first := *pair[0]
+		assert.Equal(t, tight, Constraints(&first, pair[1]), name)
+	}
 }
 
-func TestMergeConstraints_NilOperands(t *testing.T) {
+func TestConstraints_AKeywordWithNoOrderKeepsTheFirst(t *testing.T) {
+	t.Parallel()
+	a := &ir.Constraints{Pattern: "^a$", PatternMessage: "a", Precision: new(int64(4)), Scale: new(int64(2))}
+	b := &ir.Constraints{Pattern: "^b$", PatternMessage: "b", Precision: new(int64(9)), Scale: new(int64(1))}
+	merged := *a
+	assert.Equal(t, a, Constraints(&merged, b))
+}
+
+func TestConstraints_APairWithNoMeetKeepsTheFirst(t *testing.T) {
+	t.Parallel()
+	// A pair no one value states is reported by constraintsConflict, and the
+	// field keeps the first of it: a failed meet writes nothing, since what it
+	// returns is no value.
+	a := &ir.Constraints{MultipleOf: new(ir.BigVal("3")), Min: new(ir.BigVal("1"))}
+	b := &ir.Constraints{MultipleOf: new(ir.BigVal("nan")), Min: new(ir.BigVal("nan"))}
+	merged := *a
+	assert.Equal(t, a, Constraints(&merged, b))
+}
+
+func TestConstraints_NilOperands(t *testing.T) {
 	t.Parallel()
 	// A nil dst adopts src wholesale; a nil src leaves dst untouched; both nil
 	// stays nil.
 	full := &ir.Constraints{Pattern: "^a$"}
-	assert.Same(t, full, mergeConstraints(nil, full), "nil dst adopts src wholesale")
-	assert.Same(t, full, mergeConstraints(full, nil), "nil src leaves dst untouched")
-	assert.Nil(t, mergeConstraints(nil, nil))
+	assert.Same(t, full, Constraints(nil, full), "nil dst adopts src wholesale")
+	assert.Same(t, full, Constraints(full, nil), "nil src leaves dst untouched")
+	assert.Nil(t, Constraints(nil, nil))
 }
 
 func TestConstraintsConflict_DeterministicKeywordOrder(t *testing.T) {
 	t.Parallel()
-	// minLength is checked before maxLength in constraintsConflict's fixed
-	// order, so when both conflict at once the reported keyword is always
-	// minLength, never maxLength.
-	two, three := int64(2), int64(3)
-	twenty, thirty := int64(20), int64(30)
-	a := &ir.Constraints{MinLength: &two, MaxLength: &twenty}
-	b := &ir.Constraints{MinLength: &three, MaxLength: &thirty}
+	// precision is checked before pattern in constraintsConflict's fixed order,
+	// so when both conflict at once the reported keyword is always precision,
+	// never pattern.
+	a := &ir.Constraints{Precision: new(int64(2)), Pattern: "^a$"}
+	b := &ir.Constraints{Precision: new(int64(3)), Pattern: "^b$"}
 	_, detail, ok := constraintsConflict(a, b)
 	require.True(t, ok)
-	assert.Contains(t, detail, "minLength", "the earlier-checked keyword is reported")
-	assert.NotContains(t, detail, "maxLength", "the later-checked keyword is not also reported")
+	assert.Contains(t, detail, "precision", "the earlier-checked keyword is reported")
+	assert.NotContains(t, detail, "pattern", "the later-checked keyword is not also reported")
 }
 
 // TestClassify_ALiteralOverlapsWhatHoldsValues pins that a literal against
-// another literal or against a type with a primitive kind is an overlap, never
-// silent, while a scalar literal against a structure still conflicts and a
-// dangling target stays silent.
+// another literal or against a type with a primitive kind no held format
+// narrows is an overlap, never silent, while a scalar literal against a
+// structure still conflicts and a dangling target stays silent.
 func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(judgeRegistry())
@@ -308,4 +345,15 @@ func TestClassify_ALiteralOverlapsWhatHoldsValues(t *testing.T) {
 	assert.Equal(t, relDisjoint, judge(g).relate(ref("t/lit-a"), ref("t/model")))
 	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/absent"), ref("t/prim/string")))
 	assert.Equal(t, relUnrelated, judge(g).relate(ref("t/prim/string"), ref("t/absent")))
+}
+
+// TestMeets_ANoOrderPairIsNoMeet pins what Meets asks of constraintsConflict: two
+// ordered bounds always meet, and two values of a keyword with no order meet only
+// where they are one.
+func TestMeets_ANoOrderPairIsNoMeet(t *testing.T) {
+	t.Parallel()
+	assert.True(t, Meets(&ir.Constraints{MaxLength: new(int64(3))}, &ir.Constraints{MaxLength: new(int64(5))}))
+	assert.True(t, Meets(&ir.Constraints{Pattern: "a"}, &ir.Constraints{Pattern: "a"}))
+	assert.False(t, Meets(&ir.Constraints{Pattern: "a"}, &ir.Constraints{Pattern: "b"}))
+	assert.True(t, Meets(nil, &ir.Constraints{Pattern: "b"}), "nothing conflicts with nothing")
 }

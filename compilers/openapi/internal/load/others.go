@@ -13,6 +13,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
@@ -31,7 +32,7 @@ type Other struct {
 	Info ir.SourceInfo
 }
 
-// Others is every document the compile read beside the source, in the order
+// Others is every document a reference reached beside the source, in the order
 // Document.Sources lists them, the names a reference reads each by, and where
 // each one's trees write a node (see locator).
 type Others struct {
@@ -89,19 +90,34 @@ func (o Others) index(name string) (int, bool) {
 	return i, ok
 }
 
+// unreachedKeys is the key of each document table read that nothing it holds is
+// in (bind.Document.Unreached), but those the parser's resolver read, whose
+// keys resolved holds: a reference object's chain reaches them, which the table
+// need not see. Such a document lowers nothing and is no input of the result.
+func unreachedKeys(table *bind.Table, resolved map[string]bool) map[string]bool {
+	unused := map[string]bool{}
+	for id := range bind.DocID(table.Documents()) {
+		if d := table.Document(id); d.Unreached && !resolved[readKey(d.Name)] {
+			unused[readKey(d.Name)] = true
+		}
+	}
+	return unused
+}
+
 // newOthers lists the documents read prepares beside the source, the first at
-// Document.Sources index first. They are ordered by label, not as they were
-// read, so the order no declaration order changes; two names one label
-// reaches, a file spelled two ways, are one document, as RFC 3986 reads a
-// path. format is the source's, which a referenced document is read as part of.
-func newOthers(ctx context.Context, read *externalReads, first int, format string) Others {
+// Document.Sources index first, but those under the keys unused holds. They are
+// ordered by label, not as they were read, so the order no declaration order
+// changes; two names one label reaches, a file spelled two ways, are one
+// document, as RFC 3986 reads a path. format is the source's, which a referenced
+// document is read as part of.
+func newOthers(ctx context.Context, read *externalReads, first int, format string, unused map[string]bool) Others {
 	read.mu.Lock()
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}
 	for key := range read.data {
 		// The source is held under each spelling the resolver reaches it by,
 		// with no bytes of its own; it is Document.Sources' first entry.
-		if read.self.names(key) || read.trees[key] == read.self.root {
+		if read.self.names(key) || read.trees[key] == read.self.root || unused[key] {
 			continue
 		}
 		label := labelOf(read.self.path, key, filepath.Abs)

@@ -102,7 +102,9 @@ func TestAt_NamesASchemaByItsStructure(t *testing.T) {
 		{"a component literally named items", "/components/schemas/items", "items"},
 		{"a oneOf branch holding no $ref is named variant_N", "/components/schemas/Foo/oneOf/0", "variant_0"},
 		{"an anyOf branch", "/components/schemas/Foo/anyOf/12", "variant_12"},
-		{"an allOf branch", "/components/schemas/Foo/allOf/1", "variant_1"},
+		{"an allOf branch is named as the schema holding it", "/components/schemas/Foo/allOf/1", "Foo"},
+		{"items beneath an allOf branch", "/components/schemas/Foo/allOf/1/items", compile.SubHint("Foo", "item")},
+		{"a nested allOf branch", "/components/schemas/Foo/allOf/1/allOf/0", "Foo"},
 		{"items beneath a branch is named off the branch",
 			"/components/schemas/Foo/oneOf/0/items", compile.SubHint("variant_0", "item")},
 		{"a branch reached through a property named oneOf",
@@ -176,6 +178,8 @@ components:
     Err: {description: e, content: {application/json: {schema: {type: object}}}}
   headers:
     Trace: {schema: {type: object}}
+  mediaTypes:
+    Events: {schema: {type: object}, itemSchema: {type: object}}
   pathItems:
     Item:
       get:
@@ -188,9 +192,10 @@ components:
 // for, as the grammar reads where it is written: a request body by its
 // component's key or the operationId of the operation declaring it, else
 // "request"; a response by its component's key, else "response"; a parameter
-// by its name, its content included; a header by its key; an itemSchema as
-// its media type's item. Each holds wherever the operation is written: a path
-// item, a callback, a webhook or a component path item.
+// by its name, its content included; a header by its key; a
+// components/mediaTypes entry by its key; an itemSchema as its media type's
+// item. Each holds wherever the operation is written: a path item, a
+// callback, a webhook or a component path item.
 func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 	t.Parallel()
 	tb := table(t, ownersSpec, nil)
@@ -221,6 +226,9 @@ func TestAt_NamesASchemaAfterItsOwner(t *testing.T) {
 		{"a header, by its key", op + "/responses/200/headers/X-Rate/schema", "X-Rate"},
 		{"a header's content", op + "/responses/200/headers/X-Body" + json, "X-Body"},
 		{"a component header, by its key", "/components/headers/Trace/schema", "Trace"},
+		{"a component media type, by its key", "/components/mediaTypes/Events/schema", "Events"},
+		{"a component media type's itemSchema, as its item", "/components/mediaTypes/Events/itemSchema",
+			compile.SubHint("Events", "item")},
 		{"a callback's request body", op + "/callbacks/onEvent/{$request.body#~1url}/post/requestBody" + json,
 			"notify_request"},
 		{"a webhook's request body", "/webhooks/hook/post/requestBody" + json, "onHook_request"},

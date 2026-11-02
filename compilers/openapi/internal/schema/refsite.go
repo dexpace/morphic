@@ -24,8 +24,9 @@ import (
 // they bind the position, not the referent, and cannot go on the target's
 // node; an alias over the target becomes their home. The alias carries the
 // position's constraints and annotations, and keeps verbatim the census
-// keywords, allOf and oneOf/anyOf written beside the $ref, because it has no
-// property set, member set, value or encoding of its own (GitHub #283, #406).
+// keywords those leave, allOf and oneOf/anyOf written beside the $ref, because
+// it has no property set, member set, value or encoding of its own (GitHub
+// #283, #406).
 //
 // At an annotation.HomeCarrier position no alias is hoisted: the carrier keeps
 // them through PreserveRefSiteKeywords (GitHub #114).
@@ -46,9 +47,9 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a
-// $ref position declared that the alias it resolves to cannot hold, and those a
-// collapsed union declared, which resolves to a reference the same way. It is
-// refSiteRef's and schemaBody's other half: the same census, recorded where an
+// $ref position declared that the alias it resolves to cannot hold, and those
+// of what resolves to a reference the same way (referenceOutcomeKeywords). It
+// is refSiteRef's and schemaBody's other half: the same census, recorded where an
 // annotation.HomeCarrier position keeps everything else its schema declared —
 // oneOf/anyOf/allOf included, through the same keepers refSiteRef calls
 // (GitHub #406).
@@ -66,8 +67,9 @@ func PreserveRefSiteKeywords(c lowering.Ctx, ts *compile.Types, p *ir.Unmodeled,
 		return nil
 	}
 	if !resolve.IsRefSite(js, s) {
-		// A collapsed union lowers to a reference just as a $ref site does.
-		return recordUnhomedAt(c, p, s, collapsedUnhomedKeywords(s), collapsedShape, pointer)
+		// A collapsed union, an expanded $dynamicRef and a refinement lower to a
+		// reference just as a $ref site does.
+		return keepsAtOutcome(c, ts, s, t, pointer).record(c, p, s, pointer)
 	}
 	diags := recordUnhomedAt(c, p, s, refSiteUnhomedKeywords(s, nil), refSiteShape, pointer)
 	if !declaresUnion(s) {
@@ -171,8 +173,8 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer,
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
 	if c.IDs() == (ids.Document{}) {
-		if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
-			return id, resolved
+		if id, state := c.RefScope().ComponentRef(pointer); state.ByName() {
+			return id, state == ids.NamedComponent
 		}
 	}
 	if !resolve.Hoistable(decl) {
@@ -204,7 +206,7 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *oas3.JSONSchema[oas
 	diags = append(diags, aliasDiags...)
 	// As in lowerComponentSchema: this alias is the first node the pointer owns,
 	// so the annotations Ref had nowhere to put now have a home.
-	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
+	return append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 }
 
 // onLoop reports whether the $ref at b lies on a loop of $refs, which the load
@@ -213,13 +215,4 @@ func hoistSubSchema(c lowering.Ctx, ts *compile.Types, decl *oas3.JSONSchema[oas
 func onLoop(c lowering.Ctx, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	e, ok := c.Bindings().Entry(b)
 	return ok && e.Chain.Member
-}
-
-// refSiteHomesNothing reports whether a $ref position written as s holds
-// nothing an alias would: no keyword beside the $ref that refSiteRef keeps on
-// one (refSiteUnhomedKeywords, declaresUnion), and none hoistDeclarationHome
-// homes on one (declaresPositionScoped). Such a position lowers to its
-// target's type alone.
-func refSiteHomesNothing(s *oas3.Schema) bool {
-	return len(refSiteUnhomedKeywords(s, nil)) == 0 && !declaresUnion(s) && !declaresPositionScoped(s)
 }

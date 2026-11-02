@@ -63,7 +63,10 @@ highlights, and the list moves to a specification of its own when the compiler l
 - `@sparse` → element Nullable
 - traits: constraints → Constraints, `@paginated` → Pagination (declared), `@retryable` →
   ErrorCase.Retryable + Throttling, `@error` fault → ErrorCase.Fault, `@readonly` → Idempotency
-  safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@tags` →
+  safe, `@idempotent`/`@idempotencyToken` → Idempotency, `@sensitive` → Sensitive/Secret, `@unstable`
+  on an operation or a resource → Stability `alpha` (Operation, OperationGroup), `@internal` on a
+  type → Access by compiler policy, and either on any other shape or member kept under `no_ir_home`
+  ([access](../ir/boundaries.md#access)), `@tags` →
   Tags, `@clientOptional`/`@input` → Property.ClientOptional (+InputOnly), `@addedDefault` →
   DefaultAdded, root-shape `@default` pushed down to properties w/ provenance
 - `@streaming` blob → StreamDetail (+`@requiresLength` → RequiresLength)
@@ -138,6 +141,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 - gRPC transcoding (google.api.http) → additional HTTPBinding entries (slice), path patterns →
   PathPattern, nested bindings → ParamPath, response_body → ResponseBodyPath
 - reserved ranges → Unmodeled (guarded by validate pass)
+- comments → Docs, and a `[Name][pkg.Type]` cross-reference in one → a `Docs.Refs` span over the text
+  as written
 
 ## Erlang/OTP
 
@@ -158,4 +163,5 @@ highlights, and the list moves to a specification of its own when the compiler l
 - bit-sized binaries/map assoc lists/`-opaque` →
   [boundaries](../ir/boundaries.md#degraded-constructs) degraded lowerings
 - `-deprecated` → Deprecation
-- `-doc`/EDoc → Docs
+- `-doc`/EDoc → Docs, and an EDoc `{@link}` to a type in one → a `Docs.Refs` span over the text as
+  written

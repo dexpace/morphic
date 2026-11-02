@@ -25,19 +25,21 @@ witnessing it.
 
 - Witnesses: `oneof-discriminated`, `anyof-discriminated`, `discriminator-inheritance`,
   `discriminator-inline-subtype`, `discriminator-default-mapping`, `discriminator-transitive`,
-  `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`
+  `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`,
+  `discriminator-aliased-branch`
 
 ### `untagged-unions`
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
-  `anyof-untagged`, `union-decorated-branch`
+  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`
 
 ### `intersection`
 
 - Witnesses: `allof-mixins`, `allof-inline-merge`, `allof-required-only`,
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-nested-inline`,
   `allof-ref-branch-siblings`, `allof-boolean-branch`, `allof-narrowing-redeclaration`,
-  `allof-redeclared-models`, `allof-position-constraints`, `codeclared-keywords`
+  `allof-redeclared-models`, `allof-redeclared-bounds`, `allof-position-constraints`,
+  `allof-refinement`, `codeclared-keywords`
 
 ### `negation`
 
@@ -79,7 +81,7 @@ witnessing it.
 
 ### `constraints`
 
-- Witnesses: `constraints`, `numeric-precision`
+- Witnesses: `constraints`, `numeric-precision`, `ref-collection-bounds`
 
 ### `visibility`
 
@@ -87,7 +89,7 @@ witnessing it.
 
 ### `redaction`
 
-- Witnesses: `secret-format`
+- Witnesses: `secret-format`, `extension-redaction`
 
 ### `recursive-types`
 
@@ -175,7 +177,7 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`, `security-root-empty`
+- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`
 
 ### `servers`
 
@@ -187,7 +189,11 @@ witnessing it.
 
 ### `deprecation`
 
-- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`
+- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`, `extension-stability`
+
+### `stability`
+
+- Witnesses: `extension-stability`
 
 ### `examples`
 

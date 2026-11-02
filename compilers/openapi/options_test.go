@@ -49,6 +49,8 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"overlay":                "patch.yaml",
 			"overlay-lax":            "true",
 			"nullable-widening":      "false",
+			"streaming-media":        "application/vnd.acme.frames; charset=utf-8, +frames",
+			"streaming-inference":    "false",
 			"max-source-bytes":       "11",
 			"max-source-nodes":       "-1",
 			"max-enum-members":       "0",
@@ -67,6 +69,10 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 	assert.Nil(t, opts.Overlay.Data, "named for the compile to read, not read")
 	assert.True(t, opts.Overlay.Lax)
 	assert.True(t, opts.NullableWidening.Disabled, "nullable-widening=false turns the policy off")
+	assert.Equal(t, openapi.StreamingMedia{
+		Disabled:   true,
+		MediaTypes: []string{"application/vnd.acme.frames; charset=utf-8", "+frames"},
+	}, opts.StreamingMedia, "the list as the Go field reads it, one entry each, and streaming-inference=false turns it off")
 	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14},
 		opts.Limits, "each budget as the Go field reads it, 0 left for the default")
 }
@@ -110,7 +116,7 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, grouping, max-alias-surplus, ` +
 				`max-enum-members, max-external-documents, max-source-bytes, max-source-nodes, nullable-widening, overlay, ` +
-				`overlay-lax)`},
+				`overlay-lax, streaming-inference, streaming-media)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
@@ -119,8 +125,41 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`"max-external-documents": want an integer`},
 		{"unknown grouping", map[string]string{"grouping": "alphabetical"},
 			`want "tags" or "path-prefix", got "alphabetical"`},
+		// An entry that could match nothing is refused: the list replaces the
+		// default, so a typo would turn the inference off for every media type.
+		{"empty streaming list", map[string]string{"streaming-media": ""},
+			`"streaming-media": want media types or +suffixes separated by commas, got ""`},
+		{"entry naming no media type", map[string]string{"streaming-media": "text/event-stream,ndjson"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "text/event-stream,ndjson"`},
+		{"empty entry", map[string]string{"streaming-media": "text/event-stream,"},
+			`"streaming-media": want media types or +suffixes separated by commas`},
+		{"a bare plus", map[string]string{"streaming-media": "+"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "+"`},
+		{"a media type with no subtype", map[string]string{"streaming-media": "text/"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "text/"`},
+		{"a media type with no type", map[string]string{"streaming-media": "/plain"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "/plain"`},
+		{"a media type with two slashes", map[string]string{"streaming-media": "text/plain/x"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "text/plain/x"`},
+		{"a media type holding a space", map[string]string{"streaming-media": "text/event stream"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "text/event stream"`},
+		// A malformed parameter leaves the name readable, so only the parse's error
+		// refuses it.
+		{"a parameter with no value", map[string]string{"streaming-media": "text/event-stream; charset"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "text/event-stream; charset"`},
+		{"a suffix holding a space", map[string]string{"streaming-media": "+json seq"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "+json seq"`},
+		{"a suffix holding a slash", map[string]string{"streaming-media": "+json/seq"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "+json/seq"`},
+		// A media type's suffix starts at its last plus, so these match nothing.
+		{"a suffix holding a plus", map[string]string{"streaming-media": "+a+json-seq"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "+a+json-seq"`},
+		{"a suffix of a plus", map[string]string{"streaming-media": "++"},
+			`"streaming-media": want media types or +suffixes separated by commas, got "++"`},
 		{"non-boolean policy", map[string]string{"nullable-widening": "maybe"},
 			`option "nullable-widening": want a boolean, got "maybe"`},
+		{"non-boolean inference", map[string]string{"streaming-inference": "maybe"},
+			`option "streaming-inference": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},
 			`want a boolean, got "yes please"`},
 		{"non-boolean laxness", map[string]string{"overlay": "p.yaml", "overlay-lax": "sort of"},

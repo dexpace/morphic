@@ -55,10 +55,11 @@ const (
 	OpenAPISpace compile.Space = "openapi"
 	AnonSpace    compile.Space = "anon"
 	// ComposedSpace holds what no schema or declaration in the source occupies:
-	// the Models synthesized for distributed union variants
-	// (docs/ir/models.md#composition-beside-a-union) and for a field redeclared
-	// as several models, and the identity of a field whose first declaration
-	// another model carries (docs/compilers/openapi.md#allof-redeclared-property).
+	// the Models for distributed union variants
+	// (docs/ir/models.md#composition-beside-a-union), the node a field's
+	// declarations compose or meet to, and the identity of a field whose first
+	// declaration another model carries
+	// (docs/compilers/openapi.md#allof-redeclared-property).
 	// A $ref naming the pointer must keep resolving to what is written there. A
 	// variant's path ends in oneOf or anyOf and an index, and a field's in
 	// properties and a name, so the two never meet. ForPointer yields only the
@@ -119,7 +120,7 @@ func Namespaces(others ...Document) compile.Namespaces {
 		ir.IDKindType:       {OpenAPISpace, AnonSpace, ComposedSpace},
 		ir.IDKindOp:         {OpenAPISpace},
 		ir.IDKindProp:       {OpenAPISpace, ComposedSpace},
-		ir.IDKindAuth:       {OpenAPISpace},
+		ir.IDKindAuth:       {OpenAPISpace, compile.UnresolvedSpace},
 		ir.IDKindService:    {OpenAPISpace},
 		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
 		ir.IDKindParam:      {OpenAPISpace},
@@ -179,10 +180,10 @@ func (d Document) AnonType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(AnonSpace), string(pointer))
 }
 
-// ComposedType returns the stable ID of the Model synthesized at pointer in d:
+// ComposedType returns the stable ID of the node synthesized at pointer in d:
 // a distributed union variant's branch
 // (docs/ir/models.md#composition-beside-a-union), or the declaration naming a
-// field redeclared as several models.
+// field whose declarations compose or meet to a node none of them wrote.
 func (d Document) ComposedType(pointer jsontext.Pointer) ir.TypeID {
 	return compile.TypeID(d.space(ComposedSpace), string(pointer))
 }
@@ -214,7 +215,15 @@ func (d Document) Prop(pointer jsontext.Pointer) ir.PropID {
 // number follows the location (numbered) and equals no other parameter's ID:
 // that would take an operation mounted at another's parameters list.
 func Param(mount jsontext.Pointer, name, in string, occurrence int) ir.ParamID {
-	return compile.ParamID(OpenAPISpace, string(numbered(mount+Ptr("parameters", name, in), occurrence)))
+	return compile.ParamID(OpenAPISpace, string(mount+ParamPath(name, in, occurrence)))
+}
+
+// ParamPath returns the path below a mount that Param mints the occurrence-th
+// holder of name in location in from. A path item that mounts no operation
+// keys each parameter it keeps verbatim by it, so a kept parameter and a
+// lowered one spell a slot alike.
+func ParamPath(name, in string, occurrence int) jsontext.Pointer {
+	return numbered(Ptr("parameters", name, in), occurrence)
 }
 
 // EnumMember returns the stable ID of the occurrence-th member, counting from
@@ -253,7 +262,19 @@ func DefaultServer() ir.ServerID { return compile.ServerID(DefaultServerSpace, "
 
 // Auth returns the stable ID of the named security scheme.
 func Auth(name string) ir.AuthID {
-	return compile.AuthID(OpenAPISpace, string(Ptr("components", "securitySchemes", name)))
+	return compile.AuthID(OpenAPISpace, string(schemePointer(name)))
+}
+
+// UnresolvedAuth returns the stable ID of the scheme a name that reaches no
+// mechanism lowers to: the pointer a declaration of it has, in a namespace of its
+// own, so neither a reference nor an entry at that pointer reaches it.
+func UnresolvedAuth(name string) ir.AuthID {
+	return compile.AuthID(compile.UnresolvedSpace, string(schemePointer(name)))
+}
+
+// schemePointer returns where the security scheme called name is declared.
+func schemePointer(name string) jsontext.Pointer {
+	return Ptr("components", "securitySchemes", name)
 }
 
 // Service returns the stable ID of the service for the given source index.
@@ -278,7 +299,7 @@ func DeclarationHint(pointer jsontext.Pointer, fallback string) string {
 // ComponentEntry returns the kind and name of the top-level component entry
 // pointer addresses (/components/<kind>/<name>, no deeper path), both decoded,
 // and ok=false for any other pointer or for an entry keyed "".
-// componentEntryName drops the kind, and ComponentSchemaName narrows it to the
+// componentEntryName drops the kind, and ComponentSchema narrows it to the
 // schemas kind, which is the only one that earns a named TypeID.
 func ComponentEntry(pointer jsontext.Pointer) (kind, name string, ok bool) {
 	kind, name, ok = componentEntrySplit(pointer)
@@ -312,20 +333,6 @@ func componentEntrySplit(pointer jsontext.Pointer) (kind, name string, ok bool) 
 	return kind, pointer.LastToken(), true
 }
 
-// ComponentSchemaNamedEmpty reports whether pointer addresses the top-level
-// component schema keyed "" — the position /components/schemas/ addresses.
-//
-// It exists because that schema is a component schema that ComponentSchemaName
-// still refuses: an empty name earns no named TypeID, so the schema hoists
-// anonymously (testdata/conformance/openapi/empty-names.yaml records that
-// policy). A caller that reports the refusal needs the distinction to word it
-// truthfully, since a reader who follows the pointer finds a component schema
-// sitting exactly where a "not a component schema" message denies one is.
-func ComponentSchemaNamedEmpty(pointer jsontext.Pointer) bool {
-	kind, name, ok := componentEntrySplit(pointer)
-	return ok && kind == "schemas" && name == ""
-}
-
 // componentEntryName returns the unescaped name of a top-level component entry
 // of any kind.
 func componentEntryName(pointer jsontext.Pointer) (string, bool) {
@@ -347,22 +354,48 @@ func (d Document) ForPointer(pointer jsontext.Pointer) ir.TypeID {
 // OpenAPISpace for a top-level component schema, the one kind that declares a
 // named type, and AnonSpace for every other position.
 func schemaSpace(pointer jsontext.Pointer) compile.Space {
-	if _, ok := ComponentSchemaName(pointer); ok {
+	if _, state := ComponentSchema(pointer); state == NamedComponent {
 		return OpenAPISpace
 	}
 	return AnonSpace
 }
 
-// ComponentSchemaName reports whether pointer addresses a top-level component
-// schema (/components/schemas/<name> with no deeper path) and returns its name.
-// Only this kind of component declares a named type in OpenAPI, which is why it
-// alone gates NamedType.
-//
-// It answers false for two unlike documents: one that declares no such entry,
-// and one that declares it keyed "". Reporting the refusal as "not a component
-// schema" is false for the second, since the pointer addresses exactly that —
-// ComponentSchemaNamedEmpty separates them for a caller that has to say why.
-func ComponentSchemaName(pointer jsontext.Pointer) (string, bool) {
-	kind, name, ok := ComponentEntry(pointer)
-	return name, ok && kind == "schemas"
+// ComponentState is what a pointer is to a document's component schemas. It is
+// one answer rather than a name and a flag beside a second predicate, so no
+// caller can report a component keyed "" in another's words (GitHub #405).
+type ComponentState uint8
+
+const (
+	// NotComponent is a pointer addressing no top-level component schema.
+	NotComponent ComponentState = iota
+	// NamedComponent is a top-level component schema with a name, and from
+	// resolve.Scope.ComponentRef, one the document declares.
+	NamedComponent
+	// UndeclaredComponent is a pointer shaped as a component schema's naming
+	// none the document declares, which only resolve.Scope.ComponentRef can tell.
+	UndeclaredComponent
+	// UnnamedComponent is the component schema keyed "", the position
+	// /components/schemas/ addresses. It is a component schema, and an empty name
+	// earns no named TypeID, so it hoists anonymously
+	// (testdata/conformance/openapi/empty-names.yaml records that policy).
+	UnnamedComponent
+)
+
+// ByName reports whether the state settles a reference by name, one way or the
+// other: a declared component resolves, and an undeclared one dangles. In any
+// other state the pointer is read as the position it is.
+func (s ComponentState) ByName() bool { return s == NamedComponent || s == UndeclaredComponent }
+
+// ComponentSchema classifies pointer against the top-level component schemas,
+// and returns the decoded name of a NamedComponent.
+func ComponentSchema(pointer jsontext.Pointer) (string, ComponentState) {
+	kind, name, ok := componentEntrySplit(pointer)
+	switch {
+	case !ok || kind != "schemas":
+		return "", NotComponent
+	case name == "":
+		return "", UnnamedComponent
+	default:
+		return name, NamedComponent
+	}
 }

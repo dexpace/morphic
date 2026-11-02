@@ -165,48 +165,37 @@ func TestComponentEntry_ParsesOnlyATopLevelEntry(t *testing.T) {
 	}
 }
 
-// TestComponentSchemaName_NarrowsToSchemas pins that only the schemas kind
-// declares a named type. It is what gates NamedType, so admitting another kind
-// would mint a named ID for a header or a parameter that no reference resolves
-// to.
-func TestComponentSchemaName_NarrowsToSchemas(t *testing.T) {
+// TestComponentSchema_ClassifiesEveryPointer pins the one answer a caller reads.
+// Only the schemas kind declares a named type: it is what gates NamedType, so
+// admitting another kind would mint a named ID for a header or a parameter that
+// no reference resolves to. And a component schema keyed "" exists at
+// /components/schemas/ and earns no name, which no other pointer shares, so a
+// caller reporting it cannot deny the schema the document plainly declares.
+func TestComponentSchema_ClassifiesEveryPointer(t *testing.T) {
 	t.Parallel()
-	name, ok := ids.ComponentSchemaName("/components/schemas/User")
-	assert.True(t, ok)
-	assert.Equal(t, "User", name)
-
-	for _, pointer := range []jsontext.Pointer{
-		"/components/headers/X-Rate", "/components/parameters/Sort",
-		"/components/responses/NotFound", "/components/schemas/User/properties/id",
+	for _, tc := range []struct {
+		pointer jsontext.Pointer
+		name    string
+		state   ids.ComponentState
+	}{
+		{"/components/schemas/User", "User", ids.NamedComponent},
+		{"/components/schemas/", "", ids.UnnamedComponent},
+		{"/components/headers/X-Rate", "", ids.NotComponent},
+		{"/components/parameters/Sort", "", ids.NotComponent},
+		{"/components/responses/NotFound", "", ids.NotComponent},
+		{"/components/headers/", "", ids.NotComponent},
+		{"/components//User", "", ids.NotComponent},
+		{"/components/schemas/User/properties/id", "", ids.NotComponent},
+		{"/components/schemas", "", ids.NotComponent},
+		{"/paths/~1a", "", ids.NotComponent},
+		{"", "", ids.NotComponent},
 	} {
-		_, ok := ids.ComponentSchemaName(pointer)
-		assert.False(t, ok, "%q declares no named type", pointer)
+		name, state := ids.ComponentSchema(tc.pointer)
+		assert.Equal(t, tc.state, state, "%q", tc.pointer)
+		assert.Equal(t, tc.name, name, "%q", tc.pointer)
+		assert.Equal(t, tc.state == ids.NamedComponent, state.ByName(), "%q", tc.pointer)
 	}
-}
-
-// TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry pins the one
-// distinction ComponentEntry deliberately throws away. Both answer "no named
-// type", but they are different facts: a component schema keyed "" exists at
-// /components/schemas/ and earns none, while the other pointers name no
-// component-schema entry at all. Only a caller that can tell them apart can
-// report the first without denying the schema the document plainly declares.
-func TestComponentSchemaNamedEmpty_SeparatesAnEmptyNameFromNoEntry(t *testing.T) {
-	t.Parallel()
-	assert.True(t, ids.ComponentSchemaNamedEmpty("/components/schemas/"),
-		`/components/schemas/ addresses the component schema keyed ""`)
-
-	for _, pointer := range []jsontext.Pointer{
-		"/components/schemas/User",           // a named entry
-		"/components/headers/",               // an empty name of another kind
-		"/components/schemas",                // the kind alone, no trailing token
-		"/components/schemas//properties/id", // a position inside the empty-named schema
-		"/components//",                      // no kind
-		"/paths/~1x/get",                     // not under components
-		"",                                   // the empty pointer
-	} {
-		assert.False(t, ids.ComponentSchemaNamedEmpty(pointer),
-			`%q does not address the component schema keyed ""`, pointer)
-	}
+	assert.True(t, ids.UndeclaredComponent.ByName(), "a name no component answers dangles")
 }
 
 // TestForPointer_ChoosesTheNamespace pins the split ForPointer exists for: a
@@ -240,24 +229,26 @@ func TestDerivations_AreDistinctAndPointerShaped(t *testing.T) {
 	t.Parallel()
 	const pointer = "/components/schemas/User"
 	got := map[string]string{
-		"named":    string(ids.Document{}.NamedType(pointer)),
-		"anon":     string(ids.Document{}.AnonType(pointer)),
-		"composed": string(ids.Document{}.ComposedType(pointer)),
-		"op":       string(ids.Op(pointer)),
-		"prop":     string(ids.Document{}.Prop(pointer)),
-		"minted":   string(ids.Document{}.ComposedProp(pointer)),
-		"auth":     string(ids.Auth("apiKey")),
-		"service":  string(ids.Service(0)),
+		"named":      string(ids.Document{}.NamedType(pointer)),
+		"anon":       string(ids.Document{}.AnonType(pointer)),
+		"composed":   string(ids.Document{}.ComposedType(pointer)),
+		"op":         string(ids.Op(pointer)),
+		"prop":       string(ids.Document{}.Prop(pointer)),
+		"minted":     string(ids.Document{}.ComposedProp(pointer)),
+		"auth":       string(ids.Auth("apiKey")),
+		"unresolved": string(ids.UnresolvedAuth("apiKey")),
+		"service":    string(ids.Service(0)),
 	}
 	want := map[string]string{
-		"named":    "t/openapi/components/schemas/User",
-		"anon":     "t/anon/components/schemas/User",
-		"composed": "t/composed/components/schemas/User",
-		"op":       "op/openapi/components/schemas/User",
-		"prop":     "p/openapi/components/schemas/User",
-		"minted":   "p/composed/components/schemas/User",
-		"auth":     "auth/openapi/components/securitySchemes/apiKey",
-		"service":  "s/openapi/0",
+		"named":      "t/openapi/components/schemas/User",
+		"anon":       "t/anon/components/schemas/User",
+		"composed":   "t/composed/components/schemas/User",
+		"op":         "op/openapi/components/schemas/User",
+		"prop":       "p/openapi/components/schemas/User",
+		"minted":     "p/composed/components/schemas/User",
+		"auth":       "auth/openapi/components/securitySchemes/apiKey",
+		"unresolved": "auth/unresolved/components/securitySchemes/apiKey",
+		"service":    "s/openapi/0",
 	}
 	assert.Equal(t, want, got)
 
@@ -432,7 +423,7 @@ func TestNamespaces_NameEveryNamespaceThisCompilerMints(t *testing.T) {
 		ir.IDKindType:       {"anon", "composed", "openapi"},
 		ir.IDKindOp:         {"openapi"},
 		ir.IDKindProp:       {"composed", "openapi"},
-		ir.IDKindAuth:       {"openapi"},
+		ir.IDKindAuth:       {"openapi", "unresolved"},
 		ir.IDKindService:    {"openapi"},
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:      {"openapi"},
@@ -452,7 +443,7 @@ func TestNamespaces_DeclareEachOtherDocumentsSpaces(t *testing.T) {
 			"composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
 		ir.IDKindOp:         {"openapi"},
 		ir.IDKindProp:       {"composed", "composed@a.yaml", "composed@b~1c.yaml", "openapi", "openapi@a.yaml", "openapi@b~1c.yaml"},
-		ir.IDKindAuth:       {"openapi"},
+		ir.IDKindAuth:       {"openapi", "unresolved"},
 		ir.IDKindService:    {"openapi"},
 		ir.IDKindGroup:      {"default", "path-prefix", "tags", "webhooks"},
 		ir.IDKindParam:      {"openapi"},

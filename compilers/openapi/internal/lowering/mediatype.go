@@ -17,3 +17,17 @@ func NormalizeMediaType(mediaType string) string {
 	mediaType, _, _ = strings.Cut(mediaType, ";")
 	return strings.ToLower(strings.TrimSpace(mediaType))
 }
+
+// HoldsOneDocument reports whether mediaType names a syntax whose body is one
+// document, JSON's or XML's, by name or structured suffix (RFC 6839, RFC 7303).
+// It answers only for those two: which other media types repeat a structure is
+// not a closed set, as vendor types and multipart/mixed show.
+func HoldsOneDocument(mediaType string) bool {
+	normalized := NormalizeMediaType(mediaType)
+	switch normalized {
+	case "application/json", "application/xml", "text/xml":
+		return true
+	default:
+		return strings.HasSuffix(normalized, "+json") || strings.HasSuffix(normalized, "+xml")
+	}
+}

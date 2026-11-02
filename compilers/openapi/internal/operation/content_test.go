@@ -4,6 +4,7 @@
 package operation_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -152,6 +153,77 @@ func TestContent_BinaryOctetStreamBody(t *testing.T) {
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
 }
 
+// TestContent_AFileBodyKeepsTheSchemaItWrites holds a file body's Type to what
+// its schema lowered to, on both sides of an operation, so what the schema says
+// beyond its format stays reachable (GitHub #600). Only a schema stating nothing
+// leaves the media type to say the body is bytes.
+func TestContent_AFileBodyKeepsTheSchemaItWrites(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		schema   string
+		want     ir.TypeRef // an empty Target names the position's own node
+		wantDesc string
+	}{
+		{"no schema", "", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"a true schema", "schema: true", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"a bare binary string", "schema: {type: string, format: binary}", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"a binary string that says more", "schema: {type: string, format: binary, description: raw}", ir.TypeRef{}, "raw"},
+		{
+			"a $ref", `schema: {$ref: "#/components/schemas/Blob"}`,
+			ir.TypeRef{Target: "t/openapi/components/schemas/Blob"}, "Raw bytes",
+		},
+		{
+			"a $ref through a $ref", `schema: {$ref: "#/components/schemas/Chain"}`,
+			ir.TypeRef{Target: "t/openapi/components/schemas/Chain"}, "",
+		},
+		{
+			"a nullable binary string", `schema: {type: [string, "null"], format: binary}`,
+			ir.TypeRef{Target: "t/prim/bytes", Nullable: true}, "",
+		},
+		{"a false schema", "schema: false", ir.TypeRef{}, ""},
+		{"a type array", "schema: {type: [string, object], format: binary}", ir.TypeRef{}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, svc, diags := compileService(t, openapitest.PathsSpec(fmt.Sprintf(`  /raw:
+    post:
+      operationId: putRaw
+      requestBody:
+        content:
+          application/octet-stream: {%[1]s}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/octet-stream: {%[1]s}
+components:
+  schemas:
+    Blob: {type: string, format: binary, maxLength: 99, description: Raw bytes}
+    Chain: {$ref: "#/components/schemas/Blob"}
+`, tc.schema)))
+			openapitest.RequireNoErrorDiags(t, diags)
+			op := openapitest.FirstOp(t, svc)
+			for side, content := range map[string]ir.Content{
+				"requestBody":   op.Request.Contents[0],
+				"responses/200": op.Responses[0].Payload.Contents[0],
+			} {
+				want := tc.want
+				if want.Target == "" {
+					want.Target = ir.TypeID("t/anon/paths/~1raw/post/" + side + "/content/application~1octet-stream/schema")
+				}
+				assert.Equal(t, want, content.Type, side)
+				require.NotNil(t, content.File, side)
+				assert.Equal(t, ir.FileInfo{ContentTypes: []string{"application/octet-stream"}}, *content.File, side)
+				node, ok := doc.Types[want.Target]
+				require.True(t, ok, side)
+				assert.Equal(t, tc.wantDesc, node.Common().Docs.Description, side)
+			}
+		})
+	}
+}
+
 // TestContent_MixedCaseOctetStreamBodyIsFile drives the binary arm with
 // spellings RFC 6838 §4.2 treats as identical to application/octet-stream: the
 // body without a schema is a file, and FileInfo.ContentTypes keeps the declared
@@ -210,7 +282,55 @@ components:
 	content := openapitest.FirstOp(t, svc).Request.Contents[0]
 	require.NotNil(t, content.File, "binary body behind a $ref lowers to a FileInfo")
 	assert.False(t, content.File.IsText)
-	assert.Equal(t, ir.TypeID("t/prim/bytes"), content.Type.Target)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Blob"), content.Type.Target)
+}
+
+// TestContent_ARefinedBinaryBodyIsAFile pins that wrapping a binary body in an
+// allOf changes what a body is no more than a $ref does: a refinement is a use of
+// the schema it names, in either spelling, and one over no binary schema is a
+// plain body.
+func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
+	t.Parallel()
+	const alias ir.TypeID = "t/anon/paths/~1raw/post/requestBody/content/application~1octet-stream/schema"
+	for name, tc := range map[string]struct {
+		schema string
+		// want is what the body keeps as its Type, the position's own alias where
+		// it writes something, and empty for a body that is no file.
+		want ir.TypeID
+	}{
+		"beside":      {"{allOf: [{$ref: '#/components/schemas/Blob'}], description: the upload}", alias},
+		"a branch":    {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
+		"bare":        {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", "t/openapi/components/schemas/Blob"},
+		"a chain":     {"{$ref: '#/components/schemas/Wrapped'}", "t/openapi/components/schemas/Wrapped"},
+		"inline":      {"{allOf: [{type: string, format: binary}, {description: the upload}]}", alias},
+		"not binary":  {"{allOf: [{$ref: '#/components/schemas/Text'}, {description: the upload}]}", ""},
+		"a composite": {"{allOf: [{$ref: '#/components/schemas/Blob'}, {$ref: '#/components/schemas/Text'}]}", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /raw:
+    post:
+      operationId: putRaw
+      requestBody:
+        content:
+          application/octet-stream:
+            schema: ` + tc.schema + `
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Blob: {type: string, format: binary}
+    Text: {type: string}
+    Wrapped: {allOf: [{$ref: '#/components/schemas/Blob'}], description: wrapped}
+`)
+			_, svc, diags := compileService(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			assert.Equal(t, tc.want != "", content.File != nil)
+			if tc.want != "" {
+				assert.Equal(t, tc.want, content.Type.Target)
+			}
+		})
+	}
 }
 
 const contentSpec = `openapi: 3.2.0
@@ -477,38 +597,52 @@ func TestContent_InlineSchemaKeepsItsUseSiteHint(t *testing.T) {
 	assert.Equal(t, "post_a_request", td.Common().Name.Hint)
 }
 
-// TestContent_UnkeepableMediaTypeRefIsReported pins the media type $ref that
-// cannot be kept verbatim, a mapping writing one key twice: it is reported as
-// lost, and nothing claims it was kept.
-func TestContent_UnkeepableMediaTypeRefIsReported(t *testing.T) {
+// TestContent_AMediaTypeRefHoldingNoStringLowersNothing pins the content entry
+// whose $ref holds no string, a mapping writing one key twice or null, which the
+// parser panics building a reference from: the rule table reports the $ref
+// once, and the entry lowers nothing, as a reference resolving to nothing does,
+// with no second finding about the same $ref.
+func TestContent_AMediaTypeRefHoldingNoStringLowersNothing(t *testing.T) {
 	t.Parallel()
-	_, _, diags := compileService(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+	const at = "/paths/~1a/get/responses/200/content/application~1json/$ref"
+	for _, ref := range []string{"{a: 1, a: 2}", "null"} {
+		t.Run(ref, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.2.0", `  /a:
     get:
       operationId: a
       responses:
         "200":
           description: ok
           content:
-            application/json: {$ref: {a: 1, a: 2}}
+            application/json: {$ref: `+ref+`}
+            text/plain: {schema: {type: string}}
 `))
-	openapitest.AssertHasCode(t, diags, diag.UnpreservableConstruct, ir.SeverityError)
-	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
-		"/paths/~1a/get/responses/200/content/application~1json/$ref"), "nothing announces a keep it did not make")
+			op := openapitest.FirstOp(t, svc)
+			require.Len(t, op.Responses[0].Payload.Contents, 1)
+			assert.Equal(t, "text/plain", op.Responses[0].Payload.Contents[0].MediaType)
+			require.Len(t, diags, 1, "got %v", diags)
+			assert.Equal(t, at, string(diags[0].Provenance.Pointer))
+			assert.Equal(t, ir.SeverityError, diags[0].Severity)
+		})
+	}
 }
 
-// TestContent_MediaTypeRefIsKeptNotFollowed pins a content entry written as a
-// Reference Object while this compiler does not follow one (GitHub #856): the
-// $ref and the summary beside it are kept verbatim and one warning says the
-// entry lowered as written. Below 3.2, which does not allow it, it lowers the
-// same, and load adds that the construct is a later version's (GitHub #864).
-func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
+// TestContent_MediaTypeRefIsFollowed pins a content entry written as a
+// Reference Object into components/mediaTypes (GitHub #856): a body's and a
+// parameter's lower what the entry declares, at its own pointer, and the
+// summary beside a body's $ref documents that Content. Below 3.2, which does
+// not allow the construct, it lowers the same, and load adds that it is a
+// later version's.
+func TestContent_MediaTypeRefIsFollowed(t *testing.T) {
 	t.Parallel()
 	const at = "/paths/~1a/get/responses/200/content/application~1json/$ref"
 	const paramAt = "/paths/~1a/get/parameters/0/content/application~1json/$ref"
+	const declared = ir.TypeID("t/anon/components/mediaTypes/Json/schema")
 	for _, version := range []string{"3.2.0", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			t.Parallel()
-			_, svc, diags := compileService(t, openapitest.PathsSpecVer(version, `  /a:
+			doc, svc, diags := compileService(t, openapitest.PathsSpecVer(version, `  /a:
     get:
       operationId: a
       parameters:
@@ -521,15 +655,20 @@ func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
           description: ok
           content:
             application/json: {$ref: '#/components/mediaTypes/Json', summary: S}
+components:
+  mediaTypes:
+    Json: {description: D, schema: {type: object, properties: {q: {type: string}}}}
 `))
+			openapitest.RequireNoErrorDiags(t, diags)
 			op := openapitest.FirstOp(t, svc)
 			content := op.Responses[0].Payload.Contents[0]
-			assert.Equal(t, ir.ReasonDegradedLowering, content.Unmodeled["openapi:$ref"].Reason)
-			assert.Contains(t, content.Unmodeled, "openapi:summary", "nothing beside the $ref is dropped")
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "got %v", diags)
+			assert.Equal(t, declared, content.Type.Target)
+			assert.Equal(t, ir.Docs{Summary: "S", Description: "D"}, content.Docs)
+			assert.Empty(t, content.Unmodeled)
 			require.Len(t, op.Params, 1)
-			assert.Equal(t, ir.ReasonDegradedLowering, op.Params[0].Unmodeled["openapi:content/application~1json/$ref"].Reason)
-			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, paramAt))
+			assert.Equal(t, declared, op.Params[0].Type.Target)
+			assert.Contains(t, doc.Types, declared)
+			assert.NotContains(t, doc.Unmodeled, "openapi:components/mediaTypes/Json", "a reached entry is not kept")
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 			later := version != "3.2.0"
 			assert.Equal(t, later, openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, at))
@@ -538,13 +677,13 @@ func TestContent_MediaTypeRefIsKeptNotFollowed(t *testing.T) {
 	}
 }
 
-// TestContent_MediaTypeDescriptionIsKept pins the description OpenAPI 3.2 gives
-// a Media Type Object, which the bundled model names no field for and
-// ir.Content has no docs to hold: at a body's content and at a parameter's, it
-// is kept verbatim with an info rather than called undefined. Below 3.2 it is
-// kept the same, and load adds that the field is a later version's. One merged
-// in through `<<` is kept as a written one is (GitHub #384).
-func TestContent_MediaTypeDescriptionIsKept(t *testing.T) {
+// TestContent_MediaTypeDescriptionReachesItsDocs pins the description OpenAPI
+// 3.2 gives a Media Type Object, which the bundled model names no field for: a
+// body's lowers to Content.Docs, and a parameter's, whose carrier has no home
+// for it, is kept verbatim with an info rather than called undefined. Below
+// 3.2 it lowers the same, and load adds that the field is a later version's.
+// One merged in through `<<` is read as a written one is (GitHub #384).
+func TestContent_MediaTypeDescriptionReachesItsDocs(t *testing.T) {
 	t.Parallel()
 	const at = "/paths/~1a/get/responses/200/content/application~1json/description"
 	const paramAt = "/paths/~1a/get/parameters/0/content/application~1json/description"
@@ -568,15 +707,15 @@ func TestContent_MediaTypeDescriptionIsKept(t *testing.T) {
 `))
 			openapitest.RequireNoErrorDiags(t, diags)
 			op := openapitest.FirstOp(t, svc)
-			kept := op.Responses[0].Payload.Contents[0].Unmodeled["openapi:description"]
-			assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
-			assert.JSONEq(t, `"The body."`, string(kept.Value))
 			require.Len(t, op.Responses[0].Payload.Contents, 2)
-			assert.JSONEq(t, `"Merged."`, string(op.Responses[0].Payload.Contents[1].Unmodeled["openapi:description"].Value))
+			body := op.Responses[0].Payload.Contents[0]
+			assert.Equal(t, ir.Docs{Description: "The body."}, body.Docs)
+			assert.Empty(t, body.Unmodeled)
+			assert.Equal(t, ir.Docs{Description: "Merged."}, op.Responses[0].Payload.Contents[1].Docs)
 			require.Len(t, op.Params, 1)
 			assert.Equal(t, ir.ReasonNoIRHome,
 				op.Params[0].Unmodeled["openapi:content/application~1json/description"].Reason)
-			openapitest.AssertInfoDiagAt(t, diags, at)
+			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), "a body's has a home")
 			openapitest.AssertInfoDiagAt(t, diags, paramAt)
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
 			assert.Equal(t, version != "3.2.0", openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, at))

@@ -178,3 +178,100 @@ it sees. Changes made together in one bump are listed together under it.
     `Style` and `Explode` beside its members, which encode flat ([responses](./responses.md)). The
     compiler had kept each verbatim under `Unmodeled` as `no_ir_home`, where a consumer pinned to
     0.21.0 that reads those entries no longer finds them.
+- **0.23.0** — what these facts say changed:
+  - `StreamingNone` is `""`, where it was `"none"`, the state every operation that does not stream
+    already encoded by having no `streaming` member, and `irverify` holds `Streaming` to the
+    declared modes (`ir/unknown-streaming-mode`)
+    ([interaction-patterns](./interaction-patterns.md)). No compiler wrote `"none"`, so no compiled
+    document changes; one that writes it, or a consumer comparing against it, is out of date.
+  - A file body's `Content.Type` holds what its schema lowered to ([payloads](./payloads.md)). The
+    OpenAPI compiler had written `bytes` over it, which left the schema on a node nothing
+    referenced. `File` still says the body is a file, so a consumer pinned to 0.22.0 that reads
+    `File` first is unaffected, and one that expects `Type` to be `bytes` finds a reference to the
+    schema instead.
+  - `Enum.ValueType` holds the primitive a declared type and format select, where every member is
+    a value of it ([enums](./enums.md)): `int64` where the compiler had written `integer` and kept
+    the format verbatim under `Unmodeled`, an entry such a consumer no longer finds.
+  - `StreamDetail.Events` holds what one frame holds where a compiler reads a stream from a media
+    type ([interaction-patterns](./interaction-patterns.md)): a list's `Elem`, where the OpenAPI
+    compiler had named the list, which describes the whole body. `Content.Type` keeps the list.
+  - `Union.Exclusive` is false on a union whose variants can match one instance, which the source
+    did not ask to exclude ([unions](./unions.md)): a type array naming `integer` and `number` or
+    repeating a type, and an enum whose entry repeats or lowers to the top type. The compiler had
+    set it, leaving such a union to refuse what its schema admits.
+- **0.24.0** — two shape changes made together, neither of which a document compiled today sets:
+  - `Docs` gained `Refs`, the spans of `Description` that name a type, each a `DocRef`
+    ([annotations](./annotations.md#references-in-prose)). They replace the `{t:TypeID}` tokens
+    `Description` was documented to hold, which no compiler wrote, so `{t:` in a description is now
+    text and nothing else. A consumer that scanned descriptions for tokens must read `Refs`.
+  - `ErrorCase` and `OAuthFlow` gained `Inferred`, and a promotion is now recorded on the node
+    keeping its extension, whichever node holds the field it fills
+    ([promotion](./unmodeled.md#promotion)). Where a node with a `Provenance` holds the field, as in
+    every promotion the OpenAPI compiler makes, nothing moves.
+
+  A consumer pinned to 0.23.0 refuses the document as another generation's.
+- **0.25.0** — a security requirement keeps a scheme the compiler resolved no mechanism for
+  ([auth](./auth.md#unresolved-schemes)). `AuthKind` gained `unresolved`, and auth IDs the
+  `unresolved` namespace ([identity](./identity.md#unresolved-schemes)), which every OpenAPI document
+  declares under `idSpaces.auth`, whether or not it mints there. The OpenAPI compiler had dropped
+  such a requirement, so an `Auth` left with no option read as inheriting and one left with others
+  lost the option. It also read a name whose value reads as no list of strings as not written, so
+  `{name: null}` read as the empty option, and such a name now stands. A `securitySchemes` entry
+  yielding no mechanism had lowered to nothing, and now lowers to that kind whether or not a
+  requirement names it. A consumer pinned to 0.24.0 finds those operations naming a kind it has no
+  reading for, where it read them as inheriting the service's credentials.
+- **0.26.0** — `MinItems`, `MaxItems` and a true `UniqueItems` written for one use of a shared
+  schema reach the `Constraints` of the `Property`, `Parameter` or alias `Scalar` holding that use
+  ([annotations](./annotations.md#one-structural-home-per-declaration)), where a position that
+  lowers to a reference had kept them verbatim under `Unmodeled`. No key changed. A consumer pinned
+  to 0.25.0 that reads those entries no longer finds them, and a consumer that reads `ir.Decorated`
+  finds such an alias is no longer a decorator, since it says something of the value.
+- **0.27.0** — a stability tier and a parameter's redaction gained homes, and the OpenAPI compiler
+  reads more of a document's keys into fields it had:
+  - `Operation` and `OperationGroup` gained `Stability`, a closed `alpha | beta | stable`, empty
+    where a source states none ([operations](./operations.md#stability)), and `irverify` reports a
+    tier the IR does not declare (`ir/unknown-stability`). A consumer pinned to 0.26.0 cannot decode
+    a document that sets it.
+  - `Parameter` gained `Secret`, the per-use redaction `Property.Secret` is, and the OpenAPI
+    compiler no longer keeps a parameter's `format: password` under `Unmodeled`. A consumer pinned
+    to 0.26.0 that reads `openapi:format` on a parameter no longer finds it, and a parameter that
+    keeps redaction through a `$ref` now states it itself.
+  - A vendor key can state `Deprecation` where no keyword does, `x-sensitive` sets `Sensitive` and
+    `Secret`, and a property, header or parameter naming a `$ref` reads what the target's keys state
+    ([`extension-promotion`](../compilers/openapi.md#extension-promotion)), listing the marker the
+    target lists ([promotion](./unmodeled.md#promotion)). These shapes are unchanged, so to a
+    consumer pinned to 0.26.0 such an operation reads as live and such a value as plain.
+- **0.28.0** — `time` holds no offset, as `datetime` does beside `datetime_offset`
+  ([primitives](./primitives.md#offsets)). The OpenAPI compiler had lowered `format: time`, RFC
+  3339's `full-time`, to `time`, and now keeps it as a `Scalar` over `string` whose `Encoding.Name`
+  is `time`, as it keeps any format it has no primitive for. `time-local` lowers to `time`, and
+  `date-time-local` to `datetime`, which no compiler had written, where each had been such a
+  `Scalar`. An `Enum` takes those primitives as its `ValueType` where its members fit them, and one
+  declaring `format: time` keeps the format verbatim under `Unmodeled`. A consumer pinned to 0.27.0
+  that reads `time` as carrying an offset finds values with none, and one reading the `time-local`
+  or `date-time-local` encodings no longer finds them.
+- **0.29.0** — `Content` gained `Docs`: a media type's own documentation, as against the body's
+  ([payloads](./payloads.md)). The OpenAPI compiler writes there an OpenAPI 3.2 Media Type Object's
+  `description`, which it had kept verbatim under `Unmodeled` as `openapi:description`, and the
+  `summary` and `description` beside a content entry's `$ref` into `components/mediaTypes`, which
+  it now follows. A consumer pinned to 0.28.0 refuses the document as another generation's.
+- **0.30.0** — the OpenAPI compiler keeps a path item's own `summary` and `description` on each
+  operation it mounts under `openapi:pathItem/summary` and `openapi:pathItem/description`, beneath
+  the scope its extensions and undeclared keys already took, rather than under
+  `openapi:pathItemSummary` and `openapi:pathItemDescription`
+  ([`path-item-docs`](../compilers/openapi.md#path-item-docs)). No shape changed. A consumer pinned
+  to 0.29.0 that reads the old keys no longer finds the path's text there. Where an operation writes
+  an undeclared key of that name, it finds that key's value, which 0.29.0 let the path's text
+  replace.
+- **0.31.0** — no shape change; two changes to what a compiled document holds, made together:
+  - An `allOf` no conjunct can make an object is no `Model`, short of the cases
+    [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
+    conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
+    OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
+    rules one out, so a consumer pinned to 0.30.0 finds a `Scalar`, an `Enum` or a reference where
+    it found a `Model`.
+  - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
+    ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
+    symbols an emitter generates from such a hint are renamed.
+
+  A consumer pinned to 0.30.0 refuses the document as another generation's.

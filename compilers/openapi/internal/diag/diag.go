@@ -24,6 +24,18 @@ const (
 	// item $ref, which the resolver reads in the item that $ref names (GitHub
 	// #824).
 	UnresolvedRef = "openapi/unresolved-ref"
+	// UnresolvedSecurityScheme reports a security requirement naming a scheme
+	// the compiler resolved no mechanism for, at the requirement, from
+	// auth.Registry: a name no securitySchemes entry declares, an entry naming no
+	// mechanism, or one that resolves to nothing. The requirement is kept, naming
+	// a scheme of kind unresolved (docs/ir/auth.md).
+	//
+	// An error, as a tag's parent naming no tag is: the name must correspond to
+	// a scheme, and what it means is missing
+	// (docs/compilers/openapi.md#validation). A code apart from UnresolvedRef,
+	// after which what was named is gone, so accepting this finding accepts no
+	// lost reference with it.
+	UnresolvedSecurityScheme = "openapi/unresolved-security-scheme"
 	// CyclicRef reports a degenerate cycle. A recursive YAML anchor is refused
 	// before the parser library overflows its stack on it
 	// (docs/parser-library.md#alias-cycle). A loop of schema $refs that never
@@ -158,8 +170,9 @@ const (
 	// OpenAPI forbids. The rule table states the rule and leaves it here, where
 	// every entry is read through its $ref: every list the source writes is
 	// checked whether or not it lowers (load), and a list another document
-	// writes where it lowers (the parameter lowering). A lowered list keeps
-	// every occurrence, each repeat's ID ending in its occurrence number.
+	// writes where it lowers (the parameter lowering) or where a path item
+	// mounting no operation keeps it. Either keeps every occurrence, each
+	// repeat's ID or key ending in its occurrence number.
 	//
 	// An error, as the specification forbids the repeat.
 	DuplicateParameter = "openapi/duplicate-parameter"
@@ -184,9 +197,10 @@ const (
 	// IR as written: preserved raw for want of a structural home, lowered to a
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
 	// the top type), or dropped — an annotation like a default or example, or
-	// the fields beside a path item $ref the load phase's walk does not reach.
-	// It marks the lossy lowerings the compiler reports, not a guarantee that
-	// every lossy lowering is reported.
+	// the fields beside a path item $ref the load phase's walk does not reach. A
+	// promotion reports it for an extension kept but read into no field
+	// (lowering.Promoter). It marks the lossy lowerings the compiler reports, not
+	// a guarantee that every lossy lowering is reported.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
@@ -208,13 +222,13 @@ const (
 	// with disagreeing values. The judgment finds the types narrower (no
 	// diagnostic), overlapping (a DegradedConstruct: shared values the merge does
 	// not narrow) or disjoint; only disjoint types, a scalar against a structure
-	// and two structures of different instance types conflict. A conflicting
-	// constraint keyword (minimum: 10 vs. exclusiveMinimum: 10) is usually
-	// satisfiable, but no simple merge states it, so the merge keeps a
-	// source-order winner.
+	// and two structures of different instance types conflict. A constraint
+	// keyword no one value states, such as two patterns, is usually satisfiable,
+	// but the merge can keep only a source-order winner. A bound meets, so it
+	// never reports here.
 	//
 	// Either way the losing declaration is kept whole under the merged property's
-	// Unmodeled (merge.keepLosingDeclaration); #10 records intersecting bounds.
+	// Unmodeled (merge.keepLosingDeclaration).
 	ConflictingRedecl = "openapi/conflicting-redeclaration"
 	// DisjointVisibility reports one field restricted to lifecycle sets that
 	// share nothing — readOnly against writeOnly — so no lifecycle admits it at
@@ -283,13 +297,12 @@ const (
 	PathItemRefCollision = "openapi/path-item-ref-collision"
 	// IncompleteSecurityScheme reports a securitySchemes entry that omits the
 	// field naming its mechanism: `type`, or for type http the RFC 7235 `scheme`
-	// token. Nothing is interned for it and every requirement naming it is dropped
-	// (GitHub #294).
+	// token. It lowers to a scheme of kind unresolved, keeping what it wrote, and
+	// a requirement naming it stands (GitHub #294).
 	//
-	// Error, as for UnresolvedRef: the entry reached the IR in no form, so a
-	// reader told only that it was degraded would look for a scheme that is not
-	// there. The document is invalid either way, since OpenAPI requires both
-	// fields.
+	// An error: OpenAPI requires both fields, and what the entry means is missing
+	// (docs/compilers/openapi.md#validation), so a reader told only that it was
+	// degraded would look for a mechanism that is not there.
 	IncompleteSecurityScheme = "openapi/incomplete-security-scheme"
 	// OAuth2NoFlow reports an oauth2 securitySchemes entry that states no way to
 	// obtain a token: its flows object declares no flow — `flows: {}`, or only
@@ -298,9 +311,9 @@ const (
 	// REQUIRED-field rule finds missing is that rule's to report (GitHub #646).
 	// Placed at the declaration, which its same-document aliases share (#874).
 	//
-	// Reported, not refused as IncompleteSecurityScheme is: the IR states exactly
-	// what the document said, and refusing would drop the entry's text. A warning,
-	// like ReservedHeaderName, since the document lowers whole.
+	// A warning, where IncompleteSecurityScheme is an error, because no rule of
+	// the specification is broken: the IR states exactly what the document said.
+	// ReservedHeaderName is a warning alike, since the document lowers whole.
 	OAuth2NoFlow = "openapi/oauth2-no-flow"
 	// EmptyRequestContent reports a request body whose content map is empty, at
 	// the map. Every minor's schema admits it, and OpenAPI 3.2 says the map
@@ -379,9 +392,11 @@ const (
 	//
 	// The carriers holding more than one object's entries are where two constructs
 	// can spell one entry: a parameter's own keys and the keywords its schema had
-	// no home for share one unscoped namespace on ir.Parameter. Warning rather
-	// than error because the document is otherwise lowered whole, and the entry
-	// that did survive is in it.
+	// no home for share one unscoped namespace on ir.Parameter. Copying a path
+	// item's entries onto an operation is guarded too (annotation.CopyEntriesInto),
+	// refusing a key on that operation alone. Warning rather than error because
+	// the document is otherwise lowered whole, and the entry that did survive is
+	// in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
 	// InvalidLocationKeyword reports a style, explode or allowReserved at in:
 	// querystring, at the keyword. OpenAPI 3.2 binds the whole query string from
@@ -420,6 +435,13 @@ const (
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
 	// document is invalid for the version it declares, but it still lowers.
 	LaterVersionConstruct = "openapi/later-version-construct"
+	// ItemSchemaOnDocument reports an itemSchema on a media type whose body is one
+	// document, so it has no sequence of items to describe
+	// (docs/compilers/openapi.md#item-schema). It still lowers to Content.Item.
+	//
+	// Warning, not a validation finding: the specification says what itemSchema
+	// describes and forbids no media type, so the document stays valid.
+	ItemSchemaOnDocument = "openapi/item-schema-on-document"
 	// InvalidPathKey reports a Paths Object key that breaks OpenAPI's path
 	// templating rules, those of 3.2.0 §4.8.2 read at every version: no leading
 	// "/", a character a path admits only percent-encoded, a brace outside a
@@ -433,12 +455,13 @@ const (
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
-	// schema, beside a $ref, or in a 3.0 schema with no type beside it or a
-	// keyword that excludes null, at the keyword; or keywords beside a $ref that
-	// admit null over a target that does not, at the schema writing them. Each
-	// is reported once, and each reference whose null rests on it is marked
-	// Inferred (docs/compilers/openapi.md#nullable). Info: the reading is the
-	// document's evident intent, and the mark keeps the declared one.
+	// schema, beside a $ref, in a 3.0 schema with no type beside it or a keyword
+	// that excludes null, or on an allOf branch another conjunct contradicts, at
+	// the keyword; or keywords beside a $ref that admit null over a target that
+	// does not, at the schema writing them. Each is reported once, and each
+	// reference whose null rests on it is marked Inferred
+	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
+	// evident intent, and the mark keeps the declared one.
 	InferredNullable = "openapi/inferred-nullable"
 )
 

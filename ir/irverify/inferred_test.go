@@ -28,9 +28,10 @@ type markerCarrier struct {
 	path string
 }
 
-// markerCarriers reach both carrier types, ir.Provenance and ir.TypeRef, under
-// Types, Services and Diagnostics, so a check scoped to one carrier or one part
-// of the document misses a row.
+// markerCarriers reach each kind of carrier, ir.Provenance, ir.TypeRef and a
+// bare marker on a node with no Provenance, under Types, Services, Auth and
+// Diagnostics, so a check scoped to one carrier or one part of the document
+// misses a row.
 func markerCarriers() []markerCarrier {
 	property := func(ref ir.TypeRef) *ir.Document {
 		return closedDoc(&ir.Model{ID: "t/x/M", Name: named("m"), Properties: []ir.Property{{
@@ -56,6 +57,23 @@ func markerCarriers() []markerCarrier {
 			}}}}
 			return doc
 		}, "doc.Services[0].Groups[0].Operations[0].Params[0].Type.Inferred"},
+		{"an error case's own marker", func(list ir.Inferred) *ir.Document {
+			doc := closedDoc()
+			doc.Services = []ir.Service{{ID: "s/x/S", Name: named("s"), Groups: []ir.OperationGroup{{
+				ID: "g/x/S/g", Name: named("g"), Operations: []ir.Operation{{
+					ID: "op/x/S/op", Name: named("op"), Errors: []ir.ErrorCase{{Name: named("e"), Inferred: list}},
+				}},
+			}}}}
+			return doc
+		}, "doc.Services[0].Groups[0].Operations[0].Errors[0].Inferred"},
+		{"an OAuth flow's own marker", func(list ir.Inferred) *ir.Document {
+			doc := closedDoc()
+			doc.Auth = map[ir.AuthID]ir.AuthScheme{"auth/x/a": {
+				ID: "auth/x/a", Name: named("a"), Kind: ir.AuthKindOAuth2,
+				Flows: []ir.OAuthFlow{{Kind: "client_credentials", Inferred: list}},
+			}}
+			return doc
+		}, "doc.Auth[auth/x/a].Flows[0].Inferred"},
 		{"a diagnostic's provenance", func(list ir.Inferred) *ir.Document {
 			doc := closedDoc()
 			doc.Diagnostics = []ir.Diagnostic{{

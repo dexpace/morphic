@@ -559,6 +559,21 @@ func nullSchemaIsFalse(t *testing.T) {
 	}
 }
 
+// nullTypeIsEmpty pins null-type-is-empty: a type written as a YAML null, alone
+// or as an item, decodes as a type spelled "".
+func nullTypeIsEmpty(t *testing.T) {
+	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(
+		"A: {type: null}", "B: {type: [string, null]}", `C: {type: "null"}`)))
+	require.NoError(t, err)
+	for name, want := range map[string][]oas3.SchemaType{
+		"A": {""}, "B": {oas3.SchemaTypeString, ""}, "C": {oas3.SchemaTypeNull},
+	} {
+		js, ok := doc.Components.Schemas.Get(name)
+		require.True(t, ok, name)
+		assert.Equal(t, want, js.GetSchema().GetType(), revisit(t, result{report: name}))
+	}
+}
+
 // mergeKeys pins merge-keys: a mapping's merged pairs come first, an earlier
 // source winning and none overriding the mapping's own key; a source writing a
 // key twice gives its first copy; and a `<<` naming no mapping merges nothing,
@@ -643,4 +658,62 @@ func nonScalarKey(t *testing.T) {
 	assert.Empty(t, found, revisit(t, result{}))
 	assert.Equal(t, []string{"", "Plain"}, slices.Collect(doc.Components.Responses.Keys()),
 		"the mapping key reads as the empty string: %s", revisit(t, result{}))
+}
+
+// undecodedScalar pins undecoded-scalar: a scalar the decoder takes for no string
+// reads as empty through the model, a $ref as no reference with nothing beside it,
+// while the validator reports each and the core keeps the node and what is beside.
+func undecodedScalar(t *testing.T) {
+	for written, text := range map[string]string{
+		"2021-01-01":    "2021-01-01",
+		"!!binary aGk=": "aGk=",
+		"!local tagged": "tagged",
+	} {
+		doc, found, err := soa.Unmarshal(t.Context(), strings.NewReader(
+			"openapi: 3.1.0\ninfo: {title: "+written+", version: '1'}\npaths: {}\n"+
+				"components:\n  securitySchemes:\n    s: {$ref: "+written+", summary: sum, description: text}\n"))
+		require.NoError(t, err, written)
+		assert.Len(t, found, 2, "the type mismatches of %s: %s", written, revisit(t, result{}))
+		assert.Empty(t, doc.GetInfo().GetTitle(), "the title of %s: %s", written, revisit(t, result{}))
+		rs := doc.Components.SecuritySchemes.GetOrZero("s")
+		assert.False(t, rs.IsReference(), "the $ref of %s: %s", written, revisit(t, result{}))
+		assert.Empty(t, rs.GetSummary()+rs.GetDescription(), "beside the $ref of %s: %s", written, revisit(t, result{}))
+		core := rs.GetCore()
+		assert.Equal(t, text, core.Reference.ValueNode.Value, "the core of %s: %s", written, revisit(t, result{}))
+		require.NotNil(t, core.Summary.Value, "the core's summary beside %s: %s", written, revisit(t, result{}))
+		assert.Equal(t, "sum", *core.Summary.Value)
+		require.NotNil(t, core.Description.Value, "the core's description beside %s: %s", written, revisit(t, result{}))
+		assert.Equal(t, "text", *core.Description.Value)
+	}
+}
+
+// requirementScopes pins requirement-scopes: a security requirement's model
+// holds only a member whose value reads as a list of strings, while its core
+// holds every name the object writes, a merged one included.
+func requirementScopes(t *testing.T) {
+	cases := []struct {
+		written     string
+		model, core []string
+	}{
+		{written: `{a: null}`, core: []string{"a"}},
+		{written: `{a: 5}`, core: []string{"a"}},
+		{written: `{a: read}`, core: []string{"a"}},
+		{written: `{a: {x: y}}`, core: []string{"a"}},
+		{written: `{a: [read, null]}`, core: []string{"a"}},
+		{written: `{a: [read, {}]}`, core: []string{"a"}},
+		{written: `{a: [read, 2021-01-01]}`, core: []string{"a"}},
+		{written: `{a: [1], b: ~}`, model: []string{"a"}, core: []string{"a", "b"}},
+		{written: `{<<: *base, c: []}`, model: []string{"merged", "c"}, core: []string{"merged", "c"}},
+		{written: `{<<: 5}`},
+	}
+	for _, tc := range cases {
+		doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(
+			"openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\nx-base: &base {merged: []}\n"+
+				"security:\n  - "+tc.written+"\n"))
+		require.NoError(t, err, tc.written)
+		require.Len(t, doc.GetSecurity(), 1, tc.written)
+		req := doc.GetSecurity()[0]
+		assert.Equal(t, tc.model, slices.Collect(req.Keys()), "the model of %s: %s", tc.written, revisit(t, result{}))
+		assert.Equal(t, tc.core, slices.Collect(req.GetCore().Keys()), "the core of %s: %s", tc.written, revisit(t, result{}))
+	}
 }

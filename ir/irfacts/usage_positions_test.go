@@ -26,6 +26,7 @@ var usageNotRoots = map[reflect.Type]string{
 	reflect.TypeFor[ir.Availability](): "a type changed from is one an older version used",
 	reflect.TypeFor[ir.PropPath]():     "a path locates a member inside a value another position carries",
 	reflect.TypeFor[ir.ResourceInfo](): "a resource's identifiers and properties restate what its operations carry",
+	reflect.TypeFor[ir.DocRef]():       "prose naming a type puts no value of it on the wire",
 }
 
 // usageNotRootFields are fields that name types and are no usage root, with the
