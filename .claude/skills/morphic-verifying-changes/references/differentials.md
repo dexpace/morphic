@@ -33,8 +33,8 @@ whether the answer means anything.
 
 - **Rule.** List the read paths and spellings the claim covers and make the generator write each
   one: positions past a `$ref`, aliases, merge keys, empty keys, a scalar the parser tags as no
-  string (a plain date, `!!binary`, a local tag), every position kind, both declaration orders,
-  wide documents as well as deep ones. Assert a floor on what was exercised.
+  string (a plain date or `<<` value, `!!binary`, a local tag), every position kind, both
+  declaration orders, wide documents as well as deep ones. Assert a floor on what was exercised.
 - **Why.** A corpus differential never read through a reference (#774). A generator without `''`
   keys missed 69 regressions (#946). A corpus with no `+` in any fragment reached nothing (#933).
   Grids writing no plain date left two defects for a later probe (#1226).

@@ -246,16 +246,16 @@ canary. A behaviour found that the page lacks is added there.
 ## Probe every raw-YAML reader with alias, anchor, merge-key, tag and quoted spellings
 `yaml-alias-anchor-merge-spellings`
 
-- **Rule.** Code reading raw YAML nodes or mirroring the parser resolves aliases, anchors, merge
-  keys and tags as the parser does, treats no quoted or aliased spelling specially, and calls the
-  library or reads the raw node rather than copy a rule. The model and rule table part at a scalar
-  the parser tags as no string (`docs/parser-library.md#undecoded-scalar`).
+- **Rule.** Code reading raw YAML or mirroring the parser resolves aliases, anchors, merge keys and
+  tags as the parser does, treats no quoted or aliased spelling specially, and calls the library or
+  reads the raw node rather than copy a rule. The model and rule table part at a scalar the parser
+  tags as no string (`docs/parser-library.md#undecoded-scalar`).
 - **Why.** Aliased, anchored or merged entries dropped silently, and a quoted `<<` raised a false
-  cycle (#500, #356). Scopes written as plain dates read as nothing through grids writing
-  none (#1226), as did every string field (#1280).
+  cycle (#500, #356). Plain dates read as nothing through grids writing none (#1226, #1280), and
+  then a plain `<<` value (#1371).
 - **Probe.** Feed each touched reader key and value as alias, an anchored entry, `<<`, quoted `<<`,
-  `!!merge`, and at each string position a plain date, `!!binary` and a local tag; diff IR and
-  diagnostics against the ordinary spelling.
+  `!!merge`, and at each string position a plain date or `<<`, `!!binary` and a local tag; diff IR
+  and diagnostics against the ordinary spelling.
 
 ## Make every input route reach the new guard, path or oracle
 `every-input-route-reaches-the-guard`
