@@ -7,6 +7,8 @@ import (
 	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -75,6 +77,19 @@ func assertKept(t *testing.T, kept ir.Unmodeled, want []keptEntry) {
 	}
 }
 
+// assertScoped holds each key in kept beneath the scope of one of mounts, the
+// items that carrier holds. A key no item's pointer scopes, like those an
+// operation keeps its path's documentation under, would make two items on one
+// carrier collide.
+func assertScoped(t *testing.T, kept ir.Unmodeled, mounts ...string) {
+	t.Helper()
+	for key := range kept {
+		assert.True(t, slices.ContainsFunc(mounts, func(mount string) bool {
+			return strings.HasPrefix(key, "openapi:pathItem"+mount+"/")
+		}), "%s is beneath the scope of an item the carrier holds", key)
+	}
+}
+
 // TestPathItem_WithNoOperationKeepsItsDocs pins that a path item mounting no
 // operation keeps its summary and description beside what else it writes, on
 // every route, under its own scope (GitHub #383). Both were dropped with no
@@ -86,18 +101,19 @@ func TestPathItem_WithNoOperationKeepsItsDocs(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	const callback = "/paths/~1q/post/callbacks/onEvent/{$request.body#~1url}"
+	binding := openapitest.FindOp(t, doc, "postQ").Bindings.HTTP[0].Unmodeled
 	assertKept(t, doc.Services[0].Unmodeled, []keptEntry{
 		{"openapi:pathItem/paths/~1p/summary", `"path summary"`, "/paths/~1p/summary"},
 		{"openapi:pathItem/paths/~1p/description", `"path description"`, "/paths/~1p/description"},
 		{"openapi:pathItem/webhooks/hooked/summary", `"webhook summary"`, "/webhooks/hooked/summary"},
 		{"openapi:pathItem/webhooks/hooked/description", `"webhook description"`, "/webhooks/hooked/description"},
 	})
-	assertKept(t, openapitest.FindOp(t, doc, "postQ").Bindings.HTTP[0].Unmodeled, []keptEntry{
+	assertKept(t, binding, []keptEntry{
 		{"openapi:pathItem" + callback + "/summary", `"callback summary"`, callback + "/summary"},
 		{"openapi:pathItem" + callback + "/description", `"callback description"`, callback + "/description"},
 	})
-	assert.NotContains(t, doc.Services[0].Unmodeled, "openapi:pathItemSummary",
-		"the key an operation keeps the pair under would collide between two items on one carrier")
+	assertScoped(t, doc.Services[0].Unmodeled, "/paths/~1p", "/webhooks/hooked")
+	assertScoped(t, binding, callback)
 
 	for _, d := range diags {
 		assert.NotContains(t, d.Message, "path-item documentation kept under Unmodeled",
