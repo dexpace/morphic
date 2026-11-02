@@ -30,29 +30,35 @@ const maxPasses = 64
 var errNotRead = errors.New("other documents are not read")
 
 // document is one document a table reads: its name, its root, the view that
-// reads it as the parser does, and whether its positions are read by the
-// OpenAPI grammar, as the source's are; another's are raw YAML.
+// reads it as the parser does, whether its positions are read by the OpenAPI
+// grammar, as the source's are, another's being raw YAML, and whether its root
+// is an OpenAPI Object, which places its schemas (docs.identityState).
 type document struct {
 	name    string
 	root    *yaml.Node
 	view    *nodeview.View
 	grammar bool
+	openapi bool
 }
 
 // docs is every document a table has read, and the work reading them costs.
+// reached is those the pass under way asked for, which a document read for a
+// pass before it need not be.
 type docs struct {
-	cfg    Config
-	list   []*document
-	byName map[string]DocID
-	failed map[string]error
-	work   *work
+	cfg     Config
+	list    []*document
+	byName  map[string]DocID
+	failed  map[string]error
+	work    *work
+	reached map[DocID]bool
 }
 
 // newDocs returns the documents of a table over the source tree root.
 func newDocs(root *yaml.Node, cfg Config, w *work) *docs {
-	src := &document{name: cfg.Self, root: nodeview.DocumentRoot(root), view: nodeview.New(), grammar: true}
+	src := &document{name: cfg.Self, root: nodeview.DocumentRoot(root), view: nodeview.New(), grammar: true,
+		openapi: true}
 	return &docs{cfg: cfg, list: []*document{src}, byName: map[string]DocID{cfg.Self: Source},
-		failed: map[string]error{}, work: w}
+		failed: map[string]error{}, work: w, reached: map[DocID]bool{Source: true}}
 }
 
 // locate is the name of the document uri names, written in the document
@@ -79,6 +85,7 @@ func (d *docs) refusal(uri string) string {
 // first time it is asked for, and the same answer every later time.
 func (d *docs) open(name string) (DocID, error) {
 	if id, ok := d.byName[name]; ok {
+		d.reached[id] = true
 		return id, nil
 	}
 	if err, ok := d.failed[name]; ok {
@@ -97,9 +104,27 @@ func (d *docs) open(name string) (DocID, error) {
 		return 0, err
 	}
 	id := DocID(len(d.list))
-	d.list = append(d.list, &document{name: name, root: nodeview.DocumentRoot(tree), view: nodeview.New()})
+	root := nodeview.DocumentRoot(tree)
+	view := nodeview.New()
+	d.list = append(d.list, &document{name: name, root: root, view: view, openapi: writesOpenAPI(view, root)})
 	d.byName[name] = id
+	d.reached[id] = true
 	return id, nil
+}
+
+// writesOpenAPI reports whether root, a document's, is an OpenAPI Object: one
+// naming its version, which OAS 3.1 §4.3.1 lets a read detect a document by.
+func writesOpenAPI(view *nodeview.View, root *yaml.Node) bool {
+	_, ok := scalarOf(view.ChildByToken(nodeview.Deref(root), "openapi"))
+	return ok
+}
+
+// unread reports whether a read of name would be the first, one that a compile
+// reading other documents has yet to make.
+func (d *docs) unread(name string) bool {
+	_, opened := d.byName[name]
+	_, failed := d.failed[name]
+	return !opened && !failed && d.cfg.Open != nil
 }
 
 // path returns the nodes along p's pointer from its document's root, aliases
@@ -138,6 +163,19 @@ func (d *docs) rootState(id DocID) state {
 		return sDocument
 	}
 	return sRaw
+}
+
+// identityState is the state a document's root is read at for what its schemas
+// declare, and for the resource a position of it is in: the grammar's where it
+// is an OpenAPI document, which places them as the source does. Any other has no
+// grammar, so its mappings are schemas but for what a schema's keywords say is
+// not one, as OAS 3.1 §4.3.1 leaves such a document to the reader: its root may
+// be a schema, or a map of them under keys of its own.
+func (d *docs) identityState(id DocID) state {
+	if d.list[id].openapi {
+		return sDocument
+	}
+	return sLoose
 }
 
 // stateAt is the state the OpenAPI grammar reads p at where p is: its own

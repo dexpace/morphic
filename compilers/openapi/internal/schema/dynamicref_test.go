@@ -18,14 +18,14 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/ir"
+	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// TestDynamicRef_InAnotherDocumentsContentIsNotExpanded pins a $dynamicRef in
+// TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn pins a $dynamicRef in
 // content another document holds: its fragment names that document's
-// $dynamicAnchor, which this compile does not index, so it is kept verbatim on
-// the type lowered where that document writes it, rather than expanded to the
-// source's anchor of the same name (GitHub #762).
-func TestDynamicRef_InAnotherDocumentsContentIsNotExpanded(t *testing.T) {
+// $dynamicAnchor, so it expands there, to the type lowered where that document
+// declares it, never to the source's anchor of the same name (GitHub #762).
+func TestDynamicRef_ExpandsAgainstTheDocumentItIsWrittenIn(t *testing.T) {
 	t.Parallel()
 	doc, diags, _ := compileBeside(t, map[string]string{"ext.yaml": `paths:
   /x:
@@ -47,26 +47,26 @@ components:
 `)
 
 	const body = jsontext.Pointer("/paths/~1x/get/responses/200/content/application~1json/schema")
-	assert.Empty(t, cmp.Diff([]ir.Diagnostic{dynamicRefNotExpanded(body + "/$dynamicRef")}, diags))
-	assert.Equal(t, ids.In("ext.yaml").AnonType(body), onlyBodyTarget(t, doc),
-		"lowered where ext.yaml writes it")
+	other := ids.In("ext.yaml").ForPointer("/components/schemas/Other")
+	require.Len(t, diags, 1)
+	assert.Equal(t, "openapi/dynamic-ref-expanded", diags[0].Code)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: body + "/$dynamicRef"}, diags[0].Provenance)
 	held, ok := doc.Types[onlyBodyTarget(t, doc)].(*ir.Scalar)
-	require.True(t, ok, "the position holds a node of its own for the reference it keeps")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: body}, held.Provenance)
+	require.True(t, ok, "the position holds an alias, as it holds one over the source's own")
 	require.NotNil(t, held.Base)
-	assert.Equal(t, ir.TypeID("t/prim/any"), held.Base.Target,
-		"the source's anchor of the same name is not what the reference names")
-	assert.Equal(t, ir.ReasonDegradedLowering, held.Unmodeled["openapi:$dynamicRef"].Reason)
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: body + "/$dynamicRef"},
-		held.Unmodeled["openapi:$dynamicRef"].Provenance)
+	assert.Equal(t, other, held.Base.Target, "the source's anchor of that name is not what the reference names")
+	assert.Empty(t, held.Unmodeled, "an expanded reference is not kept as well")
+	target, ok := doc.Types[other].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/components/schemas/Other"}, target.Provenance)
 }
 
-// TestDynamicRef_InAnotherDocumentsContentAHoistReachesIsNotExpanded pins the
-// same for a schema a $ref reaches: the source's Held names the schema of
-// parameter P, a $ref into ext.yaml, so that schema is lowered where ext.yaml
-// declares it, and its $dynamicRef is kept on the property, not expanded to
-// the source's anchor of that name (GitHub #762).
-func TestDynamicRef_InAnotherDocumentsContentAHoistReachesIsNotExpanded(t *testing.T) {
+// TestDynamicRef_NamesNoAnchorOfTheSourceFromAnotherDocument pins the other side
+// for a schema a $ref reaches: the source's Held names the schema of parameter
+// P, a $ref into ext.yaml, whose document declares no such anchor, so its
+// $dynamicRef is kept on the property, not expanded to the source's anchor of
+// that name (GitHub #762).
+func TestDynamicRef_NamesNoAnchorOfTheSourceFromAnotherDocument(t *testing.T) {
 	t.Parallel()
 	doc, diags, _ := compileBeside(t, map[string]string{"ext.yaml": `Param:
   name: q
@@ -163,17 +163,11 @@ func TestDynamicRef_FragmentIsPercentDecoded(t *testing.T) {
 	}
 }
 
-// TestDynamicRef_ReachesAnAnchorSpelledWithAPercent pins that the decode runs on
-// the reference alone: an anchor carrying a literal `%` is addressed by escaping
-// it as `%25`, and the anchor's own text is matched exactly as declared. The two
-// sides mean different things — 2020-12 §8.2.2 makes `$dynamicAnchor` a plain
-// name, §8.2.3.2 makes `$dynamicRef` a URI-reference — so only one is decoded.
-//
-// §8.2.2's production admits no `%` in an anchor name, so the document validator
-// reports the declaration and this case arrives with an error diagnostic beside
-// it, the same shape TestDynamicRef_NonScalarValueIsKeptNotExpanded documents.
-// The lowering still has to agree with itself about what each side spells.
-func TestDynamicRef_ReachesAnAnchorSpelledWithAPercent(t *testing.T) {
+// TestDynamicRef_AnAnchorTheGrammarRefusesNamesNothing pins that an anchor is
+// read as a $ref's is: 2020-12 §8.2.2's production admits no `%`, so the document
+// validator reports the declaration, and it declares no name for a reference to
+// reach, however the reference spells one.
+func TestDynamicRef_AnAnchorTheGrammarRefusesNamesNothing(t *testing.T) {
 	t.Parallel()
 	doc, _ := parseFull(t, openapitest.ComponentSpec(
 		"    B: {$dynamicAnchor: 'pct%name', type: string}\n"+
@@ -182,8 +176,8 @@ func TestDynamicRef_ReachesAnAnchorSpelledWithAPercent(t *testing.T) {
 	sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
 	require.True(t, ok, "the reference position owns a node")
 	require.NotNil(t, sc.Base)
-	assert.Equal(t, componentID("B"), sc.Base.Target,
-		"an escaped percent addresses the percent itself, so the reference reaches the anchor as declared")
+	assert.Equal(t, ir.PrimTypeID(ir.PrimAny), sc.Base.Target)
+	assert.Equal(t, ir.ReasonDegradedLowering, sc.Unmodeled["openapi:$dynamicRef"].Reason)
 }
 
 // TestDynamicRef_IrreducibleIsKeptAndSaysWhy pins the irreducible half of the
@@ -330,9 +324,8 @@ func TestDynamicRef_IrreducibleIsKeptAndSaysWhy(t *testing.T) {
 // anchors, and reverseMappings declines to permute a document whose aliases it
 // would lift above their anchors.
 //
-// It asserts the orders agree, not which verdict: a chain past the bound
-// expands to nothing, so in both orders Q currently misses the boundary
-// (GitHub #401).
+// A chain past the bound expands to nothing, so an $id past it is not seen. It
+// must not read as none: in either order neither reference expands (GitHub #401).
 func TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant(t *testing.T) {
 	t.Parallel()
 	first, diags := parseFull(t, mergeBoundOrderSpec(true))
@@ -351,6 +344,60 @@ func TestDynamicRef_ResourceBoundaryVerdictIsOrderInvariant(t *testing.T) {
 	assert.Contains(t, diagnosticSet(first.Diagnostics),
 		"warning\x00"+diag.DegradedConstruct+"\x00", // a source-level finding: no pointer
 		"the chain past the bound is reported in the as-written order, so the set is not trivially equal")
+}
+
+// TestDynamicRef_ReadsWhatASchemaDeclares pins that a declaration and a resource
+// boundary are the schemas', as a $ref reads them: a $dynamicAnchor in an example
+// or an extension declares nothing, so it makes no name a duplicate, and a
+// property named $id, or an $id raw YAML writes, starts no resource.
+func TestDynamicRef_ReadsWhatASchemaDeclares(t *testing.T) {
+	t.Parallel()
+	for name, spec := range map[string]string{
+		"an example": openapitest.ComponentSpec("    Node: {$dynamicAnchor: node, type: object}\n" +
+			"    Ex: {type: object, example: {$dynamicAnchor: node}}\n    D: {$dynamicRef: '#node'}\n"),
+		"an extension": openapitest.ComponentSpec("    Node: {$dynamicAnchor: node, type: object}\n"+
+			"    D: {$dynamicRef: '#node'}\n") + "x-raw: {$dynamicAnchor: node}\n",
+		"a property named $id": openapitest.ComponentSpec("    Node: {$dynamicAnchor: node, type: object}\n" +
+			"    H: {type: object, properties: {$id: {type: string}, d: {$dynamicRef: '#node'}}}\n"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Contains(t, irtest.DiagCodes(diags), "openapi/dynamic-ref-expanded")
+			for _, td := range doc.Types {
+				assert.NotContains(t, td.Common().Unmodeled, "openapi:$dynamicRef")
+			}
+		})
+	}
+}
+
+// TestDynamicRef_RestsOnNoReadTheMergeBoundCut pins that a chain past the bound
+// keeps the reference: an $id past it may start a resource, and an anchor past it
+// may make the name a duplicate, and either reads as nothing there (GitHub #401).
+// Its report says the read was cut, and the one warning names the bound that did.
+func TestDynamicRef_RestsOnNoReadTheMergeBoundCut(t *testing.T) {
+	t.Parallel()
+	var b strings.Builder
+	b.WriteString("openapi: 3.1.0\ninfo: {title: Deep, version: \"1\"}\npaths: {}\nx-l0: &l0 {$id: 'https://example.com/deep'}\n")
+	for i := 1; i <= 70; i++ {
+		fmt.Fprintf(&b, "x-l%d: &l%d {<<: *l%d}\n", i, i, i-1)
+	}
+	b.WriteString("components:\n  schemas:\n    Node: {$dynamicAnchor: T, type: string}\n    A: {<<: *l70, $dynamicRef: '#T'}\n")
+	doc, diags := parseFull(t, b.String())
+
+	sc, ok := doc.Types[componentID("A")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonDegradedLowering, sc.Unmodeled["openapi:$dynamicRef"].Reason)
+	assert.NotContains(t, irtest.DiagCodes(diags), "openapi/dynamic-ref-expanded")
+	messages := make([]string, 0, len(diags))
+	for _, d := range diags {
+		messages = append(messages, d.Message)
+	}
+	joined := strings.Join(messages, "\n")
+	assert.Contains(t, joined, "not read whole")
+	assert.Contains(t, joined, "deeper than 64 levels")
+	assert.NotContains(t, joined, "walk bounds", "the only bound in play is the merge bound")
 }
 
 // TestDynamicRef_CycleIsRefusedAtEveryEdge pins that a cycle of $dynamicRef
@@ -457,8 +504,8 @@ func TestDynamicRef_NonScalarValueIsKeptNotExpanded(t *testing.T) {
 // document, at the pointer in that document's Document.Sources entry.
 func dynamicRefNotExpanded(pointer jsontext.Pointer) ir.Diagnostic {
 	return ir.Diagnostic{Severity: ir.SeverityInfo, Code: "openapi/degraded-construct",
-		Message: "$dynamicRef was not expanded because it is written in another document, whose " +
-			"$dynamicAnchor it names, and only the source's anchors are indexed; it is kept verbatim under Unmodeled",
+		Message: `$dynamicRef was not expanded because no $dynamicAnchor "node" is declared in this document; ` +
+			"it is kept verbatim under Unmodeled",
 		Provenance: ir.Provenance{Source: 1, Pointer: pointer}}
 }
 

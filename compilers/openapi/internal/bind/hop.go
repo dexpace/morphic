@@ -6,6 +6,8 @@ package bind
 import (
 	"encoding/json/jsontext"
 	"errors"
+	"fmt"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 
@@ -54,10 +56,10 @@ func (b *binder) resolve(site Position, path []*yaml.Node, ref string, schema bo
 
 // named is the resource the document part uri of a reference read in the
 // resource in names: in itself for none, else the one the URI it names against
-// in's identifies: a resource an $id names, the source, or the document there,
-// opened. A relative URI read against an $id that no schema declares names the
-// document at the URI the $id makes of it (readAt); an absolute one names what
-// it names wherever it is written.
+// in's identifies: a resource an $id names, in whichever document, the source,
+// or the document there, opened. A relative URI read against an $id that no
+// schema declares names the document at the URI the $id makes of it (readAt);
+// an absolute one names what it names wherever it is written.
 func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	if uri = strings.TrimSpace(uri); uri == "" {
 		return in, NoReason, ""
@@ -74,6 +76,7 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	root, found, why := b.ids.lookupURI(key)
 	switch {
 	case found:
+		b.docs.reached[root.Doc] = true
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
 		return resource{}, why, key
@@ -116,8 +119,14 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 }
 
 // read is the resource of the document named name, read through Config.Open,
-// or why the read failed.
+// or why the read failed. The first read of a document an absolute URI names
+// waits for the pass to end (Held), since a document read meanwhile may declare
+// that URI, and an identifier is not a location to fetch (reread).
 func (b *binder) read(name string) (resource, Reason, string) {
+	if absolute(name) && b.docs.unread(name) {
+		b.held[name] = true
+		return resource{}, Held, ""
+	}
 	id, err := b.docs.open(name)
 	var unparsable *UnparsableError
 	switch {
@@ -192,16 +201,14 @@ func (b *binder) pointed(doc DocID, pointer jsontext.Pointer, h *Hop) (reading, 
 }
 
 // anchored reads the schema the resource to declares name in, as its
-// $anchor or $dynamicAnchor. Only the source's identifiers are read.
+// $anchor or $dynamicAnchor, whichever document holds it.
 func (b *binder) anchored(to resource, name string, h *Hop) (reading, Reason) {
-	if to.root.Doc != Source {
-		return reading{}, AnchorUnread
-	}
+	b.find.identify(to.root.Doc)
 	at, why := b.ids.lookupAnchor(to.root, name)
 	if why != NoReason {
 		return reading{}, why
 	}
-	return b.pointed(Source, at.Pointer, h)
+	return b.pointed(to.root.Doc, at.Pointer, h)
 }
 
 // beside reports whether pointer is in the fields beside a path item's $ref
@@ -235,6 +242,25 @@ func (b *binder) hop(p Position) Hop {
 		b.find.landed(h)
 	}
 	return h
+}
+
+// DynamicFragment returns the anchor name a $dynamicRef written as ref addresses,
+// or the reason it addresses none. Only the same-document `#name` spelling
+// resolves; a URI part or a `#/…` pointer addresses no anchor.
+//
+// The name is the fragment percent-decoded once (RFC 3986): `#my%2Danchor` and
+// `#my-anchor` name one anchor. PathUnescape keeps `+` literal, as a fragment
+// needs, and a fragment it cannot decode is refused, not matched raw.
+func DynamicFragment(ref string) (name, why string, ok bool) {
+	spelled, found := strings.CutPrefix(ref, "#")
+	if !found || spelled == "" || strings.Contains(spelled, "/") {
+		return "", fmt.Sprintf("%q is not a plain same-document fragment", ref), false
+	}
+	name, err := url.PathUnescape(spelled)
+	if err != nil {
+		return "", fmt.Sprintf("%q is not valid percent-encoded text: %s", ref, err.Error()), false
+	}
+	return name, "", true
 }
 
 // isAnchorName reports whether s is a name a $anchor can declare, by JSON

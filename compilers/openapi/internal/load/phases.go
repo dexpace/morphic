@@ -211,13 +211,18 @@ func (l *loading) resolveRefs(ctx context.Context) (bool, error) {
 // where the binding places each document. The parser reads the $refs as the
 // trees were rewritten for it here, and up to restoreModels.
 func (l *loading) bindRefs(ctx context.Context) (bool, error) {
+	var resolved map[string]bool
+	if l.reader != nil {
+		resolved = l.reader.read.keys()
+	}
 	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.self, l.reader, l.pass.ends())
 	if l.reader != nil {
 		first := l.srcIndex + 1
 		if l.origin.Applied() {
 			first = l.opts.OverlaySrcIndex + 1
 		}
-		l.bound.others = newOthers(ctx, l.reader.read, first, "openapi@"+l.minor)
+		unused := unreachedKeys(l.bound.bindings.Table(), resolved)
+		l.bound.others = newOthers(ctx, l.reader.read, first, "openapi@"+l.minor, unused)
 	}
 	l.placeSite = sitePlacer(l.at, l.bound.others)
 	l.resolved = append(l.pass.diags(l.placeSite), stillUnprepared(l.placeSite, l.missed)...)

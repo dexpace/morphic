@@ -46,6 +46,9 @@ const (
 	sSecurityScheme
 	sObject
 	sRawEntries
+	// sLoose is a position of a document that is no OpenAPI document, which no
+	// grammar places: read as a schema for what it declares (docs.identityState).
+	sLoose
 )
 
 // fields maps the fields an object state defines to the state each leads to,
@@ -182,6 +185,8 @@ func step(s state, token string) state {
 		return sRaw
 	case sValue, sObject:
 		return sValue
+	case sLoose:
+		return looseStep(token)
 	}
 	if e, ok := entries[s]; ok {
 		if strings.HasPrefix(token, "x-") && extensible[s] {
@@ -193,6 +198,21 @@ func step(s state, token string) state {
 		return next
 	}
 	return sRaw
+}
+
+// looseStep is the state one token below a position of a document no grammar
+// places: a keyword of a schema reads as it does in one, so a literal or a value
+// holds nothing and a schema map holds schemas; an extension is raw, as a
+// schema's is; and any other key stays loose, since a document of schemas keeps
+// them under keys of its own.
+func looseStep(token string) state {
+	if strings.HasPrefix(token, "x-") {
+		return sRaw
+	}
+	if next, ok := fields[sSchema][token]; ok {
+		return next
+	}
+	return sLoose
 }
 
 // stateOf is the state tokens reach from s.

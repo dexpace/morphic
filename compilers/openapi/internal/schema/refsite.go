@@ -172,8 +172,8 @@ func resolvePointer(c lowering.Ctx, ts *compile.Types, pointer jsontext.Pointer,
 	// another document's are hoisted where a reference reaches them, as any
 	// other position of it is.
 	if c.IDs() == (ids.Document{}) {
-		if id, resolved, handled := c.RefScope().ComponentRef(pointer); handled {
-			return id, resolved
+		if id, state := c.RefScope().ComponentRef(pointer); state.ByName() {
+			return id, state == ids.NamedComponent
 		}
 	}
 	if !resolve.Hoistable(decl) {

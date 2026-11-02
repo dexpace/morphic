@@ -348,6 +348,8 @@ func TestSpellings(t *testing.T) {
 		bind.Object: "object", 9: "none"} {
 		assert.Equal(t, want, r.String())
 	}
+	assert.Equal(t, "it was not read within the budget", bind.Hop{Reason: bind.Held}.Why(),
+		"a read a later pass was to make, which the budget cut")
 	for text, hop := range map[string]bind.Hop{
 		"it names nothing in the document it points into": {Reason: bind.NoTarget},
 		"it names a position that holds no schema":        {Reason: bind.NotSchema},
@@ -356,10 +358,9 @@ func TestSpellings(t *testing.T) {
 			Reason: bind.NoResourceTarget, Detail: "u"},
 		"two or more schemas of the resource it names declare that name as their $anchor or $dynamicAnchor, " +
 			"so it names none of them": {Reason: bind.DuplicateAnchor},
-		"it names a plain name in another document, whose identifiers are not read (GitHub #1049)": {Reason: bind.AnchorUnread},
-		"two or more schemas declare u as their $id, so it names none of them":                     {Reason: bind.DuplicateID, Detail: "u"},
-		"no schema of the resource it names declares that name as its $anchor or $dynamicAnchor":   {Reason: bind.NoAnchor},
-		"its fragment is no JSON pointer": {Reason: bind.BadPointer},
+		"two or more schemas declare u as their $id, so it names none of them":                   {Reason: bind.DuplicateID, Detail: "u"},
+		"no schema of the resource it names declares that name as its $anchor or $dynamicAnchor": {Reason: bind.NoAnchor},
+		"its fragment is no JSON pointer":                                                        {Reason: bind.BadPointer},
 		"no definition answers it: neither the document's root nor a schema of the model above it holds one " +
 			"by that name": {Reason: bind.NoDefinition},
 		"the schema writing it defines that name, but a schema's own definitions answer a \"#/$defs/...\" " +
@@ -406,7 +407,7 @@ func TestBind_StopsOnceTheContextIsDone(t *testing.T) {
 // refused: once for each stage of it running in sequence, each leaving at its
 // first ask. A loop asking on for every site or mapping value left would ask
 // as often as the document has them.
-const asksAfterRefusal = 7
+const asksAfterRefusal = 8
 
 // manyMappings writes a discriminator mapping n values, each to a schema whose
 // $ref the binding follows, so a binding has many sites and mapping values to

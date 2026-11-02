@@ -206,25 +206,25 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schem
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
 func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	target, _, expanded, diags := dynamicExpansion(c, schema, pointer)
-	if expanded {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
-			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target))
-		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
-		return ref, append(diags, nullDiags...)
+	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
+		if target, ok := resolveAt(c, ts, at, c.Bindings().At(at)); ok {
+			ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
+			return ref, append([]ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded,
+				pointer+ids.Ptr("$dynamicRef"),
+				"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
+		}
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
-			return ref, slices.Concat(diags, unionDiags, nullDiags)
+			return ref, append(unionDiags, nullDiags...)
 		}
-		ref, unionDiags := lowerOneOfAnyOf(c, ts, depth, schema, pointer)
-		return ref, append(diags, unionDiags...)
+		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
-	return ref, slices.Concat(diags, bodyDiags, nullDiags)
+	return ref, append(bodyDiags, nullDiags...)
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. const,
