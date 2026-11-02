@@ -744,6 +744,10 @@ func TestUnready(t *testing.T) {
 		{"an anchor deep in the tree", "a: {b: [1, &x 2]}\n", true},
 		{"a plain date deep in the tree", "a: {b: [1, 2021-01-01]}\n", true},
 		{"a plain date as a key", "a: {2021-01-01: 1}\n", true},
+		{"a plain date with one-digit fields", "a: 2021-1-1\n", true},
+		{"a plain date and time", "a: 2001-12-14T21:59:43.10Z\n", true},
+		{"a plain date and time spaced apart", "a: 2001-12-14 21:59:43.10\n", true},
+		{"a date under the non-specific tag", "a: ! 2021-01-01\n", true},
 		{"a quoted date", "a: {b: [1, '2021-01-01']}\n", false},
 		{"a date tagged a timestamp outright", "a: {b: [1, !!timestamp 2021-01-01]}\n", false},
 	} {

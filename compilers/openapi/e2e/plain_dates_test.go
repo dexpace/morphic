@@ -20,7 +20,7 @@ import (
 // one spelling of the string a parser of every YAML version agrees on. Each
 // date ends its line, so no column after it moves.
 func quotedDates(src string) string {
-	for _, date := range []string{"2021-01-01", "2022-02-02"} {
+	for _, date := range []string{"2021-01-01", "2022-02-02", "2021-1-1", "2001-12-14T21:59:43.10Z", "2001-12-14 21:59:43.10"} {
 		src = strings.ReplaceAll(src, date, `"`+date+`"`)
 	}
 	return src
@@ -56,6 +56,14 @@ paths:
       operationId: 2021-01-01
       summary: 2021-01-01
       description: 2021-01-01
+      responses: {"200": {description: ok}}
+`},
+	{"the other spellings of a timestamp", datedFixtureHead + `paths:
+  /b:
+    get:
+      operationId: 2001-12-14T21:59:43.10Z
+      summary: 2021-1-1
+      description: 2001-12-14 21:59:43.10
       responses: {"200": {description: ok}}
 `},
 	{"a schema's title and required names", datedFixtureHead + `paths: {}
