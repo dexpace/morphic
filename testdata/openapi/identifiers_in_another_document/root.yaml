@@ -1,0 +1,12 @@
+# Identifiers another document declares: a $dynamicRef there expands to its own
+# anchor, a plain name resolves under its $id, and a URI only it declares names
+# that schema rather than a location (docs/compilers/openapi.md#references).
+openapi: 3.1.0
+info: {title: identifiers in another document, version: "1"}
+paths: {}
+components:
+  schemas:
+    Tree: {$ref: "./other.yaml#/components/schemas/Tree"}
+    Leaf: {$ref: "./other.yaml#/components/schemas/Leaf"}
+    Pet: {$ref: "https://pets.example.com/pet"}
+    Tag: {$ref: "https://pets.example.com/pet#tag"}

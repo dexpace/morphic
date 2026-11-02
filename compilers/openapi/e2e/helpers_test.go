@@ -422,3 +422,8 @@ func assertOnlyErrorDiags(t *testing.T, diags []ir.Diagnostic, want []string) {
 		assert.True(t, drawn[code], "the spec is listed as invalid but draws no %s", code)
 	}
 }
+
+// countCode counts the diagnostics of code at pointer.
+func countCode(diags []ir.Diagnostic, code, pointer string) int {
+	return len(diagsAt(diags, code, pointer))
+}
