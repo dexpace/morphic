@@ -6,6 +6,7 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"maps"
+	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
@@ -135,6 +136,45 @@ func validationOnlyNote(note ir.Provenance, label string) ir.Diagnostic {
 		"validation-only keyword %q kept verbatim under Unmodeled", label)
 }
 
+// CopyEntriesInto writes onto p a copy of each entry of src, its value cloned,
+// for a reader keeping one set of entries on several carriers. Unlike
+// MergeUnmodeled it never replaces an entry p holds: that one stays, and the
+// entry from src is reported missing from p (diag.UnknownKeyEntryTaken), in
+// key order as the census reports. Another carrier may hold it, so the finding
+// does not say the IR lacks it.
+func CopyEntriesInto(p *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
+	if len(src) == 0 {
+		return nil
+	}
+	if *p == nil {
+		*p = make(ir.Unmodeled, len(src))
+	}
+	var taken []string
+	for key, entry := range src {
+		if _, held := (*p)[key]; held {
+			taken = append(taken, key)
+			continue
+		}
+		entry.Value = entry.Value.Clone()
+		(*p)[key] = entry
+	}
+	slices.Sort(taken)
+	var diags []ir.Diagnostic
+	for _, key := range taken {
+		diags = append(diags, refusedCopyDiag(key, src[key].Provenance, (*p)[key].Provenance.Pointer))
+	}
+	return diags
+}
+
+// refusedCopyDiag reports an entry CopyEntriesInto left off a carrier that
+// already holds its key. Unlike occupiedEntryDiag it claims no loss from the IR,
+// since the other carriers the entry is copied onto may hold it.
+func refusedCopyDiag(entry string, at ir.Provenance, held jsontext.Pointer) ir.Diagnostic {
+	return diag.Newf(ir.SeverityWarning, diag.UnknownKeyEntryTaken, at,
+		"%s is already held by the construct at %q, so the node holding that construct keeps no copy of this one",
+		entry, held)
+}
+
 // MergeUnmodeled overlays src onto dst, allocating dst on first write.
 func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 	if len(src) == 0 {
@@ -144,5 +184,20 @@ func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 		dst = ir.Unmodeled{}
 	}
 	maps.Copy(dst, src)
+	return dst
+}
+
+// underlayUnmodeled adds to dst each entry of src it lacks, so a nearer writer
+// keeps its entry, walking src alone: a site folds its voices into one map, and
+// overlaying that map on each would cost every voice all those before it.
+func underlayUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
+	if dst == nil && len(src) > 0 {
+		dst = make(ir.Unmodeled, len(src))
+	}
+	for keyword, entry := range src {
+		if _, held := dst[keyword]; !held {
+			dst[keyword] = entry
+		}
+	}
 	return dst
 }

@@ -2263,7 +2263,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/Positions/properties/composed/allOf/1",
       "name": {
-        "hint": "variant_1"
+        "hint": "composed"
       },
       "anonymous": true,
       "docs": {},

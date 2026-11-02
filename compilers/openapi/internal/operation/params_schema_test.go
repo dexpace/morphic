@@ -5,6 +5,7 @@ package operation_test
 
 import (
 	"encoding/json/jsontext"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -348,42 +349,33 @@ components:
     Plain: {type: string}
 `
 
-// TestParams_SchemaRedactionKeptUnderUnmodeled covers the one carrier with no
-// redaction field: ir.Parameter has neither Property.Secret nor a node of its
-// own, so a `format: password` its schema writes is kept verbatim and announced
-// rather than dropped (GitHub #578), at the keyword itself, inline, beside a
-// $ref and in a content-style parameter alike.
-func TestParams_SchemaRedactionKeptUnderUnmodeled(t *testing.T) {
+// TestParams_SchemaRedactionReachesTheParameter covers the positions where a
+// parameter is the carrier: a `format: password` its schema writes owns no node,
+// so ir.Parameter.Secret holds it, inline, beside a $ref and in a content-style
+// parameter alike, and nothing is kept or announced beside the field (GitHub
+// #578). A $ref's referent lends it as it lends a property its own.
+func TestParams_SchemaRedactionReachesTheParameter(t *testing.T) {
 	t.Parallel()
 	_, svc, diags := compileService(t, paramRedactionSpec)
 	openapitest.RequireNoErrorDiags(t, diags)
 	params := paramsOf(t, svc)
 
-	for _, tc := range []struct{ param, schemaPtr string }{
-		{"q", "/paths/~1x/get/parameters/0/schema"},
-		{"c", "/paths/~1x/get/parameters/1/content/text~1plain/schema"},
-		{"beside", "/paths/~1x/get/parameters/2/schema"},
-	} {
-		t.Run(tc.param, func(t *testing.T) {
+	for _, name := range []string{"q", "c", "beside", "ref"} {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			entry, ok := params[tc.param].Unmodeled["openapi:format"]
-			require.True(t, ok, "a redaction with no Parameter field is kept raw, not dropped")
-			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason)
-			assert.JSONEq(t, `"password"`, string(entry.Value), "kept verbatim")
-			assert.Equal(t, jsontext.Pointer(tc.schemaPtr+"/format"), entry.Provenance.Pointer,
-				"located at the format keyword itself")
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, tc.schemaPtr+"/format"),
-				"redaction", "and announced once, at the same keyword the entry locates")
+			p, ok := params[name]
+			require.True(t, ok)
+			assert.True(t, p.Secret, "the parameter is the carrier")
+			assert.NotContains(t, p.Unmodeled, "openapi:format", "the field holds it, so nothing is kept beside it")
 		})
 	}
-	assert.Equal(t, 3, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
-		"one announcement per parameter that keeps it, and none for the others")
+	assert.Zero(t, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityInfo),
+		"a redaction with a home degrades nothing")
 }
 
 // TestParams_SchemaRedactionStaysOnANode is the other half: a parameter whose
-// type is a Sensitive node, its own or a referent's, keeps no second copy, and
-// one writing a format that names a shape keeps nothing.
+// own schema owns a node leaves the redaction there, one home per declaration,
+// and one writing a format that names a shape redacts nothing.
 func TestParams_SchemaRedactionStaysOnANode(t *testing.T) {
 	t.Parallel()
 	doc, svc, diags := compileService(t, paramRedactionSpec)
@@ -393,14 +385,15 @@ func TestParams_SchemaRedactionStaysOnANode(t *testing.T) {
 	id, ok := params["id"]
 	require.True(t, ok)
 	assert.NotContains(t, id.Unmodeled, "openapi:format", "a format naming a shape is no redaction")
-	for _, name := range []string{"ref", "pick"} {
-		p, ok := params[name]
-		require.True(t, ok, name)
-		node, ok := doc.Types[p.Type.Target]
-		require.True(t, ok, "%s: its type is a node", name)
-		assert.True(t, node.Common().Sensitive, "%s: the node holds the redaction", name)
-		assert.NotContains(t, p.Unmodeled, "openapi:format", "%s: so the parameter keeps no copy", name)
-	}
+	assert.False(t, id.Secret, "a format naming a shape is no redaction")
+
+	pick, ok := params["pick"]
+	require.True(t, ok)
+	node, ok := doc.Types[pick.Type.Target]
+	require.True(t, ok, "its type is a node")
+	assert.True(t, node.Common().Sensitive, "the node holds the redaction")
+	assert.False(t, pick.Secret, "so the parameter takes no copy")
+	assert.NotContains(t, pick.Unmodeled, "openapi:format", "and keeps none")
 }
 
 const paramVisibilitySpec = `openapi: 3.1.0
@@ -691,4 +684,144 @@ components:
 	assert.Empty(t, without.Docs.Summary, "no sibling means no summary is invented")
 	assert.Equal(t, "declared", without.Docs.Description,
 		"the other mount keeps the declaration's own description")
+}
+
+// TestParameter_ABranchSpeaksAsItsSchemaDoes pins a parameter's schema refining a
+// $ref: what its branches write lands as what the schema writes does, a redaction
+// on Secret, and what ir.Parameter has no field for is kept verbatim at the
+// keyword that wrote it.
+func TestParameter_ABranchSpeaksAsItsSchemaDoes(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get:
+      operationId: get
+      parameters:
+        - name: q
+          in: query
+          schema:
+            allOf:
+              - {$ref: '#/components/schemas/Str'}
+              - {description: mine, maxLength: 3, readOnly: true, format: password, xml: {name: q}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Str: {type: string, title: A string}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), "q")
+	require.True(t, ok)
+	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Str"), param.Type.Target)
+	assert.Equal(t, "mine", param.Docs.Description)
+	assert.Equal(t, "A string", param.Docs.Summary)
+	require.NotNil(t, param.Constraints)
+	assert.Equal(t, new(int64(3)), param.Constraints.MaxLength)
+	assert.True(t, param.Secret, "a branch's format: password redacts the parameter")
+	assert.NotContains(t, param.Unmodeled, "openapi:format", "which then needs no verbatim copy")
+	for _, key := range []string{"openapi:readOnly", "openapi:xml"} {
+		entry, kept := param.Unmodeled[key]
+		if assert.True(t, kept, "%s: got %v", key, param.Unmodeled) {
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, key)
+			assert.Contains(t, string(entry.Provenance.Pointer), "/allOf/1/", key)
+		}
+	}
+}
+
+// TestParameter_APrincipalOwningANodeKeepsItsVisibility pins readOnly and writeOnly
+// on the branch a refinement lowers from: a node holds neither, so the parameter
+// keeps them as it does written on its schema, at the keyword that wrote them.
+func TestParameter_APrincipalOwningANodeKeepsItsVisibility(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get:
+      operationId: get
+      parameters:
+        - name: list
+          in: query
+          schema: {allOf: [{type: array, items: {type: string}, readOnly: true}]}
+        - name: narrowed
+          in: query
+          schema: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a], writeOnly: true}]}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Mode: {type: string, enum: [a, b]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	for source, key := range map[string]string{"list": "openapi:readOnly", "narrowed": "openapi:writeOnly"} {
+		param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), source)
+		require.True(t, ok, source)
+		entry, kept := param.Unmodeled[key]
+		if assert.True(t, kept, "%s: got %v", source, param.Unmodeled) {
+			assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, source)
+			assert.Contains(t, string(entry.Provenance.Pointer), "/allOf/", source)
+		}
+	}
+}
+
+// TestParameter_AnEntrySeveralWriteIsTheNearest pins what a parameter keeps of one
+// keyword written twice, as a node's residue does: the schema written at the
+// position over its branches, and the first branch over a later one.
+func TestParameter_AnEntrySeveralWriteIsTheNearest(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get:
+      operationId: get
+      parameters:
+        - name: beside
+          in: query
+          schema:
+            readOnly: true
+            xml: {name: a}
+            allOf: [{$ref: '#/components/schemas/Str'}, {readOnly: true, xml: {name: a}}]
+        - name: branches
+          in: query
+          schema:
+            allOf: [{$ref: '#/components/schemas/Str'}, {writeOnly: true, xml: {name: b}}, {writeOnly: true, xml: {name: b}}]
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Str: {type: string}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	base := func(i int) string { return "/paths/~1p/get/parameters/" + strconv.Itoa(i) + "/schema" }
+	for _, tc := range []struct {
+		source, key string
+		at          string
+	}{
+		{"beside", "openapi:readOnly", base(0) + "/readOnly"},
+		{"beside", "openapi:xml", base(0) + "/xml"},
+		{"branches", "openapi:writeOnly", base(1) + "/allOf/1/writeOnly"},
+		{"branches", "openapi:xml", base(1) + "/allOf/1/xml"},
+	} {
+		param, ok := openapitest.ParamBySource(openapitest.FindOp(t, doc, "get"), tc.source)
+		require.True(t, ok, tc.source)
+		entry, kept := param.Unmodeled[tc.key]
+		require.True(t, kept, tc.key)
+		assert.Equal(t, tc.at, string(entry.Provenance.Pointer), tc.source)
+	}
+}
+
+// TestParameter_ADefaultReadsOnlyWhereTheNarrowingTakesIt pins a parameter's default
+// across a value set narrowing its $ref, as a property's reads.
+func TestParameter_ADefaultReadsOnlyWhereTheNarrowingTakesIt(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /p:
+    get:
+      operationId: get
+      parameters:
+        - {name: taken, in: query, schema: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [a]}]}}
+        - {name: dropped, in: query, schema: {allOf: [{$ref: '#/components/schemas/Mode'}, {enum: [b]}]}}
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Mode: {type: string, enum: [a, b], default: a}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "get")
+	taken, ok := openapitest.ParamBySource(op, "taken")
+	require.True(t, ok)
+	assert.NotNil(t, taken.Default)
+	dropped, ok := openapitest.ParamBySource(op, "dropped")
+	require.True(t, ok)
+	assert.Nil(t, dropped.Default)
 }

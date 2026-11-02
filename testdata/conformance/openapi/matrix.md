@@ -39,7 +39,7 @@ witnessing it.
   `allof-oneof-cooccurrence`, `allof-inline-residue`, `allof-nested-inline`,
   `allof-ref-branch-siblings`, `allof-boolean-branch`, `allof-narrowing-redeclaration`,
   `allof-redeclared-models`, `allof-redeclared-bounds`, `allof-position-constraints`,
-  `codeclared-keywords`
+  `allof-refinement`, `codeclared-keywords`
 
 ### `negation`
 
@@ -89,7 +89,7 @@ witnessing it.
 
 ### `redaction`
 
-- Witnesses: `secret-format`
+- Witnesses: `secret-format`, `extension-redaction`
 
 ### `recursive-types`
 
@@ -189,7 +189,11 @@ witnessing it.
 
 ### `deprecation`
 
-- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`
+- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`, `extension-stability`
+
+### `stability`
+
+- Witnesses: `extension-stability`
 
 ### `examples`
 

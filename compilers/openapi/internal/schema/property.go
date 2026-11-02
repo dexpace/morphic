@@ -30,12 +30,12 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 	if ref == nil {
 		return nil
 	}
-	tgt := c.RefScope().TargetSchema(js, ref)
-	def, diags := annotation.EffectiveDefault(ref, tgt, pointer, c.ProvenanceAt)
+	use := UseOf(c, ts, js, p.Type, pointer)
+	def, diags := annotation.EffectiveDefault(use.DefaultChain(ref), pointer, c.ProvenanceAt)
 	p.Default = def
-	diags = append(diags, fillPropertyVisibility(c, p, ref, tgt, pointer)...)
-	diags = append(diags, fillPropertyConstraints(c, ts, p, ref, pointer)...)
-	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, tgt, pointer)...)
+	diags = append(diags, fillPropertyVisibility(c, p, use.Site(ref).Chain(), pointer)...)
+	diags = append(diags, fillPropertyConstraints(c, ts, p, ref, use.Voices, pointer)...)
+	diags = append(diags, fillPropertyAnnotations(c, ts, p, ref, use, pointer)...)
 	return append(diags, PreserveRefSiteKeywords(c, ts, &p.Unmodeled, js, p.Type, pointer)...)
 }
 
@@ -48,8 +48,8 @@ func FillPropertyDetail(c lowering.Ctx, ts *compile.Types, p *ir.Property, js *o
 // the caller that knows the position being filled. It is the same finding under
 // the same code as the allOf spelling, so a consumer filtering on
 // diag.DisjointVisibility sees both.
-func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	visibility, disjoint := annotation.EffectiveVisibility(ref, tgt)
+func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, chain []*oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	visibility, disjoint := annotation.EffectiveVisibility(chain)
 	p.Visibility = visibility
 	if !disjoint {
 		return nil
@@ -64,13 +64,13 @@ func fillPropertyVisibility(c lowering.Ctx, p *ir.Property, ref, tgt *oas3.Schem
 // carrier at this position: a property's schema is read through CarriedRef, so
 // it hoists no node of its own to hold either.
 //
-// It reads ref alone and never the $ref target, which is why no tgt reaches it:
-// bounds conjoin rather than override, so a referent's bound merged here under
-// use-site precedence would publish the wider of the two as the whole truth. It
-// stays on the node the reference points at instead
+// It reads ref and its voices and never the $ref target, which is why no referent
+// reaches it: bounds conjoin rather than override, so a referent's bound merged
+// here under use-site precedence would publish the wider of the two as the whole
+// truth. It stays on the node the reference points at instead
 // (docs/ir/annotations.md#what-a-reference-carries-down).
-func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	cons, diags := CarrierConstraintsOf(c, ts, &p.Unmodeled, ref, p.Type, pointer)
+func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, voices []annotation.Voice, pointer jsontext.Pointer) []ir.Diagnostic {
+	cons, diags := CarrierConstraintsOf(c, ts, &p.Unmodeled, ref, voices, p.Type, pointer)
 	p.Constraints = cons
 	return diags
 }
@@ -87,11 +87,11 @@ func fillPropertyConstraints(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 //
 // A $ref position never hoists a node, so annotations written beside a
 // property's $ref land here (GitHub #114).
-func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref, tgt *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, ref *oas3.Schema, use Use, pointer jsontext.Pointer) []ir.Diagnostic {
 	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Reference, Node: ref, Referent: tgt}, pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(use.Site(ref), pointer, c.ProvenanceAt)
 
 	p.Docs = a.Docs
 	if a.Deprecated {
@@ -107,7 +107,6 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 		p.Examples = a.Examples
 	}
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, a.Unmodeled)
-	diags = append(diags, c.PromoteDeprecation(p.Unmodeled, p.Deprecation, &p.Provenance)...)
 	return append(diags, PreserveCarriedKeywords(c, &p.Unmodeled, ref, pointer)...)
 }
 
@@ -123,6 +122,32 @@ func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 	diags := recordUnplacedContent(c, p, s, nil, pointer)
 	diags = append(diags, recordUnexpandedDynamicRef(c, p, s, pointer)...)
 	return append(diags, PreserveUnknownKeywords(c, p, s, pointer)...)
+}
+
+// PromoteUse reads the vendor extensions into the deprecation and redaction of a
+// carrier: a property, a header or a parameter. Its own keys are the ones kept in
+// unmodeled, and from (KeysLentTo) lends beneath them
+// (docs/compilers/openapi.md#ref-use-site).
+//
+// A caller runs it once the carrier's keywords and keys are all on it, which for
+// a header or a parameter means after the object around the schema: that object
+// decides what is deprecated, and so what a member can fill. A key both write is
+// one entry, the object's, so the schema's is not read (GitHub #396).
+func PromoteUse(c lowering.Ctx, from lowering.Referent, unmodeled ir.Unmodeled, dep **ir.Deprecation, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
+	diags := c.Promoter().Deprecation(unmodeled, from, dep, prov)
+	return append(diags, c.Promoter().Redaction(unmodeled, from, redact, prov)...)
+}
+
+// KeysLentTo returns what the mapped keys of what a carrier of js falls back to
+// lend it, js written at pointer and lowered to t (Use.lentKeys). A position
+// owning a node lends its carrier none, as it lends no keyword: the node takes
+// them (attachDeclaredAnnotations).
+func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) lowering.Referent {
+	s := annotation.SchemaOf(js)
+	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
+		return lowering.Referent{}
+	}
+	return UseOf(c, ts, js, t, pointer).lentKeys(c, s)
 }
 
 // LoweredToOwnNode reports whether the declaration at pointer, in c's

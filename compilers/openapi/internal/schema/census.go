@@ -122,7 +122,7 @@ func isKind(td ir.TypeDef, k ir.TypeKind) bool {
 func formatHome(td ir.TypeDef, s *oas3.Schema) bool {
 	// The redaction format names no shape, so no node kind is its home: the
 	// annotation readers hold it, as Sensitive on the node the position owns or
-	// Secret on its carrier, and verbatim at a parameter, which has no field.
+	// Secret on its carrier.
 	if annotation.DeclaresRedaction(s) {
 		return true
 	}
@@ -272,7 +272,7 @@ const (
 // what the position's alias or carrier holds is homed (keywordHome's nil td).
 // Those two write few: neither expands or collapses beside a shape (GitHub #595).
 func referenceOutcomeKeywords(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) ([]string, string) {
-	if _, _, expanded, _ := dynamicExpansion(c, s, pointer); expanded {
+	if _, _, expanded := dynamicExpansion(c, s, pointer); expanded {
 		return unhomedKeywords(s, nil, nil), expandedShape
 	}
 	if hasUnionSiblings(s) {

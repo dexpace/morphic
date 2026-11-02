@@ -137,14 +137,15 @@ its position resolved to a reference and so owns no node
 A `$ref` divides the declarations at its target in two, and the line falls between annotations and
 constraints.
 
-**Annotations merge onto the use site.** Documentation, deprecation, visibility and `default` are
-read off the referent and written onto the referencing `Property`/`Parameter` with **use-site
-precedence** ([`ref-use-site`](../compilers/openapi.md#ref-use-site)), field by field, a description
-and its `Refs` counting as one ([references in prose](#references-in-prose)). Each is a single value
-that one position may restate for another — a `description` beside the `$ref` says what *this* input
-is, replacing the target's — so the two can never both be true at once, and any consumer reading
-both would need this precedence rule anyway. Applying it once, in the compiler, is what keeps every
-carrier alike.
+**Annotations merge onto the use site.** Documentation, deprecation, redaction, visibility and
+`default` are read off the referent and written onto the referencing `Property`/`Parameter` with
+**use-site precedence** ([`ref-use-site`](../compilers/openapi.md#ref-use-site)), field by field, a
+description and its `Refs` counting as one ([references in prose](#references-in-prose)). Each is a
+single value that one position may restate for another — a `description` beside the `$ref` says what
+*this* input is, replacing the target's — so the two can never both be true at once, and any
+consumer reading both would need this precedence rule anyway. Applying it once, in the compiler, is
+what keeps every carrier alike. Redaction is the one with a single side: a position can ask for it
+and none can withdraw it, so a use holds it where either position asks.
 
 An OpenAPI Reference Object's own `summary` and `description` fold onto the use site the same way,
 by the OpenAPI compiler's rule
@@ -170,9 +171,11 @@ place it was declared and the one place it is recorded.
 
 A format that admits nothing beside a reference annotates one use of a shared type by wrapping it:
 OpenAPI 3.0 writes `state: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
-losslessly as an anonymous `Model` whose `Base` is `Status`. 3.1 writes the same use `{$ref: Status,
-description: …}`, which hoists an anonymous `Scalar` alias over `Status` wherever no carrier holds
-the annotations ([one structural home per declaration](#one-structural-home-per-declaration)).
+losslessly as an anonymous `Model` whose `Base` is `Status`, where `Status` can be an object, and as
+the use it is where it cannot ([models](./models.md#an-allof-no-object-satisfies)). 3.1 writes the
+same use `{$ref: Status, description: …}`, which hoists an anonymous `Scalar` alias over `Status`
+wherever no carrier holds the annotations
+([one structural home per declaration](#one-structural-home-per-declaration)).
 Neither node says anything about a value that its `Base` does not. Such a node is a **decorator**,
 and `ir.Decorated` is the one statement of the rule: an anonymous type whose `Base` is set, and
 which is

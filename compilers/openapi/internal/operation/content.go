@@ -11,15 +11,13 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/speakeasy-api/openapi/sequencedmap"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
-	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
-	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/schema"
 	"github.com/dexpace/morphic/ir"
 )
@@ -28,7 +26,8 @@ import (
 // one Content per media type — all kept, in source order, with no primary-
 // content selection (docs/ir/payloads.md). The pointer is the payload owner
 // (the response or requestBody); each Content's schema hoists under
-// <pointer>/content/<mt>/schema.
+// <pointer>/content/<mt>/schema, or under the components/mediaTypes entry an
+// entry written as a $ref names (declaredMedia).
 func lowerPayload(c lowering.Ctx, ts *compile.Types, content *sequencedmap.Map[string, *soa.MediaType], pointer jsontext.Pointer) (*ir.Payload, []ir.Diagnostic) {
 	if content == nil || content.Len() == 0 {
 		return nil, nil
@@ -39,7 +38,11 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, content *sequencedmap.Map[s
 		if media == nil {
 			continue
 		}
-		one, contentDiags := lowerContent(c, ts, mt, media, pointer)
+		decl, ok := declaredMedia(c, media, pointer+ids.Ptr("content", mt))
+		if !ok {
+			continue
+		}
+		one, contentDiags := lowerContent(decl, ts, mt)
 		diags = append(diags, contentDiags...)
 		payload.Contents = append(payload.Contents, one)
 	}
@@ -49,60 +52,68 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, content *sequencedmap.Map[s
 	return payload, diags
 }
 
-// keepMediaTypeFields keeps what OpenAPI 3.2 lets a Media Type Object write
-// and the parser's model names no field for, at the census's own entries, so
-// the census does not call it undefined: a `$ref` (keepMediaTypeRef), or else a
-// description (keepMediaTypeDescription). Both are read at every version, as
-// load reports them below 3.2 (diag.LaterVersionConstruct).
-func keepMediaTypeFields(c lowering.Ctx, u *ir.Unmodeled, media *soa.MediaType, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
-	root := media.GetRootNode()
-	if ref := nodeview.Child(root, "$ref"); ref != nil {
-		return keepMediaTypeRef(c, u, root, ref, mediaPtr, scope)
-	}
-	return keepMediaTypeDescription(c, u, root, mediaPtr, scope)
+// mediaDecl is the Media Type Object a content entry stands for, with the
+// context and pointer declaring it: the entry itself, or what the chain of the
+// $ref the entry is written as, use, ends on. entryCtx and entryPtr are where
+// the entry itself is written.
+type mediaDecl struct {
+	ctx      lowering.Ctx
+	media    *soa.MediaType
+	pointer  jsontext.Pointer
+	use      *resolve.ReferencedMediaType
+	entryCtx lowering.Ctx
+	entryPtr jsontext.Pointer
 }
 
-// keepMediaTypeDescription keeps a Media Type Object's description verbatim,
-// with an info. ir.Content has no docs field, hence ReasonNoIRHome.
-func keepMediaTypeDescription(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
-	at := mediaPtr + ids.Ptr("description")
-	kept, diags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, "description"),
-		nodeview.Child(root, "description"), ir.ReasonNoIRHome, c.ProvenanceAt(at))
-	if !kept {
-		return diags
+// declaredMedia returns what the content entry media, written at mediaPtr in
+// c's document, stands for (mediaDecl), and false for one written as a $ref
+// resolving to nothing, which lowers nothing, as any reference object does
+// (docs/compilers/openapi.md#references). The load phase or the rule table
+// reported why, but for a $ref inside an object reached in raw YAML
+// (GitHub #1320) or one the model decodes no string from (GitHub #1280). Keys
+// beside the $ref but summary and description are not read (GitHub #1321).
+//
+// One declaration lowers at its own pointer however many entries name it, so
+// it interns one type (GitHub #856).
+func declaredMedia(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer) (mediaDecl, bool) {
+	use, isUse := c.MediaTypeUse(media)
+	if !isUse {
+		return mediaDecl{ctx: c, media: media, pointer: mediaPtr, entryCtx: c, entryPtr: mediaPtr}, true
 	}
-	return append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
-		"a media type's description has no IR home; kept verbatim under Unmodeled"))
+	if use == nil {
+		return mediaDecl{}, false
+	}
+	obj, dc, decl := lowering.Declared[soa.MediaType](c, use, mediaPtr)
+	if obj == nil {
+		return mediaDecl{}, false
+	}
+	return mediaDecl{ctx: dc, media: obj, pointer: decl, use: use, entryCtx: c, entryPtr: mediaPtr}, true
 }
 
-// keepMediaTypeRef keeps a content entry written as a Reference Object, which
-// this compiler does not follow yet (GitHub #856): ref, the `$ref` written on
-// root, verbatim at the census's own entry, with a warning that the entry
-// lowers as written, and the summary and description a Reference Object may
-// write beside it verbatim too.
-func keepMediaTypeRef(c lowering.Ctx, u *ir.Unmodeled, root, ref *yaml.Node, mediaPtr jsontext.Pointer, scope string) []ir.Diagnostic {
-	var diags []ir.Diagnostic
-	for _, sibling := range []string{"summary", "description"} {
-		_, siblingDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, sibling),
-			nodeview.Child(root, sibling), ir.ReasonNoIRHome, c.ProvenanceAt(mediaPtr+ids.Ptr(sibling)))
-		diags = append(diags, siblingDiags...)
+// mediaTypeDocs returns the docs of the media type d declares: its own
+// description, which OpenAPI 3.2 adds and the parser's model names no field
+// for, with the summary and description beside each $ref of d's use folded
+// over it (docs/compilers/openapi.md#reference-object-siblings), and the keys
+// it read for the census to leave alone. It reads the description at every
+// version, as load reports the key below 3.2 (diag.LaterVersionConstruct).
+func mediaTypeDocs(d mediaDecl, u *ir.Unmodeled) (ir.Docs, []string, []ir.Diagnostic) {
+	description, read, diags := annotation.TakeString(u, d.media.GetRootNode(), "description", nil,
+		d.ctx.ProvenanceAt, d.pointer, "")
+	docs := ir.Docs{Description: description}
+	if d.use != nil {
+		docs = resolve.UseDocs[soa.MediaType](d.use, docs)
 	}
-	at := mediaPtr + ids.Ptr("$ref")
-	kept, refDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, "$ref"), ref,
-		ir.ReasonDegradedLowering, c.ProvenanceAt(at))
-	diags = append(diags, refDiags...)
-	if !kept {
-		return diags
+	if !read {
+		return docs, nil, diags
 	}
-	return append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at,
-		"a media type written as a $ref is not followed by this compiler yet (GitHub #856); the entry "+
-			"lowers as written, and the reference is kept verbatim under Unmodeled"))
+	return docs, []string{"description"}, diags
 }
 
 // lowerContent lowers one media-type view: its type graph, examples, binary/
-// form specialization, sequential-media shape, and extensions.
-func lowerContent(c lowering.Ctx, ts *compile.Types, mt string, media *soa.MediaType, pointer jsontext.Pointer) (ir.Content, []ir.Diagnostic) {
-	mediaPtr := pointer + ids.Ptr("content", mt)
+// form specialization, sequential-media shape, docs and extensions, as d
+// declares them, under mt, the key it is written under.
+func lowerContent(d mediaDecl, ts *compile.Types, mt string) (ir.Content, []ir.Diagnostic) {
+	c, media, mediaPtr := d.ctx, d.media, d.pointer
 	mediaType, diags := schema.Ref(c, ts, schema.TopLevelDepth, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	content := ir.Content{
 		MediaType: mt,
@@ -114,7 +125,7 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, mt string, media *soa.Media
 		content.Examples = ex
 	}
 	switch {
-	case isBinaryBody(c.Bindings(), mt, media.GetSchema()):
+	case isBinaryBody(c, mt, media.GetSchema()):
 		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 		content.Type = fileBodyType(ts, content.Type)
 	case isFormContent(mt):
@@ -131,9 +142,11 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, mt string, media *soa.Media
 	if len(ext) > 0 {
 		content.Unmodeled = annotation.MergeUnmodeled(content.Unmodeled, ext)
 	}
-	diags = append(diags, keepMediaTypeFields(c, &content.Unmodeled, media, mediaPtr, "")...)
+	docs, taken, docDiags := mediaTypeDocs(d, &content.Unmodeled)
+	content.Docs = docs
+	diags = append(diags, docDiags...)
 	return content, append(diags,
-		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr)...)
+		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr, taken...)...)
 }
 
 // fileBodyType is the type of a file body that lowered to declared: the
@@ -154,14 +167,14 @@ func isFormContent(mt string) bool {
 }
 
 // isBinaryBody reports whether a content entry is a binary file body: a
-// string+binary schema, or an absent or boolean schema on
-// application/octet-stream.
-func isBinaryBody(refs *typed.Bindings, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	s := schemaOf(refs, js)
+// string+binary schema, the schema a refinement is a use of included, or an
+// absent or boolean schema on application/octet-stream.
+func isBinaryBody(c lowering.Ctx, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	s := schemaOf(c.Bindings(), js)
 	if s == nil {
 		return lowering.NormalizeMediaType(mt) == "application/octet-stream"
 	}
-	return schemaIsBinary(s)
+	return schemaIsBinary(schema.DecidingSchema(c, s))
 }
 
 // schemaIsBinary reports whether a schema is a string+binary body.

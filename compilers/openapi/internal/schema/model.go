@@ -30,7 +30,7 @@ import (
 func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, depth, propIndex(c, ts, m), s, pointer)...)
@@ -130,7 +130,13 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
-		idx.MergeProperty(p, redeclarationSource(js))
+		declared := p.Secret
+		diags = append(diags, PromoteUse(c, KeysLentTo(c, ts, js, p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
+		var secretBy ir.Inferred
+		if p.Secret && !declared {
+			secretBy = lowering.ExtensionPromotionHeuristic
+		}
+		idx.MergeProperty(p, redeclarationSource(js), secretBy)
 	}
 	return diags
 }

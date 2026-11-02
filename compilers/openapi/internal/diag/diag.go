@@ -170,8 +170,9 @@ const (
 	// OpenAPI forbids. The rule table states the rule and leaves it here, where
 	// every entry is read through its $ref: every list the source writes is
 	// checked whether or not it lowers (load), and a list another document
-	// writes where it lowers (the parameter lowering). A lowered list keeps
-	// every occurrence, each repeat's ID ending in its occurrence number.
+	// writes where it lowers (the parameter lowering) or where a path item
+	// mounting no operation keeps it. Either keeps every occurrence, each
+	// repeat's ID or key ending in its occurrence number.
 	//
 	// An error, as the specification forbids the repeat.
 	DuplicateParameter = "openapi/duplicate-parameter"
@@ -196,9 +197,10 @@ const (
 	// IR as written: preserved raw for want of a structural home, lowered to a
 	// weaker shape (a heterogeneous enum as a union, an unconvertible value as
 	// the top type), or dropped — an annotation like a default or example, or
-	// the fields beside a path item $ref the load phase's walk does not reach.
-	// It marks the lossy lowerings the compiler reports, not a guarantee that
-	// every lossy lowering is reported.
+	// the fields beside a path item $ref the load phase's walk does not reach. A
+	// promotion reports it for an extension kept but read into no field
+	// (lowering.Promoter). It marks the lossy lowerings the compiler reports, not
+	// a guarantee that every lossy lowering is reported.
 	DegradedConstruct = "openapi/degraded-construct"
 	// CompositionLowering reports that a schema conjoining a structural body with
 	// a oneOf/anyOf was lowered by distributing the body across the union
@@ -390,9 +392,11 @@ const (
 	//
 	// The carriers holding more than one object's entries are where two constructs
 	// can spell one entry: a parameter's own keys and the keywords its schema had
-	// no home for share one unscoped namespace on ir.Parameter. Warning rather
-	// than error because the document is otherwise lowered whole, and the entry
-	// that did survive is in it.
+	// no home for share one unscoped namespace on ir.Parameter. Copying a path
+	// item's entries onto an operation is guarded too (annotation.CopyEntriesInto),
+	// refusing a key on that operation alone. Warning rather than error because
+	// the document is otherwise lowered whole, and the entry that did survive is
+	// in it.
 	UnknownKeyEntryTaken = "openapi/unknown-key-entry-taken"
 	// InvalidLocationKeyword reports a style, explode or allowReserved at in:
 	// querystring, at the keyword. OpenAPI 3.2 binds the whole query string from
@@ -451,12 +455,13 @@ const (
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
-	// schema, beside a $ref, or in a 3.0 schema with no type beside it or a
-	// keyword that excludes null, at the keyword; or keywords beside a $ref that
-	// admit null over a target that does not, at the schema writing them. Each
-	// is reported once, and each reference whose null rests on it is marked
-	// Inferred (docs/compilers/openapi.md#nullable). Info: the reading is the
-	// document's evident intent, and the mark keeps the declared one.
+	// schema, beside a $ref, in a 3.0 schema with no type beside it or a keyword
+	// that excludes null, or on an allOf branch another conjunct contradicts, at
+	// the keyword; or keywords beside a $ref that admit null over a target that
+	// does not, at the schema writing them. Each is reported once, and each
+	// reference whose null rests on it is marked Inferred
+	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
+	// evident intent, and the mark keeps the declared one.
 	InferredNullable = "openapi/inferred-nullable"
 )
 
