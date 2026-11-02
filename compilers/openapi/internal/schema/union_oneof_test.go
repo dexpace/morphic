@@ -675,7 +675,9 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 
 // TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape holds a branch that writes
 // anything the body does not to the degraded lowering, and pins each way of
-// doing so a looser comparison would read as a restatement.
+// doing so a looser comparison would read as a restatement. The rows ending
+// TheBodyAlsoWrites hold a property keyword outside typeKeywords there even
+// when written as the body writes it, since that list is closed.
 func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ version, schema string }{
@@ -712,6 +714,26 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 		"ConstraintBesideTheType": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string, minLength: 1}}}]
+`},
+		"ConstraintTheBodyAlsoWrites": {"3.1.0", `      type: object
+      properties: {a: {type: string, minLength: 1, description: d}}
+      oneOf: [{required: [a], properties: {a: {type: string, minLength: 1}}}]
+`},
+		"ConstTheBodyAlsoWrites": {"3.1.0", `      type: object
+      properties: {kind: {type: string, const: x, description: d}}
+      oneOf: [{required: [kind], properties: {kind: {type: string, const: x}}}]
+`},
+		"EnumTheBodyAlsoWrites": {"3.1.0", `      type: object
+      properties: {a: {type: string, enum: [x, y], description: d}}
+      oneOf: [{required: [a], properties: {a: {type: string, enum: [x, y]}}}]
+`},
+		"ItemsTheBodyAlsoWrites": {"3.1.0", `      type: object
+      properties: {a: {type: array, items: {type: string}, description: d}}
+      oneOf: [{required: [a], properties: {a: {type: array, items: {type: string}}}}]
+`},
+		"KeywordTheModelHasNoFieldForTheBodyAlsoWrites": {"3.1.0", `      type: object
+      properties: {a: {type: object, dependentRequired: {p: [q]}, description: d}}
+      oneOf: [{required: [a], properties: {a: {type: object, dependentRequired: {p: [q]}}}}]
 `},
 		"KeywordTheModelHasNoFieldFor": {"3.1.0", `      type: object
       properties: {a: {type: object}}
