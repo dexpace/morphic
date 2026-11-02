@@ -176,7 +176,8 @@ the rule here rather than reading it across.
   `TestFuzzPackages_LinkNoTestTooling` in `internal/archtest` holds the packages to this.
 - **Why.** `go test -fuzz` instruments everything a binary links, on every execution: leaving a
   binary that links `internal/decls` cut the CPU each of `ir`'s targets spends per execution by
-  68–73%, and rows from `ir/irtest` would add go-cmp's 2,213 counters to the 14,366 left (#1301).
+  68–73%, and rows from `ir/irtest` would add go-cmp's 2,213 counters to the 14,366 left, on
+  darwin/arm64 (#1301, #1315).
 - **Probe.** `go test ./internal/archtest -run '^TestFuzzPackages_LinkNoTestTooling$'` passes.
 
 ## Hold a new line to a rule the tree still breaks
