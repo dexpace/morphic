@@ -100,7 +100,7 @@ Read the documents for your layer, and skip the rest until you need them.
   an interface, which reflection could call.
 - **An end-to-end test of the OpenAPI compiler goes in `compilers/openapi/e2e`,** in a file named
   for the construct or the property it checks: a test of what the compiler does as a whole, which no
-  one package decides, such as the conformance corpus, the goldens, fuzzing, benchmarks and a
+  one package decides, such as the conformance corpus, the goldens, benchmarks and a
   scenario several packages settle together. A test of one package's code stays in that package even
   when it compiles a whole spec through `openapi.New` to reach the code, as `internal/schema`'s
   `parseFull` tests do, since only there does it count toward that package's coverage. The e2e
