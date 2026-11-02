@@ -249,8 +249,8 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 				firstSrc, secondSrc = unread(t), written(tc.raw)
 				first.Provenance, second.Provenance = ptrAt(narrowPtr), ptrAt(broadPtr)
 			}
-			idx.MergeProperty(first, firstSrc)
-			idx.MergeProperty(second, secondSrc)
+			idx.MergeProperty(first, firstSrc, "")
+			idx.MergeProperty(second, secondSrc, "")
 			settle()
 
 			require.Len(t, m.Properties, 1, "%s", tc.name)
@@ -392,7 +392,7 @@ func mergeDecls(t *testing.T, decls ...decl) (ir.Property, []ir.Diagnostic) {
 		for i := range d.examples {
 			p.Examples = append(p.Examples, ir.Example{Value: &d.examples[i]})
 		}
-		idx.MergeProperty(p, written(d.raw))
+		idx.MergeProperty(p, written(d.raw), "")
 	}
 	settle()
 	require.Len(t, m.Properties, 1)

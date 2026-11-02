@@ -11,6 +11,8 @@ type Operation struct {
     Docs       Docs
     Deprecation *Deprecation
     Availability *Availability
+    Stability  Stability          // alpha | beta | stable; "" = none stated, never read as stable
+                                  // (see "Stability" below)
 
     Params     []Parameter        // all logical inputs, protocol-unbound
     Request    *Payload           // body/message content, nil = none
@@ -66,6 +68,8 @@ type Parameter struct {
     Docs       Docs
     Deprecation *Deprecation
     Availability *Availability
+    Secret     bool                // redact this use in logs/docs, as Property.Secret; a value whose
+                                   // type is TypeCommon.Sensitive is redacted whether or not it is set
     Examples   []Example
     Unmodeled  Unmodeled
     Provenance Provenance      // the parameter's own declaration; a parameter merged into several
@@ -81,6 +85,47 @@ type Parameter struct {
 }
 ```
 
+## Stability
+
+`Stability` is the tier a source states for an operation: how far it commits to the contract. An SDK
+gates or annotates a tier, docs badge it and a CLI hides it behind a flag, and each would derive it
+from a format's spelling differently if the IR did not hold it. It describes the API and holds for
+every target, as `Deprecation` does, which is what keeps it out of
+[client shaping](./boundaries.md#access).
+
+| Tier | Meaning | Sources |
+|---|---|---|
+| `alpha` | breaking changes are expected | Smithy `@unstable`, AIP-181 alpha, an OpenAPI extension |
+| `beta` | breaking changes are possible but not expected | AIP-181 beta, an OpenAPI extension |
+| `stable` | the source commits to the contract | AIP-181 stable, an OpenAPI extension |
+
+The empty value states no tier. It says nothing about the contract, and is never read as `stable`:
+of the 3,763 operations in the golden spec, 573 state none (spec @319dc756).
+
+**`OperationGroup.Stability`** ([services](./services.md)) is the tier of every member stating none,
+nearest group first. It is read through the group and never copied down, so a member's own field
+keeps saying what the source says of that member.
+
+**Deprecation is a separate fact.** An operation can be `beta` and deprecated: the first says what a
+caller may rely on, the second that a caller should leave. A source's vocabulary may mix the two, as
+a word `deprecated` in a stability list does, and a compiler then fills `Deprecation`.
+
+Designs this replaced, each with the fact it fails on:
+
+- **A `Stable` bool** cannot give the badge: a docs emitter tells `alpha` from `beta`.
+- **`preview` as a fourth tier** is one vocabulary's word among the sources above, with 0 uses in the
+  golden spec. A compiler reads it as `beta`.
+- **An open string** leaves each emitter to interpret the vocabulary, the outcome this field exists
+  to prevent.
+- **`Availability`** is a version timeline no emitter interprets, and has no tier in it.
+- **A field on `TypeDef` and `Property` as well.** The golden spec states a tier on no type, property
+  or parameter: its 2 such values both say `deprecated`, beside `deprecated: true` (spec @319dc756).
+  A tier stated there stays verbatim until a field lands for it: a format's own trait under
+  `no_ir_home`, and an OpenAPI key under the `vendor_extension` every key has.
+
+`irverify` reports a value outside the declared tiers (`ir/unknown-stability`), wherever the field
+sits. What a target does with a tier is not stated yet (#1222).
+
 ## Design notes
 
 - **Parameters carry no protocol location.** The same logical operation is bindable to HTTP
@@ -88,6 +133,15 @@ type Parameter struct {
   channel message. This is the split TCGC makes between `ServiceMethod` and `InputOperation`,
   turned inside out: Morphic stores the neutral core and each binding, and emitters derive the
   per-protocol view.
+
+- **`Parameter.Secret` is a field and not a rule about the parameter's type.** A carrier never hoists
+  an alias ([annotations](./annotations.md#one-structural-home-per-declaration)), so a parameter
+  whose schema owns no node has none to hold a `Sensitive`, and one would have to be minted: 8,325 of
+  the 11,915 parameters in the golden spec own no node (spec @319dc756), and a node minted for a key
+  on an OpenAPI Parameter Object would sit at a schema pointer a `$ref` can name, the collision
+  invariant 3 forbids. A schema that owns a node keeps the redaction there, and `Secret` is the
+  per-use form a property already has, which TypeSpec's `@secret` on a property bound to a header or
+  query lowers to. No refine step reads it yet, as none reads `Sensitive` (#895).
 
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is

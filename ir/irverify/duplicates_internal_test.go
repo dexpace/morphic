@@ -314,6 +314,7 @@ var identityClasses = map[string]string{
 	"AdditionalMode":  "open/closed/constrained additional-property mode, not an identity",
 	"PresenceKind":    "wire-presence discipline, not an identity",
 	"Lifecycle":       "visibility lifecycle class; an alias of string, so no reflect.Type of its own",
+	"Stability":       "how far a source commits to an operation's contract, not an identity",
 	"StreamingMode":   "streaming direction, not an identity",
 	"IdempotencyKind": "idempotency class, not an identity",
 	"PageStrategy":    "pagination mechanism, not an identity",

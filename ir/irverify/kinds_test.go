@@ -181,3 +181,54 @@ func TestVerify_DeclaredAuthKindIsClean(t *testing.T) {
 		})
 	}
 }
+
+// TestVerify_UndeclaredStabilityIsAViolation holds the check at both carriers a
+// walk meets, nested groups included: the field is held by its type, so a
+// carrier the check named by hand would be the one a new struct escapes.
+func TestVerify_UndeclaredStabilityIsAViolation(t *testing.T) {
+	t.Parallel()
+	const op = "doc.Services[0].Groups[0].Operations[0].Stability"
+	tests := []struct {
+		name string
+		edit func(*ir.Document)
+		path string
+	}{
+		{"an operation", func(d *ir.Document) {
+			d.Services[0].Groups[0].Operations[0].Stability = "preview"
+		}, op},
+		{"a group", func(d *ir.Document) {
+			d.Services[0].Groups[0].Stability = "GA"
+		}, "doc.Services[0].Groups[0].Stability"},
+		{"a nested group", func(d *ir.Document) {
+			d.Services[0].Groups[0].Groups = []ir.OperationGroup{{ID: "g/x/nested", Stability: "Beta"}}
+		}, "doc.Services[0].Groups[0].Groups[0].Stability"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := opDoc(ir.Operation{ID: "op/x/S/op"})
+			tc.edit(doc)
+			var got []string
+			for _, v := range irverify.Verify(doc) {
+				if v.Code == "ir/unknown-stability" {
+					got = append(got, v.Path)
+				}
+			}
+			assert.Equal(t, []string{tc.path}, got)
+		})
+	}
+}
+
+// TestVerify_DeclaredStabilityIsClean is the other half: every declared tier
+// passes, and so does the empty value, which states none and is the shape of
+// most operations a compiler reads no tier for.
+func TestVerify_DeclaredStabilityIsClean(t *testing.T) {
+	t.Parallel()
+	for _, tier := range []ir.Stability{ir.StabilityUnstated, ir.StabilityAlpha, ir.StabilityBeta, ir.StabilityStable} {
+		t.Run(string(tier), func(t *testing.T) {
+			t.Parallel()
+			assert.NotContains(t, violationCodes(irverify.Verify(opDoc(ir.Operation{ID: "op/x/S/op", Stability: tier}))),
+				"ir/unknown-stability")
+		})
+	}
+}

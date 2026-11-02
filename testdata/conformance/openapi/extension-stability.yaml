@@ -1,0 +1,83 @@
+# A stability tier reaches Operation.Stability from a vendor extension. Each
+# operation writes one word or one disagreement, so a regression in the reading
+# reddens on its own row. A key's word `deprecated` names no tier, and reads as
+# a deprecation instead.
+openapi: 3.1.0
+info: {title: ExtensionStability, version: "1.0.0"}
+paths:
+  /tiers:
+    get:
+      operationId: alphaWord
+      x-fern-availability: alpha
+      responses: {"200": {description: ok}}
+    put:
+      operationId: betaWord
+      x-stability: beta
+      responses: {"200": {description: ok}}
+    post:
+      operationId: previewWord
+      x-fern-availability: preview
+      responses: {"200": {description: ok}}
+    patch:
+      operationId: stableWord
+      x-stability: stable
+      responses: {"200": {description: ok}}
+    delete:
+      operationId: gaWord
+      x-fern-availability: generally-available
+      responses: {"200": {description: ok}}
+  /sources:
+    get:
+      operationId: sourcesAgree
+      x-stability: stable
+      x-fern-availability: generally-available
+      responses: {"200": {description: ok}}
+    # The order of the default policy decides, whichever tier each key names,
+    # and the key it beat is reported.
+    put:
+      operationId: sourcesDisagree
+      x-stability: beta
+      x-fern-availability: generally-available
+      responses: {"200": {description: ok}}
+  /deprecated:
+    get:
+      operationId: deprecatedWord
+      x-fern-availability: deprecated
+      responses: {"200": {description: ok}}
+    put:
+      operationId: deprecatedAndBeta
+      x-fern-availability: deprecated
+      x-stability: beta
+      responses: {"200": {description: ok}}
+    post:
+      operationId: stabilityKeyDeprecated
+      x-stability: deprecated
+      responses: {"200": {description: ok}}
+    # A keyword's false does not stop a key that says otherwise.
+    patch:
+      operationId: keywordFalse
+      deprecated: false
+      x-fern-availability: deprecated
+      responses: {"200": {description: ok}}
+  /unread:
+    get:
+      operationId: legacyWord
+      x-fern-availability: legacy
+      responses: {"200": {description: ok}}
+    put:
+      operationId: unknownWord
+      x-stability: experimental
+      responses: {"200": {description: ok}}
+    post:
+      operationId: notText
+      x-stability: 3
+      responses: {"200": {description: ok}}
+    delete:
+      operationId: unstated
+      responses: {"200": {description: ok}}
+  # A path item's key stays kept: it reaches no operation's field.
+  /pathitem:
+    x-stability: beta
+    get:
+      operationId: underPathItemKey
+      responses: {"200": {description: ok}}

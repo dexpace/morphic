@@ -108,11 +108,11 @@ func TestPropIndex_ARedeclarationFoldsOnceTheRegistryIsWhole(t *testing.T) {
 	w := func(at string) ir.Property {
 		return ir.Property{WireName: "w", Type: ir.TypeRef{Target: "t/str"}, Provenance: ptrAt(jsontext.Pointer("/allOf/" + at + "/properties/w"))}
 	}
-	idx.MergeProperty(redeclared("t/str", "0"), written(`{"type":"string"}`))
-	idx.MergeProperty(w("0"), unread(t))
-	idx.MergeProperty(redeclared("t/uri", "1"), unread(t))
-	idx.MergeProperty(w("1"), unread(t))
-	idx.MergeProperty(redeclared("t/bool", "2"), written(`{"type":"boolean"}`))
+	idx.MergeProperty(redeclared("t/str", "0"), written(`{"type":"string"}`), "")
+	idx.MergeProperty(w("0"), unread(t), "")
+	idx.MergeProperty(redeclared("t/uri", "1"), unread(t), "")
+	idx.MergeProperty(w("1"), unread(t), "")
+	idx.MergeProperty(redeclared("t/bool", "2"), written(`{"type":"boolean"}`), "")
 
 	require.Len(t, queued, 1, "one settlement per model, however many fields are redeclared")
 	require.Len(t, m.Properties, 2, "a redeclaration adds no property")
@@ -143,8 +143,8 @@ func TestPropIndex_AModelDeclaringEachNameOnceQueuesNothing(t *testing.T) {
 	m := &ir.Model{ID: "t/m"}
 	idx := NewPropIndex(m, func(Settle) { t.Fatal("a model with no redeclaration queues no fold") })
 
-	idx.MergeProperty(ir.Property{WireName: "a", Provenance: ptrAt("/properties/a")}, unread(t))
-	idx.MergeProperty(ir.Property{WireName: "b", Provenance: ptrAt("/properties/b")}, unread(t))
+	idx.MergeProperty(ir.Property{WireName: "a", Provenance: ptrAt("/properties/a")}, unread(t), "")
+	idx.MergeProperty(ir.Property{WireName: "b", Provenance: ptrAt("/properties/b")}, unread(t), "")
 
 	require.Len(t, m.Properties, 2)
 	assert.Equal(t, "a", m.Properties[0].WireName)
@@ -173,14 +173,14 @@ func TestMergeProperty_AppendsThenFolds(t *testing.T) {
 	m := &ir.Model{}
 	idx, settle := indexOver(m, g)
 
-	idx.MergeProperty(ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")}, unread(t))
-	idx.MergeProperty(ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t))
+	idx.MergeProperty(ir.Property{WireName: "id", Required: true, Provenance: ptrAt("/p")}, unread(t), "")
+	idx.MergeProperty(ir.Property{WireName: "name", Provenance: ptrAt("/p")}, unread(t), "")
 
 	require.Len(t, m.Properties, 2, "two distinct wire names are two properties")
 	assert.Equal(t, 0, idx.byWire["id"].pos)
 	assert.Equal(t, 1, idx.byWire["name"].pos)
 
-	idx.MergeProperty(ir.Property{WireName: "id", Secret: true, Provenance: ptrAt("/other")}, unread(t))
+	idx.MergeProperty(ir.Property{WireName: "id", Secret: true, Provenance: ptrAt("/other")}, unread(t), "")
 	settle()
 
 	require.Len(t, m.Properties, 2, "a redeclaration folds rather than appending")

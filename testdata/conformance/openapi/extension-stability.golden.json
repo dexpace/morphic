@@ -1,0 +1,1013 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ExtensionStability",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ExtensionStability",
+        "canonical": "extension_stability"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1tiers/get",
+              "name": {
+                "source": "alphaWord",
+                "canonical": "alpha_word"
+              },
+              "docs": {},
+              "stability": "alpha",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/tiers",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "alpha",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1tiers/get/x-fern-availability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tiers/get",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1tiers/put",
+              "name": {
+                "source": "betaWord",
+                "canonical": "beta_word"
+              },
+              "docs": {},
+              "stability": "beta",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/tiers",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "beta",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1tiers/put/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tiers/put",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1tiers/post",
+              "name": {
+                "source": "previewWord",
+                "canonical": "preview_word"
+              },
+              "docs": {},
+              "stability": "beta",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/tiers",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "preview",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1tiers/post/x-fern-availability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tiers/post",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1tiers/delete",
+              "name": {
+                "source": "gaWord",
+                "canonical": "ga_word"
+              },
+              "docs": {},
+              "stability": "stable",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "DELETE",
+                    "uriTemplate": "/tiers",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "generally-available",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1tiers/delete/x-fern-availability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tiers/delete",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1tiers/patch",
+              "name": {
+                "source": "stableWord",
+                "canonical": "stable_word"
+              },
+              "docs": {},
+              "stability": "stable",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PATCH",
+                    "uriTemplate": "/tiers",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "stable",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1tiers/patch/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1tiers/patch",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1sources/get",
+              "name": {
+                "source": "sourcesAgree",
+                "canonical": "sources_agree"
+              },
+              "docs": {},
+              "stability": "stable",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/sources",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "generally-available",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1sources/get/x-fern-availability"
+                  }
+                },
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "stable",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1sources/get/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sources/get",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1sources/put",
+              "name": {
+                "source": "sourcesDisagree",
+                "canonical": "sources_disagree"
+              },
+              "docs": {},
+              "stability": "beta",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/sources",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "generally-available",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1sources/put/x-fern-availability"
+                  }
+                },
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "beta",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1sources/put/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1sources/put",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1deprecated/get",
+              "name": {
+                "source": "deprecatedWord",
+                "canonical": "deprecated_word"
+              },
+              "docs": {},
+              "deprecation": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/deprecated",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "deprecated",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1deprecated/get/x-fern-availability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1deprecated/get",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1deprecated/put",
+              "name": {
+                "source": "deprecatedAndBeta",
+                "canonical": "deprecated_and_beta"
+              },
+              "docs": {},
+              "deprecation": {},
+              "stability": "beta",
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/deprecated",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "deprecated",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1deprecated/put/x-fern-availability"
+                  }
+                },
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "beta",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1deprecated/put/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1deprecated/put",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1deprecated/post",
+              "name": {
+                "source": "stabilityKeyDeprecated",
+                "canonical": "stability_key_deprecated"
+              },
+              "docs": {},
+              "deprecation": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/deprecated",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "deprecated",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1deprecated/post/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1deprecated/post",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1deprecated/patch",
+              "name": {
+                "source": "keywordFalse",
+                "canonical": "keyword_false"
+              },
+              "docs": {},
+              "deprecation": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PATCH",
+                    "uriTemplate": "/deprecated",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "deprecated",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1deprecated/patch/x-fern-availability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1deprecated/patch",
+                "inferred": "extension-promotion"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1unread/get",
+              "name": {
+                "source": "legacyWord",
+                "canonical": "legacy_word"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/unread",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-fern-availability": {
+                  "reason": "vendor_extension",
+                  "value": "legacy",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1unread/get/x-fern-availability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1unread/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1unread/put",
+              "name": {
+                "source": "unknownWord",
+                "canonical": "unknown_word"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "PUT",
+                    "uriTemplate": "/unread",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "experimental",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1unread/put/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1unread/put"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1unread/post",
+              "name": {
+                "source": "notText",
+                "canonical": "not_text"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/unread",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:x-stability": {
+                  "reason": "vendor_extension",
+                  "value": 3,
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1unread/post/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1unread/post"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1unread/delete",
+              "name": {
+                "source": "unstated",
+                "canonical": "unstated"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "DELETE",
+                    "uriTemplate": "/unread",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1unread/delete"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1pathitem/get",
+              "name": {
+                "source": "underPathItemKey",
+                "canonical": "under_path_item_key"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/pathitem",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "unmodeled": {
+                "openapi:pathItem/x-stability": {
+                  "reason": "vendor_extension",
+                  "value": "beta",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1pathitem/x-stability"
+                  }
+                }
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1pathitem/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-fern-availability\" states another stability than \"x-stability\", which the policy reads first, and does not fill it",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1sources/put/x-fern-availability"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-fern-availability\" names no stability tier, so it does not fill stability",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1unread/get/x-fern-availability"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-stability\" names no stability tier, so it does not fill stability",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1unread/put/x-stability"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-stability\" is neither text nor a boolean, so it does not fill deprecation",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1unread/post/x-stability"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "extension-stability.yaml",
+      "hash": "c27df299ca78a0225e984e908b697e473a25c3682f9ec8b9e783e581d620623d"
+    }
+  ]
+}

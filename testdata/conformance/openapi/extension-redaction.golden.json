@@ -1,0 +1,1157 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "ExtensionRedaction",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "ExtensionRedaction",
+        "canonical": "extension_redaction"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1keys/post",
+              "name": {
+                "source": "keys",
+                "canonical": "keys"
+              },
+              "docs": {},
+              "params": [
+                {
+                  "id": "param/openapi/paths/~1keys/post/parameters/onSchema/query",
+                  "name": {
+                    "source": "onSchema",
+                    "canonical": "on_schema"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "secret": true,
+                  "unmodeled": {
+                    "openapi:x-sensitive": {
+                      "reason": "vendor_extension",
+                      "value": true,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1keys/post/parameters/0/schema/x-sensitive"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1keys/post/parameters/0",
+                    "inferred": "extension-promotion"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1keys/post/parameters/onObject/query",
+                  "name": {
+                    "source": "onObject",
+                    "canonical": "on_object"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "secret": true,
+                  "unmodeled": {
+                    "openapi:x-sensitive": {
+                      "reason": "vendor_extension",
+                      "value": true,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1keys/post/parameters/1/x-sensitive"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1keys/post/parameters/1",
+                    "inferred": "extension-promotion"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1keys/post/parameters/beside/query",
+                  "name": {
+                    "source": "beside",
+                    "canonical": "beside"
+                  },
+                  "type": {
+                    "target": "t/openapi/components/schemas/Plain",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "secret": true,
+                  "unmodeled": {
+                    "openapi:x-sensitive": {
+                      "reason": "vendor_extension",
+                      "value": true,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1keys/post/parameters/2/schema/x-sensitive"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1keys/post/parameters/2",
+                    "inferred": "extension-promotion"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1keys/post/parameters/ownsNode/query",
+                  "name": {
+                    "source": "ownsNode",
+                    "canonical": "owns_node"
+                  },
+                  "type": {
+                    "target": "t/anon/paths/~1keys/post/parameters/3/schema",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1keys/post/parameters/3"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1keys/post/parameters/stated/query",
+                  "name": {
+                    "source": "stated",
+                    "canonical": "stated"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:x-sensitive": {
+                      "reason": "vendor_extension",
+                      "value": false,
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1keys/post/parameters/4/schema/x-sensitive"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1keys/post/parameters/4"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1keys/post/parameters/misread/query",
+                  "name": {
+                    "source": "misread",
+                    "canonical": "misread"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "unmodeled": {
+                    "openapi:x-sensitive": {
+                      "reason": "vendor_extension",
+                      "value": "yes",
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1keys/post/parameters/5/schema/x-sensitive"
+                      }
+                    }
+                  },
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1keys/post/parameters/5"
+                  }
+                },
+                {
+                  "id": "param/openapi/paths/~1keys/post/parameters/plain/query",
+                  "name": {
+                    "source": "plain",
+                    "canonical": "plain"
+                  },
+                  "type": {
+                    "target": "t/prim/string",
+                    "nullable": false
+                  },
+                  "required": false,
+                  "docs": {},
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1keys/post/parameters/6"
+                  }
+                }
+              ],
+              "request": {
+                "contents": [
+                  {
+                    "mediaType": "application/json",
+                    "type": {
+                      "target": "t/anon/paths/~1keys/post/requestBody/content/application~1json/schema",
+                      "nullable": false
+                    }
+                  }
+                ],
+                "required": false
+              },
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/openapi/components/schemas/Login",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "headers": [
+                    {
+                      "id": "p/openapi/paths/~1keys/post/responses/200/headers/X-On-Schema",
+                      "name": {
+                        "source": "X-On-Schema",
+                        "canonical": "x_on_schema"
+                      },
+                      "wireName": "X-On-Schema",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": true,
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:x-sensitive": {
+                          "reason": "vendor_extension",
+                          "value": true,
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1keys/post/responses/200/headers/X-On-Schema/schema/x-sensitive"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1keys/post/responses/200/headers/X-On-Schema",
+                        "inferred": "extension-promotion"
+                      }
+                    },
+                    {
+                      "id": "p/openapi/paths/~1keys/post/responses/200/headers/X-On-Object",
+                      "name": {
+                        "source": "X-On-Object",
+                        "canonical": "x_on_object"
+                      },
+                      "wireName": "X-On-Object",
+                      "type": {
+                        "target": "t/prim/string",
+                        "nullable": false
+                      },
+                      "required": false,
+                      "clientOptional": false,
+                      "defaultAdded": false,
+                      "visibility": {
+                        "none": false
+                      },
+                      "flatten": false,
+                      "eventHeader": false,
+                      "eventPayload": false,
+                      "secret": true,
+                      "docs": {},
+                      "unmodeled": {
+                        "openapi:x-sensitive": {
+                          "reason": "vendor_extension",
+                          "value": true,
+                          "provenance": {
+                            "source": 0,
+                            "pointer": "/paths/~1keys/post/responses/200/headers/X-On-Object/x-sensitive"
+                          }
+                        }
+                      },
+                      "provenance": {
+                        "source": 0,
+                        "pointer": "/paths/~1keys/post/responses/200/headers/X-On-Object",
+                        "inferred": "extension-promotion"
+                      }
+                    }
+                  ],
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "POST",
+                    "uriTemplate": "/keys",
+                    "sharedRoute": false,
+                    "paramBindings": [
+                      {
+                        "param": "param/openapi/paths/~1keys/post/parameters/onSchema/query",
+                        "location": "query",
+                        "wireName": "onSchema",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1keys/post/parameters/onObject/query",
+                        "location": "query",
+                        "wireName": "onObject",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1keys/post/parameters/beside/query",
+                        "location": "query",
+                        "wireName": "beside",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1keys/post/parameters/ownsNode/query",
+                        "location": "query",
+                        "wireName": "ownsNode",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1keys/post/parameters/stated/query",
+                        "location": "query",
+                        "wireName": "stated",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1keys/post/parameters/misread/query",
+                        "location": "query",
+                        "wireName": "misread",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      },
+                      {
+                        "param": "param/openapi/paths/~1keys/post/parameters/plain/query",
+                        "location": "query",
+                        "wireName": "plain",
+                        "style": "form",
+                        "explode": true,
+                        "allowReserved": false,
+                        "allowEmptyValue": false
+                      }
+                    ],
+                    "requestContentTypes": [
+                      "application/json"
+                    ],
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1keys/post"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Bag/additionalProperties": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Bag/additionalProperties",
+      "name": {
+        "hint": "bag_value"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": true,
+      "unmodeled": {
+        "openapi:x-sensitive": {
+          "reason": "vendor_extension",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Bag/additionalProperties/x-sensitive"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bag/additionalProperties",
+        "inferred": "extension-promotion"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Either/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Either/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": true,
+      "unmodeled": {
+        "openapi:x-sensitive": {
+          "reason": "vendor_extension",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Either/oneOf/0/x-sensitive"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Either/oneOf/0",
+        "inferred": "extension-promotion"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Login/properties/ownsNode": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/Login/properties/ownsNode",
+      "name": {
+        "hint": "owns_node"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": true,
+      "unmodeled": {
+        "openapi:x-sensitive": {
+          "reason": "vendor_extension",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Login/properties/ownsNode/x-sensitive"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Login/properties/ownsNode",
+        "inferred": "extension-promotion"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/Login/properties/ownsNode/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/Login/properties/ownsNode/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/Tokens/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Tokens/items",
+      "name": {
+        "hint": "tokens_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": true,
+      "unmodeled": {
+        "openapi:x-sensitive": {
+          "reason": "vendor_extension",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tokens/items/x-sensitive"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tokens/items",
+        "inferred": "extension-promotion"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1keys/post/parameters/3/schema": {
+      "kind": "enum",
+      "id": "t/anon/paths/~1keys/post/parameters/3/schema",
+      "name": {
+        "hint": "owns_node"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": true,
+      "unmodeled": {
+        "openapi:x-sensitive": {
+          "reason": "vendor_extension",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1keys/post/parameters/3/schema/x-sensitive"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1keys/post/parameters/3/schema",
+        "inferred": "extension-promotion"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/paths/~1keys/post/parameters/3/schema/s:a",
+          "name": {
+            "source": "a",
+            "canonical": "a"
+          },
+          "value": {
+            "kind": "string",
+            "str": "a"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/paths/~1keys/post/parameters/3/schema/s:b",
+          "name": {
+            "source": "b",
+            "canonical": "b"
+          },
+          "value": {
+            "kind": "string",
+            "str": "b"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/paths/~1keys/post/requestBody/content/application~1json/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1keys/post/requestBody/content/application~1json/schema",
+      "name": {
+        "hint": "keys_request"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": true,
+      "unmodeled": {
+        "openapi:x-sensitive": {
+          "reason": "vendor_extension",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1keys/post/requestBody/content/application~1json/schema/x-sensitive"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1keys/post/requestBody/content/application~1json/schema",
+        "inferred": "extension-promotion"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Bag": {
+      "kind": "map",
+      "id": "t/openapi/components/schemas/Bag",
+      "name": {
+        "source": "Bag",
+        "canonical": "bag"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bag"
+      },
+      "value": {
+        "target": "t/anon/components/schemas/Bag/additionalProperties",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Credential": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Credential",
+      "name": {
+        "source": "Credential",
+        "canonical": "credential"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": true,
+      "unmodeled": {
+        "openapi:x-sensitive": {
+          "reason": "vendor_extension",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Credential/x-sensitive"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Credential",
+        "inferred": "extension-promotion"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Credential/properties/user",
+          "name": {
+            "source": "user",
+            "canonical": "user"
+          },
+          "wireName": "user",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Credential/properties/user"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Either": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Either",
+      "name": {
+        "source": "Either",
+        "canonical": "either"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Either"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Either/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/openapi/components/schemas/Login": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Login",
+      "name": {
+        "source": "Login",
+        "canonical": "login"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Login"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Login/properties/inline",
+          "name": {
+            "source": "inline",
+            "canonical": "inline"
+          },
+          "wireName": "inline",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": true,
+          "docs": {},
+          "unmodeled": {
+            "openapi:x-sensitive": {
+              "reason": "vendor_extension",
+              "value": true,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Login/properties/inline/x-sensitive"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Login/properties/inline",
+            "inferred": "extension-promotion"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Login/properties/beside",
+          "name": {
+            "source": "beside",
+            "canonical": "beside"
+          },
+          "wireName": "beside",
+          "type": {
+            "target": "t/openapi/components/schemas/Plain",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": true,
+          "docs": {},
+          "unmodeled": {
+            "openapi:x-sensitive": {
+              "reason": "vendor_extension",
+              "value": true,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Login/properties/beside/x-sensitive"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Login/properties/beside",
+            "inferred": "extension-promotion"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Login/properties/ownsNode",
+          "name": {
+            "source": "ownsNode",
+            "canonical": "owns_node"
+          },
+          "wireName": "ownsNode",
+          "type": {
+            "target": "t/anon/components/schemas/Login/properties/ownsNode",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Login/properties/ownsNode"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Login/properties/stated",
+          "name": {
+            "source": "stated",
+            "canonical": "stated"
+          },
+          "wireName": "stated",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:x-sensitive": {
+              "reason": "vendor_extension",
+              "value": false,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Login/properties/stated/x-sensitive"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Login/properties/stated"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Login/properties/misread",
+          "name": {
+            "source": "misread",
+            "canonical": "misread"
+          },
+          "wireName": "misread",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:x-sensitive": {
+              "reason": "vendor_extension",
+              "value": 1,
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Login/properties/misread/x-sensitive"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Login/properties/misread"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Login/properties/plain",
+          "name": {
+            "source": "plain",
+            "canonical": "plain"
+          },
+          "wireName": "plain",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Login/properties/plain"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Plain": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Plain",
+      "name": {
+        "source": "Plain",
+        "canonical": "plain"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Plain"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Tok": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Tok",
+      "name": {
+        "source": "Tok",
+        "canonical": "tok"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": true,
+      "unmodeled": {
+        "openapi:x-sensitive": {
+          "reason": "vendor_extension",
+          "value": true,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Tok/x-sensitive"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tok",
+        "inferred": "extension-promotion"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Tokens": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Tokens",
+      "name": {
+        "source": "Tokens",
+        "canonical": "tokens"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Tokens"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Tokens/items",
+        "nullable": false
+      }
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-sensitive\" is not a boolean, so it does not fill redaction",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Login/properties/misread/x-sensitive"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "extension \"x-sensitive\" is not a boolean, so it does not fill redaction",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1keys/post/parameters/5/schema/x-sensitive"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "extension-redaction.yaml",
+      "hash": "a9e2dcd4a2ff872ce694bf6fcced3502f0acc99e451a7ecad6788776445562ce"
+    }
+  ]
+}

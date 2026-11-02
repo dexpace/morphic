@@ -10,6 +10,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+var stabilityType = reflect.TypeFor[ir.Stability]()
+
 // checkPrimKinds asserts every primitive names a kind ir declares.
 //
 // checkPrimIDs cannot reach this: it asks the ID to agree with the kind, and an
@@ -107,4 +109,31 @@ func checkAuthKinds(doc *ir.Document) []Violation {
 		})
 	}
 	return vs
+}
+
+// checkStability asserts every stability names a tier ir declares, or none.
+// Stability is a plain string type with no decoder of its own, so a decoded
+// document carries an invented tier in unchallenged, and an emitter gating an
+// operation on the tier has no arm for one.
+//
+// The walk finds the field by type, as checkInferred finds its lists, so a new
+// carrier is held at once.
+func checkStability(*ir.Document) walkCheck {
+	var vs []Violation
+	return walkCheck{
+		visit: func(v reflect.Value, at ir.WalkPath) bool {
+			if v.Type() != stabilityType {
+				return true
+			}
+			if tier := ir.Stability(v.String()); !tier.Valid() {
+				vs = append(vs, Violation{
+					Code:    "ir/unknown-stability",
+					Message: "stability names undeclared tier " + strconv.Quote(string(tier)),
+					Path:    at.String(),
+				})
+			}
+			return false
+		},
+		report: reporting(&vs),
+	}
 }

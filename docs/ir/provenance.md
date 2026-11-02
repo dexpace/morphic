@@ -10,7 +10,8 @@ type Provenance struct {
     Position Position         // 1-based line and column into that source, for a finding on a raw node
     Node     string           // IR-space location: a stable ID or a path through the document's own fields
     Inferred Inferred         // "" = declared; else the heuristics that produced this node or read a fact out of its
-                              // Unmodeled, comma-separated (docs/ir/unmodeled.md)
+                              // Unmodeled, or a $ref target's that lends it the fact, comma-separated
+                              // (docs/ir/unmodeled.md#promotion)
 }
 
 type Position struct {

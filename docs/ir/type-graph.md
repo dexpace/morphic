@@ -19,9 +19,11 @@ type TypeCommon struct {
     Tags       []string     // free-form labels (Smithy @tags, OpenAPI tag membership on types via policy);
                             // tag metadata lives once in Document.TagDefs
     Sensitive  bool         // whole-type redaction (Smithy @sensitive on shapes, OpenAPI format:password),
-                            // shared by every type whose Base reaches this one; Property.Secret is the per-use form
-    Access     string       // "" = public; "internal" = not part of the exported SDK surface
-                            // (protobuf editions export/local, TCGC @access(internal), Smithy @internal via policy)
+                            // shared by every type whose Base reaches this one; Secret on a Property or a
+                            // Parameter is the per-use form
+    Access     string       // "" = public; "internal" = declared outside the public surface, for every
+                            // target (protobuf editions export/local, Smithy @internal via policy);
+                            // a per-language surface decision is not this fact (docs/ir/boundaries.md#access)
     Deprecation *Deprecation
     Availability *Availability
     WireNameByFormat map[string]string // type-level serialized-name overrides per mime
