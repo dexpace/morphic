@@ -27,11 +27,10 @@ var hopOnly = map[ir.PrimKind]string{
 
 // relationRoots are the declared kinds that narrow nothing but any.
 var relationRoots = map[ir.PrimKind]string{
-	ir.PrimBool:     "no other kind is a boolean",
-	ir.PrimString:   "the root of the string formats",
-	ir.PrimNumber:   "the root of the numeric kinds",
-	ir.PrimAny:      "the top",
-	ir.PrimDatetime: "no spelling lowers to it",
+	ir.PrimBool:   "no other kind is a boolean",
+	ir.PrimString: "the root of the string formats",
+	ir.PrimNumber: "the root of the numeric kinds",
+	ir.PrimAny:    "the top",
 }
 
 func irDeclared(t *testing.T) *decls.Package {
@@ -93,13 +92,14 @@ func TestFormatTable_EveryRowDistinguishesTheBareType(t *testing.T) {
 func TestFormatTable_EveryStringRowLowersToItsPrimitive(t *testing.T) {
 	t.Parallel()
 	want := map[string]ir.PrimKind{
-		"date":      ir.PrimDate,
-		"time":      ir.PrimTime,
-		"duration":  ir.PrimDuration,
-		"uuid":      ir.PrimUUID,
-		"uri":       ir.PrimURL,
-		"date-time": ir.PrimDatetimeOffset,
-		"binary":    ir.PrimBytes,
+		"date":            ir.PrimDate,
+		"time-local":      ir.PrimTime,
+		"duration":        ir.PrimDuration,
+		"uuid":            ir.PrimUUID,
+		"uri":             ir.PrimURL,
+		"date-time":       ir.PrimDatetimeOffset,
+		"date-time-local": ir.PrimDatetime,
+		"binary":          ir.PrimBytes,
 	}
 	got := make(map[string]ir.PrimKind, len(want))
 	for key := range spelling.FormatTable {
@@ -223,7 +223,7 @@ func TestNarrows_HoldsEveryContainment(t *testing.T) {
 		{ir.PrimUint32, ir.PrimUint64}, {ir.PrimUint64, ir.PrimInteger}, {ir.PrimInteger, ir.PrimDecimal},
 		{ir.PrimDecimal128, ir.PrimDecimal}, {ir.PrimDecimal, ir.PrimNumber}, {ir.PrimFloat32, ir.PrimFloat64},
 		{ir.PrimFloat64, ir.PrimFloat}, {ir.PrimFloat, ir.PrimNumber}, {ir.PrimDate, ir.PrimString},
-		{ir.PrimTime, ir.PrimString}, {ir.PrimDatetimeOffset, ir.PrimString},
+		{ir.PrimTime, ir.PrimString}, {ir.PrimDatetime, ir.PrimString}, {ir.PrimDatetimeOffset, ir.PrimString},
 		{ir.PrimDuration, ir.PrimString}, {ir.PrimURL, ir.PrimString}, {ir.PrimUUID, ir.PrimString},
 		{ir.PrimBytes, ir.PrimString},
 		{ir.PrimInt8, ir.PrimNumber}, {ir.PrimUint8, ir.PrimDecimal}, {ir.PrimInt32, ir.PrimInteger},
@@ -239,7 +239,7 @@ func TestNarrows_HoldsEveryContainment(t *testing.T) {
 	unrelated := [][2]ir.PrimKind{
 		{ir.PrimString, ir.PrimInteger}, {ir.PrimUUID, ir.PrimDatetimeOffset}, {ir.PrimInt32, ir.PrimUint32},
 		{ir.PrimDatetime, ir.PrimDatetimeOffset}, {ir.PrimBool, ir.PrimString}, {ir.PrimBool, ir.PrimInteger},
-		{ir.PrimBytes, ir.PrimInteger}, {ir.PrimDatetime, ir.PrimString},
+		{ir.PrimBytes, ir.PrimInteger}, {ir.PrimTime, ir.PrimDatetime},
 	}
 	for _, p := range unrelated {
 		assert.False(t, spelling.Narrows(p[0], p[1]), "%s does not narrow %s", p[0], p[1])

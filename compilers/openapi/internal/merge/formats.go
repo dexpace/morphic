@@ -106,27 +106,49 @@ func parses(layout, s string) bool {
 	return err == nil
 }
 
-// parsesRFC3339 reports whether s is an RFC 3339 §5.6 full-time, or with date
-// a date-time: the grammar's shape first, since time.Parse accepts a comma
-// fraction and an offset hour above 23, then time.Parse for the calendar and
-// range. The T separator and the Z offset may be lower case, which time.Parse
-// refuses, so both are upper-cased once the shape is known. A second of 60 is
-// a leap second, admitted where the time in UTC is 23:59 (§5.7); time.Parse
-// refuses every one, so it is parsed as 59 and its hour and minute checked.
-func parsesRFC3339(s string, date bool) bool {
-	layout, clock := "15:04:05Z07:00", s
-	if date {
+// rfc3339Form names the RFC 3339 §5.6 production parsesRFC3339 reads: a
+// partial-time, alone or after a full-date and T, with or without the
+// time-offset after it.
+type rfc3339Form int
+
+// The productions the time kinds are judged against. A full-time, a
+// partial-time with its offset, is none of them, since no kind holds a time of
+// day with an offset.
+const (
+	// partialTime is a time of day with no offset: OpenAPI's time-local.
+	partialTime rfc3339Form = iota
+	// localDateTime is a date-time with no offset: OpenAPI's date-time-local.
+	localDateTime
+	// dateTime is a date-time with its offset.
+	dateTime
+)
+
+// parsesRFC3339 reports whether s is the production form names: the grammar's
+// shape first, since time.Parse accepts a comma fraction and an offset hour
+// above 23, then time.Parse for the calendar and range. The T separator and
+// the Z offset may be lower case, which time.Parse refuses, so both are
+// upper-cased once the shape is known. A second of 60 is a leap second, which
+// time.Parse refuses, so it is parsed as 59. With an offset it is admitted
+// where the time in UTC is 23:59 (§5.7). Without one, an offset could put
+// 23:59 at any minute, so it is admitted at each.
+func parsesRFC3339(s string, form rfc3339Form) bool {
+	layout, clock := "15:04:05", s
+	if form != partialTime {
 		if len(s) < len("2006-01-02T") || s[10] != 'T' && s[10] != 't' {
 			return false
 		}
-		layout, clock = time.RFC3339, s[11:]
+		layout, clock = "2006-01-02T15:04:05", s[11:]
 		s = s[:10] + "T" + clock
 	}
-	if !fullTimeShape(clock) {
+	offset := form == dateTime
+	if !clockShape(clock, offset) {
 		return false
 	}
-	if last := len(s) - 1; s[last] == 'z' {
-		s = s[:last] + "Z"
+	if offset {
+		layout += "Z07:00"
+		if last := len(s) - 1; s[last] == 'z' {
+			s = s[:last] + "Z"
+		}
 	}
 	sec := len(s) - len(clock) + len("15:04:")
 	leap := s[sec:sec+2] == "60"
@@ -134,12 +156,13 @@ func parsesRFC3339(s string, date bool) bool {
 		s = s[:sec] + "59" + s[sec+2:]
 	}
 	t, err := time.Parse(layout, s)
-	return err == nil && (!leap || t.UTC().Hour() == 23 && t.UTC().Minute() == 59)
+	return err == nil && (!leap || !offset || t.UTC().Hour() == 23 && t.UTC().Minute() == 59)
 }
 
-// fullTimeShape reports whether s is hh:mm:ss, an optional fraction of a dot
-// and at least one digit, and an offset.
-func fullTimeShape(s string) bool {
+// clockShape reports whether s is hh:mm:ss and an optional fraction of a dot
+// and at least one digit, then an offset where offset is set and nothing where
+// it is not.
+func clockShape(s string, offset bool) bool {
 	const clockLength = len("15:04:05")
 	if len(s) < clockLength || s[2] != ':' || s[5] != ':' {
 		return false
@@ -160,7 +183,10 @@ func fullTimeShape(s string) bool {
 		}
 		rest = rest[end:]
 	}
-	return isOffset(rest)
+	if offset {
+		return isOffset(rest)
+	}
+	return rest == ""
 }
 
 // isOffset reports whether s is Z, z or ±hh:mm with hh 00-23 and mm 00-59.

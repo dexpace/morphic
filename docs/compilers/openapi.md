@@ -1904,12 +1904,14 @@ the union, under a report naming a union of models.
 ### `string-formats`
 
 A `type: string` with a `format` the table names lowers to the shared primitive the pairing selects,
-and no node of its own: `date` to `date`, `time` to `time`, `duration` to `duration`, `uuid` to
-`uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `binary` to `bytes`. `byte` lowers to a
-hoisted `Scalar` over `bytes` whose `Encoding` is `base64`, with the `string` it travels as in
-`WireType`. Any other format (`email`, `uri-reference`, `ipv4`, an invented one) lowers to a hoisted
-`Scalar` over `string` whose `Encoding.Name` is the format as written, case kept, since the compiler
-knows no registry of formats beyond the table. A `contentEncoding` beside a `byte` or unknown format
+and no node of its own: `date` to `date`, `time-local` to `time`, `duration` to `duration`, `uuid`
+to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` to `datetime`,
+`binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
+with the `string` it travels as in `WireType`. Any other format (`time`, `email`, `uri-reference`,
+`ipv4`, an invented one) lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the
+format as written, case kept, since the compiler knows no registry of formats beyond the table.
+`time` is RFC 3339's `full-time`, which carries an offset, and the `time` primitive holds none
+([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a `byte` or unknown format
 names the encoding instead; where the two name different encodings the format is kept verbatim under
 `openapi:format` (`no_ir_home`) with an info `openapi/degraded-construct` at it. A scalar hoisted
 for its format carries the bounds written beside it. The table is the same at every minor, and a
@@ -1921,8 +1923,7 @@ pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)
   `schema.TestLower_NamedScalarComponentResolves`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
   `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
-- Status: partly built: `date-time-local` and `time-local` hoist over `string`, and `time`'s offset
-  has no home (#869), and a `byte` string and a string-carried number put the logical and the wire
+- Status: partly built: a `byte` string and a string-carried number put the logical and the wire
   type on opposite fields (#637).
 
 ### `numeric-formats`

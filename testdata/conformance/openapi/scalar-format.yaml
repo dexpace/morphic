@@ -30,8 +30,12 @@ components:
         big: {type: number, format: decimal128}
         # A string format the table names selects a primitive and hoists nothing.
         at: {type: string, format: date-time}
-        opens: {type: string, format: time}
+        starts: {type: string, format: date-time-local}
+        closes: {type: string, format: time-local}
         ttl: {type: string, format: duration}
+        # A time is an RFC 3339 full-time, whose offset the time primitive does
+        # not hold, so it keeps its format on a Scalar, as an unknown one does.
+        opens: {type: string, format: time}
         # A float format on an integer admits only its integral values, which
         # no primitive narrower than integer holds, so the format is kept.
         whole: {type: integer, format: double}

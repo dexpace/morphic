@@ -28,7 +28,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | Document | Owns |
 |---|---|
 | [type-graph](./type-graph.md) | `TypeKind`, `TypeCommon` and `TypeRef` |
-| [primitives](./primitives.md) | `Primitive`, `PrimKind` and containment between kinds |
+| [primitives](./primitives.md) | `Primitive`, `PrimKind`, the offsets the time kinds hold, and containment between kinds |
 | [scalars](./scalars.md) | `Scalar`, and the alias a position hoists over a shared target |
 | [models](./models.md) | `Model`, `Discriminator`, composition and the flattening |
 | [unions](./unions.md) | `Union`, `Variant` and tag modes |

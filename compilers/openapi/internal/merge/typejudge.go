@@ -520,9 +520,9 @@ func (j typeJudge) nodeAgainstBare(ref ir.TypeRef, td ir.TypeDef, bare ir.TypeRe
 
 // literalAgainst compares a literal's value with a bare primitive: the literal
 // is narrower when the kind admits it. When it does not, the pair is disjoint
-// where the kind has a judge, and an overlap where it has none, as a bytes or
-// datetime kind has none. A null is judged against the bare side's nullability,
-// not its kind: narrower where the side admits null, disjoint where it does not.
+// where the kind has a judge, and an overlap where it has none, as bytes has
+// none. A null is judged against the bare side's nullability, not its kind:
+// narrower where the side admits null, disjoint where it does not.
 func literalAgainst(v ir.Value, kind ir.PrimKind, bareNullable bool) relation {
 	switch {
 	case v.Kind == ir.ValueNull && bareNullable:
@@ -531,7 +531,7 @@ func literalAgainst(v ir.Value, kind ir.PrimKind, bareNullable bool) relation {
 		return relDisjoint
 	case Admits(kind, v):
 		return relANarrower
-	case kind == ir.PrimBytes || kind == ir.PrimDatetime:
+	case kind == ir.PrimBytes:
 		return relOverlap
 	default:
 		return relDisjoint
