@@ -22,8 +22,10 @@ const staleAfter = time.Hour
 
 // ownName matches the files a Dir may remove: an entry, and what an interrupted
 // atomic replace of one left, a dot before its name and digits after. Nothing
-// else is touched, so a directory shared with other files loses none of them.
-var ownName = regexp.MustCompile(`^\.?[0-9a-f]{64}` + regexp.QuoteMeta(entrySuffix) + `[0-9]*$`)
+// else is touched, so a directory shared with other files loses none of them:
+// the dot comes with the digits or neither is there.
+var ownName = regexp.MustCompile(fmt.Sprintf(`^(?:%[1]s|\.%[1]s[0-9]+)$`,
+	`[0-9a-f]{64}`+regexp.QuoteMeta(entrySuffix)))
 
 // held is one file a Dir owns.
 type held struct {

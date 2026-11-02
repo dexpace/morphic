@@ -59,6 +59,8 @@ func TestDir_StoreLeavesWhatItDidNotName(t *testing.T) {
 		strings.ToUpper(hexName) + ".entry",
 		"." + hexName + ".entry.tmp",
 		".." + hexName + ".entry",
+		hexName + ".entry7",
+		"." + hexName + ".entry",
 	}
 	for _, name := range foreign {
 		require.NoError(t, os.WriteFile(filepath.Join(path, name), []byte("xxxxxxxx"), 0o600))
