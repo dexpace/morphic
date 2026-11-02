@@ -237,7 +237,9 @@ func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example,
 // position writing it, as a body's Content.Docs takes them
 // (docs/compilers/openapi.md#reference-object-siblings), at the census's own
 // entry, with an info. It returns the keys of the declaration it read, kept or
-// overridden, for the census to leave alone.
+// overridden, for the census to leave alone. A summary its declaration writes,
+// which a Media Type Object does not define, is the census's, and loses that
+// entry to one the fold takes (GitHub #396).
 func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) ([]string, []ir.Diagnostic) {
 	hops := docHops(d)
 	var taken []string

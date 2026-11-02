@@ -865,7 +865,9 @@ ignored; there the fold is the 3.1 reading, and each sibling it reads is reporte
   `operation.TestContent_MediaTypeRefIsFollowed`,
   `operation.TestMediaTypeRef_ABodyAndAParameterFoldAlike`
 - Status: partly built: a key beside a `$ref` other than `summary` and `description` is dropped with
-  no record (#1321).
+  no record (#1321). At a parameter's or header's content entry, a `summary` the media type's
+  declaration writes, which a Media Type Object does not define, loses its entry to the one the fold
+  takes, and is reported as represented in no form (#396).
 
 ### `use-bound-annotations`
 
