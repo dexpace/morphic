@@ -183,7 +183,7 @@ func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
 	for _, k := range []ir.PrimKind{
 		ir.PrimNumber, ir.PrimInteger, ir.PrimInt32, ir.PrimInt64, ir.PrimString, ir.PrimDatetimeOffset,
 		ir.PrimURL, ir.PrimFloat64, ir.PrimUUID, ir.PrimUint32, ir.PrimBytes,
-		ir.PrimUint8, ir.PrimInt16, ir.PrimAny, ir.PrimBool, ir.PrimFloat32, ir.PrimTime,
+		ir.PrimUint8, ir.PrimInt16, ir.PrimAny, ir.PrimBool, ir.PrimFloat32, ir.PrimTime, ir.PrimDatetime,
 	} {
 		id := ir.TypeID("t/prim/" + string(k))
 		reg[id] = &ir.Primitive{ID: id, Prim: k}
@@ -205,7 +205,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	t.Parallel()
 	const broadPtr, narrowPtr = "/allOf/0/properties/p", "/allOf/1/properties/p"
 	half, big, hello := num("1.5"), num("5000000000"), str("hello")
-	badURL, commaTime, offsetDate := str("mailto:a b"), str("23:59:59,5Z"), str("2024-01-01T00:00:00+24:00")
+	badURL, commaTime, offsetDate := str("mailto:a b"), str("23:59:59,5"), str("2024-01-01T00:00:00+24:00")
 	null := ir.Value{Kind: ir.ValueNull}
 	for _, tc := range []struct {
 		name          string
@@ -225,7 +225,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 			func(p *ir.Property) { p.Default = &badURL }, "default", `{"type":"string","default":"mailto:a b"}`},
 		{"comma fraction time example", ir.PrimString, ir.PrimTime,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &commaTime}} }, "examples",
-			`{"type":"string","examples":["23:59:59,5Z"]}`},
+			`{"type":"string","examples":["23:59:59,5"]}`},
 		{"offset hour 24 date time example", ir.PrimString, ir.PrimDatetimeOffset,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &offsetDate}} }, "examples",
 			`{"type":"string","examples":["2024-01-01T00:00:00+24:00"]}`},

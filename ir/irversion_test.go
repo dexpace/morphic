@@ -67,6 +67,9 @@ var generations = []generation{
 	{version: "0.26.0", format: 1, shape: "bcf6a85eb64b4fc00b24c1797659dab7ee93b9307452d1db99fcb60bdd69a379",
 		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
 		meaning: "a collection bound beside a reference reaches the Constraints of the carrier or alias holding that use"},
+	{version: "0.27.0", format: 1, shape: "bcf6a85eb64b4fc00b24c1797659dab7ee93b9307452d1db99fcb60bdd69a379",
+		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
+		meaning: "time holds no offset, a time with one keeps its format on a Scalar, and datetime is written"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

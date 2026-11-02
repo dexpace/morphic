@@ -81,16 +81,18 @@ func Admits(k ir.PrimKind, v ir.Value) bool {
 	case ir.PrimDate:
 		return v.Kind == ir.ValueString && parses("2006-01-02", v.Str)
 	case ir.PrimTime:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, false)
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, partialTime)
+	case ir.PrimDatetime:
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, localDateTime)
 	case ir.PrimDatetimeOffset:
-		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, true)
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, dateTime)
 	case ir.PrimUUID:
 		return v.Kind == ir.ValueString && isUUID(v.Str)
 	case ir.PrimURL:
 		return v.Kind == ir.ValueString && isAbsoluteURI(v.Str)
 	case ir.PrimDuration:
 		return v.Kind == ir.ValueString && isDuration(v.Str)
-	case ir.PrimBytes, ir.PrimDatetime:
+	case ir.PrimBytes:
 		return false
 	default:
 		return false

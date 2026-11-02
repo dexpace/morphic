@@ -44,6 +44,7 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/enum-str-h"] = &ir.Enum{ID: "t/enum-str-h", Anonymous: true,
 		ValueType: ir.PrimString, Members: []ir.EnumMember{{ID: "h/a", Value: str("a")}}}
 	reg["t/lit-x"] = &ir.Literal{ID: "t/lit-x", Value: str("x")}
+	reg["t/lit-local"] = &ir.Literal{ID: "t/lit-local", Value: str("2024-01-01T00:00:00")}
 	reg["t/lit-1.5"] = &ir.Literal{ID: "t/lit-1.5", Value: num("1.5")}
 	reg["t/lit-null"] = &ir.Literal{ID: "t/lit-null", Value: ir.Value{Kind: ir.ValueNull}}
 	reg["t/lit-1"] = &ir.Literal{ID: "t/lit-1", Value: num("1")}
@@ -168,6 +169,8 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a literal string against integer", "t/lit-a", prim(ir.PrimInteger), relDisjoint},
 		{"a literal 1.5 against integer", "t/lit-1.5", prim(ir.PrimInteger), relDisjoint},
 		{"a literal against a kind with no judge", "t/lit-x", prim(ir.PrimBytes), relOverlap},
+		{"a literal the local date-time kind admits", "t/lit-local", prim(ir.PrimDatetime), relANarrower},
+		{"a literal the local date-time kind refuses", "t/lit-x", prim(ir.PrimDatetime), relDisjoint},
 		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
 		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relDisjoint},
 		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relUnrelated},

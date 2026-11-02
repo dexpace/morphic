@@ -15,43 +15,45 @@ import (
 // format to integers and other numbers alike (3.1.1 §4.4.1). float, double,
 // decimal and decimal128 map under number alone: under integer they admit only
 // the integral values, which no primitive narrower than integer holds. Any
-// pairing absent here hoists a Scalar that keeps the format, byte excepted:
-// the schema walk reads it before the table, as base64-encoded bytes.
+// pairing absent here, as time is (docs/ir/primitives.md#offsets), hoists a
+// Scalar that keeps the format, byte excepted: the schema walk reads it before
+// the table, as base64-encoded bytes.
 //
-// No row maps to the kind its bare type selects, which would leave the format
-// nowhere (TestFormatTable_EveryRowDistinguishesTheBareType).
+// No row maps to its bare type's kind, which leaves the format nowhere
+// (TestFormatTable_EveryRowDistinguishesTheBareType).
 var formatTable = map[string]ir.PrimKind{
-	"string":            ir.PrimString,
-	"string/date":       ir.PrimDate,
-	"string/time":       ir.PrimTime,
-	"string/duration":   ir.PrimDuration,
-	"string/uuid":       ir.PrimUUID,
-	"string/uri":        ir.PrimURL,
-	"string/date-time":  ir.PrimDatetimeOffset,
-	"string/binary":     ir.PrimBytes,
-	"integer":           ir.PrimInteger,
-	"integer/int8":      ir.PrimInt8,
-	"integer/int16":     ir.PrimInt16,
-	"integer/int32":     ir.PrimInt32,
-	"integer/int64":     ir.PrimInt64,
-	"integer/uint8":     ir.PrimUint8,
-	"integer/uint16":    ir.PrimUint16,
-	"integer/uint32":    ir.PrimUint32,
-	"integer/uint64":    ir.PrimUint64,
-	"number":            ir.PrimNumber,
-	"number/int8":       ir.PrimInt8,
-	"number/int16":      ir.PrimInt16,
-	"number/int32":      ir.PrimInt32,
-	"number/int64":      ir.PrimInt64,
-	"number/uint8":      ir.PrimUint8,
-	"number/uint16":     ir.PrimUint16,
-	"number/uint32":     ir.PrimUint32,
-	"number/uint64":     ir.PrimUint64,
-	"number/float":      ir.PrimFloat32,
-	"number/double":     ir.PrimFloat64,
-	"number/decimal":    ir.PrimDecimal,
-	"number/decimal128": ir.PrimDecimal128,
-	"boolean":           ir.PrimBool,
+	"string":                 ir.PrimString,
+	"string/date":            ir.PrimDate,
+	"string/time-local":      ir.PrimTime,
+	"string/duration":        ir.PrimDuration,
+	"string/uuid":            ir.PrimUUID,
+	"string/uri":             ir.PrimURL,
+	"string/date-time":       ir.PrimDatetimeOffset,
+	"string/date-time-local": ir.PrimDatetime,
+	"string/binary":          ir.PrimBytes,
+	"integer":                ir.PrimInteger,
+	"integer/int8":           ir.PrimInt8,
+	"integer/int16":          ir.PrimInt16,
+	"integer/int32":          ir.PrimInt32,
+	"integer/int64":          ir.PrimInt64,
+	"integer/uint8":          ir.PrimUint8,
+	"integer/uint16":         ir.PrimUint16,
+	"integer/uint32":         ir.PrimUint32,
+	"integer/uint64":         ir.PrimUint64,
+	"number":                 ir.PrimNumber,
+	"number/int8":            ir.PrimInt8,
+	"number/int16":           ir.PrimInt16,
+	"number/int32":           ir.PrimInt32,
+	"number/int64":           ir.PrimInt64,
+	"number/uint8":           ir.PrimUint8,
+	"number/uint16":          ir.PrimUint16,
+	"number/uint32":          ir.PrimUint32,
+	"number/uint64":          ir.PrimUint64,
+	"number/float":           ir.PrimFloat32,
+	"number/double":          ir.PrimFloat64,
+	"number/decimal":         ir.PrimDecimal,
+	"number/decimal128":      ir.PrimDecimal128,
+	"boolean":                ir.PrimBool,
 }
 
 // Lookup returns the primitive a "type" or "type/format" key selects, and

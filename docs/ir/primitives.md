@@ -27,6 +27,23 @@ primitives — they lower to `Encoding` ([constraints](./constraints.md)). There
 absence of a body/return is a `nil *TypeRef`. TypeSpec `safeint` is not a primitive either — its
 canonical lowering is `Scalar{Base: integer, Constraints: ±(2^53−1)}`.
 
+## Offsets
+
+`time` and `datetime` hold no offset from UTC, and `datetime_offset` holds one. In RFC 3339's terms
+`time` is a `partial-time`, `datetime` a `full-date`, `T` and `partial-time`, and `datetime_offset`
+a `date-time`. A time of day with an offset, RFC 3339's `full-time`, has no kind of its own: a
+compiler keeps it as a `Scalar` over `string` whose `Encoding` names the format as written, as
+OpenAPI's `time` lowers ([openapi](../compilers/openapi.md#string-formats)).
+
+A `time_offset` kind beside `datetime_offset` was weighed and not taken. JSON Schema's `time`
+format, which OpenAPI and AsyncAPI read, is the only spelling of a time of day with an offset among
+the formats the IR is designed against: TypeSpec's `plainTime` and Protobuf's
+`google.type.TimeOfDay` hold none, and Smithy, GraphQL and Swagger 2.0 have no time of day. Specs
+also write values under `time` with no offset, so a kind promising one would type such a value as
+what it is not, and a target decoding the kind would refuse it. A `Scalar` keeps the format and
+leaves the reading to the target's [type table](../emitters/contract/type-table.md), whose row for
+`{string, "time"}` can choose.
+
 ## Containment
 
 `PrimKind.StrictlyWithin` relates two kinds by the values they hold: `a` is
@@ -49,7 +66,7 @@ OpenAPI floats round, so `format: float` admits every finite number in its range
 width sits inside either float width by rounding, while `integer` merely shares the values a float
 width holds. That holds of JSON instances and not of values, so `int32`, `uint32`, `int64`, `uint64`
 and `integer` against `float32`, and `int64`, `uint64` and `integer` against `float64`, are not
-edges. The string-spelled kinds (`date`, `time`, `datetime_offset`, `duration`, `url`, `uuid`,
-`bytes`) are **not** within `string` here, although TypeSpec declares `url extends string`: they are
-distinct kinds in this domain, and a format's refinement of `string` is a fact about an OpenAPI
-spelling, which a compiler holds.
+edges. The string-spelled kinds (`date`, `time`, `datetime`, `datetime_offset`, `duration`, `url`,
+`uuid`, `bytes`) are **not** within `string` here, although TypeSpec declares `url extends string`:
+they are distinct kinds in this domain, and a format's refinement of `string` is a fact about an
+OpenAPI spelling, which a compiler holds.
