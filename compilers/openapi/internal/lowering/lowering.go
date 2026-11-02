@@ -519,17 +519,16 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 //
 // It serves entities as well as diagnostics (GitHub #86). Being the one place
 // also traces an overlay's contribution without touching any lowering: a
-// position the overlay introduced or rewrote names the overlay as its source.
-//
-// from is for a record no single position addresses, such as a validation-only
-// entry folding several keywords. The entry is located at the declaring schema,
-// and from lists the keywords' positions, so the entry names the document that
-// wrote all of them, when one did (see overlay.Origin.IndexOf).
+// position the overlay introduced or rewrote names it as WrittenBy, the Source
+// staying the document the pointer addresses. from lists the positions a record
+// no single position addresses combines, such as a validation-only entry, which
+// is located at its schema and written by the overlay only where the overlay
+// wrote all of them (overlay.Origin.WriterOf).
 func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir.Provenance {
 	if o, ok := homeOf(c); ok {
 		return ir.Provenance{Source: o.Index, Pointer: pointer}
 	}
-	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: pointer}
+	return ir.Provenance{Source: c.SrcIndex, Pointer: pointer, WrittenBy: c.overlay.WriterOf(pointer, from)}
 }
 
 // Position returns where pointer is in the bindings' table, and false where c

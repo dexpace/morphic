@@ -477,7 +477,7 @@ func appliedOverlay(t *testing.T, index int, doc, ov string) overlay.Origin {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(doc), &root))
 
-	origin, diags := overlay.Apply(t.Context(), index, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
+	origin, diags := overlay.Apply(t.Context(), index, 0, &root, overlay.Options{Path: "patch.yaml", Data: []byte(ov)})
 	require.False(t, diag.HasError(diags), "%+v", diags)
 	require.True(t, origin.Applied())
 	return origin
@@ -517,8 +517,8 @@ func TestSources_ListsOnlyTheSourceWhenNoOverlayApplied(t *testing.T) {
 // TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced pins the one place
 // a source index is spelled into a Provenance. Asking the overlay here is what
 // makes an overlay's contribution traceable without touching a lowering, so a
-// ProvenanceAt that ignored it would attribute the overlay's work to the file on
-// disk at every site at once.
+// ProvenanceAt that ignored it would credit the overlay's work to the file on
+// disk at every site at once. The position is the source's either way.
 func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 	t.Parallel()
 	origin := appliedOverlay(t, 1, "info: {title: T}\n",
@@ -527,11 +527,11 @@ func TestProvenanceAt_NamesTheOverlayForThePositionsItIntroduced(t *testing.T) {
 
 	c := lowering.New(0, openapitest.DocDeclaring(), ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, origin)
 
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
-		c.ProvenanceAt("/info/description"), "the overlay introduced this position")
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
+		c.ProvenanceAt("/info/description"), "the overlay wrote this position of the source")
 	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/title"},
 		c.ProvenanceAt("/info/title"), "and left this one alone")
-	assert.Equal(t, ir.Provenance{Source: 1, Pointer: "/info/description"},
+	assert.Equal(t, ir.Provenance{Source: 0, Pointer: "/info/description", WrittenBy: 1},
 		c.DiagAt(ir.SeverityWarning, "x", "/info/description", "m").Provenance,
 		"a diagnostic is stamped through the same question")
 }

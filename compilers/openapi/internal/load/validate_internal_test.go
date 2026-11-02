@@ -144,10 +144,10 @@ func TestJudgeSource_AnOverlayOwnsWhatItWrote(t *testing.T) {
 	require.NoError(t, err)
 	got := map[jsontext.Pointer]int{}
 	for _, d := range diags {
-		got[d.Provenance.Pointer] = d.Provenance.Source
+		got[d.Provenance.Pointer] = d.Provenance.WrittenBy
 	}
 	assert.Equal(t, map[jsontext.Pointer]int{"/info": 0, "/info/description": 1}, got,
-		"the missing version is the source's to answer for, the description the overlay's")
+		"the missing version is the source's to answer for, the description the overlay's, which wrote it")
 }
 
 // TestPlaceAt_PutsForeignFindingsAtTheReference pins where a finding about an

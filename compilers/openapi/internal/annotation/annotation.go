@@ -157,7 +157,7 @@ func XMLHints(x *oas3.XML) *ir.XMLHints {
 		h.Prefix = *x.Prefix
 	}
 	if x.Wrapped != nil {
-		h.Wrapped = *x.Wrapped
+		h.Wrapped = new(*x.Wrapped)
 	}
 	if x.Attribute != nil && *x.Attribute {
 		h.NodeType = "attribute"

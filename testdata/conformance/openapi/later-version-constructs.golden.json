@@ -685,8 +685,7 @@
       "docs": {},
       "sensitive": false,
       "xml": {
-        "nodeType": "element",
-        "wrapped": false
+        "nodeType": "element"
       },
       "provenance": {
         "source": 0,

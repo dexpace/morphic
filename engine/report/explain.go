@@ -42,15 +42,14 @@ type Interned struct {
 }
 
 // Explain reports what the compile that produced doc and diags produced at
-// pointer in the source it compiled. sources is the table each
-// Provenance.Source indexes, a run's engine.Result.Sources: a position in the
-// source, or credited to an overlay patching it (ir.SourceInfo.IsOverlay), is
-// read, and one in another document a split source reads is not, since its
-// pointer spells a position of that document. A nil document has no types; a
+// pointer in the source it compiled: a position in the source is read, whoever
+// wrote it, an overlay included, and one in another document, a split source's
+// or the overlay's own, is not, since its pointer spells a position of that
+// document. A nil document has no types; a
 // nil registry entry, untyped or a typed nil pointer, is skipped rather than
 // dereferenced, since a malformed registry is what pass.Validate and irverify
 // exist to report.
-func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, pointer jsontext.Pointer) Explanation {
+func Explain(doc *ir.Document, diags []ir.Diagnostic, pointer jsontext.Pointer) Explanation {
 	e := Explanation{Pointer: pointer}
 	for _, id := range sortedTypeIDs(doc) {
 		td := doc.Types[id]
@@ -58,7 +57,7 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, p
 			continue
 		}
 		prov := td.Common().Provenance
-		if !inSource(sources, prov.Source) {
+		if !inSource(prov.Source) {
 			continue
 		}
 		// The first node at the pointer, in ID order, names it: several can
@@ -72,7 +71,7 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, p
 	}
 	slices.SortStableFunc(e.Below, func(a, b Interned) int { return cmp.Compare(a.Pointer, b.Pointer) })
 	for _, d := range diags {
-		if inSource(sources, d.Provenance.Source) && stampedAt(d.Provenance, pointer) {
+		if inSource(d.Provenance.Source) && stampedAt(d.Provenance, pointer) {
 			e.Diagnostics = append(e.Diagnostics, d)
 		}
 	}
@@ -80,14 +79,11 @@ func Explain(doc *ir.Document, diags []ir.Diagnostic, sources []ir.SourceInfo, p
 }
 
 // inSource reports whether a position the Document.Sources entry at source
-// names can be in the source's coordinates: it is the source's own, the first
-// entry, or an overlay's, credited with what it wrote into the source at the
-// source's positions, though it names its own for a finding about itself.
-func inSource(sources []ir.SourceInfo, source int) bool {
-	if source == 0 {
-		return true
-	}
-	return source > 0 && source < len(sources) && sources[source].IsOverlay()
+// names is in the source's coordinates: it is the source's own, the first
+// entry. An overlay's writing into the source is located there too, at the
+// source's index with the overlay as its writer.
+func inSource(source int) bool {
+	return source == 0
 }
 
 // WriteExplanation writes e to w as the lines --explain prints: the

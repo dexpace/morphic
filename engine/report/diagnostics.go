@@ -41,7 +41,7 @@ func WriteDiagnostics(w io.Writer, diags []ir.Diagnostic, sources []ir.SourceInf
 	}
 	lw := &lineWriter{w: w}
 	for _, d := range diags {
-		lw.printf("%s %s%s: %s\n", d.Severity, d.Code, location(sources, d.Provenance), d.Message)
+		lw.printf("%s %s%s%s: %s\n", d.Severity, d.Code, location(sources, d.Provenance), writer(sources, d.Provenance), d.Message)
 	}
 	return lw.err
 }
@@ -71,6 +71,20 @@ func location(sources []ir.SourceInfo, prov ir.Provenance) string {
 	default:
 		return ""
 	}
+}
+
+// writer renders who wrote what prov locates, leading space included, as
+// " (written by <path>)" when an input other than its Source did, and nothing
+// otherwise, nor for a writer index naming no entry of sources.
+func writer(sources []ir.SourceInfo, prov ir.Provenance) string {
+	if prov.WrittenBy == 0 {
+		return ""
+	}
+	path := sourcePath(sources, prov.WrittenBy)
+	if path == "" {
+		return ""
+	}
+	return " (written by " + path + ")"
 }
 
 // onPath spells locator against path, joined by sep, or alone when no path

@@ -103,8 +103,7 @@
                       "eventPayload": false,
                       "secret": false,
                       "xml": {
-                        "name": "ReportSchema",
-                        "wrapped": false
+                        "name": "ReportSchema"
                       },
                       "docs": {
                         "description": "the schema spelling"
@@ -143,8 +142,7 @@
                       "eventPayload": false,
                       "secret": false,
                       "xml": {
-                        "name": "ReportContent",
-                        "wrapped": false
+                        "name": "ReportContent"
                       },
                       "docs": {
                         "description": "the content spelling"

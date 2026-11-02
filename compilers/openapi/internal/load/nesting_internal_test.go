@@ -105,7 +105,7 @@ func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
 	require.NoError(t, err)
 	assert.Nil(t, got)
 	d := sourceDeepDiag(t, diags)
-	assert.Equal(t, 1, d.Provenance.Source, "the overlay grafted what passes the bound")
+	assert.Equal(t, 1, d.Provenance.WrittenBy, "the overlay grafted what passes the bound")
 	// q is the eighth level and x-deep's value the ninth, so the first past the
 	// bound is MaxNesting-8 levels below that value.
 	want := "/components/schemas/A/properties/p/properties/q/x-deep" + strings.Repeat("/k", scan.MaxNesting-8)

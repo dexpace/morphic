@@ -254,13 +254,13 @@ func locator(srcIndex int, origin overlay.Origin, pointers func(*yaml.Node) (jso
 }
 
 // pointerAt answers where a pointer is, as the lowering answers it
-// (lowering.Ctx.ProvenanceAt): the overlay's index for a position the overlay
-// introduced or rewrote, srcIndex otherwise. A load diagnostic placed by a
+// (lowering.Ctx.ProvenanceAt): in srcIndex, written by the overlay where the
+// overlay introduced or rewrote the position. A load diagnostic placed by a
 // pointer is placed where a lowering one at the same pointer is, which is what
 // lets the compiler tell the two report the same position.
 func pointerAt(srcIndex int, origin overlay.Origin) func(jsontext.Pointer) ir.Provenance {
 	return func(p jsontext.Pointer) ir.Provenance {
-		return ir.Provenance{Source: origin.IndexAt(p, srcIndex), Pointer: p}
+		return ir.Provenance{Source: srcIndex, Pointer: p, WrittenBy: origin.WriterAt(p)}
 	}
 }
 

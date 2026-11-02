@@ -62,6 +62,8 @@ type Options struct {
 type Origin struct {
 	// index is the overlay's position in Document.Sources.
 	index int
+	// target is the position of the document the overlay patches.
+	target int
 	// source is the overlay's identity as an input document.
 	source ir.SourceInfo
 	// applied reports that the overlay was applied, whether or not it changed
@@ -94,46 +96,46 @@ func (o Origin) Applied() bool { return o.applied }
 // It is meaningful only when Applied reports true.
 func (o Origin) Source() ir.SourceInfo { return o.source }
 
-// IndexAt returns the index of the source that supplied the position at pointer:
-// the overlay's, if the overlay introduced or rewrote it, and fallback
-// otherwise.
+// WriterAt returns the index of the overlay when it introduced or rewrote the
+// position at pointer, and 0 otherwise: what ir.Provenance.WrittenBy holds for
+// that position of the patched document.
 //
 // A pointer the walk never produced — a position reached through an alias or a
 // `<<` merge key, which the node tree holds once at the anchor's own position —
-// falls back, so an unrecognized pointer under-attributes rather than
+// answers 0, so an unrecognized pointer under-attributes rather than
 // misattributes.
-func (o Origin) IndexAt(pointer jsontext.Pointer, fallback int) int {
+func (o Origin) WriterAt(pointer jsontext.Pointer) int {
 	if o.pointers[pointer] {
 		return o.index
 	}
-	return fallback
+	return 0
 }
 
-// IndexOf is IndexAt for a construct no single position addresses, recorded at
-// pointer and assembled from the positions in from: the index of the source that
-// supplied every one of them when one source did, and IndexAt's answer for
-// pointer otherwise, which is also the answer when from is empty.
+// WriterOf is WriterAt for a construct no single position addresses, recorded at
+// pointer and assembled from the positions in from: the overlay's index when it
+// wrote every one of them, and WriterAt's answer for pointer otherwise, which
+// is also the answer when from is empty.
 //
-// A construct the overlay wrote entirely is the overlay's, and one it only added
-// to stays with the document that declares it, as a mapping it merged into does
-// (GitHub #534).
-func (o Origin) IndexOf(pointer jsontext.Pointer, from []jsontext.Pointer, fallback int) int {
-	own := o.IndexAt(pointer, fallback)
+// A construct the overlay wrote entirely is credited to it, and one it only
+// added to stays with the document that declares it, as a mapping it merged
+// into does (GitHub #534).
+func (o Origin) WriterOf(pointer jsontext.Pointer, from []jsontext.Pointer) int {
+	own := o.WriterAt(pointer)
 	if len(from) == 0 {
 		return own
 	}
-	index := o.IndexAt(from[0], fallback)
+	writer := o.WriterAt(from[0])
 	for _, p := range from[1:] {
-		if o.IndexAt(p, fallback) != index {
+		if o.WriterAt(p) != writer {
 			return own
 		}
 	}
-	return index
+	return writer
 }
 
 // At returns the provenance of a node the overlay introduced or rewrote — the
-// overlay's index and the JSON pointer the node sits at, as IndexAt answers for
-// that pointer — and false for any other node, including nil.
+// patched document's index, the JSON pointer the node sits at, and the overlay
+// as its writer — and false for any other node, including nil.
 //
 // It answers a diagnostic anchored on a raw node rather than a lowered
 // position, which would otherwise read the node's line and column; a grafted
@@ -143,18 +145,19 @@ func (o Origin) At(n *yaml.Node) (ir.Provenance, bool) {
 	if !ok {
 		return ir.Provenance{}, false
 	}
-	return ir.Provenance{Source: o.index, Pointer: pointer}, true
+	return ir.Provenance{Source: o.target, Pointer: pointer, WrittenBy: o.index}, true
 }
 
 // Apply applies opts to root in place and returns the attribution of what it
-// changed, with index as the overlay's place in Document.Sources.
+// changed, with index as the overlay's place in Document.Sources and target as
+// that of the document root holds, which the overlay writes into.
 //
 // An error-severity diagnostic means root was not usefully overlaid and the
 // caller must refuse to lower: the library applies actions in order and does not
 // undo the ones that landed, so a tree left behind by a failed application is
 // neither the source nor what the overlay asked for.
-func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
-	return applyWithin(ctx, index, root, opts, budget.AtMost(maxNodes))
+func Apply(ctx context.Context, index, target int, root *yaml.Node, opts Options) (Origin, []ir.Diagnostic) {
+	return applyWithin(ctx, index, target, root, opts, budget.AtMost(maxNodes))
 }
 
 // applyWithin is Apply with the walks' node bound as a parameter.
@@ -164,7 +167,7 @@ func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origi
 // is a parameter so the degradation at the bound is reachable from a test with
 // a small tree, rather than only from a document large enough that no test
 // would build one — an unreachable branch is an unverified claim.
-func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
+func applyWithin(ctx context.Context, index, target int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
 
 	doc, err := soaoverlay.ParseReader(bytes.NewReader(opts.Data))
@@ -200,11 +203,11 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 	if !ok {
 		// Applied without attribution: the source keeps every position, but the
 		// overlay stays in Document.Sources, since the warning below names it.
-		degraded := Origin{index: index, source: sourceInfo(doc, opts), applied: true}
+		degraded := Origin{index: index, target: target, source: sourceInfo(doc, opts), applied: true}
 		return degraded, append(diags, diag.Newf(ir.SeverityWarning, diag.OverlayOriginIncomplete, at,
 			"overlay applied, but the document exceeds %d nodes; every position keeps the source as its origin", walks.Cap()))
 	}
-	return Origin{index: index, source: sourceInfo(doc, opts), applied: true, pointers: pointers, nodes: nodes}, diags
+	return Origin{index: index, target: target, source: sourceInfo(doc, opts), applied: true, pointers: pointers, nodes: nodes}, diags
 }
 
 // applyRecovered runs apply, the overlay's application, behind diag.Catch and

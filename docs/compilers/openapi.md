@@ -133,19 +133,21 @@ nodes it can build before it runs: one whose charge would carry the tree, counte
 so it is refused while the tree is past the budget whatever a later action removes. An action that
 builds nothing, such as a remove, is applied however large the tree, since the budget holds the tree
 the overlay leaves. The overlay becomes a second entry in `Document.Sources`, and every position it
-introduced or rewrote names that entry as its `Provenance.Source`, while a position it left alone
-keeps the source's line and column. An overlay that does not parse, or is not a valid Overlay — no
-version, no actions, an action naming no target — is refused as an `openapi/invalid-overlay` error
-and nothing is applied. One the parser cannot apply as written, or whose grafted content expands
-past the walk's node budget, is refused as an `openapi/overlay-failed` error. Either way the source
-compiles to no Document rather than lowering a tree the caller believes was patched. Application is
-strict unless `Overlay.Lax` is set: each action that changed nothing, or relies on JSONPath
-behaviour the overlay did not opt into, is reported as an `openapi/overlay-action` warning naming
-the action, and the compile proceeds; an action whose selector matches nothing is reported the same
-way and refuses the overlay as `openapi/overlay-failed`. Lax application reports none of these, and
-refuses only an overlay it cannot apply. Where the walk that attributes positions to the overlay
-runs out of its node budget, the overlay is applied and every position names the source, as with no
-overlay, reported as an `openapi/overlay-origin-incomplete` warning.
+introduced or rewrote names the source as its `Provenance.Source` and that entry as its `WrittenBy`
+([provenance](../ir/provenance.md)), while a position it left alone keeps the source's line and
+column; a finding about the overlay document itself names the overlay as its `Source`. An overlay
+that does not parse, or is not a valid Overlay — no version, no actions, an action naming no target
+— is refused as an `openapi/invalid-overlay` error and nothing is applied. One the parser cannot
+apply as written, or whose grafted content expands past the walk's node budget, is refused as an
+`openapi/overlay-failed` error. Either way the source compiles to no Document rather than lowering a
+tree the caller believes was patched. Application is strict unless `Overlay.Lax` is set: each action
+that changed nothing, or relies on JSONPath behaviour the overlay did not opt into, is reported as
+an `openapi/overlay-action` warning naming the action, and the compile proceeds; an action whose
+selector matches nothing is reported the same way and refuses the overlay as
+`openapi/overlay-failed`. Lax application reports none of these, and refuses only an overlay it
+cannot apply. Where the walk that attributes positions to the overlay runs out of its node budget,
+the overlay is applied and no position names it as a writer, as with no overlay, reported as an
+`openapi/overlay-origin-incomplete` warning.
 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
   `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`

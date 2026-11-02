@@ -612,11 +612,15 @@ func TestXMLHints_ReadsEveryFieldDirectly(t *testing.T) {
 	assert.Nil(t, XMLHints(nil))
 
 	s := schemaFromYAML(t, "type: string\nxml: {name: n, namespace: ns, prefix: p, wrapped: true, attribute: true}\n")
-	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: true, NodeType: "attribute"},
+	assert.Equal(t, &ir.XMLHints{Name: "n", Namespace: "ns", Prefix: "p", Wrapped: new(true), NodeType: "attribute"},
 		XMLHints(s.GetXML()))
 
 	bare := schemaFromYAML(t, "type: string\nxml: {}\n")
 	assert.Equal(t, &ir.XMLHints{}, XMLHints(bare.GetXML()), "an empty xml object invents nothing")
+
+	unwrapped := schemaFromYAML(t, "type: array\nxml: {wrapped: false}\n")
+	assert.Equal(t, &ir.XMLHints{Wrapped: new(false)}, XMLHints(unwrapped.GetXML()),
+		"a declared false is kept, so it can override a type's true field by field")
 
 	notAttr := schemaFromYAML(t, "type: string\nxml: {attribute: false}\n")
 	assert.Empty(t, XMLHints(notAttr.GetXML()).NodeType, "attribute: false is not the attribute node type")

@@ -304,3 +304,15 @@ it sees. Changes made together in one bump are listed together under it.
     operation sends only when asked.
   - No compiler fills these yet. A consumer pinned to 0.32.0 refuses a document that sets one, and
     finds a body input's `param` absent where it required one.
+- **0.34.0** — three fields that could not say what a source left unstated, or who wrote it:
+  - `ServerVariable.Default` became `*string`: nil states no default, and an empty string
+    substitutes nothing, as an OpenAPI `default: ""` does. The OpenAPI compiler writes the empty
+    string where it had written no key, so a consumer pinned to 0.33.0 reading the absent key as
+    no default now reads `""`.
+  - `XMLHints.Wrapped` became `*bool`, written only where declared, so a property's `false` can
+    override a type's `true` field by field ([XML hints](./constraints.md#xml-hints)). A consumer
+    pinned to 0.33.0 finds no `wrapped` member where it read `false`.
+  - `Provenance` gained `WrittenBy`: an overlay's writing into the source is located at the
+    source's index with the overlay as its writer, where `Source` had named the overlay at a
+    position of another document. A consumer pinned to 0.33.0 reading such a pointer against the
+    overlay's file reads it at the wrong place.

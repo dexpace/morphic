@@ -104,7 +104,7 @@ func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Optio
 	// against afterwards, so it can refuse an action before paying for it.
 	ov := *opts.Overlay
 	ov.MaxNodes = opts.MaxSourceNodes
-	origin, diags := overlay.Apply(ctx, opts.OverlaySrcIndex, root, ov)
+	origin, diags := overlay.Apply(ctx, opts.OverlaySrcIndex, srcIndex, root, ov)
 	diags = append(pre, diags...)
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags

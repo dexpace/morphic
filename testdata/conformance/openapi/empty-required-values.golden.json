@@ -255,6 +255,7 @@
         },
         {
           "name": "base",
+          "default": "",
           "docs": {}
         }
       ],

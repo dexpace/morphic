@@ -226,11 +226,12 @@ func populatedDocs() ir.Docs {
 // populatedProvenance returns a Provenance with every field non-zero.
 func populatedProvenance() ir.Provenance {
 	return ir.Provenance{
-		Source:   3,
-		Pointer:  "/paths/~1users/get",
-		Position: ir.Position{Line: 12, Column: 7},
-		Node:     "op/openapi/paths/~1users/get",
-		Inferred: "pagination-name-match",
+		Source:    3,
+		WrittenBy: 4,
+		Pointer:   "/paths/~1users/get",
+		Position:  ir.Position{Line: 12, Column: 7},
+		Node:      "op/openapi/paths/~1users/get",
+		Inferred:  "pagination-name-match",
 	}
 }
 
@@ -343,7 +344,7 @@ func populatedXMLHints() *ir.XMLHints {
 		Namespace: "https://example.com/ns",
 		Prefix:    "ex",
 		NodeType:  "element",
-		Wrapped:   true,
+		Wrapped:   new(true),
 	}
 }
 

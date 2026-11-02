@@ -657,6 +657,7 @@ type Provenance struct
 	"pointer" encoding/json/jsontext.Pointer omitempty
 	"position" Position omitzero
 	"source" int
+	"writtenBy" int omitzero
 
 type RPCBinding struct
 	"fullMethod" string omitempty
@@ -726,7 +727,7 @@ type Server struct
 type ServerID string
 
 type ServerVariable struct
-	"default" string omitempty
+	"default" *string omitzero
 	"docs" Docs
 	"enum" []string omitempty
 	"name" string omitempty
@@ -959,7 +960,7 @@ type XMLHints struct
 	"namespace" string omitempty
 	"nodeType" string omitempty
 	"prefix" string omitempty
-	"wrapped" bool
+	"wrapped" *bool omitzero
 
 type encoding/json/jsontext.Pointer string
 
