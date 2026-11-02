@@ -35,7 +35,9 @@ Codecs are generated `KSerializer`s, the counterpart of Go's
 
 A Kotlin [unit](../../refine/output-units.md) is a package, and also a Gradle module of its own
 unless it is the root, since kotlinc compiles a module whole and a Multiplatform framework exports
-what its modules declare ([scale](scale.md)). A group's unit is `<root>.<group>`.
+what its modules declare ([scale](scale.md)). A group's unit is `<root>.<group>`, and its module is
+the directory `<group>` at the build's root, beside the root project's own `src`, so the names
+Gradle gives a meaning there are reserved ([naming](naming.md#reserved-names)).
 
 Kotlin's limit counts a Gradle module's declarations, and its default is set when the Kotlin targets
 are first measured ([open questions](../../open-questions.md)).
