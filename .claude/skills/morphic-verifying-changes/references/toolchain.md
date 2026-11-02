@@ -57,3 +57,16 @@
   `runtime.Callers` frame in a `_test.go` file.
 - **Why.** A `println` run without `-v` listed only the failing package's offenders and missed the
   `pass` fixtures (#544).
+
+## A test opens, in its own process, what its result rests on
+`test-opens-its-inputs`
+
+- **Rule.** A test whose verdict rests on a file outside the module root, or on one only a child
+  process reads (`go list` under `go/packages`, a re-exec'd child, `git`), calls
+  `irtest.ReadModuleFiles`, so its own process opens a file inside the module that changes with the
+  input. For a dependency, that file is `go.mod` and `go.sum`. `irtest.RequireOpensModuleFiles`
+  holds a call to go test's log. No check yet makes a new test call it, and none is filed.
+- **Why.** `readDeclarers` read the parser library's sources from the module cache, which go test
+  never rechecks, so a bump would rerun nothing once CI reused results (#1272).
+- **Probe.** Run the package twice, `touch go.sum`, and run it again. The last `ok` line must lack
+  `(cached)`.
