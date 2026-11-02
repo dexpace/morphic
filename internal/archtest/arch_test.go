@@ -242,10 +242,10 @@ var rules = map[string][]string{
 	// all, navigation to walk a pointer through the model as the resolver does,
 	// compile for the registry it looks IDs up in, the library's openapi package
 	// and core models to name each kind of reference once (ReferenceEnd), the
-	// one it names no alias for included (ReferencedMediaType), and yaml to stop a walk
-	// at raw YAML, which holds none. It reaches nothing that lowers — following a
-	// reference far enough to lower its target recurses back into the schema
-	// walk, so that stays with the walk.
+	// one it names no alias for included (ReferencedMediaType), and yaml to stop
+	// a walk at raw YAML, which holds none. It reaches nothing that lowers —
+	// following a reference far enough to lower its target recurses back into
+	// the schema walk, so that stays with the walk.
 	"compilers/openapi/internal/resolve": {module + "/ir",
 		module + "/compilers/openapi/internal/annotation",
 		module + "/compilers/openapi/internal/bind",

@@ -60,10 +60,8 @@ components:
 // under mt.
 func contentOf(t *testing.T, doc *soa.OpenAPI, path, mt string) *soa.MediaType {
 	t.Helper()
-	item, ok := doc.GetPaths().Get(path)
-	require.True(t, ok)
 	media, ok := response200(t, doc, path).GetObject().GetContent().Get(mt)
-	require.True(t, ok, "%s %s", item, mt)
+	require.True(t, ok, "%s %s", path, mt)
 	return media
 }
 
