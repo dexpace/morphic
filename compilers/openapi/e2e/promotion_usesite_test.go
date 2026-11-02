@@ -193,10 +193,12 @@ func TestPromotion_ARefinementLendsWhatItRefines(t *testing.T) {
 			&ir.Deprecation{RemovalDate: "2031-01-01"}, false},
 		{"whose keyword decides over its target's key", `{$ref: '#/components/schemas/LiveSpent'}`, nil, false},
 		{"as a branch's does", `{allOf: [{$ref: '#/components/schemas/Spent'}, {deprecated: false}]}`, nil, false},
+		{"a decorator lends its carrier nothing, as its node holds it",
+			`{allOf: [{$ref: '#/components/schemas/SpentObject'}], description: d}`, nil, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileUse(t, useSiteSpec(tc.schema)+refinedComponents)
+			doc, diags := compileUse(t, useSiteSpec(tc.schema)+refinedComponents+decoratedComponents)
 			assert.Empty(t, diags)
 			for carrier, got := range useSitesOf(t, doc) {
 				assert.Equal(t, tc.want, got.deprecation, "%s deprecation", carrier)
