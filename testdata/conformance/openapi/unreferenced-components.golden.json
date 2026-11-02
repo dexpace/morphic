@@ -199,18 +199,16 @@
         "pointer": "/components/links/Unused"
       }
     },
-    "openapi:components/mediaTypes": {
+    "openapi:components/mediaTypes/Unused": {
       "reason": "no_ir_home",
       "value": {
-        "Unused": {
-          "schema": {
-            "type": "string"
-          }
+        "schema": {
+          "type": "string"
         }
       },
       "provenance": {
         "source": 0,
-        "pointer": "/components/mediaTypes"
+        "pointer": "/components/mediaTypes/Unused"
       }
     },
     "openapi:components/parameters/Unused": {
@@ -270,17 +268,6 @@
       }
     }
   },
-  "diagnostics": [
-    {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "components/mediaTypes is not resolved by this compiler yet (GitHub #856); kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/mediaTypes"
-      }
-    }
-  ],
   "sources": [
     {
       "format": "openapi@3.2",

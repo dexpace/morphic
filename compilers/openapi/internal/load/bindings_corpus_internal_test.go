@@ -39,7 +39,7 @@ func TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus(t *testing.T) {
 			}
 			checked++
 			table := doc.Bindings.Table()
-			_, err = eachReference(walkSource(t.Context(), doc.Doc, doc.Siblings), "test",
+			_, err = eachReference(walkSource(t.Context(), doc.Doc, doc.Siblings, doc.MediaTypes), "test",
 				func(site jsontext.Pointer, r resolvable) error {
 					if c := resolutionChain(r); c.cut || c.stopped != "" || len(c.records) == 0 {
 						return nil
@@ -52,7 +52,7 @@ func TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus(t *testing.T) {
 			if table.Exhausted() || table.Truncated() {
 				continue
 			}
-			for item := range walkSource(t.Context(), doc.Doc, doc.Siblings) {
+			for item := range walkSource(t.Context(), doc.Doc, doc.Siblings, doc.MediaTypes) {
 				require.NoError(t, item.Match(soa.Matcher{Schema: func(js *schemaRef) error {
 					if js.IsReference() {
 						_, ok := doc.Bindings.Entry(js)

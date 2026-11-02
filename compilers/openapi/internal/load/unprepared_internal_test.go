@@ -47,7 +47,7 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 		again, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{},
+	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{}, MediaTypes{},
 		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil),
 		Options{Reader: reader.Disk{}}, rebuild)
 	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
