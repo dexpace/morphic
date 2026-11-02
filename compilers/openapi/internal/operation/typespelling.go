@@ -223,7 +223,7 @@ func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example,
 			"%s content media type %s has no %s home; kept verbatim under Unmodeled",
 			carrier, field.keyword, home))
 	}
-	docDiags, taken := keepContentDocs(d, &unmodeled, scope, carrier, home)
+	taken, docDiags := keepContentDocs(d, &unmodeled, scope, carrier, home)
 	diags = append(diags, docDiags...)
 	// Last, so the keys the readers above kept are already recorded and the census
 	// leaves them alone: it answers only for what nothing read.
@@ -238,7 +238,7 @@ func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example,
 // (docs/compilers/openapi.md#reference-object-siblings), at the census's own
 // entry, with an info. It returns the keys of the declaration it read, kept or
 // overridden, for the census to leave alone.
-func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) ([]ir.Diagnostic, []string) {
+func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) ([]string, []ir.Diagnostic) {
 	hops := docHops(d)
 	var taken []string
 	if nodeview.Child(d.media.GetRootNode(), "description") != nil {
@@ -263,7 +263,7 @@ func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) 
 				"%s content media type %s has no %s home; kept verbatim under Unmodeled", carrier, key, home))
 		}
 	}
-	return diags, taken
+	return taken, diags
 }
 
 // docHop is a position a content entry's docs may be written at: the mapping
@@ -288,13 +288,14 @@ func docHops(d mediaDecl) []docHop {
 	if d.use == nil {
 		return []docHop{decl}
 	}
-	hops := []docHop{{root: d.use.GetCore().GetRootNode(), c: d.c, at: d.at, placed: true, summary: true}}
-	scope, placed := d.c.RefScope(), !d.c.RefScope().Foreign
+	hops := []docHop{{root: d.use.GetCore().GetRootNode(), c: d.entryCtx, at: d.entryPtr, placed: true,
+		summary: true}}
+	scope, placed := d.entryCtx.RefScope(), !d.entryCtx.RefScope().Foreign
 	last := d.use
 	for _, hop := range resolve.Hops[soa.MediaType](scope, d.use) {
 		target, inSource := scope.InternalPointer(last.GetReference().String())
 		placed = placed && inSource && !hop.Foreign
-		hops = append(hops, docHop{root: hop.Ref.GetCore().GetRootNode(), c: d.c.InScope(scope.InSource()),
+		hops = append(hops, docHop{root: hop.Ref.GetCore().GetRootNode(), c: d.entryCtx.InScope(scope.InSource()),
 			at: target, placed: placed, summary: true})
 		scope, last = scope.InSource(), hop.Ref
 	}
@@ -302,23 +303,32 @@ func docHops(d mediaDecl) []docHop {
 }
 
 // nearestWriting returns the first of hops writing key, and the node written.
+// A key written empty or null is read as unset, as resolve.UseDocs reads it,
+// so it leaves the one beneath it standing.
 func nearestWriting(hops []docHop, key string) (docHop, *yaml.Node, bool) {
 	for _, h := range hops {
 		if key == "summary" && !h.summary {
 			continue
 		}
-		if node := nodeview.Child(h.root, key); node != nil {
+		if node := nodeview.Child(h.root, key); node != nil && !unset(node) {
 			return h, node, true
 		}
 	}
 	return docHop{}, nil, false
 }
 
+// unset reports whether node, a docs field's value, reads as no value: a null,
+// or an empty scalar.
+func unset(node *yaml.Node) bool {
+	n := nodeview.Deref(node)
+	return n.Kind == yaml.ScalarNode && (n.Value == "" || n.ShortTag() == "!!null")
+}
+
 // unplacedDoc reports, at d's entry, the key the fold takes from an alias in
 // another document, which no position of this compile places, as the fields
 // beside a path item's $ref there are reported (GitHub #823).
 func unplacedDoc(d mediaDecl, key string) ir.Diagnostic {
-	return d.c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, d.at,
+	return d.entryCtx.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, d.entryPtr,
 		"the %s this media type takes is written beside a $ref in another document, which this compiler "+
 			"does not place; it is not kept", key)
 }

@@ -61,7 +61,7 @@ type declaredMediaType struct {
 
 // mediaFault is what a walk yields in place of the model of a content entry
 // written as a $ref that the parser faulted building, for the resolution pass
-// to report where the entry is written (resolution.faulted).
+// to report where the entry is written (resolution.reportFault).
 type mediaFault struct {
 	node *yaml.Node
 	err  error

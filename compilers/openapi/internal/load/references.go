@@ -63,7 +63,7 @@ func (p *resolution) run(ctx context.Context, doc *soa.OpenAPI) {
 		at := refSite{pointer: site}
 		switch m := model.(type) {
 		case mediaFault:
-			p.faulted(at, m)
+			p.reportFault(at, m)
 		case *refscope.ReferencedMediaType:
 			if !m.IsReference() {
 				p.holdMediaType(doc, site, m)
@@ -83,13 +83,14 @@ func (p *resolution) run(ctx context.Context, doc *soa.OpenAPI) {
 	}
 	for e, ok := p.away.next(); ok && ctx.Err() == nil; e, ok = p.away.next() {
 		p.fail(e.at, eachReferenceIn(ctx, e, p.media, func(site refSite, r resolvable) { p.visit(ctx, site, r, e.opts) },
-			p.faulted))
+			p.reportFault))
 	}
 }
 
-// faulted reports f, a content entry the parser faulted building a reference
-// from, at site, the first place a walk met its mapping, and nowhere else.
-func (p *resolution) faulted(site refSite, f mediaFault) {
+// reportFault reports f, a content entry the parser faulted building a
+// reference from, at site, the first place a walk met its mapping, and nowhere
+// else.
+func (p *resolution) reportFault(site refSite, f mediaFault) {
 	if p.reportedFaults[f.node] {
 		return
 	}

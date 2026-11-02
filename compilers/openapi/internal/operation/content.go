@@ -53,16 +53,16 @@ func lowerPayload(c lowering.Ctx, ts *compile.Types, content *sequencedmap.Map[s
 }
 
 // mediaDecl is the Media Type Object a content entry stands for, with the
-// context and pointer it is declared at: the entry itself, or what the chain of
-// the $ref it is written as ends on, use, read where the entry is written (at
-// in c's document).
+// context and pointer declaring it: the entry itself, or what the chain of the
+// $ref the entry is written as, use, ends on. entryCtx and entryPtr are where
+// the entry itself is written.
 type mediaDecl struct {
-	ctx     lowering.Ctx
-	media   *soa.MediaType
-	pointer jsontext.Pointer
-	use     *resolve.ReferencedMediaType
-	c       lowering.Ctx
-	at      jsontext.Pointer
+	ctx      lowering.Ctx
+	media    *soa.MediaType
+	pointer  jsontext.Pointer
+	use      *resolve.ReferencedMediaType
+	entryCtx lowering.Ctx
+	entryPtr jsontext.Pointer
 }
 
 // declaredMedia returns what the content entry media, written at mediaPtr in
@@ -76,7 +76,7 @@ type mediaDecl struct {
 func declaredMedia(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer) (mediaDecl, bool) {
 	use, isUse := c.MediaTypeUse(media)
 	if !isUse {
-		return mediaDecl{ctx: c, media: media, pointer: mediaPtr, c: c, at: mediaPtr}, true
+		return mediaDecl{ctx: c, media: media, pointer: mediaPtr, entryCtx: c, entryPtr: mediaPtr}, true
 	}
 	if use == nil {
 		return mediaDecl{}, false
@@ -85,7 +85,7 @@ func declaredMedia(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Point
 	if obj == nil {
 		return mediaDecl{}, false
 	}
-	return mediaDecl{ctx: dc, media: obj, pointer: decl, use: use, c: c, at: mediaPtr}, true
+	return mediaDecl{ctx: dc, media: obj, pointer: decl, use: use, entryCtx: c, entryPtr: mediaPtr}, true
 }
 
 // mediaTypeDocs returns the docs of the media type d declares: its own

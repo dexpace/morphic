@@ -307,3 +307,40 @@ components:
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
 		"/paths/~1b/get/parameters/0/content/application~1json"), "got %v", diags)
 }
+
+// TestMediaTypeRef_AnUnsetSiblingLeavesTheDeclarationsDocs pins a description
+// written empty or null beside a content entry's $ref: it reads as unset, as
+// the fold reads it, so the declaration's own description stands, in a body's
+// Content.Docs and in what a parameter keeps alike.
+func TestMediaTypeRef_AnUnsetSiblingLeavesTheDeclarationsDocs(t *testing.T) {
+	t.Parallel()
+	for _, written := range []string{"''", "null"} {
+		t.Run(written, func(t *testing.T) {
+			t.Parallel()
+			_, svc, diags := compileService(t, openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      operationId: a
+      parameters:
+        - name: f
+          in: query
+          content:
+            application/json: {$ref: '#/components/mediaTypes/M', description: `+written+`}
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/M', description: `+written+`}
+components:
+  mediaTypes:
+    M: {schema: {type: string}, description: From the declaration.}
+`))
+			op := openapitest.FirstOp(t, svc)
+			assert.Equal(t, ir.Docs{Description: "From the declaration."}, op.Responses[0].Payload.Contents[0].Docs)
+			require.Len(t, op.Params, 1)
+			kept := op.Params[0].Unmodeled["openapi:content/application~1json/description"]
+			assert.JSONEq(t, `"From the declaration."`, string(kept.Value))
+			assert.Equal(t, "/components/mediaTypes/M/description", string(kept.Provenance.Pointer))
+			assert.False(t, openapitest.HasDiag(diags, diag.UnknownKeyEntryTaken))
+		})
+	}
+}
