@@ -136,7 +136,8 @@ prune_corpus() {
 
 	find "$root" -type f -size +"${max_entry_kb}k" -exec rm -f {} +
 	while IFS= read -r dir; do
-		if printf '%s' "$keep" | grep -qxF "${dir#"$root"/}"; then
+		# Not a pipe: under pipefail, grep -q leaving early would read as no match.
+		if grep -qxF "${dir#"$root"/}" <<<"$keep"; then
 			trim_corpus "$dir"
 		else
 			rm -rf "$dir"
