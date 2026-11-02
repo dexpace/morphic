@@ -61,13 +61,14 @@
 ## A test opens, in its own process, what its result rests on
 `test-opens-its-inputs`
 
-- **Rule.** A test whose verdict rests on a file outside the module, or on one only a child
+- **Rule.** A test whose verdict rests on a file outside the module, or one only a child
   (`go list`, `git`) reads, opens in its own process the in-module files the child reads,
-  or one that changes with them. For a dependency, call `irtest.ReadModuleFiles`, held by
-  `irtest.RequireOpensModuleFiles`. For a child's list, list each directory above it.
-- **Why.** `readDeclarers` read library sources from the module cache, which go test never
-  rechecks (#1272). Sweeping the child sites, `grep -rn --include='*.go' -E 'exec.Command'`
-  and each `packages.Load` and `decls.Load`, found `ir/irtest`'s `git ls-files` tests; closed.
+  or one that changes with them. For a dependency, call `irtest.ReadModuleFiles`;
+  for a child's list, list each directory above it. `irtest.RequireOpens` holds either through
+  the test log, as `RequireOpensModuleFiles` does.
+- **Why.** `readDeclarers` read library sources from the module cache, never rechecked
+  by go test (#1272). Sweeping child sites, `grep -rn --include='*.go' -E 'exec.Command'`
+  and each `packages.Load` and `decls.Load`, found `ir/irtest`'s `git ls-files` tests.
 - **Probe.** `touch` the file the verdict rests on and rerun: the last `ok` must lack `(cached)`.
-  For a list, in a scratch clone with its own `GOCACHE`, commit a file it would newly list, run
-  `make filetimes`, and rerun without `-count=1`.
+  For a list, in a scratch clone with its own `GOCACHE`, commit a newly listed file, run
+  `make filetimes`, rerun without `-count=1`.
