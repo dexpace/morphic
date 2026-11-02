@@ -591,6 +591,37 @@ func TestCollectionBound_ARedeclaredFieldFoldsIt(t *testing.T) {
 	}
 }
 
+// TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds pins what
+// an element alias's bound now gives the fold: two lists alike in all but it
+// are judged by it, the narrower winning in either order, and two that meet
+// overlap, keeping the first and reporting the other.
+func TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds(t *testing.T) {
+	t.Parallel()
+	list := func(bound string) string {
+		return "{type: array, items: {$ref: '#/components/schemas/Tags', " + bound + "}}"
+	}
+	for _, tc := range []struct {
+		name, a, b string
+		kept       string
+		reported   bool
+	}{
+		{"the narrower second", list("maxItems: 5"), list("maxItems: 3"), "1", false},
+		{"the narrower first", list("maxItems: 3"), list("maxItems: 5"), "0", false},
+		{"meeting", list("minItems: 1"), list("maxItems: 3"), "0", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := settledSpec(t, tagsSchema, tc.a, tc.b)
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			p := propertyOf(t, doc, "T", "v")
+			assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/"+tc.kept+"/properties/v"), p.Type.Target)
+			assert.Equal(t, tc.reported, len(p.Unmodeled) > 0, "%v", p.Unmodeled)
+			assert.Equal(t, tc.reported, len(diags) > 0, "%+v", diags)
+		})
+	}
+}
+
 // TestCollectionBound_ADefaultIsJudgedAgainstTheAliasHoldingIt pins the merge's
 // admission reading what the alias now carries: a default the element's bound
 // refuses is not taken, and one it admits is.
