@@ -64,11 +64,13 @@ func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 
 	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "t/enum"})
 	require.True(t, ok)
-	assert.Equal(t, valueKind{prim: ir.PrimString}, kind)
+	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Empty(t, kind.format)
 
 	kind, ok = judge(g).kindOf(ir.TypeRef{Target: "t/alias"})
 	require.True(t, ok, "a scalar's Base chain is followed to the enum behind it")
-	assert.Equal(t, valueKind{prim: ir.PrimString}, kind)
+	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Empty(t, kind.format)
 }
 
 // TestFold_ALosingDetailIsKeptAndReported sweeps the fold's

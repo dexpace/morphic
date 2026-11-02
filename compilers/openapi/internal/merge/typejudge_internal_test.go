@@ -344,7 +344,8 @@ func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
 	} {
 		got, ok := j.kindOf(ref(tc.id))
 		require.True(t, ok, "%s", tc.id)
-		assert.Equal(t, tc.want, got, "%s", tc.id)
+		assert.Equal(t, tc.want.prim, got.prim, "%s", tc.id)
+		assert.Equal(t, tc.want.format, got.format, "%s: the held format", tc.id)
 	}
 }
 

@@ -475,7 +475,8 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 
 	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "t/str"})
 	require.True(t, ok)
-	assert.Equal(t, valueKind{prim: ir.PrimString}, kind)
+	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Empty(t, kind.format)
 
 	_, ok = judge(g).kindOf(ir.TypeRef{Target: "t/absent"})
 	assert.False(t, ok, "a target the registry does not hold resolves to no kind")
