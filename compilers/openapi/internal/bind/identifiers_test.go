@@ -123,6 +123,24 @@ func TestBind_ReadsBelowAnIDOfAnotherDocument(t *testing.T) {
 	}
 }
 
+// TestBind_AnIDNamingItsDocumentReturnsToIt pins that an $id naming the URI of
+// the document it is written in, below another $id, returns what is below it to
+// that document's resource rather than the source's or the outer $id's: a plain
+// name there is the document's.
+func TestBind_AnIDNamingItsDocumentReturnsToIt(t *testing.T) {
+	t.Parallel()
+	const other = "Outer:\n  $id: 'https://x.test/outer'\n  properties:\n    back:\n      $id: 'o.yaml'\n" +
+		"      properties:\n        leaf: {$anchor: a, type: integer}\n"
+	table := bound(t, head+"components:\n  schemas:\n    A: {$ref: 'https://x.test/o.yaml#a'}\n"+
+		"    B: {$ref: 'https://x.test/outer#a'}\n", withDocuments(map[string]string{"https://x.test/o.yaml": other}))
+
+	a := entryAt(t, table, "/components/schemas/A")
+	require.Equal(t, bind.Resolved, a.Hop.Status, a.Hop.Why())
+	doc := docNamed(t, table, "https://x.test/o.yaml")
+	assert.Equal(t, bind.Position{Doc: doc, Pointer: "/Outer/properties/back/properties/leaf"}, a.Hop.Target)
+	assert.Equal(t, bind.NoAnchor, entryAt(t, table, "/components/schemas/B").Hop.Reason)
+}
+
 // TestBind_AnIdentifierIsNoLocationToFetch pins that a URI a document declares
 // answers as that identifier whichever reference comes first, and reaches no
 // network: the read of a document on the network waits until the pass's walks
@@ -520,8 +538,10 @@ func TestDynamicAnchors_SaysWhenTheCountProvesNothing(t *testing.T) {
 
 // TestInOwnResource_ReadsTheResourceAPositionIsIn pins what stands in for a walk
 // of every key on the way down: only a schema's $id starts a resource, so a
-// property named $id does not, raw YAML does not, and an $id restating its
-// document's does not, in the source and in a document of schemas alike.
+// property named $id does not, raw YAML above a position does not, and an $id
+// restating its document's does not, in the source and in a document of schemas
+// alike. The position's own $id counts wherever it is, as one a $ref lands on is
+// read as a schema.
 func TestInOwnResource_ReadsTheResourceAPositionIsIn(t *testing.T) {
 	t.Parallel()
 	table := bound(t, head+"x-e: {$id: 'https://x.test/e', k: {type: string}}\ncomponents:\n  schemas:\n"+
@@ -537,6 +557,7 @@ func TestInOwnResource_ReadsTheResourceAPositionIsIn(t *testing.T) {
 		{Pointer: "/components/schemas/I/properties/q"}:    true,
 		{Pointer: "/components/schemas/Same/properties/q"}: false,
 		{Pointer: "/x-e/k"}:                                false,
+		{Pointer: "/x-e"}:                                  true,
 		{Doc: doc, Pointer: "/S/a/b"}:                      true,
 		{Doc: doc, Pointer: "/T"}:                          false,
 	} {

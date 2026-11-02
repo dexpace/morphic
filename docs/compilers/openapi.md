@@ -508,7 +508,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `e2e.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,
   `load.TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`,
   `bind.TestBind_ReadsWhatAnotherDocumentDeclares`, `bind.TestBind_ReadsBelowAnIDOfAnotherDocument`,
-  `bind.TestBind_AnIdentifierIsNoLocationToFetch`,
+  `bind.TestBind_AnIDNamingItsDocumentReturnsToIt`, `bind.TestBind_AnIdentifierIsNoLocationToFetch`,
   `bind.TestBind_AHeldDocumentMayDeclareAnothersURI`,
   `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
   `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`,
