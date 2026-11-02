@@ -89,7 +89,7 @@ witnessing it.
 
 ### `redaction`
 
-- Witnesses: `secret-format`
+- Witnesses: `secret-format`, `extension-redaction`
 
 ### `recursive-types`
 
@@ -189,7 +189,11 @@ witnessing it.
 
 ### `deprecation`
 
-- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`
+- Witnesses: `param-ref-inheritance`, `deprecation`, `extension-promotion`, `extension-stability`
+
+### `stability`
+
+- Witnesses: `extension-stability`
 
 ### `examples`
 

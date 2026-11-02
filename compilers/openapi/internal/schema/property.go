@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -107,7 +108,6 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 		p.Examples = a.Examples
 	}
 	p.Unmodeled = annotation.MergeUnmodeled(p.Unmodeled, a.Unmodeled)
-	diags = append(diags, c.PromoteDeprecation(p.Unmodeled, p.Deprecation, &p.Provenance)...)
 	return append(diags, PreserveCarriedKeywords(c, &p.Unmodeled, ref, pointer)...)
 }
 
@@ -123,6 +123,49 @@ func PreserveCarriedKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 	diags := recordUnplacedContent(c, p, s, nil, pointer)
 	diags = append(diags, recordUnexpandedDynamicRef(c, p, s, pointer)...)
 	return append(diags, PreserveUnknownKeywords(c, p, s, pointer)...)
+}
+
+// PromoteUse reads the vendor extensions into the deprecation and redaction of a
+// carrier: a property, a header or a parameter. Its own keys are the ones kept in
+// unmodeled, and from (KeysLentTo) lends beneath them
+// (docs/compilers/openapi.md#ref-use-site).
+//
+// A caller runs it once the carrier's keywords and keys are all on it, which for
+// a header or a parameter means after the object around the schema: that object
+// decides what is deprecated, and so what a member can fill. A key both write is
+// one entry, the object's, so the schema's is not read (GitHub #396).
+func PromoteUse(c lowering.Ctx, from lowering.Referent, unmodeled ir.Unmodeled, dep **ir.Deprecation, redact *bool, prov *ir.Provenance) []ir.Diagnostic {
+	diags := c.Promoter().Deprecation(unmodeled, from, dep, prov)
+	return append(diags, c.Promoter().Redaction(unmodeled, from, redact, prov)...)
+}
+
+// KeysLentTo returns what the mapped keys of what a carrier of js falls back to
+// lend it, js written at pointer and lowered to t. They are read along the chain
+// its keywords are, nearest first (Use.Referents): the nearest stating a
+// deprecation, by a keyword or a key, decides it and lends its members, and any
+// asking for redaction asks it of the use. A position owning a node lends its
+// carrier none, as it lends no keyword.
+func KeysLentTo(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) lowering.Referent {
+	s := annotation.SchemaOf(js)
+	if s == nil || LoweredToOwnNode(c, ts, pointer, t) {
+		return lowering.Referent{}
+	}
+	use := UseOf(c, ts, js, t, pointer)
+	promoter := c.Promoter()
+	var from lowering.Referent
+	decided := false
+	for _, r := range use.Referents {
+		read := promoter.Referent(r, r.GetDeprecated(), func() ir.Unmodeled {
+			return annotation.ExtensionsNamed(r.GetExtensions(), promoter.Keys())
+		})
+		from.Redacted = from.Redacted || read.Redacted
+		if !decided && (read.Deprecated || r.Deprecated != nil) {
+			from.Deprecated, from.Members, decided = read.Deprecated, read.Members, true
+		}
+	}
+	from.InheritsDeprecated = s.Deprecated == nil &&
+		!slices.ContainsFunc(use.Voices, func(v annotation.Voice) bool { return v.Node.Deprecated != nil })
+	return from
 }
 
 // LoweredToOwnNode reports whether the declaration at pointer, in c's

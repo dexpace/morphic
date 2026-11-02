@@ -226,15 +226,39 @@ it sees. Changes made together in one bump are listed together under it.
   lowers to a reference had kept them verbatim under `Unmodeled`. No key changed. A consumer pinned
   to 0.25.0 that reads those entries no longer finds them, and a consumer that reads `ir.Decorated`
   finds such an alias is no longer a decorator, since it says something of the value.
-- **0.27.0** — no shape change; two changes to what a compiled document holds, made together:
+- **0.27.0** — a stability tier and a parameter's redaction gained homes, and the OpenAPI compiler
+  reads more of a document's keys into fields it had:
+  - `Operation` and `OperationGroup` gained `Stability`, a closed `alpha | beta | stable`, empty
+    where a source states none ([operations](./operations.md#stability)), and `irverify` reports a
+    tier the IR does not declare (`ir/unknown-stability`). A consumer pinned to 0.26.0 cannot decode
+    a document that sets it.
+  - `Parameter` gained `Secret`, the per-use redaction `Property.Secret` is, and the OpenAPI
+    compiler no longer keeps a parameter's `format: password` under `Unmodeled`. A consumer pinned
+    to 0.26.0 that reads `openapi:format` on a parameter no longer finds it, and a parameter that
+    keeps redaction through a `$ref` now states it itself.
+  - A vendor key can state `Deprecation` where no keyword does, `x-sensitive` sets `Sensitive` and
+    `Secret`, and a property, header or parameter naming a `$ref` reads what the target's keys state
+    ([`extension-promotion`](../compilers/openapi.md#extension-promotion)), listing the marker the
+    target lists ([promotion](./unmodeled.md#promotion)). These shapes are unchanged, so to a
+    consumer pinned to 0.26.0 such an operation reads as live and such a value as plain.
+- **0.28.0** — `time` holds no offset, as `datetime` does beside `datetime_offset`
+  ([primitives](./primitives.md#offsets)). The OpenAPI compiler had lowered `format: time`, RFC
+  3339's `full-time`, to `time`, and now keeps it as a `Scalar` over `string` whose `Encoding.Name`
+  is `time`, as it keeps any format it has no primitive for. `time-local` lowers to `time`, and
+  `date-time-local` to `datetime`, which no compiler had written, where each had been such a
+  `Scalar`. An `Enum` takes those primitives as its `ValueType` where its members fit them, and one
+  declaring `format: time` keeps the format verbatim under `Unmodeled`. A consumer pinned to 0.27.0
+  that reads `time` as carrying an offset finds values with none, and one reading the `time-local`
+  or `date-time-local` encodings no longer finds them.
+- **0.29.0** — no shape change; two changes to what a compiled document holds, made together:
   - An `allOf` no conjunct can make an object is no `Model`, short of the cases
     [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
     conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
     OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
-    rules one out, so a consumer pinned to 0.26.0 finds a `Scalar`, an `Enum` or a reference where
+    rules one out, so a consumer pinned to 0.28.0 finds a `Scalar`, an `Enum` or a reference where
     it found a `Model`.
   - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
     ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
     symbols an emitter generates from such a hint are renamed.
 
-  A consumer pinned to 0.26.0 refuses the document as another generation's.
+  A consumer pinned to 0.28.0 refuses the document as another generation's.

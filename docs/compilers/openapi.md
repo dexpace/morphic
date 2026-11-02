@@ -783,14 +783,16 @@ lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node w
 
 The keywords written beside a schema's `$ref`, which 3.1 admits and which are read the same way in a
 3.0 document ([`later-version-construct`](#later-version-construct)), and the annotations its target
-declares — documentation, deprecation, visibility and `default` — merge onto the property, parameter
-or header that references the target, field by field, a keyword the use site writes winning over the
-target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by the same
-rule at every carrier. At a position that carries no property, parameter or header — an `allOf`,
-`oneOf` or `anyOf` branch, an `items`, a component — the keywords beside the `$ref` bind an alias
-hoisted at that position instead ([models](../ir/models.md#composition-entries)). Constraints
-are the exception: bounds conjoin rather than override, so each position keeps the ones it declared
-and none is copied to a use site
+declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
+parameter or header that references the target, field by field, a keyword the use site writes
+winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
+the same rule at every carrier. Redaction has nothing to win with: `format: password` on either side
+asks for it, and no keyword beside the `$ref` withdraws the target's. An extension the promotion
+policy maps is read the same way ([`extension-promotion`](#extension-promotion)). At a position that
+carries no property, parameter or header — an `allOf`, `oneOf` or `anyOf` branch, an `items`, a
+component — the keywords beside the `$ref` bind an alias hoisted at that position instead
+([models](../ir/models.md#composition-entries)). Constraints are the exception: bounds conjoin rather
+than override, so each position keeps the ones it declared and none is copied to a use site
 ([annotations](../ir/annotations.md#what-a-reference-carries-down)).
 
 A refinement ([`allof-refinement`](#allof-refinement)) is a use of what it names, so a carrier holding
@@ -820,6 +822,9 @@ the `$ref` would lend written alone, since the visibility and `default` of the u
   `schema.TestUse_ADefaultNoNarrowingExcludesReadsAsBesideARef`,
   `schema.TestUse_ACarrierReadsThroughADecorator`,
   `schema.TestUse_ALoopOfNarrowingEnumsEnds`
+- Status: partly built: a use reads the end of its chain and not the schema it names (#1029), and a
+  `deprecated: false` on an `allOf` decorator over an object reaches no carrier, where beside a `$ref`
+  it decides (#1258).
 
 ### `reference-object-siblings`
 
@@ -869,9 +874,10 @@ declaration that owns it.
 `summary`, `description` and `externalDocs` lower to `Docs`, and `deprecated: true` to
 `Deprecation{}`, on the entity whose object writes them. `Deprecation` is an empty marker: the
 keyword states no message, version or date, which only [`extension-promotion`](#extension-promotion)
-can supply. An operation, and a tag on its `TagDef` and on the group it names, take all three; a
-schema's `title` is the `Summary`, beside its `description` and `externalDocs`; a response and an
-error case take `description` and `summary` ([`response-summary`](#response-summary)); a request
+can supply, and which can state the deprecation itself where no keyword does. An operation, and a
+tag on its `TagDef` and on the group it names, take all three; a schema's `title` is the `Summary`,
+beside its `description` and `externalDocs`; a response and an error case take `description` and
+`summary` ([`response-summary`](#response-summary)); a request
 body, a security scheme, a server and a server variable take `description`, an example `summary` and
 `description`, and a security scheme `deprecated` (3.2). `info` and the root `externalDocs` make the
 Document's one `Docs`, while the Service takes `info.description` alone. A schema's documentation
@@ -1269,10 +1275,18 @@ by value domain and spelling (`integer` against `number`, `uuid` against `string
 (`string` against `format: byte`, or an unknown format over bare `string`), is disjoint from a kind
 of another family, or from another string format where neither is `bytes` (`uuid` against
 `format: date`), and overlaps any other kind (`uuid` against `format: byte`); for an `Enum`, that
-overlap is disjoint where the kind's judge refuses every member. An enum with no members is refused
+overlap is disjoint where the kind's judge refuses every member. A `Scalar` hoisted for `time`,
+whose grammar, RFC 3339's `full-time`, the compiler holds though the table pairs it with no kind
+([`string-formats`](#string-formats)), is read wherever a kind is, through an alias too, as a
+string format of its own: within `string`, an overlap with `bytes`, and disjoint from every other
+kind, `time-local` and `date-time` among them, and from an `Enum` none of whose members it
+admits. An enum with no members is refused
 vacuously, so it is disjoint from any kind it would otherwise overlap, `bytes` included; an enum
 with members against `bytes` stays an overlap. A `const` wins when the kind admits its value; where
-it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Two
+it does not, it is disjoint from a kind with a judge and overlaps `bytes`, which has none. Against a
+`Scalar` hoisted for `time`, a `const` is disjoint where the node refuses its value, and wins where
+the node admits it and says nothing but its base, the format and bounds, so a field typed by the
+`const` loses none of it; a node saying more, a description or an example, overlaps it. Two
 enums, two `const`s or two `Scalar`s equal in every field but where they were declared (IDs, names,
 whether hoisted inline, and the provenance of the node and of what it keeps under `Unmodeled`) are
 one type where both were written inline at the field's own declarations, in their document, as the
@@ -1304,7 +1318,8 @@ pair is judged by what the two types hold, an alias as the
 type it stands for and a `const` object or array as a structure of that instance type: disjoint
 where their kinds share no value, or a value type meets a structure, or two structures of different
 instance types meet; an overlap where their kinds share values or a `const` meets a type that ends
-in a kind or another `const`; and unrelated where nothing says what they share, as between two
+in a kind, but for the `time` node above, or another `const`; and unrelated where nothing says
+what they share, as between two
 models neither of which composes the other, a model and a map, a list and a tuple, an opaque scalar
 and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
 types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
@@ -1372,7 +1387,8 @@ judged against that: a `default: null` or a null example is refused where the me
 admit null, a declaration of the field's own type included. The top type admits null whatever its
 bit says, and one folded under another type says nothing of null. A `default` or `examples` a
 broader declaration gives is taken only where the winning type admits it, judged per keyword and all
-or nothing. The winning type admits a value by its kind and by the constraints its node carries:
+or nothing. The winning type admits a value by its kind, by the `full-time` grammar where it is a
+`Scalar` hoisted for `time`, and by the constraints its node carries:
 each bound, `multipleOf`, a length counted in code points, an item or property count and
 `uniqueItems`, while a `pattern`, which nothing here evaluates, admits no string. Every
 declaration's value is held by the same checks to each bound the field keeps that another
@@ -1403,13 +1419,13 @@ hints and each `Unmodeled` key fold over every declaration, the first to give on
 declaration giving one differently is reported and kept.
 
 A field keeping the first declaration's identity keeps that declaration's provenance, and either way
-it names the heuristic that promoted its deprecation from an extension, wherever the deprecation it
-keeps came from. So a field names one source. `Provenance` holds one pointer, and what a folded
-declaration adds lands on the field with no record of which wrote it, so writing a keyword on one
-branch or on another compiles to the same `types`. A list of the declarations on `Property` was
+it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
+the one it keeps came from. So a field names one source. `Provenance` holds one pointer, and what a
+folded declaration adds lands on the field with no record of which wrote it, so writing a keyword on
+one branch or on another compiles to the same `types`. A list of the declarations on `Property` was
 weighed and declined: it would say which declarations contributed and not which wrote each keyword,
-no consumer reads either, and a consumer needing it can take it as an ordinary versioned change
-([IR version](../ir/ir-version.md)).
+no consumer reads either, and a consumer needing it can take it as an ordinary versioned change ([IR
+version](../ir/ir-version.md)).
 
 The IR has no combinator for "string here, integer there", nor a second slot for a `pattern`,
 default, title, description, external link, examples, deprecation or XML hint another declaration
@@ -1433,13 +1449,15 @@ more than the field does, and a release changing either changes no value the fie
 neither is kept or reported. Each diagnostic sits at the declaration that lost and names the one
 whose say the field kept. A dropped declaration is reported against the winner as an
 `openapi/conflicting-redeclaration`
-warning where their types are incompatible — disjoint primitive kinds (`string` against `integer`,
-`uuid` against `date-time`), an enum none of whose members the other kind admits, a scalar against a
+warning where their types are incompatible — disjoint kinds (`string` against `integer`, `uuid`
+against `date-time`, `time` against `time-local`), an enum none of whose members the other kind
+admits, a scalar against a
 structure, two structures of different instance types, or two lists or maps whose members share no
 value where one is never empty. Types that share values but that the merge does not narrow to one
 (`int32` against `uint32`, an enum of `integer` against an `int32` that admits one of its members,
 two enums of one kind, each with members, a `const` against a kind with no judge, against a node
-that ends in a kind or against another `const`, or two lists or maps whose members share only null or share nothing while
+that ends in a kind, but for the `time` node above, or against another `const`, or two lists or
+maps whose members share only null or share nothing while
 both admit the empty one) are named in an info `openapi/degraded-construct`, and so are two types
 the judgment does not compare (a model and a map, a list and a tuple, a union, an opaque scalar, a
 node a degraded lowering minted, or two models beside a type that keeps them from composing), since
@@ -1525,6 +1543,11 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `spelling.TestRelate_ClassifiesEveryVerdict`,
   `spelling.TestFormatTable_EveryRowNarrowsItsBareType`,
   `merge.TestAdmits_JudgesEachKindExactly`,
+  `merge.TestAdmitsFormat_JudgesTimeAsAFullTime`,
+  `merge.TestAdmitsFormat_SharesNoStringWithAKind`,
+  `merge.TestRelateKinds_ReadsAHeldFormatAsAStringFormat`,
+  `merge.TestKindOf_TheFirstEncodingDecidesTheFormat`,
+  `schema.TestAllOf_ATimeIsJudgedByItsGrammar`,
   `merge.TestAdmits_ReadsAHugeExponentWithoutMaterializingIt`,
   `merge.TestTypeJudge_NullIsJudgedByNullability`,
   `merge.TestFold_ExamplesAreJudgedAsOneKeyword`,
@@ -1564,6 +1587,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_UnmodeledKeepsTheFirstOfAKeyAndReportsAnother`,
   `merge.TestFold_AValueSpelledTwoWaysIsOneValue`,
   `merge.TestFold_ThePromotionMarkerFollowsTheDeprecationKept`,
+  `merge.TestFold_ThePromotionMarkerFollowsTheSecretTaken`,
+  `schema.TestAllOf_RedeclarationMarksAPromotedSecretOnly`,
   `schema.TestAllOf_WhatAFieldKeepsOfItsDetailIsOrderFree`,
   `schema.TestAllOf_ContainerMembersAreJudgedAsFieldsAre`,
   `merge.TestClassify_ComparesResolvedKinds`,
@@ -1577,14 +1602,15 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), a list or map whose
-  broader side carries detail the narrower lacks, a node adding a bound beside one adding other
-  detail, and a list or map whose members meet, are reported as an overlap and never narrowed
-  (#1042); two models alike in every property compose rather than collapse to one type (#1083); a
-  model and a map or a union are reported as types the merge does not compare (#1182), and so are two
-  lists, tuples or maps whose members are different models (#1180); a model, an alias of `{}` and
-  another model keep the first and report the rest (#1194); a model and the wrapper it
-  flattens that fold different sets only because the model stops at the flattening depth are refused
-  as `compile/registry-refused`, not told apart, since one declaration names both.
+  broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a
+  description or other detail of its own against a `const` it admits, a node adding a bound beside
+  one adding other detail, and a list or map whose members meet, are reported as an overlap and
+  never narrowed (#1042); two models alike in every property compose rather than collapse to one
+  type (#1083); a model and a map or a union are reported as types the merge does not compare
+  (#1182), and so are two lists, tuples or maps whose members are different models (#1180); a model,
+  an alias of `{}` and another model keep the first and report the rest (#1194); a model and the
+  wrapper it flattens that fold different sets only because the model stops at the flattening depth
+  are refused as `compile/registry-refused`, not told apart, since one declaration names both.
 
 ### `allof-required`
 
@@ -2092,16 +2118,19 @@ is kept on the union, under a report naming a union of models.
 ### `string-formats`
 
 A `type: string` with a `format` the table names lowers to the shared primitive the pairing selects,
-and no node of its own: `date` to `date`, `time` to `time`, `duration` to `duration`, `uuid` to
-`uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `binary` to `bytes`. `byte` lowers to a
-hoisted `Scalar` over `bytes` whose `Encoding` is `base64`, with the `string` it travels as in
-`WireType`. Any other format (`email`, `uri-reference`, `ipv4`, an invented one) lowers to a hoisted
-`Scalar` over `string` whose `Encoding.Name` is the format as written, case kept, since the compiler
-knows no registry of formats beyond the table. A `contentEncoding` beside a `byte` or unknown format
-names the encoding instead; where the two name different encodings the format is kept verbatim under
-`openapi:format` (`no_ir_home`) with an info `openapi/degraded-construct` at it. A scalar hoisted
-for its format carries the bounds written beside it. The table is the same at every minor, and a
-pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)'.
+and no node of its own: `date` to `date`, `time-local` to `time`, `duration` to `duration`, `uuid`
+to `uuid`, `uri` to `url`, `date-time` to `datetime_offset`, `date-time-local` to `datetime`,
+`binary` to `bytes`. `byte` lowers to a hoisted `Scalar` over `bytes` whose `Encoding` is `base64`,
+with the `string` it travels as in `WireType`. Any other format (`time`, `email`, `uri-reference`,
+`ipv4`, an invented one) lowers to a hoisted `Scalar` over `string` whose `Encoding.Name` is the
+format as written, case kept, since the compiler knows no registry of formats beyond the table, and
+the table leaves out `time`, RFC 3339's `full-time`, because it carries an offset and the `time`
+primitive holds none ([primitives](../ir/primitives.md#offsets)). A `contentEncoding` beside a
+`byte` or unknown format names the encoding instead; where the two name different encodings the
+format is kept verbatim under `openapi:format` (`no_ir_home`) with an info
+`openapi/degraded-construct` at it. A scalar hoisted for its format carries the bounds written
+beside it. The table is the same at every minor, and a pairing of `format` with another `type` is
+[`numeric-formats`](#numeric-formats)'.
 
 - Cases: `encoding-byte`, `scalar-format`
 - Codes: `openapi/degraded-construct`
@@ -2109,8 +2138,7 @@ pairing of `format` with another `type` is [`numeric-formats`](#numeric-formats)
   `schema.TestLower_NamedScalarComponentResolves`,
   `spelling.TestFormatTable_EveryRowDistinguishesTheBareType`,
   `spelling.TestFormatTable_EveryStringRowLowersToItsPrimitive`
-- Status: partly built: `date-time-local` and `time-local` hoist over `string`, and `time`'s offset
-  has no home (#869), and a `byte` string and a string-carried number put the logical and the wire
+- Status: partly built: a `byte` string and a string-carried number put the logical and the wire
   type on opposite fields (#637).
 
 ### `numeric-formats`
@@ -2135,15 +2163,13 @@ primitive narrower than `integer` holds. A pairing the table does not name lower
 `format: password` is a redaction request rather than a pairing of type and format, so the shape
 lowers without it, and it lands where a declaration's annotations do: on the node the position owns,
 whatever its kind, as `Sensitive`, an alias hoisted where the shape alone would own none; or, at a
-property or header that owns none, as `Property.Secret`, inherited from a `$ref` target as
+property, header or parameter that owns none, as `Secret`, inherited from a `$ref` target as
 `deprecated` is. An inline `allOf` branch writing it folds as any annotation does
-([`allof-inline-residue`](#allof-inline-residue)). At a parameter that owns none it is kept verbatim
-in the parameter's `Unmodeled` under `openapi:format` (`no_ir_home`), with an info
-`openapi/degraded-construct` at the `format`.
+([`allof-inline-residue`](#allof-inline-residue)).
 
 - Cases: `secret-format`, `scalar-format`
-- Codes: `openapi/degraded-construct`
-- Status: partly built: `ir.Parameter` has no field to mark a parameter for redaction (#578).
+- Tests: `operation.TestParams_SchemaRedactionReachesTheParameter`,
+  `operation.TestParams_SchemaRedactionStaysOnANode`
 
 ### `whole-schema-fallbacks`
 
@@ -3248,44 +3274,112 @@ kept and reported as a written one is.
 
 A vendor extension the promotion policy maps to a typed field is read into that field as well as
 kept ([unmodeled](../ir/unmodeled.md#promotion) states the four rules a promotion keeps). The
-policy is `Options.Promotions`, on by default: its `Targets` replace the default mapping —
-`x-deprecated-reason` to `Deprecation.Message`, `x-deprecated-since` to `Deprecation.Since`,
-`x-sunset` to `Deprecation.RemovalDate`, and `x-extensible-enum` to an `Enum`'s openness — and its
-`Disabled` turns it off. A deprecation member is filled on an operation, a parameter, a header, a
-property, a type node or a security scheme that is deprecated; on one that is not, the key annotates
-nothing and stays where it is. The node keeping the extension lists the marker `extension-promotion`
-in its `Provenance.Inferred`, and the extension stays in `Unmodeled` untouched.
+policy is `Options.Promotions`, on by default: its `Targets` replace the default mapping and its
+`Disabled` turns it off. A target reads a list of sources, each an extension key and, where the
+key's value is an object holding several facts, the member of it to read. The list is the
+precedence: the first source stating a value fills the field, and a later one stating another is
+reported as an info `openapi/degraded-construct` at its own key. An absent member states nothing,
+and a key with no members to read is reported the same way, once however many sources read it. The
+node keeping the extension lists the marker `extension-promotion` in its `Provenance.Inferred`, as
+does a use its `$ref`'s target lends a field to, and the extension stays in `Unmodeled` untouched.
 
-A value the mapped field cannot hold — anything but text, for the four `Deprecation` members — is
-reported as an info `openapi/degraded-construct` at the extension and not coerced, since the
-document means something else by the key. Text of the right JSON shape is taken as written:
-`x-sunset` fills `RemovalDate` and not `RemovalVersion` because the header it echoes ([RFC
-8594](https://www.rfc-editor.org/rfc/rfc8594)) is a date by definition, and the mapping is where
-that reading is stated — the promotion does not then parse the date to confirm it. No default key
-names `RemovalVersion`: a document stating a removal *version* names its own key, per rule 1 of
-[unmodeled](../ir/unmodeled.md#promotion).
+`Deprecation` is filled on an operation, a parameter, a header, a property, a type node or a
+security scheme. A key can state the deprecation itself: the default reads `x-fern-availability`,
+then `x-stability`, whose text `deprecated` or boolean `true` creates the `Deprecation`, whatever a
+`deprecated: false` beside it says, since the marker and the entry let a consumer that disagrees
+see what was read. `false` and any other word state nothing, and any other shape is reported. A
+member is filled on what is deprecated by then, and on anything else the key annotates nothing and
+stays where it is. `Message` reads `x-deprecated-reason`, `x-stainless-deprecation-message` and the
+`description` of `x-cfDeprecation`; `Since` reads `x-deprecated-since`; and `RemovalDate` reads
+`x-sunset`, the `date` of `x-forge-sunset` and the `eol` of `x-cfDeprecation`.
+
+A property, header or parameter naming a `$ref` reads the target's mapped keys beneath its own, as
+[`ref-use-site`](#ref-use-site) merges the target's other annotations: a key beside the `$ref` wins
+field by field and without a report, and the target is the end of the chain, so a schema between the
+two lends nothing, as it lends no keyword. One holding a refinement
+([`allof-refinement`](#allof-refinement)), or a `$ref` to one, reads along the chain its keywords
+are read along, nearest first: the nearest link stating a deprecation, by a keyword or a key,
+decides it and lends its members, and any link asking for redaction asks it of the use. A key on the
+target stating a deprecation counts as the target's `deprecated`, so a `deprecated` beside the
+`$ref` decides over it as it does over the keyword, and a key beside the `$ref`, being the use's
+own, is not stopped by one. A target lends a member only where it is deprecated itself, by a keyword
+or a key: on a live target the member annotates nothing, as it does anywhere, and a use deprecated
+on its own does not change that. So the target's `Deprecation` is all a use reads of it, which is
+what the [fold](../emitters/refine/decorators.md) of a 3.0 decorator over the same target reads, and
+what the target's key cannot hold is reported where that key is written and read, once, with a use
+reading past it in silence.
+
+A value a member cannot hold, anything but text, is reported as an info `openapi/degraded-construct`
+at the extension and not coerced, since the document means something else by the key. Empty text
+states nothing, and neither fills a member nor stands before a later source. Other text of the right
+JSON shape is taken as written: `x-sunset` fills `RemovalDate` and not `RemovalVersion` because the
+header it echoes ([RFC 8594](https://www.rfc-editor.org/rfc/rfc8594)) is a date by definition, and
+the mapping is where that reading is stated — the promotion does not then parse the date to confirm
+it. No default key names `RemovalVersion`: a document stating a removal *version* names its own key,
+per rule 1 of [unmodeled](../ir/unmodeled.md#promotion).
+
+`Operation.Stability` reads `x-stability`, then `x-fern-availability`. `alpha` is `alpha`, `beta` and
+`preview` are `beta`, and `stable` and `generally-available` are `stable`. What the deprecation
+reads of a key, `deprecated` or `true`, names no tier and is not reported here; `legacy`, any other
+word and any other shape are reported, once, and leave the field unset. Where the two keys disagree
+`x-stability` wins, as the order decides and not the tiers, so `x-stability: stable` wins over
+`x-fern-availability: beta`. That order is chosen for what the golden spec writes, where every
+disagreement is `x-stability: beta` against `generally-available`, 47 operations (spec @319dc756), so
+there it reads the less stable statement. It is the right call where the text can tell, as the 2 of
+them whose own description says beta show, and none of the 2,636 operations marked generally
+available alone says so. It over-reports where the mark sits on one method of a resource and not on
+its neighbours, as `GET` and `PUT` of `/accounts/{account_id}/access/apps/{app_id}` carry it and
+`DELETE` does not, which reads as a mark on a payload and not on the operation. A consumer gating on
+the tier hides such an operation, and the report on each disagreement and the kept entries are what
+let it audit that.
+
+`x-sensitive` asks for redaction as `format: password` does ([`password`](#password)), and lands
+where that does: `Sensitive` on the node a position owns, `Secret` on a property, header or parameter
+that owns none, the target of a `$ref` lending it to the use. `true` writes it, `false` states
+nothing, and any other shape is reported. A `false` clears neither a `format: password` nor what a
+`$ref`'s target asks for, though on a parameter or a header it hides a `true` on its own schema, as
+the two share one entry.
 
 `Enum.Closed` is the one target whose fact is stated by a key being *present* rather than by a
-value, so nothing is read or reported there. Its default key, `x-extensible-enum`, writes the member
-list as its own value, and a list of members says nothing about openness that the key naming it has
-not already said; the promotion therefore clears `Closed` on presence. A boolean value is the one
-shape that does state openness by itself, and an explicit `false` is read as written rather than
+value, so a value is not read as a statement there. Its default key, `x-extensible-enum`, writes the
+member list as its own value, and a list of members says nothing about openness that the key naming
+it has not already said; the promotion therefore clears `Closed` on presence. A boolean value is the
+one shape that does state openness by itself, and an explicit `false` is read as written rather than
 inverted. Only openness is ever promoted: a schema's `enum` is closed by definition, so a document
 declares the open case or nothing, and the mapping names that fact rather than the field's own
 polarity. A document that writes `x-extensible-enum` *instead* of `enum` lowers to no `Enum` at all
 and there is no node to open — minting one from a vendor key would be a compiler reading a member
 list out of an extension, not a promotion, so the entry is left for a consumer that wants to.
 
-- Cases: `extension-promotion`
+- Cases: `extension-promotion`, `extension-stability`, `extension-redaction`
 - Codes: `openapi/degraded-construct`
-- Tests: `lowering.TestPromoteDeprecation_ValueThatIsNotTextIsReported`,
-  `lowering.TestPromoteEnumOpenness_WritesNothing`,
+- Tests: `lowering.TestPromoterDeprecation_ValueThatIsNotTextIsReported`,
+  `lowering.TestPromoterDeprecation_KeyStatesIt`,
+  `lowering.TestPromoterStability_ReadsEachWord`,
+  `lowering.TestPromoterRedaction_OnlyTrueWrites`,
+  `lowering.TestPromoterEnumOpenness_WritesNothing`,
+  `lowering.TestPromoter_ReadsSourcesInPolicyOrder`,
+  `lowering.TestPromoter_MemberReadsOneFactOfAnObject`,
+  `lowering.TestPromoter_ReferentLendsBeneathOwnKeys`,
+  `lowering.TestPromoter_ReferentReadsWhatASchemaLends`,
   `lowering.TestExtensionTarget_EveryTargetIsInThePromotionTable`,
-  `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`
-- Status: partly built: the default mapping covers only deprecation and extensible enums (#656); two
-  keys mapped to one field resolve by sort order in silence (#655); a mapping cannot say which
-  extension values state the fact (#654); and an unknown key under a prefix the policy owns is kept
-  in silence (#657).
+  `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
+  `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
+  `e2e.TestPromotion_ARefinementLendsWhatItRefines`,
+  `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
+  `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
+  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`
+- Status: partly built: the default mapping leaves pagination, open enums stated by value, reserved
+  expansion and server names to come (#656); a mapping cannot say which extension values state the
+  fact, so a stability key's `true` reads as a deprecation (#654); an unknown key under a prefix the
+  policy owns is kept in silence (#657); a key beside an `allOf` over an object, or on its branch,
+  lands on the decorator the `allOf` lowers to, where beside a `$ref` it lands on the carrier (#1220); a key on a path item, a tag or a
+  content entry, kept under a scope, reaches no field (#1221); a key both a parameter or a header and
+  its schema write shares one entry, so the object's is all that is read (#396); a schema a use names
+  between it and the end of its chain lends no key, as it lends no keyword (#1029); a key inside a
+  `oneOf` kept verbatim beside structure waits for those branches to lower (#661); a flattened
+  member reads no redaction off a declaration it overrides, a key's as `format: password`'s (#1211);
+  and a mapping naming a target nothing reads is accepted in silence (#1281).
 
 ### `mutually-exclusive-parameters`
 
