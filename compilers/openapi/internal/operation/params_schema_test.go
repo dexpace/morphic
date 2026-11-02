@@ -15,6 +15,91 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
+// TestParams_ASharedDeclarationLeavesItsListItsBound pins one home per
+// declaration where the schema is not written at the position mounting it: a
+// parameter and a header reached through a $ref read the pointer their schema
+// lowered at, so neither carrier restates the bound its List holds.
+func TestParams_ASharedDeclarationLeavesItsListItsBound(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := compileService(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+components:
+  parameters:
+    Listed: {name: listed, in: query, schema: {type: array, items: {type: string}, minItems: 1}}
+  headers:
+    Limited: {schema: {type: array, items: {type: string}, maxItems: 5}}
+paths:
+  /tags:
+    get:
+      operationId: listTags
+      parameters:
+        - {$ref: '#/components/parameters/Listed'}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Limited: {$ref: '#/components/headers/Limited'}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 1)
+	require.Len(t, op.Responses, 1)
+	require.Len(t, op.Responses[0].Headers, 1)
+
+	assert.Nil(t, op.Params[0].Constraints)
+	listed, ok := doc.Types[op.Params[0].Type.Target].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, listed.Constraints)
+	assert.Nil(t, op.Responses[0].Headers[0].Constraints)
+	limited, ok := doc.Types[op.Responses[0].Headers[0].Type.Target].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(5))}, limited.Constraints)
+}
+
+// TestParams_CollectionBoundBesideARefReachesTheCarrier pins the two carriers
+// this package fills (docs/compilers/openapi.md#constraints): the bound written
+// for one use of a shared list reaches the parameter or header holding that use,
+// and a schema that lowered to a List of its own keeps its bound there.
+func TestParams_CollectionBoundBesideARefReachesTheCarrier(t *testing.T) {
+	t.Parallel()
+	doc, svc, diags := compileService(t, `openapi: 3.1.0
+info: {title: t, version: "1"}
+components:
+  schemas:
+    Tags: {type: array, items: {type: string}}
+paths:
+  /tags:
+    get:
+      operationId: listTags
+      parameters:
+        - {name: beside, in: query, schema: {$ref: '#/components/schemas/Tags', minItems: 1}}
+        - {name: plain, in: query, schema: {type: array, items: {type: string}, minItems: 1}}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-Beside: {schema: {$ref: '#/components/schemas/Tags', maxItems: 5}}
+            X-Plain: {schema: {type: array, items: {type: string}, maxItems: 5}}
+`)
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FirstOp(t, svc)
+	require.Len(t, op.Params, 2)
+
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, op.Params[0].Constraints)
+	assert.Empty(t, op.Params[0].Unmodeled, "a bound the parameter holds is not also kept")
+	assert.Nil(t, op.Params[1].Constraints, "the List holds its own bound")
+	plain, ok := doc.Types[op.Params[1].Type.Target].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, plain.Constraints)
+
+	require.Len(t, op.Responses, 1)
+	headers := op.Responses[0].Headers
+	require.Len(t, headers, 2)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(5))}, headers[0].Constraints)
+	assert.Empty(t, headers[0].Unmodeled, "a bound the header holds is not also kept")
+	assert.Nil(t, headers[1].Constraints, "the List holds its own bound")
+}
+
 func TestParams_SchemaConstraints(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.PathsSpec(`  /people:
