@@ -158,7 +158,8 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 		ev = s.GetExclusiveMinimum()
 	}
 	_, prop := boundProps(side)
-	if ev == nil {
+	node := RawPropertyNode(s, prop)
+	if ev == nil || node == nil {
 		return nil
 	}
 	if ev.IsLeft() != exclusiveBoolean {
@@ -166,10 +167,6 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 	}
 	if ev.IsLeft() {
 		return applyExclusiveFlag(c, s, side, residue, ev.GetLeft())
-	}
-	node := RawPropertyNode(s, prop)
-	if node == nil {
-		return nil
 	}
 	v, err := value.NumericLiteral(node)
 	if err != nil {

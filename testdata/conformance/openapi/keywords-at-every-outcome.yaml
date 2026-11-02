@@ -1,0 +1,83 @@
+openapi: 3.1.0
+info: {title: Keywords at every outcome, version: "1"}
+paths: {}
+components:
+  schemas:
+    A:
+      type: object
+      properties:
+        a: {type: string}
+    B:
+      type: object
+      properties:
+        b: {type: string}
+    Node:
+      $dynamicAnchor: node
+      type: object
+    # A Union has neither an Encoding nor Constraints.
+    Bare:
+      oneOf:
+        - type: string
+        - type: integer
+      format: uuid
+      minLength: 3
+    # The composition is consumed by the variants; format and maxItems are not.
+    Dist:
+      type: object
+      properties:
+        k: {type: string}
+      required: [k]
+      minProperties: 1
+      oneOf:
+        - $ref: '#/components/schemas/A'
+        - $ref: '#/components/schemas/B'
+      format: uuid
+      maxItems: 3
+    # An expanded $dynamicRef lowers to the anchored type, as a $ref does.
+    Dyn:
+      $dynamicRef: '#node'
+      format: uuid
+      discriminator:
+        propertyName: kind
+    # The carrier holds a bound beside the reference, and keeps one it cannot state.
+    Carrier:
+      type: object
+      properties:
+        dyn:
+          $dynamicRef: '#node'
+          maxItems: 2
+          uniqueItems: false
+    # A type array's keywords are held by the variants or kept on the union.
+    NoObjectVariant:
+      type: [string, array]
+      items: {type: string}
+      properties:
+        a: {type: string}
+    NoArrayVariant:
+      type: [string, integer]
+      items: {type: string}
+      maxItems: 3
+    NoRouting:
+      type: [string, array]
+      items: {type: string}
+      discriminator:
+        propertyName: kind
+    # An empty pattern fills no Constraints field, so no variant holds it.
+    NoBound:
+      type: [string, integer]
+      pattern: ""
+    # A union beside the type array is kept, and so is what it was written for.
+    BesideAUnion:
+      type: [string, array]
+      items: {type: string}
+      oneOf:
+        - type: string
+        - type: integer
+      discriminator:
+        propertyName: kind
+    Homed:
+      type: [string, object]
+      properties:
+        a: {type: string}
+      required: [a]
+      minLength: 2

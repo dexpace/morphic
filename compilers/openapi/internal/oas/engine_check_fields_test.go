@@ -75,10 +75,10 @@ func TestCheck_ShapesFollowTheField(t *testing.T) {
 
 // TestCheck_NumbersFollowTheirShape pins the numeric shapes, and that the numeric
 // bounds the schema lowering reads off the raw node are left to it: it reports a
-// value that is no decimal a BigVal holds, a null included, or is in the other
-// dialect's form, and takes a quoted number as the decimal it spells. A number
-// outside a bound's range, a multipleOf no greater than 0, quoted or not, is
-// the table's.
+// value that is no decimal a BigVal holds or is in the other dialect's form, and
+// takes a quoted number as the decimal it spells. A number outside a bound's
+// range, a multipleOf no greater than 0, quoted or not, is the table's, and so
+// is a null, which the lowering reads as the bound left out.
 func TestCheck_NumbersFollowTheirShape(t *testing.T) {
 	verify(t, []scenario{
 		{"natural: zero", "3.1.0", oas.Schema, `{maxLength: 0}`, nil},
@@ -115,7 +115,7 @@ func TestCheck_NumbersFollowTheirShape(t *testing.T) {
 		{"bound: a negative multipleOf in 3.0", "3.0.3", oas.Schema, `{multipleOf: -2}`, []finding{at(mismatch, "/multipleOf")}},
 		{"bound: a quoted multipleOf of zero", "3.1.0", oas.Schema, `{multipleOf: "0"}`, []finding{at(mismatch, "/multipleOf")}},
 		{"bound: a quoted multipleOf above zero is the lowering's", "3.1.0", oas.Schema, `{multipleOf: "0.5"}`, nil},
-		{"bound: a null is the lowering's", "3.1.0", oas.Schema, `{maximum: ~}`, nil},
+		{"bound: a null is the table's", "3.1.0", oas.Schema, `{maximum: ~}`, []finding{at(mismatch, "/maximum")}},
 		{"bound: a negative multipleOf past a rational's range", "3.1.0", oas.Schema, `{multipleOf: -1e1000001}`,
 			[]finding{at(mismatch, "/multipleOf")}},
 		{"bound: a negative multipleOf below one", "3.1.0", oas.Schema, `{multipleOf: -1e-1000001}`,

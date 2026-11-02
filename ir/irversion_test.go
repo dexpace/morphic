@@ -31,6 +31,9 @@ type generation struct {
 	format int
 	// shape is the hex SHA-256 of the description, shapeGolden.
 	shape string
+	// names is the hex SHA-256 of the names the generation renders, namesGolden.
+	// It is empty on every row older than that pin.
+	names string
 	// meaning says what changed, for a bump that keeps the shape of the
 	// generation before it: a change of meaning, which no description sees. It
 	// is empty for every other row.
@@ -57,7 +60,10 @@ var generations = []generation{
 	{version: "0.21.0", format: 1, shape: "93e13e68b0e2c6a8623109d342c08353a4209cbc57d8f3828705646f51d50bf0"},
 	{version: "0.22.0", format: 1, shape: "28c69354fd5e99549277dc63910f3ac5e2968fc56c1f1397b87e53215a834622"},
 	{version: "0.23.0", format: 1, shape: "987429c948fd6468abae5000a5caa84a23fe8d4ae18403da219b3e4e4b99bd13"},
-	{version: "0.24.0", format: 1, shape: "987429c948fd6468abae5000a5caa84a23fe8d4ae18403da219b3e4e4b99bd13",
+	{version: "0.24.0", format: 1, shape: "dc971e27033309c2a8446e96453f5d35bda1e535a723a3ec00fe04df02cc79a0",
+		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
+	{version: "0.25.0", format: 1, shape: "dc971e27033309c2a8446e96453f5d35bda1e535a723a3ec00fe04df02cc79a0",
+		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
 		meaning: "a collection bound beside a reference reaches the Constraints of the carrier or alias holding that use"},
 }
 
@@ -93,8 +99,9 @@ func TestIRVersion_PinsTheEncodedShape(t *testing.T) {
 }
 
 // TestIRVersion_GenerationsAppendInOrder holds the table to its form: versions
-// ascending, a bump described in its predecessor's format so the two compare,
-// and a bump that keeps its predecessor's shape saying why.
+// ascending, a bump described in its predecessor's format so the two compare, a
+// bump that keeps its predecessor's shape saying why, and the names pin, once
+// begun, on every row after.
 func TestIRVersion_GenerationsAppendInOrder(t *testing.T) {
 	t.Parallel()
 	for _, finding := range rowFindings(generations, jsonshape.Format) {
@@ -171,8 +178,11 @@ func rowFindings(rows []generation, format int) []string {
 		if r.format < 1 || r.format > format {
 			out = append(out, fmt.Sprintf("row %d: format %d is no jsonshape.Format up to %d", i, r.format, format))
 		}
-		if b, err := hex.DecodeString(r.shape); err != nil || len(b) != sha256.Size || strings.ToLower(r.shape) != r.shape {
+		if !isDigest(r.shape) {
 			out = append(out, fmt.Sprintf("row %d: shape %q is not a lower-case hex SHA-256", i, r.shape))
+		}
+		if r.names != "" && !isDigest(r.names) {
+			out = append(out, fmt.Sprintf("row %d: names %q is not a lower-case hex SHA-256", i, r.names))
 		}
 		if i == 0 {
 			if r.meaning != "" {
@@ -187,10 +197,21 @@ func rowFindings(rows []generation, format int) []string {
 	return out
 }
 
+// isDigest reports whether s is a lower-case hex SHA-256.
+func isDigest(s string) bool {
+	b, err := hex.DecodeString(s)
+	return err == nil && len(b) == sha256.Size && strings.ToLower(s) == s
+}
+
 // stepFinding returns what is wrong with r following prev, or "" if nothing.
 func stepFinding(prev, r generation) string {
 	order := compareVersions(prev.version, r.version)
 	switch {
+	case prev.names != "" && r.names == "":
+		return fmt.Sprintf("%s records no names after %s did: the pin holds from the row that began it",
+			r.version, prev.version)
+	case order == 0 && r.names != prev.names:
+		return fmt.Sprintf("%s is described anew with other names: a change of names is a bump", r.version)
 	case order > 0:
 		return fmt.Sprintf("%s follows %s, but rows ascend by version", r.version, prev.version)
 	case order == 0 && r.format <= prev.format:
@@ -363,6 +384,19 @@ func TestRowFindings(t *testing.T) {
 			"row 1: 0.4.0 has 0.3.0's shape: a bump that changes no shape states the meaning it changes (docs/ir/ir-version.md); without one, revert the bump"},
 		{"a meaning claimed by a shape change", []generation{a, with(b, func(g *generation) { g.meaning = "x" })},
 			"row 1: 0.4.0 changes 0.3.0's shape, so it states no meaning: its version history entry says what changed"},
+		{"the row that begins the names pin", []generation{a, with(b, func(g *generation) { g.names = shapeA })}, ""},
+		{"a bump for changed names", []generation{
+			with(a, func(g *generation) { g.names = shapeA }),
+			with(b, func(g *generation) { g.shape, g.names, g.meaning = shapeA, shapeB, "x" }),
+		}, ""},
+		{"names that are no digest", []generation{with(a, func(g *generation) { g.names = "aa" })},
+			`row 0: names "aa" is not a lower-case hex SHA-256`},
+		{"a pin that lapses", []generation{with(a, func(g *generation) { g.names = shapeA }), b},
+			"row 1: 0.4.0 records no names after 0.3.0 did: the pin holds from the row that began it"},
+		{"a generation described anew with other names", []generation{
+			with(a, func(g *generation) { g.names = shapeA }),
+			with(a, func(g *generation) { g.format, g.shape, g.names = 2, shapeB, shapeB }),
+		}, "row 1: 0.3.0 is described anew with other names: a change of names is a bump"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
