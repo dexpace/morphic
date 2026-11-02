@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -172,7 +173,7 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		diags = append(diags, extDiags...)
 		one := ir.ServerVariable{
 			Name:      name,
-			Default:   v.GetDefault(),
+			Default:   variableDefault(v),
 			Enum:      v.GetEnum(),
 			Docs:      ir.Docs{Description: v.GetDescription()},
 			Unmodeled: ext,
@@ -181,4 +182,14 @@ func serverVariables(c lowering.Ctx, s *soa.Server, sptr jsontext.Pointer) ([]ir
 		out = append(out, one)
 	}
 	return out, diags
+}
+
+// variableDefault is the default v writes, nil where it writes no `default`
+// key. OpenAPI requires the key, so the empty string it may hold substitutes
+// nothing, and the parser's own field cannot tell that from an absent key.
+func variableDefault(v *soa.ServerVariable) *string {
+	if nodeview.Child(v.GetRootNode(), "default") == nil {
+		return nil
+	}
+	return new(v.GetDefault())
 }

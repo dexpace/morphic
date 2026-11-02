@@ -7,6 +7,8 @@ declared or inferred.
 type Provenance struct {
     Source   int              // index into Document.Sources, or NoSource (-1)
     Pointer  jsontext.Pointer // RFC 6901 pointer into that source; "" locates nothing finer than the source
+    WrittenBy int             // the input that wrote what Pointer addresses when not Source, an
+                              // overlay; 0 = Source wrote it
     Position Position         // 1-based line and column into that source, for a finding on a raw node
     Node     string           // IR-space location: a stable ID or a path through the document's own fields
     Inferred Inferred         // "" = declared; else the heuristics that produced this node or read a fact out of its
@@ -34,6 +36,18 @@ A reference has no `Provenance`, so a heuristic that sets a reference's `Nullabl
 the reference's own `TypeRef.Inferred` ([type-graph](./type-graph.md#type-references)). `ErrorCase`
 and `OAuthFlow` have none either, and record a promotion in an `Inferred` of their own
 ([promotion](./unmodeled.md#promotion)).
+
+**`Source` is where, `WrittenBy` is who.** An overlay patches a document in place, so what it
+writes sits at that document's positions and is read there. Its provenance names the patched
+document as `Source` and the overlay as `WrittenBy`, so every pointer is read against its
+`Source`: a renderer spells `root.yaml#/components/schemas/B (written by patch.yaml)`, and an
+explanation of a coordinate in the source reads the overlay's work beside the source's own. A
+finding about the overlay document itself, such as a refused action, is the overlay's `Source`, at a
+pointer into the overlay. The alternative weighed was a flag saying the pointer addresses the
+patched document, which keeps two meanings on `Source` that every reader must branch on.
+`WrittenBy` is 0 where `Source` wrote the construct, since entry 0, the document compiled, writes
+into no other; `irverify` holds any other value to an overlay entry other than `Source`
+(`ir/provenance-writer`).
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so

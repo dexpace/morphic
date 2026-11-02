@@ -89,8 +89,7 @@
       "docs": {},
       "sensitive": false,
       "xml": {
-        "name": "author",
-        "wrapped": false
+        "name": "author"
       },
       "provenance": {
         "source": 0,
@@ -114,8 +113,7 @@
       "xml": {
         "name": "book",
         "namespace": "urn:example:books",
-        "prefix": "bk",
-        "wrapped": false
+        "prefix": "bk"
       },
       "provenance": {
         "source": 0,
@@ -146,8 +144,7 @@
           "xml": {
             "namespace": "urn:example:books",
             "prefix": "bk",
-            "nodeType": "attribute",
-            "wrapped": false
+            "nodeType": "attribute"
           },
           "docs": {},
           "provenance": {

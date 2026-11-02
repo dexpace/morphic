@@ -41,6 +41,11 @@ type Provenance struct {
 	// whole document, so a node with no single place in any source, such as a
 	// shared primitive, is on NoSource rather than at the root of one.
 	Pointer jsontext.Pointer `json:"pointer,omitempty"`
+	// WrittenBy indexes, into Source's table, the input that wrote what Pointer
+	// addresses when that is not Source: an overlay, which writes into the
+	// document it patches, at that document's positions. 0 = Source wrote it,
+	// since entry 0, the document compiled, writes into no other.
+	WrittenBy int `json:"writtenBy,omitzero"`
 	// Position is where the construct starts inside Source, for a finding made
 	// on a raw node: beside the node's Pointer when the tree holds it, alone for
 	// a part of the source no pointer reaches and for the document's top-level

@@ -94,8 +94,7 @@
           "eventPayload": false,
           "secret": false,
           "xml": {
-            "nodeType": "attribute",
-            "wrapped": false
+            "nodeType": "attribute"
           },
           "docs": {},
           "provenance": {
@@ -127,8 +126,7 @@
           "xml": {
             "name": "B",
             "prefix": "p",
-            "nodeType": "text",
-            "wrapped": false
+            "nodeType": "text"
           },
           "docs": {},
           "provenance": {

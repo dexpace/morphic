@@ -50,11 +50,11 @@ func TestApplyWithin_DegradesToTheSourceAtTheNodeBudget(t *testing.T) {
 	var root yaml.Node
 	require.NoError(t, yaml.Unmarshal([]byte(budgetSpec), &root))
 
-	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(budgetOverlay)}, budget.AtMost(2))
+	origin, diags := applyWithin(t.Context(), 1, 0, &root, Options{Data: []byte(budgetOverlay)}, budget.AtMost(2))
 
 	assert.True(t, origin.Applied(), "the overlay applied, so it stays an input of the document")
 	assert.Equal(t, "overlay@1.0.0", origin.Source().Format, "and keeps its identity for Document.Sources")
-	assert.Equal(t, 9, origin.IndexAt("/info/description", 9), "no position is attributed to it, not even one it introduced")
+	assert.Equal(t, 0, origin.WriterAt("/info/description"), "no position is attributed to it, not even one it introduced")
 
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.OverlayOriginIncomplete, diags[0].Code)
@@ -126,7 +126,7 @@ func TestApplyWithin_RecoversALibraryPanic(t *testing.T) {
 	root := &yaml.Node{Kind: yaml.DocumentNode}
 	require.Nil(t, nodeview.DocumentRoot(root), "the shape under test: a document with no root")
 
-	origin, diags := applyWithin(t.Context(), 1, root, Options{Data: []byte(budgetOverlay), Lax: true}, budget.AtMost(maxNodes))
+	origin, diags := applyWithin(t.Context(), 1, 0, root, Options{Data: []byte(budgetOverlay), Lax: true}, budget.AtMost(maxNodes))
 
 	assert.False(t, origin.Applied(), "an overlay that faulted attributes nothing")
 	require.Len(t, diags, 1)
@@ -208,7 +208,7 @@ func TestApplyWithin_RefusesAGraftItCannotExpandWithinBudget(t *testing.T) {
 	const ov = "overlay: 1.0.0\ninfo: {title: o, version: \"1\", x-t: &t {a: 1, b: 2, c: 3, d: 4}}\n" +
 		"actions:\n  - target: $.paths\n    update: {p: *t}\n"
 
-	origin, diags := applyWithin(t.Context(), 1, &root, Options{Data: []byte(ov)}, budget.AtMost(12))
+	origin, diags := applyWithin(t.Context(), 1, 0, &root, Options{Data: []byte(ov)}, budget.AtMost(12))
 
 	assert.False(t, origin.Applied())
 	require.True(t, diag.HasError(diags), "the compile refuses: %+v", diags)
@@ -343,14 +343,13 @@ func TestSubstituteGrafts_StopsAtItsOwnBudget(t *testing.T) {
 		"and the same tree fits a real one — the budget is what differed")
 }
 
-// TestOrigin_IndexOfNamesTheSourceThatWroteEveryPosition pins the rule for a
-// construct no single position addresses: the one source that supplied every
-// position it combines, else the answer for the position it is recorded at.
-// The fallback is neither the overlay's index nor zero, so an answer that
-// ignored it could not pass for the base document's.
-func TestOrigin_IndexOfNamesTheSourceThatWroteEveryPosition(t *testing.T) {
+// TestOrigin_WriterOfNamesTheOverlayWhenItWroteEveryPosition pins the rule for
+// a construct no single position addresses: the overlay is its writer when it
+// supplied every position the construct combines, else the answer for the
+// position it is recorded at, and 0, the source writing it, otherwise.
+func TestOrigin_WriterOfNamesTheOverlayWhenItWroteEveryPosition(t *testing.T) {
 	t.Parallel()
-	const base = 7
+	const base = 0
 	origin := Origin{index: 1, pointers: map[jsontext.Pointer]bool{
 		"/s/if": true, "/s/then": true, "/t": true, "/t/if": true,
 	}}
@@ -373,7 +372,7 @@ func TestOrigin_IndexOfNamesTheSourceThatWroteEveryPosition(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, tc.origin.IndexOf(tc.pointer, tc.from, base))
+			assert.Equal(t, tc.want, tc.origin.WriterOf(tc.pointer, tc.from))
 		})
 	}
 }

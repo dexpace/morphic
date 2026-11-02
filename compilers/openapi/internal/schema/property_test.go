@@ -60,7 +60,7 @@ func TestLower_PropertyDetailRichSchema(t *testing.T) {
 	require.NotNil(t, byWire["withXml"].XML)
 	assert.Equal(t, "attribute", byWire["withXml"].XML.NodeType)
 	assert.Equal(t, "urn:x", byWire["withXml"].XML.Namespace)
-	assert.True(t, byWire["withXml"].XML.Wrapped)
+	assert.Equal(t, new(true), byWire["withXml"].XML.Wrapped)
 	assert.Len(t, byWire["withExample"].Examples, 3)
 	assert.NotEmpty(t, byWire["withExt"].Unmodeled)
 	var sawDefaultWarn bool

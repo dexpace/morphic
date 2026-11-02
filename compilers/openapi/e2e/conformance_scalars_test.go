@@ -424,7 +424,7 @@ func assertXMLHints(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	list, ok := doc.Types[authors.Type.Target].(*ir.List)
 	require.True(t, ok)
 	require.NotNil(t, list.XML)
-	assert.True(t, list.XML.Wrapped, "wrapping is a property of the collection")
+	assert.Equal(t, new(true), list.XML.Wrapped, "wrapping is a property of the collection")
 	elem, ok := doc.Types[list.Elem.Target]
 	require.True(t, ok)
 	require.NotNil(t, elem.Common().XML)

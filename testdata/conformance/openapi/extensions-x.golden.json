@@ -714,8 +714,7 @@
       },
       "sensitive": false,
       "xml": {
-        "name": "s",
-        "wrapped": false
+        "name": "s"
       },
       "unmodeled": {
         "openapi:externalDocs/x-mark": {

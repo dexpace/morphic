@@ -147,7 +147,7 @@ func TestExplain_SelectsTheNodeAndWhatIsBelowIt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := report.Explain(tt.doc, nil, nil, tt.pointer)
+			got := report.Explain(tt.doc, nil, tt.pointer)
 
 			assert.Empty(t, sameExplanation(tt.want, got))
 		})
@@ -164,7 +164,7 @@ func TestExplain_ReportsEachNodesKind(t *testing.T) {
 		&ir.Enum{ID: "t/e", Provenance: ir.Provenance{Pointer: "/k/e"}},
 	)}
 
-	got := report.Explain(doc, nil, nil, "/k")
+	got := report.Explain(doc, nil, "/k")
 
 	want := report.Explanation{
 		Pointer: "/k",
@@ -197,7 +197,7 @@ func TestExplain_AnEmptyPointerIsNotAlwaysTheRoot(t *testing.T) {
 			t.Parallel()
 			doc := &ir.Document{Types: registry(decoy, atRoot)}
 
-			got := report.Explain(doc, nil, nil, "")
+			got := report.Explain(doc, nil, "")
 
 			want := report.Explanation{Node: &report.Interned{ID: "t/root", Kind: ir.KindModel}}
 			assert.Empty(t, sameExplanation(want, got), "the root names the node declared there, never the decoy")
@@ -225,7 +225,7 @@ func TestExplain_ASharedPointerNamesTheLeastID(t *testing.T) {
 			types[id] = model(id, sharedPointer)
 		}
 
-		got := report.Explain(&ir.Document{Types: types}, nil, nil, sharedPointer)
+		got := report.Explain(&ir.Document{Types: types}, nil, sharedPointer)
 
 		require.NotNil(t, got.Node, "round %d: the coordinate holds %d nodes", round, nodes)
 		require.Equal(t, ir.TypeID("t/n/00"), got.Node.ID, "round %d", round)
@@ -250,7 +250,7 @@ func TestExplain_TiedPointersListInIDOrder(t *testing.T) {
 		}
 	}
 
-	got := report.Explain(&ir.Document{Types: types}, nil, nil, "/components/schemas").Below
+	got := report.Explain(&ir.Document{Types: types}, nil, "/components/schemas").Below
 
 	require.Len(t, got, pointers*perPointer)
 	for i := 1; i < len(got); i++ {
@@ -274,7 +274,7 @@ func TestExplain_SelectsOnlyTheCoordinatesDiagnostics(t *testing.T) {
 		diag("c", ir.Provenance{Pointer: "/p"}),
 	}
 
-	got := report.Explain(nil, diags, nil, "/p")
+	got := report.Explain(nil, diags, "/p")
 
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{diags[0], diags[3]}, got.Diagnostics))
 }
@@ -293,7 +293,7 @@ func TestExplain_RootExcludesPositionAndNodeLocatedFindings(t *testing.T) {
 	besideSource := diag("s", ir.Provenance{Source: 0, Node: "op/x"})
 	atRoot := diag("r", ir.Provenance{Source: 0})
 
-	got := report.Explain(nil, []ir.Diagnostic{byPosition, byNode, besideSource, atRoot}, nil, "")
+	got := report.Explain(nil, []ir.Diagnostic{byPosition, byNode, besideSource, atRoot}, "")
 
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{besideSource, atRoot}, got.Diagnostics),
 		"only findings about the source as a whole are at the root")
@@ -415,36 +415,38 @@ func TestWriteExplanation_StopsAtFirstFailingWrite(t *testing.T) {
 }
 
 // TestExplain_ReadsOnlyTheSourcesCoordinates pins which positions a coordinate
-// of the compiled source matches: the source's own, and an overlay's, which
-// locates what it patched in the source, but not another document's, whose
-// pointer spells a position of that document though it is written alike, nor
-// an entry the table does not hold.
+// of the compiled source matches: the source's own, whoever wrote them, an
+// overlay included, but not the overlay's own document, nor another document,
+// whose pointer spells a position of that document though it is written alike,
+// nor an entry the table does not hold.
 func TestExplain_ReadsOnlyTheSourcesCoordinates(t *testing.T) {
 	t.Parallel()
 	const pet = jsontext.Pointer("/components/schemas/Pet")
 	sources := []ir.SourceInfo{{Format: "openapi@3.1"}, {Format: "overlay@1.0.0"}, {Format: "openapi@3.1"}}
-	at := func(id ir.TypeID, source int, pointer jsontext.Pointer) *ir.Model {
-		return &ir.Model{ID: id, Provenance: ir.Provenance{Source: source, Pointer: pointer}}
-	}
-	finding := func(code string, source int) ir.Diagnostic {
-		return diag(code, ir.Provenance{Source: source, Pointer: pet})
-	}
+	at := func(id ir.TypeID, prov ir.Provenance) *ir.Model { return &ir.Model{ID: id, Provenance: prov} }
+	finding := func(code string, prov ir.Provenance) ir.Diagnostic { return diag(code, prov) }
 	doc := &ir.Document{Sources: sources, Types: registry(
-		at("t/0-other", 2, pet),
-		at("t/1-source", 0, pet),
-		at("t/2-other", 2, pet+"/properties/owner"),
-		at("t/3-overlay", 1, pet+"/properties/tag"),
-		at("t/4-unheld", 7, pet+"/properties/gone"),
+		at("t/0-other", ir.Provenance{Source: 2, Pointer: pet}),
+		at("t/1-source", ir.Provenance{Source: 0, Pointer: pet}),
+		at("t/2-other", ir.Provenance{Source: 2, Pointer: pet + "/properties/owner"}),
+		at("t/3-written", ir.Provenance{Source: 0, Pointer: pet + "/properties/tag", WrittenBy: 1}),
+		at("t/4-unheld", ir.Provenance{Source: 7, Pointer: pet + "/properties/gone"}),
+		at("t/5-overlay-file", ir.Provenance{Source: 1, Pointer: pet + "/properties/x"}),
 	)}
-	diags := []ir.Diagnostic{finding("source", 0), finding("overlay", 1), finding("other", 2), finding("unheld", 7)}
+	written := finding("written", ir.Provenance{Source: 0, Pointer: pet, WrittenBy: 1})
+	diags := []ir.Diagnostic{
+		finding("source", ir.Provenance{Source: 0, Pointer: pet}), written,
+		finding("overlay-file", ir.Provenance{Source: 1, Pointer: pet}),
+		finding("other", ir.Provenance{Source: 2, Pointer: pet}), finding("unheld", ir.Provenance{Source: 7, Pointer: pet}),
+	}
 
-	got := report.Explain(doc, diags, sources, pet)
+	got := report.Explain(doc, diags, pet)
 
 	assert.Empty(t, sameExplanation(report.Explanation{
 		Pointer:     pet,
 		Node:        &report.Interned{Pointer: pet, ID: "t/1-source", Kind: ir.KindModel},
-		Below:       []report.Interned{interned(pet+"/properties/tag", "t/3-overlay")},
-		Diagnostics: []ir.Diagnostic{finding("source", 0), finding("overlay", 1)},
+		Below:       []report.Interned{interned(pet+"/properties/tag", "t/3-written")},
+		Diagnostics: []ir.Diagnostic{diags[0], written},
 	}, got))
 }
 
