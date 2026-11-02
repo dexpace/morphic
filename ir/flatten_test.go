@@ -355,7 +355,7 @@ func TestFlattenedProperties_Secret(t *testing.T) {
 				owning("m", nil, typed("m.c", "c", "c1"), typed("m.l", "l", "list"),
 					typed("m.gone", "gone", "missing"), typed("m.nil", "nil", "nil")),
 				sensitiveScalar("c1", "c2", false), sensitiveScalar("c2", "c1", false),
-				&ir.List{TypeCommon: ir.TypeCommon{ID: "list"}, Elem: ir.TypeRef{Target: "pw"}},
+				&ir.List{ID: "list", Elem: ir.TypeRef{Target: "pw"}},
 				sensitiveScalar("pw", "t/prim/string", true),
 			),
 			want: []string{"m.c@m", "m.l@m", "m.gone@m", "m.nil@m"},
