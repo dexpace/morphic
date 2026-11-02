@@ -146,3 +146,36 @@ func TestReferenceEnd_NamesWhereEachKindOfReferenceEnds(t *testing.T) {
 	_, ok := resolve.ReferenceEnd(got.Doc)
 	assert.False(t, ok, "a document is no reference")
 }
+
+// TestReferenceEnd_NamesWhereAMediaTypeReferenceEnds pins ReferenceEnd for the
+// reference the load phase models a content entry written as a $ref as, which
+// the library's walk never meets: it ends in the source's model, at the
+// components/mediaTypes entry it names (GitHub #856).
+func TestReferenceEnd_NamesWhereAMediaTypeReferenceEnds(t *testing.T) {
+	t.Parallel()
+	got, diags, err := load.Load(t.Context(), 0, openapitest.SourceOf(openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/M'}
+components:
+  mediaTypes:
+    M: {schema: {type: string}}
+`)), load.Options{})
+	require.NoError(t, err)
+	require.NotNil(t, got, "%+v", diags)
+	item, ok := got.Doc.GetPaths().Get("/a")
+	require.True(t, ok)
+	response, ok := item.GetObject().Get().GetResponses().Get("200")
+	require.True(t, ok)
+	media, ok := response.GetObject().GetContent().Get("application/json")
+	require.True(t, ok)
+	use, isUse := got.MediaTypes.Use(media)
+	require.True(t, isUse)
+	end, ended := resolve.ReferenceEnd(use)
+	require.True(t, ended)
+	assert.Same(t, got.Doc, end.Document)
+	assert.Equal(t, jsontext.Pointer("/components/mediaTypes/M"), end.Pointer)
+}

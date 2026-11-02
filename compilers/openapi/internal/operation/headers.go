@@ -83,7 +83,7 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name stri
 	// this mount's, and lowered in its declaration's document (dc), so every
 	// response mounting one header builds the same nodes beneath it, in
 	// whichever order they lower (GitHub #433).
-	headerType, headerDiags := schema.CarriedRef(dc, ts, schema.TopLevelDepth, elected.js, elected.pointer)
+	headerType, headerDiags := schema.CarriedRef(elected.ctx, ts, schema.TopLevelDepth, elected.js, elected.pointer)
 	diags = append(diags, headerDiags...)
 	p := ir.Property{
 		ID:         c.IDs().Prop(hptr),
@@ -101,7 +101,7 @@ func lowerHeader(c, dc lowering.Ctx, ts *compile.Types, h *soa.Header, name stri
 		// spelling keeps.
 		p.Encoding = &ir.Encoding{MediaType: elected.mediaType}
 	}
-	diags = append(diags, schema.FillPropertyDetail(dc, ts, &p, elected.js, elected.pointer)...)
+	diags = append(diags, schema.FillPropertyDetail(elected.ctx, ts, &p, elected.js, elected.pointer)...)
 	diags = append(diags, applyHeaderAnnotations(dc, &p, h, hdecl, elected.examples)...)
 	diags = append(diags, schema.PromoteUse(dc, elected.js, p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
 	lowered := ir.Header{Property: p, Explode: h.Explode}
