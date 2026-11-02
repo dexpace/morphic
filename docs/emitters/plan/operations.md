@@ -14,6 +14,8 @@ type OpPlan struct {
     Page            *PagePlan         // nil = not paginated
     Stream          *StreamPlan       // nil = neither direction streams (docs/ir/interaction-patterns.md)
     LRO             *LROPlan          // nil = not long-running
+    Stability       ir.Stability      // its own tier, else its nearest group's; "" = none
+                                      // states one (../refine/redaction.md#a-stability-tier)
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
     Bindings        BindingView       // per-protocol param/request/response view from OpBindings
     Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6)
