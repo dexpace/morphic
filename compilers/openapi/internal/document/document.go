@@ -42,7 +42,6 @@ func Lower(c lowering.Ctx) (Meta, []ir.Diagnostic) {
 	m.Unmodeled = annotation.MergeUnmodeled(m.Unmodeled, retained)
 	diags = append(diags, retainDiags...)
 
-	diags = append(diags, keepComponentMediaTypes(c, &m.Unmodeled)...)
 	diags = append(diags, keepJSONSchemaDialect(c, &m.Unmodeled)...)
 	return m, append(diags, documentUnknownKeys(c, &m.Unmodeled)...)
 }

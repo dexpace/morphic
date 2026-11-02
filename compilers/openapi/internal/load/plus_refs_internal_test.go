@@ -80,7 +80,7 @@ func (l loadedPlus) assertModelsAsWritten(t *testing.T) {
 			require.NoError(t, item.Match(soa.Matcher{Any: func(model any) error { add(model); return nil }}))
 		}
 	}
-	walk(walkSource(ctx, l.doc.Doc, l.doc.Siblings))
+	walk(walkSource(ctx, l.doc.Doc, l.doc.Siblings, l.doc.MediaTypes))
 	for _, landing := range l.doc.Bindings.Table().Landings() {
 		if js := l.doc.Bindings.At(landing.At); js != nil {
 			walk(walkOf(js)(ctx))
@@ -128,7 +128,7 @@ func assertNoRewrittenSpelling(t *testing.T, diags []ir.Diagnostic) {
 func (l loadedPlus) refAt(t *testing.T, site jsontext.Pointer) any {
 	t.Helper()
 	var found any
-	for item := range walkSource(t.Context(), l.doc.Doc, l.doc.Siblings) {
+	for item := range walkSource(t.Context(), l.doc.Doc, l.doc.Siblings, l.doc.MediaTypes) {
 		require.NoError(t, item.Match(soa.Matcher{Any: func(model any) error {
 			r, ok := model.(interface{ IsReference() bool })
 			if ok && r.IsReference() && jsontext.Pointer(item.Location.ToJSONPointer()) == site {

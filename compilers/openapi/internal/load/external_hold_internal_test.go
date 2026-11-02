@@ -482,7 +482,7 @@ func TestHold_ASecondResolutionHoldsTheSpellingsTheFirstFound(t *testing.T) {
 
 	again, _ := heldResolution(t, backRoot(backPath("/a", "#/components/responses/R")), filepath.Join(dir, "root.yaml"))
 	ext := newExternal(t.Context(), again, Options{}, pass.reader.read)
-	ext.hold(t.Context(), Siblings{})
+	ext.hold(t.Context(), Siblings{}, MediaTypes{})
 
 	_, ok := again.GetCachedReferencedObject(spelled + "#/components/responses/R")
 	assert.True(t, ok, "held under the spelling the first resolution found")
@@ -703,7 +703,7 @@ func TestHold_ASecondResolutionHoldsWhatTheFirstDid(t *testing.T) {
 
 	again, _ := heldResolution(t, responsesSource(4), path)
 	ext := newExternal(t.Context(), again, Options{}, pass.reader.read)
-	ext.hold(t.Context(), Siblings{})
+	ext.hold(t.Context(), Siblings{}, MediaTypes{})
 
 	held := func(key, response string) bool {
 		_, ok := again.GetCachedReferencedObject(key + "#/components/responses/" + response)
