@@ -183,7 +183,7 @@ func (c *correlator) members(key string, e *ir.Enum) {
 // property offers p its key, and, when p takes it, keys p's type, what its
 // encoding decodes to and its field arguments.
 func (c *correlator) property(key string, p *ir.Property) {
-	c.offer(child(key, "prop", wireName(p)), string(p.ID), func(c *correlator, key string) {
+	c.offer(child(key, "prop", p.EffectiveWireName()), string(p.ID), func(c *correlator, key string) {
 		c.ref(part(key, "type"), &p.Type)
 		c.decoded(key, p.Encoding)
 		for i := range p.Args {
@@ -193,14 +193,6 @@ func (c *correlator) property(key string, p *ir.Property) {
 			})
 		}
 	})
-}
-
-// wireName is the name p travels under.
-func wireName(p *ir.Property) string {
-	if p.WireName != "" {
-		return p.WireName
-	}
-	return p.Name.Source
 }
 
 // additional keys the types a model's catch-all names: its value, its key and

@@ -263,7 +263,7 @@ func (c *correlator) stream(key string, s *ir.StreamDetail) {
 func (c *correlator) headers(key string, hs []ir.Header) {
 	for i := range hs {
 		h := &hs[i].Property
-		c.offer(child(key, "header", strings.ToLower(wireName(h))), string(h.ID), func(c *correlator, key string) {
+		c.offer(child(key, "header", strings.ToLower(h.EffectiveWireName())), string(h.ID), func(c *correlator, key string) {
 			c.ref(part(key, "type"), &h.Type)
 			c.decoded(key, h.Encoding)
 		})
