@@ -162,10 +162,12 @@ func TestRefusalSubject_RunsWhatItIsGiven(t *testing.T) {
 // RequireOpensModuleFiles builds for its refusals, which the injected tests
 // cannot: a caller naming itself, one inside a marked child, and a child whose
 // log opens nothing must each fail the process that made the call, for the
-// reason named. Without them the call recurses without end or passes on any log.
+// reason named. It also holds the module files the function requires. Without
+// them the call recurses without end or passes on any log.
 func TestRequireOpensModuleFiles_RefusesThroughARealChild(t *testing.T) {
 	t.Parallel()
 	const self = "TestRefusalSubject_RunsWhatItIsGiven"
+	root := irtest.RepoRoot(t)
 	tests := []struct {
 		name    string
 		subject string
@@ -176,7 +178,8 @@ func TestRequireOpensModuleFiles_RefusesThroughARealChild(t *testing.T) {
 		{"a caller inside a marked child", "TestReadModuleFiles_OpensGoModAndGoSum", true,
 			self + " runs in a child RequireOpens started"},
 		{"a child that opens nothing", "TestUnopened_NamesTheModuleFilesTheLogLacks", false,
-			"TestUnopened_NamesTheModuleFilesTheLogLacks does not open "},
+			"TestUnopened_NamesTheModuleFilesTheLogLacks does not open " +
+				filepath.Join(root, "go.mod") + ", " + filepath.Join(root, "go.sum") + ", so"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
