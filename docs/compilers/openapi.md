@@ -391,12 +391,13 @@ location before another declared that URI is reached by no later pass, so it dec
 lowers nothing and is no `Document.Sources` entry. Where what a pass reaches turns on what those
 documents declare, so that no pass agrees with the one before it, every document read declares what
 it does from the pass that would read against what an earlier one read. A pass reads the documents
-absolute URIs name only once what the documents it reached declare changes no URI it asked for, and
-reads them together, so one of them may declare another's URI, whose document is then read for
-nothing. Each pass reads every reference again, so a chain of documents each named by an absolute
-URI costs a pass a link. A pointer passing a reference object reads on where the resolver resolved
-that, in whichever document, and a `$ref` written in another document's content is read in that
-document. What a `$ref` lands on in another document lowers where that document declares it; one in
+absolute URIs name once its walks are done, and only while what the documents it reached declare
+changes no URI it asked for. It reads them together, so one of them may declare another's URI, whose
+document is then read for nothing, and goes on, reading again only the references that waited for
+them, so a chain of documents each named by an absolute URI costs what reading it once does. A
+pointer passing a reference object reads on where the resolver resolved that, in whichever
+document, and a `$ref` written in another document's content is read in that document.
+What a `$ref` lands on in another document lowers where that document declares it; one in
 the source lowers at the pointer the `$ref` spells. A use site takes what its schema `$ref`'s chain
 ends on — an annotation, a form body's parts, a file body or a discriminator — whichever documents
 the chain passes, as its type names that schema. An empty `$ref` names the document's root, which
@@ -486,12 +487,15 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `bind.TestBind_ReadsEachPositionAsTheJSONItSpells`, `bind.TestBind_ReadsARepeatedKeyAsItsLast`,
   `bind.TestBind_StopsAtItsBudget`, `bind.TestBind_ThePassTheBudgetRunsOutInStands`,
   `bind.TestBind_CountsWorkLinearInTheDocument`,
+  `bind.TestBind_CountsWorkLinearAcrossHeldDocuments`,
   `bind.TestBind_ReadsEveryWebhookAsAPathItem`, `bind.TestBind_PlacesAnEndAtTheNodeItsChainReached`,
   `e2e.TestReferenceEnds_AnEndingSlashIsReadWhereTheParserResolvedIt`,
   `e2e.TestReferenceEnds_AnEndInTheSourceIsReadThereUnderSelf`,
   `load.TestBindSchemas_PlacesEveryEndAndBindsEveryRefInTheCorpus`,
   `bind.TestBind_ReadsWhatAnotherDocumentDeclares`, `bind.TestBind_ReadsBelowAnIDOfAnotherDocument`,
-  `bind.TestBind_AnIdentifierIsNoLocationToFetch`, `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
+  `bind.TestBind_AnIdentifierIsNoLocationToFetch`,
+  `bind.TestBind_AHeldDocumentMayDeclareAnothersURI`,
+  `bind.TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier`,
   `bind.TestBind_ALocationADocumentDeclaresIsThatIdentifier`, `bind.TestBind_DeclarationOrderReachesNoAnswer`,
   `bind.TestBind_ADocumentNoPassReachesDeclaresNothing`,
   `bind.TestBind_TheSourceDeclaresOnceWhateverThePasses`,
@@ -511,9 +515,7 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   holding a character above U+FFFF is refused as malformed (#516), and an unresolved reference
   object's message ends in the resolver's own wording, unless its chain ends on a position holding
   no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file a
-  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040). A chain
-  of documents each named by an absolute URI costs a pass a link, so its work grows with the square
-  of its length (#1349).
+  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040).
 
 ### `reference-cycles`
 

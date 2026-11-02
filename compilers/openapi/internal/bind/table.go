@@ -19,11 +19,11 @@ import (
 )
 
 // MaxSteps bounds the work the load phase lets one table cost: each node
-// read, token walked, hop followed and document opened is a step. The source
-// and every document it names are each held to the compiler's node budget
-// before they get here, so this is far above what a pass over any admitted
-// document costs, and only documents built to multiply that work meet it, as a
-// chain of them read a pass a link (readHeld) can.
+// read, token walked, hop followed and document opened, read for what it
+// declares or counted at a drain is a step. The source and every document it
+// names are each held to the compiler's node budget before they get here, so
+// this is far above what any admitted document costs, and only a document built
+// to multiply that work meets it.
 const MaxSteps = 1 << 26
 
 // Config is what a table needs from the compile reading it.
@@ -124,7 +124,10 @@ func (w *work) cancelled() bool { return w.ctx.Err() != nil }
 
 // binder is the state of one pass of a table's building: every reference read
 // once against the URIs its identifiers hold (identifiers.commit). held is each
-// document an absolute URI named that the pass has not read.
+// document an absolute URI named that the pass has not read, and wait what
+// waits for those documents. committed reports that a drain of the pass has
+// committed what it reached, and stale that the declarations of a URI it asked
+// for changed, so the pass is read again (reread).
 type binder struct {
 	cfg       Config
 	docs      *docs
@@ -134,20 +137,23 @@ type binder struct {
 	find      *finder
 	ids       *identifiers
 	held      map[string]bool
+	wait      *waits
 	hops      map[Position]Hop
 	chains    map[Position]Chain
 	loops     []Loop
+	committed bool
+	stale     bool
 }
 
 // Bind reads every schema reference the source tree src holds, and every
 // position a reference reaches through it, into a table, within the budget. It
 // stops once ctx is done, leaving a table its caller must not read.
 //
-// It reads in passes, since whether a URI is an identifier depends on what the
-// documents read declare, and which are read on what the URIs name. Each pass
-// reads every reference again, and only the last one's answers stand, so no
-// declaration order reaches one (reread). Each but the last reads what none
-// before it read (identifiers.commit), so they end.
+// It reads in passes, as whether a URI is an identifier turns on which
+// documents are read, and which are read on what the URIs name. A pass reruns
+// only when what it reached changes a URI it asked for, and only the last
+// stands, so no declaration order reaches an answer (reread); each reads what
+// none before it did (identifiers.commit).
 func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 	w := &work{ctx: ctx, steps: budget.New(cfg.Limit)}
 	d := newDocs(src, cfg, w)
@@ -163,59 +169,90 @@ func Bind(ctx context.Context, src *yaml.Node, cfg Config) *Table {
 
 // newBinder returns a pass over d, knowing what ids holds and nothing else.
 func newBinder(cfg Config, d *docs, w *work, ids *identifiers) *binder {
-	d.reached = map[DocID]bool{Source: true}
+	d.reached, d.fresh = map[DocID]bool{Source: true}, nil
 	return &binder{cfg: cfg, docs: d, work: w, defs: definitions{docs: d, work: w}, resources: resources{d},
-		find: newFinder(d, w, ids), ids: ids, held: map[string]bool{}, hops: map[Position]Hop{},
+		find: newFinder(d, w, ids), ids: ids, held: map[string]bool{}, wait: newWaits(), hops: map[Position]Hop{},
 		chains: map[Position]Chain{}}
 }
 
-// run answers every reference the pass b reaches.
+// run answers every reference the pass b reaches, going on past what it held
+// for as long as that changes no answer it gave (goOn). A site still waiting
+// when the pass ends, as the budget or a change stopped it, has no entry: the
+// table says why (Table.Unread), or the pass is read again.
 func run(b *binder) *Table {
 	b.find.walk(rootOf(Source, sDocument), false)
 	b.ids.begin()
 	t := &Table{entries: map[Position]Entry{}, mappings: map[mappingKey]Mapping{}}
-	for more := true; more && !b.work.over(); more = b.find.walkPending() {
-		b.settle(t)
+	for {
+		for more := true; more && !b.work.over(); more = b.find.walkPending() {
+			b.settle(t)
+		}
+		if b.work.over() || !goOn(b) {
+			break
+		}
 	}
 	b.placeLoops()
 	return t
 }
 
-// reread reports whether the pass b, ended, must be run again: what the
-// documents it reached declare changes a URI it asked for, so an answer it gave
-// is not theirs, or it held back documents absolute URIs name (readHeld). A
-// document only an earlier pass reached declares nothing. The pass the budget
-// runs out in, wherever in it, is the last, and its answers stand, so no pass
-// begins with nothing to spend.
-func reread(b *binder) bool {
+// goOn reports whether the pass b, its walks done, goes on. It does while
+// what the documents it reached declare changes no URI it asked for (settled):
+// to read the documents it held and the hops that waited for them, which the
+// next drain holds to the same test, or, once nothing is held, to settle what
+// waited. A change ends it, to be read again.
+func goOn(b *binder) bool {
+	if !settled(b) {
+		b.stale = true
+		return false
+	}
+	if len(b.held) == 0 {
+		return b.wait.release(b.find)
+	}
+	readHeld(b)
 	if b.work.over() {
 		return false
 	}
+	b.wait.requeue(b.find, b.hops)
+	return true
+}
+
+// settled reports whether what the documents the pass b reached declare leaves
+// the declarations of every URI it asked for as it read them. Its first drain
+// commits what it reached whole, as a document an earlier pass reached may no
+// longer be. A pass only adds to what it reaches, so a later drain grows by
+// what it reached since (identifiers.grow), and commits only to judge a change.
+// Each document a drain counts is a step.
+func settled(b *binder) bool {
 	b.find.identifyAll()
-	if !b.ids.commit(b.docs.reached) {
-		if len(b.held) == 0 {
-			return false
-		}
-		readHeld(b)
+	fresh := b.docs.takeFresh()
+	b.work.spend(len(fresh))
+	if b.committed && !b.ids.grow(fresh) {
+		return true
 	}
-	return !b.work.over()
+	b.committed = true
+	b.work.spend(len(b.docs.reached))
+	return !b.ids.commit(b.docs.reached)
+}
+
+// reread reports whether the pass b, ended, must be run again: what the
+// documents it reached declare changed a URI it asked for, so an answer it gave
+// is not theirs (goOn). A document only an earlier pass reached declares
+// nothing. The pass the budget runs out in, wherever in it, is the last, and
+// its answers stand, so no pass begins with nothing to spend.
+func reread(b *binder) bool {
+	return b.stale && !b.work.over()
 }
 
 // readHeld reads the documents the pass b held back, as no document it read
-// answers for their URIs (OAS 3.1 §4.3.1), so the next pass reads against what
-// they declare. They are read together, a pass for all rather than one each, so
-// one may declare another's URI, read then for nothing, and a document one of
-// them names waits for the pass after: a chain of them costs a pass a link
-// (GitHub #1349). b reached none of them, should it be the last.
+// answers for their URIs (OAS 3.1 §4.3.1). They are read together, a round for
+// all rather than one each, so one may declare another's URI, read then for
+// nothing: the next drain sees the change, and the next pass reads against it.
 func readHeld(b *binder) {
-	reached := maps.Clone(b.docs.reached)
 	for _, name := range slices.Sorted(maps.Keys(b.held)) {
-		// Its failure is kept for the pass that asks for it again (docs.open).
+		// Its failure is kept for the hop that asks for it again (docs.open).
 		_, _ = b.docs.open(name)
 	}
-	b.find.identifyAll()
-	b.ids.commit(b.docs.reached)
-	b.docs.reached = reached
+	clear(b.held)
 }
 
 // rootOf is the root at the root of document id, read at s.
@@ -236,22 +273,35 @@ func (b *binder) settle(t *Table) {
 		if b.work.cancelled() {
 			return
 		}
-		c := b.chain(site)
-		t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
-	}
-	slices.SortFunc(keys, func(x, y mappingKey) int {
-		if c := b.docs.compare(x.at, y.at); c != 0 {
-			return c
+		if c, waits := b.chain(site); waits {
+			b.wait.sites[site] = true
+		} else {
+			t.entries[site] = Entry{Site: site, Hop: b.hops[site], Chain: c}
 		}
-		return cmp.Compare(x.value, y.value)
-	})
+	}
+	slices.SortFunc(keys, mappingOrder(b.docs))
 	for _, k := range keys {
 		if b.work.cancelled() {
 			return
 		}
-		t.mappings[k] = b.mapping(k)
+		if m, waits := b.mapping(k); waits {
+			b.wait.mappings[k] = true
+		} else {
+			t.mappings[k] = m
+		}
 	}
 	b.find.landOnAnchors()
+}
+
+// mappingOrder orders mapping values by their discriminator's position in d,
+// then by value.
+func mappingOrder(d *docs) func(x, y mappingKey) int {
+	return func(x, y mappingKey) int {
+		if c := d.compare(x.at, y.at); c != 0 {
+			return c
+		}
+		return cmp.Compare(x.value, y.value)
+	}
 }
 
 // table finishes t: an entry for each position a chain passed that no walk

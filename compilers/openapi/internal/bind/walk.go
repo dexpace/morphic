@@ -121,16 +121,14 @@ func (w *finder) identify(id DocID) {
 	}
 }
 
-// identifyAll reads what each document opened so far declares.
+// identifyAll reads what each document opened so far declares, starting past
+// those an earlier call read, so a pass that drains many times reads each once.
 func (w *finder) identifyAll() {
-	for id := range DocID(len(w.docs.list)) {
-		if w.ids.read[id] {
-			continue
-		}
-		if w.work.over() {
+	for ; w.ids.scanned < DocID(len(w.docs.list)); w.ids.scanned++ {
+		if !w.work.spend(1) {
 			return
 		}
-		w.identify(id)
+		w.identify(w.ids.scanned)
 	}
 }
 
@@ -311,8 +309,9 @@ type mappingKey struct {
 }
 
 // mapping is where the mapping value k names, read as a $ref written at the
-// discriminator: a hop, and the chain on from where it lands.
-func (b *binder) mapping(k mappingKey) Mapping {
+// discriminator: a hop, and the chain on from where it lands. It reports waits
+// where either waits for a document the pass has yet to read (waits).
+func (b *binder) mapping(k mappingKey) (Mapping, bool) {
 	// A discriminator is a position its document holds, so the path reaches it.
 	path, _ := b.docs.path(k.at)
 	m := Mapping{At: k.at, Hop: b.resolve(k.at, path, k.value, false)}
@@ -321,16 +320,21 @@ func (b *binder) mapping(k mappingKey) Mapping {
 	}
 	if m.Hop.Status != Resolved {
 		m.Chain = Chain{Status: m.Hop.Status}
-		return m
+		if m.Hop.Reason == Held {
+			b.wait.heldMappings = append(b.wait.heldMappings, k)
+			return m, true
+		}
+		return m, false
 	}
 	b.find.landed(m.Hop)
 	if !b.holdsRef(m.Hop.Target) {
 		m.Chain = Chain{Status: Resolved, End: m.Hop.Target, Hops: 1}
-		return m
+		return m, false
 	}
-	m.Chain = b.chain(m.Hop.Target)
-	if m.Chain.Status == Resolved {
-		m.Chain.Hops++
+	c, waits := b.chain(m.Hop.Target)
+	if c.Status == Resolved {
+		c.Hops++
 	}
-	return m
+	m.Chain = c
+	return m, waits
 }

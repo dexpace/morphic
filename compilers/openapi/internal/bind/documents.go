@@ -43,7 +43,8 @@ type document struct {
 
 // docs is every document a table has read, and the work reading them costs.
 // reached is those the pass under way asked for, which a document read for a
-// pass before it need not be.
+// pass before it need not be, and fresh those of them it reached since a
+// drain last took them (takeFresh).
 type docs struct {
 	cfg     Config
 	list    []*document
@@ -51,6 +52,7 @@ type docs struct {
 	failed  map[string]error
 	work    *work
 	reached map[DocID]bool
+	fresh   []DocID
 }
 
 // newDocs returns the documents of a table over the source tree root.
@@ -85,7 +87,7 @@ func (d *docs) refusal(uri string) string {
 // first time it is asked for, and the same answer every later time.
 func (d *docs) open(name string) (DocID, error) {
 	if id, ok := d.byName[name]; ok {
-		d.reached[id] = true
+		d.reach(id)
 		return id, nil
 	}
 	if err, ok := d.failed[name]; ok {
@@ -108,8 +110,23 @@ func (d *docs) open(name string) (DocID, error) {
 	view := nodeview.New()
 	d.list = append(d.list, &document{name: name, root: root, view: view, openapi: writesOpenAPI(view, root)})
 	d.byName[name] = id
-	d.reached[id] = true
+	d.reach(id)
 	return id, nil
+}
+
+// reach notes that the pass under way asked for document id.
+func (d *docs) reach(id DocID) {
+	if !d.reached[id] {
+		d.reached[id] = true
+		d.fresh = append(d.fresh, id)
+	}
+}
+
+// takeFresh returns the documents reached since it last ran, and forgets them.
+func (d *docs) takeFresh() []DocID {
+	fresh := d.fresh
+	d.fresh = nil
+	return fresh
 }
 
 // writesOpenAPI reports whether root, a document's, is an OpenAPI Object: one

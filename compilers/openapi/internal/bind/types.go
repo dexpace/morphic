@@ -169,8 +169,8 @@ const (
 	// document, that resolves to nothing the compiler reads.
 	Unpassable
 	// Held is a reference to a document an absolute URI names, whose read waits
-	// for the pass to end. A later pass answers it, unless the budget cuts it
-	// first.
+	// until the pass's walks are done. The pass then reads it and answers it,
+	// unless the budget cuts it first.
 	Held
 	// MergeBound is a read that stopped at a mapping merging through `<<`
 	// deeper than nodeview.MergeDepthLimit, so a key it needs may lie past the

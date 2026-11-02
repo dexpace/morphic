@@ -76,7 +76,7 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 	root, found, why := b.ids.lookupURI(key)
 	switch {
 	case found:
-		b.docs.reached[root.Doc] = true
+		b.docs.reach(root.Doc)
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
 		return resource{}, why, key
@@ -120,8 +120,8 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 
 // read is the resource of the document named name, read through Config.Open,
 // or why the read failed. The first read of a document an absolute URI names
-// waits for the pass to end (Held), since a document read meanwhile may declare
-// that URI, and an identifier is not a location to fetch (reread).
+// waits until the pass's walks are done (Held), since a document read meanwhile
+// may declare that URI, and an identifier is not a location to fetch (goOn).
 func (b *binder) read(name string) (resource, Reason, string) {
 	if absolute(name) && b.docs.unread(name) {
 		b.held[name] = true
@@ -240,6 +240,9 @@ func (b *binder) hop(p Position) Hop {
 	b.hops[p] = h
 	if h.Status == Resolved {
 		b.find.landed(h)
+	}
+	if h.Reason == Held {
+		b.wait.held = append(b.wait.held, p)
 	}
 	return h
 }

@@ -107,44 +107,118 @@ func TestBind_StopsAtItsBudget(t *testing.T) {
 }
 
 // TestBind_ThePassTheBudgetRunsOutInStands pins that the pass the budget runs
-// out in is the last, wherever in it the budget does: the least budget that
-// reads the document held for the next pass is one the first pass fits, and it
-// and one step less keep that pass's answers rather than begin one with nothing
-// to spend. A document read for a pass that never runs is not one the table
-// reached.
+// out in is the last, wherever in it the budget does. A document the first
+// pass reads as a location, which a later declaration names elsewhere, is
+// reached by no later pass, so the least budget that leaves it unreached begins
+// a second pass, and one step less keeps every answer the first gave rather
+// than begin one with nothing to spend.
 func TestBind_ThePassTheBudgetRunsOutInStands(t *testing.T) {
 	t.Parallel()
-	const src = head + "components:\n  schemas:\n    A: {$ref: 'https://x.test/s#/S'}\n" +
-		"    B: {$ref: '#/components/schemas/T'}\n    C: {$ref: '#/components/schemas/T'}\n    T: {type: integer}\n"
-	docs := map[string]string{"https://x.test/s": "S: {type: string}\n"}
-	bindAt := func(limit budget.Limit) (*bind.Table, []string) {
-		cfg, reads := recordingDocuments(t, docs)
-		cfg.Limit = limit
-		return bound(t, src, cfg), *reads
+	const src = head + "components:\n  schemas:\n    Y: {$ref: 'a.yaml'}\n    Z: {$ref: 'z.yaml#/S'}\n"
+	docs := map[string]string{"/a.yaml": "type: integer\n", "/z.yaml": "S: {$id: 'a.yaml', type: string}\n"}
+	bindAt := func(limit budget.Limit) *bind.Table {
+		cfg := withDocuments(docs)
+		cfg.Self, cfg.Locate, cfg.Limit = resolving.Self, resolving.Locate, limit
+		return bound(t, src, cfg)
 	}
-	full, _ := bindAt(budget.Unbounded())
+	full := bindAt(budget.Unbounded())
 	require.False(t, full.Exhausted())
-	require.Equal(t, bind.Resolved, entryAt(t, full, "/components/schemas/A").Chain.Status)
+	z := docNamed(t, full, "/z.yaml")
+	require.Equal(t, bind.Position{Doc: z, Pointer: "/S"}, entryAt(t, full, "/components/schemas/Y").Hop.Target,
+		"a second pass answers Y by the identifier")
 
-	least, stood := 0, 0
-	for limit := 1; limit < full.Steps(); limit++ {
-		cut, reads := bindAt(budget.AtMost(limit))
-		if len(reads) == 0 {
-			continue
-		}
-		least = cmp.Or(least, limit)
-		if e, ok := cut.Entry(at("/components/schemas/A")); ok && e.Hop.Reason == bind.Held {
-			stood++
-			held := docNamed(t, cut, "https://x.test/s")
-			assert.True(t, cut.Document(held).Unreached, "limit %d: the first pass stands, which reached no held document", limit)
+	least := 0
+	for limit := 1; limit < full.Steps() && least == 0; limit++ {
+		cut := bindAt(budget.AtMost(limit))
+		if a, ok := cut.Find("/a.yaml"); ok && cut.Document(a).Unreached {
+			least = limit
 		}
 	}
-	require.Positive(t, stood, "some limit reads the held document for a pass that never runs")
-	for _, limit := range []int{least - 1, least} {
-		first, _ := bindAt(budget.AtMost(limit))
-		assert.Len(t, first.Entries(), len(full.Entries()), "limit %d: the first pass answered every site", limit)
-		assert.Equal(t, bind.Held, entryAt(t, first, "/components/schemas/A").Hop.Reason, "limit %d", limit)
+	require.Positive(t, least, "some limit begins a second pass")
+	first := bindAt(budget.AtMost(least - 1))
+	assert.Len(t, first.Entries(), len(full.Entries()), "the first pass answered every site")
+	a := docNamed(t, first, "/a.yaml")
+	assert.Equal(t, bind.Position{Doc: a}, entryAt(t, first, "/components/schemas/Y").Hop.Target,
+		"the first pass reads Y as a location")
+}
+
+// TestBind_CountsWorkLinearAcrossHeldDocuments pins what reading the documents
+// absolute URIs name costs. A pass reads the ones it held once its walks are
+// done and goes on, reading again only the hops that waited for them (GitHub
+// #1349), and answers an identifier a document it read since declares, so twice
+// the documents cost about twice the work, where a pass for each link grew with
+// the square. Each document is read once, and no identifier is.
+func TestBind_CountsWorkLinearAcrossHeldDocuments(t *testing.T) {
+	t.Parallel()
+	name := func(i int) string { return fmt.Sprintf("https://x.test/d%d.yaml", i) }
+	tail := func(i, n int, link string) string {
+		if i == n {
+			return ""
+		}
+		return link
 	}
+	shapes := []struct {
+		name  string
+		doc   func(i, n int) string
+		check func(t *testing.T, table *bind.Table, n int)
+	}{
+		{"a chain", func(i, n int) string {
+			return "S: " + cmp.Or(tail(i, n, fmt.Sprintf("{$ref: '%s#/S'}", name(i+1))), "{type: string}") + "\n"
+		}, resolvesA},
+		{"a chain spelled relatively", func(i, n int) string {
+			return "S: " + cmp.Or(tail(i, n, fmt.Sprintf("{$ref: 'd%d.yaml#/S'}", i+1)), "{type: string}") + "\n"
+		}, resolvesA},
+		{"a loop", func(i, n int) string {
+			return fmt.Sprintf("S: {$ref: '%s#/S'}\n", name(i%n+1))
+		}, func(t *testing.T, table *bind.Table, n int) {
+			t.Helper()
+			require.Len(t, table.Loops(), 1, "the loop is found whole")
+			assert.Len(t, table.Loops()[0].Members, n)
+		}},
+		{"mapping values", func(i, n int) string {
+			return fmt.Sprintf("S: {discriminator: {propertyName: k, mapping: {%s}}}\n",
+				tail(i, n, fmt.Sprintf("m: '%s#/S'", name(i+1))))
+		}, func(t *testing.T, table *bind.Table, n int) {
+			t.Helper()
+			at := bind.Position{Doc: docNamed(t, table, name(n-1)), Pointer: "/S/discriminator"}
+			m, ok := table.Mapping(at, name(n)+"#/S")
+			require.True(t, ok)
+			assert.Equal(t, bind.Resolved, m.Chain.Status)
+		}},
+		{"links naming the one before by its $id", func(i, n int) string {
+			return fmt.Sprintf("S: {$id: 'https://x.test/id%d', properties: {p: {$ref: 'https://x.test/id%d'}%s}}\n",
+				i, i-1, tail(i, n, fmt.Sprintf(", n: {$ref: '%s#/S'}", name(i+1))))
+		}, func(t *testing.T, table *bind.Table, n int) {
+			t.Helper()
+			e, ok := table.Entry(bind.Position{Doc: docNamed(t, table, name(n)), Pointer: "/S/properties/p"})
+			require.True(t, ok)
+			assert.Equal(t, bind.Position{Doc: docNamed(t, table, name(n-1)), Pointer: "/S"}, e.Hop.Target)
+		}},
+	}
+	for _, shape := range shapes {
+		steps := func(n int) int {
+			docs := map[string]string{}
+			for i := 1; i <= n; i++ {
+				docs[name(i)] = shape.doc(i, n)
+			}
+			cfg, reads := recordingDocuments(t, docs)
+			cfg.Self, cfg.Locate = resolving.Self, resolving.Locate
+			table := bound(t, head+"components:\n  schemas:\n    I: {$id: 'https://x.test/id0'}\n"+
+				"    A: {$ref: '"+name(1)+"#/S'}\n", cfg)
+			require.False(t, table.Exhausted(), shape.name)
+			assert.Len(t, *reads, n, "%s: each document read once, and no identifier", shape.name)
+			shape.check(t, table, n)
+			return table.Steps()
+		}
+		n, twice, four := steps(500), steps(1_000), steps(2_000)
+		assert.LessOrEqual(t, four-twice, 5*(twice-n)/2, "%s: twice the documents, about twice the work", shape.name)
+	}
+}
+
+// resolvesA checks that the chain from component A resolves.
+func resolvesA(t *testing.T, table *bind.Table, _ int) {
+	t.Helper()
+	assert.Equal(t, bind.Resolved, entryAt(t, table, "/components/schemas/A").Chain.Status)
 }
 
 // deepMerge writes a document whose component A takes its $ref through a
@@ -392,7 +466,7 @@ func TestSpellings(t *testing.T) {
 		assert.Equal(t, want, r.String())
 	}
 	assert.Equal(t, "it was not read within the budget", bind.Hop{Reason: bind.Held}.Why(),
-		"a read a later pass was to make, which the budget cut")
+		"a read the pass was to make once its walks were done, which the budget cut")
 	for text, hop := range map[string]bind.Hop{
 		"it names nothing in the document it points into": {Reason: bind.NoTarget},
 		"it names a position that holds no schema":        {Reason: bind.NotSchema},

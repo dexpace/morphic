@@ -75,7 +75,7 @@ func TestCompile_WhatAnotherDocumentDeclaresAnswersAReference(t *testing.T) {
 
 // TestCompile_AnIdentifierIsNotRequested pins that a URI a document read during
 // the pass declares reaches no network with external references allowed, in
-// either declaration order: its read waits for the pass to end.
+// either declaration order: its read waits until the pass's walks are done.
 func TestCompile_AnIdentifierIsNotRequested(t *testing.T) {
 	t.Parallel()
 	pet := "    Pet: {$ref: 'other.yaml#/Pet'}\n"

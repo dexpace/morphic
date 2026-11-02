@@ -125,8 +125,8 @@ func TestBind_ReadsBelowAnIDOfAnotherDocument(t *testing.T) {
 
 // TestBind_AnIdentifierIsNoLocationToFetch pins that a URI a document declares
 // answers as that identifier whichever reference comes first, and reaches no
-// network: the read of a document on the network waits for the pass to end,
-// during which a document read declares it. One no document declares is then
+// network: the read of a document on the network waits until the pass's walks
+// are done, during which a document read declares it. One no document declares is then
 // read, once.
 func TestBind_AnIdentifierIsNoLocationToFetch(t *testing.T) {
 	t.Parallel()
@@ -147,6 +147,29 @@ func TestBind_AnIdentifierIsNoLocationToFetch(t *testing.T) {
 	table := bound(t, head+"components:\n  schemas:\n    A: {$ref: 'https://x.test/r#/S'}\n", cfg)
 	assert.Equal(t, []string{"https://x.test/r"}, *reads)
 	assert.Equal(t, bind.Resolved, entryAt(t, table, "/components/schemas/A").Hop.Status)
+}
+
+// TestBind_AHeldDocumentMayDeclareAnothersURI pins documents held together:
+// both are read, as neither is read before the other, the URI one of them
+// declares names its schema, and the other, read for nothing, is reached by no
+// pass that stands, in either declaration order.
+func TestBind_AHeldDocumentMayDeclareAnothersURI(t *testing.T) {
+	t.Parallel()
+	docs := map[string]string{
+		"https://x.test/u1": "S: {$id: 'https://x.test/u2', type: string}\n",
+		"https://x.test/u2": "type: integer\n",
+	}
+	for _, schemas := range []string{
+		"    A: {$ref: 'https://x.test/u1#/S'}\n    B: {$ref: 'https://x.test/u2'}\n",
+		"    B: {$ref: 'https://x.test/u2'}\n    A: {$ref: 'https://x.test/u1#/S'}\n",
+	} {
+		cfg, reads := recordingDocuments(t, docs)
+		table := bound(t, head+"components:\n  schemas:\n"+schemas, cfg)
+		assert.Equal(t, []string{"https://x.test/u1", "https://x.test/u2"}, *reads)
+		u1 := docNamed(t, table, "https://x.test/u1")
+		assert.Equal(t, bind.Position{Doc: u1, Pointer: "/S"}, entryAt(t, table, "/components/schemas/B").Hop.Target)
+		assert.True(t, table.Document(docNamed(t, table, "https://x.test/u2")).Unreached)
+	}
 }
 
 // TestBind_ARefusedURIADocumentDeclaresIsAnIdentifier pins the same for a URI

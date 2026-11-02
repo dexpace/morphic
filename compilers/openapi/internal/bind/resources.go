@@ -60,11 +60,15 @@ type identifiers struct {
 	own       map[DocID]int32
 	// declared is each URI an $id names, by the schemas declaring it, in every
 	// document read, and uris those of them the documents counted declare,
-	// which alone answer, or all of them once every is set (commit).
+	// which alone answer, or all of them once every is set (commit). byDoc is
+	// the URIs each document declares (grow), and scanned how many documents
+	// identifyAll has read.
 	declared map[string][]Position
 	uris     map[string][]Position
 	counted  map[DocID]bool
 	every    bool
+	byDoc    map[DocID][]string
+	scanned  DocID
 	// asked is each URI a pass has asked for, whatever uris held, and readings
 	// each set of declarations a pass has read against.
 	asked    map[string]bool
@@ -97,6 +101,7 @@ type dynamicKey struct {
 func newIdentifiers(source resource) *identifiers {
 	return &identifiers{resources: []resource{source}, own: map[DocID]int32{Source: 0},
 		declared: map[string][]Position{}, uris: map[string][]Position{}, counted: map[DocID]bool{Source: true},
+		byDoc: map[DocID][]string{},
 		asked: map[string]bool{}, readings: map[string]bool{}, anchors: map[anchorKey][]Position{},
 		dynamic: map[dynamicKey][]Position{}, truncated: map[DocID]bool{}, read: map[DocID]bool{}}
 }
@@ -120,6 +125,7 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node)
 	case rooted:
 		res.root = at
 		ix.declared[res.uri] = append(ix.declared[res.uri], at)
+		ix.byDoc[at.Doc] = append(ix.byDoc[at.Doc], res.uri)
 		ix.resources = append(ix.resources, res)
 		in = int32(len(ix.resources) - 1)
 	case res != held:
@@ -171,14 +177,55 @@ func (ix *identifiers) begin() {
 // answering returns the declarations commit counts, by URI.
 func (ix *identifiers) answering() map[string][]Position {
 	uris := map[string][]Position{}
-	for uri, at := range ix.declared {
-		for _, p := range at {
-			if ix.every || ix.counted[p.Doc] {
-				uris[uri] = append(uris[uri], p)
-			}
+	for uri := range ix.declared {
+		if at := ix.answer(uri); len(at) > 0 {
+			uris[uri] = at
 		}
 	}
 	return uris
+}
+
+// answer returns the declarations of uri commit counts.
+func (ix *identifiers) answer(uri string) []Position {
+	var at []Position
+	for _, p := range ix.declared[uri] {
+		if ix.every || ix.counted[p.Doc] {
+			at = append(at, p)
+		}
+	}
+	return at
+}
+
+// grow counts the documents reached as well, for a pass that has only added
+// to what it reached since uris was last answered, and reports whether that
+// changes the declarations of a URI a pass asked for, which it then leaves
+// for commit to judge. A document is reached when it is opened and read by the
+// drain that counts it, so only the URIs those documents declare are answered
+// again, and a pass that goes on past what it held pays for what it adds.
+func (ix *identifiers) grow(reached []DocID) bool {
+	for _, d := range reached {
+		ix.counted[d] = true
+	}
+	next := map[string][]Position{}
+	for _, d := range reached {
+		for _, uri := range ix.byDoc[d] {
+			if _, done := next[uri]; done {
+				continue
+			}
+			next[uri] = ix.answer(uri)
+			if ix.asked[uri] && !slices.Equal(next[uri], ix.uris[uri]) {
+				return true
+			}
+		}
+	}
+	for uri, at := range next {
+		if len(at) == 0 {
+			delete(ix.uris, uri)
+			continue
+		}
+		ix.uris[uri] = at
+	}
+	return false
 }
 
 // changes reports whether uris changes the declarations of a URI a pass asked
