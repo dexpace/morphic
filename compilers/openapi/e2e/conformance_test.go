@@ -275,6 +275,7 @@ func conformanceCases() []conformanceCase {
 		{"reached-outside-model", assertReachedOutsideModel},
 		{"security-or-and", assertSecurityOrAnd},
 		{"security-root-empty", assertSecurityRootEmpty},
+		{"security-unresolved", assertSecurityUnresolved},
 	}
 }
 
@@ -320,5 +321,11 @@ func invalidCases() map[string][]string {
 		// A parameter and a header whose content holds several entries, where the
 		// specification requires exactly one.
 		"content-several-entries": {"openapi/validation/validation-entry-count"},
+		// Requirements naming a scheme the document does not hold: each name
+		// "MUST correspond to a security scheme". An entry naming no mechanism
+		// and one whose $ref reaches nothing are among what they name.
+		"security-unresolved": {
+			"openapi/unresolved-security-scheme", "openapi/incomplete-security-scheme", "openapi/unresolved-ref",
+		},
 	}
 }
