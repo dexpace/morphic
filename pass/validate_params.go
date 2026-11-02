@@ -133,23 +133,34 @@ type paramRef struct {
 }
 
 // appendParamRefs appends to dst the parameter references op carries besides
-// its bindings: the pagination inputs and the idempotency token. An absent
-// input is no reference, and neither is an empty token, which is how an
-// operation that is not token-keyed spells having none. An input with an empty
-// ID is one.
+// its bindings: the pagination inputs, the inputs that select a stream and the
+// idempotency token. An absent input is no reference, and neither is one into
+// the request body, nor an empty token, which is how an operation that is not
+// token-keyed spells having none. An input with an empty ID is one.
 func appendParamRefs(dst []paramRef, op ir.Operation) []paramRef {
 	if pg := op.Pagination; pg != nil {
-		if pg.InputCursor != nil {
-			dst = append(dst, paramRef{pg.InputCursor.Param, "pagination/inputCursor"})
-		}
-		if pg.InputLimit != nil {
-			dst = append(dst, paramRef{pg.InputLimit.Param, "pagination/inputLimit"})
-		}
+		dst = appendInputRef(dst, pg.InputCursor, "pagination/inputCursor")
+		dst = appendInputRef(dst, pg.InputLimit, "pagination/inputLimit")
+	}
+	if s := op.RequestStream; s != nil && s.Condition != nil {
+		dst = appendInputRef(dst, &s.Condition.Input, "requestStream/condition")
+	}
+	if s := op.ResponseStream; s != nil && s.Condition != nil {
+		dst = appendInputRef(dst, &s.Condition.Input, "responseStream/condition")
 	}
 	if token := op.Idempotency.TokenParam; token != "" {
 		dst = append(dst, paramRef{token, "idempotency/tokenParam"})
 	}
 	return dst
+}
+
+// appendInputRef appends the parameter in names, under field, when in roots in
+// a parameter.
+func appendInputRef(dst []paramRef, in *ir.InputPath, field string) []paramRef {
+	if in == nil || in.Param == nil {
+		return dst
+	}
+	return append(dst, paramRef{*in.Param, field})
 }
 
 // checkParamReferences holds an operation's pagination inputs and idempotency

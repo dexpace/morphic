@@ -71,6 +71,18 @@ func enumMemberCarrierDoc(v ir.Value) *ir.Document {
 // otpCarrierDoc embeds v as the request tag of one OTP-bound operation, nested
 // under one service and one group and reached through Document.Services rather
 // than Document.Types, where a walk scoped to Types would never reach it.
+// streamConditionCarrierDoc carries v as the value a request body member holds
+// to ask for an operation's stream.
+func streamConditionCarrierDoc(v ir.Value) *ir.Document {
+	doc := otpCarrierDoc(ir.Value{Kind: ir.ValueNull})
+	op := &doc.Services[0].Groups[0].Operations[0]
+	op.Bindings = ir.OpBindings{}
+	op.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{
+		Input: ir.InputPath{Segments: []ir.PropID{"p/x/Body/stream"}}, Value: v,
+	}}
+	return doc
+}
+
 func otpCarrierDoc(v ir.Value) *ir.Document {
 	const ch ir.ChannelID = "c/x/Proc"
 	op := ir.Operation{
@@ -171,6 +183,10 @@ func valueCarrierCases() []valueCarrierCase {
 			path: "doc.Services[0].Groups[0].Operations[0].Bindings.OTP.RequestTag",
 		},
 		{carrier: "TemplateArg.Value", doc: templateArgCarrierDoc, path: "doc.Types[t/x/M].Instantiation.Args[0].Value"},
+		{
+			carrier: "StreamCondition.Value", doc: streamConditionCarrierDoc,
+			path: "doc.Services[0].Groups[0].Operations[0].ResponseStream.Condition.Value",
+		},
 	}
 }
 

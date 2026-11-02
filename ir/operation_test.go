@@ -76,7 +76,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		},
 		Pagination: &ir.Pagination{
 			Strategy:    ir.PageStrategyCursor,
-			InputCursor: &ir.ParamPath{Param: "param/x/cursor"},
+			InputCursor: &ir.InputPath{Param: new(ir.ParamID("param/x/cursor"))},
 			Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 			NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
 		},
@@ -507,8 +507,8 @@ func TestPagination_JSONContract(t *testing.T) {
 	assertJSONContract(t, ir.Pagination{}, `{"inferred":false}`, ir.Pagination{
 		Strategy:    ir.PageStrategyCursor,
 		Inferred:    true,
-		InputCursor: &ir.ParamPath{Param: "param/x/cursor", Segments: []ir.PropID{"p/cursor"}},
-		InputLimit:  &ir.ParamPath{Param: "param/x/limit"},
+		InputCursor: &ir.InputPath{Param: new(ir.ParamID("param/x/cursor")), Segments: []ir.PropID{"p/cursor"}},
+		InputLimit:  &ir.InputPath{Param: new(ir.ParamID("param/x/limit"))},
 		Items:       &ir.PropPath{Segments: []ir.PropID{"p/items"}},
 		NextCursor:  &ir.PropPath{Segments: []ir.PropID{"p/nextCursor"}},
 		NextLink:    &ir.PropPath{Segments: []ir.PropID{"p/nextLink"}},
@@ -537,8 +537,8 @@ func TestPropPath_JSONContract(t *testing.T) {
 // in walk order.
 func TestParamPath_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.ParamPath{}, `{}`,
-		ir.ParamPath{Param: "param/x/filter", Segments: []ir.PropID{"p/outer", "p/inner"}})
+	assertJSONContract(t, ir.InputPath{}, `{}`,
+		ir.InputPath{Param: new(ir.ParamID("param/x/filter")), Segments: []ir.PropID{"p/outer", "p/inner"}})
 }
 
 // TestLongRunning_JSONContract pins LongRunning's omitempty contract (every

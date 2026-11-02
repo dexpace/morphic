@@ -114,7 +114,7 @@ func entityOperation(i int, model *ir.Model, messages entityMessages) ir.Operati
 	}
 	op.Bindings.HTTP = []ir.HTTPBinding{binding}
 	op.Pagination = &ir.Pagination{
-		InputCursor: &ir.ParamPath{Param: op.Params[0].ID}, InputLimit: &ir.ParamPath{Param: op.Params[1].ID},
+		InputCursor: &ir.InputPath{Param: new(op.Params[0].ID)}, InputLimit: &ir.InputPath{Param: new(op.Params[1].ID)},
 		Items: &ir.PropPath{Segments: []ir.PropID{model.Properties[0].ID}},
 	}
 	op.Idempotency = ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: op.Params[2].ID}

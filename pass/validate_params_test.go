@@ -181,8 +181,8 @@ func paramRefOp(id ir.OpID, own ir.ParamID, cursor, limit, token ir.ParamID) ir.
 		ID:     id,
 		Params: []ir.Parameter{{ID: own, Name: ir.Naming{Source: "p"}}},
 		Pagination: &ir.Pagination{
-			InputCursor: &ir.ParamPath{Param: cursor},
-			InputLimit:  &ir.ParamPath{Param: limit},
+			InputCursor: &ir.InputPath{Param: new(cursor)},
+			InputLimit:  &ir.InputPath{Param: new(limit)},
 		},
 		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: token},
 	}
@@ -259,7 +259,7 @@ func TestValidate_ParamReferences_FieldArgumentIsRejected(t *testing.T) {
 	op := paramBindingOp("op/x/get", ir.Parameter{ID: "param/x/get/id/query", Name: ir.Naming{Source: "id"}})
 	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Param: arg, Location: ir.HTTPLocationQuery})
-	op.Pagination = &ir.Pagination{InputLimit: &ir.ParamPath{Param: arg}}
+	op.Pagination = &ir.Pagination{InputLimit: &ir.InputPath{Param: new(arg)}}
 	doc := docWithOperations(op)
 	model, ok := doc.Types["t/m"].(*ir.Model)
 	require.True(t, ok)
