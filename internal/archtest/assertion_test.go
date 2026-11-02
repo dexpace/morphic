@@ -6,8 +6,10 @@ package archtest_test
 import (
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -46,7 +48,8 @@ func TestInterfaceAssertions_CoverEveryExportedPair(t *testing.T) {
 // TestMissingAssertions_PlantedShapesAreCaught plants each pair the rule holds
 // and each it leaves alone into a package of the module, so the test above
 // cannot pass by recognizing nothing. The package's own pairs are asserted, so
-// what is reported is the plant's.
+// what is reported is the plant's. The package is loaded once, and each plant
+// is type-checked beside its files.
 func TestMissingAssertions_PlantedShapesAreCaught(t *testing.T) {
 	t.Parallel()
 	const head = `package pass
@@ -122,11 +125,15 @@ func (P) String() string { return "" }
 		{"an unexported interface", "type P struct{}\n\ntype planter interface{ Plant() }\n\nfunc (P) Plant() {}\n", nil},
 		{"an alias of an interface", "type P struct{}\n\ntype V = ir.Visitor\n\nfunc (P) " + visit, []string{"ir.Visitor"}},
 	}
+	root := irtest.RepoRoot(t)
+	base, err := decls.Load(module + "/pass")
+	require.NoError(t, err)
 	for _, tc := range tests {
+		// Not in parallel: go/types can race when two checks share an
+		// import (golang/go#81122).
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			p := loadOverlaid(t, "pass", file, head+tc.src+tail)
-			got, _ := missingAssertions(p, irtest.RepoRoot(t))
+			p := checkPlanted(t, base, filepath.Join(root, "pass", file), head+tc.src+tail)
+			got, _ := missingAssertions(p, root)
 			var want []string
 			for _, iface := range tc.want {
 				want = append(want, fmt.Sprintf("pass/%s:%d: pass.P implements %s with no compile-time assertion in its package",
@@ -135,6 +142,38 @@ func (P) String() string { return "" }
 			assert.Empty(t, cmp.Diff(want, got), "mismatch (-want +got)")
 		})
 	}
+}
+
+// checkPlanted type-checks base's package again with src added as the file at
+// planted, against the packages base imports, so a plant costs no go list. A
+// plant importing what base does not fails, as does one that does not
+// type-check.
+func checkPlanted(t *testing.T, base *decls.Package, planted, src string) *decls.Package {
+	t.Helper()
+	f, err := parser.ParseFile(base.Fset, planted, src, parser.SkipObjectResolution)
+	require.NoError(t, err)
+	files := append(slices.Clone(base.Syntax), f)
+
+	imports := map[string]*types.Package{}
+	for _, imp := range base.Types.Imports() {
+		imports[imp.Path()] = imp
+	}
+	conf := types.Config{Importer: importerFunc(func(path string) (*types.Package, error) {
+		imp, ok := imports[path]
+		if !ok {
+			return nil, fmt.Errorf("%s does not import %s", base.Types.Path(), path)
+		}
+		return imp, nil
+	})}
+	// TypeOf reads all three maps.
+	info := &types.Info{
+		Types: map[ast.Expr]types.TypeAndValue{},
+		Defs:  map[*ast.Ident]types.Object{},
+		Uses:  map[*ast.Ident]types.Object{},
+	}
+	pkg, err := conf.Check(base.Types.Path(), base.Fset, files, info)
+	require.NoError(t, err, "the plant must type-check, or it proves nothing")
+	return &decls.Package{Types: pkg, Info: info, Syntax: files, Fset: base.Fset}
 }
 
 // missingAssertions returns a line for each exported type p declares that
