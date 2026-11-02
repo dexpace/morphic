@@ -57,6 +57,14 @@ operations](../../operations/long-running.md).
 `ResultPath`. The poll loop's backoff between attempts is `lro.go.tmpl`. Printer emits
 `StartExport`, `StartExportParams`, and `ExportPoller` + `Poll()/PollUntilDone()`.
 
+## Stability
+
+An `alpha` or `beta` operation's method opens a paragraph of its doc comment with its tier
+([stability](../../refine/redaction.md#a-stability-tier)), `Beta: breaking changes are possible but
+not expected.`, which `go doc` and an editor show at the call. Go has no annotation a caller must
+acknowledge, and a build tag compiling an `alpha` method only under `-tags alpha` would split the
+package's API by tag, every test then building twice, so Go gates nothing.
+
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are functional options —

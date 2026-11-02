@@ -8,10 +8,10 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   skips, and `vendor`, which the `go` command reads at a module's root as vendored dependencies.
 - **A unit**: `Client`, its option type and their constructors, a group unit's sub-client, and any
   runtime name it declares there (`APIError`, `Body`, `OtherResponse`, `Response`, `Stream`).
-- **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate` and a redacting `String`, and the
-  field holding the catch-all ([`User`](models.md#user-in-go)). The struct Go gives a union declares
-  those codecs, `Validate` and `Value` ([unions](unions.md)), and a wrapper those codecs and
-  `Value`. No spec name lands in either, so none yields there.
+- **A type**: `MarshalJSONTo`, `UnmarshalJSONFrom`, `Validate` and a redacting `String` and
+  `GoString`, and the field holding the catch-all ([`User`](models.md#user-in-go)). The struct Go
+  gives a union declares those codecs, `Validate` and `Value` ([unions](unions.md)), and a wrapper
+  those codecs and `Value`. No spec name lands in either, so none yields there.
 
 ## The escape
 

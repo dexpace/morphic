@@ -22,6 +22,8 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode |
 | `Literal` | typed constant (incl. `symbol`) |
 | `External` | the type-table row for its `Identity` ([type table](../../contract/type-table.md)): imported library type + dep-manifest; no row → opaque handle, passthrough + diagnostic |
+| `Property.Secret`, `Parameter.Secret`, `TypeCommon.Sensitive` ([redaction](../../refine/redaction.md)) | `[REDACTED]` in the holder's `String` and `GoString`, in logging hooks and in error messages |
+| `Operation.Stability`, `OperationGroup.Stability` ([stability](../../refine/redaction.md#a-stability-tier)) | a doc-comment paragraph naming the tier ([stability](operations.md#stability)) |
 | `Visibility` sets | N structs from `ModelShape`; PATCH → optional |
 | `Required` ⊥ `Nullable` ⊥ `Presence` | `T`/`Opt[T]`/`Nil[T]`/`OptNil[T]`/`omitzero`+presence; collapse→diagnostic; a reference on a cycle of references held by value `*T`, or `Opt[*T]` when optional and nullable ([recursive references](models.md#recursive-references)) |
 | `Constraints` | field `validate` tags + refine-built `Validate()`; unrepresentable regex→diagnostic |

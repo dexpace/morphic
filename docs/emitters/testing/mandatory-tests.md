@@ -142,3 +142,15 @@ throughout these documents.
     open. An option beside it is taken in priority order, an option ANDing it with a declared scheme
     needs both, and the service's credentials are never sent in its place
     ([auth](../operations/auth.md#unresolved-schemes)).
+45. **T-45 · Redaction** — on every target, a value redacted through `Property.Secret`, through
+    `Parameter.Secret`, through a sensitive component, through a list's sensitive element and a
+    map's sensitive value, and through a member a later conjunct redeclares without `Secret`, shows
+    as `[REDACTED]` in the holder's string form, in every logging event and in every error message,
+    a collection as the marker alone, and goes out and comes back on the wire byte for byte; a raw
+    body holding one is never logged ([redaction](../refine/redaction.md)).
+46. **T-46 · Stability** — an operation's own tier, its nearest group's when it states none, and
+    none when no group states one, each resolved once in `OpPlan.Stability`; an `alpha` and a
+    `beta` operation's documentation names its tier on every target, an unstated one names none and
+    no badge reads it as `stable`, and each target's opt-in requirement is held where it has one
+    ([stability](../refine/redaction.md#a-stability-tier)).
+

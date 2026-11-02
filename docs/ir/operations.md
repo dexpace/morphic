@@ -124,7 +124,8 @@ Designs this replaced, each with the fact it fails on:
   `no_ir_home`, and an OpenAPI key under the `vendor_extension` every key has.
 
 `irverify` reports a value outside the declared tiers (`ir/unknown-stability`), wherever the field
-sits. What a target does with a tier is not stated yet (#1222).
+sits. What a target does with a tier is in [the emitter
+design](../emitters/refine/redaction.md#a-stability-tier).
 
 ## Design notes
 
@@ -141,7 +142,8 @@ sits. What a target does with a tier is not stated yet (#1222).
   on an OpenAPI Parameter Object would sit at a schema pointer a `$ref` can name, the collision
   invariant 3 forbids. A schema that owns a node keeps the redaction there, and `Secret` is the
   per-use form a property already has, which TypeSpec's `@secret` on a property bound to a header or
-  query lowers to. No refine step reads it yet, as none reads `Sensitive` (#895).
+  query lowers to. The plan reads it beside `Sensitive`
+  ([redaction](../emitters/refine/redaction.md#a-redacted-value)).
 
 - **`OneWay` is on the neutral core**, like `Streaming` and `Idempotency`, because
   fire-and-forget is protocol-independent — an SDK that blocks awaiting a reply on a cast is

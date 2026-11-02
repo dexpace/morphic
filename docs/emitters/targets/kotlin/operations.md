@@ -16,3 +16,13 @@ Kotlin's request type ([request shaping](../../refine/requests.md)) is a class b
 
 The client's settings ([the client](../../operations/client.md)) are setters on the client's
 builder.
+
+## Stability
+
+The runtime declares `@AlphaApi` and `@BetaApi`, each a `@RequiresOptIn` annotation, at level
+`ERROR` for `alpha` and `WARNING` for `beta`, and an operation's method carries its tier's
+([stability](../../refine/redaction.md#a-stability-tier)). A caller acknowledges an `alpha` call
+with `@OptIn(AlphaApi::class)`, and a `beta` one compiles with a warning until it does. The KDoc
+names the tier as well, since Swift sees no Kotlin annotation and reads the framework header's
+comment.
+

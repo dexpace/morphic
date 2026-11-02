@@ -8,6 +8,10 @@ type TypePlan struct {
                                     // a declaration marks Required or a Requires names
     Undeclared []string             // the names Requires lists that no flattened property declares,
                                     // in order: members only the catch-all governs
+    Redacted   []ir.PropID          // the flattened members a value is redacted at: one any of its
+                                    // declarations marks Secret, or whose type is sensitive
+                                    // (../refine/redaction.md)
+    Sensitive  bool                 // the type, or one its Base chain reaches, is Sensitive
     Unflattened []ir.TypeID         // the composition entries naming no model, which Flattened
                                     // cannot hold: each lowered beside the properties, or degraded
     Union      UnionShape           // a union's wire shape, one of four (../refine/unions.md); "" = not a union
