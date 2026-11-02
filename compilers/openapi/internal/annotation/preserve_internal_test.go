@@ -247,17 +247,18 @@ func TestCopyEntriesInto_KeepsWhatTheCarrierHolds(t *testing.T) {
 // leave one chance in 40,320 that an unsorted report passes.
 func TestCopyEntriesInto_ReportsInKeyOrder(t *testing.T) {
 	t.Parallel()
-	p, src := ir.Unmodeled{}, ir.Unmodeled{}
-	var want []string
-	for i := range 8 {
+	const refused = 8
+	p, src, want := ir.Unmodeled{}, ir.Unmodeled{}, make([]string, 0, refused)
+	for i := range refused {
 		key := fmt.Sprintf("openapi:k%d", i)
 		p[key] = ir.UnmodeledEntry{Value: ir.RawValue(`1`), Provenance: ir.Provenance{Pointer: "/held"}}
 		src[key] = ir.UnmodeledEntry{Value: ir.RawValue(`2`), Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + key)}}
 		want = append(want, "/"+key)
 	}
 
-	var got []string
-	for _, d := range CopyEntriesInto(&p, src) {
+	diags := CopyEntriesInto(&p, src)
+	got := make([]string, 0, len(diags))
+	for _, d := range diags {
 		got = append(got, string(d.Provenance.Pointer))
 	}
 	assert.Equal(t, want, got)
