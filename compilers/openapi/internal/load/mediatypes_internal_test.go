@@ -82,7 +82,7 @@ func TestModelMediaTypes_ModelsEachDeclaredEntry(t *testing.T) {
 	t.Parallel()
 	m, faults := modelMediaTypes(t.Context(), modelOf(t, mediaTypeSpec), scan.InSource(0))
 	require.Empty(t, faults)
-	var pointers []jsontext.Pointer
+	pointers := make([]jsontext.Pointer, 0, len(m.declared))
 	for _, d := range m.declared {
 		pointers = append(pointers, d.pointer)
 	}

@@ -197,9 +197,9 @@ func (m MediaTypes) followedByDeclared(ctx context.Context, items iter.Seq[soa.W
 // a content entry is no reference object to the library, so no walk of its own
 // yields one. One written as a $ref is resolved as one, and the model of any
 // other is what a resolution ending on it is handed (adopt), and what load
-// holds where the resolver looks for it (external.hold,
-// resolution.holdMediaType), since the resolver cannot read the library's own
-// model there as a reference. The zero MediaTypes yields items alone.
+// holds where the resolver looks first (external.hold,
+// resolution.holdMediaType), as it cannot take the library's own model for a
+// reference. The zero MediaTypes yields items alone.
 func (m MediaTypes) within(ctx context.Context, items iter.Seq[soa.WalkItem]) iter.Seq[soa.WalkItem] {
 	if m.uses == nil {
 		return items
