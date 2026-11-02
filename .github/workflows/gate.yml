@@ -17,8 +17,8 @@ concurrency:
 # Only the suite job reads a cached test result: the checks job runs go test
 # only with -fuzz and -bench, which go help test does not list as cacheable. So
 # the suite job first sets each tracked file's time from its content, because Go
-# keys a cached test result on the size, mode and time of every file the test
-# opens, and a checkout gives every file a new time.
+# keys a cached test result on the size, mode and time of each file inside the
+# module that the test opens, and a checkout gives every file a new time.
 #
 # A run on main restores the cache the previous run of the same job, toolchain
 # and go.sum saved, drops $GOCACHE/fuzz and saves. In the suite job it also
@@ -120,8 +120,9 @@ jobs:
       # their bound (#1010).
       - name: build
         run: make build
-      # Go keys a cached test result on the time of each file a test opens, and
-      # a checkout gives every file a new one. This dates them from content.
+      # Go keys a cached test result on the time of each file inside the module
+      # that the test opens, and a checkout gives every file a new one. This
+      # dates them from content.
       # After build, as any git status, go build's VCS stamping included, gives
       # .git a new time that the tests listing the module root hash. Nothing may
       # run git between this step and test.
