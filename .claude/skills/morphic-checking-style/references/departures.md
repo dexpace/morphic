@@ -169,13 +169,12 @@ the rule here rather than reading it across.
   test helper package for the package it serves. A target in `ir/fuzz` or
   `compilers/openapi/e2e/fuzz` sits apart from its code, fails through `t.Errorf` or `t.Fatalf`,
   and takes shared rows from `internal/ircases` or `internal/testspec`, which import the standard
-  library alone. Every other test keeps those rules (`CONTRIBUTING.md`, "Where a test goes"). No
-  check holds the packages to this until #1315 lands.
+  library alone. Every other test keeps those rules (`CONTRIBUTING.md`, "Where a test goes").
+  `TestFuzzPackages_LinkNoTestTooling` in `internal/archtest` holds the packages to this.
 - **Why.** `go test -fuzz` instruments everything a binary links, on every execution: leaving a
   binary that links `internal/decls` cut the CPU each of `ir`'s targets spends per execution by
   68–73%, and rows from `ir/irtest` would add go-cmp's 2,213 counters to the 14,366 left (#1301).
-- **Probe.** This prints nothing:
-  `go list -deps -test ./ir/fuzz ./compilers/openapi/e2e/fuzz | grep -E 'testify|go-cmp|decls'`.
+- **Probe.** `go test ./internal/archtest -run '^TestFuzzPackages_LinkNoTestTooling$'` passes.
 
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`

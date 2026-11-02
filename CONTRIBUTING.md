@@ -56,6 +56,8 @@ Read the documents for your layer, and skip the rest until you need them.
   links anyway, or its package's tests link little. Coverage counts only a package's own tests, so
   nothing in a `fuzz` package stands in for them. *Fails if missed:* nothing fails for a target that
   stays and searches slowly, and `make coverage` fails for a statement only moved seeds reached.
+  `TestFuzzPackages_LinkNoTestTooling` in `internal/archtest` fails for an import of test tooling in
+  a `fuzz` package.
 - **A test is external, `package x_test`, unless it cannot be.** It reaches what it must of the
   package's internals through the package's `export_test.go`, which names each one once, under its
   exported spelling or, where that is taken, a name that says what it adds, as
