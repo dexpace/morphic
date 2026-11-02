@@ -66,7 +66,7 @@ gives. A clock does none of that reliably; a counter does.
 - **Why.** Iterator closures and an embedded stack allocated only under `-race` and coverage
   (#1137); a size hint made a one-name map allocate (#1142).
 - **Probe.** `go build -gcflags=-m=1 ./<pkg>` for "moved to heap" and "leaking param content" on
-  the types involved, then the allocation test in the gate's builds (`#count-in-the-gates-build`).
+  the types involved, then the allocation test in the gate's builds (`references/cost-tests.md#count-in-the-gates-build`).
 
 ## Give an optimization a counting seam
 `counting-seam-for-optimizations`
