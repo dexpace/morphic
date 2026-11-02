@@ -21,7 +21,9 @@ throughout these documents.
 7. **T-7 · Diagnostic-not-silence** — every un-lowerable construct emits a coded diagnostic, never a
    silent `any` and never a panic, a fact outside M3's scope included ([what M3
    lowers](../milestones.md#what-m3-lowers)).
-8. **T-8 · Manifest ID-keying** — the entity→symbol map survives path/name churn.
+8. **T-8 · Manifest ID-keying** — the entity→symbol map survives a rename of what an ID is not
+   built from, such as an `operationId`, and, through the correlation key, a path or component
+   rename.
 9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
    at a document-wide setting and at an operation's, in every layer. A project's document-wide
    setting beats a per-operation one the document embeds, an operation's own setting beats its
@@ -203,3 +205,20 @@ throughout these documents.
     cannot hold the type, the member's value is reachable as the row's type, and no member is ever
     written as a string its value type does not admit
     ([a member on the wire](../refine/enums.md#a-member-on-the-wire)).
+37. **T-37 · Shipped names** — on every target, a generation whose operation collides with nothing,
+    then a revision adding one that collides with it, regenerated against the first generation's
+    manifest, keeps the first symbol unchanged and gives the newcomer a suffix; the first
+    generation is byte-identical in both declaration orders; a renamed `operationId` renames its
+    symbol; and an ID that now names another entity, its correlation key differing, is not pinned
+    ([collisions](../refine/naming.md#collisions-and-the-names-a-generation-shipped)).
+38. **T-38 · Manifest and integration** — a regeneration whose inputs all match writes nothing; a
+    spec reformatted into the same IR is the same generation; a generated file edited outside its
+    regions is reported and not overwritten, while one checked out with other line endings is not
+    an edit; a region follows its entity into the file a rename moves it to, and one whose entity
+    is gone is reported and its file kept; a file written once is never written again; a hint, an
+    override and an overlay key matching nothing each draw `emitters/unmatched-key`, naming the
+    entity of the same correlation key; a README's text outside its blocks and its frozen blocks
+    survive byte for byte, and its table of contents lists the user's headings; and a manifest of
+    an older `Schema` is migrated, one of a newer refused
+    ([write / integrate](../write-integrate.md)).
+

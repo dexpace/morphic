@@ -106,7 +106,8 @@ per-operation settings outvote a project-wide choice, which then could not be ma
 naming every operation.
 
 A key naming no operation of the document is reported, never ignored, since an operation whose ID
-changed would otherwise lose its settings in silence. Where a higher layer replaces what the
+changed would otherwise lose its settings in silence ([a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing)). Where a higher layer replaces what the
 document embeds, an info diagnostic names the setting, both values and the operation, so the
 document's author can see it was overruled.
 

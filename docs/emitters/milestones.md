@@ -17,7 +17,8 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
 4. **M3d — docs + mock emitters.** Prove reuse of `Doc + Plan` over a second and third target AST,
    and that docs/mock agree with the SDK by construction.
 5. **M4 — write/integrate + surface verification.** Manifest, header-gated pruning, ignore regions,
-   additive `go/ast` merge, staleness; neutral surface diff with injectable per-language severity.
+   additive merge (`dst` for Go), regions that follow their entity, README blocks, staleness;
+   neutral surface diff with injectable per-language severity.
 6. **M5 — a further language family (TS or Python).** Proves the plan holds beyond the first
    targets' statically typed languages: a new target is a new target AST + printer + refine pipeline
    reusing the shared plan and step contract, forcing **no** IR or plan change. The shared plan
