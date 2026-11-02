@@ -21,17 +21,18 @@ concurrency:
 # module that the test opens, and a checkout gives every file a new time.
 #
 # A run on main restores the cache the previous run of the same job, toolchain
-# and go.sum saved, drops $GOCACHE/fuzz and saves. In the suite job it also
-# clears the test results first. Clearing keeps the builds and the module cache,
-# so main rebuilds only what its commit changed, but it reruns every test and so
-# cannot replay a stale pass. A pull request restores that save, reuses the
+# and go.sum saved, and saves. The suite job clears the test results first, and
+# the checks job, the only one that fuzzes, drops $GOCACHE/fuzz first. Clearing
+# keeps the builds and the module cache, so main rebuilds only what its commit
+# changed, but it reruns every test and so cannot replay a stale pass. A pull request restores that save, reuses the
 # results of the tests its change leaves alone, and never saves.
 #
 # The cache stays bounded for three reasons. The go command deletes build cache
 # entries unused for five days, scanning once a day (cmd/go/internal/cache,
 # trimLimit and trimInterval). go.sum is in the key, so a dependency change
 # starts a cache afresh instead of adding to the module cache of the last. And
-# the fuzz corpus, which that trim never removes, is dropped before the save.
+# the fuzz corpus, which that trim never removes, is dropped before the checks
+# job's save; the suite job runs no -fuzz, so writes none.
 jobs:
   checks:
     name: lint, fuzz, bench
@@ -91,8 +92,7 @@ jobs:
           path: "**/testdata/fuzz/**"
           if-no-files-found: ignore
       # The fuzz corpus has no cache of its own yet (#1273).
-      - &drop-fuzz
-        name: drop the fuzz corpus
+      - name: drop the fuzz corpus
         if: github.event_name == 'push'
         run: rm -rf "${{ steps.toolchain.outputs.gocache }}/fuzz"
       - &save
@@ -139,5 +139,4 @@ jobs:
         run: make coverage
       - name: race
         run: make race
-      - *drop-fuzz
       - *save
