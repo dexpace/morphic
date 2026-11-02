@@ -20,7 +20,9 @@ import (
 // foldKeywords are the keywords an inline allOf branch writes for the position
 // holding it, each read as if written beside the allOf
 // (docs/compilers/openapi.md#allof-inline-residue). foldEntry adds the value
-// constraints, the extensions and the keywords that fold together.
+// constraints, the extensions and the keywords that fold together. A collection
+// bound folds nowhere yet, so a branch writing one stays whole whatever the
+// position lowers to, a List with the field included (GitHub #1312).
 var foldKeywords = []string{
 	"title", "description", "externalDocs", "deprecated", "xml", "default", "readOnly", "writeOnly",
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",

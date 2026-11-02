@@ -1336,8 +1336,10 @@ every entry reads that one twice.
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
   `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`
-- Status: partly built: a collection bound on a branch over a `$ref` stays with its branch, where one
-  beside the `allOf` reaches `Constraints` (#1312).
+- Status: partly built: a collection bound on an inline branch of a refinement stays with its
+  branch, which folds none, where one beside the `allOf` reaches `Constraints`, whatever the
+  principal: `{type: array, items: …, allOf: [{maxItems: 2}]}` keeps its branch beside a `List` that
+  has the field, as one over a `$ref` does (#1312).
 
 ### `allof-redeclared-property`
 
@@ -2391,10 +2393,10 @@ which a bool cannot tell from one never written, and a count that does not fit i
   `schema.TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns`,
   `operation.TestParams_CollectionBoundBesideARefReachesTheCarrier`
 - Status: partly built: an integer bound past what a 64-bit integer holds lowers as `0`, unreported,
-  everywhere but the collection bounds beside a reference (#1050); and a collection bound on a branch
-  of an `allOf` that refines a `$ref` ([`allof-refinement`](#allof-refinement)) stays verbatim with
-  its branch, which folds no collection bound, where one beside the `allOf` reaches `Constraints`
-  (#1312).
+  everywhere but the collection bounds beside a reference (#1050); and a collection bound on an
+  inline branch of a refinement ([`allof-refinement`](#allof-refinement)), whatever its principal,
+  stays verbatim with its branch, which folds no collection bound, where one beside the `allOf`
+  reaches `Constraints` (#1312).
 
 ### `validation-only`
 
