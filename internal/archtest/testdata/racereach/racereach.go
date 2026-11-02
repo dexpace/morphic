@@ -10,7 +10,12 @@ package racereach
 // shared is written by write and read by read with nothing ordering them.
 var shared int
 
-// mark is a block both goroutines run.
+// mark is a block both write and read run, so under coverage they share its
+// counter. That shared update is what hides the race from a covered run;
+// without it the race is reported anyway, and scripts/race-reach.sh would pass
+// a run with coverage merged in. It hides the race only while write calls mark
+// after its store and read calls it before its load: moving either call to the
+// other side of its access brings the race back.
 func mark(n int) int { return n + 1 }
 
 // write stores shared, unordered with read.
