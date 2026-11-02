@@ -126,6 +126,10 @@ type OAuthFlow struct {
 	TokenEndpointAuthMethods []string `json:"tokenEndpointAuthMethods,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Inferred lists the heuristics that read a fact out of Unmodeled, as
+	// [Provenance].Inferred does on a node that has one; empty means none did
+	// (docs/ir/unmodeled.md#promotion).
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // OAuthScope is one scope an OAuthFlow offers (docs/ir/auth.md).

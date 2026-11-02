@@ -188,7 +188,7 @@ func (w *walker) notMapping(obj Object, node *yaml.Node, ptr jsontext.Pointer) {
 // key beside the $ref, which the declared minor ignores and the later one
 // applies.
 func (w *walker) reference(f frame, depth int) bool {
-	if _, ok := f.byKey["$ref"]; !ok {
+	if ref, ok := f.byKey["$ref"]; !ok || f.obj.Kind == Schema && isNull(nodeview.Deref(ref)) {
 		return false
 	}
 	switch {
