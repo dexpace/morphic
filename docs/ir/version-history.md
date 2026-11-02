@@ -241,3 +241,11 @@ it sees. Changes made together in one bump are listed together under it.
     ([`extension-promotion`](../compilers/openapi.md#extension-promotion)), listing the marker the
     target lists ([promotion](./unmodeled.md#promotion)). These shapes are unchanged, so to a
     consumer pinned to 0.26.0 such an operation reads as live and such a value as plain.
+- **0.28.0** — the OpenAPI compiler keeps a path item's own `summary` and `description` on each
+  operation it mounts under `openapi:pathItem/summary` and `openapi:pathItem/description`, beneath
+  the scope its extensions and undeclared keys already took, rather than under
+  `openapi:pathItemSummary` and `openapi:pathItemDescription`
+  ([`path-item-docs`](../compilers/openapi.md#path-item-docs)). No shape changed. A consumer pinned
+  to 0.27.0 that reads the old keys no longer finds the path's text there. Where an operation writes
+  an undeclared key of that name, it finds that key's value, which 0.27.0 let the path's text
+  replace.

@@ -69,6 +69,9 @@ var generations = []generation{
 		meaning: "a collection bound beside a reference reaches the Constraints of the carrier or alias holding that use"},
 	{version: "0.27.0", format: 1, shape: "95513b85fff38d2a30f15f5ade55c6a7da8e8de77377a6458c5ccc98fb561023",
 		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
+	{version: "0.28.0", format: 1, shape: "95513b85fff38d2a30f15f5ade55c6a7da8e8de77377a6458c5ccc98fb561023",
+		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
+		meaning: "an operation keeps its path item's summary and description beneath the path item's key scope"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change
