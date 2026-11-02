@@ -44,7 +44,8 @@ and the differ/compat/verify subsystems added since the original survey).
   symbol map), file-header provenance that gates pruning (never delete a file lacking the
   generated-by header), ignore-region markers for hand-written islands, and additive-only
   AST merges. Manifests should key entities by stable ID — oagen's `"METHOD /path"` keys break
-  on path renames.
+  on path renames. So do pointer-derived IDs, which is why a correlation key is planned beside
+  them (#679).
 - **Wire-conformance smoke testing with a spec-only offline baseline** — the expected request
   shape (method, path, query, body keys) is derived from the spec alone and diffed against the
   generated SDK running under HTTP interception; request-side mismatches block, response-side
@@ -89,7 +90,8 @@ and a self-correcting overlay loop. Three structural lessons:
   model even has a dual-key design (`id` + name) intended for rename detection — but `id` is
   derived from the name, so the rename branch is dead. Cross-language change rollup finally
   reinvents a spec-level identity (`conceptualChangeId`). Morphic's pointer-derived IDs make
-  rename detection a lookup; the compat experience adds one refinement — when both pointer
+  detecting a rename that keeps the pointer a lookup; the compat experience adds one
+  refinement — when both pointer
   *and* name churn, a third *structural* correlation tier (content-hash / field-set
   similarity, shared with the `dedup` pass) is the fallback (see [open question
   5](./ir/open-questions.md)).

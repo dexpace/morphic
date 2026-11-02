@@ -38,12 +38,43 @@ there is no lossy runtime re-splitting of a cased string (oagen's `splitWords` c
 `EscapeReservedWords` runs after casing and **never touches `WireName`/`WireID`** — struct tags are
 built from the wire channel, so wire correctness never depends on the rendered identifier
 ([T-4](../testing/mandatory-tests.md)). Collisions are resolved deterministically in `Ctx.Syms`,
-which is keyed by IR ID: adding one endpoint never renames an existing method (the oagen
-collision-cascade counterexample; INV3). Anonymous hoisted types get an emitter-chosen name from
-`Naming.Hint`. Per-service presentation renames (`Service.Renames`) change how a shape is presented
-in a service without changing its `TypeID` or its own `Naming`. Enum members are keyed by
-`EnumMember.ID`, which is derived from the value a member holds, so two members whose names render
-alike are two entries to disambiguate, and reordering members of distinct values renames none.
+which is keyed by IR ID, and against the names the prior generation shipped, so adding one endpoint
+never renames an existing method (the oagen collision-cascade counterexample; INV3;
+[collisions](#collisions-and-the-names-a-generation-shipped)). Anonymous hoisted types get an
+emitter-chosen name from `Naming.Hint`. Per-service presentation renames (`Service.Renames`) change
+how a shape is presented in a service without changing its `TypeID` or its own `Naming`. Enum
+members are keyed by `EnumMember.ID`, which is derived from the value a member holds, so two members
+whose names render alike are two entries to disambiguate, and reordering members of distinct values
+renames none.
+
+## Collisions, and the names a generation shipped
+
+Names that render alike in one scope collide, and `Ctx.Syms` tells them apart. Keying by ID and
+being deterministic are both needed and neither is enough: no rule reading only the current document
+can tell which of two colliding operations shipped first, so any such rule can rename the incumbent
+when a newcomer joins. A renamer that renames every member of a collision from its own identity is
+deterministic and order-independent, and still renames `get` to `zonesGetZone` the day
+`zonesGetZoneSettings` joins its group, a breaking SDK change. Only the prior generation knows the
+incumbent, so the prior manifest ([write /
+integrate](../write-integrate.md#what-the-manifest-records)) is an input to the rule:
+
+1. **A shipped name keeps its symbol.** An entity whose prior entry has its ID and its correlation
+   key, in the same unit, with the same `Base`, takes the entry's `Symbol` again, a suffix it was
+   given included. Two such symbols were apart in the prior generation and stay apart.
+2. **Every other member, in ID order**, takes its rendered name where nothing in the scope holds it,
+   else that name with the lowest numeric suffix, `2` up, that is free.
+
+Only the choice is pinned, never the name: an entity whose own rendered name changed, as a renamed
+`operationId` does, gets a new `Base`, so rule 1 does not hold for it and it is named afresh. An ID
+alone pins nothing, since an ID built from an array index can name another entity in the next
+revision (#678): the correlation key must agree too. On a first generation, or one run without its
+prior manifest, rule 2 decides alone; ID order is independent of declaration order, so the two-order
+oracle holds it. What the promise rests on is stated with it: a name stays only while its entity's
+ID and correlation key survive the revision, and an ID derived from a pointer changes when the
+pointer does (#419), until the correlation key carries it across.
+
+The prior manifest is an input like any other, so a generation is still a pure function of its
+inputs ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).
 
 ## The source spelling, for letter case only
 

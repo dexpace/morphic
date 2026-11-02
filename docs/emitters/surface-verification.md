@@ -4,11 +4,13 @@ Post-milestone. `EmitterOutput.Surface` is the neutral API-surface projection �
 enums, methods, fields as neutral records — built by the **same walk** over `Origin`-tagged AST nodes
 that emit performs.
 
-- **Neutral projection with IR IDs.** Both the freshly-generated SDK and an extracted
-  existing SDK (via a per-language extractor) project into one `verify.Surface`; each record carries
-  its **IR stable ID** (threaded from `Origin`), so cross-language findings correlate without
-  name-matching, and rename detection is an ID lookup rather than oagen's Jaccard-similarity
-  heuristics. `Generate` returns the generated side directly; only the extractor parses source.
+- **Neutral projection with IR IDs.** Both the freshly-generated SDK and an extracted existing SDK
+  (via a per-language extractor) project into one `verify.Surface`; each record carries its **IR
+  stable ID** (threaded from `Origin`), so cross-language findings correlate without name-matching,
+  and a rename that keeps the entity's pointer is an ID lookup rather than oagen's
+  Jaccard-similarity heuristics. One that moves the pointer, such as a path renamed, is found by the
+  correlation key (#679) the manifest records. `Generate` returns the generated side directly; only
+  the extractor parses source.
 - **Injectable per-language severity.** The differ emits **neutral change records**; a
   per-target `verify.Severity` function decides breaking/additive (parameter names are public API in
   PHP, arity in Go, ~nothing in JS) — heuristics-as-policy (INV6).

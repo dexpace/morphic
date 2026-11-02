@@ -2,8 +2,11 @@
 
 oagen's `OperationHint` / rename / remount / split-union-body / url-builder machinery is *SDK
 ergonomics, not API semantics* — the same category as runtime policy. It lives in
-`EmitterInput.Hints`, keyed by **IR stable ID** (never `"METHOD /path"`), so a path rename never
-drops a hint (INV3):
+`EmitterInput.Hints`, keyed by **IR stable ID** (never `"METHOD /path"`), so a rename of anything
+the ID is not built from, such as an `operationId`, never drops a hint (INV3). A path rename gives
+the operation a new ID, and its hint is then [a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing), reported with the entity its correlation
+key now names:
 
 ```go
 type ShapeHint struct {
@@ -36,7 +39,8 @@ so one IR document drives different compat baselines per language.
 Hints come in layers, as runtime policy does ([layers](runtime-policy.md#layers-and-operations)):
 the hints a document embeds ([embedded policy](embedded-policy.md)), then the project's, then the
 emitter's, each field taking the highest layer's value. An ID no entity of the document has is
-reported, never ignored.
+reported, never ignored ([a key that matches
+nothing](../write-integrate.md#a-key-that-matches-nothing)).
 
 `AlsoMount` answers an operation a document exposes under two names, which one `Remount` cannot.
 Each sub-client it names gets a method calling the operation, keyed in the manifest under the
