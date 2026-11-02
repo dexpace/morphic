@@ -292,8 +292,8 @@ func TestPathItem_DocsKeptOnEveryRoute(t *testing.T) {
 	} {
 		op := openapitest.FindOp(t, doc, tc.op)
 		for _, field := range []struct{ key, keyword string }{
-			{"openapi:pathItemSummary", "summary"},
-			{"openapi:pathItemDescription", "description"},
+			{"openapi:pathItem/summary", "summary"},
+			{"openapi:pathItem/description", "description"},
 		} {
 			entry, ok := op.Unmodeled[field.key]
 			require.True(t, ok, "%s keeps its path item's %s", tc.op, field.keyword)
@@ -323,8 +323,8 @@ func TestPathItem_DocsAbsentKeepNothing(t *testing.T) {
 	openapitest.RequireNoErrorDiags(t, diags)
 
 	op := openapitest.FindOp(t, doc, "getP")
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItemSummary")
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItemDescription")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/summary")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/description")
 	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/paths/~1p/get"))
 }
 
@@ -666,4 +666,117 @@ paths:
 		assert.NotContains(t, d.Message, "declares no operation this compiler lowers",
 			"an item with nothing beside its operations announces nothing")
 	}
+}
+
+const keptOncePerMountSpec = `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    summary: the path
+    x-path: 1
+    bogus1: {k: 1}
+    bogus2: [1, 2]
+    get: {responses: {"200": {description: ok}}}
+    put: {responses: {"200": {description: ok}}}
+    post: {x-own: 1, responses: {"200": {description: ok}}}
+  /b:
+    $ref: '#/components/pathItems/P'
+    bogus3: 1
+components:
+  pathItems:
+    P:
+      description: the shared item
+      bogus4: true
+      get: {responses: {"200": {description: ok}}}
+      delete: {responses: {"200": {description: ok}}}
+`
+
+// TestPathItem_KeepsWhatItDeclaresOncePerMount pins that what a path item keeps
+// is computed once a mount and copied onto each operation, rather than
+// recomputed for each with compile.Diags left to drop the repeated findings
+// (GitHub #414). /b holds each layer of a $ref'd mount to it. The documentation
+// note is sited at each operation, so each still gets one.
+func TestPathItem_KeepsWhatItDeclaresOncePerMount(t *testing.T) {
+	t.Parallel()
+	svc, diags := serviceAsReported(t, keptOncePerMountSpec)
+
+	var keys, notes []string
+	for _, d := range diags {
+		switch {
+		case d.Code == diag.UnknownObjectKey:
+			keys = append(keys, string(d.Provenance.Pointer))
+		case d.Code == diag.DegradedConstruct && strings.HasPrefix(d.Message, "path-item documentation"):
+			notes = append(notes, string(d.Provenance.Pointer))
+		}
+	}
+	assert.ElementsMatch(t, []string{"/paths/~1a/bogus1", "/paths/~1a/bogus2", "/paths/~1b/bogus3",
+		"/components/pathItems/P/bogus4"}, keys,
+		"each undeclared key is reported once, however many operations hold it")
+	assert.ElementsMatch(t, []string{"/paths/~1a/get", "/paths/~1a/put", "/paths/~1a/post",
+		"/components/pathItems/P/get", "/components/pathItems/P/delete"}, notes,
+		"each operation holding its path's summary or description is told so once, where it is declared")
+
+	ops := map[ir.OpID]ir.Operation{}
+	for _, g := range svc.Groups {
+		for _, op := range g.Operations {
+			ops[op.ID] = op
+		}
+	}
+	for _, tc := range []struct {
+		mount         string
+		methods, keys []string
+	}{
+		{"/paths/~1a", []string{"get", "put", "post"},
+			[]string{"pathItem/bogus1", "pathItem/bogus2", "pathItem/x-path", "pathItem/summary"}},
+		{"/paths/~1b", []string{"get", "delete"},
+			[]string{"pathItem/bogus3", "pathItem/bogus4", "pathItem/description"}},
+	} {
+		for _, method := range tc.methods {
+			op, ok := ops[ir.OpID("op/openapi"+tc.mount+"/"+method)]
+			require.True(t, ok, "%s mounts %s", tc.mount, method)
+			for _, key := range tc.keys {
+				assert.Contains(t, op.Unmodeled, "openapi:"+key, "%s %s holds %s", tc.mount, method, key)
+			}
+		}
+	}
+	assert.Contains(t, ops["op/openapi/paths/~1a/post"].Unmodeled, "openapi:x-own",
+		"an operation's own entries stay beside its path item's")
+
+	ops["op/openapi/paths/~1a/get"].Unmodeled["openapi:pathItem/bogus1"].Value[0] = ' '
+	assert.JSONEq(t, `{"k":1}`, string(ops["op/openapi/paths/~1a/put"].Unmodeled["openapi:pathItem/bogus1"].Value),
+		"each operation owns its copy: writing through one leaves the others as declared")
+}
+
+// TestPathItem_DocsKeepApartFromAnOperationsOwnKeys pins that a path item's
+// documentation and an operation's own undeclared key never share an entry
+// (GitHub #1323). The pair is keyed beneath the item's scope, and the census
+// escapes the "/" of a key spelled like one, so each of the three values lands
+// under a key of its own and no finding says a key went unrepresented.
+func TestPathItem_DocsKeepApartFromAnOperationsOwnKeys(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.PathsSpec(`  /a:
+    summary: the path's summary
+    get:
+      operationId: getA
+      pathItemSummary: an undeclared key
+      pathItem/summary: a key spelled like the entry
+      responses: {"200": {description: ok}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	op := openapitest.FindOp(t, doc, "getA")
+
+	for _, tc := range []struct{ key, text, at string }{
+		{"openapi:pathItemSummary", "an undeclared key", "/paths/~1a/get/pathItemSummary"},
+		{"openapi:pathItem~1summary", "a key spelled like the entry", "/paths/~1a/get/pathItem~1summary"},
+		{"openapi:pathItem/summary", "the path's summary", "/paths/~1a/summary"},
+	} {
+		entry, ok := op.Unmodeled[tc.key]
+		if !assert.True(t, ok, "%s is kept", tc.key) {
+			continue
+		}
+		assert.JSONEq(t, `"`+tc.text+`"`, string(entry.Value), "%s holds its own value", tc.key)
+		assert.Equal(t, jsontext.Pointer(tc.at), entry.Provenance.Pointer)
+	}
+	assert.False(t, openapitest.HasDiagCodeAt(diags, diag.UnknownKeyEntryTaken, "/paths/~1a/get/pathItemSummary"),
+		"the operation's key is not reported as displaced")
 }

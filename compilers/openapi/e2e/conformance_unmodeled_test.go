@@ -1269,8 +1269,8 @@ func assertYAMLMergeKeys(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) 
 	op, ok := opByName(doc, "getMerged")
 	require.True(t, ok)
 	assertKept(t, op.Unmodeled, []keptEntry{
-		{"openapi:pathItemSummary", `"Shared summary"`, "/paths/~1merged/summary"},
-		{"openapi:pathItemDescription", `"Shared description"`, "/paths/~1merged/description"},
+		{"openapi:pathItem/summary", `"Shared summary"`, "/paths/~1merged/summary"},
+		{"openapi:pathItem/description", `"Shared description"`, "/paths/~1merged/description"},
 		{"openapi:pathItem/mergedBogus", `{"responses":{"200":{"description":"MERGED"}}}`, "/paths/~1merged/mergedBogus"},
 		{"openapi:x-codes", `{"100":"Continue","200":"OK","true":"T"}`, "/paths/~1merged/get/x-codes"},
 		{"openapi:x-big", `1e400`, "/paths/~1merged/get/x-big"},

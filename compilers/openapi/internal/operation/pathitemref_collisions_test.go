@@ -85,7 +85,7 @@ func TestPathItemRefSiblings_CollisionIsLoudAndUseSiteWins(t *testing.T) {
 	getB := opByPath(t, doc, "GET", "/b")
 	assert.Equal(t, "refGet", getB.Name.Source, "the referent still lowers at its own path")
 
-	summary, ok := getA.Unmodeled["openapi:pathItemSummary"]
+	summary, ok := getA.Unmodeled["openapi:pathItem/summary"]
 	require.True(t, ok)
 	assert.JSONEq(t, `"use summary"`, string(summary.Value), "the use site's summary survives")
 	assert.Equal(t, []string{"https://use.example"}, serversNamed(t, doc, getA.Servers),

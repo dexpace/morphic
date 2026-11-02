@@ -6,6 +6,7 @@ package annotation
 import (
 	"encoding/json/jsontext"
 	"maps"
+	"slices"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	yaml "go.yaml.in/yaml/v3"
@@ -133,6 +134,35 @@ func preserveValidationOnlyInto(p *ir.Unmodeled, key string, raw ir.RawValue,
 func validationOnlyNote(note ir.Provenance, label string) ir.Diagnostic {
 	return diag.Newf(ir.SeverityInfo, diag.ValidationOnlyKeyword, note,
 		"validation-only keyword %q kept verbatim under Unmodeled", label)
+}
+
+// CopyEntriesInto writes onto p a copy of each entry of src, its value cloned,
+// for a reader keeping one set of entries on several carriers. Unlike
+// MergeUnmodeled it never replaces an entry p holds: that one stays, and the
+// entry from src, which reached the IR in no form, is reported as the census
+// reports one (diag.UnknownKeyEntryTaken), in key order.
+func CopyEntriesInto(p *ir.Unmodeled, src ir.Unmodeled) []ir.Diagnostic {
+	if len(src) == 0 {
+		return nil
+	}
+	if *p == nil {
+		*p = make(ir.Unmodeled, len(src))
+	}
+	var taken []string
+	for key, entry := range src {
+		if _, held := (*p)[key]; held {
+			taken = append(taken, key)
+			continue
+		}
+		entry.Value = entry.Value.Clone()
+		(*p)[key] = entry
+	}
+	slices.Sort(taken)
+	var diags []ir.Diagnostic
+	for _, key := range taken {
+		diags = append(diags, occupiedEntryDiag(key, src[key].Provenance, (*p)[key].Provenance.Pointer))
+	}
+	return diags
 }
 
 // MergeUnmodeled overlays src onto dst, allocating dst on first write.

@@ -154,7 +154,7 @@ func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	assert.Equal(t, []string{"PUT"}, methodsOf(sibling))
 
 	for _, tc := range []struct{ key, value, at string }{
-		{"openapi:pathItemSummary", `"written beside the ref"`, "/paths/~1a/summary"},
+		{"openapi:pathItem/summary", `"written beside the ref"`, "/paths/~1a/summary"},
 		{"openapi:pathItem/x-beside", `"use"`, "/paths/~1a/x-beside"},
 		{"openapi:pathItem/bogusBeside", `{"responses":{"200":{"description":"BESIDE"}}}`,
 			"/paths/~1a/bogusBeside"},
@@ -179,10 +179,10 @@ func assertPathItemRefSiblings(t *testing.T, doc *ir.Document, diags []ir.Diagno
 	atA := opByID(t, doc, "op/openapi/paths/~1a/get")
 	assert.Equal(t, "getB", atA.Name.Source)
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atA.Provenance.Pointer)
-	assert.Contains(t, atA.Unmodeled, "openapi:pathItemSummary")
+	assert.Contains(t, atA.Unmodeled, "openapi:pathItem/summary")
 	atB := opByID(t, doc, "op/openapi/paths/~1b/get")
 	assert.Equal(t, jsontext.Pointer("/paths/~1b/get"), atB.Provenance.Pointer)
-	assert.NotContains(t, atB.Unmodeled, "openapi:pathItemSummary",
+	assert.NotContains(t, atB.Unmodeled, "openapi:pathItem/summary",
 		"the referent's own path keeps only what it declares")
 }
 
@@ -253,12 +253,12 @@ func assertPathItemDocs(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 // declared, under the keys that name which object the text came from.
 func assertPathItemDocsKept(t *testing.T, op ir.Operation, summary, description string) {
 	t.Helper()
-	kept, ok := op.Unmodeled["openapi:pathItemSummary"]
+	kept, ok := op.Unmodeled["openapi:pathItem/summary"]
 	require.True(t, ok, "the path item's summary is kept on %s", op.ID)
 	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
 	assert.JSONEq(t, `"`+summary+`"`, string(kept.Value))
 
-	kept, ok = op.Unmodeled["openapi:pathItemDescription"]
+	kept, ok = op.Unmodeled["openapi:pathItem/description"]
 	require.True(t, ok, "the path item's description is kept on %s", op.ID)
 	assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
 	assert.JSONEq(t, `"`+description+`"`, string(kept.Value))
