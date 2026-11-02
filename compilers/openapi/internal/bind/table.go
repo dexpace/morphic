@@ -187,10 +187,10 @@ func run(b *binder) *Table {
 // reread reports whether the pass b, ended, must be run again: what the
 // documents it reached declare changes a URI it asked for, so an answer it gave
 // is not theirs, or it held back documents absolute URIs name, which it now
-// reads together, since no document it read could answer for them. OAS 3.1
-// §4.3.1 has every document parsed before a reference is deemed unresolvable,
-// and a URI an identifier answers is no location to fetch. A document only an
-// earlier pass reached declares nothing.
+// reads, as no document it read answers for them (OAS 3.1 §4.3.1). They are
+// read together, a pass for all rather than one each, so one may declare
+// another's URI, read then for nothing. A document only an earlier pass reached
+// declares nothing.
 func reread(b *binder) bool {
 	if b.stopped {
 		return false
