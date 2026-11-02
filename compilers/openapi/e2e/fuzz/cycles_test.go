@@ -24,6 +24,7 @@ func FuzzCycleDetector(f *testing.F) {
 	for _, spec := range testspec.RefShapedData() {
 		f.Add([]byte(spec.Data))
 	}
+	f.Add([]byte{})            // empty: a Go error and no document
 	f.Add([]byte(" "))         // whitespace-only: recoverable parser panic
 	f.Add([]byte("\t\x00: [")) // undecodable: reported as a parse error, not a fault
 
