@@ -144,7 +144,7 @@ func lowerSecurityScheme(c, dc lowering.Ctx, name string, ss *soa.SecurityScheme
 	diags = append(diags, annotation.UnknownKeysIn(&scheme.Unmodeled, ss, dc.ProvenanceAt, decl)...)
 	// After the extensions, whose entries are what a promotion reads. A statement
 	// of its own, since it writes the provenance of the scheme returned.
-	diags = append(diags, c.PromoteDeprecation(scheme.Unmodeled, scheme.Deprecation, &scheme.Provenance)...)
+	diags = append(diags, c.Promoter().Deprecation(scheme.Unmodeled, lowering.Referent{}, &scheme.Deprecation, &scheme.Provenance)...)
 	return scheme, diags
 }
 
