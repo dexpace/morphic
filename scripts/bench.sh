@@ -19,9 +19,29 @@ cd "$(git -C "$(dirname "${BASH_SOURCE[0]}")" rev-parse --show-toplevel)"
 
 benchtime="${1:-}"
 
+# The packages holding a benchmark, derived from the source as fuzz.sh derives
+# its targets, so a new benchmark needs no list kept. Running ./... would link and
+# start every other test binary to run nothing in it. go list says what ./...
+# means, so a file git does not track yet counts, and testdata and a nested module
+# do not. Its result is held first, so that a load that fails ends the script.
+dirs="$(go list -f '{{.Dir}}' ./...)"
+packages=()
+while IFS= read -r dir; do
+	if grep -qs '^func Benchmark' "$dir"/*_test.go; then
+		packages+=("$dir")
+	fi
+done <<<"$dirs"
+
+# With no package, go test would read the root directory and blame it for holding
+# no Go files, and bash 3.2 stops at the empty list under set -u. Say what is wrong.
+if [ "${#packages[@]}" -eq 0 ]; then
+	echo "bench.sh: found no benchmark; this run would prove nothing" >&2
+	exit 1
+fi
+
 # -run '^$' selects no tests: the suite is the coverage step's job, and running
 # it again here would double the gate's wall time for nothing.
-args=(test ./... -run '^$' -bench . -benchmem -v)
+args=(test "${packages[@]}" -run '^$' -bench . -benchmem -v)
 if [ -n "$benchtime" ]; then
 	args+=("-benchtime=$benchtime")
 fi
@@ -46,8 +66,8 @@ if [ -n "$skipped" ]; then
 	exit 1
 fi
 
-# A tree with no benchmarks left, or a -bench pattern that stopped matching,
-# reads exactly like a clean run. Require evidence that one actually reported.
+# A -bench pattern that stopped matching reads exactly like a clean run. Require
+# evidence that a benchmark actually reported.
 if ! grep -q 'ns/op' "$log"; then
 	echo "bench.sh: no benchmark reported a result; this run proved nothing" >&2
 	exit 1
