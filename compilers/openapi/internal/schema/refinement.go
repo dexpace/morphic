@@ -293,7 +293,7 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 		k.keywords = refinedUnhomed(c, r, s)
 	}
 	bounds := boundsFold(c, ts, target, pointer)
-	voices := voicesAmong(s, r.comp)
+	voices := voicesAmong(c, s)
 	w := newAdmission(c)
 	for i, e := range r.comp.branches {
 		// A principal keeps what it writes where it lowered, bar what none of a type

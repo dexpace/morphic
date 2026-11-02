@@ -345,7 +345,7 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 		if len(out.Examples) == 0 {
 			out.Examples = voice.Examples
 		}
-		out.Unmodeled = MergeUnmodeled(voice.Unmodeled, out.Unmodeled)
+		out.Unmodeled = underlayUnmodeled(out.Unmodeled, voice.Unmodeled)
 	}
 	chain := st.Chain()
 	FillCarrierDocs(&out.Docs, chain)

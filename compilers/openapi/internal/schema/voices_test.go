@@ -205,6 +205,22 @@ func TestVoices_ADisagreementIsReportedAsOne(t *testing.T) {
 	assert.Contains(t, kept[0].Message, "nested past the flattening depth", "a capped branch says so first")
 }
 
+// TestVoices_AnExampleRenderingNothingStillAgrees pins that a keyword renders to
+// nothing without failing: two conjuncts writing `example: null` agree, so both
+// fold, where one that cannot be rendered agrees with nothing.
+func TestVoices_AnExampleRenderingNothingStillAgrees(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, voicesDoc("{allOf: [{$ref: '#/components/schemas/Base'}, "+
+		"{example: null, description: d}, {example: null}]}"))
+	for _, at := range []string{"/components/schemas/S/allOf/1", "/components/schemas/S/allOf/2"} {
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, at), at)
+	}
+	m, ok := doc.Types["t/openapi/components/schemas/S"].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "d", m.Docs.Description)
+	assert.Empty(t, m.Unmodeled)
+}
+
 // TestVoices_AValueThatWillNotRenderAgreesWithNothing pins two branches writing one
 // value no JSON holds: neither can be shown to say what the other does, so neither
 // folds, and each is reported as the whole branch it could not keep.

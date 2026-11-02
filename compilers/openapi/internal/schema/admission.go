@@ -463,12 +463,25 @@ func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if !ok || !okB || at.Doc != bt.Doc {
 		return false
 	}
-	ax, err := annotation.RawFromNode(a.GetCore().GetRootNode())
-	if err != nil {
-		return false
-	}
-	bx, err := annotation.RawFromNode(b.GetCore().GetRootNode())
-	return err == nil && bytes.Equal(ax, bx)
+	text := w.text(a)
+	return text != nil && bytes.Equal(text, w.text(b))
+}
+
+// textOf keys what text rendered of one schema.
+type textOf struct {
+	schema *oas3.JSONSchema[oas3.Referenceable]
+}
+
+// text renders js, nil where it cannot be rendered. Every position restating a
+// shared schema asks, so it is rendered once a run.
+func (w *admission) text(js *oas3.JSONSchema[oas3.Referenceable]) ir.RawValue {
+	return lowering.Remembered(w.c, textOf{js}, func() ir.RawValue {
+		raw, err := annotation.RawFromNode(js.GetCore().GetRootNode())
+		if err != nil {
+			return nil
+		}
+		return raw
+	})
 }
 
 // holds reports whether what held admits says all that s's keyword key does, so

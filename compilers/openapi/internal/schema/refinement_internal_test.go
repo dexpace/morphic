@@ -4,11 +4,16 @@
 package schema
 
 import (
+	"fmt"
+	"math"
+	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
@@ -87,6 +92,147 @@ func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	read := second.written(s)
 	assert.Contains(t, read.values, "s:a", "the second read takes what the first remembered")
 	assert.NotContains(t, read.values, "s:z")
+}
+
+// TestVoicesAmong_ReadsASchemaOnce pins that what folds is read once a run however
+// many uses of a schema ask, which keeps a schema's uses times its branches from
+// being the cost of a wide composition: its allOf goes after the first read, which
+// no lowering does, so only a remembered answer stays.
+func TestVoicesAmong_ReadsASchemaOnce(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
+    T: {allOf: [{$ref: '#/components/schemas/Str'}, {description: d}]}
+`))
+	s := declared(t, l, "T")
+	require.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, s))
+
+	s.AllOf = nil
+	assert.Equal(t, []bool{false, true}, voicesAmong(l.Ctx, s), "the second ask reads what the first read")
+}
+
+// TestLendingBranches_LendsEachEntryOnce pins what a use of a wide composition
+// reads: a branch repeating what s or a branch before it writes lends nothing
+// more, so a use pays for each entry once, while one writing a new entry lends it.
+func TestLendingBranches_LendsEachEntryOnce(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
+    T:
+      description: d
+      allOf:
+        - {$ref: '#/components/schemas/Obj'}
+        - {description: d}
+        - {description: d, readOnly: true}
+        - {readOnly: true}
+        - {description: d}
+`))
+	got := lendingBranches(l.Ctx, declared(t, l, "T"))
+	require.Len(t, got, 1, "only the branch first writing readOnly lends what T does not")
+	require.NotNil(t, got[0].ReadOnly)
+	assert.True(t, *got[0].ReadOnly)
+	assert.Equal(t, "d", got[0].GetDescription())
+
+	split, _ := LoweredFor(t, openapitest.ComponentSpec(`    Obj: {type: object}
+    T: {allOf: [{$ref: '#/components/schemas/Obj'}, {title: a, description: d}, {title: b}, {description: d}]}
+`))
+	got = lendingBranches(split.Ctx, declared(t, split, "T"))
+	require.Len(t, got, 1, "a branch kept for disagreeing lends nothing, nor marks what it writes as lent")
+	assert.Empty(t, got[0].GetTitle())
+	assert.Equal(t, "d", got[0].GetDescription())
+}
+
+// TestLentBy_ReadsATargetOnce pins that what a schema lends is read once a run
+// however many $refs name it, for the reason voicesAmong's answer is: its allOf
+// goes after the first read, so only a remembered chain stays.
+func TestLentBy_ReadsATargetOnce(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec(`    Str: {type: string}
+    T: {allOf: [{$ref: '#/components/schemas/Str'}, {description: d}]}
+`))
+	s := declared(t, l, "T")
+	first := lentBy(l.Ctx, s).Referents
+	require.Len(t, first, 4, "T, the branch that folds, the $ref and what it names")
+
+	s.AllOf = nil
+	assert.Equal(t, first, lentBy(l.Ctx, s).Referents, "the second ask reads what the first read")
+}
+
+// TestAdmission_RendersASchemaOnce pins that a schema's text is rendered once a run
+// however many positions restate it: the node changes after the first render, which
+// no lowering does, so only remembered text stays.
+func TestAdmission_RendersASchemaOnce(t *testing.T) {
+	t.Parallel()
+	l, _ := LoweredFor(t, openapitest.ComponentSpec("    T: {type: string}\n"))
+	js, ok := l.Ctx.Doc.Components.Schemas.Get("T")
+	require.True(t, ok)
+	first := newAdmission(l.Ctx)
+	text := first.text(js)
+	require.NotNil(t, text)
+
+	*js.GetCore().GetRootNode() = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: "other"}
+	second := newAdmission(l.Ctx)
+	assert.Equal(t, text, second.text(js), "the second ask reads what the first rendered")
+}
+
+// TestReadVoices_RendersEachValueOnce pins what a first writer costs: every later
+// conjunct compares with it, so rendering it for each comparison made a document's
+// branches times its longest value the cost of one composition. It is not parallel,
+// as the count is the process's, and takes the least of three counts, since
+// anything else allocating only adds to one.
+func TestReadVoices_RendersEachValueOnce(t *testing.T) {
+	big := strings.Repeat("x", 1<<20)
+	cost := func(later int) uint64 {
+		var src strings.Builder
+		src.WriteString("    T:\n      allOf:\n        - {description: " + big + "}\n")
+		for i := range later {
+			fmt.Fprintf(&src, "        - {description: d%d}\n", i)
+		}
+		l, _ := LoweredFor(t, openapitest.ComponentSpec(src.String()))
+		s := declared(t, l, "T")
+		var stats runtime.MemStats
+		least := uint64(math.MaxUint64)
+		for range 3 {
+			runtime.ReadMemStats(&stats)
+			before := stats.TotalAlloc
+			read := readVoices(s)
+			runtime.ReadMemStats(&stats)
+			least = min(least, stats.TotalAlloc-before)
+			require.Len(t, read.speaks, later+1)
+		}
+		return least
+	}
+	assert.Less(t, cost(256), 2*cost(64), "four times the branches, not four times the value")
+}
+
+// TestRead_AVoiceCostsItsOwnEntries pins what a site's voices cost: each adds its
+// own entries, where overlaying what came before on each made the cost of a
+// composition its branches squared. It is not parallel, as the count is the
+// process's, and takes the least of three counts for the same reason as
+// TestReadVoices_RendersEachValueOnce.
+func TestRead_AVoiceCostsItsOwnEntries(t *testing.T) {
+	const at = "/components/schemas/T"
+	cost := func(voices int) uint64 {
+		var src strings.Builder
+		src.WriteString("    O: {type: object}\n    T:\n      allOf:\n        - {$ref: '#/components/schemas/O'}\n")
+		for i := range voices {
+			fmt.Fprintf(&src, "        - {x-k%d: 1}\n", i)
+		}
+		l, _ := LoweredFor(t, openapitest.ComponentSpec(src.String()))
+		s := declared(t, l, "T")
+		site := Use{Voices: positionVoices(l.Ctx, l.Types, s, at, ir.TypeRef{})}.Site(s)
+		require.Len(t, site.Voices, voices)
+		var stats runtime.MemStats
+		least := uint64(math.MaxUint64)
+		for range 3 {
+			runtime.ReadMemStats(&stats)
+			before := stats.TotalAlloc
+			_, _ = annotation.Read(site, at, l.Ctx.ProvenanceAt)
+			runtime.ReadMemStats(&stats)
+			least = min(least, stats.TotalAlloc-before)
+		}
+		return least
+	}
+	one, two, four := cost(500), cost(1000), cost(2000)
+	assert.LessOrEqual(t, four-two, (two-one)*5/2, "linear growth gives 2, quadratic 4")
 }
 
 // TestKindOfValue_NamesEachValuesKind pins each kind of value to the JSON kind an

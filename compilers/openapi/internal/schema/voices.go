@@ -51,50 +51,79 @@ func foldEntry(s *oas3.Schema, keyword string) (string, bool) {
 	return keyword, fold
 }
 
-// foldValue renders what s writes for entry, to compare with another conjunct's.
-func foldValue(s *oas3.Schema, entry string) (ir.RawValue, error) {
-	var raw ir.RawValue
-	var err error
-	switch entry {
-	case "examples":
-		raw, _, err = annotation.ExamplesRaw(s)
-	case "if":
-		raw, _, err = annotation.IfThenElseRaw(s)
-	case "contains":
-		raw, _, err = annotation.ContainsRaw(s)
-	case "unevaluated":
-		raw, _, err = annotation.UnevaluatedRaw(s)
-	default:
-		raw, err = annotation.RawFromNode(annotation.RawPropertyNode(s, entry))
-	}
-	return raw, err
+// foldRendering is what a conjunct writes for an entry, rendered to compare with
+// another conjunct's. One that cannot be rendered agrees with nothing, which keeps
+// its branch; a keyword may render to nothing, which is no failure.
+type foldRendering struct {
+	raw ir.RawValue
+	err error
 }
 
-// agree reports whether a and b write entry alike. One that cannot be rendered
-// agrees with nothing, which keeps its branch.
-func agree(a, b *oas3.Schema, entry string) bool {
-	x, errA := foldValue(a, entry)
-	y, errB := foldValue(b, entry)
-	return errA == nil && errB == nil && bytes.Equal(x, y)
+// agrees reports whether r and o write an entry alike.
+func (r foldRendering) agrees(o foldRendering) bool {
+	return r.err == nil && o.err == nil && bytes.Equal(r.raw, o.raw)
+}
+
+// foldValue renders what s writes for entry.
+func foldValue(s *oas3.Schema, entry string) foldRendering {
+	var r foldRendering
+	switch entry {
+	case "examples":
+		r.raw, _, r.err = annotation.ExamplesRaw(s)
+	case "if":
+		r.raw, _, r.err = annotation.IfThenElseRaw(s)
+	case "contains":
+		r.raw, _, r.err = annotation.ContainsRaw(s)
+	case "unevaluated":
+		r.raw, _, r.err = annotation.UnevaluatedRaw(s)
+	default:
+		r.raw, r.err = annotation.RawFromNode(annotation.RawPropertyNode(s, entry))
+	}
+	return r
 }
 
 // allOfDecides reports whether s's allOf is what its position lowers: not a
-// family the election passed over, nor keywords beside a $ref, a $dynamicRef or
-// a union, whose branches keep what they write on each variant
-// (docs/compilers/openapi.md#union-beside-structure).
+// family the election passed over, which stays verbatim (GitHub #1309), nor
+// keywords beside a $ref, a $dynamicRef or a union, whose branches keep what they
+// write on each variant (docs/compilers/openapi.md#union-beside-structure).
 func allOfDecides(s *oas3.Schema) bool {
 	return len(s.GetAllOf()) > 0 && s.Ref == nil && dispatchOf(s).won == "allOf" &&
 		!declaresUnion(s) && !declaresDynamicRef(s)
 }
 
-// voicesAmong reports, for each branch of comp, s's flattened allOf, whether it
-// folds: it is inline, it writes something for the position, and each such
-// keyword agrees with every other conjunct writing it, s's own keywords among
-// them. The answer reads the whole set, so no conjunct takes precedence and no
-// order decides. Two bounds that differ disagree: nothing here intersects them
-// (GitHub #10). A null keyword writes nothing (WritesKeywordLeftOut).
-func voicesAmong(s *oas3.Schema, comp allOfComposition) []bool {
-	first := map[string]*oas3.Schema{}
+// voicesOf keys what voicesAmong read of one schema.
+type voicesOf struct {
+	schema *oas3.Schema
+}
+
+// voicesAmong reports, for each branch of s's flattened allOf, whether it folds:
+// it is inline, it writes something for the position, and each such keyword
+// agrees with every other conjunct writing it, s's own keywords among them. The
+// answer reads the whole set, so no conjunct takes precedence and no order
+// decides. Two bounds that differ disagree: nothing here intersects them (GitHub
+// #10). A null keyword writes nothing (WritesKeywordLeftOut). Every use of s
+// asks, so it is read once a run.
+func voicesAmong(c lowering.Ctx, s *oas3.Schema) []bool {
+	return voicingOf(c, s).speaks
+}
+
+// voicing is what a schema's allOf says for the position holding it: whether
+// each branch of the flattened list folds, and whether it lends a use what s and
+// the folding branches before it do not, an entry none of them writes.
+type voicing struct {
+	speaks []bool
+	lends  []bool
+}
+
+// voicingOf reads s's voicing once a run.
+func voicingOf(c lowering.Ctx, s *oas3.Schema) voicing {
+	return lowering.Remembered(c, voicesOf{s}, func() voicing { return readVoices(s) })
+}
+
+// readVoices reads what voicingOf remembers, rendering each conjunct's value
+// once: the first writer's is compared with every later one's.
+func readVoices(s *oas3.Schema) voicing {
+	first := map[string]foldRendering{}
 	split := map[string]bool{}
 	write := func(conjunct *oas3.Schema) []string {
 		var entries []string
@@ -104,24 +133,36 @@ func voicesAmong(s *oas3.Schema, comp allOfComposition) []bool {
 				continue
 			}
 			entries = append(entries, entry)
+			rendered := foldValue(conjunct, entry)
 			if held, ok := first[entry]; !ok {
-				first[entry] = conjunct
-			} else if !agree(held, conjunct, entry) {
+				first[entry] = rendered
+			} else if !held.agrees(rendered) {
 				split[entry] = true
 			}
 		}
 		return entries
 	}
-	write(s)
+	lent := map[string]bool{}
+	for _, entry := range write(s) {
+		lent[entry] = true
+	}
+	comp := allOfBranches(s, "")
 	writes := make([][]string, len(comp.branches))
 	for i, e := range comp.branches {
 		if bs := e.schema.GetSchema(); bs != nil && isInlineBranch(e.schema) {
 			writes[i] = write(bs)
 		}
 	}
-	out := make([]bool, len(comp.branches))
-	for i := range out {
-		out[i] = len(writes[i]) > 0 && !slices.ContainsFunc(writes[i], func(entry string) bool { return split[entry] })
+	out := voicing{speaks: make([]bool, len(comp.branches)), lends: make([]bool, len(comp.branches))}
+	for i, entries := range writes {
+		out.speaks[i] = len(entries) > 0 && !slices.ContainsFunc(entries, func(entry string) bool { return split[entry] })
+		if !out.speaks[i] {
+			continue
+		}
+		for _, entry := range entries {
+			out.lends[i] = out.lends[i] || !lent[entry]
+			lent[entry] = true
+		}
 	}
 	return out
 }
@@ -174,7 +215,7 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 	}
 	comp := allOfBranches(s, pointer)
 	var out []annotation.Voice
-	for i, speaks := range voicesAmong(s, comp) {
+	for i, speaks := range voicesAmong(c, s) {
 		e := comp.branches[i]
 		if !speaks || LoweredToOwnNode(c, ts, e.pointer, target) {
 			continue
@@ -184,16 +225,19 @@ func positionVoices(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer j
 	return out
 }
 
-// foldingBranches returns the schemas of the branches of s that fold, for a use
-// reading what s lends it.
-func foldingBranches(s *oas3.Schema) []*oas3.Schema {
+// lendingBranches returns the schemas of the branches of s that fold, for a use
+// reading what s lends it, but those writing only what s or such a branch before
+// them writes: every writer of an entry agrees (voicesAmong), so a reader taking
+// the nearest takes the same value from any of them, and a use of s pays for each
+// entry once, not for each branch repeating it.
+func lendingBranches(c lowering.Ctx, s *oas3.Schema) []*oas3.Schema {
 	if !allOfDecides(s) {
 		return nil
 	}
 	comp := allOfBranches(s, "")
 	var out []*oas3.Schema
-	for i, speaks := range voicesAmong(s, comp) {
-		if speaks {
+	for i, lends := range voicingOf(c, s).lends {
+		if lends {
 			out = append(out, comp.branches[i].schema.GetSchema())
 		}
 	}

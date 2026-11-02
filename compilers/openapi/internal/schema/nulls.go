@@ -150,6 +150,7 @@ func (s nullSite) child(tokens ...string) nullSite {
 // an alias's own keywords included, within one budget for the whole read,
 // conjuncts.
 type nulls struct {
+	c         lowering.Ctx
 	refs      *typed.Bindings
 	is30      bool
 	conjuncts budget.Budget
@@ -171,7 +172,7 @@ type nullFinding struct {
 // dialect c's document declares. It returns a value so the read lives on its
 // caller's stack, as one per position read is.
 func newNulls(c lowering.Ctx) nulls {
-	return nulls{refs: c.Bindings(), is30: c.Is30(), conjuncts: budget.New(budget.AtMost(maxNullConjuncts)),
+	return nulls{c: c, refs: c.Bindings(), is30: c.Is30(), conjuncts: budget.New(budget.AtMost(maxNullConjuncts)),
 		declared: c.Doc.GetOpenAPI()}
 }
 
@@ -443,7 +444,7 @@ func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) null
 		return r
 	}
 	comp := allOfBranches(s, site.at)
-	for i, speaks := range voicesAmong(s, comp) {
+	for i, speaks := range voicesAmong(n.c, s) {
 		bs := comp.branches[i].schema.GetSchema()
 		if !speaks || bs.Nullable == nil || !foldsNullable(bs) {
 			continue

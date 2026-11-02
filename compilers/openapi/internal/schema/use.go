@@ -151,7 +151,7 @@ func (p passage) ownsNode(c lowering.Ctx, ts *compile.Types, t ir.TypeRef) bool 
 // UseOf reads what speaks for a carrier holding js at pointer, which lowered to
 // t: what a $ref names, or what passageOf reads on through. A principal owning a
 // node keeps its annotations there, so it speaks here as a referent does. A
-// composition writing what only a Model holds lends nothing: its Model holds what
+// composition throughRef reads no $ref through lends nothing: its Model holds what
 // it composes as Base and Mixins.
 func UseOf(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], t ir.TypeRef, pointer jsontext.Pointer) Use {
 	s := js.GetSchema()
@@ -191,23 +191,34 @@ func nodeUse(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext
 	return u
 }
 
+// lentOf keys what lentBy read of one schema.
+type lentOf struct {
+	schema *oas3.Schema
+}
+
 // lentBy reads what s, the schema a $ref names, lends a use of it, nearest first:
-// s, the branches of its allOf that fold, and past a refinement, a decorator or a
-// narrowing enum whatever its own $ref lends in turn. Only s itself is read for
-// what it admits, the narrowest of the chain, so the narrowing starts past its
-// branches. A chain of $refs is read as resolve.Scope.TargetSchema reads it, to
-// its end, past what an alias on it writes (GitHub #1029).
+// s, the branches of its allOf that fold (lendingBranches), and past a
+// refinement, a decorator or a narrowing enum whatever its own $ref lends in
+// turn. Only s itself is read for what it admits, the narrowest of the chain, so
+// the narrowing starts past its branches. A chain of $refs is read as
+// resolve.Scope.TargetSchema reads it, to its end, past what an alias on it
+// writes (GitHub #1029). Every $ref to s asks, so it is read once a run.
 func lentBy(c lowering.Ctx, s *oas3.Schema) Use {
+	return lowering.Remembered(c, lentOf{s}, func() Use { return readLent(c, s) })
+}
+
+// readLent reads what lentBy remembers.
+func readLent(c lowering.Ctx, s *oas3.Schema) Use {
 	var u Use
 	if p, ok := passageOf(c, s, ""); ok && p.narrows {
 		u.narrowed = &p.admits
-		u.narrowedFrom = 1 + len(foldingBranches(s))
+		u.narrowedFrom = 1 + len(lendingBranches(c, s))
 	}
 	for range maxLentHops {
 		if s == nil {
 			break
 		}
-		u.Referents = append(append(u.Referents, s), foldingBranches(s)...)
+		u.Referents = append(append(u.Referents, s), lendingBranches(c, s)...)
 		through := throughRef(s)
 		if through == nil {
 			break

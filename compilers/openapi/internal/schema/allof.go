@@ -41,7 +41,7 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		comp := allOfBranches(s, pointer) // the one flattened list; the readers below take it, not s
 		if allOfDecides(s) {
-			comp.speaks = voicesAmong(s, comp)
+			comp.speaks = voicesAmong(c, s)
 		}
 		idx := propIndex(c, ts, m)
 		diags = append(diags, fillAllOf(c, ts, depth, m, idx, comp)...)

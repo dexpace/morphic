@@ -320,7 +320,7 @@ func TestRead_NodeTypeOnlyADefinedValueIsPlaced(t *testing.T) {
 // read starts from. A declaration misread as a reference would fall back to a
 // referent that does not describe it, and a reference misread as a declaration
 // would lose the fallback entirely. At classifies the position alone and asks
-// nothing of where a $ref lands, so no site it builds holds a Referent: that is
+// nothing of where a $ref lands, so no site it builds holds Referents: that is
 // the readers that inherit, which build their own from the end of the chain.
 func TestAt_ClassifiesEveryPositionShape(t *testing.T) {
 	t.Parallel()

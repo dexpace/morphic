@@ -146,3 +146,18 @@ func MergeUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
 	maps.Copy(dst, src)
 	return dst
 }
+
+// underlayUnmodeled adds to dst each entry of src it lacks, so a nearer writer
+// keeps its entry, walking src alone: a site folds its voices into one map, and
+// overlaying that map on each would cost every voice all those before it.
+func underlayUnmodeled(dst, src ir.Unmodeled) ir.Unmodeled {
+	if dst == nil && len(src) > 0 {
+		dst = make(ir.Unmodeled, len(src))
+	}
+	for keyword, entry := range src {
+		if _, held := dst[keyword]; !held {
+			dst[keyword] = entry
+		}
+	}
+	return dst
+}
