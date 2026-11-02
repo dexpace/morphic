@@ -660,7 +660,10 @@ func (ft fileTypes) testingParams(fn *ast.FuncDecl) []string {
 // typeParams maps each of fn's type parameters to whether its constraint is a
 // testing type. Every one of them is in scope in each constraint, where it
 // reads as no testing type, so a constraint pointing to another type
-// parameter, [U *T, T testing.TB], is not read.
+// parameter, [U *T, T testing.TB], is not read. Nor is a constraint with a ~
+// term or a union, [T ~*testing.T] or [T *testing.T | ptr], though either
+// can fail through (*t).Fatal when its terms share *testing.T as their
+// underlying type.
 func (ft fileTypes) typeParams(fn *ast.FuncDecl) map[string]bool {
 	if fn.Type.TypeParams == nil {
 		return nil
@@ -804,7 +807,8 @@ func failsThrough(body *ast.BlockStmt, params []string, names map[string][]strin
 // argument: one naming a type, or a function taken as a value, fails nothing
 // where it is written, and what runs the value later is not followed. A
 // called function that fails nothing, such as require.New, and a conversion
-// to a testify type still read as failing, as syntax cannot tell them apart.
+// to a testify type still read as failing, as syntax cannot tell them apart
+// (#1239).
 func selectorFails(sel *ast.SelectorExpr, call *ast.CallExpr, params []string, names map[string][]string) []string {
 	x, ok := receiver(sel.X)
 	if !ok {
