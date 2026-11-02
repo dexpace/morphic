@@ -341,3 +341,34 @@ func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 		assert.True(t, w.incomplete())
 	}
 }
+
+// TestElect_WalksOnlyTheSetItNarrows pins what electing a narrowing costs: it
+// looks each of the narrowing's members up in what it narrows, and no more. A set
+// compared with itself, or a larger set searched for one a smaller lacks, walked
+// the larger set, so each position narrowing a long enum paid for every member.
+func TestElect_WalksOnlyTheSetItNarrows(t *testing.T) {
+	t.Parallel()
+	walked := func(members, narrowing int) int {
+		var target, narrowed strings.Builder
+		for i := range members {
+			fmt.Fprintf(&target, "v%d, ", i)
+		}
+		for i := range narrowing {
+			fmt.Fprintf(&narrowed, "v%d, ", i)
+		}
+		l, _ := LoweredFor(t, openapitest.ComponentSpec("    En: {type: string, enum: ["+target.String()+"]}\n"+
+			"    T: {allOf: [{$ref: '#/components/schemas/En'}, {enum: ["+narrowed.String()+"]}]}\n"))
+		s := declared(t, l, "T")
+		w := newAdmission(l.Ctx)
+		total := 0
+		w.walked = func(n int) { total += n }
+		conjuncts := w.conjuncts(s, allOfBranches(s, ""))
+		principal := w.elect(conjuncts, refBranchOf(conjuncts))
+		require.NotNil(t, principal.branch)
+		require.False(t, isRefBranch(principal.branch.schema), "the narrowing is elected")
+		return total
+	}
+	assert.Equal(t, 1, walked(1000, 1))
+	assert.Equal(t, 1, walked(4000, 1), "a longer target walks no more")
+	assert.Equal(t, 999, walked(1000, 999), "a narrowing walks its own members")
+}

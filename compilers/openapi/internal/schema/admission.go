@@ -201,18 +201,26 @@ func (a admitted) kindsWithin(b admitted) bool { return a.kinds&^kindNull&^b.kin
 
 // valuesWithin reports whether b fixes no value a does not fix.
 func (a admitted) valuesWithin(b admitted) bool {
+	within, _ := a.walkWithin(b)
+	return within
+}
+
+// walkWithin is valuesWithin with how many of a's members it looked up. Those
+// are distinct, so a set larger than b's holds one b lacks, answered unwalked.
+func (a admitted) walkWithin(b admitted) (within bool, walked int) {
 	if !b.fixed {
-		return true
+		return true, 0
 	}
-	if !a.fixed {
-		return false
+	if !a.fixed || len(a.values) > len(b.values) {
+		return false, 0
 	}
 	for v := range a.values {
+		walked++
 		if _, ok := b.values[v]; !ok {
-			return false
+			return false, walked
 		}
 	}
-	return true
+	return true, walked
 }
 
 // narrowedTo reports whether joint, what a and the conjuncts beside it admit
@@ -266,6 +274,10 @@ type admission struct {
 	is30    bool
 	reads   budget.Budget
 	members budget.Budget
+	// walked hears how many members each value set comparison of the election
+	// looks up, for a test to hold it to the sets it compares; a compile leaves
+	// it nil.
+	walked func(int)
 }
 
 // newAdmission returns a read with the whole budget, in the dialect c's document

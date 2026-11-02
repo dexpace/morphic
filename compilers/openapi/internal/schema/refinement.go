@@ -190,7 +190,7 @@ func disjoint(joint admitted, conjuncts []conjunct) bool {
 // so it never decides, and where nothing names a kind no branch does.
 func (w *admission) elect(conjuncts []conjunct, ref *conjunct) *conjunct {
 	for i := range conjuncts {
-		if narrowsAll(conjuncts, i, ref) {
+		if w.narrowsAll(conjuncts, i, ref) {
 			return &conjuncts[i]
 		}
 	}
@@ -212,14 +212,27 @@ func (w *admission) elect(conjuncts []conjunct, ref *conjunct) *conjunct {
 // narrowsAll reports whether conjunct i is a value set within every other
 // conjunct and more than a restatement of what a $ref fixes, which a $ref's own is
 // not. Only a branch can be one: a value set beside the allOf is no refinement.
-func narrowsAll(conjuncts []conjunct, i int, ref *conjunct) bool {
-	cj := conjuncts[i]
-	if !cj.read.fixed || (ref != nil && ref.read.valuesWithin(cj.read)) {
+// No set is compared with itself, which answers nothing and walks the whole set.
+func (w *admission) narrowsAll(conjuncts []conjunct, i int, ref *conjunct) bool {
+	cj := &conjuncts[i]
+	if !cj.read.fixed || cj == ref || (ref != nil && w.setWithin(ref.read, cj.read)) {
 		return false
 	}
-	return !slices.ContainsFunc(conjuncts, func(o conjunct) bool {
-		return !cj.read.kindsWithin(o.read) || !cj.read.valuesWithin(o.read)
-	})
+	for j := range conjuncts {
+		if o := &conjuncts[j]; j != i && (!cj.read.kindsWithin(o.read) || !w.setWithin(cj.read, o.read)) {
+			return false
+		}
+	}
+	return true
+}
+
+// setWithin is a.valuesWithin(b), telling walked how many members it looked up.
+func (w *admission) setWithin(a, b admitted) bool {
+	within, walked := a.walkWithin(b)
+	if w.walked != nil {
+		w.walked(walked)
+	}
+	return within
 }
 
 // conesOver counts the conjuncts conjunct i lies within.
