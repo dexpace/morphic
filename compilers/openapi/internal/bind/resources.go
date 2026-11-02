@@ -234,9 +234,9 @@ func (ix *identifiers) changes(uris map[string][]Position) bool {
 	return false
 }
 
-// reading names the declarations answering counts by the documents counted,
-// which settle them: each is read whole before a drain counts it (settled), and
-// what a document read and not counted declares answers nothing.
+// reading names the declarations answering counts, before every document read
+// counts, by the documents counted: each is read whole before a drain counts it
+// (settled), and what one read and not counted declares answers nothing.
 func (ix *identifiers) reading() string {
 	return fmt.Sprint(slices.Sorted(maps.Keys(ix.counted)))
 }
