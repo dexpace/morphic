@@ -56,10 +56,12 @@ components:
 `
 
 // keptEntry is one Unmodeled entry an item mounting no operation should keep:
-// its key, its value as JSON, and the pointer it was written at.
+// its key, its value as JSON, and the pointer it was written at in the root
+// document.
 type keptEntry struct{ key, value, at string }
 
-// assertKept holds each want entry to what kept holds under its key.
+// assertKept holds each want entry to what kept holds under its key, its
+// provenance whole, so a position or an inference set on it fails too.
 func assertKept(t *testing.T, kept ir.Unmodeled, want []keptEntry) {
 	t.Helper()
 	for _, w := range want {
@@ -69,7 +71,7 @@ func assertKept(t *testing.T, kept ir.Unmodeled, want []keptEntry) {
 		}
 		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, w.key)
 		assert.JSONEq(t, w.value, string(entry.Value), w.key)
-		assert.Equal(t, jsontext.Pointer(w.at), entry.Provenance.Pointer, w.key)
+		assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(w.at)}, entry.Provenance, w.key)
 	}
 }
 

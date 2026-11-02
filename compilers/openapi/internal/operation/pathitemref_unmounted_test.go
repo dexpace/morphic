@@ -4,6 +4,7 @@
 package operation_test
 
 import (
+	"encoding/json/jsontext"
 	"strings"
 	"testing"
 
@@ -193,7 +194,7 @@ func TestPathItemRefSiblings_UnmountedCollisionKeepsTheUseSite(t *testing.T) {
 		entry, ok := svc.Unmodeled[key]
 		require.True(t, ok, key)
 		assert.JSONEq(t, want.value, string(entry.Value), key)
-		assert.Equal(t, want.at, string(entry.Provenance.Pointer), key)
+		assert.Equal(t, ir.Provenance{Pointer: jsontext.Pointer(want.at)}, entry.Provenance, key)
 	}
 	for _, at := range []string{"x-both", "bogusBoth", "summary", "parameters/0"} {
 		assert.True(t, openapitest.HasDiagCodeAt(diags, diag.PathItemRefCollision, "/paths/~1a/"+at), at)
