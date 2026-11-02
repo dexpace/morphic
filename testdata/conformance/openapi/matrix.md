@@ -176,7 +176,7 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`, `security-root-empty`
+- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`
 
 ### `servers`
 

@@ -124,9 +124,12 @@ func knownInvalid() map[string]bool {
 		// (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f12-refs.yaml"): true,
 		// A security requirement naming a scheme with no
-		// components.securitySchemes declaration, dropped with an
-		// unresolved-ref error rather than a dangling AuthID (#14).
+		// components.securitySchemes declaration, kept with an error beside it,
+		// naming a scheme minted for it rather than a dangling AuthID (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f30-protocol-surface.yaml"): true,
+		// The same at every carrier, with a name an entry holds and states no
+		// mechanism for, which the specification bars just the same.
+		filepath.FromSlash("../../testdata/conformance/openapi/security-unresolved.yaml"): true,
 		// A $ref whose pointer escapes non-canonically (a raw '~' for a
 		// component named "A~B"). The compiler resolves it to the interned
 		// node, but the loader reports the malformed JSON pointer as an

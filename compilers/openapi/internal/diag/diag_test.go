@@ -148,6 +148,7 @@ func codes() []string {
 		diag.InternalInvariant,
 		diag.DuplicateOperationID, diag.ConflictingOperationID, diag.PathItemRefCollision,
 		diag.IncompleteSecurityScheme, diag.OAuth2NoFlow, diag.EmptyRequestContent,
+		diag.UnresolvedSecurityScheme,
 		diag.ReservedHeaderName, diag.UnpreservableConstruct,
 		diag.UnknownSchemaKeyword, diag.UnknownObjectKey, diag.UnknownKeyBudget,
 		diag.UnknownKeyUnreachable, diag.UnknownKeyEntryTaken,
