@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"slices"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -238,7 +237,7 @@ func runPipeline(
 		return nil, 0, &exitError{code: writeFailureExit(code), err: fmt.Errorf("write diagnostics: %w", err)}
 	}
 	if res.CacheErr != nil {
-		emitf(stderr, "morphic: warning: %s\n", strings.ReplaceAll(res.CacheErr.Error(), "\n", "; "))
+		warnCache(stderr, res.CacheErr)
 	}
 	if res.Document == nil {
 		return nil, code, nil

@@ -32,7 +32,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/cache"
-	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
@@ -197,12 +196,8 @@ func TestAssertSameRun_SeesEachField(t *testing.T) {
 	withErr.CacheErr = errors.New("cache failed")
 	assert.Empty(t, cmp.Diff(&base, &withErr, sameRun), "CacheErr is the one field a hit may differ in")
 
-	var declared []string
-	for field := range reflect.TypeFor[engine.Result]().Fields() {
-		declared = append(declared, field.Name)
-	}
-	assert.Empty(t, cmp.Diff(slices.Sorted(maps.Keys(rows)), slices.Sorted(slices.Values(slices.DeleteFunc(declared,
-		func(name string) bool { return name == "CacheErr" })))), "a field of Result has no row (-rows +declared)")
+	declared := slices.DeleteFunc(declaredFields(t, "Result"), func(name string) bool { return name == "CacheErr" })
+	assert.Empty(t, cmp.Diff(slices.Sorted(maps.Keys(rows)), declared), "a field of Result has no row (-rows +declared)")
 }
 
 // countingPass is a pass that counts its runs and changes nothing.
@@ -366,45 +361,6 @@ func TestWithCache_APassTurnedOffDoesNotSeeItsDiagnostics(t *testing.T) {
 	off, err := eng.Run(t.Context(), spec, engine.RunOptions{DisablePasses: []string{engine.ValidatePass}})
 	require.NoError(t, err)
 	assert.Empty(t, off.Diagnostics)
-}
-
-// TestKeyFor_CoversEveryInput changes each input of the derivation, which is
-// the only place one a run cannot vary, such as the IR version, can be seen.
-func TestKeyFor_CoversEveryInput(t *testing.T) {
-	t.Parallel()
-	passes, settings := []string{"validate"}, map[string]string{"grouping": "tags"}
-	base := engine.KeyFor("build", "1.0.0", "/dir", "spec.yaml", "hash", passes, settings)
-	for name, key := range map[string]cache.Key{
-		"build":      engine.KeyFor("other", "1.0.0", "/dir", "spec.yaml", "hash", passes, settings),
-		"IR version": engine.KeyFor("build", "1.0.1", "/dir", "spec.yaml", "hash", passes, settings),
-		"directory":  engine.KeyFor("build", "1.0.0", "/other", "spec.yaml", "hash", passes, settings),
-		"path":       engine.KeyFor("build", "1.0.0", "/dir", "other.yaml", "hash", passes, settings),
-		"spec":       engine.KeyFor("build", "1.0.0", "/dir", "spec.yaml", "other", passes, settings),
-		"passes":     engine.KeyFor("build", "1.0.0", "/dir", "spec.yaml", "hash", nil, settings),
-		"settings":   engine.KeyFor("build", "1.0.0", "/dir", "spec.yaml", "hash", passes, nil),
-		"a value":    engine.KeyFor("build", "1.0.0", "/dir", "spec.yaml", "hash", passes, map[string]string{"grouping": "x"}),
-		"a name":     engine.KeyFor("build", "1.0.0", "/dir", "spec.yaml", "hash", passes, map[string]string{"other": "tags"}),
-	} {
-		assert.NotEqual(t, base, key, "%s changed and the key did not", name)
-	}
-}
-
-// TestKeyFor_ThePassesEndWhereTheirCountSays spells two runs alike but for it:
-// with no count, the passes a, k and 0 and the pass a with the setting k=0 are
-// one sequence of fields.
-func TestKeyFor_ThePassesEndWhereTheirCountSays(t *testing.T) {
-	t.Parallel()
-	assert.NotEqual(t,
-		engine.KeyFor("b", "v", "d", "p", "h", []string{"a", "k", "0"}, nil),
-		engine.KeyFor("b", "v", "d", "p", "h", []string{"a"}, map[string]string{"k": "0"}))
-	assert.NotEqual(t,
-		engine.KeyFor("b", "v", "d", "p", "h", []string{"a", "b"}, nil),
-		engine.KeyFor("b", "v", "d", "p", "h", []string{"b", "a"}, nil),
-		"each pass reads what the one before it returned")
-	assert.Equal(t,
-		engine.KeyFor("b", "v", "d", "p", "h", nil, map[string]string{"a": "1", "b": "2"}),
-		engine.KeyFor("b", "v", "d", "p", "h", nil, map[string]string{"b": "2", "a": "1"}),
-		"a map has no order to depend on")
 }
 
 // TestWithCache_WorkingDirectoryIsAnInput is the case no hash of the inputs a
@@ -620,78 +576,6 @@ func TestWithCache_AFailedReadLeavesNoEntry(t *testing.T) {
 	assert.False(t, second.Failed)
 }
 
-func TestRecorder_ListsEveryReadInOneOrder(t *testing.T) {
-	t.Parallel()
-	docs, err := reader.NewMemory([]compilers.Source{
-		{Path: "b.yaml", Data: []byte("b")}, {Path: "a.yaml", Data: []byte("a")},
-	})
-	require.NoError(t, err)
-	rec := engine.NewRecorder(docs)
-	for _, req := range []compilers.DocumentRequest{
-		{Location: "b.yaml"}, {Location: "a.yaml"}, {Location: "a.yaml", Limit: 9}, {Location: "a.yaml"},
-	} {
-		_, err := rec.ReadDocument(t.Context(), req)
-		require.NoError(t, err)
-	}
-	locations, sound := engine.SettledLocations(rec)
-	assert.True(t, sound)
-	assert.Equal(t, []string{"a.yaml", "a.yaml", "b.yaml"}, locations, "one entry per request, in sorted order")
-}
-
-// fickleReader answers each read from the next of its answers.
-type fickleReader struct {
-	answers []string
-	failing bool
-}
-
-func (r *fickleReader) ReadDocument(context.Context, compilers.DocumentRequest) ([]byte, error) {
-	if r.failing {
-		return nil, errors.New("unreadable")
-	}
-	answer := r.answers[0]
-	r.answers = r.answers[1:]
-	return []byte(answer), nil
-}
-
-func TestRecorder_ARunItCannotVouchForIsUnsound(t *testing.T) {
-	t.Parallel()
-	req := compilers.DocumentRequest{Location: "a.yaml"}
-
-	t.Run("a repeat answering with the same bytes is sound", func(t *testing.T) {
-		t.Parallel()
-		rec := engine.NewRecorder(&fickleReader{answers: []string{"one", "one"}})
-		_, _ = rec.ReadDocument(t.Context(), req)
-		_, _ = rec.ReadDocument(t.Context(), req)
-		_, sound := engine.SettledLocations(rec)
-		assert.True(t, sound)
-	})
-	t.Run("a repeat answering with other bytes is not", func(t *testing.T) {
-		t.Parallel()
-		rec := engine.NewRecorder(&fickleReader{answers: []string{"one", "two"}})
-		_, _ = rec.ReadDocument(t.Context(), req)
-		_, _ = rec.ReadDocument(t.Context(), req)
-		_, sound := engine.SettledLocations(rec)
-		assert.False(t, sound)
-	})
-	t.Run("a third read does not restore it", func(t *testing.T) {
-		t.Parallel()
-		rec := engine.NewRecorder(&fickleReader{answers: []string{"one", "two", "two"}})
-		for range 3 {
-			_, _ = rec.ReadDocument(t.Context(), req)
-		}
-		_, sound := engine.SettledLocations(rec)
-		assert.False(t, sound)
-	})
-	t.Run("a failed read is not, and the failure reaches the compile", func(t *testing.T) {
-		t.Parallel()
-		rec := engine.NewRecorder(&fickleReader{failing: true})
-		_, err := rec.ReadDocument(t.Context(), req)
-		require.Error(t, err)
-		_, sound := engine.SettledLocations(rec)
-		assert.False(t, sound)
-	})
-}
-
 func TestWithCache_AVerifiedRunRunsItsStages(t *testing.T) {
 	t.Parallel()
 	store := newMemoryCache()
@@ -864,6 +748,24 @@ func TestWithCache_AnEntryForAnotherKeyIsRefused(t *testing.T) {
 	require.ErrorContains(t, res.CacheErr, "seal")
 }
 
+// declaredFields returns, sorted, the fields the engine package declares on the
+// struct type name, read as the compiler reads them.
+func declaredFields(t *testing.T, name string) []string {
+	t.Helper()
+	p, err := decls.Load(reflect.TypeFor[engine.RunOptions]().PkgPath())
+	require.NoError(t, err)
+	named, err := p.Named(name)
+	require.NoError(t, err)
+	fields, ok := named.Underlying().(*types.Struct)
+	require.True(t, ok, "%s is a struct", name)
+	var declared []string
+	for field := range fields.Fields() {
+		declared = append(declared, field.Name())
+	}
+	require.NotEmpty(t, declared, "a pin over no fields holds nothing")
+	return slices.Sorted(slices.Values(declared))
+}
+
 // TestWithCache_EveryRunOptionIsAnswered lists what a cached run does with each
 // field of RunOptions. A field added there is either in the key or keeps its run
 // out, and leaving it unanswered would serve one setting's document to another.
@@ -876,18 +778,7 @@ func TestWithCache_EveryRunOptionIsAnswered(t *testing.T) {
 		"FormatOptions":   "keeps its run out: TestWithCache_FormatOptionsTakeNoPart",
 		"Verify":          "keeps its run out: TestWithCache_AVerifiedRunRunsItsStages",
 	}
-	p, err := decls.Load(reflect.TypeFor[engine.RunOptions]().PkgPath())
-	require.NoError(t, err)
-	named, err := p.Named("RunOptions")
-	require.NoError(t, err)
-	fields, ok := named.Underlying().(*types.Struct)
-	require.True(t, ok, "RunOptions is a struct")
-	declared := make([]string, 0, fields.NumFields())
-	for field := range fields.Fields() {
-		declared = append(declared, field.Name())
-	}
-	require.NotEmpty(t, declared, "a pin over no fields holds nothing")
-	assert.Empty(t, cmp.Diff(slices.Sorted(maps.Keys(answered)), slices.Sorted(slices.Values(declared))),
+	assert.Empty(t, cmp.Diff(slices.Sorted(maps.Keys(answered)), declaredFields(t, "RunOptions")),
 		"say how a cached run treats each field (-answered +declared)")
 }
 
@@ -1088,15 +979,20 @@ func TestNew_RefusesACacheNoRunCouldUse(t *testing.T) {
 // is what a run reaches that memoryCache does not: bytes that crossed a file.
 func TestWithCache_ADirectoryServesARun(t *testing.T) {
 	t.Parallel()
-	dir := filepath.Join(t.TempDir(), "cache")
+	path := filepath.Join(t.TempDir(), "cache")
 	spec, _ := splitSpec(t)
+	dir := func() *cache.Dir {
+		d, err := cache.NewDir(path)
+		require.NoError(t, err)
+		return d
+	}
 
-	first, counter := cachedEngine(t, cache.NewDir(dir), "b1")
+	first, counter := cachedEngine(t, dir(), "b1")
 	want, err := first.Run(t.Context(), spec, engine.RunOptions{})
 	require.NoError(t, err)
 	require.NoError(t, want.CacheErr)
 
-	second, later := cachedEngine(t, cache.NewDir(dir), "b1")
+	second, later := cachedEngine(t, dir(), "b1")
 	got, err := second.Run(t.Context(), spec, engine.RunOptions{})
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, counter.compiles.Load())

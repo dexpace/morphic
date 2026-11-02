@@ -20,10 +20,10 @@ type documentRead struct {
 	Hash    string                    `json:"hash"`
 }
 
-// stillRead reports whether each read returns what the compile got from it. A
-// read that fails, ctx's end among the ways, answers no: the compile it sends
+// readsUnchanged reports whether each read returns what the compile got from it.
+// A read that fails, ctx's end among the ways, answers no: the compile it sends
 // the run to reports that as it should.
-func stillRead(ctx context.Context, docs compilers.DocumentReader, reads []documentRead) bool {
+func readsUnchanged(ctx context.Context, docs compilers.DocumentReader, reads []documentRead) bool {
 	for _, read := range reads {
 		data, err := docs.ReadDocument(ctx, read.Request)
 		if err != nil || ir.SourceHash(data) != read.Hash {
@@ -46,6 +46,11 @@ type recorder struct {
 	// the document may appear later and nothing stored would notice, or one that
 	// answered a repeat with other bytes.
 	unsound bool
+}
+
+// newRecorder returns a recorder reading through docs, with nothing read yet.
+func newRecorder(docs compilers.DocumentReader) *recorder {
+	return &recorder{docs: docs, reads: map[compilers.DocumentRequest]string{}}
 }
 
 // ReadDocument implements compilers.DocumentReader.

@@ -5,7 +5,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
+	"strings"
 
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/cache"
@@ -28,9 +30,17 @@ func engineFor(ctx context.Context, opts specOptions, stderr io.Writer) (*engine
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return nil, ctxErr
 	}
-	if err != nil {
-		emitf(stderr, "morphic: warning: %s\n", err)
+	dir, dirErr := cache.NewDir(opts.cacheDir)
+	if err = errors.Join(err, dirErr); err != nil {
+		warnCache(stderr, err)
 		return newEngine()
 	}
-	return newEngine(engine.WithCache(cache.NewDir(opts.cacheDir), build))
+	return newEngine(engine.WithCache(dir, build))
+}
+
+// warnCache reports err, why the run could not use its cache, on one line of
+// stderr. The run goes on without the cache, so it is a warning, not a failure,
+// and one line however many failures err joins.
+func warnCache(stderr io.Writer, err error) {
+	emitf(stderr, "morphic: warning: %s\n", strings.ReplaceAll(err.Error(), "\n", "; "))
 }

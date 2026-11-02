@@ -4,8 +4,6 @@
 package engine
 
 import (
-	"slices"
-
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine/cache"
 	"github.com/dexpace/morphic/ir"
@@ -53,14 +51,12 @@ func OnVerify(e *Engine, f func()) {
 	}
 }
 
-// KeyFor exposes the derivation of a run's key, so a test can change the one
-// input a run cannot, such as the IR version.
-func KeyFor(build, irVersion, dir, path, specHash string, passes []string, settings map[string]string) cache.Key {
-	return keyFor(keyInputs{
-		build: build, irVersion: irVersion, dir: dir, path: path, specHash: specHash,
-		passes: passes, settings: settings,
-	})
-}
+// KeyInputs is what a run's key covers, for a test that changes one input a run
+// cannot, such as the IR version.
+type KeyInputs = keyInputs
+
+// DeriveKey exposes deriveKey.
+func DeriveKey(in KeyInputs) cache.Key { return deriveKey(in) }
 
 // FailWorkingDirectory makes e unable to name its working directory, which a
 // test cannot rely on a system to refuse: removing it leaves some still naming it.
@@ -73,7 +69,7 @@ type Recorder = recorder
 
 // NewRecorder returns a Recorder reading through docs.
 func NewRecorder(docs compilers.DocumentReader) *Recorder {
-	return &recorder{docs: docs, reads: map[compilers.DocumentRequest]string{}}
+	return newRecorder(docs)
 }
 
 // SettledLocations returns where r read, in the order an entry lists them, and
@@ -90,7 +86,5 @@ func SettledLocations(r *Recorder) ([]string, bool) {
 // SealedEntry returns an entry for key holding head and body, sealed as a store
 // would hand it back intact: what a test writes to reach what follows the seal.
 func SealedEntry(key cache.Key, head, body string) []byte {
-	separator := []byte{entrySeparator}
-	content := slices.Concat([]byte(head), separator, []byte(body))
-	return slices.Concat(sealOf(key, content), separator, content)
+	return sealed(key, []byte(head), []byte(body))
 }

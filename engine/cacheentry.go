@@ -30,20 +30,25 @@ type entryHead struct {
 	Reads []documentRead `json:"reads,omitempty"`
 }
 
-// sealOf hashes key and then parts. Sealing with the key is what ties an entry
+// sealOf hashes key and then content. Sealing with the key is what ties an entry
 // to the run it answers: a hash of the bytes alone would pass an intact entry
 // handed back for another key, and serve that run another spec's document.
-func sealOf(key cache.Key, parts ...[]byte) []byte {
+func sealOf(key cache.Key, content []byte) []byte {
 	h := sha256.New()
 	h.Write(key[:])
-	for _, part := range parts {
-		h.Write(part)
-	}
+	h.Write(content)
 	return hex.AppendEncode(nil, h.Sum(nil))
 }
 
-// encodeEntry writes res as the entry named key: the seal over all that follows,
-// the head, then the compact document, a line each.
+// sealed lays out the entry named key holding head and body: the seal over all
+// that follows, the head, then the body, a line each.
+func sealed(key cache.Key, head, body []byte) []byte {
+	separator := []byte{entrySeparator}
+	content := slices.Concat(head, separator, body)
+	return slices.Concat(sealOf(key, content), separator, content)
+}
+
+// encodeEntry writes res as the entry named key, its body the compact document.
 func encodeEntry(key cache.Key, res *Result, reads []documentRead) ([]byte, error) {
 	body, err := json.Marshal(res.Document)
 	if err != nil {
@@ -53,8 +58,7 @@ func encodeEntry(key cache.Key, res *Result, reads []documentRead) ([]byte, erro
 	if err != nil {
 		return nil, fmt.Errorf("encode head: %w", err)
 	}
-	separator := []byte{entrySeparator}
-	return slices.Concat(sealOf(key, head, separator, body), separator, head, separator, body), nil
+	return sealed(key, head, body), nil
 }
 
 // decodeEntry splits entry into its head and document, refusing one its seal

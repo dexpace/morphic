@@ -20,10 +20,10 @@ var _ Cache = (*cache.Dir)(nil)
 
 // Cache keeps what runs compiled, for WithCache. It holds opaque bytes, and
 // overlapping calls must be safe; cache.Dir is the implementation on disk. An
-// entry may be lost, damaged or returned for the wrong key at any time, which
-// costs a compile and never a wrong document (entry seals). It is trusted as
-// the executable is: a seal tells those from a sound entry, not a forgery from
-// a compile.
+// entry may be lost, damaged or handed back for the wrong key at any time, which
+// costs a compile and never a wrong document, as each entry is sealed to its
+// key. It is trusted as the executable is: a seal tells those from a sound
+// entry, not a forgery from a compile.
 type Cache interface {
 	// Load returns the entry named key, and false when there is none.
 	Load(ctx context.Context, key cache.Key) (entry []byte, ok bool, err error)
@@ -63,45 +63,46 @@ func (b *cacheBinding) check() error {
 	return nil
 }
 
-// compileCached is compile, answered from the engine's cache where the run lets
-// it be, which skips detection too: that parses the spec. A failed lookup or
+// cacheable reports whether a run under opts takes part in the cache. A
+// verified run exists to run its stages, and a value of a compiler's own options
+// type says nothing the engine can key on.
+func cacheable(opts RunOptions) bool {
+	return !opts.Verify && opts.FormatOptions == nil
+}
+
+// compileCached is compile, answered from the engine's cache where the run takes
+// part, which skips detection too: that parses the spec. A failed key, lookup or
 // store costs the work and goes on Result.CacheErr, and never fails the run.
 func (e *Engine) compileCached(ctx context.Context, spec compilers.Source, opts RunOptions,
 	docs compilers.DocumentReader, p plan,
 ) (*Result, error) {
-	// A verified run exists to run its stages, and a value of a compiler's own
-	// options type says nothing the engine can key on.
-	if e.cache == nil || opts.Verify || opts.FormatOptions != nil {
+	if e.cache == nil || !cacheable(opts) {
 		return e.compile(ctx, spec, configurer(opts, docs), p)
 	}
-	key, cacheErr := e.cache.keyOf(spec, opts, p)
-	keyed := cacheErr == nil
-	if keyed {
-		res, hit, err := e.cache.fetch(ctx, key, docs)
-		if hit {
-			return res, ctxAfterCache(ctx)
+	key, keyErr := e.cache.runKey(spec, opts, p)
+	if keyErr != nil {
+		res, err := e.compile(ctx, spec, configurer(opts, docs), p)
+		if err == nil {
+			res.CacheErr = keyErr
 		}
-		cacheErr = err
+		return res, err
 	}
-	reads := &recorder{docs: docs, reads: map[compilers.DocumentRequest]string{}}
+	res, hit, lookupErr := e.cache.fetch(ctx, key, docs)
+	if hit {
+		// A run cancelled meanwhile returns no document, as one cancelled in a
+		// stage does.
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("engine: stop after the cache: %w", err)
+		}
+		return res, nil
+	}
+	reads := newRecorder(docs)
 	res, err := e.compile(ctx, spec, configurer(opts, reads), p)
 	if err != nil {
 		return nil, err
 	}
-	if keyed {
-		cacheErr = errors.Join(cacheErr, e.cache.keep(ctx, key, res, reads))
-	}
-	res.CacheErr = cacheErr
+	res.CacheErr = errors.Join(lookupErr, e.cache.keep(ctx, key, res, reads))
 	return res, nil
-}
-
-// ctxAfterCache is ctx's error as a run ending at the cache fails with: a run
-// cancelled meanwhile returns no document, as one cancelled in a stage does.
-func ctxAfterCache(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return fmt.Errorf("engine: stop after the cache: %w", err)
-	}
-	return nil
 }
 
 // fetch answers a run from the entry named key. ok is false for no entry, for
@@ -116,7 +117,7 @@ func (b *cacheBinding) fetch(ctx context.Context, key cache.Key, docs compilers.
 	if err != nil {
 		return nil, false, fmt.Errorf("engine: cache: entry %s: %w", key, err)
 	}
-	if !stillRead(ctx, docs, head.Reads) {
+	if !readsUnchanged(ctx, docs, head.Reads) {
 		return nil, false, nil
 	}
 	var doc ir.Document

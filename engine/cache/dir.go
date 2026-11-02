@@ -4,7 +4,6 @@
 package cache
 
 import (
-	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -12,10 +11,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"regexp"
-	"slices"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/dexpace/morphic/engine/internal/atomicfile"
@@ -35,30 +30,6 @@ const entrySuffix = ".entry"
 // specs compiled, which may be private.
 const dirPerm fs.FileMode = 0o700
 
-// staleAfter is how old a temporary file must be before it is taken for what a
-// killed Store left. A younger one may be another process's Store, whose rename
-// would fail were it removed, so it is neither counted nor touched.
-const staleAfter = time.Hour
-
-// ledgerName names the file each Store appends its entry's size to. Listing the
-// directory costs each Store what the entries number, so a Store prunes only once
-// the bytes stored since the last prune pass an eighth of the limit, or once
-// maxRecords Stores have passed, and removes the ledger first.
-const ledgerName = "stored.ledger"
-
-// recordWidth is one ledger record: a size in twenty digits and a newline, one
-// short write, which lands whole beside another process's.
-const recordWidth = 21
-
-// maxRecords bounds the ledger, so reading it stays cheap, and a prune comes at
-// least once in that many Stores.
-const maxRecords = 1 << 12
-
-// ownName matches the files a Dir may remove: an entry, and what an interrupted
-// atomic replace of one left, a dot before its name and digits after. Nothing
-// else is touched, so a directory shared with other files loses none of them.
-var ownName = regexp.MustCompile(`^\.?[0-9a-f]{64}` + regexp.QuoteMeta(entrySuffix) + `[0-9]*$`)
-
 // errNoDirectory reports a Dir naming no directory: its entries would land in
 // whatever the working directory is.
 var errNoDirectory = errors.New("no directory to keep entries in")
@@ -71,13 +42,24 @@ var errNoDirectory = errors.New("no directory to keep entries in")
 type Dir struct {
 	path  string
 	limit int
-	// mark records a use of an entry's file, os.Chtimes outside a test.
-	mark func(name string, atime, mtime time.Time) error
+	ops   fileOps
 }
 
-// NewDir returns the Dir at path.
-func NewDir(path string) *Dir {
-	return &Dir{path: path, limit: MaxBytes, mark: os.Chtimes}
+// fileOps are the calls a Dir makes on its directory's files beyond writing an
+// entry, a field each so a test can fail one.
+type fileOps struct {
+	list   func(dir string) ([]fs.DirEntry, error)
+	remove func(name string) error
+	mark   func(name string, atime, mtime time.Time) error
+}
+
+// NewDir returns the Dir at path, which the first Store creates. An empty path
+// is refused, for the reason errNoDirectory gives.
+func NewDir(path string) (*Dir, error) {
+	if path == "" {
+		return nil, errNoDirectory
+	}
+	return &Dir{path: path, limit: MaxBytes, ops: fileOps{list: os.ReadDir, remove: os.Remove, mark: os.Chtimes}}, nil
 }
 
 // fileOf is the path of the entry named key.
@@ -106,7 +88,7 @@ func (d *Dir) Load(ctx context.Context, key Key) ([]byte, bool, error) {
 	// it means a read-only directory or another user's entry, which still
 	// answers, and the mark only orders what goes first.
 	now := time.Now()
-	_ = d.mark(d.fileOf(key), now, now)
+	_ = d.ops.mark(d.fileOf(key), now, now)
 	return entry, true, nil
 }
 
@@ -133,119 +115,5 @@ func (d *Dir) Store(ctx context.Context, key Key, entry []byte) error {
 	if !d.pruneDue(ctx, len(entry)) {
 		return nil
 	}
-	reset := os.Remove(d.ledger())
-	if errors.Is(reset, fs.ErrNotExist) {
-		reset = nil
-	}
-	if reset != nil {
-		reset = fmt.Errorf("reset the ledger: %w", reset)
-	}
-	return errors.Join(reset, prune(d.path, d.limit, time.Now(), os.ReadDir, os.Remove))
-}
-
-// ledger is the path of d's ledger.
-func (d *Dir) ledger() string { return filepath.Join(d.path, ledgerName) }
-
-// pruneDue records size in the ledger and reports whether a prune is due by what
-// the ledger then holds (tallyDue). A ledger it cannot write or read is taken as
-// due, so a fault costs a scan and never the bound.
-func (d *Dir) pruneDue(ctx context.Context, size int) bool {
-	if err := appendRecord(d.ledger(), size); err != nil {
-		return true
-	}
-	data, err := reader.ReadSource(ctx, d.ledger(), maxRecords*recordWidth)
-	return err != nil || tallyDue(data, d.limit)
-}
-
-// tallyDue reports whether a ledger holding data calls for a prune under limit:
-// it tallies more than an eighth of limit, or holds more than maxRecords records,
-// or anything but whole records of sizes limit allows. A read that caught another
-// process mid-write ends in part of a record, which is due, never a short record
-// indexed past its end.
-func tallyDue(data []byte, limit int) bool {
-	if len(data) > maxRecords*recordWidth || len(data)%recordWidth != 0 {
-		return true
-	}
-	total := 0
-	for record := range slices.Chunk(data, recordWidth) {
-		n, err := strconv.Atoi(string(record[:recordWidth-1]))
-		if err != nil || n < 0 || n > limit || record[recordWidth-1] != '\n' {
-			return true
-		}
-		total += n
-	}
-	return total > limit/8
-}
-
-// appendRecord appends size to the ledger at path, creating it if need be.
-func appendRecord(path string, size int) error {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
-	if err != nil {
-		return err
-	}
-	_, err = f.Write(fmt.Appendf(nil, "%0*d\n", recordWidth-1, size))
-	return errors.Join(err, f.Close())
-}
-
-// held is one file a Dir owns.
-type held struct {
-	name     string
-	size     int
-	modified time.Time
-}
-
-// prune removes the files of dir's own unused longest until the rest fit limit,
-// each step handed in so a test can fail it. Another process may prune alongside,
-// so a file already gone is not a failure.
-func prune(dir string, limit int, now time.Time, list func(string) ([]fs.DirEntry, error),
-	remove func(string) error,
-) error {
-	listed, err := list(dir)
-	if err != nil {
-		return fmt.Errorf("prune: %w", err)
-	}
-	files, err := heldIn(listed, now)
-	if err != nil {
-		return err
-	}
-	total := 0
-	for _, f := range files {
-		total += f.size
-	}
-	for _, f := range files {
-		if total <= limit {
-			return nil
-		}
-		if err := remove(filepath.Join(dir, f.name)); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("prune: %w", err)
-		}
-		total -= f.size
-	}
-	return nil
-}
-
-// heldIn returns the regular files of listed a Dir owns and may remove at now,
-// unused longest first, ties in name order so two runs agree.
-func heldIn(listed []fs.DirEntry, now time.Time) ([]held, error) {
-	files := make([]held, 0, len(listed))
-	for _, entry := range listed {
-		if !entry.Type().IsRegular() || !ownName.MatchString(entry.Name()) {
-			continue
-		}
-		info, err := entry.Info()
-		if errors.Is(err, fs.ErrNotExist) {
-			continue
-		}
-		if err != nil {
-			return nil, fmt.Errorf("prune: %w", err)
-		}
-		if strings.HasPrefix(entry.Name(), ".") && now.Sub(info.ModTime()) < staleAfter {
-			continue
-		}
-		files = append(files, held{name: entry.Name(), size: int(info.Size()), modified: info.ModTime()})
-	}
-	slices.SortFunc(files, func(a, b held) int {
-		return cmp.Or(a.modified.Compare(b.modified), strings.Compare(a.name, b.name))
-	})
-	return files, nil
+	return errors.Join(d.resetLedger(), d.prune(time.Now()))
 }
