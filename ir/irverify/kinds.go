@@ -20,8 +20,7 @@ import (
 //
 // Nothing rejects it earlier: PrimKind is a plain string type with no
 // UnmarshalJSONFrom, so a decoded or foreign document carries an invented kind
-// in unchallenged. An empty kind at the wrong ID is also reported by
-// checkPrimIDs, since the repairs differ.
+// in unchallenged. checkPrimIDs also reports an empty kind at the wrong ID.
 func checkPrimKinds(doc *ir.Document) []Violation {
 	var vs []Violation
 	for id, td := range doc.Types {

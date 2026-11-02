@@ -102,8 +102,7 @@ func TestUnhomedApplicator_FormatWithNoTypeIsKept(t *testing.T) {
 // the winning lowering never reads (GitHub #268). lower() elects one keyword
 // family per position, and what the elected form has no field for must be kept:
 // a Model has no type token, a Literal no Constraints and no type or format its
-// value does not fit, none of which a keyword list shows, only the node that was built, which is what the
-// census asks.
+// value does not fit. Only the built node shows it, which the census asks.
 //
 // The kept set is asserted whole, so a census that keeps too much fails as
 // loudly as one that keeps too little; the `type: object` row matters because a

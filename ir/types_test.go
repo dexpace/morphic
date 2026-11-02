@@ -46,7 +46,7 @@ func typeDefZeroShapeTests() []struct {
 		{
 			name: "union",
 			td:   &ir.Union{},
-			want: `{"kind":"union","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"exclusive":false,"wireTagged":false}`,
+			want: `{"kind":"union","id":"","name":{},"anonymous":false,"docs":{},"sensitive":false,"provenance":{"source":0},"exclusive":false,"wireTagged":false,"closed":false,"inputOnly":false}`,
 		},
 		{
 			name: "enum",
