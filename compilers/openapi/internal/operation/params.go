@@ -479,7 +479,7 @@ func (l *paramLedger) next(c lowering.Ctx, name, in string, entry jsontext.Point
 
 // count records the list entry at entry as one more holder of name in in, and
 // returns which holder it is, counting from one, and the error a repeat raises
-// there when c lowers another document's content. The first holder raises
+// there when c reads another document's content. The first holder raises
 // none.
 func (l *paramLedger) count(c lowering.Ctx, name, in string, entry jsontext.Pointer) (int, []ir.Diagnostic) {
 	slot := paramSlot{name: name, in: in}

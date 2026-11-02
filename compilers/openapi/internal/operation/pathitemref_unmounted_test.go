@@ -17,7 +17,7 @@ import (
 )
 
 // pathItemRefUnmountedSpec mounts no operation on either side of the reference:
-// the use site writes item-level constructs and the referent declares none.
+// the use site writes item-level constructs and the referent only a summary.
 const pathItemRefUnmountedSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
@@ -149,7 +149,8 @@ func TestPathItemRefSiblings_UnmountedCallbackKeepsSiblings(t *testing.T) {
 }
 
 // pathItemRefUnmountedCollisionSpec declares the same constructs on both sides
-// of a $ref neither side mounts an operation for.
+// of a $ref neither side mounts an operation for, and two on the referent
+// alone.
 const pathItemRefUnmountedCollisionSpec = `openapi: 3.1.0
 info: {title: T, version: "1"}
 paths:
