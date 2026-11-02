@@ -24,6 +24,10 @@ Extends architecture.md §6 milestone 3 (the first emitters) and beyond.
    reusing the shared plan and step contract, forcing **no** IR or plan change. The shared plan
    first pays back at M3, where three targets read it.
 
+Beyond the milestones, a command-line client is a documented extension point rather than a
+scheduled target: a registry entry over `Doc + Plan`, as docs and mocks are, whose inputs and flag
+rules [docs and mocks](docs-and-mock.md#a-command-line-target) sets out. No milestone depends on it.
+
 ## What M3 lowers
 
 M3a to M3c lower the IR facts the compilers produce, and degrade the rest with a code. This scopes

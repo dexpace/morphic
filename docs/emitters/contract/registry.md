@@ -39,6 +39,7 @@ type Capabilities struct {
     LowersKinds     []ir.TypeKind // the kinds this emitter has an emit path for
     WriteIntegrate  bool          // supports additive merge into a live repo (../write-integrate.md)
     SurfaceVerify   bool          // produces a verify.Surface (../surface-verification.md)
+    CrossVersion    bool          // reads every version snapshot's routes (../docs-and-mock.md)
     Protocols       []string      // "http", "grpc", "message", "graphql", "otp"
     Lifecycle       Lifecycle     // "hidden" | "experimental" | "stable" | "sunset"; required
     Successor       TargetKey     // the target replacing a sunset one; "" when none does

@@ -36,6 +36,10 @@ type Ctx struct {
     Hints   map[emitter.EntityID]emitter.ShapeHint
     Prior   *emitter.PriorState  // read-only prior generation, whose shipped names naming keeps
                                  // (naming.md); nil on a first run
+    Samples map[emitter.TargetKey]map[ir.OpID]emitter.Sample // read-only, a docs target's: each
+                                 // SDK target's samples (../docs-and-mock.md)
+    Routes  map[string]emitter.RouteTable // read-only, a cross-version target's: every
+                                 // snapshot's routes (../docs-and-mock.md#routes-and-links)
     Options emitter.TargetOptions // decoded options (../contract/options.md); a step asserts its own target's type
     Out     TargetAST            // the per-language AST being built (e.g. *goast.Module)
     Syms    *SymbolTable         // ID-keyed; collision resolution never touches IR identity

@@ -35,6 +35,11 @@ type EmitterInput struct {
     Scope   *Scope                // nil = whole document; else "emit only these" — full Doc still
                                   // consumed so global decisions stay byte-identical
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
+    Samples map[TargetKey]map[ir.OpID]Sample // each SDK target's usage samples, for a docs target
+                                  // (../docs-and-mock.md#samples-come-from-the-sdk-emitters)
+    Routes  map[string]RouteTable // every version snapshot's routes, keyed by version, for a
+                                  // target whose Capabilities.CrossVersion is set
+                                  // (../docs-and-mock.md#routes-and-links)
     Options TargetOptions         // the target's own typed options, decoded and validated before
                                   // Generate runs, its type table and naming tables among them
                                   // (options.md, type-table.md, ../refine/naming.md)
@@ -45,7 +50,17 @@ type EmitterOutput struct {
     Diagnostics []ir.Diagnostic     // typed, coded, provenance-bearing; engine decides fatality
     Manifest    *manifest.Manifest  // entity→symbol map keyed by IR stable IDs (../write-integrate.md)
     Surface     *verify.Surface     // neutral API-surface projection of the generated output (../surface-verification.md)
+    Samples     map[ir.OpID]Sample  // an SDK target's usage sample per operation, for the docs
 }
+
+// Sample is one operation's call as an SDK target spells it.
+type Sample struct {
+    Language string                 // the fence's language, such as "go" or "kotlin"
+    Code     string                 // the call, its values the plan's examples
+}
+
+// RouteTable is one snapshot's routes: each entity's page path and anchor.
+type RouteTable map[EntityID]string
 
 // EntityID is the string form of any IR stable ID (TypeID, OpID, PropID, ServiceID, …).
 // Every IR ID is a `type X string`, so one keyspace addresses them all.

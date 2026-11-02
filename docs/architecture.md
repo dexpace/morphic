@@ -389,9 +389,10 @@ Passes operate on the IR only; they know nothing about source formats or target 
 
 ### 2.3 Emitters (IR → artifacts)
 
-Emitters are plugins (SDK-per-language, docs, mock servers…). Out of scope for this session
-except for the boundary they impose on the IR; the internal shape mirrors what Kiota and oagen
-converged on independently:
+Emitters are plugins (SDK-per-language, docs, mock servers, and a command-line client planned as an
+extension point, `docs/emitters/docs-and-mock.md`…). Out of scope for this session except for the
+boundary they impose on the IR; the internal shape mirrors what Kiota and oagen converged on
+independently:
 
 1. **Plan** — compute language-*neutral* per-operation and per-type decisions once (is-paginated,
    error taxonomy, primary-content/response selection, return-shape classification (a success body
