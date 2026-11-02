@@ -41,7 +41,7 @@ webhooks:
 	op := group.Operations[0]
 	assert.Equal(t, ir.OpID("op/openapi/webhooks/newPet/post"), op.ID)
 	require.Len(t, op.Bindings.HTTP, 1)
-	assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+	assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound)
 	assert.Equal(t, "newPet", op.Bindings.HTTP[0].WebhookName, "the webhooks-map key names the event")
 	assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook carries no URI template")
 }
@@ -86,7 +86,7 @@ webhooks:
 			assert.Equal(t, tc.wantID, op.ID, "the mount pointer, not the event name, identifies the operation")
 			assert.Equal(t, tc.wantName, op.Name)
 			require.Len(t, op.Bindings.HTTP, 1)
-			assert.True(t, op.Bindings.HTTP[0].IsWebhook)
+			assert.Equal(t, ir.HTTPInboundWebhook, op.Bindings.HTTP[0].Inbound)
 			assert.Equal(t, tc.key, op.Bindings.HTTP[0].WebhookName, "the key, verbatim")
 			assert.Empty(t, op.Bindings.HTTP[0].URITemplate, "a webhook has no URI template")
 		})
@@ -136,7 +136,7 @@ webhooks:
 	require.Len(t, hook.Bindings.HTTP[0].Callbacks, 1)
 	assert.Equal(t, []ir.OpID{ack.ID}, hook.Bindings.HTTP[0].Callbacks[0].Operations)
 	require.Len(t, ack.Bindings.HTTP, 1)
-	assert.False(t, ack.Bindings.HTTP[0].IsWebhook, "a callback is not a webhook, though a webhook declares it")
+	assert.Equal(t, ir.HTTPInboundCallback, ack.Bindings.HTTP[0].Inbound, "a callback is not a webhook, though a webhook declares it")
 	assert.Empty(t, ack.Bindings.HTTP[0].WebhookName, "the webhook's name stays on the webhook")
 	assert.Equal(t, "{$request.body#/ack}", ack.Bindings.HTTP[0].URITemplate)
 }

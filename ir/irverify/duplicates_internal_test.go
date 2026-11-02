@@ -318,6 +318,7 @@ var identityClasses = map[string]string{
 	"StreamingMode":   "streaming direction, not an identity",
 	"IdempotencyKind": "idempotency class, not an identity",
 	"PageStrategy":    "pagination mechanism, not an identity",
+	"HTTPInbound":     "who sends an HTTP operation, the client or the API, not an identity",
 	"HTTPLocation":    "HTTP wire location of a parameter, not an identity",
 	"MsgDirection":    "send/receive perspective, not an identity",
 	"UnmodeledReason": "why an Unmodeled entry was kept, not an identity",

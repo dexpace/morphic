@@ -99,8 +99,7 @@
                     "method": "GET",
                     "uriTemplate": "/a",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

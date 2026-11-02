@@ -90,9 +90,9 @@
                     "uriTemplate": "/index",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
                           "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
@@ -141,7 +141,7 @@
                     "uriTemplate": "{$request.body#/callbackUrl}",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": false
+                    "inbound": "callback"
                   }
                 ]
               },
@@ -198,8 +198,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -241,8 +240,7 @@
                     "method": "PURGE",
                     "uriTemplate": "/index",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -284,8 +282,7 @@
                     "method": "mIxEdCase",
                     "uriTemplate": "/index",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -336,7 +333,7 @@
                     "method": "FLUSH",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
+                    "inbound": "webhook",
                     "webhookName": "cacheFlushed"
                   }
                 ]

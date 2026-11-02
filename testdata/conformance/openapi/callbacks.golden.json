@@ -90,9 +90,9 @@
                     "uriTemplate": "/subscribe",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
                           "op/openapi/paths/~1subscribe/post/callbacks/onEvent/{$request.body#~1callbackUrl}/post"
@@ -144,7 +144,7 @@
                     "uriTemplate": "{$request.body#/callbackUrl}",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": false
+                    "inbound": "callback"
                   }
                 ]
               },

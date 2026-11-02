@@ -107,7 +107,7 @@
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": true,
+                    "inbound": "webhook",
                     "webhookName": "newPet"
                   }
                 ]
@@ -149,7 +149,7 @@
                     "method": "POST",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
+                    "inbound": "webhook",
                     "webhookName": "{tenant}.created"
                   }
                 ]
@@ -191,7 +191,7 @@
                     "method": "POST",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true
+                    "inbound": "webhook"
                   }
                 ]
               },

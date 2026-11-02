@@ -175,9 +175,9 @@
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
+                        "name": "onProgress",
                         "expression": "{$request.body#/callbackUrl}",
                         "operations": [
                           "op/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
@@ -241,7 +241,7 @@
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": false
+                    "inbound": "callback"
                   }
                 ]
               },
@@ -307,7 +307,7 @@
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": true,
+                    "inbound": "webhook",
                     "webhookName": "onShipped"
                   }
                 ]

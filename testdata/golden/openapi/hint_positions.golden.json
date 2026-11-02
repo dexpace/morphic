@@ -292,8 +292,7 @@
                         "contentType": "application/json"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -370,8 +369,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -487,8 +485,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -544,8 +541,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -588,15 +584,16 @@
                     "uriTemplate": "/subscriptions",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
+                        "name": "onEvent",
                         "expression": "{$request.body#/url}",
                         "operations": [
                           "op/openapi/paths/~1subscriptions/post/callbacks/onEvent/{$request.body#~1url}/post"
                         ]
                       },
                       {
+                        "name": "onShared",
                         "expression": "{$request.body#/shared}",
                         "operations": [
                           "op/openapi/paths/~1subscriptions/post/callbacks/onShared/{$request.body#~1shared}/post"
@@ -659,7 +656,7 @@
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": false
+                    "inbound": "callback"
                   }
                 ]
               },
@@ -716,7 +713,7 @@
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": false
+                    "inbound": "callback"
                   }
                 ]
               },
@@ -839,8 +836,7 @@
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -937,8 +933,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1123,8 +1118,7 @@
                         "allowEmptyValue": false
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1180,8 +1174,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1238,8 +1231,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1280,8 +1272,7 @@
                     "method": "QUERY",
                     "uriTemplate": "/structures",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1322,8 +1313,7 @@
                     "method": "mSearch",
                     "uriTemplate": "/structures",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1388,8 +1378,7 @@
                     "method": "GET",
                     "uriTemplate": "/events",
                     "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },
@@ -1455,7 +1444,7 @@
                       "application/json"
                     ],
                     "checksumRequired": false,
-                    "isWebhook": true,
+                    "inbound": "webhook",
                     "webhookName": "ping"
                   }
                 ]
@@ -1497,7 +1486,7 @@
                     "method": "POST",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
+                    "inbound": "webhook",
                     "webhookName": "pong"
                   }
                 ]

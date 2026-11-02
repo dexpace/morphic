@@ -18,7 +18,7 @@ document, read for what these consumers need.
 | examples per operation, parameter, type and media type | `Operation.Examples`, `Parameter.Examples`, `TypeCommon.Examples`, `Content.Examples` | carried |
 | a deprecation and when it ends | `Deprecation`: its message, the version it began in, and the removal as a version and as a date, each verbatim ([annotations](./annotations.md)) | carried |
 | tags as the structure of a reference | `Document.TagDefs` with each tag's documentation, parent and kind; `Operation.Tags`, every membership; `Service.Groups`, the section tree the tags describe ([services](./services.md)) | carried |
-| documentation a path shares among its operations | `Unmodeled["openapi:pathItemSummary"]` and `["openapi:pathItemDescription"]` on each operation the path item mounts | no typed home yet (#1319) |
+| documentation a path shares among its operations | `HTTPBinding.PathDocs` on each operation the path mounts ([http-binding](./http-binding.md#path-documentation)) | carried |
 | how a response's values feed another operation | `Unmodeled["openapi:links"]` on the response | no typed home yet (#669) |
 | two revisions at once | the [correlation key](./derived-facts.md#correlation-keys) of each entity, derived on demand (`irfacts.Index.Correlation` and `Correlated`) | carried |
 

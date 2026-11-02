@@ -215,8 +215,7 @@
                         "contentType": "application/json"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

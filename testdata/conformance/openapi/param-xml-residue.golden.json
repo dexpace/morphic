@@ -172,8 +172,7 @@
                         "contentType": "application/xml"
                       }
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false
+                    "checksumRequired": false
                   }
                 ]
               },

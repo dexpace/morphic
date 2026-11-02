@@ -101,7 +101,7 @@ func messageCases() []messageCase {
 			illFormed, illFormed, ir.IdempotencyToken)},
 		{"webhook template", func() *ir.Document {
 			return opDoc(ir.Operation{ID: "op/x/S/op", Name: named("op"), Bindings: ir.OpBindings{
-				HTTP: []ir.HTTPBinding{{IsWebhook: true, URITemplate: illFormed}}}})
+				HTTP: []ir.HTTPBinding{{Inbound: ir.HTTPInboundWebhook, URITemplate: illFormed}}}})
 		}, "ir/webhook-route", fmt.Sprintf(
 			"webhook binding carries URI template %q; a webhook names its event in WebhookName and has no template",
 			illFormed)},
