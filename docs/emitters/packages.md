@@ -8,7 +8,8 @@ emitters/
 ├── contract.go        # Emitter, EmitterInput/Output, Artifact, Capabilities, TargetKey, registry
 ├── plan/              # SHARED, language-neutral — imports ir, ir/irfacts. Build(), Plan, OpPlan, TypePlan, ModelShape
 │   └── plantest/      #   golden snapshots of Plan (language-independent corpus)
-├── policy/            # runtime SDK-policy vocabulary + Defaults() + Merge(DeepPartial) (INV10)
+├── policy/            # runtime SDK-policy vocabulary + Defaults() + Merge(DeepPartial) + Resolve(layers) (INV10)
+├── embed/             # reads the policy and hints a document embeds as vendor extensions (contract/embedded-policy.md)
 ├── naming/            # SHARED naming engine: acronym/compound tables, the character-name table,
 │                      #   reserved-word set type, ID-keyed collision resolver. Casing FUNCTIONS are
 │                      #   per-target (naming.Policy impl)

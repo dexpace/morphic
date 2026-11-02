@@ -40,3 +40,32 @@ operation whose `Servers` names a server of its own.
   authenticates per server, and a messaging target reads it.
 - **emit.** The URL template is expanded at request time from the chosen values; the template and
   each variable's constants are typed AST, the expansion a runtime helper.
+
+## Client settings
+
+A parameter an API's calls all send alike, such as an account in the path or an API version
+header, is set once on the client when its service's hint names it (`ShapeHint.ClientParams`,
+[shaping hints](../contract/shaping-hints.md)). Nothing makes one a setting by inference. Whether
+every operation of a scope takes a parameter changes as the API grows, so a setting the plan chose
+would come and go with operations, and each change would move the parameter into or out of every
+method's signature: a breaking SDK change caused by an additive spec change.
+
+- **What a setting fills.** A `ParamKey` fills, in every operation, the parameter at its location
+  and wire name whose declaration lowers to one wire form with the others: the same root through
+  its scalar chain ([scalars](../refine/scalars.md)), and the same style and explode. Requiredness,
+  constraints and docs may differ, and each operation checks its own. A declaration of another wire
+  form stays a plain input, reported once by refine, naming the operation, since a shared name does
+  not make two parameters one.
+- **How a call reads it.** The client takes the setting when it is built, a call may give its own,
+  and a call with neither for a required parameter is refused unsent, the error naming it. A
+  parameter a setting fills is not positional but an optional field of the operation's request type
+  ([request shaping](../refine/requests.md)), so a call can still name another account.
+- **Candidates.** The plan reports, as an info `emitters/plan/client-param-candidate`, each
+  `ParamKey` that every operation of some group with more than one operation takes in one wire
+  form, with the number of operations in the document taking it so, so an SDK's author can name
+  it. On the golden spec (spec @319dc756, morphic @b206dc99), `account_id` in the path is taken by
+  2,660 of 3,763 operations, each a string under one of 16 sets of constraints, and `zone_id` by
+  698. One shared component parameter was weighed as the test instead and finds a parameter every
+  operation of a group shares in 52 of the 515 groups with more than one operation, against 465 by
+  location and name: the spec declares its parameters inline.
+

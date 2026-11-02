@@ -42,7 +42,8 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 - [Target options](contract/options.md): strict, versioned, each default belonging to a version.
 - [The type table](contract/type-table.md): which target type each IR leaf type becomes.
 - [Runtime policy](contract/runtime-policy.md) and [shaping hints](contract/shaping-hints.md): the
-  two inputs that are not the IR.
+  two inputs that are not the IR, and [the policy a document embeds](contract/embedded-policy.md),
+  read into each as its lowest layer.
 
 **The plan: language-neutral decisions, computed once**
 

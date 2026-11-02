@@ -58,6 +58,13 @@ give a null member (#618) then lower alike. The golden spec's single-result enve
 `result` as `anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a
 string or `null`, the last held by the reference.
 
+A `oneOf` admits exactly one variant, so a value two of its variants admit breaks the document. What
+it decodes to is `plan.Policy.ExclusiveMatch`'s ([plan policy](../plan/policy.md)): under `first`,
+the default, the variant recognition finds first, as a lenient reader of a document whose variants
+overlap needs; under `only`, a coded decode error, found by trying every variant whose kinds hold
+the value, as an inclusive union does below. A `oneOf` whose variants the plan proves disjoint
+([TypePlan](../plan/types.md#variants-that-can-share-a-value)) never meets the choice.
+
 ## A value several variants admit
 
 An `anyOf` lets one value satisfy several variants, and what the union holds then turns on

@@ -61,4 +61,6 @@ operations](../../operations/long-running.md).
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are functional options —
-`NewClient(WithRegion(RegionEU))`, `WithServer(…)`, `WithBaseURL(u)`.
+`NewClient(WithRegion(RegionEU))`, `WithServer(…)`, `WithBaseURL(u)`. A [client
+setting](../../operations/client.md#client-settings) is one more, `WithAccountID("…")`, and the
+request type's field for it a pointer, `AccountID *string`, nil taking the client's.

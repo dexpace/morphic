@@ -22,7 +22,12 @@ throughout these documents.
    silent `any` and never a panic, a fact outside M3's scope included ([what M3
    lowers](../milestones.md#what-m3-lowers)).
 8. **T-8 · Manifest ID-keying** — the entity→symbol map survives path/name churn.
-9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults.
+9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
+   at a document-wide setting and at an operation's, in every layer. A project's document-wide
+   setting beats a per-operation one the document embeds, an operation's own setting beats its
+   layer's document-wide one, an operation ID no operation has is reported, and an embedded value a
+   higher layer replaces draws an info naming both
+   ([layers](../contract/runtime-policy.md#layers-and-operations)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
@@ -165,3 +170,28 @@ throughout these documents.
     `Except` lists and a failure body are read as they would be with no envelope, and the default
     policy unwraps nothing ([envelopes](../plan/responses.md#envelopes),
     [plan policy](../plan/policy.md#envelopes)).
+32. **T-32 · Embedded policy and hints** — a mapping reading a key on the document, on an operation
+    and on a parameter configures the document, that operation and that parameter's hint; a key on
+    a node it cannot configure, a value of the wrong shape and a mapping naming a key of a reason
+    other than `vendor_extension` are each reported, the entry staying in `Unmodeled`; the default
+    mapping reads nothing, and `Disabled` reads nothing however the mapping is written
+    ([embedded policy](../contract/embedded-policy.md)).
+33. **T-33 · Client settings** — on every target, a service hint naming a path parameter makes it
+    a client setting, which every operation declaring it in that wire form sends unless the call
+    gives its own; a call with neither is refused unsent; an operation declaring it at another
+    wire form keeps it as an input and is reported once; no parameter becomes a setting unless a
+    hint names it, and the plan reports each candidate as an info
+    ([client settings](../operations/client.md#client-settings)).
+34. **T-34 · Effects** — a declared `Idempotency` of each kind beats the method, a `GET` with none
+    is safe and idempotent, a `PUT` and a `DELETE` idempotent, a `POST` neither, each derived one
+    marked `Inferred`; turning `MethodSemantics` off leaves every undeclared operation neither; and
+    on every target a request that got no response is sent again for an idempotent operation and
+    never for a `POST`, under the default `Retry.Connection`
+    ([effects](../plan/policy.md#an-operations-effects-come-from-its-method)).
+35. **T-35 · Open enums and overlapping oneOfs** — on every target, a closed enum a response carries
+    decodes a value it does not list and re-encodes it as it came, its constants naming only the
+    listed members, while one only ever sent stays strict and turning `OpenEnums` off restores
+    strict decoding; a `oneOf` value two variants admit decodes into the first under `first` and is
+    a coded error under `only` ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open),
+    [unions](../refine/unions.md#variant-identity-and-recognition)).
+

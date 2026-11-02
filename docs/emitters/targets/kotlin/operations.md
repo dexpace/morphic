@@ -15,4 +15,5 @@ Kotlin's request type ([request shaping](../../refine/requests.md)) is a class b
 ## The client
 
 The client's settings ([the client](../../operations/client.md)) are setters on the client's
-builder.
+builder. A [client setting](../../operations/client.md#client-settings) is one more,
+`accountId("…")`, and the request type's property for it is nullable, null taking the client's.

@@ -31,7 +31,8 @@ of the artifact that uses it — how an untagged union's variant is recognized o
 The procedure decided every existing field:
 
 1. **Choices under `plan.Policy`** stay: `PrimaryResponse`, `RequestContent` and the content each
-   `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open`, and `PagePlan`, an inferred one
+   `ResponsePlan` elects, the unwrap behind `Return.Type`, `Open` on a union and on an enum,
+   `Effects`, which a method sets where the IR states nothing, and `PagePlan`, an inferred one
    included.
 2. **Derivations several artifacts expose** stay: `Return`, `Others`, `Errors`, `Auth`, `Bindings`,
    `Stream` and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
@@ -43,15 +44,15 @@ The procedure decided every existing field:
    units](../refine/output-units.md)); SDKs and docs that disagreed on any of them would mark a
    member optional, name a field's type, hold one variant where another holds several, or place a
    type differently.
-3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and idempotency
-   ([OpPlan](operations.md)), a model's `Base`, `Implements` and `Mixins`, an enum's openness, value
-   type, flags and fallback member, a union's variant list, and the operation-group tree
-   ([BindingView](bindings.md)). `Union` replaces a classification that copied the variant list and
-   a second discriminator beside the tag mode it derived, and `Scalar` replaces a bare root that
-   left the constraints it merged nowhere. `NeedShapes` is gone too: it listed again the lifecycles
-   `Shapes` is keyed by ([ModelShape](types.md#modelshape--visibility-projection)). A client's
-   servers are stated by the IR as well, so they get no field ([the
-   client](../operations/client.md)).
+3. **Copies of what the IR states** are gone: whether there is a body, one-way-ness and the
+   idempotency token ([OpPlan](operations.md)), a model's `Base`, `Implements` and `Mixins`, an
+   enum's declared openness, value type, flags and fallback member, a union's variant list, and the
+   operation-group tree ([BindingView](bindings.md)). `Union` replaces a classification that copied
+   the variant list and a second discriminator beside the tag mode it derived, and `Scalar` replaces
+   a bare root that left the constraints it merged nowhere. `NeedShapes` is gone too: it listed
+   again the lifecycles `Shapes` is keyed by
+   ([ModelShape](types.md#modelshape--visibility-projection)). A client's servers are stated by the
+   IR as well, so they get no field ([the client](../operations/client.md)).
 4. **The parameter-passing shape** fails the first test and moved to refine ([request
    shaping](../refine/requests.md)): a dynamic target's keyword arguments are additive as they
    stand, where a positional parameter added to a Go or Kotlin function breaks its callers, so the

@@ -442,10 +442,12 @@ logical exception-kind and fault, doc-URL template), **telemetry** (request-
 ID and client-telemetry headers), **logging** (a closed lifecycle-event list), **user-agent**
 construction (identifier template, app-info enrichment), **idempotency injection** (header name,
 auto-generate rules), **pagination pacing** (auto-page delay), and **request guards** (option
-keys that must not appear as params — misuse detection). Delivery model: canonical defaults +
-deep-partial per-emitters/per-project overrides. Precedence rule: *declared IR facts win over
-policy defaults* — `ErrorCase.Retryable/Fault` and `Operation.Idempotency` come from the spec;
-policy fills in where the spec is silent, never the reverse.
+keys that must not appear as params — misuse detection), widened by connection-error retries,
+`Retry-After` and **redirects**. Delivery model: canonical defaults + deep-partial layers, the
+policy a document embeds below the project's and the project's below each emitter's, each with
+per-operation overrides (`docs/emitters/contract/runtime-policy.md`). Precedence rule: *declared
+IR facts win over policy defaults* — `ErrorCase.Retryable/Fault` and `Operation.Idempotency` come
+from the spec; policy fills in where the spec is silent, never the reverse.
 
 ### 2.5 Changing the IR
 
