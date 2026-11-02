@@ -24,8 +24,9 @@ concurrency:
 # and go.sum saved, and saves. The suite job clears the test results first, and
 # the checks job, the only one that fuzzes, drops $GOCACHE/fuzz first. Clearing
 # keeps the builds and the module cache, so main rebuilds only what its commit
-# changed, but it reruns every test and so cannot replay a stale pass. A pull request restores that save, reuses the
-# results of the tests its change leaves alone, and never saves.
+# changed, but it reruns every test and so cannot replay a stale pass. A pull
+# request restores that save, reuses the results of the tests its change leaves
+# alone, and never saves.
 #
 # The cache stays bounded for three reasons. The go command deletes build cache
 # entries unused for five days, scanning once a day (cmd/go/internal/cache,
