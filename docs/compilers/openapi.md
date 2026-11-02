@@ -804,12 +804,12 @@ that lowers to; its examples stay on its node, as any target's do
 ([`schema-examples`](#schema-examples)). A `default` a `$ref` lends across a conjunct admitting less
 than it does counts only where the position takes it, and with no such conjunct it reads as beside
 the `$ref`, whatever the target's own type says of it. A `default` written with the value set is the
-position's own, in the set or not, as a plain `enum`'s is. A composition of a sole `$ref`, a decorator
-([annotations](../ir/annotations.md#decorators)) or a bound beside it, lends a carrier what the `$ref`
-would lend written alone, since the visibility and `default` of the use have no other home. One where
-a conjunct writes what only a `Model` holds, or that points 2 to 4 of
-[`allof-refinement`](#allof-refinement) keep composing, holds what it composes as `Base` and `Mixins`,
-which lends a carrier nothing.
+position's own, in the set or not, as a plain `enum`'s is. A composition of a sole `$ref` holds what
+it composes as `Base` and `Mixins`, which lends a carrier nothing, where a conjunct writes what only a
+`Model` holds, a branch writes a `$dynamicRef`, or points 2 to 4 of
+[`allof-refinement`](#allof-refinement) keep it composing. Any other, such as a decorator
+([annotations](../ir/annotations.md#decorators)) or a bound beside the `$ref`, lends a carrier what
+the `$ref` would lend written alone, since the visibility and `default` of the use have no other home.
 
 - Cases: `param-ref-inheritance`, `allof-ref-branch-siblings`, `readonly-writeonly`,
   `schema-ref-siblings-30`, `allof-refinement`
