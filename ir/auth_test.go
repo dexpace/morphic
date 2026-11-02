@@ -77,6 +77,7 @@ func TestAuthKind_Constants(t *testing.T) {
 		ir.AuthKindSASLSCRAMSHA512:      "sasl_scram_sha512",
 		ir.AuthKindSASLGSSAPI:           "sasl_gssapi",
 		ir.AuthKindCustom:               "custom",
+		ir.AuthKindUnresolved:           "unresolved",
 	}, "unspecified")
 }
 

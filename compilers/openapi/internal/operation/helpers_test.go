@@ -11,6 +11,7 @@ import (
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -73,7 +74,9 @@ func serviceWithGrouping(t *testing.T, src string, grouping lowering.GroupingStr
 	var acc compile.Diags
 	acc.AppendAll(schema.LowerComponentSchemas(t.Context(), c, types))
 
-	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, servers.NewRegistry())
+	schemes, schemeDiags := auth.LowerSecuritySchemes(c)
+	acc.AppendAll(schemeDiags)
+	svc, _, svcDiags := operation.LowerService(t.Context(), c, types, servers.NewRegistry(), schemes)
 	acc.AppendAll(svcDiags)
 	_, finished := types.Finish(t.Context())
 	acc.AppendAll(finished)

@@ -62,7 +62,9 @@ var generations = []generation{
 	{version: "0.23.0", format: 1, shape: "987429c948fd6468abae5000a5caa84a23fe8d4ae18403da219b3e4e4b99bd13"},
 	{version: "0.24.0", format: 1, shape: "dc971e27033309c2a8446e96453f5d35bda1e535a723a3ec00fe04df02cc79a0",
 		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
-	{version: "0.25.0", format: 1, shape: "dc971e27033309c2a8446e96453f5d35bda1e535a723a3ec00fe04df02cc79a0",
+	{version: "0.25.0", format: 1, shape: "bcf6a85eb64b4fc00b24c1797659dab7ee93b9307452d1db99fcb60bdd69a379",
+		names: "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893"},
+	{version: "0.26.0", format: 1, shape: "bcf6a85eb64b4fc00b24c1797659dab7ee93b9307452d1db99fcb60bdd69a379",
 		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
 		meaning: "an allOf no conjunct can make an object is a use of the conjunct deciding it, not a Model, and a node at an inline allOf branch is named as the schema holding it"},
 }

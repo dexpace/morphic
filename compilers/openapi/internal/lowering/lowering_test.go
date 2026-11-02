@@ -131,46 +131,6 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	assert.Equal(t, 7, c.SrcIndex)
 }
 
-// TestWithAuth_ExtendsACopy pins the half of the auth design that makes the
-// "no window in which it reads empty" claim true: the extended context answers
-// for the schemes it was given, and the context it was derived from still
-// answers for none. A WithAuth that wrote through would make every lowering
-// above the security-scheme phase able to see them.
-func TestWithAuth_ExtendsACopy(t *testing.T) {
-	t.Parallel()
-	doc := openapitest.DocDeclaring("User")
-	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
-	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	schemes := map[ir.AuthID]ir.AuthScheme{"a/apiKey": {ID: "a/apiKey"}}
-
-	after := before.WithAuth(schemes)
-
-	assert.True(t, after.DeclaresAuth("a/apiKey"), "the extended context answers for what it was given")
-	assert.False(t, after.DeclaresAuth("a/other"), "and only for that")
-	assert.False(t, before.DeclaresAuth("a/apiKey"),
-		"the context it was derived from is unchanged, so nothing before the auth phase can read them")
-
-	// The schemes are the only difference. Asserting that is not pedantry: a
-	// WithAuth that built a fresh context around the map would satisfy all three
-	// assertions above and hand the service walk a context with no document in
-	// it, and the declared-name index — unexported, so no field comparison would
-	// notice — is what every $ref resolved below here reads.
-	assert.Same(t, doc, after.Doc, "the document survives the extension")
-	assert.Equal(t, src, after.Source)
-	assert.Equal(t, 7, after.SrcIndex)
-	assert.Equal(t, lowering.GroupByPathPrefix, after.Grouping)
-	assert.True(t, after.DeclaresSchema("User"), "as does the index derived at entry")
-}
-
-// TestDeclaresAuth_TheZeroContextDeclaresNothing pins the nil-map read, which is
-// the state every lowering before the security-scheme phase holds.
-func TestDeclaresAuth_TheZeroContextDeclaresNothing(t *testing.T) {
-	t.Parallel()
-	var c lowering.Ctx
-	assert.False(t, c.DeclaresAuth("a/apiKey"))
-	assert.False(t, c.DeclaresAuth(""))
-}
-
 // TestIs30_TheZeroContextReadsAs2020 pins that a context with no document
 // answers false rather than panicking: the accessor reaches through the
 // document pointer, and half this file drives the type as a Ctx literal.
@@ -216,7 +176,7 @@ func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	require.NotNil(t, c.RefScope().Reached)
-	assert.Same(t, c.RefScope().Reached, c.WithAuth(nil).RefScope().Reached, "copies share one record")
+	assert.Same(t, c.RefScope().Reached, c.InScope(c.RefScope()).RefScope().Reached, "copies share one record")
 	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
 	assert.False(t, lowering.Ctx{}.Reached("/components/parameters/P"))
 	assert.Nil(t, lowering.Ctx{}.RefScope().Reached)
@@ -238,7 +198,7 @@ func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
 	}
 
 	assert.Len(t, c.Kept.Once("/a", keep("a")), 1, "the first reach reports")
-	assert.Empty(t, c.WithAuth(nil).Kept.Once("/a", keep("a")), "a copy shares what was read")
+	assert.Empty(t, c.InScope(c.RefScope()).Kept.Once("/a", keep("a")), "a copy shares what was read")
 	assert.Len(t, c.Kept.Once("/b", keep("b")), 1)
 
 	assert.Equal(t, 2, reads)
@@ -326,7 +286,6 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	assert.Same(t, loaded.Bindings, carrying.Bindings())
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
 	assert.Same(t, loaded.Bindings, carrying.InScope(carrying.RefScope()).Bindings(), "a copy shares it")
-	assert.Same(t, loaded.Bindings, carrying.WithAuth(nil).RefScope().Bindings)
 	at, ok := carrying.RefScope().Target(alias)
 	require.True(t, ok, "its $ref lands where the load phase resolved it")
 	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, at)
@@ -395,7 +354,7 @@ func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
 	c := lowering.Ctx{}.WithLoaded(&load.Document{})
 
 	assert.Equal(t, 1, lowering.Remembered(c, "k", read))
-	assert.Equal(t, 1, lowering.Remembered(c.WithAuth(nil), "k", read), "a copy shares what c read")
+	assert.Equal(t, 1, lowering.Remembered(c.InScope(c.RefScope().InSource()), "k", read), "a copy shares what c read")
 	assert.Equal(t, 2, lowering.Remembered(c, "other", read), "another key is another reading")
 	assert.Equal(t, 3, lowering.Remembered(c.WithLoaded(&load.Document{}), "k", read), "WithLoaded remembers nothing")
 

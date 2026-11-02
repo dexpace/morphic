@@ -210,15 +210,25 @@ it sees. Changes made together in one bump are listed together under it.
     every promotion the OpenAPI compiler makes, nothing moves.
 
   A consumer pinned to 0.23.0 refuses the document as another generation's.
-- **0.25.0** — no shape change; two changes to what a compiled document holds, made together:
+- **0.25.0** — a security requirement keeps a scheme the compiler resolved no mechanism for
+  ([auth](./auth.md#unresolved-schemes)). `AuthKind` gained `unresolved`, and auth IDs the
+  `unresolved` namespace ([identity](./identity.md#unresolved-schemes)), which every OpenAPI document
+  declares under `idSpaces.auth`, whether or not it mints there. The OpenAPI compiler had dropped
+  such a requirement, so an `Auth` left with no option read as inheriting and one left with others
+  lost the option. It also read a name whose value reads as no list of strings as not written, so
+  `{name: null}` read as the empty option, and such a name now stands. A `securitySchemes` entry
+  yielding no mechanism had lowered to nothing, and now lowers to that kind whether or not a
+  requirement names it. A consumer pinned to 0.24.0 finds those operations naming a kind it has no
+  reading for, where it read them as inheriting the service's credentials.
+- **0.26.0** — no shape change; two changes to what a compiled document holds, made together:
   - An `allOf` no conjunct can make an object is no `Model`, short of the cases
     [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
     conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
     OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
-    rules one out, so a consumer pinned to 0.24.0 finds a `Scalar`, an `Enum` or a reference where
+    rules one out, so a consumer pinned to 0.25.0 finds a `Scalar`, an `Enum` or a reference where
     it found a `Model`.
   - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
     ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
     symbols an emitter generates from such a hint are renamed.
 
-  A consumer pinned to 0.24.0 refuses the document as another generation's.
+  A consumer pinned to 0.25.0 refuses the document as another generation's.

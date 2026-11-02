@@ -11,14 +11,14 @@ import (
 )
 
 // Constraints folds src's constraint keywords into dst under allOf
-// intersection semantics: dst keeps every keyword it sets and adopts any it
-// leaves unset (nil, "" or false), so a keyword only one branch constrains is
-// never dropped.
+// intersection semantics: each keyword takes the value that says what both
+// sides say (constraintKeyword.meet), so a keyword only one side sets is adopted
+// and a bound both set takes the tighter value.
 //
-// The four numeric bounds are separate keywords, so each is adopted on its own:
-// a branch declaring only exclusiveMinimum contributes it beside a minimum from
-// elsewhere. UniqueItems has no absent state, but under intersection a true
-// from either branch is always correct, so cmp.Or never wrongly downgrades dst.
+// The four numeric bounds are separate keywords, so each meets on its own: a
+// branch declaring only exclusiveMinimum contributes it beside a minimum from
+// elsewhere, and both apply. UniqueItems has no absent state, but under
+// intersection a true from either side always holds.
 func Constraints(dst, src *ir.Constraints) *ir.Constraints {
 	if dst == nil {
 		return src
@@ -26,86 +26,130 @@ func Constraints(dst, src *ir.Constraints) *ir.Constraints {
 	if src == nil {
 		return dst
 	}
-	dst.Min = cmp.Or(dst.Min, src.Min)
-	dst.Max = cmp.Or(dst.Max, src.Max)
-	dst.ExclusiveMin = cmp.Or(dst.ExclusiveMin, src.ExclusiveMin)
-	dst.ExclusiveMax = cmp.Or(dst.ExclusiveMax, src.ExclusiveMax)
-	dst.MultipleOf = cmp.Or(dst.MultipleOf, src.MultipleOf)
-	dst.Precision = cmp.Or(dst.Precision, src.Precision)
-	dst.Scale = cmp.Or(dst.Scale, src.Scale)
-	dst.MinLength = cmp.Or(dst.MinLength, src.MinLength)
-	dst.MaxLength = cmp.Or(dst.MaxLength, src.MaxLength)
-	dst.Pattern = cmp.Or(dst.Pattern, src.Pattern)
-	dst.PatternMessage = cmp.Or(dst.PatternMessage, src.PatternMessage)
-	dst.MinItems = cmp.Or(dst.MinItems, src.MinItems)
-	dst.MaxItems = cmp.Or(dst.MaxItems, src.MaxItems)
-	dst.UniqueItems = cmp.Or(dst.UniqueItems, src.UniqueItems)
-	dst.MinProps = cmp.Or(dst.MinProps, src.MinProps)
-	dst.MaxProps = cmp.Or(dst.MaxProps, src.MaxProps)
+	for _, kw := range constraintKeywords() {
+		kw.meet(dst, src)
+	}
+	dst.UniqueItems = dst.UniqueItems || src.UniqueItems
 	return dst
 }
 
-// constraintKeyword is one constraint keyword the merge compares across
-// declarations: whether a constraint set sets it, and whether two sets that
-// both do pin it to different values, described as "conflicting maxLength (10
-// and 20)".
+// constraintKeyword is one constraint keyword the merge folds across
+// declarations.
 type constraintKeyword struct {
-	set    func(c *ir.Constraints) bool
+	// set reports whether a constraint set states the keyword.
+	set func(c *ir.Constraints) bool
+	// same reports whether two sets say one thing of it: neither states it, or
+	// both state one value.
+	same func(a, b *ir.Constraints) bool
+	// meet writes to dst the value saying what dst and src say, and leaves dst's
+	// where no one value does.
+	meet func(dst, src *ir.Constraints)
+	// differ describes two sets no one value holds, as "conflicting pattern
+	// ("a" and "b")".
 	differ func(a, b *ir.Constraints) (string, bool)
+	// clear removes the keyword from a set.
+	clear func(c *ir.Constraints)
 }
 
-// constraintKeywords lists the keywords the merge compares, in the fixed order
+// constraintKeywords lists the keywords the merge folds, in the fixed order
 // constraintsConflict tries them, so the one named when several conflict is
-// deterministic. UniqueItems is absent: a plain bool cannot tell false from
-// unset, and under intersection a true from either side is always right.
+// deterministic. A bound takes its tighter value, a step the common multiple of
+// both (commonStep), and a keyword with no order keeps one value and conflicts
+// with any other. UniqueItems is absent: a plain bool cannot tell false from
+// unset, and under intersection a true from either side always holds.
 func constraintKeywords() []constraintKeyword {
 	return []constraintKeyword{
-		bigValKeyword("minimum", func(c *ir.Constraints) *ir.BigVal { return c.Min }),
-		bigValKeyword("exclusiveMinimum", func(c *ir.Constraints) *ir.BigVal { return c.ExclusiveMin }),
-		bigValKeyword("maximum", func(c *ir.Constraints) *ir.BigVal { return c.Max }),
-		bigValKeyword("exclusiveMaximum", func(c *ir.Constraints) *ir.BigVal { return c.ExclusiveMax }),
-		bigValKeyword("multipleOf", func(c *ir.Constraints) *ir.BigVal { return c.MultipleOf }),
-		intKeyword("precision", func(c *ir.Constraints) *int64 { return c.Precision }),
-		intKeyword("scale", func(c *ir.Constraints) *int64 { return c.Scale }),
-		intKeyword("minLength", func(c *ir.Constraints) *int64 { return c.MinLength }),
-		intKeyword("maxLength", func(c *ir.Constraints) *int64 { return c.MaxLength }),
-		intKeyword("minItems", func(c *ir.Constraints) *int64 { return c.MinItems }),
-		intKeyword("maxItems", func(c *ir.Constraints) *int64 { return c.MaxItems }),
-		intKeyword("minProps", func(c *ir.Constraints) *int64 { return c.MinProps }),
-		intKeyword("maxProps", func(c *ir.Constraints) *int64 { return c.MaxProps }),
-		strKeyword("pattern", func(c *ir.Constraints) string { return c.Pattern }),
-		strKeyword("patternMessage", func(c *ir.Constraints) string { return c.PatternMessage }),
+		numberKeyword("minimum", func(c *ir.Constraints) **ir.BigVal { return &c.Min }, largerNumber),
+		numberKeyword("exclusiveMinimum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMin }, largerNumber),
+		numberKeyword("maximum", func(c *ir.Constraints) **ir.BigVal { return &c.Max }, smallerNumber),
+		numberKeyword("exclusiveMaximum", func(c *ir.Constraints) **ir.BigVal { return &c.ExclusiveMax }, smallerNumber),
+		numberKeyword("multipleOf", func(c *ir.Constraints) **ir.BigVal { return &c.MultipleOf }, commonStep),
+		intKeyword("precision", func(c *ir.Constraints) **int64 { return &c.Precision }, onlyEqual),
+		intKeyword("scale", func(c *ir.Constraints) **int64 { return &c.Scale }, onlyEqual),
+		intKeyword("minLength", func(c *ir.Constraints) **int64 { return &c.MinLength }, largerCount),
+		intKeyword("maxLength", func(c *ir.Constraints) **int64 { return &c.MaxLength }, smallerCount),
+		intKeyword("minItems", func(c *ir.Constraints) **int64 { return &c.MinItems }, largerCount),
+		intKeyword("maxItems", func(c *ir.Constraints) **int64 { return &c.MaxItems }, smallerCount),
+		intKeyword("minProps", func(c *ir.Constraints) **int64 { return &c.MinProps }, largerCount),
+		intKeyword("maxProps", func(c *ir.Constraints) **int64 { return &c.MaxProps }, smallerCount),
+		strKeyword("pattern", func(c *ir.Constraints) *string { return &c.Pattern }),
+		strKeyword("patternMessage", func(c *ir.Constraints) *string { return &c.PatternMessage }),
 	}
 }
 
-// bigValKeyword is the arbitrary-precision keyword name, read by of.
-func bigValKeyword(name string, of func(*ir.Constraints) *ir.BigVal) constraintKeyword {
+// numberKeyword is the arbitrary-precision keyword name, stored at slot, which
+// meet folds. Two spellings of one number are one value (sameNumber).
+func numberKeyword(name string, slot func(*ir.Constraints) **ir.BigVal, meet func(x, y ir.BigVal) (ir.BigVal, bool)) constraintKeyword {
+	return slotKeyword(name, slot, sameNumber, meet)
+}
+
+// intKeyword is the integer keyword name, stored at slot, which meet folds.
+func intKeyword(name string, slot func(*ir.Constraints) **int64, meet func(x, y int64) (int64, bool)) constraintKeyword {
+	return slotKeyword(name, slot, func(x, y int64) bool { return x == y }, meet)
+}
+
+// slotKeyword is the keyword name stored as a pointer at slot, nil where unset.
+// same says whether two values are one, and meet returns the value saying what
+// two say, and false where no one value does.
+func slotKeyword[T any](name string, slot func(*ir.Constraints) **T, same func(x, y T) bool, meet func(x, y T) (T, bool)) constraintKeyword {
 	return constraintKeyword{
-		set:    func(c *ir.Constraints) bool { return of(c) != nil },
-		differ: func(a, b *ir.Constraints) (string, bool) { return bigValConflictDetail(name, of(a), of(b)) },
+		set: func(c *ir.Constraints) bool { return *slot(c) != nil },
+		same: func(a, b *ir.Constraints) bool {
+			x, y := *slot(a), *slot(b)
+			if x == nil || y == nil {
+				return x == y
+			}
+			return same(*x, *y)
+		},
+		meet: func(dst, src *ir.Constraints) {
+			x, y := *slot(dst), *slot(src)
+			if x == nil {
+				*slot(dst) = y
+				return
+			}
+			if y == nil {
+				return
+			}
+			if met, ok := meet(*x, *y); ok {
+				*slot(dst) = &met
+			}
+		},
+		differ: func(a, b *ir.Constraints) (string, bool) {
+			x, y := *slot(a), *slot(b)
+			if x == nil || y == nil {
+				return "", false
+			}
+			if _, ok := meet(*x, *y); ok {
+				return "", false
+			}
+			return fmt.Sprintf("conflicting %s (%v and %v)", name, *x, *y), true
+		},
+		clear: func(c *ir.Constraints) { *slot(c) = nil },
 	}
 }
 
-// intKeyword is the integer keyword name, read by of.
-func intKeyword(name string, of func(*ir.Constraints) *int64) constraintKeyword {
+// strKeyword is the string keyword name, stored at slot, "" where unset. Two
+// values of it have no order and no form saying both, so it keeps the first.
+func strKeyword(name string, slot func(*ir.Constraints) *string) constraintKeyword {
 	return constraintKeyword{
-		set:    func(c *ir.Constraints) bool { return of(c) != nil },
-		differ: func(a, b *ir.Constraints) (string, bool) { return intConflictDetail(name, of(a), of(b)) },
-	}
-}
-
-// strKeyword is the string keyword name, read by of.
-func strKeyword(name string, of func(*ir.Constraints) string) constraintKeyword {
-	return constraintKeyword{
-		set:    func(c *ir.Constraints) bool { return of(c) != "" },
-		differ: func(a, b *ir.Constraints) (string, bool) { return strConflictDetail(name, of(a), of(b)) },
+		set:  func(c *ir.Constraints) bool { return *slot(c) != "" },
+		same: func(a, b *ir.Constraints) bool { return *slot(a) == *slot(b) },
+		meet: func(dst, src *ir.Constraints) { *slot(dst) = cmp.Or(*slot(dst), *slot(src)) },
+		differ: func(a, b *ir.Constraints) (string, bool) {
+			x, y := *slot(a), *slot(b)
+			if x == "" || y == "" || x == y {
+				return "", false
+			}
+			return fmt.Sprintf("conflicting %s (%q and %q)", name, x, y), true
+		},
+		clear: func(c *ir.Constraints) { *slot(c) = "" },
 	}
 }
 
 // constraintsConflict reports the first keyword of constraintKeywords that two
-// constraint sets pin to different values: its index and the disagreement. A
-// keyword set on one side only is not a conflict, since Constraints adopts
-// it. Numeric bounds compare by magnitude, so 10 and 10.0 do not conflict.
+// constraint sets pin to values no one value holds: its index and the
+// disagreement. A keyword set on one side only is no conflict, and neither is a
+// bound both set, since Constraints takes what holds both.
 func constraintsConflict(a, b *ir.Constraints) (keyword int, detail string, conflict bool) {
 	if a == nil || b == nil {
 		return 0, "", false
@@ -118,54 +162,55 @@ func constraintsConflict(a, b *ir.Constraints) (keyword int, detail string, conf
 	return 0, "", false
 }
 
-// bigValConflictDetail reports whether both branches pin the same
-// arbitrary-precision keyword to different magnitudes, formatting the
-// disagreement when they do. Every arbitrary-precision keyword of
-// ir.Constraints has this shape: each states its own restriction, with no
-// exclusivity flag to carry beside it, so one comparison serves them all.
-//
-// A disagreement is usually still satisfiable (minimum 10 in one branch and 20
-// in the other together mean 20), but it is diagnosed anyway: the merge keeps
-// the first declaration's value over the true intersection, and the discarded
-// one may be the stricter, so silence would loosen the validation the spec
-// intended.
-func bigValConflictDetail(keyword string, a, b *ir.BigVal) (string, bool) {
-	if a == nil || b == nil || sameNumber(*a, *b) {
-		return "", false
+// largerCount returns the larger of x and y.
+func largerCount(x, y int64) (int64, bool) { return max(x, y), true }
+
+// smallerCount returns the smaller of x and y.
+func smallerCount(x, y int64) (int64, bool) { return min(x, y), true }
+
+// onlyEqual returns x where y is the same, and false otherwise: a keyword with
+// no order.
+func onlyEqual(x, y int64) (int64, bool) { return x, x == y }
+
+// largerNumber returns the larger of x and y, and false where they have no
+// order (compareNumbers). It keeps x's spelling of one number written twice.
+func largerNumber(x, y ir.BigVal) (ir.BigVal, bool) {
+	order, ok := compareNumbers(x, y)
+	if order < 0 {
+		return y, ok
 	}
-	return fmt.Sprintf("conflicting %s (%s and %s)", keyword, a.String(), b.String()), true
+	return x, ok
 }
 
-// sameNumber reports whether a and b denote the same value, so one magnitude
-// spelled two ways, 10, 10.0 and 1e1, is one value.
-//
-// Identical text is one literal and needs no reading. A pair with a literal no
-// Decimal holds is judged by its text alone: differing spellings are reported
-// unequal rather than guessed at, since reading either as zero would fold two
-// bounds into one the source never wrote.
-func sameNumber(a, b ir.BigVal) bool {
+// smallerNumber returns the smaller of x and y, and false where they have no
+// order (compareNumbers). It keeps x's spelling of one number written twice.
+func smallerNumber(x, y ir.BigVal) (ir.BigVal, bool) {
+	order, ok := compareNumbers(x, y)
+	if order > 0 {
+		return y, ok
+	}
+	return x, ok
+}
+
+// compareNumbers orders a and b by magnitude, and returns false where either is
+// a literal no Decimal holds, unless they are one text. Reading such a literal
+// as zero would fold two bounds into one the source never wrote.
+func compareNumbers(a, b ir.BigVal) (int, bool) {
 	if a == b {
-		return true
+		return 0, true
 	}
 	da, errA := a.Decimal()
 	db, errB := b.Decimal()
-	return errA == nil && errB == nil && da == db
+	if errA != nil || errB != nil {
+		return 0, false
+	}
+	return da.Cmp(db), true
 }
 
-// intConflictDetail reports whether two optional integer bounds are both
-// present and differ, formatting the disagreement when they do.
-func intConflictDetail(keyword string, a, b *int64) (string, bool) {
-	if a == nil || b == nil || *a == *b {
-		return "", false
-	}
-	return fmt.Sprintf("conflicting %s (%d and %d)", keyword, *a, *b), true
-}
-
-// strConflictDetail reports whether two string keywords are both set and
-// differ, formatting the disagreement when they do.
-func strConflictDetail(keyword string, a, b string) (string, bool) {
-	if a == "" || b == "" || a == b {
-		return "", false
-	}
-	return fmt.Sprintf("conflicting %s (%q and %q)", keyword, a, b), true
+// sameNumber reports whether a and b denote the same value, so one magnitude
+// spelled two ways, 10, 10.0 and 1e1, is one value. A pair with a literal no
+// Decimal holds is judged by its text alone.
+func sameNumber(a, b ir.BigVal) bool {
+	order, ok := compareNumbers(a, b)
+	return ok && order == 0
 }

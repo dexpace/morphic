@@ -208,18 +208,44 @@ func TestFold_AComposedFieldKeepsEveryDeclarationsDetail(t *testing.T) {
 	t.Parallel()
 	g, recorded := stubMerger(composeRegistry())
 	decls := declsOf("t/A", "t/B", "t/in1")
-	decls[0].prop.Constraints = &ir.Constraints{MinProps: new(int64(1))}
+	decls[0].prop.Constraints = &ir.Constraints{MinProps: new(int64(1)), Pattern: "^a$"}
 	decls[1].prop.Constraints = &ir.Constraints{MaxProps: new(int64(4))}
-	decls[2].prop.Constraints = &ir.Constraints{MinProps: new(int64(2))}
+	decls[2].prop.Constraints = &ir.Constraints{MinProps: new(int64(2)), Pattern: "^b$"}
 
 	got := g.fold(decls)
 
 	require.NotNil(t, got.Constraints)
-	assert.Equal(t, int64(1), *got.Constraints.MinProps, "the first to set a keyword keeps it")
+	assert.Equal(t, int64(2), *got.Constraints.MinProps, "a bound takes its tightest value")
 	assert.Equal(t, int64(4), *got.Constraints.MaxProps, "a later declaration's keyword reaches the field")
+	assert.Equal(t, "^a$", got.Constraints.Pattern, "the first to set a keyword with no order keeps it")
 	require.Len(t, *recorded, 1)
 	assert.Equal(t, diag.ConflictingRedecl, (*recorded)[0].Code)
 	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(declaredAt(2)))
+}
+
+// TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet pins which node a field
+// takes where both could stand. Two aliases of one model each say more than the
+// model, so they compose as any two aliases do, and the composition holds both
+// bounds on the aliases it names: no node is minted for the bounds beside it.
+func TestFold_AliasesOfOneModelComposeThoughTheirBoundsMeet(t *testing.T) {
+	t.Parallel()
+	reg := composeRegistry()
+	reg["t/min"] = &ir.Scalar{ID: "t/min", Base: &ir.TypeRef{Target: "t/B"}, Constraints: &ir.Constraints{MinProps: new(int64(1))}}
+	reg["t/max"] = &ir.Scalar{ID: "t/max", Base: &ir.TypeRef{Target: "t/B"}, Constraints: &ir.Constraints{MaxProps: new(int64(4))}}
+	g, recorded := stubMerger(reg)
+	mint, mints := g.Mint, 0
+	g.Mint = func(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
+		mints++
+		return mint(pointer, node)
+	}
+
+	got := g.fold(declsOf("t/min", "t/max"))
+
+	composed, ok := reg[got.Type.Target].(*ir.Model)
+	require.True(t, ok, "the field's type is the composition")
+	assert.Equal(t, []ir.TypeRef{{Target: "t/min"}, {Target: "t/max"}}, composed.Mixins)
+	assert.Equal(t, 1, mints, "one pointer takes one node, which Register would otherwise refuse")
+	assert.Empty(t, *recorded)
 }
 
 // TestFold_AComposedFieldAdoptsOnlyANull pins what a composed field takes of the
