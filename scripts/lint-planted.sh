@@ -13,9 +13,10 @@
 # encoding/json/v2 or a test file's forced assertion, so a rule cannot pass by
 # matching everything either.
 #
-# It says nothing of the module itself. That is `make lint`'s, which `make gate`
-# and CI run before this and which enables every linter here, as the loop below
-# requires, so run alone this script does not show the module clean.
+# It says nothing of the module itself. That is the lint step's: `make lint` in
+# `make gate` and the golangci-lint action in CI, each run before this and each
+# enabling every linter here, as the loop below requires. Run alone, this script
+# does not show the module clean.
 #
 # It reads golangci-lint's JSON output with jq, which CI's runner and recent
 # macOS ship.
