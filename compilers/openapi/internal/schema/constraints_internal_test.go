@@ -37,6 +37,25 @@ func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 	}
 }
 
+// TestReferenceConstraintsOf_NilSchema pins that a position with no schema reads
+// as ConstraintsOf reads it, holding nothing.
+func TestReferenceConstraintsOf_NilSchema(t *testing.T) {
+	t.Parallel()
+	l := NewRawLowerer(&soa.OpenAPI{})
+	var kept ir.Unmodeled
+	cons, diags := referenceConstraintsOf(l.Ctx, &kept, nil, "/p")
+	assert.Nil(t, cons)
+	assert.Empty(t, diags)
+	assert.Empty(t, kept)
+}
+
+// TestReferenceHolds_NoCollectionBoundIsHeld pins the switch's default, which
+// keywordHome's arm never reaches: a keyword that is no collection bound.
+func TestReferenceHolds_NoCollectionBoundIsHeld(t *testing.T) {
+	t.Parallel()
+	assert.False(t, referenceHolds(&oas3.Schema{}, "pattern"))
+}
+
 // TestConstraintsOf_EmptyRefSchema covers a $ref pointer that is present but
 // empty: annotation.At reads it as a declaration, since IsReference is false
 // for it, and SchemaOf returns its body like any other, so ConstraintsOf meets

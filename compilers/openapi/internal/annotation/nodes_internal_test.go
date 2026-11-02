@@ -25,6 +25,23 @@ func TestRawPropertyNode_NilSchemaReadsNothing(t *testing.T) {
 	assert.Nil(t, RawPropertyNode(s, "title"), "a keyword the schema did not write")
 }
 
+// TestRawPropertyNode_ReadsANullKeywordAsLeftOut pins the one reading a null
+// keyword has, which every keeper goes through, and the three keywords whose
+// value is an instance, where a null is that value.
+func TestRawPropertyNode_ReadsANullKeywordAsLeftOut(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "{maxLength: null, format: ~, $id: null, const: null, default: ~, example: null, title: t}\n")
+	for _, keyword := range []string{"maxLength", "format", "$id"} {
+		assert.Nil(t, RawPropertyNode(s, keyword), keyword)
+	}
+	for _, keyword := range []string{"const", "default", "example"} {
+		node := RawPropertyNode(s, keyword)
+		require.NotNil(t, node, keyword)
+		assert.True(t, IsNullNode(node), keyword)
+	}
+	assert.NotNil(t, RawPropertyNode(s, "title"))
+}
+
 // TestRawPropertyNode_ReadsAKeywordAsTheParserDoes pins the raw keyword reader
 // every verbatim keyword and every bound goes through to the model it sits
 // beside: a keyword merged in through `<<` and one written through an alias

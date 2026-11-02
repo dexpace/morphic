@@ -90,8 +90,9 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 `bound-the-product`
 
 - **Rule.** A limit caps what the work grows with. Where cost is a product, such as depth times key
-  length or count times size, a bound per dimension leaves the product free: bound the product, or
-  the steps or bytes spent, through `compilers/openapi/internal/budget` in the OpenAPI compiler.
+  length, count times size or references times what they reach, a bound per dimension leaves the
+  product free: bound the product, or the steps or bytes spent, through
+  `compilers/openapi/internal/budget` in the OpenAPI compiler.
 - **Why.** A 4 MB document of about 1,000 nodes a few hundred levels deep, inside every bound, made
   the parser peak at 8.2 GB (#931).
 - **Probe.** At a fixed input size, grow one dimension while shrinking the other, on `main` and the

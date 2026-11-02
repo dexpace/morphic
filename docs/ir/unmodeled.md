@@ -80,6 +80,12 @@ with `x-`, as a callback named `x-hook` keeps its extensions under `openapi:call
 only after such a keyword. The same gap separates both from the non-extension entries a shared
 carrier holds under those scopes, such as `openapi:encoding/<part>/prefixEncoding`.
 
+An entry that belongs to a declaration no node stands for has no carrier to scope it, so it is the
+document's, keyed by the declaration's coordinate rather than a scope:
+`openapi:/components/parameters/P/content/text~1plain`. A coordinate is a pointer, behind a qualifier
+naming the document where that is not the source, so one pointer in two documents is two keys, and
+every use of the declaration reaches one entry. It opens with no keyword, so it meets no scope.
+
 ## Reasons
 
 | Reason | Meaning |
@@ -133,13 +139,10 @@ where the IR expects them, so there is no reason to record and no unmodelled con
 ## Promotion
 
 Several typed fields model information no source format gives a keyword for, so the only way a
-document can state it is a vendor extension:
-`Deprecation.Message`/`Since`/`RemovalVersion`/`RemovalDate`, `Enum.Closed`, `Pagination.*`,
-`LongRunning`, `Idempotency`, `ErrorCase.Retryable`/`Throttling`, `Enum.Flags`,
-`EnumMember.Name`, `Sensitive` and `Secret`. Reading such an extension into its field is
-**promotion**, and because the format assigns an `x-*` key no semantics at all, promotion is a
-heuristic — invariant 6 applies to it in full. Four rules, so that no emitter has to re-derive
-this from `Unmodeled` and no two derive it differently:
+document can state it is a vendor extension ([the fields](#what-a-promotion-can-fill)). Reading such
+an extension into its field is **promotion**, and because the format assigns an `x-*` key no
+semantics at all, promotion is a heuristic — invariant 6 applies to it in full. Four rules, so that
+no emitter has to re-derive this from `Unmodeled` and no two derive it differently:
 
 1. **The mapping is injectable policy, default-on and disableable**, per compiler. Its default
    contents are conventions, not standards: nothing in any specification says `x-deprecated-reason`
@@ -148,24 +151,66 @@ this from `Unmodeled` and no two derive it differently:
    `Unmodeled` entry, never a move, and the entry keeps its `vendor_extension` reason. That is what
    makes it reversible: a consumer that disagrees with the guess reads the entry instead. It also
    makes losslessness independent of the policy — a disabled promotion loses nothing.
-3. **The node records that it was inferred**, in its own `Provenance.Inferred`, naming the
-   heuristic. `Inferred` holds one string and a node can be reached by more than one heuristic, so
-   the names are listed rather than overwritten, and a name already listed is not repeated. The
-   list joins the names with commas in the order the heuristics first applied, none empty; names
-   compare exactly, and the IR declares no set of them. `TypeRef.Inferred`
-   ([type-graph](./type-graph.md#type-references)) lists them the same way. The list has a type of
-   its own, `ir.Inferred`: `ir.JoinInferred` writes the form and `Inferred.IsCanonical` reads it. A
-   conversion or a decoded document skips the join, and two spellings of one list would compare
-   unequal, so `irverify` reports a stored list in any other form (`ir/inferred-not-canonical`),
-   wherever it sits.
-4. **A node with no `Provenance` is not promoted into.** A node carrying a `Deprecation` and no
-   provenance could not satisfy rule 3, and a heuristic that cannot be audited is worse than an
-   empty field. Giving such a node a provenance is a change to the IR design, and the promotion
-   follows it rather than preceding it — which is the order `Parameter` went through, and it held
-   this rule's only named instance until it gained the `Provenance` [operations](./operations.md)
-   now gives it. `Variant` ([unions](./unions.md)) and `EnumMember` ([enums](./enums.md)) are the
-   instances today: each carries a `Deprecation` and no provenance of its own, so no key maps into
-   either until one of them gains one.
+3. **The node keeping the extension records that it was inferred**, naming the heuristic, in its own
+   `Provenance.Inferred`, or in its `Inferred` where it has no `Provenance`. That node need not be
+   the one holding the field: a key on an enum can name its members, and a key on a parameter can
+   fill the binding that places it. What an auditor reads is the marker beside the entry that
+   explains it, so the two stay on one node, the field's node or not. `Inferred` holds one string
+   and a node can be reached by more than one heuristic, so the names are listed rather than
+   overwritten, and a name already listed is not repeated. The list joins the names with commas in
+   the order the heuristics first applied, none empty; names compare exactly, and the IR declares no
+   set of them. `TypeRef.Inferred` ([type-graph](./type-graph.md#type-references)) lists them the
+   same way. The list has a type of its own, `ir.Inferred`: `ir.JoinInferred` writes the form and
+   `Inferred.IsCanonical` reads it. A conversion or a decoded document skips the join, and two
+   spellings of one list would compare unequal, so `irverify` reports a stored list in any other
+   form (`ir/inferred-not-canonical`), wherever it sits.
+4. **A node that cannot record a promotion is not promoted from.** An extension on it could not
+   satisfy rule 3, and a heuristic that cannot be audited is worse than an empty field. Giving such a
+   node a marker is a change to the IR design, and the promotion follows it rather than preceding
+   it — which is the order `Parameter` went through, and `ErrorCase` and `OAuthFlow` after it.
+   `Variant` ([unions](./unions.md)) and `EnumMember` ([enums](./enums.md)) are the instances that
+   carry a `Deprecation` today: each has neither marker, so no key written on either is read, though
+   a key on the enum holding a member may fill that member.
+
+### What a promotion can fill
+
+The fields a promotion can fill, the node each one's extension is kept on, and the field that node
+records it in. `TestPromotionTable_EveryNodeCanRecord` holds each row to what `ir` declares, and
+`TestExtensionTarget_EveryTargetIsInThePromotionTable` each target the OpenAPI compiler declares to
+a row.
+
+| Field | Kept on | Recorded in |
+|---|---|---|
+| `Deprecation.Message`, `Deprecation.Since`, `Deprecation.RemovalVersion`, `Deprecation.RemovalDate` | `Operation`, `Parameter`, `Property`, `AuthScheme`, `Message`, `TypeCommon` | `Provenance.Inferred` |
+| `Enum.Closed`, `Enum.Flags`, `EnumMember.Name` | `Enum` | `Provenance.Inferred` |
+| `Operation.Pagination`, `Operation.LongRunning`, `Operation.Idempotency` | `Operation` | `Provenance.Inferred` |
+| `TypeCommon.Sensitive` | `TypeCommon` | `Provenance.Inferred` |
+| `Property.Secret` | `Property` | `Provenance.Inferred` |
+| `Server.Name` | `Server` | `Provenance.Inferred` |
+| `HTTPParamBinding.AllowReserved` | `Parameter` | `Provenance.Inferred` |
+| `ErrorCase.Retryable`, `ErrorCase.Throttling` | `ErrorCase` | `Inferred` |
+| `OAuthFlow.TokenEndpointAuthMethods` | `OAuthFlow` | `Inferred` |
+
+Two rows read across nodes. `EnumMember.Name` is kept on the `Enum` because an OpenAPI member is a
+bare value with nowhere to write a key, so a key naming the members is a list on the schema. A
+binding is reached from its parameter by `HTTPParamBinding.Param`, so a consumer asking whether
+`AllowReserved` was inferred reads the parameter it names. A promoted `Pagination` also sets its own
+`Inferred`, which says the value as a whole is a heuristic's ([plan
+policy](../emitters/plan/policy.md)).
+
+Three other places for the record were weighed:
+
+- **The nearest ancestor with a `Provenance`** separates the marker from the entry. A key on one
+  response would mark its operation, where nothing beside the marker explains it: an operation with
+  a declared `deprecated: true` reads as if that were the guess, and neither error case can be told
+  from the other.
+- **A `Provenance` on every such struct** is correct, and locates what nothing asks to locate, since
+  the entry's own `Provenance` already locates the extension. It would put a pointer on each of the
+  5,753 error cases of `cloudflare/api-schemas` @ `319dc756`, and rewrite every golden holding one,
+  for a marker `TypeRef.Inferred` shows needs no location.
+- **A marker on the entry** would be as exact, and breaks rule 2's independence from the policy:
+  an entry would differ with promotion on and off, and one the source wrote verbatim would read as
+  inferred.
 
 What the OpenAPI compiler's default mapping reads, and what it does with a value the field cannot
 hold, is its rule [`extension-promotion`](../compilers/openapi.md#extension-promotion). Others of

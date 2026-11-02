@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -74,6 +76,9 @@ const (
 	// avoid — an external file it cannot fetch (f12) or a malformed pointer it must
 	// flag (f32): only referential closure is asserted.
 	internsNoisy
+	// mints a node of its own for the target, so the reference resolves to
+	// something that says it has no mechanism, with an error-severity diagnostic.
+	mints
 )
 
 // danglingCase is one reproducer: the fixture under danglingDir, the source path
@@ -100,7 +105,7 @@ func danglingReproducers() []danglingCase {
 		{"f12-refs.yaml", "m.yaml", internsNoisy},
 		{"f13-refs.yaml", "f13.yaml", interns},
 		{"f28-maps-additional.yaml", "f28.yaml", interns},
-		{"f30-protocol-surface.yaml", "f30.yaml", drops},
+		{"f30-protocol-surface.yaml", "f30.yaml", mints},
 		{"f31-discriminator-empty-name.yaml", "f31.yaml", interns},
 		{"f32-ref-noncanonical-escape.yaml", "f32.yaml", internsNoisy},
 	}
@@ -133,8 +138,9 @@ func TestDanglingRefs_EveryReproducerIsExercised(t *testing.T) {
 }
 
 // TestDanglingRefs_Reproducers compiles each issue-#14 reproducer and asserts the
-// produced IR has zero dangling references — every offending entry either interns
-// correctly or is dropped with an error-severity diagnostic.
+// produced IR has zero dangling references — every offending entry interns
+// correctly, or takes an error-severity diagnostic and is dropped or backed by a
+// node minted for it.
 func TestDanglingRefs_Reproducers(t *testing.T) {
 	t.Parallel()
 	for _, tc := range danglingReproducers() {
@@ -152,9 +158,19 @@ func TestDanglingRefs_Reproducers(t *testing.T) {
 			case internsNoisy:
 				// f12 resolves the same-file ref internally; the loader still reports
 				// the external m.yaml it could not open. Only closure is asserted.
+			case mints:
+				assert.True(t, hasErrorNamingNoMechanism(diags), "the minted target is reported as an error")
 			}
 		})
 	}
+}
+
+// hasErrorNamingNoMechanism reports whether diags hold the error a requirement
+// draws for a name that reaches no mechanism.
+func hasErrorNamingNoMechanism(diags []ir.Diagnostic) bool {
+	return slices.ContainsFunc(diags, func(d ir.Diagnostic) bool {
+		return d.Severity == ir.SeverityError && d.Code == diag.UnresolvedSecurityScheme
+	})
 }
 
 // TestDanglingRefs_f07 pins the positive case: a mapping value that contains '/'
@@ -176,19 +192,21 @@ func TestDanglingRefs_f07(t *testing.T) {
 }
 
 // TestDanglingRefs_f30 pins the auth case: a security requirement naming an
-// undeclared scheme is dropped whole and diagnosed, never written as a dangling
-// AuthID and never left behind as AuthRequirement{Schemes: nil} — the "no auth
-// is one acceptable choice" encoding a broken requirement must not collapse
-// into (issue #41). f30's list has exactly this one, sole option, so the list
-// itself collapses to nil rather than surfacing as [] ("explicitly public").
+// undeclared scheme stays and is diagnosed, its AuthID backed by a scheme minted
+// for the name, never left dangling (issue #14) and never written as
+// AuthRequirement{Schemes: nil}, the "no auth is one acceptable choice" encoding
+// a broken requirement must not collapse into (issue #41).
 func TestDanglingRefs_f30(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileFile(t, danglingDir, "f30-protocol-surface.yaml", "f30.yaml")
 	assert.Empty(t, danglingRefs(doc))
-	assert.Empty(t, doc.Auth, "no scheme is declared")
+	const minted ir.AuthID = "auth/unresolved/components/securitySchemes/x"
+	require.Contains(t, doc.Auth, minted, "the reference holds, to a scheme minted for the name")
+	assert.Equal(t, ir.AuthKindUnresolved, doc.Auth[minted].Kind)
 	require.Len(t, doc.Services, 1)
-	assert.Nil(t, doc.Services[0].Auth, "the sole option is dropped whole, collapsing the list to nil")
-	assert.True(t, hasErrorRef(diags), "the drop is diagnosed")
+	assert.Empty(t, cmp.Diff([]ir.AuthRequirement{{Schemes: []ir.SchemeUse{{Scheme: minted}}}}, doc.Services[0].Auth,
+		cmpopts.EquateEmpty()), "the sole option stays")
+	assert.True(t, hasErrorNamingNoMechanism(diags), "and the name that reached no mechanism is reported")
 }
 
 // TestDanglingRefs_f10 pins that a $ref to a component sub-schema interns the

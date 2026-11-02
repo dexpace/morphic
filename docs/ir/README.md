@@ -17,7 +17,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 | Document | Owns |
 |---|---|
 | [document](./document.md) | `Document`: the root, its registries and the API's own metadata |
-| [ir-version](./ir-version.md) | `IRVersion`: what moves it, what a consumer does on a mismatch, and how a bump lands |
+| [ir-version](./ir-version.md) | `IRVersion`: what moves it, names included, what a consumer does on a mismatch, and how a bump lands |
 | [version-history](./version-history.md) | What each generation changed, and what a consumer of the one before it sees |
 | [identity](./identity.md) | IDs: the grammar, each class of ID, and what `irverify` holds them to |
 | [naming](./naming.md) | `Naming`: source name, neutral word sequence, hint and aliases |
@@ -67,7 +67,7 @@ spec — field names and shapes in them are normative, receiver methods and help
 
 | Document | Owns |
 |---|---|
-| [annotations](./annotations.md) | `Docs`, `Deprecation`, `Example`, and where a declaration of one lives |
+| [annotations](./annotations.md) | `Docs`, `Deprecation`, `Example`, how prose names a type, and where a declaration of one lives |
 | [unmodeled](./unmodeled.md) | `Unmodeled`, `RawConfig`, reasons, key scoping and promotion |
 | [boundaries](./boundaries.md) | What the IR declines to model: validation-only keywords, degraded lowerings, exclusions |
 

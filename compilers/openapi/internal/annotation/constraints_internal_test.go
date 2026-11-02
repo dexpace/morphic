@@ -26,6 +26,42 @@ func TestConstraints_NilSchema(t *testing.T) {
 	assert.Nil(t, kept)
 	assert.Nil(t, diags)
 }
+
+// TestCountIsExact pins each way a count fails to be the number its literal
+// states, beside the spellings that are: the model's reading is trusted only
+// where it agrees with the raw node.
+func TestCountIsExact(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, literal string
+		count         int64
+		exact         bool
+	}{
+		{"integer", "3", 3, true},
+		{"zero", "0", 0, true},
+		{"integral float", "3.0", 3, true},
+		{"exponent", "1e3", 1000, true},
+		{"integer past int64", "99999999999999999999", 0, false},
+		{"float past float64", "1e400", 0, false},
+		{"truncated fraction", "1.5", 1, false},
+		{"no number", "many", 0, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			s := schemaFromYAMLUnvalidated(t, "minItems: "+tc.literal)
+			assert.Equal(t, tc.exact, CountIsExact(s, "minItems", &tc.count))
+		})
+	}
+}
+
+// TestCountIsExact_NeedsBothReadings pins the two halves that each stand for a
+// keyword not written: no count from the model, and no node to hold it to.
+func TestCountIsExact_NeedsBothReadings(t *testing.T) {
+	t.Parallel()
+	assert.False(t, CountIsExact(schemaFromYAMLUnvalidated(t, "minItems: 3"), "minItems", nil))
+	assert.False(t, CountIsExact(&oas3.Schema{}, "minItems", new(int64(3))))
+}
+
 func TestApplyExclusive_NumericWithoutRootNode(t *testing.T) {
 	t.Parallel()
 	s := &oas3.Schema{ExclusiveMinimum: &values.EitherValue[bool, bool, float64, float64]{Right: new(5.0)}}

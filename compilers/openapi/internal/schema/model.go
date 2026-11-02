@@ -96,15 +96,16 @@ func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	return diags
 }
 
-// mint registers m, the composition of the field the declaration at pointer
-// names. That pointer denotes the declaration's own schema, so m takes the ID of
-// a node no schema occupies (ids.ComposedType) and points back at it, as a
+// mint registers node, the type of the field the declaration at pointer names.
+// That pointer denotes the declaration's own schema, so node takes the ID of a
+// node no schema occupies (ids.ComposedType) and points back at it, as a
 // distributed variant points at its branch. The variants of one distributed
 // union fold the same declarations, so each mints this one node, alike.
-func (s settledMerge) mint(pointer jsontext.Pointer, m *ir.Model) ir.TypeID {
+func (s settledMerge) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
 	id := s.c.IDs().ComposedType(pointer)
-	m.TypeCommon = commonFor(s.c, id, pointer)
-	s.ts.Register(id, m)
+	site, common := commonFor(s.c, id, pointer), node.Common()
+	common.ID, common.Name, common.Anonymous, common.Provenance = site.ID, site.Name, site.Anonymous, site.Provenance
+	s.ts.Register(id, node)
 	return id
 }
 

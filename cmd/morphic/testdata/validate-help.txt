@@ -19,6 +19,9 @@ keep the compiler's.
 --opt is compile's, and takes the same settings: a spec that needs one to
 compile needs it here too, or what is checked is not what would be built.
 
+--cache-dir is compile's, and shares its entries: a run of either answers the
+other.
+
 SIGINT, SIGTERM or SIGHUP stops the run, unless it comes once the compile is
 over: the diagnostics are then written whole, and the run exits as though it
 had not come. Another while the run is stopping changes nothing.
@@ -34,6 +37,7 @@ Examples:
   morphic validate openapi.yaml --fail-on warning
 
 Flags:
+      --cache-dir string    keep compiled documents in this directory, and reuse one while nothing it depends on has changed
       --disable-pass name   turn off the IR pass with this name (repeatable)
       --fail-on threshold   exit 1 on a diagnostic at or above this severity: error, warning or info; none exits 1 only when the spec lowered to no document (default error)
   -h, --help                help for validate

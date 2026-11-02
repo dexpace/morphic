@@ -6,6 +6,7 @@ package openapi
 import (
 	"fmt"
 	"maps"
+	"mime"
 	"slices"
 	"strconv"
 	"strings"
@@ -37,9 +38,9 @@ const (
 // named here rather than restated for the reason GroupingStrategy is.
 type StreamingMedia = lowering.StreamingMedia
 
-// DefaultStreamingMediaTypes returns the media types StreamingMedia classifies
-// as streams when the caller names none. It is exported so a caller extending
-// the list can start from it rather than transcribe it.
+// DefaultStreamingMediaTypes returns the media types and suffixes StreamingMedia
+// classifies as streams when the caller names none. It is exported so a caller
+// extending the list can start from it rather than transcribe it.
 func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
 
 // ExtensionPromotions is the vendor-extension promotion policy: which x-* keys
@@ -274,11 +275,13 @@ func (o Options) withDefaults() Options {
 // vocabulary: a caller writes them without knowing which compiler reads them,
 // and nothing above this package holds the list.
 const (
-	optGrouping          = "grouping"
-	optAllowExternalRefs = "allow-external-refs"
-	optOverlay           = "overlay"
-	optOverlayLax        = "overlay-lax"
-	optNullableWidening  = "nullable-widening"
+	optGrouping           = "grouping"
+	optAllowExternalRefs  = "allow-external-refs"
+	optOverlay            = "overlay"
+	optOverlayLax         = "overlay-lax"
+	optNullableWidening   = "nullable-widening"
+	optStreamingMedia     = "streaming-media"
+	optStreamingInference = "streaming-inference"
 )
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
@@ -297,7 +300,10 @@ func limitOptions(l *Limits) map[string]*int {
 // outside it. Deriving the list from one place is what keeps the error honest
 // as the vocabulary grows.
 func optionNames() []string {
-	names := []string{optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax, optNullableWidening}
+	names := []string{
+		optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax, optNullableWidening,
+		optStreamingMedia, optStreamingInference,
+	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
 	return names
@@ -358,6 +364,13 @@ func (d *optionDecode) set(key, value string) error {
 		err := decodeBool(&on, key, value)
 		d.opts.NullableWidening.Disabled = !on
 		return err
+	case optStreamingMedia:
+		return decodeStreamingMedia(&d.opts.StreamingMedia.MediaTypes, value)
+	case optStreamingInference:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.StreamingMedia.Disabled = !on
+		return err
 	}
 	if budget, ok := limitOptions(&d.opts.Limits)[key]; ok {
 		return decodeBudget(budget, key, value)
@@ -391,6 +404,39 @@ func decodeGrouping(out *GroupingStrategy, value string) error {
 		return fmt.Errorf("openapi: option %q: want %q or %q, got %q",
 			optGrouping, GroupByTags, GroupByPathPrefix, value)
 	}
+}
+
+// decodeStreamingMedia reads the streaming media list: entries separated by
+// commas, which no media type holds outside a parameter's quotes. An entry that
+// is neither a media type nor a suffix is refused rather than kept: it could
+// match nothing, and the list it sits in replaces the default. The promotion
+// mapping has no setting yet (GitHub #658).
+func decodeStreamingMedia(out *[]string, value string) error {
+	entries := strings.Split(value, ",")
+	for i, entry := range entries {
+		entries[i] = strings.TrimSpace(entry)
+		if !namesMedia(entries[i]) {
+			return fmt.Errorf("openapi: option %q: want media types or +suffixes separated by commas, got %q",
+				optStreamingMedia, value)
+		}
+	}
+	*out = entries
+	return nil
+}
+
+// namesMedia reports whether entry has the form of a structured suffix or of a
+// media type: `+suffix`, or `type/subtype`, each with any parameters. A suffix
+// holds no second plus: a media type's starts at its last one, so `+a+b` could
+// match nothing.
+func namesMedia(entry string) bool {
+	name, _, err := mime.ParseMediaType(entry)
+	if err != nil {
+		return false
+	}
+	if suffix, ok := strings.CutPrefix(name, "+"); ok {
+		return suffix != "" && !strings.ContainsAny(suffix, "/+")
+	}
+	return strings.Contains(name, "/")
 }
 
 // decodeBudget reads a budget setting: a decimal integer, read as the Limits

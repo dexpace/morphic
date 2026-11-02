@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -410,4 +411,446 @@ func TestComponentConstraints_DiagnosticProvenance(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "a non-numeric component bound is reported")
+}
+
+// boundedRef and boundedNullable are the two spellings of a position that
+// lowers to a reference, each writing all three collection bounds.
+const (
+	boundedRef      = "{$ref: '#/components/schemas/Tags', minItems: 1, maxItems: 3, uniqueItems: true}"
+	boundedNullable = "{oneOf: [{$ref: '#/components/schemas/Tags'}, {type: 'null'}], " +
+		"minItems: 1, maxItems: 3, uniqueItems: true}"
+	tagsSchema = "    Tags: {type: array, items: {type: string}}\n"
+)
+
+// allBounds is what boundedRef and boundedNullable state.
+func allBounds() *ir.Constraints {
+	return &ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(3)), UniqueItems: true}
+}
+
+// TestCollectionBound_BesideAReferenceReachesTheAlias pins
+// docs/compilers/openapi.md#constraints at every position that hoists an alias
+// over a reference: the bounds land on it, none is also kept, and none is
+// reported as having no home.
+func TestCollectionBound_BesideAReferenceReachesTheAlias(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, schema string
+		at           ir.TypeID
+		pointer      string
+	}{
+		{"component", boundedRef, componentID("S"), "/components/schemas/S"},
+		{"nullable component", boundedNullable, componentID("S"), "/components/schemas/S"},
+		{"items", "{type: array, items: " + boundedRef + "}",
+			"t/anon/components/schemas/S/items", "/components/schemas/S/items"},
+		{"nullable items", "{type: array, items: " + boundedNullable + "}",
+			"t/anon/components/schemas/S/items", "/components/schemas/S/items"},
+		{"prefixItems", "{type: array, prefixItems: [" + boundedRef + "]}",
+			"t/anon/components/schemas/S/prefixItems/0", "/components/schemas/S/prefixItems/0"},
+		{"additionalProperties", "{type: object, additionalProperties: " + boundedRef + "}",
+			"t/anon/components/schemas/S/additionalProperties", "/components/schemas/S/additionalProperties"},
+		{"union branch", "{oneOf: [" + boundedRef + ", {type: string}]}",
+			"t/anon/components/schemas/S/oneOf/0", "/components/schemas/S/oneOf/0"},
+		{"allOf branch", "{allOf: [" + boundedRef + "], properties: {f: {type: string}}}",
+			"t/anon/components/schemas/S/allOf/0", "/components/schemas/S/allOf/0"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+"    S: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			alias, ok := doc.Types[tc.at].(*ir.Scalar)
+			require.True(t, ok, "the position owns an alias: %#v", doc.Types[tc.at])
+			assert.Equal(t, allBounds(), alias.Constraints)
+			assert.Empty(t, alias.Unmodeled, "a bound the alias holds is not also kept")
+			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, tc.pointer),
+				"a bound the alias holds is not reported as homeless: %+v", diags)
+		})
+	}
+}
+
+// TestCollectionBound_BesideAReferenceReachesTheCarrier pins the same rule at a
+// property, which hoists no alias, for both spellings of a reference.
+func TestCollectionBound_BesideAReferenceReachesTheCarrier(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+		"    Holder:\n      type: object\n      properties:\n"+
+		"        ref: "+boundedRef+"\n"+
+		"        nullable: "+boundedNullable+"\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, wire := range []string{"ref", "nullable"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.Equal(t, allBounds(), p.Constraints, wire)
+		assert.Empty(t, p.Unmodeled, "%s: a bound the carrier holds is not also kept", wire)
+		assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct,
+			"/components/schemas/Holder/properties/"+wire), "%s: %+v", wire, diags)
+	}
+}
+
+// TestCollectionBound_ReadsThePositionNotItsTarget pins that the rule asks what
+// the position wrote and never what the $ref names, as for a value bound: a
+// bound conjoins with whatever the target admits, and reading the target would
+// let declaration order decide. The string and the object are the targets it
+// binds nothing on, and the tuple is one it binds.
+func TestCollectionBound_ReadsThePositionNotItsTarget(t *testing.T) {
+	t.Parallel()
+	targets := "    Str: {type: string}\n    Obj: {type: object, properties: {f: {type: string}}}\n" +
+		"    Tup: {type: array, prefixItems: [{type: string}]}\n"
+	for _, target := range []string{"Str", "Obj", "Tup"} {
+		t.Run(target, func(t *testing.T) {
+			t.Parallel()
+			written := "{$ref: '#/components/schemas/" + target + "', minItems: 1}"
+			doc, diags := parseFull(t, openapitest.ComponentSpec(targets+
+				"    S: "+written+"\n    Holder:\n      type: object\n      properties:\n        f: "+written+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			want := &ir.Constraints{MinItems: new(int64(1))}
+			alias, ok := typeByName(doc, "S").(*ir.Scalar)
+			require.True(t, ok)
+			assert.Equal(t, want, alias.Constraints)
+			assert.Equal(t, want, propertyOf(t, doc, "Holder", "f").Constraints)
+		})
+	}
+}
+
+// TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns pins
+// the third position that lowers to a reference. Its census asks what the reader
+// filled, as a $ref site's does, so a bound the reader cannot state is kept
+// verbatim and reported rather than read as a false 0 or a stated false.
+func TestCollectionBound_BesideAnExpandedDynamicRefReachesWhatThePositionOwns(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(`    Node:
+      $dynamicAnchor: node
+      type: array
+      items: {type: string}
+    Holder:
+      type: object
+      properties:
+        carried: {$dynamicRef: '#node', maxItems: 3}
+        unread: {$dynamicRef: '#node', maxItems: 1e400, uniqueItems: false}
+    Element: {type: array, items: {$dynamicRef: '#node', maxItems: 4}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	carried := propertyOf(t, doc, "Holder", "carried")
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, carried.Constraints)
+	assert.Empty(t, carried.Unmodeled, "a bound the carrier holds is not also kept")
+	unread := propertyOf(t, doc, "Holder", "unread")
+	assert.Nil(t, unread.Constraints)
+	assert.Equal(t, []string{"openapi:maxItems", "openapi:uniqueItems"}, unmodeledKeys(unread.Unmodeled))
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Holder/properties/unread"))
+	alias, ok := doc.Types["t/anon/components/schemas/Element/items"].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(4))}, alias.Constraints)
+	assert.Empty(t, alias.Unmodeled, "a bound the alias holds is not also kept")
+}
+
+// TestCollectionBound_BesideARefIn30IsReadAsIn31 pins the dialect the rule
+// docs/compilers/openapi.md#ref-use-site reads alike: the bound lands the same
+// way, under the warning that says OpenAPI 3.0 ignores it.
+func TestCollectionBound_BesideARefIn30IsReadAsIn31(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.0.3", tagsSchema+
+		"    Holder:\n      type: object\n      properties:\n"+
+		"        f: {$ref: '#/components/schemas/Tags', minItems: 1}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, propertyOf(t, doc, "Holder", "f").Constraints)
+	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, "/components/schemas/Holder/properties/f/minItems"))
+}
+
+// TestCollectionBound_ARedeclaredFieldFoldsIt pins the merge over a bound the
+// carrier holds (docs/compilers/openapi.md#allof-redeclared-property): as a
+// value bound does, it joins the intersection of the declarations, the larger
+// minItems and the smaller maxItems in either order, and is not also kept.
+func TestCollectionBound_ARedeclaredFieldFoldsIt(t *testing.T) {
+	t.Parallel()
+	ref := "{$ref: '#/components/schemas/Tags', "
+	for _, tc := range []struct {
+		name, a, b string
+		want       *ir.Constraints
+	}{
+		{"agreeing", ref + "minItems: 1}", ref + "minItems: 1}", &ir.Constraints{MinItems: new(int64(1))}},
+		{"each its own", ref + "minItems: 1}", ref + "maxItems: 2}",
+			&ir.Constraints{MinItems: new(int64(1)), MaxItems: new(int64(2))}},
+		{"the larger minItems second", ref + "minItems: 1}", ref + "minItems: 2}", &ir.Constraints{MinItems: new(int64(2))}},
+		{"the larger minItems first", ref + "minItems: 2}", ref + "minItems: 1}", &ir.Constraints{MinItems: new(int64(2))}},
+		{"the smaller maxItems", ref + "maxItems: 5}", ref + "maxItems: 3}", &ir.Constraints{MaxItems: new(int64(3))}},
+		{"uniqueItems from either", ref + "minItems: 1}", ref + "uniqueItems: true}",
+			&ir.Constraints{MinItems: new(int64(1)), UniqueItems: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := settledSpec(t, tagsSchema, tc.a, tc.b)
+
+			p := propertyOf(t, doc, "T", "v")
+			assert.Equal(t, tc.want, p.Constraints)
+			assert.Empty(t, p.Unmodeled, "the fold reads the typed field")
+			assert.Empty(t, diags)
+		})
+	}
+}
+
+// TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds pins what
+// an element alias's bound now gives the fold: two lists alike in all but it
+// are judged by it, the narrower winning in either order, and two that meet
+// overlap, keeping the first and reporting the other.
+func TestCollectionBound_RedeclaredListsAreJudgedByTheirElementsBounds(t *testing.T) {
+	t.Parallel()
+	list := func(bound string) string {
+		return "{type: array, items: {$ref: '#/components/schemas/Tags', " + bound + "}}"
+	}
+	for _, tc := range []struct {
+		name, a, b string
+		kept       string
+		reported   bool
+	}{
+		{"the narrower second", list("maxItems: 5"), list("maxItems: 3"), "1", false},
+		{"the narrower first", list("maxItems: 3"), list("maxItems: 5"), "0", false},
+		{"meeting", list("minItems: 1"), list("maxItems: 3"), "0", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := settledSpec(t, tagsSchema, tc.a, tc.b)
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			p := propertyOf(t, doc, "T", "v")
+			assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/"+tc.kept+"/properties/v"), p.Type.Target)
+			assert.Equal(t, tc.reported, len(p.Unmodeled) > 0, "%v", p.Unmodeled)
+			assert.Equal(t, tc.reported, len(diags) > 0, "%+v", diags)
+		})
+	}
+}
+
+// TestCollectionBound_ADefaultIsJudgedAgainstTheAliasHoldingIt pins the merge's
+// admission reading what the alias now carries: a default the element's bound
+// refuses is not taken, and one it admits is.
+func TestCollectionBound_ADefaultIsJudgedAgainstTheAliasHoldingIt(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, bound string
+		taken       bool
+	}{{"refused", "maxItems: 1", false}, {"admitted", "maxItems: 2", true}} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := settledSpec(t, tagsSchema,
+				"{type: array, items: {$ref: '#/components/schemas/Tags', "+tc.bound+"}}",
+				"{type: array, items: {$ref: '#/components/schemas/Tags'}, default: [[a, b]]}")
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			assert.Equal(t, tc.taken, propertyOf(t, doc, "T", "v").Default != nil)
+		})
+	}
+}
+
+// TestCollectionBound_BesideAValueBoundReachesOneConstraints pins the join: a
+// position writing both kinds holds both, on one ir.Constraints.
+func TestCollectionBound_BesideAValueBoundReachesOneConstraints(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+		"    S: {$ref: '#/components/schemas/Tags', minItems: 1, maxLength: 9}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	alias, ok := typeByName(doc, "S").(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1)), MaxLength: new(int64(9))}, alias.Constraints)
+}
+
+// TestCollectionBound_ALiteralReadExactlyReachesConstraints pins the spellings
+// of a count the parser's model reads as the number they state.
+func TestCollectionBound_ALiteralReadExactlyReachesConstraints(t *testing.T) {
+	t.Parallel()
+	for literal, want := range map[string]int64{
+		"0": 0, "1.0": 1, "1e3": 1000, "1e18": 1e18, "0x10": 16, "0o17": 15, "1_000": 1000,
+		"9223372036854775807": 9223372036854775807,
+	} {
+		t.Run(literal, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+				"    S: {$ref: '#/components/schemas/Tags', minItems: "+literal+"}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			alias, ok := typeByName(doc, "S").(*ir.Scalar)
+			require.True(t, ok)
+			assert.Equal(t, &ir.Constraints{MinItems: &want}, alias.Constraints)
+			assert.Empty(t, alias.Unmodeled)
+		})
+	}
+}
+
+// TestCollectionBound_ASpellingOfYAMLReachesConstraints pins the raw-node half of
+// the read against the model's: an alias and a merge key state the bound as a
+// plain literal does, so neither is left verbatim.
+func TestCollectionBound_ASpellingOfYAMLReachesConstraints(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+		"    Anchored: {type: array, items: {type: string}, minItems: &n 2}\n"+
+		"    Holder:\n      type: object\n      properties:\n"+
+		"        alias: {$ref: '#/components/schemas/Tags', minItems: *n}\n"+
+		"        merged: {<<: {minItems: 2}, $ref: '#/components/schemas/Tags'}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	for _, wire := range []string{"alias", "merged"} {
+		p := propertyOf(t, doc, "Holder", wire)
+		assert.Equal(t, &ir.Constraints{MinItems: new(int64(2))}, p.Constraints, wire)
+		assert.Empty(t, p.Unmodeled, wire)
+	}
+}
+
+// TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState pins the census
+// to what the reader filled, at an alias and at a carrier alike. A count past
+// int64 reads as 0 (GitHub #1050), so calling it homed would write a false
+// bound over the verbatim one, and a false uniqueItems has no spelling a plain
+// bool can tell from unset.
+func TestCollectionBound_AReferenceKeepsWhatConstraintsCannotState(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, keywords string
+		kept           []string
+		held           *ir.Constraints
+	}{
+		{"uniqueItems false", "uniqueItems: false", []string{"openapi:uniqueItems"}, nil},
+		{"integer past int64", "minItems: 99999999999999999999", []string{"openapi:minItems"}, nil},
+		{"one past int64", "minItems: 9223372036854775808", []string{"openapi:minItems"}, nil},
+		{"exponent past int64", "minItems: 1e19", []string{"openapi:minItems"}, nil},
+		{"float past float64", "maxItems: 1e400", []string{"openapi:maxItems"}, nil},
+		{"only the unreadable one", "minItems: 1, maxItems: 1e400", []string{"openapi:maxItems"},
+			&ir.Constraints{MinItems: new(int64(1))}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			written := "{$ref: '#/components/schemas/Tags', " + tc.keywords + "}"
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+				"    S: "+written+"\n    Holder:\n      type: object\n      properties:\n        f: "+written+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			alias, ok := typeByName(doc, "S").(*ir.Scalar)
+			require.True(t, ok)
+			assert.Equal(t, tc.held, alias.Constraints)
+			assert.Equal(t, tc.kept, unmodeledKeys(alias.Unmodeled))
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S"))
+
+			p := propertyOf(t, doc, "Holder", "f")
+			assert.Equal(t, tc.held, p.Constraints)
+			assert.Equal(t, tc.kept, unmodeledKeys(p.Unmodeled))
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/Holder/properties/f"))
+		})
+	}
+}
+
+// TestCollectionBound_DecidesWhetherAnAliasDecorates pins ir.Decorated to the
+// line the census draws: a bound the alias holds says something of the value,
+// and a false uniqueItems, kept verbatim, says nothing.
+func TestCollectionBound_DecidesWhetherAnAliasDecorates(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		keyword   string
+		decorates bool
+	}{{"minItems: 1", false}, {"uniqueItems: true", false}, {"uniqueItems: false", true}} {
+		t.Run(tc.keyword, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+
+				"    S: {type: array, items: {$ref: '#/components/schemas/Tags', "+tc.keyword+"}}\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			alias := doc.Types["t/anon/components/schemas/S/items"]
+			require.NotNil(t, alias)
+			_, decorates := ir.Decorated(alias)
+			assert.Equal(t, tc.decorates, decorates)
+		})
+	}
+}
+
+// TestCollectionBound_ACarrierLeavesItToTheNodeItsPositionOwns pins one home per
+// declaration: a position that lowered to a collection node holds its bounds
+// there, so the carrier restates none.
+func TestCollectionBound_ACarrierLeavesItToTheNodeItsPositionOwns(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpec(
+		"    Holder:\n      type: object\n      properties:\n"+
+			"        list: {type: array, items: {type: string}, minItems: 1}\n"+
+			"        tuple: {type: array, prefixItems: [{type: string}], maxItems: 3}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	list, ok := doc.Types["t/anon/components/schemas/Holder/properties/list"].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, list.Constraints)
+	assert.Nil(t, propertyOf(t, doc, "Holder", "list").Constraints)
+
+	tuple, ok := doc.Types["t/anon/components/schemas/Holder/properties/tuple"].(*ir.Tuple)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(3))}, tuple.Constraints)
+	assert.Nil(t, propertyOf(t, doc, "Holder", "tuple").Constraints)
+}
+
+// nodeConstraints returns the Constraints of a node kind with the field, and nil
+// for one without.
+func nodeConstraints(td ir.TypeDef) *ir.Constraints {
+	switch n := td.(type) {
+	case *ir.Scalar:
+		return n.Constraints
+	case *ir.Model:
+		return n.Constraints
+	case *ir.MapT:
+		return n.Constraints
+	default:
+		return nil
+	}
+}
+
+// TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim pins the positions the
+// reference rule does not reach (docs/compilers/openapi.md#shape-applicator): a
+// node the position lowered to that holds no collection takes no bound in its
+// Constraints, and neither does the carrier beside it.
+func TestCollectionBound_ANodeOfAnotherShapeKeepsItVerbatim(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name, schema string
+		kind         ir.TypeKind
+	}{
+		{"object", "{type: object, properties: {f: {type: string}}, minItems: 1}", ir.KindModel},
+		{"map", "{type: object, additionalProperties: {type: string}, minItems: 1}", ir.KindMap},
+		{"string", "{type: string, minItems: 1}", ir.KindScalar},
+		{"formatted string", "{type: string, format: date, minItems: 1}", ir.KindScalar},
+		{"no type", "{minItems: 1}", ir.KindScalar},
+		{"enum", "{enum: [a, b], minItems: 1}", ir.KindEnum},
+		{"null-only union", "{oneOf: [{type: 'null'}], minItems: 1}", ir.KindScalar},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := parseFull(t, openapitest.ComponentSpec(
+				"    S: "+tc.schema+"\n    Holder:\n      type: object\n      properties:\n        f: "+tc.schema+"\n"))
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			for _, td := range []ir.TypeDef{typeByName(doc, "S"), doc.Types["t/anon/components/schemas/Holder/properties/f"]} {
+				require.NotNil(t, td)
+				assert.Equal(t, tc.kind, td.Kind())
+				assert.Contains(t, td.Common().Unmodeled, "openapi:minItems")
+				assert.Nil(t, nodeConstraints(td), "the node holds no bound it also keeps")
+			}
+			assert.Nil(t, propertyOf(t, doc, "Holder", "f").Constraints)
+		})
+	}
+}
+
+// TestCollectionBound_ARefNamingThePositionIsOrderInvariant pins the alias a
+// $ref hoists at a property's pointer. It is a node of its own, so it holds the
+// bound as the property does, whichever declaration lowered first, and the
+// property is not left reading it as its own node.
+func TestCollectionBound_ARefNamingThePositionIsOrderInvariant(t *testing.T) {
+	t.Parallel()
+	holder := "    Holder:\n      type: object\n      properties:\n        beside: " + boundedRef + "\n"
+	named := "    Named: {$ref: '#/components/schemas/Holder/properties/beside'}\n"
+	docs := make([]*ir.Document, 0, 2)
+	for _, schemas := range []string{tagsSchema + holder + named, named + holder + tagsSchema} {
+		doc, diags := parseFull(t, openapitest.ComponentSpec(schemas))
+		openapitest.RequireNoErrorDiags(t, diags)
+
+		assert.Equal(t, allBounds(), propertyOf(t, doc, "Holder", "beside").Constraints)
+		alias, ok := doc.Types["t/anon/components/schemas/Holder/properties/beside"].(*ir.Scalar)
+		require.True(t, ok, "the $ref hoists an alias at the property's pointer")
+		assert.Equal(t, allBounds(), alias.Constraints)
+		docs = append(docs, doc)
+	}
+	assert.Empty(t, cmp.Diff(docs[0].Types, docs[1].Types, orderInvariantIR()...))
 }

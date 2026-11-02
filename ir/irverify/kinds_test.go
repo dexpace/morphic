@@ -106,8 +106,8 @@ func authDoc(kind ir.AuthKind) *ir.Document {
 	}}}
 }
 
-// TestVerify_UndeclaredAuthKindIsAViolation covers the class the compiler-side
-// refusal closed one instance of. The empty kind is the shape that reached the
+// TestVerify_UndeclaredAuthKindIsAViolation covers the class the compiler's own
+// report closed one instance of. The empty kind is the shape that reached the
 // IR: a scheme interned naming no mechanism at all, indistinguishable from a
 // sound one to every check that reads only a key and an ID.
 func TestVerify_UndeclaredAuthKindIsAViolation(t *testing.T) {
@@ -129,6 +129,44 @@ func TestVerify_UndeclaredAuthKindIsAViolation(t *testing.T) {
 			assert.Equal(t, "ir/unknown-auth-kind", got[0].Code)
 			assert.Equal(t, "auth[auth/openapi/components/securitySchemes/token]", got[0].Path)
 		})
+	}
+}
+
+// streamingDoc returns a clean document whose one operation has the given mode.
+func streamingDoc(mode ir.StreamingMode) *ir.Document {
+	doc := validDoc()
+	doc.Services = []ir.Service{{
+		ID:   "s/x/S",
+		Name: named("svc"),
+		Groups: []ir.OperationGroup{{
+			ID:         "g/x/S/g",
+			Name:       named("g"),
+			Operations: []ir.Operation{{ID: "op/x/S/a", Name: named("a"), Streaming: mode}},
+		}},
+	}}
+	return doc
+}
+
+// TestVerify_UndeclaredStreamingModeIsAViolation holds Operation.Streaming to the
+// modes ir declares. "none" is the spelling the empty mode replaced, so a
+// document still writing it is reported rather than read as a stream (GitHub
+// #978).
+func TestVerify_UndeclaredStreamingModeIsAViolation(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []ir.StreamingMode{"none", "duplex", "Server"} {
+		got := verifyDeclared(streamingDoc(mode))
+		require.Len(t, got, 1, "%q", mode)
+		assert.Equal(t, "ir/unknown-streaming-mode", got[0].Code, "%q", mode)
+		assert.Equal(t, "doc.Services[0].Groups[0].Operations[0].Streaming", got[0].Path, "%q", mode)
+	}
+}
+
+// TestVerify_DeclaredStreamingModesAreClean is the silent half: every declared
+// mode verifies, the empty one included, since most operations do not stream.
+func TestVerify_DeclaredStreamingModesAreClean(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []ir.StreamingMode{ir.StreamingNone, ir.StreamingClient, ir.StreamingServer, ir.StreamingBidi} {
+		assert.Empty(t, verifyDeclared(streamingDoc(mode)), "%q", mode)
 	}
 }
 

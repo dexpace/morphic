@@ -200,7 +200,7 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"list against integer", ir.PrimInteger, ir.Value{Kind: ir.ValueList, List: []ir.Value{num("1")}}, false},
 		{"unknown kind", ir.PrimKind("nope"), str("x"), false},
 	} {
-		assert.Equal(t, tc.want, admits(tc.kind, tc.v), "%s: %s of %v", tc.name, tc.kind, tc.v)
+		assert.Equal(t, tc.want, Admits(tc.kind, tc.v), "%s: %s of %v", tc.name, tc.kind, tc.v)
 	}
 }
 
@@ -210,8 +210,8 @@ func TestAdmits_ReadsAHugeExponentWithoutMaterializingIt(t *testing.T) {
 	t.Parallel()
 	start := time.Now()
 	for _, k := range []ir.PrimKind{ir.PrimInt64, ir.PrimUint64, ir.PrimFloat32, ir.PrimFloat64, ir.PrimDecimal128} {
-		assert.False(t, admits(k, num("1e1000001")), "%s", k)
-		assert.False(t, admits(k, num("1e99999999999999999999")), "%s", k)
+		assert.False(t, Admits(k, num("1e1000001")), "%s", k)
+		assert.False(t, Admits(k, num("1e99999999999999999999")), "%s", k)
 	}
 	assert.Less(t, time.Since(start), 5*time.Second)
 }

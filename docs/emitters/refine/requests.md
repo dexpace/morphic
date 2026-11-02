@@ -29,3 +29,10 @@ An operation that gains its first non-path input gains the request argument, a b
 differ reports ([surface verification](../surface-verification.md)). A dynamic target's default may
 differ — Python's keyword arguments are additive as they stand — which is why the shape is
 per-target rather than a plan fact.
+
+The body is what its content's `Type` lowers to, unless that content is a file (`Content.File`):
+then it is a byte source among the request's inputs, as a `bytes` side a client writes is
+([streaming](../operations/streaming.md)), whatever its `Type`. `Type` holds what the source
+declares of the file ([payloads](../../ir/payloads.md)), which need not be bytes, as a type array
+lowers to a union, so a target reads `File` first here as `raw` does for a response ([body
+shapes](../plan/responses.md#body-shapes)).

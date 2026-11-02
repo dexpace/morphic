@@ -79,6 +79,25 @@ func BodyTarget(t TB, payload *ir.Payload) ir.TypeID {
 	return payload.Contents[0].Type.Target
 }
 
+// NodeConstraints returns the constraints on a Scalar, list, map or tuple, and
+// fails on any other node.
+func NodeConstraints(t TB, td ir.TypeDef) *ir.Constraints {
+	t.Helper()
+	switch n := td.(type) {
+	case *ir.Scalar:
+		return n.Constraints
+	case *ir.List:
+		return n.Constraints
+	case *ir.MapT:
+		return n.Constraints
+	case *ir.Tuple:
+		return n.Constraints
+	default:
+		t.Fatalf("a %T holds no constraints here", td)
+		return nil
+	}
+}
+
 // RequireNoErrorDiags fails the test if any diagnostic has error severity,
 // reporting the first offending diagnostic.
 func RequireNoErrorDiags(t TB, diags []ir.Diagnostic) {

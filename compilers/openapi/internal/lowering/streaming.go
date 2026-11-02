@@ -3,7 +3,11 @@
 
 package lowering
 
-import "github.com/dexpace/morphic/ir"
+import (
+	"strings"
+
+	"github.com/dexpace/morphic/ir"
+)
 
 // StreamingMediaTypeHeuristic is the name Provenance.Inferred carries on an
 // operation whose streaming was read out of a media type rather than declared.
@@ -31,17 +35,19 @@ type StreamingMedia struct {
 	//
 	// Entries are matched against the media type alone: the comparison is
 	// case-insensitive and ignores parameters, because `text/event-stream` and
-	// `text/event-stream; charset=utf-8` name one type.
+	// `text/event-stream; charset=utf-8` name one type. An entry starting with
+	// `+` names a structured suffix, and matches every media type ending in it.
 	MediaTypes []string `json:"mediaTypes,omitempty"`
 }
 
 // DefaultStreamingMediaTypes is the list the policy uses when the caller states
-// none. It is a default and not a standard: `text/event-stream` is the only
-// registered one of the three, and the two JSON-lines spellings are conventions
-// that happen to be what generators in this space already look for. A document
-// using a fourth spelling is not wrong — it names its own list.
+// none. It is a default and not a standard: `text/event-stream`,
+// `application/json-seq` (RFC 7464) and the `+json-seq` suffix (RFC 8091) are
+// registered, and the two JSON-lines spellings are conventions that happen to be
+// what generators in this space already look for. A document using another
+// spelling is not wrong — it names its own list.
 func DefaultStreamingMediaTypes() []string {
-	return []string{"application/jsonl", "application/x-ndjson", "text/event-stream"}
+	return []string{"+json-seq", "application/json-seq", "application/jsonl", "application/x-ndjson", "text/event-stream"}
 }
 
 // MediaTypeStreams reports whether the policy classifies mediaType as a stream
@@ -49,7 +55,14 @@ func DefaultStreamingMediaTypes() []string {
 // DeclaresSchema is: handing back the set would make it writable through a copy
 // of the context.
 func (c Ctx) MediaTypeStreams(mediaType string) bool {
-	return c.streaming[NormalizeMediaType(mediaType)]
+	normalized := NormalizeMediaType(mediaType)
+	if c.streaming[normalized] {
+		return true
+	}
+	// A structured suffix closes the subtype (RFC 6838 §4.2.8), so the last "+"
+	// starts the only one a media type has.
+	suffix := strings.LastIndexByte(normalized, '+')
+	return suffix >= 0 && c.streaming[normalized[suffix:]]
 }
 
 // streamingSet normalizes a policy into the set MediaTypeStreams answers from,

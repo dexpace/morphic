@@ -74,7 +74,7 @@ func presentMembers(s *oas3.Schema, keys ...string) ([]rawMember, []string, erro
 	var failed error
 	for _, k := range keys {
 		node := RawPropertyNode(s, k)
-		if node == nil || IsNullNode(node) {
+		if node == nil {
 			continue
 		}
 		present = append(present, k)

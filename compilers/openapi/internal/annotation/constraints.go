@@ -5,6 +5,7 @@ package annotation
 
 import (
 	"encoding/json/jsontext"
+	"strconv"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -59,6 +60,23 @@ func Constraints(s *oas3.Schema, exclusiveBoolean bool, pointer jsontext.Pointer
 		return nil, residue.kept, diags
 	}
 	return c, residue.kept, diags
+}
+
+// CountIsExact reports whether count, the parser's reading of the integer
+// keyword s writes, is the number the keyword's literal states. The model holds
+// an integer past int64 as 0 (GitHub #1050), so a caller able to keep the raw
+// keyword instead asks here before it trusts the model.
+func CountIsExact(s *oas3.Schema, keyword string, count *int64) bool {
+	if count == nil {
+		return false
+	}
+	literal, err := value.NumericLiteral(RawPropertyNode(s, keyword))
+	if err != nil {
+		return false
+	}
+	stated, statedErr := literal.Decimal()
+	read, readErr := ir.ParseDecimal(strconv.FormatInt(*count, 10))
+	return statedErr == nil && readErr == nil && stated.Cmp(read) == 0
 }
 
 // boundResidue is where a schema's bounds were written, and what became of a
@@ -140,7 +158,8 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 		ev = s.GetExclusiveMinimum()
 	}
 	_, prop := boundProps(side)
-	if ev == nil {
+	node := RawPropertyNode(s, prop)
+	if ev == nil || node == nil {
 		return nil
 	}
 	if ev.IsLeft() != exclusiveBoolean {
@@ -148,10 +167,6 @@ func applyExclusive(c *ir.Constraints, s *oas3.Schema, side boundSide, residue *
 	}
 	if ev.IsLeft() {
 		return applyExclusiveFlag(c, s, side, residue, ev.GetLeft())
-	}
-	node := RawPropertyNode(s, prop)
-	if node == nil {
-		return nil
 	}
 	v, err := value.NumericLiteral(node)
 	if err != nil {

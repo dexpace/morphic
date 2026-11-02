@@ -229,7 +229,9 @@ func TestRun_ValidateEngineFailures(t *testing.T) {
 func TestRun_ValidateNilDocumentReturnsOne(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return engine.New(engine.WithCompilers(nilDocCompiler{})) }
+	newEngine = func(...engine.Option) (*engine.Engine, error) {
+		return engine.New(engine.WithCompilers(nilDocCompiler{}))
+	}
 
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer

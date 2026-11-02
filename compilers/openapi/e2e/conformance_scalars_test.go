@@ -43,6 +43,27 @@ func assertEnumNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.ValueNumber, e.Members[1].Value.Kind)
 	// BigVal member value preserves the full 64-bit integer.
 	assert.Equal(t, ir.BigVal("9007199254740993"), e.Members[1].Value.Num)
+
+	sized, ok := doc.Types[componentID("SizedCodes")].(*ir.Enum)
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimInt64, sized.ValueType)
+	assert.NotContains(t, sized.Unmodeled, "openapi:format", "ValueType holds the format")
+
+	oversized, ok := doc.Types[componentID("OversizedCodes")].(*ir.Enum)
+	require.True(t, ok)
+	assert.Equal(t, ir.PrimInteger, oversized.ValueType, "no int8 holds 1000")
+	assert.Contains(t, oversized.Unmodeled, "openapi:format")
+}
+
+// assertTypeArrayNumeric pins that a type array's union admits what the array
+// does: one naming integer and number is inclusive, as every integer is a number.
+func assertTypeArrayNumeric(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for name, want := range map[string]bool{"Measure": false, "Sized": false, "Label": true} {
+		u, ok := doc.Types[componentID(name)].(*ir.Union)
+		require.True(t, ok, name)
+		require.Len(t, u.Variants, 2, name)
+		assert.Equal(t, want, u.Exclusive, name)
+	}
 }
 
 // assertEmptyEnum covers `enum: []`: legal JSON Schema whose value space holds

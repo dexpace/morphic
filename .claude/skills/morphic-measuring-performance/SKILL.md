@@ -13,7 +13,8 @@ busy machine measures the machine.
 
 | Claim | Measure |
 |---|---|
-| faster or cheaper | instructions retired, base and head built and run alternately, the median and range of each (`references/finding-cost.md#instructions-not-wall-clock`) |
+| faster or cheaper | instructions retired on one thread, base and head built and run alternately, the median and range of each (`references/finding-cost.md#instructions-not-wall-clock`) |
+| a cost through a function that switches on kind | the same on an input per arm, quoted as a range (`references/finding-cost.md#cost-claims-per-arm`) |
 | a stage after the compile is cheap | a throwaway program over a saved document, less a run that only decodes (`references/finding-cost.md#cost-of-a-later-stage`) |
 | no cost on the common path | the same over the golden spec and a large input of the old shape (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#price-common-path`) |
 | linear in the input | count steps through a budget (`references/cost-tests.md#count-work-not-wall-clock`) at n, 2n and 4n and assert the marginal growth (`references/cost-tests.md#marginal-growth-on-one-path`) |
@@ -35,5 +36,5 @@ busy machine measures the machine.
 - `references/cost-tests.md`: tests that pin a cost: counting work, marginal growth, allocation
   counts under instrumentation, seams, renders, process-wide counters, write boundaries.
 - `references/finding-cost.md`: where cost hides and how to quote it: claims, later stages,
-  callers, generated shapes, quadratic appends and escapes, escape sites, reflect iterators, reused
-  maps.
+  callers, switch arms, generated shapes, quadratic appends and escapes, escape sites, reflect
+  iterators, reused maps.

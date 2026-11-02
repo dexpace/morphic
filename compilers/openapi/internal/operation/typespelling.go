@@ -5,6 +5,8 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -50,14 +52,19 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
 	// A content parameter or header declares exactly one media type;
-	// singleContentEntry takes it and reports a document that declares more,
-	// rather than dropping the extras in silence (GitHub #139).
-	mt, media, ok, diags := singleContentEntry(c, content, at)
+	// electContentEntry takes it, and passedOverEntries keeps and reports what a
+	// document declares beyond it, rather than dropping that in silence (GitHub
+	// #139).
+	var diags []ir.Diagnostic
+	mt, media, ok := electContentEntry(content)
 	if ok {
 		mediaPtr := at + ids.Ptr("content", mt)
 		scope := ids.Scope("content", mt)
 		examples, residue, residueDiags := contentEntryFields(c, media, mediaPtr, scope, carrier, home)
 		diags = append(diags, residueDiags...)
+		diags = append(diags, c.Kept.Once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
+			return passedOverEntries(c, nodeview.Pairs(nodeview.Child(root, "content")), mt, at)
+		})...)
 		elected := typeSpelling{
 			js:        media.GetSchema(),
 			pointer:   mediaPtr + ids.Ptr("schema"),
@@ -86,7 +93,7 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 // The reason is ReasonDegradedLowering, as schema.recordSkippedFamilies uses for
 // the keyword families its own election passes over. The severity is warning,
 // not the info announcing a conjunction JSON Schema allows, because OpenAPI
-// forbids this one; it matches singleContentEntry's. It is not an error: the
+// forbids this one; it matches passedOverEntries'. It is not an error: the
 // document lowers as well as an election can make it, and harness.Check stops
 // at the first error diagnostic, hiding later findings.
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
@@ -101,36 +108,77 @@ func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed
 			"both, so it lowered as its %s, with %s kept verbatim under Unmodeled", elected, passed))
 }
 
-// singleContentEntry returns the one entry a content-style header or parameter
-// declares, and reports a document declaring more than one.
+// electContentEntry returns the one entry a content-style header or parameter
+// lowers through, or false where no entry holds one.
 //
-// OpenAPI requires exactly one entry at both positions, so only the first can
-// lower — ir.Property and ir.Parameter each hold a single type. Taking it in
-// silence would drop the other entries' schemas without a word, the loss GitHub
-// #139 fixed for the one entry a content-style header declares; the extras are
-// named instead so the document's own error is visible rather than absorbed.
-func singleContentEntry(c lowering.Ctx, content *sequencedmap.Map[string, *soa.MediaType], at jsontext.Pointer) (string, *soa.MediaType, bool, []ir.Diagnostic) {
-	if content == nil || content.Len() == 0 {
-		return "", nil, false, nil
-	}
-	var first string
+// OpenAPI requires exactly one entry at both positions, and ir.Property and
+// ir.Parameter each hold a single type, so a document declaring more needs an
+// election. It takes the lowest key as written, which no declaration order can
+// change: the specification ranks none, and the entry a run lowers must not
+// follow the order of a map.
+func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (string, *soa.MediaType, bool) {
+	var elected string
 	var chosen *soa.MediaType
-	ignored := make([]string, 0, content.Len()-1)
 	for mt, media := range content.All() {
-		if chosen == nil {
-			first, chosen = mt, media
-			continue
+		if media != nil && (chosen == nil || mt < elected) {
+			elected, chosen = mt, media
 		}
-		ignored = append(ignored, mt)
 	}
-	var diags []ir.Diagnostic
-	if len(ignored) > 0 {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
-			"a content-style header or parameter must declare exactly one media type; "+
-				"%q is lowered and %s ignored", first, strings.Join(ignored, ", ")))
-	}
-	return first, chosen, chosen != nil, diags
+	return elected, chosen, chosen != nil
 }
+
+// passedOverEntries returns each entry of written, a content map's pairs, but
+// elected, kept verbatim under openapi:<its coordinate>, and reports them once at
+// the map, sorted, so the report follows no declaration order.
+//
+// They are the Document's rather than the carrier's (lowering.KeptOnce): a carrier
+// a $ref reaches lowers once per reference, and an entry belongs to the
+// declaration, which no node stands for. So what they cost is what the source
+// wrote, and none need dropping.
+//
+// The reason and severity are passedOverSpelling's. An entry interns no node, and
+// --explain does not read Unmodeled (GitHub #693), so only the warning names it.
+func passedOverEntries(c lowering.Ctx, written []nodeview.Pair, elected string, at jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
+	passed := slices.DeleteFunc(slices.SortedFunc(slices.Values(written), byKey),
+		func(entry nodeview.Pair) bool { return entry.Key == elected })
+	var entries ir.Unmodeled
+	var diags []ir.Diagnostic
+	var kept []string
+	for _, entry := range passed {
+		pointer := at + ids.Ptr("content", entry.Key)
+		ok, keptDiags := annotation.PreserveNodeInto(&entries, "openapi:"+c.IDs().Coordinate(pointer),
+			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+		diags = append(diags, keptDiags...)
+		if ok {
+			kept = append(kept, entry.Key)
+		}
+	}
+	if len(kept) == 0 {
+		return entries, diags
+	}
+	return entries, append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
+		"a content-style header or parameter must declare exactly one media type; "+
+			"%q is lowered and %s kept verbatim under the document's Unmodeled", elected, namedEntries(kept)))
+}
+
+// namedEntries lists keys for one warning: each quoted, so a key cannot break the
+// line or read as two, and past annotation.MaxUnknownKeys a count of the rest,
+// since the document sets how many there are.
+func namedEntries(keys []string) string {
+	named := keys[:min(len(keys), annotation.MaxUnknownKeys)]
+	quoted := make([]string, len(named))
+	for i, key := range named {
+		quoted[i] = strconv.Quote(key)
+	}
+	list := strings.Join(quoted, ", ")
+	if rest := len(keys) - len(named); rest > 0 {
+		return list + " and " + strconv.Itoa(rest) + " more"
+	}
+	return list
+}
+
+// byKey orders two pairs of one mapping, whose keys differ.
+func byKey(a, b nodeview.Pair) int { return strings.Compare(a.Key, b.Key) }
 
 // contentEntryFields returns everything a Media Type Object declares at a
 // parameter's or header's elected `content` position beyond the one type that
