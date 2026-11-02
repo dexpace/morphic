@@ -350,7 +350,8 @@ const distributedShape = "a union of models conjoining its body with each branch
 // array's (lowerUnion) and a distributed composition's (composedVariant). The
 // Union has no field for what they consume, so the census asks them; handled is
 // as unhomedKeywords takes it. A constraint reaches each variant that has the
-// field, so it is kept only where none does.
+// field, one it cannot constrain included (GitHub #1310), so it is kept only
+// where none does.
 func preserveVariantsUnhomed(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, id ir.TypeID, shape string, handled []string, pointer jsontext.Pointer) []ir.Diagnostic {
 	td, ok, diags := registeredNode(c, ts, id, pointer)
 	if !ok {

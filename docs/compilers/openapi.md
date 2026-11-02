@@ -1404,17 +1404,18 @@ exclusive unless two listed types overlap: `integer` and `number`, the one pair 
 do, since every integer is a number, or a type listed twice, which [`validation`](#validation)
 reports. Two variants the types resolve to one primitive, as a width does
 ([`numeric-formats`](#numeric-formats)), stay two. The bounds a carried schema writes land on its
-property or parameter ([`constraints`](#constraints)). Each variant is built from the whole schema
-and holds what its own type admits, so the keyword census asks the variants rather than the union: a
-keyword or bound some variant holds is homed, and one none holds is kept on the union
-([`shape-applicator`](#shape-applicator)).
+property or parameter ([`constraints`](#constraints)). Each variant is built from the whole schema,
+so the keyword census asks the variants rather than the union: a keyword or bound some variant holds
+is homed, and one none holds is kept on the union ([`shape-applicator`](#shape-applicator)).
 
 - Cases: `keywords-at-every-outcome`, `type-array-numeric`
 - Tests: `schema.TestLower_MultiTypeUnion`,
   `schema.TestLower_ATypeArrayIsExclusiveOnlyOverDisjointTypes`,
   `schema.TestLower_ATypeListedTwiceIsNotExclusive`,
   `schema.TestDiscriminatorBesideUnion_MultiTypedBodyIsSettled`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853).
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a value
+  bound lands on any variant with a `Constraints` field, whether or not it constrains that variant's
+  type (#1310).
 
 ### `union-null-variant`
 
@@ -2885,9 +2886,9 @@ a YAML anchor included. A schema keyword no field of the schema model names is k
 reported as an info `openapi/unknown-schema-keyword`, because JSON Schema obliges an implementation
 to ignore a keyword it does not know, and a position that lowers to a shared node and carries no
 property or parameter hoists an alias for it to land on; `$comment`, `$dynamicAnchor` and
-`$dynamicRef` are decided elsewhere and left out. So is a keyword the model names and the dialect
-the schema is read in does not define, which only `nullable` is, with the nullable-widening policy
-off ([`nullable`](#nullable)). One object contributes at most `annotation.MaxUnknownKeys` keys,
+`$dynamicRef` are decided elsewhere and left out. A keyword the model names and the dialect the
+schema is read in does not define, which only `nullable` is, with the nullable-widening policy off
+([`nullable`](#nullable)), is kept the same way. One object contributes at most `annotation.MaxUnknownKeys` keys,
 taken in byte order after the keys another reader already kept at the same pointer are set aside,
 and the rest reach the IR in no form, reported as one `openapi/unknown-key-budget` warning at the
 object.

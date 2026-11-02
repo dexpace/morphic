@@ -44,8 +44,9 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target i
 // $ref naming the position only promises one (resolvePointer), so no home
 // depends on declaration order (docs/ir/models.md#composition-beside-a-union).
 //
-// unhomed is the census verdict of a $ref site or a collapsed union, which
-// declaresPositionScoped cannot judge.
+// unhomed is the census verdict of a position lowered to a reference
+// (referenceOutcomeKeywords, or a $ref site), which declaresPositionScoped
+// cannot judge.
 func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
 	if home != annotation.HomeOwnNode || s == nil {
 		return ref, nil
