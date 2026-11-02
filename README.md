@@ -149,6 +149,7 @@ completes commands, flags, and spec files by extension.
 | `--skip-validate` | both | Alias for `--disable-pass validate`. |
 | `--verify` | both | Check the IR the compiler and each pass return against the IR's structural invariants, and that no pass changes the document it was handed. The first stage to break one ends the run with exit `2`, listing what it broke. For developing a compiler or a pass: it slows the run. |
 | `--opt <key>=<value>` | both | Set one option on the compiler the spec selects. Repeatable; a repeated key is refused. |
+| `--cache-dir <dir>` | both | Keep compiled documents in `<dir>`, and answer a later run from there while nothing a document depends on has changed: this build, the spec and every document it reads, the settings, the passes, and the working directory. Output and exit status are the same either way. A cache that cannot be used costs the time and a warning on stderr; a `--verify` run does not use it. The directory holds its entries to `cache.MaxBytes`, 1 GiB, those unused longest going first, though they can pass it by an eighth between prunes. It is safe to share between processes, but not with anyone you would not let replace the binary: an entry is trusted as it is. |
 | `-o`, `--output <file>` | `compile` | Write IR JSON to `<file>` instead of stdout, compact rather than indented. |
 | `--pretty` | `compile` | Indent the JSON `--output` writes; stdout is indented either way. |
 | `--explain <json-pointer>` | `compile` | Instead of writing the document, report what compiling produced at this source coordinate: the type node there, the coordinates beneath it, and the diagnostics stamped at it. `''` is the whole document. Refused together with `--output`, which it would otherwise ignore. |
@@ -252,7 +253,10 @@ keeps the value and the stack beside the one-line message. A stage that ignores 
 until it returns, and the run then fails with the context's error, whatever the stage returned. The
 structural duties only `irverify` checks are left to the harness, unless `RunOptions.Verify` is set:
 it holds each stage's document to them, and each pass to leaving its input alone, and fails the run
-with an `*engine.VerifyError` listing what broke.
+with an `*engine.VerifyError` listing what broke. `engine.WithCache` answers a run from an earlier
+one with the same inputs, skipping detection, the compile and the passes; `cache.NewDir` is a store
+on disk and `cache.BuildID` names the running build. A cache that fails reports on
+`Result.CacheErr` and never fails the run ([Architecture](docs/architecture.md) §2.6).
 
 ```go
 eng, err := engine.New()

@@ -39,12 +39,14 @@ components:
       format: uuid
       discriminator:
         propertyName: kind
+    # The carrier holds a bound beside the reference, and keeps one it cannot state.
     Carrier:
       type: object
       properties:
         dyn:
           $dynamicRef: '#node'
           maxItems: 2
+          uniqueItems: false
     # A type array's keywords are held by the variants or kept on the union.
     NoObjectVariant:
       type: [string, array]

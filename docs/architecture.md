@@ -470,6 +470,55 @@ made on one line of work are batched under one bump where they land, as
 [ir-version](./ir/ir-version.md) already has it. A field no emitter reads yet is added by the
 compiler change that fills it, and the emitter that first reads it adopts it in its own change.
 
+### 2.6 IR cache
+
+A run with the same inputs has one answer, which the determinism oracle holds it to (§5), and that
+answer round-trips through JSON (principle 7), so a driver may keep it. `engine.WithCache` opts an
+engine in, and `--cache-dir` opts the CLI in. A hit skips detection, which parses the spec, the
+compile and the passes, and returns what they returned. Nothing is stamped on the document for this:
+a run's output is the same whether it hit, which is what the corpus test in `engine` holds it to,
+and a stamp would make it differ from build to build.
+
+**What a key covers.** A key is derived before anything runs, from the build, `IRVersion`, the
+working directory, the spec's path and bytes, the passes the run leaves on, in order, and the
+textual compiler settings. Each is there because the document depends on it. The path is written
+into `Sources`. The working directory reaches type IDs: a compile reads it to relate a relative
+path to an absolute one, so one spec reaching one document can lower to two sets of IDs from two
+directories (#1297). The build is the identity of the code, compilers and passes included:
+`cache.BuildID` hashes the executable, since a module version names neither a dirty tree nor the
+toolchain. It reads the file at the executable's path, as no portable call reads the image running,
+so a build installed as a run starts, before that read, is the one named: the run keeps what the
+old build compiled under the new build's key, and that entry answers the new build (#1318). The
+threshold is not covered, as a hit judges the verdict afresh, and neither is the format, which
+follows from the bytes and which finding is what a hit skips.
+
+**What a key cannot cover.** Which other documents a compile reads is known only once it has run.
+So a compile reads through a recorder, the entry lists each request with the hash of what came
+back, and a hit makes the same reads through the run's own reader first: one document with other
+bytes, or one no longer there, is a miss. A run where a read failed stores nothing, because the
+missing document could appear later and the entry would have nothing to compare it with. So a hit
+costs those reads, a remote document's fetch among them, and a key holds one entry, so documents
+that alternate between two states compile each time.
+
+**What does not take part.** A `Verify` run exists to run its stages, so it neither reads nor
+stores. A `FormatOptions` value is opaque to the engine, which cannot tell what it would have to
+key on, so such a run does the same; the textual channel is the one that caches. `RunDocument`
+compiles nothing.
+
+**A cache never fails a run.** An entry that is damaged, a store that refuses or panics, or a build
+that cannot be named costs the work and a report, on `Result.CacheErr` or as the CLI's warning. An
+entry is sealed by a hash over its key and all it holds, so one damaged anywhere, or handed back for
+another key, is refused and replaced by what the run compiles: a hash of the bytes alone would serve
+an intact entry to the wrong run. A seal tells damage from a sound entry, not a forgery from a
+compile, so a cache directory is trusted as the executable is.
+
+**The store on disk.** `cache.Dir` publishes by atomic rename, so processes can share one, creates
+its directory private to its user, and removes only files it named. It keeps its entries within
+`cache.MaxBytes`, those unused longest going first. Listing the directory costs what its entries
+number, so a store tallies its size in a ledger and prunes only once an eighth of the limit has been
+stored since the last prune, or a bounded number of stores have passed. The entries can pass the
+limit by that eighth between prunes, and a ledger it cannot read prunes at once.
+
 ## 3. Go package layout
 
 ```
@@ -518,6 +567,7 @@ morphic/
 ├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
+│   ├── cache/              #           Keeps a run's entries on disk, and names the build.
 │   ├── reader/             #           Reads what a run's references name: disk, network or memory.
 │   ├── report/             #           Renders diagnostics and --explain for a person.
 │   └── output/             #           Writes the IR document to a stream, or to a file atomically.
@@ -576,9 +626,9 @@ does without importing it. It takes a spec file (`Run`), a spec held in memory b
 disk (`RunSpec`, for an edited buffer or a harness), sources already in memory (`RunSources`, which
 reads nothing else), or a document already compiled (`RunDocument`, which runs the passes alone).
 `engine/reader` reads what a source's references name, `engine/output` writes the document to a
-stream or replaces a file atomically, and `engine/report` renders diagnostics and `--explain`. The
-CLI parses flags, picks the streams, cancels the run on SIGINT, SIGTERM or SIGHUP, and turns the
-run into an exit code.
+stream or replaces a file atomically, `engine/report` renders diagnostics and `--explain`, and
+`engine/cache` keeps what a run compiled (§2.6). The CLI parses flags, picks the streams, cancels
+the run on SIGINT, SIGTERM or SIGHUP, and turns the run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or

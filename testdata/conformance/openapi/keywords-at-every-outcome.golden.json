@@ -518,18 +518,22 @@
           "visibility": {
             "none": false
           },
+          "constraints": {
+            "maxItems": 2,
+            "uniqueItems": false
+          },
           "flatten": false,
           "eventHeader": false,
           "eventPayload": false,
           "secret": false,
           "docs": {},
           "unmodeled": {
-            "openapi:maxItems": {
+            "openapi:uniqueItems": {
               "reason": "degraded_lowering",
-              "value": 2,
+              "value": false,
               "provenance": {
                 "source": 0,
-                "pointer": "/components/schemas/Carrier/properties/dyn/maxItems"
+                "pointer": "/components/schemas/Carrier/properties/dyn/uniqueItems"
               }
             }
           },
@@ -1004,7 +1008,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "this position lowered to a reference to the type its $dynamicRef expands to, which has no home for maxItems declared beside it; kept verbatim under Unmodeled",
+      "message": "this position lowered to a reference to the type its $dynamicRef expands to, which has no home for uniqueItems declared beside it; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Carrier/properties/dyn"
@@ -1069,7 +1073,7 @@
     {
       "format": "openapi@3.1",
       "path": "keywords-at-every-outcome.yaml",
-      "hash": "72993f311169e6424412c4baaa96bf878ddece7ed5e16e4ed8efc6e16423a059"
+      "hash": "783211c3a621d8fb72e3fc63ae299f8401c41a87697405d123aeb04a9cd89516"
     }
   ]
 }

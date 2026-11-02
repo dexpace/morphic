@@ -130,7 +130,7 @@ func TestMain_ExitCode(t *testing.T) {
 func TestRun_CompileEngineConstructFails(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return nil, errors.New("boom") }
+	newEngine = func(...engine.Option) (*engine.Engine, error) { return nil, errors.New("boom") }
 
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 	var stdout, stderr bytes.Buffer
@@ -144,7 +144,7 @@ func TestRun_CompileEngineConstructFails(t *testing.T) {
 func TestRun_CompileNilDocumentReturnsOne(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) {
+	newEngine = func(...engine.Option) (*engine.Engine, error) {
 		return engine.New(engine.WithCompilers(nilDocCompiler{}))
 	}
 
@@ -317,7 +317,9 @@ func (danglingDocCompiler) Compile(_ context.Context, sources []compilers.Source
 func TestRun_PassFlagsSilenceTheValidatePass(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return engine.New(engine.WithCompilers(danglingDocCompiler{})) }
+	newEngine = func(...engine.Option) (*engine.Engine, error) {
+		return engine.New(engine.WithCompilers(danglingDocCompiler{}))
+	}
 	spec := writeFile(t, "spec.yaml", testspec.Tiny)
 
 	commands := [][]string{

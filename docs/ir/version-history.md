@@ -220,3 +220,9 @@ it sees. Changes made together in one bump are listed together under it.
   yielding no mechanism had lowered to nothing, and now lowers to that kind whether or not a
   requirement names it. A consumer pinned to 0.24.0 finds those operations naming a kind it has no
   reading for, where it read them as inheriting the service's credentials.
+- **0.26.0** — `MinItems`, `MaxItems` and a true `UniqueItems` written for one use of a shared
+  schema reach the `Constraints` of the `Property`, `Parameter` or alias `Scalar` holding that use
+  ([annotations](./annotations.md#one-structural-home-per-declaration)), where a position that
+  lowers to a reference had kept them verbatim under `Unmodeled`. No key changed. A consumer pinned
+  to 0.25.0 that reads those entries no longer finds them, and a consumer that reads `ir.Decorated`
+  finds such an alias is no longer a decorator, since it says something of the value.
