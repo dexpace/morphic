@@ -64,7 +64,7 @@ type File struct {
 }
 
 type Entry struct {
-    Key    string                // the entity's correlation key, from the pass #679 plans
+    Key    string                // its correlation key (docs/ir/derived-facts.md)
     Unit   string                // the unit the symbol was placed in
     Base   string                // its rendered name before a collision was resolved
     Symbol string                // the name the generation gave it (refine/naming.md)

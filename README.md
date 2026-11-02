@@ -23,7 +23,8 @@ language are independent pieces of work.
 
 > **Status: early development.** The IR and the OpenAPI 3.0, 3.1 and 3.2 compiler work end to end
 > through the `morphic` CLI. No emitter exists yet, so today Morphic produces IR, not SDKs. There
-> is no released version, and the IR schema and the CLI may change between commits.
+> is no released version, and the IR schema and the CLI may change between commits ([what a
+> consumer storing IR pins](docs/ir/consumers.md#what-to-pin)).
 
 ## Contents
 

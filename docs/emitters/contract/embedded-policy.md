@@ -60,9 +60,9 @@ that generator's. So a configuration names the keys its documents use and what e
 key it does not name stays where it was.
 
 A mapping reads a key as `Unmodeled` holds it, the format's prefix included, and only entries of
-reason `vendor_extension`, whose key is the source's own spelling. That is the stability #429 asks
-the IR to state for such keys. A key under any other reason, such as `no_ir_home`, names a gap the
-IR may close, and a mapping naming one is refused.
+reason `vendor_extension`, whose key is the source's own spelling and changes only with the source
+([what a key promises](../../ir/unmodeled.md#what-a-key-promises)). A key under any other reason,
+such as `no_ir_home`, names a gap the IR may close, and a mapping naming one is refused.
 
 ## Precedence
 

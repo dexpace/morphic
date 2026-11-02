@@ -12,10 +12,10 @@ type ServerID string
 
 IDs are opaque to consumers but constructed deterministically by compilers from the source pointer
 of the defining occurrence, so the same input always yields the same IDs (stable snapshots,
-cachable, diffable across revisions that keep each entity's pointer; one that renames a path or a
-component gives what is beneath it new IDs, #419). IDs are never derived from display names and
-never rewritten by renames. The `dedup` pass may alias two structurally identical anonymous types;
-aliases are recorded so both IDs stay resolvable.
+cachable, diffable). An ID identifies an entity within one document; across two revisions it does
+so only while the entity's pointer is unchanged ([across revisions](#across-revisions)). IDs are
+never derived from display names and never rewritten by renames. The `dedup` pass may alias two
+structurally identical anonymous types; aliases are recorded so both IDs stay resolvable.
 
 ## The ID grammar
 
@@ -41,6 +41,41 @@ source's directory, as one segment, escaped as RFC 6901 escapes a token:
 declares. The location, not the entry's index, qualifies it, so an ID moves only when its document
 does. Operations, parameters and security schemes are named by where the source mounts or names
 them, so they take the source's namespace whichever document declares them.
+
+## Across revisions
+
+An ID is a function of where its entity sits in the source, so two revisions of one API agree on an
+ID exactly where they agree on that position. Two kinds of edit break the agreement, and they fail
+in opposite ways:
+
+- **A renamed position gives new IDs.** Renaming a path, a component or a document, or moving a
+  schema within its file, changes the pointer of the entity and of everything beneath it, so a
+  consumer comparing by ID reads one entity removed and another added.
+- **A reordered array gives an old ID to another entity.** A pointer through an array names a
+  position in it, so an entry inserted before it moves the next revision's entity onto the old
+  index: `t/anon/paths/~1things/get/parameters/0/schema` is the `sort` parameter's enum in one
+  revision and the `color` parameter's in the next, once `color` is listed first. The same holds
+  for `allOf`, `anyOf` and `oneOf` branches. A consumer comparing by ID then attaches one entity's
+  state to another, a wrong match rather than a missing one, and nothing about either ID shows it.
+  On the golden spec 9,957 of 41,697 types, 13,466 of 32,291 enum members, 5,871 of 49,434
+  properties and all 8 servers have an ID that passes through an array index (spec @319dc756,
+  morphic @b206dc99):
+
+  ```bash
+  morphic compile openapi.json | jq -c '[.. | objects | .id? | strings | select(contains("/"))]
+    | group_by(split("/")[0]) | map({key: .[0] | split("/")[0], value: [length,
+      (map(select(test("/(parameters|allOf|anyOf|oneOf|prefixItems|servers)/[0-9]+(/|$)")))
+       | length)]}) | from_entries'
+  ```
+
+So an ID is never, on its own, evidence that two revisions hold the same entity. What carries an
+entity across revisions is its [correlation key](./derived-facts.md#correlation-keys), built from
+what the document itself names the entity by and never from an array position. A consumer that
+keys state by ID across revisions, as an emitter's prior manifest does
+([what the manifest records](../emitters/write-integrate.md#what-the-manifest-records)), trusts a
+match only where the correlation key agrees too, and treats a match on the key alone as the same
+entity moved. A diff of two revisions, inside Morphic or outside it, rests on the key for the same
+reason.
 
 ## Primitives
 

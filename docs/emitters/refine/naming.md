@@ -67,11 +67,12 @@ integrate](../write-integrate.md#what-the-manifest-records)) is an input to the 
 Only the choice is pinned, never the name: an entity whose own rendered name changed, as a renamed
 `operationId` does, gets a new `Base`, so rule 1 does not hold for it and it is named afresh. An ID
 alone pins nothing, since an ID built from an array index can name another entity in the next
-revision (#678): the correlation key must agree too. On a first generation, or one run without its
+revision ([across revisions](../../ir/identity.md#across-revisions)): the correlation key must
+agree too. On a first generation, or one run without its
 prior manifest, rule 2 decides alone; ID order is independent of declaration order, so the two-order
 oracle holds it. What the promise rests on is stated with it: a name stays only while its entity's
 ID and correlation key survive the revision, and an ID derived from a pointer changes when the
-pointer does (#419), until the correlation key carries it across.
+pointer does, until the correlation key carries it across.
 
 The prior manifest is an input like any other, so a generation is still a pure function of its
 inputs ([contract rules](../contract/emitter.md#contract-rules-the-type-system-and-tests-enforce)).

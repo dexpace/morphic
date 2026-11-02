@@ -33,10 +33,11 @@ type Example struct {
 Every key is an IR stable ID — never `"METHOD /path"`, never a rendered name (INV3; the oagen
 fragility, prior-art §1). A rename of anything an ID is not built from, such as an `operationId` or
 a `title`, never orphans a plan entry: it is "same ID, new symbol", a lookup. A rename of what an ID
-is built from, a path or a component name, gives the entity a new ID, and only its correlation key
-(#679) carries it across the revision. Every inferred field carries `Inferred` provenance,
-propagated into diagnostics so it is auditable and disable-able (INV6). The plan's own diagnostics
-are coded `emitters/plan/…`, reported once for every target rather than once by each.
+is built from, a path or a component name, gives the entity a new ID, and only its [correlation
+key](../../ir/derived-facts.md#correlation-keys) carries it across the revision. Every inferred
+field carries `Inferred` provenance, propagated into diagnostics so it is auditable and disable-able
+(INV6). The plan's own diagnostics are coded `emitters/plan/…`, reported once for every target
+rather than once by each.
 
 The plan **classifies; it does not pick target types and it never cases anything.** It records what
 it derives from the IR ("this union is discriminated, and its tag values select the variants with
