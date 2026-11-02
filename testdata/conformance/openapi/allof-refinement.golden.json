@@ -1061,7 +1061,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "the conjuncts of this allOf share no value (allOf/0: number, allOf/1: string), so no instance satisfies this schema, which lowers as written",
+      "message": "the conjuncts of this allOf share no value (allOf/0: number, allOf/1: string), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint"

@@ -350,7 +350,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "the conjuncts of this allOf share no value (type: object, allOf/0: array), so no instance satisfies this schema, which lowers as written",
+      "message": "the conjuncts of this allOf share no value (type: object, allOf/0: array), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/OwnType"
@@ -359,7 +359,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "the conjuncts of this allOf share no value (allOf/0: string, allOf/1: object), so no instance satisfies this schema, which lowers as written",
+      "message": "the conjuncts of this allOf share no value (allOf/0: string, allOf/1: object), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/TwoRefs"
@@ -368,7 +368,7 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "the conjuncts of this allOf share no value (allOf/0: object, allOf/1: string), so no instance satisfies this schema, which lowers as written",
+      "message": "the conjuncts of this allOf share no value (allOf/0: object, allOf/1: string), so no instance satisfies this schema, which a composition cannot state",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Inline"

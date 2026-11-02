@@ -194,7 +194,7 @@ func diagDisjointConjuncts(c lowering.Ctx, comp allOfComposition) []ir.Diagnosti
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, comp.pointer,
-		"the conjuncts of this allOf share no value (%s), so no instance satisfies this schema, which lowers as written",
+		"the conjuncts of this allOf share no value (%s), so no instance satisfies this schema, which a composition cannot state",
 		strings.Join(comp.disjoint, ", "))}
 }
 
