@@ -4,7 +4,7 @@
 // This file is a package-level suite, not a per-source-file test: it fuzzes the
 // whole compile pipeline (corpus-seeded and mutation-based) rather than any one
 // source file's logic, so it has no single source file to pair with.
-package e2e_test // external test package — exercises only the public API
+package fuzz_test // external test package — exercises only the public API
 
 import (
 	"bytes"
@@ -17,8 +17,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
-
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -26,9 +24,14 @@ import (
 	"github.com/dexpace/morphic/ir/irverify"
 )
 
-// cycleFixtureDir holds the cycle-detector reproducer and pointer-resolution
-// fixtures, addressed relative to this test file.
-const cycleFixtureDir = "../../../testdata/openapi"
+// The seed corpus, addressed relative to this test file: the conformance specs,
+// the cycle-detector reproducer and pointer-resolution fixtures, and one golden
+// source.
+const (
+	conformanceDir  = "../../../../testdata/conformance/openapi"
+	cycleFixtureDir = "../../../../testdata/openapi"
+	goldenPetstore  = "../../../../testdata/golden/openapi/petstore.yaml"
+)
 
 // FuzzCompile hammers the OpenAPI compiler with mutated spec bytes and asserts the
 // structural oracles (irverify passes, JSON round-trips byte-identical, recompile
@@ -180,7 +183,9 @@ func seedCorpus(f *testing.F) {
 	addYAMLDir(f, conformanceDir)
 	addYAMLDir(f, cycleFixtureDir)
 	data, err := os.ReadFile(goldenPetstore)
-	require.NoError(f, err)
+	if err != nil {
+		f.Fatal(err)
+	}
 	f.Add(data)
 }
 
@@ -188,13 +193,17 @@ func seedCorpus(f *testing.F) {
 func addYAMLDir(f *testing.F, dir string) {
 	f.Helper()
 	entries, err := os.ReadDir(dir)
-	require.NoError(f, err)
+	if err != nil {
+		f.Fatal(err)
+	}
 	for _, e := range entries {
 		if e.IsDir() || filepath.Ext(e.Name()) != ".yaml" {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		require.NoError(f, err)
+		if err != nil {
+			f.Fatal(err)
+		}
 		f.Add(data)
 	}
 }

@@ -457,6 +457,9 @@ var rules = map[string][]string{
 	// documents and of the citations made of them, which the tests holding each
 	// document to the code share. Standard library only.
 	"internal/keydoc": {},
+	// The tables ir's tests and its fuzz targets share: stdlib-only, because
+	// a fuzz run pays on every execution for all the code its binary links.
+	"internal/ircases": {},
 	// The repository's own lint rules: go/analysis analyzers, which read the
 	// packages they hold through types and nothing of the module's own.
 	"internal/lintrules": {"golang.org/x/tools/go/analysis", "golang.org/x/tools/go/types/typeutil"},

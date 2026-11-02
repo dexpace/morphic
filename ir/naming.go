@@ -215,7 +215,7 @@ func wordBoundary(prev, r rune, rest string) bool {
 // the result, and a second pass splits there again (GitHub #336). The lowercase
 // letter after the pair need not be lowercase in the source — "ℤℤA" has none
 // until lowercasing supplies one — so the source runes cannot settle it.
-// Requiring case of both would lose ℤ_server and http_ℤerver; canonicalCases
+// Requiring case of both would lose ℤ_server and http_ℤerver; ircases.Canonical
 // pins both.
 func acronymTail(prev, r rune, rest string) bool {
 	if !isCapital(prev) || !isCapital(r) {

@@ -1,13 +1,14 @@
 // Copyright (c) 2026 dexpace.
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
-package ir_test
+package fuzz_test
 
 import (
 	"strings"
 	"testing"
 	"unicode"
 
+	"github.com/dexpace/morphic/internal/ircases"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -43,7 +44,7 @@ var adversarialRunes = []string{
 }
 
 // FuzzCanonicalWords_Properties asserts what must hold of the grammar's answer
-// for any input, not only a listed one: canonicalCases pins the answers, but a
+// for any input, not only a listed one: ircases.Canonical pins the answers, but a
 // table covers only the rows someone wrote, and the defect in #187 sat in a
 // spelling no row contained (#186).
 //
@@ -51,15 +52,14 @@ var adversarialRunes = []string{
 // moves with it. They say its output is self-consistent and acceptable to the
 // rest of the IR.
 //
-// The seeds carry most of the weight: an ordinary `go test` runs them without
-// searching, and the gate's per-target search is bounded to seconds
+// An ordinary `go test` runs the seeds without searching; the search runs nightly
 // (scripts/fuzz.sh).
 func FuzzCanonicalWords_Properties(f *testing.F) {
 	for _, seed := range adversarialRunes {
 		f.Add(seed)
 	}
-	for _, tc := range canonicalCases {
-		f.Add(tc.in)
+	for _, tc := range ircases.Canonical() {
+		f.Add(tc.In)
 	}
 
 	f.Fuzz(func(t *testing.T, name string) {
@@ -87,13 +87,13 @@ func assertWithinTwiceTheLength(t *testing.T, name, got string) {
 // they answer alike. The seeds supply what a search seldom finds, words one
 // edit from a canonical form.
 func FuzzHasCanonicalWords_AgreesWithCanonicalWords(f *testing.F) {
-	for _, tc := range canonicalCases {
-		for _, words := range append(nearMisses(tc.want), tc.want) {
-			f.Add(tc.in, words)
+	for _, tc := range ircases.Canonical() {
+		for _, words := range append(ircases.NearMisses(tc.Want), tc.Want) {
+			f.Add(tc.In, words)
 		}
 	}
-	for _, tc := range hasCanonicalCases {
-		f.Add(tc.name, tc.words)
+	for _, tc := range ircases.HasCanonical() {
+		f.Add(tc.Name, tc.Words)
 	}
 	for _, seed := range adversarialRunes {
 		f.Add(seed, ir.CanonicalWords(seed))

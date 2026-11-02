@@ -97,7 +97,7 @@ the rule here rather than reading it across.
 
 - **Rule.** The go-styleguide skill ends on `gofmt`, `golangci-lint`, `go vet` and `go test`. Here a
   Go change is done at `make gate`, which adds the pinned linter version, the planted findings, the
-  repository's analyzers, fuzzing and exactly 100% coverage.
+  repository's analyzers and exactly 100% coverage.
 - **Why.** One uncovered statement fails CI while `go test` passes, which forced follow-up commits
   and falsified a PR body (#22, #373).
 - **Probe.** `grep -n '^gate:' Makefile`.
@@ -161,6 +161,21 @@ the rule here rather than reading it across.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
 - **Probe.** `git grep -nE '^(var )?[[:space:]]*_ +[A-Za-z.*]+ += ' -- '*.go' ':!*_test.go' ':!*testdata*'`
   lists them.
+
+## Fuzz from a package that links no test tooling
+`fuzz-packages-link-nothing`
+
+- **Rule.** Rules 6.20, 6.5 and 2.9 keep a test beside its code, assert through testify and name a
+  test helper package for the package it serves. A target in `ir/fuzz` or
+  `compilers/openapi/e2e/fuzz` sits apart from its code, fails through `t.Errorf` or `t.Fatalf`,
+  and takes shared rows from `internal/ircases` or `internal/testspec`, which import the standard
+  library alone. Every other test keeps those rules (`CONTRIBUTING.md`, "Where a test goes"). No
+  check holds the packages to this until #1315 lands.
+- **Why.** `go test -fuzz` instruments everything a binary links, on every execution: leaving a
+  binary that links `internal/decls` cut the CPU each of `ir`'s targets spends per execution by
+  68–73%, and rows from `ir/irtest` would add go-cmp's 2,213 counters to the 14,366 left (#1301).
+- **Probe.** This prints nothing:
+  `go list -deps -test ./ir/fuzz ./compilers/openapi/e2e/fuzz | grep -E 'testify|go-cmp|decls'`.
 
 ## Hold a new line to a rule the tree still breaks
 `rules-the-tree-still-breaks`

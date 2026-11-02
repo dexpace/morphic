@@ -3,15 +3,21 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
 
 # A push to a pull request supersedes the run its previous push started. Runs on
 # main are never cancelled: each saves the caches the pull requests after it use.
+# The fuzz search shares no group with them, since a scheduled run carries main's
+# sha, and queues behind one already running.
 concurrency:
-  group: gate-${{ github.event.pull_request.number || github.sha }}
+  group: gate-${{ github.event.pull_request.number || (github.event_name == 'push' && github.sha) || 'fuzz' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The gate runs as two jobs side by side. Every check is a Makefile target, and
-# `make gate` runs them all.
+# `make gate` runs them all. The fuzz search is the third job, which runs only on
+# a schedule or by hand and which `make gate` leaves out.
 #
 # A run on main starts from empty Go build and module caches and saves what it
 # built. A pull request's run restores what the latest run of the same job on
@@ -20,7 +26,8 @@ concurrency:
 # to the next.
 jobs:
   checks:
-    name: lint, fuzz, bench
+    name: lint, bench
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -61,22 +68,18 @@ jobs:
         run: echo "version=$(make -s print-lint-version)" >>"$GITHUB_OUTPUT"
       - name: lint
         uses: golangci/golangci-lint-action@v9
+        # What the Makefile exports for every other step: this one runs outside
+        # make, and without it reuses nothing make vet compiled.
+        env:
+          GOFLAGS: -trimpath
         with:
           version: ${{ steps.lint-version.outputs.version }}
       - name: lint rules draw their planted findings
         run: make lint-planted
-      - name: fuzz
-        id: fuzz
-        run: make fuzz
+      - name: fuzz targets
+        run: make fuzz-check
       - name: benchmarks
         run: make bench-smoke
-      - name: upload fuzz findings
-        if: failure() && steps.fuzz.outcome == 'failure'
-        uses: actions/upload-artifact@v7
-        with:
-          name: fuzz-findings
-          path: "**/testdata/fuzz/**"
-          if-no-files-found: ignore
       - &save
         name: save caches
         if: github.event_name == 'push'
@@ -89,6 +92,7 @@ jobs:
 
   suite:
     name: build, test (race detector, exactly 100% coverage)
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -105,3 +109,84 @@ jobs:
       - name: test
         run: make coverage
       - *save
+
+  # The search keeps what it finds between nights: Go holds a found input in
+  # $GOCACHE/fuzz, and this job restores and saves that directory alone, under a
+  # key no other job restores. It is the one cache that grows from run to run, a
+  # deliberate exception to main's (#1025), so make fuzz-prune bounds it before
+  # each save.
+  #
+  # This job alone may write to issues, and it runs only main's code or a writer's
+  # dispatch, never a pull request's. The checkout leaves no credential in
+  # .git/config, and the search step's environment holds no token, but setup-go
+  # and the reporting step are both handed one.
+  fuzz:
+    name: fuzz search
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+    env:
+      # At the target cap this is 16 minutes of search. A cold instrumented build
+      # takes a few more, inside the search step's 25, and the 5 left over report
+      # a failure and save the corpus.
+      FUZZTIME: 1m
+      FINDINGS_ISSUE: 1296
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - *setup-go
+      - *toolchain
+      # The corpus shares the repository's cache limit with what main saves, which
+      # evicts what was used longest ago, so enough pushes to main in a day lose it
+      # (#1272 changes what they save). A search that restores nothing starts from
+      # the seeds, which costs depth and nothing else, so it warns and carries on.
+      - name: restore the corpus
+        id: restore
+        uses: actions/cache/restore@v6
+        with:
+          path: ${{ steps.toolchain.outputs.gocache }}/fuzz
+          key: fuzz-corpus-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: fuzz-corpus-${{ runner.os }}-
+      - name: say when no corpus came back
+        if: steps.restore.outputs.cache-matched-key == ''
+        run: echo "::warning::no corpus was restored, so this search starts from the seeds"
+      - name: search
+        id: search
+        timeout-minutes: 25
+        run: make fuzz
+      - name: upload fuzz findings
+        if: failure() && steps.search.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-findings
+          path: "**/testdata/fuzz/**"
+          if-no-files-found: ignore
+      # A red search is a finding or a failure worth reading: the pinned Go does not
+      # report the search's own deadline as one (go.dev/issue/75804, #466).
+      - name: report the failure
+        if: failure() && steps.search.outcome == 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          written="$(git status --porcelain --untracked-files=all | cut -c4- | grep '/testdata/fuzz/' || true)"
+          if [ -n "$written" ]; then
+            found="Each input below is in the run's \`fuzz-findings\` artifact:"$'\n\n'"\`\`\`"$'\n'"$written"$'\n'"\`\`\`"
+          else
+            found="It wrote no reproducer, so the search itself failed: read the log."
+          fi
+          gh issue comment "$FINDINGS_ISSUE" --repo "$GITHUB_REPOSITORY" \
+            --body "The search failed at $GITHUB_SHA: $RUN_URL"$'\n\n'"$found"
+      - name: prune the corpus
+        if: always() && steps.search.outcome != 'skipped'
+        run: make fuzz-prune
+      - name: save the corpus
+        if: always() && steps.search.outcome != 'skipped'
+        uses: actions/cache/save@v6
+        with:
+          path: ${{ steps.toolchain.outputs.gocache }}/fuzz
+          key: fuzz-corpus-${{ runner.os }}-${{ github.run_id }}-${{ github.run_attempt }}

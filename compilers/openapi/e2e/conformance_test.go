@@ -290,7 +290,7 @@ func parseCorpus(t *testing.T, name string) (*ir.Document, []ir.Diagnostic) {
 }
 
 // assertJSONRoundTrip marshals doc, reads it back, and re-marshals, requiring
-// the two encodings to be byte-identical — the serialized oracle fuzz_test.go
+// the two encodings to be byte-identical — the serialized oracle fuzz/compile_test.go
 // and internal/harness already apply, compared as JSON so the unpreservable
 // nil-vs-empty-collection distinction is ignored while real loss still shows.
 //

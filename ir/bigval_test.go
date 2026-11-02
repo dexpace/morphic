@@ -10,18 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/ircases"
 	"github.com/dexpace/morphic/ir"
 )
 
-// bigValDecimalForms lists spellings NewBigVal accepts and stores unchanged,
-// because each is already in canonical JSON form. bigval_property_test.go seeds
-// its fuzz target from this slice rather than restating it, so a form added
-// here cannot go missing there.
-var bigValDecimalForms = []string{"0", "-1", "42", "3.14", "-0.5", "1e10", "2.5E-3", "9007199254740993"}
-
 func TestNewBigVal_AcceptsDecimalForms(t *testing.T) {
 	t.Parallel()
-	for _, s := range bigValDecimalForms {
+	for _, s := range ircases.DecimalForms() {
 		t.Run(s, func(t *testing.T) {
 			t.Parallel()
 			v, err := ir.NewBigVal(s)

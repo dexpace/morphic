@@ -338,8 +338,9 @@ make gate
 That is not a summary of CI; it is what CI runs. Every check in `.github/workflows/gate.yml` runs
 a `Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
 pins, so the local command and CI run the same steps; CI splits them across two jobs that run side
-by side. The `Makefile` holds the step list, and each target (`make coverage`, `make fuzz`,
-`make bench` and the rest) runs on its own while iterating. Coverage is gated at exactly 100% of
+by side. The fuzz search is outside it: a nightly job runs `make fuzz`, and the gate runs
+`make fuzz-check`, which searches nothing. The `Makefile` holds the step list, and each target
+(`make coverage`, `make fuzz`, `make bench` and the rest) runs on its own while iterating. Coverage is gated at exactly 100% of
 statements, counted from the profile rather than from `go test`'s rounded percentage, so one
 uncovered statement fails the build.
 
@@ -376,9 +377,10 @@ Run a single test with `go test ./ir -run TestName`. Beyond that:
   `testdata/unwitnessed.golden.txt`, which `go test ./cmd/morphic-census -update` rewrites and
   which scopes the first emitters (`docs/emitters/milestones.md`). Run it from inside the module:
   it reads the IR's declarations through the go command.
-- **Fuzzing.** `make fuzz` runs every fuzz target for 10s each (`make fuzz FUZZTIME=5m` for a
-  longer search). One target runs on its own with, for example,
-  `go test ./compilers/openapi/e2e -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
+- **Fuzzing.** Every target's seeds run in `go test ./...`; the search runs nightly in CI. By hand,
+  `make fuzz` searches every fuzz target for 5s each (`make fuzz FUZZTIME=5m` for a longer search).
+  One target runs on its own with, for example,
+  `go test ./compilers/openapi/e2e/fuzz -run '^$' -fuzz '^FuzzCompile$' -fuzztime 1m`.
 
 ## Design docs
 
