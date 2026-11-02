@@ -209,9 +209,9 @@ func keepOn(op *ir.Operation, kept ir.Unmodeled) []ir.Diagnostic {
 	return diags
 }
 
-// applyPathItem keeps on into what a path item declares that its operations
-// have no home for: its documentation, x-* extensions and undeclared keys, less
-// what cedes says a nearer layer of the mount keeps.
+// applyPathItem keeps, on the carrier into, what a path item declares that its
+// operations have no home for: its documentation, x-* extensions and undeclared
+// keys, less what cedes says a nearer layer of the mount keeps.
 //
 // They share one entry point because every route that lowers a path item (a
 // path, a webhook, a callback expression) must reach each, and a second call
@@ -242,8 +242,9 @@ type carrier struct {
 	// scope prefixes the keys built from a keyword name, as the extension and
 	// undeclared-key writers do.
 	scope string
-	// keepsDocs says whether the item's summary and description are kept here.
-	// Only an operation's are: an unmounted item's pair is dropped (GitHub #383).
+	// keepsDocs says whether the item's summary and description are kept here,
+	// which they are only for the operations a mount produced: an unmounted
+	// item's pair is dropped (GitHub #383).
 	keepsDocs bool
 }
 
