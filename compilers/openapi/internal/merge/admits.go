@@ -99,6 +99,21 @@ func Admits(k ir.PrimKind, v ir.Value) bool {
 	}
 }
 
+// admitsFormat reports whether v is a value of the string format named
+// format, and whether the compiler holds that format's grammar at all, which
+// the name alone decides. It holds one for a format the table pairs with no
+// kind: time, RFC 3339's full-time, whose offset the time kind does not hold
+// (docs/ir/primitives.md#offsets). A format the table pairs with a kind is
+// judged as that kind, by Admits.
+func admitsFormat(format string, v ir.Value) (admits, held bool) {
+	switch format {
+	case "time":
+		return v.Kind == ir.ValueString && parsesRFC3339(v.Str, fullTime), true
+	default:
+		return false, false
+	}
+}
+
 // decimalOf reads v as a number, reporting false for any other kind of value and
 // for a number no Decimal holds: reading that as zero would admit it everywhere.
 func decimalOf(v ir.Value) (ir.Decimal, bool) {

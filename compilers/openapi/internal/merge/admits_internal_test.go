@@ -4,11 +4,15 @@
 package merge
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -214,6 +218,94 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"unknown kind", ir.PrimKind("nope"), str("x"), false},
 	} {
 		assert.Equal(t, tc.want, Admits(tc.kind, tc.v), "%s: %s of %v", tc.name, tc.kind, tc.v)
+	}
+}
+
+// TestAdmitsFormat_JudgesTimeAsAFullTime pins the boundary of the one format
+// judged by name: time, RFC 3339's full-time, which carries the offset the time
+// kind refuses. Any other name, a table format's among them, is held by
+// nothing, and time is held only while the table pairs it with no kind.
+func TestAdmitsFormat_JudgesTimeAsAFullTime(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		format       string
+		v            ir.Value
+		admits, held bool
+	}{
+		{"a Z offset", "time", str("23:59:59Z"), true, true},
+		{"a fraction and a numeric offset", "time", str("23:59:59.5+01:00"), true, true},
+		{"a lower case z", "time", str("23:59:59z"), true, true},
+		{"the widest offset", "time", str("23:59:59-23:59"), true, true},
+		{"no offset", "time", str("23:59:59"), false, true},
+		{"a date before it", "time", str("2024-01-01T23:59:59Z"), false, true},
+		{"a comma fraction", "time", str("23:59:59,5Z"), false, true},
+		{"an empty fraction", "time", str("23:59:59.Z"), false, true},
+		{"an offset hour of 24", "time", str("23:59:59+24:00"), false, true},
+		{"an offset minute of 60", "time", str("23:59:59+05:60"), false, true},
+		{"an offset with no colon", "time", str("23:59:59+0500"), false, true},
+		{"an hour of 24", "time", str("24:00:00Z"), false, true},
+		{"a leap second", "time", str("23:59:60Z"), true, true},
+		{"a leap second behind UTC", "time", str("15:59:60-08:00"), true, true},
+		{"a leap second at the wrong minute", "time", str("23:58:60Z"), false, true},
+		{"a second of 61", "time", str("23:59:61Z"), false, true},
+		{"a number", "time", num("1"), false, true},
+		{"a symbol spelling one", "time", ir.Value{Kind: ir.ValueSymbol, Str: "23:59:59Z"}, false, true},
+		{"a table format", "date-time", str("2024-01-01T23:59:59Z"), false, false},
+		{"a format with no grammar here", "email", str("a@b.c"), false, false},
+		{"time in another case", "Time", str("23:59:59Z"), false, false},
+	} {
+		admits, held := admitsFormat(tc.format, tc.v)
+		assert.Equal(t, tc.admits, admits, "%s: %s of %v", tc.name, tc.format, tc.v)
+		assert.Equal(t, tc.held, held, "%s: whether %s is held", tc.name, tc.format)
+	}
+	_, paired := spelling.Lookup("string/time")
+	assert.False(t, paired, "a held format the table pairs with a kind would have two judges")
+}
+
+// TestAdmitsFormat_SharesNoStringWithAKind pins what formatAgainst assumes:
+// no value of a string-format kind is a time, and no time is a value of one.
+// Each sample is a value of the kind or format it is listed under, so a kind
+// that comes to admit a time, or a time that a kind admits, fails here, and so
+// does a string-format kind ir declares with no sample listed.
+func TestAdmitsFormat_SharesNoStringWithAKind(t *testing.T) {
+	t.Parallel()
+	times := []string{"23:59:59Z", "23:59:59.5+01:00", "15:59:60-08:00", "00:00:00z"}
+	samples := map[ir.PrimKind][]string{
+		ir.PrimDate:           {"2024-02-29"},
+		ir.PrimTime:           {"23:59:59", "23:59:60.5"},
+		ir.PrimDatetime:       {"2024-02-29T23:59:59", "2024-02-29t23:59:59.5"},
+		ir.PrimDatetimeOffset: {"2024-02-29T23:59:59Z", "2016-12-31T23:59:60Z"},
+		ir.PrimDuration:       {"P1D", "PT12H"},
+		ir.PrimUUID:           {"00000000-0000-0000-0000-000000000000"},
+		ir.PrimURL:            {"urn:t:23:59:59Z", "http://h/23:59:59Z"},
+	}
+	all := slices.Clone(times)
+	for k, ss := range samples {
+		for _, s := range ss {
+			require.True(t, Admits(k, str(s)), "%q is a value of %s", s, k)
+		}
+		all = append(all, ss...)
+	}
+	for _, s := range times {
+		admits, _ := admitsFormat("time", str(s))
+		require.True(t, admits, "%q is a time", s)
+	}
+
+	pkg, err := decls.Load("github.com/dexpace/morphic/ir")
+	require.NoError(t, err)
+	consts, err := pkg.StringConsts("PrimKind")
+	require.NoError(t, err)
+	for _, c := range consts {
+		k := ir.PrimKind(c.Value)
+		if k == ir.PrimBytes || spelling.Relate(k, ir.PrimString) != spelling.ANarrower {
+			continue
+		}
+		assert.NotEmpty(t, samples[k], "%s refines string and has no sample", k)
+		for _, s := range all {
+			inTime, _ := admitsFormat("time", str(s))
+			assert.False(t, inTime && Admits(k, str(s)), "%q is both a time and a value of %s", s, k)
+		}
 	}
 }
 

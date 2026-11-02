@@ -107,16 +107,17 @@ func parses(layout, s string) bool {
 }
 
 // rfc3339Form names the RFC 3339 §5.6 production parsesRFC3339 reads: a
-// partial-time alone, or a full-date, T and partial-time with or without the
-// time-offset after them.
+// partial-time, or a full-date, T and partial-time, each with or without the
+// time-offset after it.
 type rfc3339Form int
 
-// The productions the time kinds are judged against. A full-time, a
-// partial-time with its offset, is none of them, since no kind holds a time of
-// day with an offset.
+// The productions the time kinds and the time format are judged against.
 const (
 	// partialTime is a time of day with no offset: OpenAPI's time-local.
 	partialTime rfc3339Form = iota
+	// fullTime is a time of day with its offset: JSON Schema's time, which no
+	// kind holds (docs/ir/primitives.md#offsets), judged by admitsFormat.
+	fullTime
 	// localDateTime is a date-time with no offset: OpenAPI's date-time-local.
 	localDateTime
 	// dateTime is a date-time with its offset.
@@ -133,14 +134,14 @@ const (
 // 23:59 at any minute, so it is admitted at each.
 func parsesRFC3339(s string, form rfc3339Form) bool {
 	layout, clock := "15:04:05", s
-	if form != partialTime {
+	if form == localDateTime || form == dateTime {
 		if len(s) < len("2006-01-02T") || s[10] != 'T' && s[10] != 't' {
 			return false
 		}
 		layout, clock = "2006-01-02T15:04:05", s[11:]
 		s = s[:10] + "T" + clock
 	}
-	offset := form == dateTime
+	offset := form == fullTime || form == dateTime
 	if !clockShape(clock, offset) {
 		return false
 	}

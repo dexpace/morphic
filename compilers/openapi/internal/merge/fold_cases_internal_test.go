@@ -48,11 +48,11 @@ func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 		"and so is the discarded one")
 }
 
-// TestResolvePrimKind_EnumResolvesThroughItsValueType pins the enum case of the
+// TestKindOf_EnumResolvesThroughItsValueType pins the enum case of the
 // resolution walk. An enum member can itself be a scalar of the kind being
 // redeclared, so it must answer with its value type rather than staying
 // unresolved and falling through to the structural comparison.
-func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
+func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/enum": &ir.Enum{ID: "t/enum", ValueType: ir.PrimString},
@@ -62,13 +62,13 @@ func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
 		},
 	})
 
-	kind, ok := judge(g).primKind(ir.TypeRef{Target: "t/enum"})
+	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "t/enum"})
 	require.True(t, ok)
-	assert.Equal(t, ir.PrimString, kind)
+	assert.Equal(t, valueKind{prim: ir.PrimString}, kind)
 
-	kind, ok = judge(g).primKind(ir.TypeRef{Target: "t/alias"})
+	kind, ok = judge(g).kindOf(ir.TypeRef{Target: "t/alias"})
 	require.True(t, ok, "a scalar's Base chain is followed to the enum behind it")
-	assert.Equal(t, ir.PrimString, kind)
+	assert.Equal(t, valueKind{prim: ir.PrimString}, kind)
 }
 
 // TestFold_ALosingDetailIsKeptAndReported sweeps the fold's
