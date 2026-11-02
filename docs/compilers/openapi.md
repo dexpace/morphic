@@ -2969,7 +2969,8 @@ list out of an extension, not a promotion, so the entry is left for a consumer t
   `e2e.TestPromotion_RemovalDateAndVersionAreSeparateFacts`,
   `e2e.TestPromotion_AUseReadsItsReferentsKeys`,
   `e2e.TestPromotion_ADecoratorMatchesTheRefItStandsFor`,
-  `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`
+  `e2e.TestPromotion_UsesHoldTheirOwnAnswerInEitherOrder`,
+  `e2e.TestPromotion_AContentCarrierReadsTheEntryItElects`
 - Status: partly built: the default mapping leaves pagination, open enums stated by value, reserved
   expansion and server names to come (#656); a mapping cannot say which extension values state the
   fact, so a stability key's `true` reads as a deprecation (#654); an unknown key under a prefix the

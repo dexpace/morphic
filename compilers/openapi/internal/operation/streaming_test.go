@@ -466,8 +466,9 @@ func TestStreaming_MarkerListsEveryHeuristicThatApplied(t *testing.T) {
 
 // TestStreaming_MarkerListKeepsAPromotionBesideBoth extends the pin above to a
 // third heuristic: an operation grouped by path prefix, streaming by media type
-// and carrying a promoted deprecation reason names all three, in the order they
-// applied, and the promotion's marker does not displace the other two.
+// and carrying a promoted deprecation reason and stability tier names all three,
+// in the order they applied, and neither promotion's marker displaces the other
+// two.
 func TestStreaming_MarkerListKeepsAPromotionBesideBoth(t *testing.T) {
 	t.Parallel()
 	src := openapitest.PathsSpecVer("3.1.0", `  /events:
@@ -475,6 +476,7 @@ func TestStreaming_MarkerListKeepsAPromotionBesideBoth(t *testing.T) {
       operationId: getEvents
       deprecated: true
       x-deprecated-reason: why
+      x-stability: beta
       responses:
         "200":
           description: stream
@@ -488,4 +490,5 @@ func TestStreaming_MarkerListKeepsAPromotionBesideBoth(t *testing.T) {
 	assert.Equal(t, ir.Inferred("group-path-prefix,streaming-media-type,extension-promotion"), op.Provenance.Inferred)
 	require.NotNil(t, op.Deprecation)
 	assert.Equal(t, "why", op.Deprecation.Message)
+	assert.Equal(t, ir.StabilityBeta, op.Stability)
 }

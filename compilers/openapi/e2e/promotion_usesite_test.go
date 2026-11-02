@@ -381,6 +381,54 @@ func assertPromotionsAgree(t *testing.T, a, b *ir.Document) {
 	}
 }
 
+// TestPromotion_AContentCarrierReadsTheEntryItElects ties what a carrier's
+// promotion reads to the entry docs/compilers/openapi.md#content-parameters
+// elects from a content map holding several: the lowest key, not the first
+// declared. Such a map is invalid and draws an error, but the carrier still
+// lowers one entry's type, and its promoted facts must come from that entry.
+func TestPromotion_AContentCarrierReadsTheEntryItElects(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name        string
+		plain, json string
+		secret      bool
+	}{
+		{name: "the elected entry names the target", plain: "Plain", json: "Tok", secret: true},
+		{name: "the other entry names the target", plain: "Tok", json: "Plain", secret: false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			// text/plain is declared first and application/json is the lowest key.
+			content := `{text/plain: {schema: {$ref: '#/components/schemas/` + tc.plain +
+				`'}}, application/json: {schema: {$ref: '#/components/schemas/` + tc.json + `'}}}`
+			doc, _ := compileUse(t, `openapi: 3.1.0
+info: {title: T, version: "1"}
+paths:
+  /x:
+    post:
+      operationId: x
+      parameters:
+        - {name: p, in: query, content: `+content+`}
+      responses:
+        "200":
+          description: ok
+          headers:
+            X-H: {content: `+content+`}
+`+useSiteComponents)
+			op, ok := opByName(doc, "x")
+			require.True(t, ok)
+			param, ok := openapitest.ParamBySource(op, "p")
+			require.True(t, ok)
+			require.Len(t, op.Responses, 1)
+			header, ok := headerByWire(op.Responses[0].Headers, "X-H")
+			require.True(t, ok)
+			assert.Equal(t, tc.secret, param.Secret, "parameter")
+			assert.Equal(t, tc.secret, header.Secret, "header")
+		})
+	}
+}
+
 // TestPromotion_AReferentIsKnownByItsDocument holds what a use reads to the document
 // its $ref lands in. Two documents can hold one pointer, and what a target lends is
 // remembered by where it is read, so whichever use reads first must leave the other
