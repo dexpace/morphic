@@ -60,7 +60,7 @@ func commonFor(c lowering.Ctx, id ir.TypeID, pointer jsontext.Pointer) ir.TypeCo
 		ID:         id,
 		Provenance: c.ProvenanceAt(pointer),
 	}
-	if name, ok := ids.ComponentSchemaName(pointer); ok {
+	if name, state := ids.ComponentSchema(pointer); state == ids.NamedComponent {
 		common.Name = compile.NamingFor(name)
 	} else {
 		common.Anonymous = true
