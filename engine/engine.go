@@ -80,6 +80,9 @@ type Result struct {
 	// returns what it produced, to inspect or persist. What failing stops is
 	// building on it: the engine starts no emitter on a failed run.
 	Failed bool `json:"failed,omitzero"`
+	// CacheErr is why the engine's cache could not answer this run or keep what
+	// it compiled. The run is otherwise whole: a cache never fails one.
+	CacheErr error `json:"-"`
 }
 
 // Engine orchestrates the detect → compiler → passes pipeline.
@@ -99,6 +102,8 @@ type Engine struct {
 	// verifier is what a verified run holds each document to, fixed when the
 	// engine is built.
 	verifier verifier
+	// cache is what runs are answered from and kept in, nil for none.
+	cache *cacheBinding
 }
 
 // Compilers returns the built-in compilers, fresh values in registration order:
@@ -117,6 +122,7 @@ type Option func(*config)
 type config struct {
 	compilers []compilers.Compiler
 	passes    []pass.Pass
+	cache     *cacheBinding
 }
 
 // WithCompilers registers cs, in order, in place of the built-in compilers, for
@@ -166,7 +172,12 @@ func New(opts ...Option) (*Engine, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Engine{registry: reg, passes: passes, verifier: irverify.Verify}, nil
+	if cfg.cache != nil {
+		if err := cfg.cache.check(); err != nil {
+			return nil, err
+		}
+	}
+	return &Engine{registry: reg, passes: passes, verifier: irverify.Verify, cache: cfg.cache}, nil
 }
 
 // Run executes the pipeline for the spec at specPath, a regular file: read it
@@ -221,7 +232,7 @@ func (e *Engine) RunSpec(ctx context.Context, spec compilers.Source, opts RunOpt
 // even where a compiler asks for it again. Every other document is read from
 // disk.
 func (e *Engine) runHeld(ctx context.Context, spec compilers.Source, opts RunOptions, p plan) (*Result, error) {
-	res, err := e.compile(ctx, spec, configurer(opts, reader.Layered{Held: specMemory(spec)}), p)
+	res, err := e.compileCached(ctx, spec, opts, reader.Layered{Held: specMemory(spec)}, p)
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +272,7 @@ func (e *Engine) RunSources(ctx context.Context, sources []compilers.Source, opt
 		return nil, fmt.Errorf("engine: %w", err)
 	}
 	spec := compilers.Source{Path: sources[0].Path, Data: sources[0].Data}
-	res, err := e.compile(ctx, spec, configurer(opts, docs), p)
+	res, err := e.compileCached(ctx, spec, opts, docs, p)
 	if err != nil {
 		return nil, err
 	}
