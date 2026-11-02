@@ -241,3 +241,12 @@ it sees. Changes made together in one bump are listed together under it.
     ([`extension-promotion`](../compilers/openapi.md#extension-promotion)), listing the marker the
     target lists ([promotion](./unmodeled.md#promotion)). These shapes are unchanged, so to a
     consumer pinned to 0.26.0 such an operation reads as live and such a value as plain.
+- **0.28.0** — `time` holds no offset, as `datetime` does beside `datetime_offset`
+  ([primitives](./primitives.md#offsets)). The OpenAPI compiler had lowered `format: time`, RFC
+  3339's `full-time`, to `time`, and now keeps it as a `Scalar` over `string` whose `Encoding.Name`
+  is `time`, as it keeps any format it has no primitive for. `time-local` lowers to `time`, and
+  `date-time-local` to `datetime`, which no compiler had written, where each had been such a
+  `Scalar`. An `Enum` takes those primitives as its `ValueType` where its members fit them, and one
+  declaring `format: time` keeps the format verbatim under `Unmodeled`. A consumer pinned to 0.27.0
+  that reads `time` as carrying an offset finds values with none, and one reading the `time-local`
+  or `date-time-local` encodings no longer finds them.
