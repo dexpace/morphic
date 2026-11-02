@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/compilers/openapi/internal/auth"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
@@ -41,9 +42,11 @@ webhooks:
 		lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
 		WithLoaded(loadedDoc)
 
+	schemes, _ := auth.LowerSecuritySchemes(c)
+
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	svc, _, diags := operation.LowerService(ctx, c, compile.NewTypes(), servers.NewRegistry())
+	svc, _, diags := operation.LowerService(ctx, c, compile.NewTypes(), servers.NewRegistry(), schemes)
 
 	assert.Empty(t, diags)
 	assert.Empty(t, svc.Groups, "neither the path loop nor the webhook loop lowered an operation")

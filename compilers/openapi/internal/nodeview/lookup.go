@@ -80,6 +80,26 @@ func childOfSource(val *yaml.Node, key string, path []*yaml.Node) (*yaml.Node, b
 	return nil, false
 }
 
+// Strings returns the text of each item of the sequence n, and whether n is a
+// list of strings as oas.Checker reads one: scalars, none null, aliases followed.
+// A scalar's tag does not matter, as it does to the model
+// (docs/parser-library.md#undecoded-scalar).
+func Strings(n *yaml.Node) ([]string, bool) {
+	n = Deref(n)
+	if n == nil || n.Kind != yaml.SequenceNode {
+		return nil, false
+	}
+	out := make([]string, 0, len(n.Content))
+	for _, item := range n.Content {
+		item = Deref(item)
+		if item == nil || item.Kind != yaml.ScalarNode || item.Tag == "!!null" {
+			return nil, false
+		}
+		out = append(out, item.Value)
+	}
+	return out, true
+}
+
 // WrittenChildren maps each key the mapping n writes itself to the value its
 // text holds there: no `<<` merge read, an alias left an alias, each key as
 // KeyOf names it and at its last copy. It answers where a document's text puts

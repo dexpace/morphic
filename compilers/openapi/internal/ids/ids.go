@@ -120,7 +120,7 @@ func Namespaces(others ...Document) compile.Namespaces {
 		ir.IDKindType:       {OpenAPISpace, AnonSpace, ComposedSpace},
 		ir.IDKindOp:         {OpenAPISpace},
 		ir.IDKindProp:       {OpenAPISpace, ComposedSpace},
-		ir.IDKindAuth:       {OpenAPISpace},
+		ir.IDKindAuth:       {OpenAPISpace, compile.UnresolvedSpace},
 		ir.IDKindService:    {OpenAPISpace},
 		ir.IDKindGroup:      {TagGroupSpace, PathPrefixGroupSpace, DefaultGroupSpace, WebhookGroupSpace},
 		ir.IDKindParam:      {OpenAPISpace},
@@ -254,7 +254,19 @@ func DefaultServer() ir.ServerID { return compile.ServerID(DefaultServerSpace, "
 
 // Auth returns the stable ID of the named security scheme.
 func Auth(name string) ir.AuthID {
-	return compile.AuthID(OpenAPISpace, string(Ptr("components", "securitySchemes", name)))
+	return compile.AuthID(OpenAPISpace, string(schemePointer(name)))
+}
+
+// UnresolvedAuth returns the stable ID of the scheme a name that reaches no
+// mechanism lowers to: the pointer a declaration of it has, in a namespace of its
+// own, so neither a reference nor an entry at that pointer reaches it.
+func UnresolvedAuth(name string) ir.AuthID {
+	return compile.AuthID(compile.UnresolvedSpace, string(schemePointer(name)))
+}
+
+// schemePointer returns where the security scheme called name is declared.
+func schemePointer(name string) jsontext.Pointer {
+	return Ptr("components", "securitySchemes", name)
 }
 
 // Service returns the stable ID of the service for the given source index.

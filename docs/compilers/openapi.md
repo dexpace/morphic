@@ -198,6 +198,8 @@ as a schema entry, which is another object's `schema`, a component, or an entry 
 of schemas, is an error, since that lowering reads it as the empty schema, a value, and a list
 counts it among its entries. One written for a field
 whose requirement another rule reports is left to that rule.
+A security requirement's name is no field to leave out: its `null` lists no scopes, and the name
+stands ([`security-requirements`](#security-requirements)).
 
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
@@ -658,10 +660,10 @@ promotion pass from mistaking one for an oversight.
 A name the document spells lowers to `Naming{Source, Canonical}`: the spelling as written, beside
 the word sequence [naming](../ir/naming.md) derives from it, at every position that spells one —
 `info.title`, a tag, an `operationId`, a parameter, response-header or property name, a component
-schema or security scheme key, an enum member's value as text, a 3.2 server `name`, and under
-`grouping=path-prefix` a first path segment. A name with no letter or digit (`***`, `>=`) keeps its
-`Source` and has no `Canonical`; an emitter names it by its characters
-([naming](../emitters/refine/naming.md)). A name spelled as the empty string is minted
+schema or security scheme key, a scheme a security requirement names, an enum member's value as
+text, a 3.2 server `name`, and under `grouping=path-prefix` a first path segment. A name with no
+letter or digit (`***`, `>=`) keeps its `Source` and has no `Canonical`; an emitter names it by its
+characters ([naming](../emitters/refine/naming.md)). A name spelled as the empty string is minted
 `Hint: "empty"` and no `Source` rather than passed through (an `operationId` of `""` is read as
 absent instead, [`operation-ids`](#operation-ids)), and a property's wire name stays `""`. A
 component schema keyed `""` earns no named `TypeID`: it hoists anonymously at its own pointer
@@ -2845,27 +2847,74 @@ Operation's — to an OR of ANDs: each requirement object one alternative, namin
 with the scopes it lists ([auth](../ir/auth.md)). An operation that writes no `security`
 inherits the document's, and one writing `security: []` is public; the two stay apart, absent
 against empty ([operations](../ir/operations.md)). The document's list keeps the same two
-spellings apart in `Service.Auth`. A requirement naming a scheme the section
-does not declare is reported as an `openapi/unresolved-ref` error at the requirement and dropped. An
-entry that omits the field naming its mechanism — `type`, or for `http` the `scheme` token — is
-interned as no scheme, reported as an `openapi/incomplete-security-scheme` error at the entry, and
-every requirement naming it is dropped. 3.2's device flow lowers to `Flows` beside the other flows,
-and `oauth2MetadataUrl` to `OAuth2MetadataURL`. An `oauth2` scheme whose `flows` declares no flow —
-`flows: {}`, only `x-*` and keys that name no flow, or only flows written null — and that has no
-`oauth2MetadataUrl` lowers as declared, reported as an `openapi/oauth2-no-flow` warning at the
-declaration; a `flows` left out, null or no mapping is the rule table's to report instead
+spellings apart in `Service.Auth`.
+
+A requirement names a scheme by its key under the source's `securitySchemes`, whichever document
+holds the requirement, matched exactly. A name that reaches no mechanism lowers to a scheme of kind
+`unresolved` ([auth](../ir/auth.md#unresolved-schemes)), one per name, and is reported as an
+`openapi/unresolved-security-scheme` error at each requirement.
+Nothing else about the requirement changes: the option keeps its other schemes, its scopes and its
+place in the list, so an operation stating its own requirement does not read as inheriting, and an
+option whose name reaches no mechanism does not vanish from the options beside it. The error stands
+however the rest lowers, since the specification requires the name to correspond to a scheme and
+what it means is missing ([`validation`](#validation)). A name stands whatever is beside it, whether
+or not it reaches a mechanism, since an option demands every scheme it names: a value that reads as
+no list of strings lists no scopes, a warning from the rule table for a `null` and an error for any
+other ([`requirement-scopes`](../parser-library.md#requirement-scopes)). A scope is the text an item
+writes, so a plain date is one ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)).
+
+A name reaches no mechanism in three ways. No entry declares it, and the scheme records no pointer,
+since no position writes it. Or its entry omits the field naming the mechanism — `type`, or for
+`http` the `scheme` token — which is reported as an `openapi/incomplete-security-scheme` error at
+the entry. Or its entry resolves to no object, whose `$ref` is reported as an `openapi/unresolved-ref`
+error at the entry, and whose other shapes the rule table reports
+([`minor-required-fields`](#minor-required-fields)). An entry lowers to that kind whether or not a
+requirement names it, recording its pointer and keeping what it wrote: its `description` and
+`deprecated`, the `summary` and `description` a Reference Object writes beside its `$ref`
+([`reference-object-siblings`](#reference-object-siblings)), its `type` and each mechanism field
+verbatim in `Unmodeled` under `openapi:<field>` (`degraded_lowering`), each reported as an info
+`openapi/degraded-construct` at the field, and its extensions and undeclared keys as any scheme's are.
+A `$ref` that reached nothing is kept the same way, under `openapi:$ref`, with only its error. An
+entry written as no object holds no field to keep. A `security` entry written as no object names
+nothing, so a list holding nothing else, though it writes entries, lowers to no option: it collapses
+to nil, beside the rule table's error, since `[]` would read as public. A `security` that is no list
+lowers as one left out, beside the rule table's finding, a warning for a `null` and otherwise an
+error.
+
+3.2's device flow lowers to `Flows` beside the other flows, and `oauth2MetadataUrl` to
+`OAuth2MetadataURL`. An `oauth2` scheme whose `flows` declares no flow — `flows: {}`, only `x-*` and
+keys that name no flow, or only flows written null — and that has no `oauth2MetadataUrl` lowers as
+declared, reported as an `openapi/oauth2-no-flow` warning at the declaration; a `flows` left out,
+null or no mapping is the rule table's to report instead
 ([`minor-required-fields`](#minor-required-fields)). The table states the rules this one reports, a
 requirement naming no scheme and a scheme naming no mechanism, and leaves them to it.
 
-- Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `oauth2-no-flow`
-- Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`, `openapi/unresolved-ref`
+- Cases: `security-schemes`, `security-or-and`, `security-root-empty`, `security-unresolved`,
+  `oauth2-no-flow`
+- Codes: `openapi/oauth2-no-flow`, `openapi/incomplete-security-scheme`,
+  `openapi/unresolved-security-scheme`, `openapi/unresolved-ref`
 - Tests: `auth.TestLowerSecuritySchemes_AnAbsentFlowsIsReportedAtTheDeclaration`,
-  `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismIsRefused`,
+  `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismLowersAsUnresolved`,
+  `auth.TestLowerSecuritySchemes_AnEntryNamingNoMechanismKeepsWhatItWrote`,
+  `auth.TestLowerSecuritySchemes_AKeptTypeIsTheEntrysOwn`, `auth.TestLowerSecuritySchemes_ABrokenRefIsKept`,
+  `auth.TestSecurityRequirement_AnUnresolvedMemberKeepsItsOption`,
+  `auth.TestSecurityRequirement_AMemberWhoseScopesDoNotReadStaysInItsOption`,
+  `auth.TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope`,
+  `auth.TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported`,
+  `auth.TestLowerSecuritySchemes_ABrokenRefKeepsTheDocsBesideIt`,
+  `auth.TestSecurityRequirement_ASecurityThatIsNoListReadsAsLeftOut`,
+  `oas.TestCheck_ANullBesideARequirementsNameListsNoScopes`,
+  `e2e.TestSecurityUnresolved_ANameTwoDocumentsUseIsOneSchemeOfTheSource`,
+  `auth.TestSecurityRequirement_AnOperationsOwnUnresolvedListDoesNotInherit`,
+  `auth.TestSecurityRequirement_ASoleNonObjectEntryCollapsesTheListToNil`,
   `auth.TestAuth_RequirementsOrOfAnds`
-- Status: partly built: a requirement naming an unknown scheme is dropped, so an operation whose
-  every requirement names one lowers as inheriting the service's security (#633); an unresolved
-  scheme name gets no near-miss hint (#694); and a scope a requirement repeats passes into the IR
-  undeduplicated (#738).
+- Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
+  unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
+  the IR undeduplicated (#738), a requirement whose only key is a `<<` naming no mapping lowers to
+  the empty option, beside the rule table's error (#1244), and a field written as the model does not
+  decode it reads as left out with no finding, so `scheme: 2021-01-01` names no mechanism and a
+  `security` list under a local tag inherits (#1280), and a `$ref` written as null refuses the whole
+  document (#1284).
 
 ### `security-scheme-fields`
 
