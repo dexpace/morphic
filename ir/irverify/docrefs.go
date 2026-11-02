@@ -82,6 +82,10 @@ func docRefPath(at ir.WalkPath, i int) string {
 // does not decode is checkUTF8's to report: utf8.RuneStart rejects a
 // continuation byte, so a stray one at an edge reads as a split rune.
 func isSpanOf(ref ir.DocRef, text string) bool {
-	return 0 <= ref.StartByte && ref.StartByte < ref.EndByte && ref.EndByte <= len(text) &&
-		utf8.RuneStart(text[ref.StartByte]) && (ref.EndByte == len(text) || utf8.RuneStart(text[ref.EndByte]))
+	inText := 0 <= ref.StartByte && ref.StartByte < ref.EndByte && ref.EndByte <= len(text)
+	if !inText {
+		return false
+	}
+	endsARune := ref.EndByte == len(text) || utf8.RuneStart(text[ref.EndByte])
+	return utf8.RuneStart(text[ref.StartByte]) && endsARune
 }
