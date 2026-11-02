@@ -20,7 +20,7 @@ import (
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
-// fuzzSharedTables are the two internal packages a fuzz package may import:
+// fuzzSharedTables are the internal packages a fuzz package may import:
 // the tables a package's other tests share with its fuzz targets, which import
 // next to nothing.
 var fuzzSharedTables = []string{"internal/ircases", "internal/testspec"}
@@ -40,8 +40,8 @@ func TestFuzzPackages_LinkNoTestTooling(t *testing.T) {
 }
 
 // TestFuzzPackages_PlantedImportsAreJudged plants one import in a fuzz
-// package for each kind the rule admits or refuses, and in a testdata directory
-// the walk leaves alone.
+// package for each kind the rule admits or refuses, and in the testdata, dot and
+// underscore directories the walk leaves alone.
 func TestFuzzPackages_PlantedImportsAreJudged(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -62,6 +62,8 @@ func TestFuzzPackages_PlantedImportsAreJudged(t *testing.T) {
 		{"a compiler's own internal package", "a/fuzz/x_test.go", module + "/compilers/openapi/internal/diag", false},
 		{"the standard library", "ir/fuzz/x_test.go", "testing", false},
 		{"testify in a testdata fuzz directory", "ir/testdata/fuzz/x_test.go", "github.com/stretchr/testify/assert", false},
+		{"testify in a fuzz directory under a dot directory", ".claude/ref/fuzz/x_test.go", "github.com/stretchr/testify/assert", false},
+		{"testify in a fuzz directory under an underscore directory", "_old/fuzz/x_test.go", "github.com/stretchr/testify/assert", false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -102,9 +104,9 @@ func TestFuzzPackages_JudgeEveryImportOfEveryFileOfEveryPackage(t *testing.T) {
 	assert.Contains(t, violations[1], filepath.Join("ir", "fuzz", "b_test.go"))
 }
 
-// TestFuzzPackages_OnlyFuzzDirectoriesOutsideTestdataAreFound plants
+// TestFuzzPackages_OnlyFuzzDirectoriesTheGoToolReadsAreFound plants
 // look-alikes of a fuzz package, which the walk must not list.
-func TestFuzzPackages_OnlyFuzzDirectoriesOutsideTestdataAreFound(t *testing.T) {
+func TestFuzzPackages_OnlyFuzzDirectoriesTheGoToolReadsAreFound(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	const imp = "github.com/stretchr/testify/assert"
@@ -121,11 +123,12 @@ func TestFuzzPackages_OnlyFuzzDirectoriesOutsideTestdataAreFound(t *testing.T) {
 }
 
 // fuzzPackageViolations walks root for fuzz packages, each a directory named
-// fuzz outside any testdata that holds _test.go files, and returns the packages
-// it found and one message for each import of theirs that is not admitted.
+// fuzz outside any directory the go tool ignores that holds _test.go files, and
+// returns the packages it found and one message for each import of theirs that
+// is not admitted.
 //
 // Direct imports suffice: the pipeline packages admitted are held by their own
-// rules entries to what they may link, and the two shared tables import next to
+// rules entries to what they may link, and the shared tables import next to
 // nothing. A package in testSupport or under the top-level internal/ or cmd/
 // exists for tests or tooling and is refused, internal/decls among them for the
 // golang.org/x/tools it links.
@@ -137,7 +140,7 @@ func fuzzPackageViolations(root string) (violations, found []string, err error) 
 		if !d.IsDir() {
 			return nil
 		}
-		if d.Name() == "testdata" {
+		if p != root && ignoredByGoTool(d.Name()) {
 			return filepath.SkipDir
 		}
 		if d.Name() != "fuzz" {
