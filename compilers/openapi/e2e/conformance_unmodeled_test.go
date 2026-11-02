@@ -1390,7 +1390,9 @@ func assertKeywordsAtEveryOutcome(t *testing.T, doc *ir.Document, diags []ir.Dia
 	dyn, ok := propByWire(carrier, "dyn")
 	require.True(t, ok)
 	assert.Equal(t, componentID("Node"), dyn.Type.Target, "a carrier keeps the reference, not an alias")
-	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, dyn.Unmodeled, "openapi:maxItems").Reason)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(2))}, dyn.Constraints)
+	assert.Equal(t, []string{"openapi:uniqueItems"}, slices.Collect(maps.Keys(dyn.Unmodeled)))
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, dyn.Unmodeled, "openapi:uniqueItems").Reason)
 
 	beside := typeByName(doc, "BesideAUnion").Common().Unmodeled
 	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, beside, "openapi:oneOf").Reason)
