@@ -80,6 +80,19 @@ components:
         2021-01-01:
           type: string
 `},
+	{"a discriminator's property name", datedFixtureHead + `paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      required:
+        - 2021-01-01
+      properties:
+        2021-01-01:
+          type: string
+      discriminator:
+        propertyName: 2021-01-01
+`},
 	{"a response's description", datedFixtureHead + `paths:
   /b:
     get:
