@@ -181,8 +181,8 @@ func paramRefOp(id ir.OpID, own ir.ParamID, cursor, limit, token ir.ParamID) ir.
 		ID:     id,
 		Params: []ir.Parameter{{ID: own, Name: ir.Naming{Source: "p"}}},
 		Pagination: &ir.Pagination{
-			InputCursor: &ir.ParamPath{Param: cursor},
-			InputLimit:  &ir.ParamPath{Param: limit},
+			InputCursor: &ir.InputPath{Param: new(cursor)},
+			InputLimit:  &ir.InputPath{Param: new(limit)},
 		},
 		Idempotency: ir.Idempotency{Kind: ir.IdempotencyToken, TokenParam: token},
 	}
@@ -222,6 +222,30 @@ func TestValidate_ParamReferences_UndeclaredIDIsReportedOnceAsDangling(t *testin
 	assert.Zero(t, countCode(t, diags, "pass/param-binding-mismatch"), "the dangling walk owns an ID nothing declares")
 }
 
+// TestValidate_ParamReferences_StreamConditionsAreHeld pins that the input a
+// request or response stream is selected by is a reference like a pagination
+// input: one naming the operation's own parameter is clean, one naming another
+// operation's is reported at its field.
+func TestValidate_ParamReferences_StreamConditionsAreHeld(t *testing.T) {
+	t.Parallel()
+	streamed := func(id ir.OpID, own, cond ir.ParamID) ir.Operation {
+		op := paramRefOp(id, own, own, own, own)
+		op.RequestStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: ir.InputPath{Param: new(cond)}}}
+		op.ResponseStream = &ir.StreamDetail{Condition: &ir.StreamCondition{Input: ir.InputPath{Param: new(cond)}}}
+		return op
+	}
+	get := streamed("op/x/get", "param/x/get/p", "param/x/get/p")
+	post := streamed("op/x/post", "param/x/post/p", "param/x/get/p")
+
+	var at []string
+	for _, d := range validated(t, docWithOperations(get, post)) {
+		if d.Code == "pass/param-binding-mismatch" {
+			at = append(at, d.Provenance.Node)
+		}
+	}
+	assert.Equal(t, []string{"op/x/post/requestStream/condition", "op/x/post/responseStream/condition"}, at)
+}
+
 // TestValidate_ParamReferences_EmptyTokenParamWithoutTokenKindIsClean pins that
 // an empty token is no reference: it is how an operation that is not
 // token-keyed spells having none.
@@ -259,7 +283,7 @@ func TestValidate_ParamReferences_FieldArgumentIsRejected(t *testing.T) {
 	op := paramBindingOp("op/x/get", ir.Parameter{ID: "param/x/get/id/query", Name: ir.Naming{Source: "id"}})
 	op.Bindings.HTTP[0].ParamBindings = append(op.Bindings.HTTP[0].ParamBindings,
 		ir.HTTPParamBinding{Param: arg, Location: ir.HTTPLocationQuery})
-	op.Pagination = &ir.Pagination{InputLimit: &ir.ParamPath{Param: arg}}
+	op.Pagination = &ir.Pagination{InputLimit: &ir.InputPath{Param: new(arg)}}
 	doc := docWithOperations(op)
 	model, ok := doc.Types["t/m"].(*ir.Model)
 	require.True(t, ok)

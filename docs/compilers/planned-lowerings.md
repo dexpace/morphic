@@ -34,7 +34,8 @@ highlights, and the list moves to a specification of its own when the compiler l
 - `@service` → Service
 - versioning decorators incl. `@typeChangedFrom`/`@madeOptional`/`@madeRequired` and add/remove
   cycles → Availability timeline (on members/variants/params too)
-- pagination decorators incl. prev/first/last links and header continuation tokens → Pagination
+- pagination decorators incl. prev/first/last links and header continuation tokens → Pagination,
+  a `@continuationToken` or `@pageSize` on a body property → an `InputPath` with no `Param`
   PropPaths (In:"header")
 - Azure.Core `@pollingOperation`/`@finalOperation` → LongRunning
 - multipart w/ parts → Content.Encoding/PartEncoding, `Http.File` → FileInfo (content-type set,
