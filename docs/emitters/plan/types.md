@@ -14,6 +14,8 @@ type TypePlan struct {
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Open       bool                 // a union or polymorphic base keeps a value no variant
                                     // recognizes rather than refusing it (policy.md, ../refine/unions.md)
+    Inclusive  bool                 // an any_of union two of whose variants can admit one value,
+                                    // holding every variant a value admits (below); false otherwise
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
     Shapes     map[ir.Lifecycle]ModelShape // the wire shapes the document exercises (below)
     Alias      ir.TypeID            // the type every reference to this one is emitted as, this
@@ -68,6 +70,38 @@ required on the composed model. A name `Requires` lists that no flattened proper
 to it. A conjunct that is no model, as `Tags` is in `allOf: [{$ref: Pet}, {$ref: Tags}]` when
 `Tags` is a list, is in `Unflattened` as the entry names it: the declaration over `Flattened` does
 not hold what it admits, so each refiner lowers it or degrades with a code of its own.
+
+## Variants that can share a value
+
+`Inclusive` is true on an `any_of` union when two of its variants can admit one value, and false on
+every other shape. What admitting a value means is in
+[unions](../refine/unions.md#a-value-several-variants-admit). The plan proves two variants disjoint,
+admitting no value in common, by these rules, and a pair none of them separates can share one:
+
+- **Kinds.** Their JSON kinds have none in common. A variant's kinds are its type's: object for a
+  model or a map, array for a list, a tuple or a `Positional` model, its wire kind for a primitive,
+  its values' for an enum or a literal, its variants' for a union, its root's for a scalar, its
+  base's for a model that only stands over one, and every kind for `any`. A nullable reference adds
+  `null`, and an integer is a number too. A variant's own `null` is the union's
+  ([unions](../refine/unions.md#a-null-a-variant-admits)), so the rules leave it out, and a variant
+  admitting only `null` takes no part.
+- **Values.** Each admits finitely many values, as a closed enum, a literal or a union of them does,
+  and no value is in both, compared as JSON values.
+- **Members.** Both are models laid out by name, read through `Flattened`, and one requires a member
+  the other either does not declare and is closed, or declares at a position disjoint from it by
+  these rules. A pair already being compared counts as sharing, so a cycle of models ends the walk.
+
+The rules are sound, not complete. A pair they leave sharing may still admit no common value, as a
+`date` and a `uuid` string do, and is then inclusive: it holds every value correctly, though more
+loosely than a closed sum would. `Constraints` take no part, since admitting a value leaves them to
+validation, so two variants that differ only in a bound do share values.
+
+On the golden spec (spec @319dc756, morphic @b206dc99), 515 unions are untagged, not exclusive, and
+have two or more variants. These rules prove 419 of them disjoint, and those lower as a closed sum.
+Of the 96 left, 72 have two variants that both admit an object, such as the 16 identity providers
+an Access listing returns. Each refines one base whose `type` enum lists all 16, and each `config`
+is open with no required member, so nothing separates them: one provider's value is admitted by
+every other whose `config` declares none of its members at another type.
 
 ## ModelShape — visibility projection
 

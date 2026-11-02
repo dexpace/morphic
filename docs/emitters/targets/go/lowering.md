@@ -17,7 +17,7 @@ Go's normative lowering of each construct of the [lowering table](../../refine/l
 | anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations ([decorators](../../refine/decorators.md)) | no declaration: each reference lowered as one to the first type along its `Base` that is not a decorator, its docs, deprecation and examples folded onto the carrier |
 | `Model` whose `Base` is no model, not a decorator | with no property, catch-all or discriminator of its own, lowered as the `Scalar` row lowers an alias over that base, its constraints, docs and examples binding the position ([scalars](../../../ir/scalars.md)); a union base beside properties distributed over the variants as [models](../../../ir/models.md#composition-beside-a-union) distributes a union co-declared with a composition; anything else a diagnosed degrade |
 | `AdditionalProps` / `Additional` | catch-all `map` as the embedded fallback; `closed`→`RejectUnknownMembers(true)`, pinned per model ([`User`](models.md#user-in-go)) |
-| `Union` (four wire shapes, [unions](../../refine/unions.md#the-wire-shapes)) | a struct holding a sealed interface + marker + a wrapper per variant + a tag-dispatch (de)serializer on the struct; `Open` → an `Unknown` fallback |
+| `Union` (four wire shapes, [unions](../../refine/unions.md#the-wire-shapes)) | a struct holding a sealed interface + marker + a wrapper per variant + a tag-dispatch (de)serializer on the struct; `Open` → an `Unknown` fallback; an inclusive `anyOf` → a struct with a pointer per variant ([unions](unions.md#an-inclusive-union)) |
 | `Enum` open/closed/flags | consts named by enum then member (`StatusActive`, [enums](types.md#enums)): closed→typed consts; open→string+consts+`Unknown`; flags→bitset; `FallbackMember` on decode |
 | `List`/`MapT`/`Tuple` | `[]T`/`map[K]V`/positional struct (optional past `MinItems`, `Rest`→trailing slice); `List.Encoding`→serializer mode |
 | `Literal` | typed constant (incl. `symbol`) |
@@ -51,7 +51,7 @@ lowers to in Go.
 | `ProjectVisibilityShapes` | `User` / `UserCreate` / `UserPatch` structs |
 | `LowerOptionality` | the four+ states → `T` / `*T` / `Opt[T]`/`Nil[T]`/`OptNil[T]` / `omitzero` + presence bit; a reference on a cycle the target holds by value held through a pointer ([recursive references](models.md#recursive-references)) |
 | `LowerConstraints` | field-level `validate` tags + a refine-built `Validate()` method structure |
-| `LowerUnions` | a struct holding a sealed interface + marker method + a wrapper per variant or subtype + a fallback on an open one |
+| `LowerUnions` | a struct holding a sealed interface + marker method + a wrapper per variant or subtype + a fallback on an open one; on an inclusive union, a struct with a pointer per variant |
 | `LowerDiscriminator` | tag-dispatched `UnmarshalJSONFrom` on the union's struct + typed factories |
 | `LowerOpenEnums` | closed → typed consts; open → `string`+consts+`Unknown(raw)`; flags → bitset |
 | `ExtractInterfaces` | Go interfaces / client interfaces for testability |
