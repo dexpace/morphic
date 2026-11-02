@@ -4,11 +4,15 @@
 package merge
 
 import (
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -125,23 +129,39 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"url no colon", ir.PrimURL, str("abc"), false},
 		{"url scheme only", ir.PrimURL, str("a:"), true},
 		{"url bad scheme byte", ir.PrimURL, str("a_b:c"), false},
-		{"time comma fraction", ir.PrimTime, str("23:59:59,5Z"), false},
-		{"time dot fraction", ir.PrimTime, str("23:59:59.5Z"), true},
-		{"time empty fraction", ir.PrimTime, str("23:59:59.Z"), false},
-		{"time offset hour 24", ir.PrimTime, str("23:59:59+24:00"), false},
-		{"time offset minute 60", ir.PrimTime, str("23:59:59+05:60"), false},
-		{"time offset max", ir.PrimTime, str("23:59:59-23:59"), true},
-		{"time offset bad digit", ir.PrimTime, str("23:59:59+0a:00"), false},
-		{"time offset bad sign", ir.PrimTime, str("23:59:59*05:00"), false},
-		{"time offset no colon", ir.PrimTime, str("23:59:59+0500"), false},
-		{"time lower case z", ir.PrimTime, str("23:59:59z"), true},
+		{"time comma fraction", ir.PrimTime, str("23:59:59,5"), false},
+		{"time dot fraction", ir.PrimTime, str("23:59:59.5"), true},
+		{"time empty fraction", ir.PrimTime, str("23:59:59."), false},
+		{"time with a Z offset", ir.PrimTime, str("23:59:59Z"), false},
+		{"time with a numeric offset", ir.PrimTime, str("23:59:59.5+01:00"), false},
 		{"time short", ir.PrimTime, str("23:59"), false},
-		{"time bad separator", ir.PrimTime, str("23-59:59Z"), false},
-		{"time bad digit", ir.PrimTime, str("2a:59:59Z"), false},
-		{"time leap second", ir.PrimTime, str("23:59:60Z"), true},
-		{"time leap second behind utc", ir.PrimTime, str("15:59:60-08:00"), true},
-		{"time leap second wrong minute", ir.PrimTime, str("23:58:60Z"), false},
-		{"time second 61", ir.PrimTime, str("23:59:61Z"), false},
+		{"time bad separator", ir.PrimTime, str("23-59:59"), false},
+		{"time bad digit", ir.PrimTime, str("2a:59:59"), false},
+		{"time hour 24", ir.PrimTime, str("24:00:00"), false},
+		{"time minute 60", ir.PrimTime, str("23:60:00"), false},
+		{"time leap second at any minute", ir.PrimTime, str("12:34:60"), true},
+		{"time second 61", ir.PrimTime, str("23:59:61"), false},
+		{"time number", ir.PrimTime, num("1"), false},
+		{"datetime", ir.PrimDatetime, str("2024-02-29T23:59:59"), true},
+		{"datetime dot fraction", ir.PrimDatetime, str("2024-02-29T23:59:59.5"), true},
+		{"datetime lower case t", ir.PrimDatetime, str("2024-02-29t23:59:59"), true},
+		{"datetime with a Z offset", ir.PrimDatetime, str("2024-02-29T23:59:59Z"), false},
+		{"datetime with a numeric offset", ir.PrimDatetime, str("2024-02-29T23:59:59+01:00"), false},
+		{"datetime space separator", ir.PrimDatetime, str("2024-01-01 00:00:00"), false},
+		{"datetime short", ir.PrimDatetime, str("2024-01-01"), false},
+		{"datetime bad calendar", ir.PrimDatetime, str("2023-02-29T00:00:00"), false},
+		{"datetime hour 24", ir.PrimDatetime, str("2024-01-01T24:00:00"), false},
+		{"datetime leap second at any minute", ir.PrimDatetime, str("2024-01-01T05:29:60"), true},
+		{"datetime second 61", ir.PrimDatetime, str("2016-12-31T23:59:61"), false},
+		{"datetime number", ir.PrimDatetime, num("1"), false},
+		{"datetime offset max", ir.PrimDatetimeOffset, str("2024-01-01T23:59:59-23:59"), true},
+		{"datetime offset bad digit", ir.PrimDatetimeOffset, str("2024-01-01T23:59:59+0a:00"), false},
+		{"datetime offset bad sign", ir.PrimDatetimeOffset, str("2024-01-01T23:59:59*05:00"), false},
+		{"datetime offset no colon", ir.PrimDatetimeOffset, str("2024-01-01T23:59:59+0500"), false},
+		{"datetime offset empty fraction", ir.PrimDatetimeOffset, str("2024-01-01T23:59:59.Z"), false},
+		{"datetime offset leap second behind utc", ir.PrimDatetimeOffset, str("2016-12-31T15:59:60-08:00"), true},
+		{"datetime offset leap second wrong minute", ir.PrimDatetimeOffset, str("2016-12-31T23:58:60Z"), false},
+		{"datetime offset second 61", ir.PrimDatetimeOffset, str("2016-12-31T23:59:61Z"), false},
 		{"datetime offset leap second", ir.PrimDatetimeOffset, str("2016-12-31T23:59:60Z"), true},
 		{"datetime offset leap second wrong hour", ir.PrimDatetimeOffset, str("2016-12-31T22:59:60Z"), false},
 		{"datetime offset comma fraction", ir.PrimDatetimeOffset, str("2024-01-01T00:00:00,5Z"), false},
@@ -160,9 +180,7 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"date", ir.PrimDate, str("2024-02-29"), true},
 		{"date invalid calendar", ir.PrimDate, str("2023-02-29"), false},
 		{"date short", ir.PrimDate, str("2024-2-9"), false},
-		{"time", ir.PrimTime, str("23:59:59Z"), true},
-		{"time fraction offset", ir.PrimTime, str("23:59:59.5+01:00"), true},
-		{"time no offset", ir.PrimTime, str("23:59:59"), false},
+		{"time", ir.PrimTime, str("23:59:59"), true},
 		{"datetime offset", ir.PrimDatetimeOffset, str("2024-02-29T23:59:59Z"), true},
 		{"datetime offset none", ir.PrimDatetimeOffset, str("2024-02-29T23:59:59"), false},
 		{"datetime offset hour", ir.PrimDatetimeOffset, str("2024-02-29T24:00:00Z"), false},
@@ -195,12 +213,99 @@ func TestAdmits_JudgesEachKindExactly(t *testing.T) {
 		{"duration date after time", ir.PrimDuration, str("PT1H1D"), false},
 		{"date number", ir.PrimDate, num("1"), false},
 		{"bytes", ir.PrimBytes, ir.Value{Kind: ir.ValueBytes, Bytes: []byte("x")}, false},
-		{"datetime", ir.PrimDatetime, str("2024-02-29T23:59:59Z"), false},
 		{"any", ir.PrimAny, ir.Value{Kind: ir.ValueObject}, true},
 		{"list against integer", ir.PrimInteger, ir.Value{Kind: ir.ValueList, List: []ir.Value{num("1")}}, false},
 		{"unknown kind", ir.PrimKind("nope"), str("x"), false},
 	} {
 		assert.Equal(t, tc.want, Admits(tc.kind, tc.v), "%s: %s of %v", tc.name, tc.kind, tc.v)
+	}
+}
+
+// TestAdmitsFormat_JudgesTimeAsAFullTime pins the boundary of the one format
+// judged by name: time, RFC 3339's full-time, which carries the offset the time
+// kind refuses. Any other name, a table format's among them, is held by
+// nothing, and time is held only while the table pairs it with no kind.
+func TestAdmitsFormat_JudgesTimeAsAFullTime(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name         string
+		format       string
+		v            ir.Value
+		admits, held bool
+	}{
+		{"a Z offset", "time", str("23:59:59Z"), true, true},
+		{"a fraction and a numeric offset", "time", str("23:59:59.5+01:00"), true, true},
+		{"a lower case z", "time", str("23:59:59z"), true, true},
+		{"the widest offset", "time", str("23:59:59-23:59"), true, true},
+		{"no offset", "time", str("23:59:59"), false, true},
+		{"a date before it", "time", str("2024-01-01T23:59:59Z"), false, true},
+		{"a comma fraction", "time", str("23:59:59,5Z"), false, true},
+		{"an empty fraction", "time", str("23:59:59.Z"), false, true},
+		{"an offset hour of 24", "time", str("23:59:59+24:00"), false, true},
+		{"an offset minute of 60", "time", str("23:59:59+05:60"), false, true},
+		{"an offset with no colon", "time", str("23:59:59+0500"), false, true},
+		{"an hour of 24", "time", str("24:00:00Z"), false, true},
+		{"a leap second", "time", str("23:59:60Z"), true, true},
+		{"a leap second behind UTC", "time", str("15:59:60-08:00"), true, true},
+		{"a leap second at the wrong minute", "time", str("23:58:60Z"), false, true},
+		{"a second of 61", "time", str("23:59:61Z"), false, true},
+		{"a number", "time", num("1"), false, true},
+		{"a symbol spelling one", "time", ir.Value{Kind: ir.ValueSymbol, Str: "23:59:59Z"}, false, true},
+		{"a table format", "date-time", str("2024-01-01T23:59:59Z"), false, false},
+		{"a format with no grammar here", "email", str("a@b.c"), false, false},
+		{"time in another case", "Time", str("23:59:59Z"), false, false},
+	} {
+		admits, held := admitsFormat(tc.format, tc.v)
+		assert.Equal(t, tc.admits, admits, "%s: %s of %v", tc.name, tc.format, tc.v)
+		assert.Equal(t, tc.held, held, "%s: whether %s is held", tc.name, tc.format)
+	}
+	_, paired := spelling.Lookup("string/time")
+	assert.False(t, paired, "a held format the table pairs with a kind would have two judges")
+}
+
+// TestAdmitsFormat_SharesNoStringWithAKind pins what formatAgainst assumes:
+// no value of a string-format kind is a time, and no time is a value of one.
+// Each sample is a value of the kind or format it is listed under, so a kind
+// that comes to admit a time, or a time that a kind admits, fails here, and so
+// does a string-format kind ir declares with no sample listed.
+func TestAdmitsFormat_SharesNoStringWithAKind(t *testing.T) {
+	t.Parallel()
+	times := []string{"23:59:59Z", "23:59:59.5+01:00", "15:59:60-08:00", "00:00:00z"}
+	samples := map[ir.PrimKind][]string{
+		ir.PrimDate:           {"2024-02-29"},
+		ir.PrimTime:           {"23:59:59", "23:59:60.5"},
+		ir.PrimDatetime:       {"2024-02-29T23:59:59", "2024-02-29t23:59:59.5"},
+		ir.PrimDatetimeOffset: {"2024-02-29T23:59:59Z", "2016-12-31T23:59:60Z"},
+		ir.PrimDuration:       {"P1D", "PT12H"},
+		ir.PrimUUID:           {"00000000-0000-0000-0000-000000000000"},
+		ir.PrimURL:            {"urn:t:23:59:59Z", "http://h/23:59:59Z"},
+	}
+	all := slices.Clone(times)
+	for k, ss := range samples {
+		for _, s := range ss {
+			require.True(t, Admits(k, str(s)), "%q is a value of %s", s, k)
+		}
+		all = append(all, ss...)
+	}
+	for _, s := range times {
+		admits, _ := admitsFormat("time", str(s))
+		require.True(t, admits, "%q is a time", s)
+	}
+
+	pkg, err := decls.Load("github.com/dexpace/morphic/ir")
+	require.NoError(t, err)
+	consts, err := pkg.StringConsts("PrimKind")
+	require.NoError(t, err)
+	for _, c := range consts {
+		k := ir.PrimKind(c.Value)
+		if k == ir.PrimBytes || spelling.Relate(k, ir.PrimString) != spelling.ANarrower {
+			continue
+		}
+		assert.NotEmpty(t, samples[k], "%s refines string and has no sample", k)
+		for _, s := range all {
+			inTime, _ := admitsFormat("time", str(s))
+			assert.False(t, inTime && Admits(k, str(s)), "%q is both a time and a value of %s", s, k)
+		}
 	}
 }
 

@@ -4,6 +4,7 @@
 package archtest_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,8 +30,13 @@ const (
 // retiredTest is this file, whose strings plant the form it refuses.
 const retiredTest = "internal/archtest/irdocs_test.go"
 
+// retiredStem is in every retired name and in few files, so a file without it
+// is passed over: retiredCitation has no literal prefix to search for, and tries
+// every byte of what it reads.
+const retiredStem = "-design"
+
 // retiredCitation is a design tree's name from when it was a single page.
-var retiredCitation = regexp.MustCompile(`(?:ir|emitter)-design`)
+var retiredCitation = regexp.MustCompile(`(?:ir|emitter)` + retiredStem)
 
 // TestIRDocs_RootMapsEveryDocument fails on a document under the tree that its
 // README's map does not link, so the map stays the way in to every document.
@@ -68,6 +74,9 @@ func retiredCitations(root string) ([]string, error) {
 		text, err := os.ReadFile(path)
 		if err != nil {
 			return err
+		}
+		if !bytes.Contains(text, []byte(retiredStem)) {
+			return nil
 		}
 		for _, m := range retiredCitation.FindAllIndex(text, -1) {
 			line := 1 + strings.Count(string(text[:m[0]]), "\n")

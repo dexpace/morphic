@@ -64,11 +64,11 @@ type Ctx struct {
 	// copy would share, as with the other maps here.
 	streaming map[string]bool
 
-	// promotions is the vendor-extension promotion policy, normalized into the
-	// map PromoteDeprecation reads, and nil when the caller disabled it.
-	//
-	// Unexported for the reason streaming is: it holds a map.
-	promotions map[string]ExtensionTarget
+	// promoter is the vendor-extension promotion policy, normalized, and read
+	// through Promoter. It is unexported for the reason streaming is: it holds a
+	// map. It sits behind one pointer for the reason loaded does: RefScope copies
+	// the whole context into a closure.
+	promoter *Promoter
 
 	// schemas is the set of component-schema names the document declares.
 	//
@@ -149,6 +149,9 @@ type Ctx struct {
 // in RefScope would allocate each time.
 type loadResult struct {
 	siblings load.Siblings
+	// media is each components/mediaTypes entry and each content entry written
+	// as a $ref, modelled and resolved with the document (MediaTypeUse).
+	media load.MediaTypes
 	// names names the nodes built at the positions of the documents the
 	// bindings read, remembering each name (NameAt).
 	names *naming.Namer
@@ -188,7 +191,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		Limits:           limits,
 		schemas:          declaredSchemaNames(doc),
 		streaming:        streamingSet(streaming),
-		promotions:       promotionSet(promotions),
+		promoter:         newPromoter(promotions),
 		NullableWidening: nullable,
 		overlay:          origin,
 
@@ -197,6 +200,15 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		reached:       resolve.NewReached(),
 		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
 	}
+}
+
+// Promoter returns the vendor-extension promotion policy this context carries,
+// which a zero context reads as disabled.
+func (c Ctx) Promoter() Promoter {
+	if c.promoter == nil {
+		return Promoter{}
+	}
+	return *c.promoter
 }
 
 // Reached reports whether a lowering run under this context, or any copy of it,
@@ -236,7 +248,8 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, others: doc.Others, names: naming.New(doc.Bindings.Table()),
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others,
+		names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}}
 	c.typePositions = map[scopedPosition]bind.Position{}
@@ -278,6 +291,16 @@ func (c Ctx) Siblings() load.Siblings {
 		return load.Siblings{}
 	}
 	return c.loaded.siblings
+}
+
+// MediaTypeUse returns the model the load phase built of media, a content
+// entry, and whether media is written as a $ref (load.MediaTypes.Use). In a
+// context given no load result, one written so has no model.
+func (c Ctx) MediaTypeUse(media *soa.MediaType) (*resolve.ReferencedMediaType, bool) {
+	if c.loaded == nil {
+		return load.MediaTypes{}.Use(media)
+	}
+	return c.loaded.media.Use(media)
 }
 
 // Within returns c for lowering what the entry ref resolves to, in the scope

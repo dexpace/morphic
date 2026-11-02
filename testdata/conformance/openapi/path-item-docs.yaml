@@ -31,6 +31,11 @@ paths:
       responses:
         "201":
           description: created
+  /archive:
+    # A path item that mounts no operation keeps its pair too, on the service
+    # beside what else it writes, under a key holding its own pointer.
+    summary: Pet archive
+    description: Reserved for archived pets; nothing is served here yet.
 webhooks:
   petDeleted:
     # And so does a webhook path item.

@@ -48,11 +48,11 @@ func TestFold_AKeywordNoOneValueStatesIsKeptAndReported(t *testing.T) {
 		"and so is the discarded one")
 }
 
-// TestResolvePrimKind_EnumResolvesThroughItsValueType pins the enum case of the
+// TestKindOf_EnumResolvesThroughItsValueType pins the enum case of the
 // resolution walk. An enum member can itself be a scalar of the kind being
 // redeclared, so it must answer with its value type rather than staying
 // unresolved and falling through to the structural comparison.
-func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
+func TestKindOf_EnumResolvesThroughItsValueType(t *testing.T) {
 	t.Parallel()
 	g, _ := stubMerger(map[ir.TypeID]ir.TypeDef{
 		"t/enum": &ir.Enum{ID: "t/enum", ValueType: ir.PrimString},
@@ -62,13 +62,15 @@ func TestResolvePrimKind_EnumResolvesThroughItsValueType(t *testing.T) {
 		},
 	})
 
-	kind, ok := judge(g).primKind(ir.TypeRef{Target: "t/enum"})
+	kind, ok := judge(g).kindOf(ir.TypeRef{Target: "t/enum"})
 	require.True(t, ok)
-	assert.Equal(t, ir.PrimString, kind)
+	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Empty(t, kind.format)
 
-	kind, ok = judge(g).primKind(ir.TypeRef{Target: "t/alias"})
+	kind, ok = judge(g).kindOf(ir.TypeRef{Target: "t/alias"})
 	require.True(t, ok, "a scalar's Base chain is followed to the enum behind it")
-	assert.Equal(t, ir.PrimString, kind)
+	assert.Equal(t, ir.PrimString, kind.prim)
+	assert.Empty(t, kind.format)
 }
 
 // TestFold_ALosingDetailIsKeptAndReported sweeps the fold's
@@ -183,7 +185,7 @@ func narrowingRegistry() map[ir.TypeID]ir.TypeDef {
 	for _, k := range []ir.PrimKind{
 		ir.PrimNumber, ir.PrimInteger, ir.PrimInt32, ir.PrimInt64, ir.PrimString, ir.PrimDatetimeOffset,
 		ir.PrimURL, ir.PrimFloat64, ir.PrimUUID, ir.PrimUint32, ir.PrimBytes,
-		ir.PrimUint8, ir.PrimInt16, ir.PrimAny, ir.PrimBool, ir.PrimFloat32, ir.PrimTime,
+		ir.PrimUint8, ir.PrimInt16, ir.PrimAny, ir.PrimBool, ir.PrimFloat32, ir.PrimTime, ir.PrimDatetime,
 	} {
 		id := ir.TypeID("t/prim/" + string(k))
 		reg[id] = &ir.Primitive{ID: id, Prim: k}
@@ -205,7 +207,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 	t.Parallel()
 	const broadPtr, narrowPtr = "/allOf/0/properties/p", "/allOf/1/properties/p"
 	half, big, hello := num("1.5"), num("5000000000"), str("hello")
-	badURL, commaTime, offsetDate := str("mailto:a b"), str("23:59:59,5Z"), str("2024-01-01T00:00:00+24:00")
+	badURL, commaTime, offsetDate := str("mailto:a b"), str("23:59:59,5"), str("2024-01-01T00:00:00+24:00")
 	null := ir.Value{Kind: ir.ValueNull}
 	for _, tc := range []struct {
 		name          string
@@ -225,7 +227,7 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 			func(p *ir.Property) { p.Default = &badURL }, "default", `{"type":"string","default":"mailto:a b"}`},
 		{"comma fraction time example", ir.PrimString, ir.PrimTime,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &commaTime}} }, "examples",
-			`{"type":"string","examples":["23:59:59,5Z"]}`},
+			`{"type":"string","examples":["23:59:59,5"]}`},
 		{"offset hour 24 date time example", ir.PrimString, ir.PrimDatetimeOffset,
 			func(p *ir.Property) { p.Examples = []ir.Example{{Value: &offsetDate}} }, "examples",
 			`{"type":"string","examples":["2024-01-01T00:00:00+24:00"]}`},
@@ -249,8 +251,8 @@ func TestFold_AnInadmissibleValueIsKeptNotAdopted(t *testing.T) {
 				firstSrc, secondSrc = unread(t), written(tc.raw)
 				first.Provenance, second.Provenance = ptrAt(narrowPtr), ptrAt(broadPtr)
 			}
-			idx.MergeProperty(first, firstSrc)
-			idx.MergeProperty(second, secondSrc)
+			idx.MergeProperty(first, firstSrc, "")
+			idx.MergeProperty(second, secondSrc, "")
 			settle()
 
 			require.Len(t, m.Properties, 1, "%s", tc.name)
@@ -392,7 +394,7 @@ func mergeDecls(t *testing.T, decls ...decl) (ir.Property, []ir.Diagnostic) {
 		for i := range d.examples {
 			p.Examples = append(p.Examples, ir.Example{Value: &d.examples[i]})
 		}
-		idx.MergeProperty(p, written(d.raw))
+		idx.MergeProperty(p, written(d.raw), "")
 	}
 	settle()
 	require.Len(t, m.Properties, 1)
