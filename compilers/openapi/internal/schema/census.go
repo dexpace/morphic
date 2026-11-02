@@ -181,8 +181,11 @@ func literalTyped(lit *ir.Literal, s *oas3.Schema) bool {
 		return types[0] == oas3.SchemaTypeObject
 	case ir.ValueList:
 		return types[0] == oas3.SchemaTypeArray
-	default:
+	case ir.ValueNull, ir.ValueBool, ir.ValueNumber, ir.ValueString, ir.ValueBytes,
+		ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor, ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
 		// A scalar value is typed by its ValueType, read below.
+	default:
+		return false
 	}
 	if prim, paired := formatPrimitive(s); paired && prim == lit.ValueType {
 		return true
