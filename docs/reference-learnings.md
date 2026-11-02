@@ -178,8 +178,9 @@ touches some slice of it:
   if its content starts with the auto-generated header*, else preserve + report as hand-edited;
   **skip pruning entirely on first adoption**. Adopt this schema directly. Morphic's one improvement
   (already specced): key the entity→symbol map by **IR stable ID**, not oagen's `"METHOD /path"`
-  string, so it survives a rename of anything the ID is not built from, and record a correlation
-  key (#679) beside it for a path or name rename. Record `service` per op (oagen needs it for scoped
+  string, so it survives a rename of anything the ID is not built from, and record a [correlation
+  key](./ir/derived-facts.md#correlation-keys) beside it for a rename of what the ID is built
+  from. Record `service` per op (oagen needs it for scoped
   runs).
 - **Scoped regeneration NEVER filters the spec** (oagen `orchestrator.ts:37`, `generate-files.ts:44`;
   fastapi `--specify-tags`; openapi-python full-rmtree). Placement/dedup/shared-files/barrels are

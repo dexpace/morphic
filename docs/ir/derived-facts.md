@@ -144,4 +144,15 @@ nothing through it, because a wrong match is the failure the key exists to preve
 no key is matched by nothing, so a consumer reads it as removed in one revision and added in the
 other. The key is derived and never stored, as every fact here is: it needs only what the document
 already holds, and a stored copy would add to every node a document that is already several times
-its source ([consumers](./consumers.md#size)). Not built yet (#679).
+its source ([consumers](./consumers.md#size)).
+
+On the golden spec (spec @319dc756, compiled by morphic @b206dc99), every operation, parameter,
+group, server and auth scheme has a key, as do 37,971 of its 41,697 types, 47,367 of 49,390
+properties and 29,633 of 32,291 enum members. All but two of the entities without one lie beneath a
+union variant nothing in the document names, untagged or a discriminator maps no tag to; the two are
+anonymous models one model composes in place. Against the spec's revision b7e65ddd, 41 entities
+whose IDs moved are matched by their keys, and one ID stays while naming another entity:
+`t/anon/paths/~1organizations~1{organization_id}~1accounts/get/parameters/10/schema` is the
+`direction` parameter's schema at b7e65ddd and the `status` parameter's at 319dc756, and their keys
+tell them apart. Deriving every key of the golden spec takes about 200 ms, against a compile of
+about 8 s.

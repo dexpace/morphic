@@ -44,8 +44,8 @@ and the differ/compat/verify subsystems added since the original survey).
   symbol map), file-header provenance that gates pruning (never delete a file lacking the
   generated-by header), ignore-region markers for hand-written islands, and additive-only
   AST merges. Manifests should key entities by stable ID — oagen's `"METHOD /path"` keys break
-  on path renames. So do pointer-derived IDs, which is why a correlation key is planned beside
-  them (#679).
+  on path renames. So do pointer-derived IDs, which is why a [correlation
+  key](./ir/derived-facts.md#correlation-keys) is derived beside them.
 - **Wire-conformance smoke testing with a spec-only offline baseline** — the expected request
   shape (method, path, query, body keys) is derived from the spec alone and diffed against the
   generated SDK running under HTTP interception; request-side mismatches block, response-side
