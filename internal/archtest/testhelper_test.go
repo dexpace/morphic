@@ -691,7 +691,7 @@ func (ft fileTypes) testingParams(fn *ast.FuncDecl) []string {
 // over the testing types, in the constraint or in an interface it names, as
 // in [T ~*testing.B], [T *testing.T | ptr] or [T tc] with
 // type tc interface{ ~*testing.T }, though such a parameter can fail through
-// (*t).Fatal.
+// (*t).Fatal (#1360).
 func (ft fileTypes) typeParams(fn *ast.FuncDecl) map[string]bool {
 	if fn.Type.TypeParams == nil {
 		return nil
