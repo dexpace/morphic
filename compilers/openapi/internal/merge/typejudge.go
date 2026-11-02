@@ -559,13 +559,14 @@ func (j typeJudge) enumMisses(ref ir.TypeRef, kind ir.PrimKind, nullable bool) b
 	return ok && isEnum && noMemberMeets(en, kind, nullable)
 }
 
-// extras is what a list, map or tuple node holds beyond its members.
+// extras is what a list, map or tuple node holds beyond its members: its bounds,
+// its encoding, and its TypeCommon but where it was declared (siteless), so a
+// node kept for two loses nothing either holds, a deprecation or XML hints among
+// it, as sameNode compares a Scalar.
 type extras struct {
 	Constraints *ir.Constraints
 	Encoding    *ir.Encoding
-	Docs        ir.Docs
-	Examples    []ir.Example
-	Unmodeled   ir.Unmodeled
+	Common      ir.TypeCommon
 }
 
 // boundedNodes compares two nodes of a kind that holds bounds: two Scalars alike
@@ -587,15 +588,15 @@ func (j typeJudge) boundedNodes(at, bt ir.TypeDef, depth int) relation {
 		if !ok {
 			return relUnrelated
 		}
-		return j.contained(a.Elem, b.Elem, extras{a.Constraints, a.Encoding, a.Docs, a.Examples, a.Unmodeled},
-			extras{b.Constraints, b.Encoding, b.Docs, b.Examples, b.Unmodeled}, depth)
+		return j.contained(a.Elem, b.Elem, extras{a.Constraints, a.Encoding, siteless(a.TypeCommon)},
+			extras{b.Constraints, b.Encoding, siteless(b.TypeCommon)}, depth)
 	case *ir.MapT:
 		b, ok := bt.(*ir.MapT)
 		if !ok || !reflect.DeepEqual(a.Key, b.Key) {
 			return relUnrelated
 		}
-		return j.contained(a.Value, b.Value, extras{a.Constraints, nil, a.Docs, a.Examples, a.Unmodeled},
-			extras{b.Constraints, nil, b.Docs, b.Examples, b.Unmodeled}, depth)
+		return j.contained(a.Value, b.Value, extras{a.Constraints, nil, siteless(a.TypeCommon)},
+			extras{b.Constraints, nil, siteless(b.TypeCommon)}, depth)
 	case *ir.Tuple:
 		b, ok := bt.(*ir.Tuple)
 		if !ok || depth > 0 {
@@ -618,8 +619,8 @@ func (j typeJudge) tuples(a, b *ir.Tuple, depth int) relation {
 	if a.Rest != nil && !same(*a.Rest, *b.Rest) {
 		return relUnrelated
 	}
-	return detailRelation(extras{a.Constraints, nil, a.Docs, a.Examples, a.Unmodeled},
-		extras{b.Constraints, nil, b.Docs, b.Examples, b.Unmodeled})
+	return detailRelation(extras{a.Constraints, nil, siteless(a.TypeCommon)},
+		extras{b.Constraints, nil, siteless(b.TypeCommon)})
 }
 
 // contained is the verdict on two containers whose members are ae and be. A

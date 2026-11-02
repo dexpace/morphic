@@ -131,6 +131,40 @@ func TestAllOf_ANodesBoundsReachTheFieldInEitherOrder(t *testing.T) {
 	}
 }
 
+// TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder pins nodes alike in
+// their members whose declarations differ in bounds and in a fact a node holds
+// beside them, a deprecation or XML hints. Neither node says all the other does,
+// so the second declaration is reported and kept, whichever writes the fact: a
+// node minted from the first, or the narrower one kept alone, would drop it.
+func TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder(t *testing.T) {
+	t.Parallel()
+	list := func(extra string) string { return "{type: array, items: {type: string}" + extra + "}" }
+	mapOf := func(extra string) string { return "{type: object, additionalProperties: {type: string}" + extra + "}" }
+	tuple := func(extra string) string { return "{type: array, prefixItems: [{type: string}]" + extra + "}" }
+	custom := func(extra string) string { return "{type: string, format: x-custom" + extra + "}" }
+	for _, tc := range []struct{ name, a, b string }{
+		{"two lists meeting, one deprecated", list(", minItems: 1, deprecated: true"), list(", maxItems: 5")},
+		{"two lists meeting, one with XML hints", list(", minItems: 1, xml: {wrapped: true}"), list(", maxItems: 5")},
+		{"a narrower list and a broader one deprecated", list(", minItems: 1, maxItems: 5"), list(", minItems: 1, deprecated: true")},
+		{"two maps meeting, one deprecated", mapOf(", minProperties: 1, deprecated: true"), mapOf(", maxProperties: 5")},
+		{"two tuples meeting, one deprecated", tuple(", minItems: 1, deprecated: true"), tuple(", maxItems: 5")},
+		{"two scalars meeting, one deprecated", custom(", minLength: 1, deprecated: true"), custom(", maxLength: 5")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, order := range [][2]string{{tc.a, tc.b}, {tc.b, tc.a}} {
+				p, _, diags := redeclared(t, order[0], order[1])
+
+				assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/allOf/0/properties/v"), p.Type.Target)
+				assert.Contains(t, p.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v")
+				require.Len(t, diags, 1)
+				assert.Equal(t, diag.DegradedConstruct, diags[0].Code)
+				assert.Equal(t, "/components/schemas/T/allOf/1/properties/v", string(diags[0].Provenance.Pointer))
+			}
+		})
+	}
+}
+
 // TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder pins a default
 // against a bound another declaration wrote on the property, which lowers as the
 // same bound on a node does: not adopted, reported, and the declaration kept. A

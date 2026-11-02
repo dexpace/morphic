@@ -1097,20 +1097,20 @@ same declaration written twice; a node declared elsewhere, a component or a sche
 in this document or another, wins over an inline copy of itself in either order, and two such nodes
 are two types the source declared apart, which overlap. Two lists, or two maps with one key, compare
 by element or value, nested up to a bound, and the narrower one wins only where it admits null no
-more widely than the other, its bounds say all the other's do, and the other holds no encoding,
-documentation, examples or `Unmodeled` the winner lacks; disjoint members still overlap where both
-admit null, or where both containers admit the empty one. Two tuples compare position by position,
-and relate only where every position, and what may follow the last, is one type; a tuple that a
+more widely than the other, its bounds say all the other's do, and the other holds nothing else the
+winner lacks, read as two `Scalar`s are but where each was declared: no encoding, documentation,
+examples, deprecation, XML hints or `Unmodeled`. Disjoint members still overlap where both admit
+null, or where both containers admit the empty one. Two tuples compare position by position, and
+relate only where every position, and what may follow the last, is one type; a tuple that a
 container or another tuple holds is not compared, since a tuple has a member per position where any
 other node has one, and comparing them nested would cost its width to the power of the depth. Two
 lists, maps or tuples alike in every member and in that detail are judged as two equal enums are:
 one type where both were written inline, the one declared elsewhere winning over an inline copy in
 either order, and two declared elsewhere overlapping. Two `Scalar`s, lists, maps or tuples alike in
-all but their
-bounds are judged by those bounds, wherever each was declared: the one whose bounds say all the
-other's do is narrower, and where neither does, or a keyword with no order differs, the two meet.
-Two that meet as a container's members overlap, since a fold builds a node for a field's own type
-and none for what it holds. A structure is narrower than
+all but their bounds are judged by those bounds, wherever each was declared: the one whose bounds
+say all the other's do is narrower, and where neither does, or a keyword with no order differs, the
+two meet. Two that meet as a container's members overlap, since a fold builds a node for a field's
+own type and none for what it holds. A structure is narrower than
 one it says it is: an alias than the type it stands for, and a model than what it composes through
 `Base` or `Mixins`, read through aliases, up to 64 types for one question. A model, a map or a
 `const` object is narrower than a model saying nothing but `type: object`, and two such models are
@@ -1373,6 +1373,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestTypeJudge_ATuplesPositionsCompareOnlyAtAFieldsOwnDepth`,
   `schema.TestAllOf_ABoundTakesItsTightestValueInEitherOrder`,
   `schema.TestAllOf_ANodesBoundsReachTheFieldInEitherOrder`,
+  `schema.TestAllOf_ANodeHoldingMoreThanBoundsIsKeptInEitherOrder`,
   `schema.TestAllOf_ADefaultABoundOnThePropertyRefusesIsKeptInEitherOrder`,
   `schema.TestAllOf_AFoldedDeclarationLeavesNoRecordOfItself`,
   `merge.TestFold_DeclarationsPastTheBoundAreKeptUnjudged`,
