@@ -31,7 +31,7 @@ const (
 	phaseMeasure  phase = "measure"  // the node budget
 	phaseJudge    phase = "judge"    // the rule table's judgment of the tree
 	phaseModel    phase = "model"    // the parser's model built, and its version read
-	phaseSiblings phase = "siblings" // the fields beside path item $refs modelled
+	phaseSiblings phase = "siblings" // the fields beside path item $refs, and the media types, modelled
 	phaseResolve  phase = "resolve"  // reference objects through the parser's resolver
 	phaseBind     phase = "bind"     // schema $refs bound in the compiler
 	phaseReach    phase = "reach"    // what references reach, validated
@@ -90,7 +90,9 @@ type loading struct {
 	doc   *soa.OpenAPI
 	minor string
 	sibs  Siblings
-	// sibFaults is what modelling the fields beside a path item $ref faulted on.
+	media MediaTypes
+	// sibFaults is what modelling the fields beside a path item $ref, or a
+	// components/mediaTypes entry, faulted on.
 	sibFaults []ir.Diagnostic
 	self      sourceDocument
 	reader    *external
@@ -182,9 +184,12 @@ func (l *loading) buildModel(ctx context.Context) (bool, error) {
 }
 
 // findSiblings models the fields the source writes beside its path items'
-// $refs.
+// $refs, and the components/mediaTypes entries it declares.
 func (l *loading) findSiblings(ctx context.Context) (bool, error) {
 	l.sibs, l.sibFaults = modelSiblings(ctx, l.doc, l.tree.locate)
+	var mediaFaults []ir.Diagnostic
+	l.media, mediaFaults = modelMediaTypes(ctx, l.doc, l.tree.locate)
+	l.sibFaults = append(l.sibFaults, mediaFaults...)
 	l.self = newSourceDocument(l.src.Path, l.src.Data, l.root, l.judged, l.tree, l.esc)
 	return false, nil
 }
@@ -194,15 +199,15 @@ func (l *loading) findSiblings(ctx context.Context) (bool, error) {
 // caller supplied one (resolveExternal). That reader can rebuild the model.
 func (l *loading) resolveRefs(ctx context.Context) (bool, error) {
 	if l.opts.Reader == nil {
-		l.pass = resolveWith(ctx, l.doc, l.sibs, l.self, l.opts, nil)
+		l.pass = resolveWith(ctx, l.doc, l.sibs, l.media, l.self, l.opts, nil)
 		return false, nil
 	}
-	doc, sibs, reader, pass, missed, err := resolveExternal(ctx, l.doc, l.sibs, l.self, l.opts,
+	doc, sibs, reader, pass, missed, err := resolveExternal(ctx, l.doc, l.sibs, l.media, l.self, l.opts,
 		l.opts.rebuilder(ctx, l.src.Data, l.root))
 	if err != nil {
 		return false, fmt.Errorf("openapi: rebuild source %d: %w", l.srcIndex, err)
 	}
-	l.doc, l.sibs, l.reader, l.pass, l.missed = doc, sibs, reader, pass, missed
+	l.doc, l.sibs, l.media, l.reader, l.pass, l.missed = doc, sibs, pass.media, reader, pass, missed
 	return false, nil
 }
 
@@ -211,7 +216,7 @@ func (l *loading) resolveRefs(ctx context.Context) (bool, error) {
 // where the binding places each document. The parser reads the $refs as the
 // trees were rewritten for it here, and up to restoreModels.
 func (l *loading) bindRefs(ctx context.Context) (bool, error) {
-	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.self, l.reader, l.pass.ends())
+	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.media, l.self, l.reader, l.pass.ends())
 	if l.reader != nil {
 		first := l.srcIndex + 1
 		if l.origin.Applied() {
@@ -227,14 +232,15 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 // reach validates what the references reach (validateReached), over the
 // document resolved, since a rebuild discards a first resolution's objects.
 func (l *loading) reach(ctx context.Context) (bool, error) {
-	l.reached = validateReached(ctx, l.at, l.bound, l.doc, l.sibs, l.opts, l.self, l.pass.elsewhere(l.placeSite))
+	l.reached = validateReached(ctx, l.at, l.bound, l.doc, l.sibs, l.media, l.opts, l.self,
+		l.pass.elsewhere(l.placeSite))
 	return false, nil
 }
 
 // restoreModels puts the models back as the source writes them, then reports
 // what binding found and the budgets the reads crossed.
 func (l *loading) restoreModels(ctx context.Context) (bool, error) {
-	site, err := l.self.escapes.restore(ctx, l.doc, l.sibs, l.bound.built)
+	site, err := l.self.escapes.restore(ctx, l.doc, l.sibs, l.media, l.bound.built)
 	place := l.bound.placer(l.at)
 	l.resolved = append(l.resolved, restoreFault(l.at, site, err)...)
 	l.resolved = append(l.resolved, bindingDiags(place, l.bound.bindings.Table())...)
@@ -248,7 +254,7 @@ func (l *loading) restoreModels(ctx context.Context) (bool, error) {
 
 // checkSource runs the source checks over the resolved source (sourceChecks).
 func (l *loading) checkSource(ctx context.Context) (bool, error) {
-	l.checked = sourceChecks(ctx, l.at, l.doc, l.sibs, l.resolved)
+	l.checked = sourceChecks(ctx, l.at, l.doc, l.sibs, l.media, l.resolved)
 	return false, nil
 }
 
@@ -274,8 +280,9 @@ func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 			Hash:    hash,
 			SelfURI: l.doc.GetSelf(),
 		},
-		Overlay:  l.origin,
-		Siblings: l.sibs,
-		Others:   l.bound.others,
+		Overlay:    l.origin,
+		Siblings:   l.sibs,
+		MediaTypes: l.media,
+		Others:     l.bound.others,
 	}, l.esc.asWritten(diags)
 }

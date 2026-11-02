@@ -120,7 +120,7 @@ func newExternal(ctx context.Context, doc *soa.OpenAPI, opts Options, read *exte
 // A reference object is held as itself only under the key an internal $ref
 // resolves against, when no $self rebases it: the resolver resolves it there as
 // the source does. Elsewhere a stand-in is held (see externalReads.mend).
-func (e external) hold(ctx context.Context, sibs Siblings) {
+func (e external) hold(ctx context.Context, sibs Siblings, media MediaTypes) {
 	if len(e.read.self.keys()) == 0 {
 		return
 	}
@@ -129,7 +129,7 @@ func (e external) hold(ctx context.Context, sibs Siblings) {
 		e.held.itself = e.read.self.path
 		base = e.read.self.path
 	}
-	e.holdWalked(walkSource(ctx, e.doc, sibs))
+	e.holdWalked(walkSource(ctx, e.doc, sibs, media))
 	e.holdSpellings(ctx, e.read.self.root, base)
 }
 
