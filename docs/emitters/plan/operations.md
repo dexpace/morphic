@@ -15,6 +15,8 @@ type OpPlan struct {
     Stream          *StreamPlan       // nil = neither direction streams (docs/ir/interaction-patterns.md)
     LRO             *LROPlan          // nil = not long-running
     Auth            []AuthOption      // OR-of-ANDs, priority-ordered (../operations/auth.md)
+    Effects         Effects           // what calling it may change: declared, else by method
+                                      // (policy.md)
     Bindings        BindingView       // per-protocol param/request/response view from OpBindings
     Inferred        map[string]ir.Provenance  // which fields above were heuristic (INV6)
 }
@@ -40,6 +42,12 @@ type LROPlan struct {                 // maps ir.LongRunning (docs/ir/interactio
     ResultPath *ir.PropPath           // where the final result lives in the terminal response
 }
 
+type Effects struct {
+    Safe       bool                   // asks for no change on the server (RFC 9110 §9.2.1)
+    Idempotent bool                   // a second call changes nothing the first did not
+                                      // (RFC 9110 §9.2.2); true of every safe operation
+}
+
 type AuthOption struct {              // one option in the OR-of-ANDs; slice order is PRIORITY order
     Schemes []ir.SchemeUse            // ALL must be satisfied together; empty = "no auth is acceptable"
 }
@@ -55,10 +63,12 @@ lowered late. The content ranking (`json > form > multipart > binary`) is a shar
 helper (resolves [open question 3](../../ir/open-questions.md)).
 
 Some facts oagen's plan carries are not here, by the [plan-or-refine test](plan-or-refine.md).
-Whether there is a body, whether the operation is one-way and its idempotency are stated by the IR,
-so a refiner reads them there: `Operation.Request`, `Operation.OneWay` and `Operation.Idempotency`,
-the last of which also names the idempotency-token parameter. And whether an operation's inputs are
-passed positionally or inside an options object differs by language, so it is each target's
+Whether there is a body and whether the operation is one-way are stated by the IR, so a refiner
+reads them there, `Operation.Request` and `Operation.OneWay`, as it reads the idempotency-token
+parameter `Operation.Idempotency` names. Whether the operation is safe or idempotent is `Effects`,
+since the IR states it for few operations and a method states it for most ([plan
+policy](policy.md#an-operations-effects-come-from-its-method)). And whether an operation's inputs
+are passed positionally or inside an options object differs by language, so it is each target's
 ([request shaping](../refine/requests.md)); the neutral facts it is decided from are already here —
 `BindingView` says where each input binds, and `Parameter.Required` and `Payload.Required` which are
 required — so moving the decision out added no field.
