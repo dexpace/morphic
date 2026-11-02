@@ -226,8 +226,23 @@ it sees. Changes made together in one bump are listed together under it.
   lowers to a reference had kept them verbatim under `Unmodeled`. No key changed. A consumer pinned
   to 0.25.0 that reads those entries no longer finds them, and a consumer that reads `ir.Decorated`
   finds such an alias is no longer a decorator, since it says something of the value.
-- **0.27.0** — `Content` gained `Docs`: a media type's own documentation, as against the body's
+- **0.27.0** — a stability tier and a parameter's redaction gained homes, and the OpenAPI compiler
+  reads more of a document's keys into fields it had:
+  - `Operation` and `OperationGroup` gained `Stability`, a closed `alpha | beta | stable`, empty
+    where a source states none ([operations](./operations.md#stability)), and `irverify` reports a
+    tier the IR does not declare (`ir/unknown-stability`). A consumer pinned to 0.26.0 cannot decode
+    a document that sets it.
+  - `Parameter` gained `Secret`, the per-use redaction `Property.Secret` is, and the OpenAPI
+    compiler no longer keeps a parameter's `format: password` under `Unmodeled`. A consumer pinned
+    to 0.26.0 that reads `openapi:format` on a parameter no longer finds it, and a parameter that
+    keeps redaction through a `$ref` now states it itself.
+  - A vendor key can state `Deprecation` where no keyword does, `x-sensitive` sets `Sensitive` and
+    `Secret`, and a property, header or parameter naming a `$ref` reads what the target's keys state
+    ([`extension-promotion`](../compilers/openapi.md#extension-promotion)), listing the marker the
+    target lists ([promotion](./unmodeled.md#promotion)). These shapes are unchanged, so to a
+    consumer pinned to 0.26.0 such an operation reads as live and such a value as plain.
+- **0.28.0** — `Content` gained `Docs`: a media type's own documentation, as against the body's
   ([payloads](./payloads.md)). The OpenAPI compiler writes there an OpenAPI 3.2 Media Type Object's
   `description`, which it had kept verbatim under `Unmodeled` as `openapi:description`, and the
   `summary` and `description` beside a content entry's `$ref` into `components/mediaTypes`, which
-  it now follows. A consumer pinned to 0.26.0 refuses the document as another generation's.
+  it now follows. A consumer pinned to 0.27.0 refuses the document as another generation's.
