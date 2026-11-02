@@ -23,7 +23,7 @@ mode="${1:-${FUZZTIME:-10s}}"
 # A search's budget is a duration or a count, as go test reads -fuzztime. Anything
 # else is refused here, before every target builds only to reject it: a mistyped
 # mode would otherwise spend minutes reaching that error.
-budget='^([0-9]+x|([0-9]+(\.[0-9]+)?(ns|us|ms|s|m|h))+)$'
+budget='^([0-9]+x|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$'
 case "$mode" in
 check | prune) ;;
 *)
