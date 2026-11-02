@@ -16,80 +16,64 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// instanceTypes is a set of JSON instance types, null aside: nulls is the one
-// reading of null. Its zero is a schema writing `type: "null"`.
-type instanceTypes uint8
+// maxConjunctTypeReads bounds conjunctTypes' read (styleguide bounded-recursion
+// rule), one step per schema it reads, so its depth and breadth: an allOf naming
+// its own schema ends on it. A read past it states nothing, the answer that
+// claims the least. A report also needs the null read, which maxNullConjuncts
+// bounds on its own.
+const maxConjunctTypeReads = 256
 
-const (
-	instanceObject instanceTypes = 1 << iota
-	instanceArray
-	instanceString
-	instanceNumber // integer too: every integer is a number
-	instanceBoolean
+// anyInstance is what a schema writing no `type` admits, null aside: nulls is
+// the one reading of null, so a set here holds no kindNull, and its zero is a
+// schema writing `type: "null"`.
+const anyInstance = kindAny &^ kindNull
 
-	// anyInstance is what a schema writing no `type` admits.
-	anyInstance = instanceObject | instanceArray | instanceString | instanceNumber | instanceBoolean
-)
-
-// instanceTypeWords spells each member of an instanceTypes, in the order a
-// diagnostic lists them.
-var instanceTypeWords = []struct {
-	member instanceTypes
-	word   oas3.SchemaType
+// kindWords spells the members of a kindSet in the order a diagnostic lists
+// them. A number holds an integer, so it is spelled before one: an integer is
+// named only where no number is left beside it.
+var kindWords = []struct {
+	kinds kindSet
+	word  oas3.SchemaType
 }{
-	{instanceObject, oas3.SchemaTypeObject},
-	{instanceArray, oas3.SchemaTypeArray},
-	{instanceString, oas3.SchemaTypeString},
-	{instanceNumber, oas3.SchemaTypeNumber},
-	{instanceBoolean, oas3.SchemaTypeBoolean},
+	{kindObject, oas3.SchemaTypeObject},
+	{kindArray, oas3.SchemaTypeArray},
+	{kindString, oas3.SchemaTypeString},
+	{kindNumber, oas3.SchemaTypeNumber},
+	{kindInteger, oas3.SchemaTypeInteger},
+	{kindBoolean, oas3.SchemaTypeBoolean},
 }
 
-// words spells t for a diagnostic.
-func (t instanceTypes) words() string {
+// instanceWords spells t, a set of instance types, for a diagnostic.
+func instanceWords(t kindSet) string {
 	if t == 0 {
 		return string(oas3.SchemaTypeNull)
 	}
-	out := make([]string, 0, len(instanceTypeWords))
-	for _, w := range instanceTypeWords {
-		if t&w.member != 0 {
+	out := make([]string, 0, len(kindWords))
+	for _, w := range kindWords {
+		if t&w.kinds == w.kinds {
 			out = append(out, string(w.word))
+			t &^= w.kinds
 		}
 	}
 	return strings.Join(out, " or ")
 }
 
-// instanceTypeOf is the set st names. A word no dialect defines says nothing:
-// load reports it, so it is no conjunct's to contradict another.
-func instanceTypeOf(st oas3.SchemaType) instanceTypes {
-	switch st {
-	case oas3.SchemaTypeObject:
-		return instanceObject
-	case oas3.SchemaTypeArray:
-		return instanceArray
-	case oas3.SchemaTypeString:
-		return instanceString
-	case oas3.SchemaTypeNumber, oas3.SchemaTypeInteger:
-		return instanceNumber
-	case oas3.SchemaTypeBoolean:
-		return instanceBoolean
-	case oas3.SchemaTypeNull:
-		return 0
-	default:
-		return anyInstance
-	}
-}
-
 // declaredInstanceTypes is the set s's own `type` keyword states. A schema
 // writing none excludes nothing, whatever else it writes: `properties` alone
-// constrains objects and admits a string.
-func declaredInstanceTypes(s *oas3.Schema) instanceTypes {
+// constrains objects and admits a string. A word no dialect defines says
+// nothing either: load reports it, so it is no conjunct's to contradict another.
+func declaredInstanceTypes(s *oas3.Schema) kindSet {
 	declared := s.GetType()
 	if len(declared) == 0 {
 		return anyInstance
 	}
-	var out instanceTypes
+	var out kindSet
 	for _, st := range declared {
-		out |= instanceTypeOf(st)
+		kinds := kindOfType(st)
+		if kinds == 0 {
+			kinds = anyInstance
+		}
+		out |= kinds &^ kindNull
 	}
 	return out
 }
@@ -106,7 +90,7 @@ type conjunctTypes struct {
 // allOf that shares no value says nothing here, which keeps a schema composing
 // a reported one from drawing a second report. Where nothing reports it, as for
 // a null its own entries share, that is a miss.
-func (r *conjunctTypes) schema(s *oas3.Schema) instanceTypes {
+func (r *conjunctTypes) schema(s *oas3.Schema) kindSet {
 	if s == nil || !r.steps.Spend(1) {
 		return anyInstance
 	}
@@ -125,7 +109,7 @@ func (r *conjunctTypes) schema(s *oas3.Schema) instanceTypes {
 // the schema it lands on. A keyword beside a $ref says nothing: 3.0 ignores it,
 // and reading it from 3.1 on, where it applies, is left open.
 // A boolean entry has no schema, so its `false` is applyFalseBranches' to report.
-func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) instanceTypes {
+func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) kindSet {
 	if isRefBranch(b) {
 		return r.schema(refBranchTarget(r.refs, b))
 	}
@@ -134,7 +118,7 @@ func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) instanceT
 
 // entry is what one flattened entry adds. A wrapper adds only its own `type`,
 // since its allOf's entries stand beside it in the flattened list.
-func (r *conjunctTypes) entry(e allOfBranch) instanceTypes {
+func (r *conjunctTypes) entry(e allOfBranch) kindSet {
 	if e.wrapper {
 		return declaredInstanceTypes(e.schema.GetSchema())
 	}
@@ -148,10 +132,10 @@ func (r *conjunctTypes) entry(e allOfBranch) instanceTypes {
 // contradicts nothing, so a lone `type: "null"` beside what takes its null away
 // draws nil too.
 func disjointConjuncts(c lowering.Ctx, s *oas3.Schema, comp allOfComposition) []string {
-	r := conjunctTypes{refs: c.Bindings(), steps: budget.New(budget.AtMost(maxNullConjuncts))}
+	r := conjunctTypes{refs: c.Bindings(), steps: budget.New(budget.AtMost(maxConjunctTypeReads))}
 	own := declaredInstanceTypes(s)
 	joint := own
-	read := make([]instanceTypes, len(comp.branches))
+	read := make([]kindSet, len(comp.branches))
 	for i, e := range comp.branches {
 		read[i] = r.entry(e)
 		joint &= read[i]
@@ -174,14 +158,14 @@ func disjointConjuncts(c lowering.Ctx, s *oas3.Schema, comp allOfComposition) []
 
 // namedConjuncts spells each conjunct that narrows the instance types, own
 // being what the composing schema's `type` says and read each entry's.
-func (a allOfComposition) namedConjuncts(own instanceTypes, read []instanceTypes) []string {
+func (a allOfComposition) namedConjuncts(own kindSet, read []kindSet) []string {
 	out := make([]string, 0, len(read)+1)
 	if own != anyInstance {
-		out = append(out, "type: "+own.words())
+		out = append(out, "type: "+instanceWords(own))
 	}
 	for i, t := range read {
 		if t != anyInstance {
-			out = append(out, a.branchPath(a.branches[i].pointer)+": "+t.words())
+			out = append(out, a.branchPath(a.branches[i].pointer)+": "+instanceWords(t))
 		}
 	}
 	return out

@@ -1753,8 +1753,11 @@ states. An inline branch that [`allof-inline-residue`](#allof-inline-residue) wo
 reports its residue as an info there, so the contradiction is reported once however it is spelled.
 
 The reading is of the source, since a `Model` cannot say whether its source wrote `type: object`,
-and `{properties: …}` alone admits a string. Each conjunct states a set of JSON instance types,
-`integer` being a `number`: the `type` beside the `allOf`; an inline entry's `type`, conjoined with
+and `{properties: …}` alone admits a string. That is where it parts from the reading
+[`allof-refinement`](#allof-refinement) elects a principal by, which takes such a `properties` to
+claim an object: one chooses a lowering, and this one says what the source admits. Each conjunct
+states a set of JSON instance types, an `integer` within a `number` and named as written: the `type`
+beside the `allOf`; an inline entry's `type`, conjoined with
 what its own `allOf` states; and for a `$ref` entry, what the schema it lands on states. The schema
 is reported where those sets share no member and the schema admits no null as
 [`nullable`](#nullable) reads it, under the nullable-widening policy where that is on: a null every
