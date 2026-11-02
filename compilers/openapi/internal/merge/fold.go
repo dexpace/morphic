@@ -167,9 +167,11 @@ func (f *folding) holds(i, j int) bool {
 }
 
 // widestCone returns the declaration whose type holds the most declarations'
-// types, the first of them on a tie. Where one type holds every other, it is
-// the intersection and wins whatever the order; otherwise the field keeps the
-// type that loses the fewest declarations, and each it loses is reported.
+// types, the first of them on a tie. Where one type is within every other, it
+// is the intersection and wins whatever the order; where types meet, each holds
+// the other, and the winner's node takes the bounds of each it meets
+// (foldNodeBounds). Otherwise the field keeps the type that loses the fewest
+// declarations, and each it loses is reported.
 func (f *folding) widestCone() int {
 	best, widest := 0, 0
 	for i := range f.decls {

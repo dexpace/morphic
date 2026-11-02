@@ -1126,9 +1126,9 @@ models neither of which composes the other, a model and a map, a list and a tupl
 and a kind, or a union or an external and anything else. A pair gets the same verdict as a field's
 types and as two containers' members, but for the two exceptions above: nodes that meet, and tuples.
 
-The field takes the type of the declaration whose type is the same as, or narrower than, the most
-declarations' types, the first of them on a tie. Where one declaration's type is within every other's
-it is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
+The field takes the type of the declaration whose type is the same as, narrower than, or meets the
+most declarations' types, the first of them on a tie. A declaration's type within every other's
+is the intersection, and it wins whatever the order. Each declaration whose type the winner's is
 the same as or narrower than, or meets, folds into the field, which adopts its shape detail; every
 other one is dropped. So `int32`, `uint32` and `uint16` fold to `uint16` with nothing dropped, in
 every order, while `int32` and `uint32` alone keep the first declared and report the other.
