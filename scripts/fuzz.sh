@@ -51,8 +51,11 @@ readonly minimize_time=1s
 
 # What prune keeps of each target's corpus. Go never trims the directory, so
 # these two bound what a search restores and what the cache holds: at most
-# targets x max_corpus_entries x max_entry_kb.
-readonly max_corpus_entries=1000
+# targets x max_corpus_entries x max_entry_kb. The count sits above what a target
+# still builds on, since FuzzCycleDetector neared 1,000 entries in five nights
+# with its coverage still rising, and below where re-running every entry, which
+# a search does inside its budget, would leave it little time to search.
+readonly max_corpus_entries=3000
 readonly max_entry_kb=64
 
 # list_targets prints "<import path> <target> <directory>", one line per target.
@@ -112,12 +115,18 @@ check_targets() {
 	printf '%d fuzz target(s), %d searchable\n' "$found" "$searchable"
 }
 
-# trim_corpus keeps max_corpus_entries of one target's directory. Entries are
+# trim_corpus keeps max_corpus_entries of one target's directory, and says so
+# when that costs entries: a target at the cap has stopped adding up. Entries are
 # named for their contents, so sorting by name evicts an arbitrary subset.
 trim_corpus() {
-	find "$1" -type f | LC_ALL=C sort | tail -n +$((max_corpus_entries + 1)) | while IFS= read -r entry; do
+	local evicted
+	evicted="$(find "$1" -type f | LC_ALL=C sort | tail -n +$((max_corpus_entries + 1)))"
+	[ -n "$evicted" ] || return 0
+	printf '%s\n' "$evicted" | while IFS= read -r entry; do
 		rm -f "$entry"
 	done
+	printf 'fuzz.sh: %s is past %d entries; dropped %d\n' \
+		"${1##*/}" "$max_corpus_entries" "$(printf '%s\n' "$evicted" | wc -l | tr -d ' ')"
 }
 
 # prune_corpus drops every target that no longer exists, and every entry over the
