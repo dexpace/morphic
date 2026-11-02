@@ -51,9 +51,8 @@ var adversarialRunes = []string{
 // moves with it. They say its output is self-consistent and acceptable to the
 // rest of the IR.
 //
-// The seeds carry most of the weight: an ordinary `go test` runs them without
-// searching, and the gate's per-target search is bounded to seconds
-// (scripts/fuzz.sh).
+// An ordinary `go test` runs the seeds without searching; scripts/fuzz.sh
+// runs the search.
 func FuzzCanonicalWords_Properties(f *testing.F) {
 	for _, seed := range adversarialRunes {
 		f.Add(seed)
