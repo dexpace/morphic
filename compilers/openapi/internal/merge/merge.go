@@ -79,8 +79,9 @@ func NewPropIndex(m *ir.Model, later func(Settle)) *PropIndex {
 // p.WireName (fillModelProperties always does); it keys idx directly.
 //
 // p.Provenance locates the declaration and is the only source of that fact
-// here, so no second copy of it can disagree.
-func (idx *PropIndex) MergeProperty(p ir.Property, source Source) {
+// here, so no second copy of it can disagree. secretBy names the heuristics
+// that set p.Secret, empty where a keyword declared it (folding.foldUse).
+func (idx *PropIndex) MergeProperty(p ir.Property, source Source, secretBy ir.Inferred) {
 	f, ok := idx.byWire[p.WireName]
 	if !ok {
 		idx.byWire[p.WireName] = &field{pos: len(idx.m.Properties), first: source}
@@ -93,7 +94,7 @@ func (idx *PropIndex) MergeProperty(p ir.Property, source Source) {
 		}
 		idx.redeclared = append(idx.redeclared, f)
 	}
-	f.rest = append(f.rest, declaration{prop: p, source: source})
+	f.rest = append(f.rest, declaration{prop: p, source: source, secretBy: secretBy})
 }
 
 // settle folds each field declared more than once against reg, in the order of

@@ -124,7 +124,7 @@ func TestPropIndex_ADiscriminatorFollowsItsFieldToANewIdentity(t *testing.T) {
 		m := &ir.Model{Discriminator: &ir.Discriminator{Property: tc.names}}
 		idx, settle := indexOver(m, g)
 		for _, d := range declaredIn(first, later) {
-			idx.MergeProperty(d.prop, d.source)
+			idx.MergeProperty(d.prop, d.source, d.secretBy)
 		}
 
 		settle()
