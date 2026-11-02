@@ -25,8 +25,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   the run builds, never a walk or scan of its own per check or query. A fact is computed once, at
   the level owning it: a path item's, not once per operation it mounts.
 - **Why.** Each repeat was found and removed later: two parses and four walks per compile (#340),
-  seventeen walks per `irverify.Verify` (#1125), two walks building one list (#290), and a scan per
-  pointer hop that made resolution quadratic (#379). #414 is still open.
+  seventeen walks per `irverify.Verify` (#1125), two walks building one list (#290), a scan per
+  pointer hop that made resolution quadratic (#379), and per-operation path item entries (#414).
 - **Probe.** Count walks per run through a seam
   (`.claude/skills/morphic-measuring-performance/references/cost-tests.md#counting-seam-for-optimizations`)
   and the work at n, 2n and 4n

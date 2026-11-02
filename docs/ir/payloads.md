@@ -45,6 +45,10 @@ type Content struct {
                                   // payloads): how it travels, while Type stays what the source
                                   // declares of it, so nothing that declaration says is lost
     Examples  []Example
+    Docs      Docs                // this media type's own documentation, as against the body's:
+                                  // an OpenAPI 3.2 Media Type Object's description, and a summary
+                                  // or description written beside a $ref to one, which documents
+                                  // that use of it. Omitted when empty, as Payload.Docs is
     Unmodeled  Unmodeled
 }
 
