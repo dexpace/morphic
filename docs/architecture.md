@@ -91,9 +91,9 @@ document, so the table is what its diagnostics index.
 Internal phases every compiler follows (each format implements them its own way):
 
 1. **Load & bundle** — read every document the source's references name, through the caller's
-   reader, and resolve references across them. Each document a reference reaches is a `Document.Sources` entry,
-   and original positions (document + JSON pointer / line-col) are preserved for provenance, so
-   what another document declares is lowered where it declares it.
+   reader, and resolve references across them. Each document a reference reaches is a
+   `Document.Sources` entry, and original positions (document + JSON pointer / line-col) are
+   preserved for provenance, so what another document declares is lowered where it declares it.
 2. **Normalize within the format** — collapse format-version differences before IR construction:
    Swagger 2.0 is lifted to the OpenAPI 3.x shape (`body`/`formData` params → request body,
    `host`+`basePath` → servers); OpenAPI 3.0 `nullable` and 3.1 `type: [T, "null"]` both become
