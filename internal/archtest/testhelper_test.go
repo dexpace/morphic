@@ -6,6 +6,7 @@ package archtest_test
 import (
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"path"
 	"path/filepath"
@@ -470,6 +471,32 @@ func TestTestHelperViolations_CallsCountWithinAPackage(t *testing.T) {
 	want := []string{"a/a_test.go:5: an asserting helper starts with its Helper call"}
 	assert.Empty(t, cmp.Diff(want, got))
 	assert.Equal(t, 4, helpers)
+}
+
+// TestSelectorFails_NamesOnlyParameters pins that selectorFails returns only
+// parameters: a failing method of another value fails nothing through them.
+// failsThrough keeps only parameters too, so the tests above cannot tell.
+func TestSelectorFails_NamesOnlyParameters(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		call string
+		want []string
+	}{
+		{"t.Fatal(1)", []string{"t"}},
+		{"u.Fatal(1)", nil},
+	}
+	for _, tc := range tests {
+		t.Run(tc.call, func(t *testing.T) {
+			t.Parallel()
+			x, err := parser.ParseExpr(tc.call)
+			require.NoError(t, err)
+			call, ok := x.(*ast.CallExpr)
+			require.True(t, ok)
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			require.True(t, ok)
+			assert.Equal(t, tc.want, selectorFails(sel, call, []string{"t"}, map[string][]string{"testing": {"testing"}}))
+		})
+	}
 }
 
 // testHelperViolations returns a line for each function under root that breaks

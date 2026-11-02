@@ -96,6 +96,8 @@ import (
 		{"a call that converts nothing", "type P struct{}\n\nfunc (P) " + visit +
 			"\nfunc wrap(P) ir.Visitor { return nil }\n\nvar _ = wrap(P{})\n", []string{"ir.Visitor"}},
 		{"a builtin's call", "type P struct{}\n\nfunc (P) " + visit + "\nvar _ = new(P)\n", []string{"ir.Visitor"}},
+		{"nil asserted", "type P struct{}\n\nfunc (P) " + visit + "\nvar _ ir.Visitor = nil\n", []string{"ir.Visitor"}},
+		{"nil asserted by a conversion", "type P struct{}\n\nfunc (P) " + visit + "\nvar _ = ir.Visitor(nil)\n", []string{"ir.Visitor"}},
 		{"asserted through a pointer", "type P struct{}\n\nfunc (*P) " + visit + "\nvar _ ir.Visitor = (*P)(nil)\n", nil},
 		{"asserted in a group",
 			"type P struct{}\n\nfunc (P) " + visit + "\nvar (\n\t_ ir.Visitor = P{}\n)\n", nil},
@@ -165,7 +167,7 @@ func checkPlanted(t *testing.T, base *decls.Package, planted, src string) *decls
 		}
 		return imp, nil
 	})}
-	// TypeOf reads all three maps.
+	// TypeOf's documentation asks for all three.
 	info := &types.Info{
 		Types: map[ast.Expr]types.TypeAndValue{},
 		Defs:  map[*ast.Ident]types.Object{},
@@ -271,19 +273,15 @@ func assertedInterfaces(p *decls.Package) map[*types.TypeName][]*types.Interface
 	return out
 }
 
-// assertion returns the named types value holds and the interface they are
-// held as, by a conversion to an interface or else by typ, the var's declared
-// type, which is nil when the var declares none. A call whose callee has an
-// interface type is a conversion, as no interface value can be called, and a
-// call with several results holds each.
+// assertion returns the named types value holds, as heldTypes reads them, and
+// the interface they are held as, by a conversion to an interface or else by
+// typ, the var's declared type, which is nil when the var declares none. A
+// call whose callee has an interface type is a conversion, as no interface
+// value can be called. A value such as nil holds no named type.
 func assertion(p *decls.Package, typ, value ast.Expr) ([]*types.TypeName, *types.Interface, bool) {
 	if call, ok := ast.Unparen(value).(*ast.CallExpr); ok && len(call.Args) == 1 {
 		if iface, ok := p.Info.TypeOf(call.Fun).Underlying().(*types.Interface); ok {
-			tn, ok := typeName(p.Info.TypeOf(call.Args[0]))
-			if !ok {
-				return nil, nil, false
-			}
-			return []*types.TypeName{tn}, iface, true
+			return heldTypes(p.Info.TypeOf(call.Args[0])), iface, true
 		}
 	}
 	if typ == nil {
@@ -293,11 +291,7 @@ func assertion(p *decls.Package, typ, value ast.Expr) ([]*types.TypeName, *types
 	if !ok {
 		return nil, nil, false
 	}
-	held := heldTypes(p.Info.TypeOf(value))
-	if len(held) == 0 {
-		return nil, nil, false
-	}
-	return held, iface, true
+	return heldTypes(p.Info.TypeOf(value)), iface, true
 }
 
 // heldTypes returns the named types a value of type t holds, as typeName reads
