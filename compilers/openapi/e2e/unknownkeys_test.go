@@ -334,9 +334,7 @@ paths:
 //
 // The other declared fields never reach the operations map,
 // additionalOperations included, whether or not the compiler lowers what it
-// holds; a census is only evidence about the keys it leaves alone. The summary
-// and description are kept beneath the same scope by their own reader
-// (docs/compilers/openapi.md#path-item-docs), so they alone may appear there.
+// holds; a census is only evidence about the keys it leaves alone.
 func TestUnknownKeys_PathItemDeclaredFieldsAreNotUndeclared(t *testing.T) {
 	t.Parallel()
 	doc, diags := compileAnnotationSpec(t, "path-item-fields", `openapi: 3.2.0
@@ -367,6 +365,8 @@ components:
 			"every key here is one a path item declares: %+v", d)
 	}
 	for _, site := range unmodeledSites(doc) {
+		// The summary and description are kept beneath the same scope by their own
+		// reader (docs/compilers/openapi.md#path-item-docs), so they alone may be.
 		if keyword, scoped := strings.CutPrefix(site.key, "openapi:pathItem/"); scoped {
 			assert.Contains(t, []string{"summary", "description"}, keyword,
 				"nothing a path item declares is kept as a key it does not: %s at %s", site.key, site.path)
