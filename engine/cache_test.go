@@ -767,8 +767,9 @@ func declaredFields(t *testing.T, name string) []string {
 }
 
 // TestWithCache_EveryRunOptionIsAnswered lists what a cached run does with each
-// field of RunOptions. A field added there is either in the key or keeps its run
-// out, and leaving it unanswered would serve one setting's document to another.
+// field of RunOptions. A field added there is in the key, keeps its run out, or
+// is read only once the document is in hand, as FailOn is. Leaving it unanswered
+// would serve one setting's document to another.
 func TestWithCache_EveryRunOptionIsAnswered(t *testing.T) {
 	t.Parallel()
 	answered := map[string]string{
@@ -1000,8 +1001,9 @@ func TestWithCache_ADirectoryServesARun(t *testing.T) {
 	assertSameRun(t, want, got)
 }
 
-// TestWithCache_OverlappingRunsAgree is for -race, which the coverage gate uses:
-// an entry is shared by runs starting and storing at once.
+// TestWithCache_OverlappingRunsAgree is for the race detector, which the gate
+// runs over this package: an entry is shared by runs starting and storing at
+// once.
 func TestWithCache_OverlappingRunsAgree(t *testing.T) {
 	t.Parallel()
 	store := newMemoryCache()
