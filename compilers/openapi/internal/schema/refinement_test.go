@@ -1449,6 +1449,25 @@ func TestRefinement_ANullKeywordRestatesNothingMore(t *testing.T) {
 	assert.Empty(t, td.Common().Unmodeled)
 }
 
+// TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds pins an inline
+// principal that lowers as a type array: what none of its variants holds is kept
+// on the union it lowers to, as a type array written alone keeps it, whether the
+// keyword sits on the branch or beside the allOf.
+func TestRefinement_ATypeArrayPrincipalKeepsWhatNoVariantHolds(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0",
+		"    OnBranch: {allOf: [{type: [string, integer], minLength: 1}]}\n"+
+			"    Beside: {type: [string, integer], minLength: 1, allOf: [{description: d}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+	branch, ok := doc.Types["t/anon/components/schemas/OnBranch/allOf/0"].(*ir.Union)
+	require.True(t, ok, "got %T", doc.Types["t/anon/components/schemas/OnBranch/allOf/0"])
+	assert.Contains(t, branch.Unmodeled, "openapi:minLength")
+	beside, ok := typeByName(doc, "Beside").(*ir.Union)
+	require.True(t, ok, "got %T", typeByName(doc, "Beside"))
+	assert.Contains(t, beside.Unmodeled, "openapi:minLength")
+	assert.Equal(t, "d", beside.Docs.Description)
+}
+
 // TestRefinement_AnEmptyAllOfOnABranchIsKept pins a branch writing `allOf: []`:
 // nothing flattens it, so its keyword stays, as in a composition.
 func TestRefinement_AnEmptyAllOfOnABranchIsKept(t *testing.T) {

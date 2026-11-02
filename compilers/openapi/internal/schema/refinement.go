@@ -296,8 +296,8 @@ func keepsAtOutcome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir
 	voices := voicesAmong(c, s)
 	w := newAdmission(c)
 	for i, e := range r.comp.branches {
-		// A principal keeps what it writes where it lowered, bar what none of a type
-		// array's variants holds (GitHub #852).
+		// A principal keeps what it writes where it lowered: a $ref on its alias, an
+		// inline branch on the node it owns, a type array's census included.
 		if r.principalIs(e) && (isRefBranch(e.schema) || LoweredToOwnNode(c, ts, e.pointer, target)) {
 			continue
 		}

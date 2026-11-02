@@ -1156,10 +1156,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
   `schema.TestRefinement_ACappedBranchStaysAComposition`
 - Status: partly built: conjuncts sharing no value are reported only where an inline `type` says so
-  (#1215), a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition (#661), a
-  structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes (#1067), and a
-  conjunct that lowers as a type array drops what none of its variants holds, as a type array written
-  alone does (#852).
+  (#1215), a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition (#661), and a
+  structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes (#1067).
 
 ### `allof-beside-ref`
 
