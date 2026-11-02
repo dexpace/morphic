@@ -154,14 +154,14 @@ the rule here rather than reading it across.
 ## Assert interface compliance for an exported pair alone
 `interface-assertions-stay-narrow`
 
-- **Rule.** Rule 5.26 asks for compliance to be asserted at compile time. Here an exported type
-  implementing an exported interface its package declares or imports from this module carries a
-  `var _` beside its imports, and an unexported one does not, since the call that passes it fails
-  the build. A standard library interface such as `error` takes none.
+- **Rule.** Rule 5.26 asks to assert compliance at compile time. Here an exported type implementing
+  an exported interface its package declares or imports from this module carries a `var _` beside
+  its imports, and an unexported one does not, since the call that passes it fails the build,
+  which #1266 disputes. A standard library interface such as `error` takes none.
 - **Why.** An exported pair is a contract no call in its package need exercise (#1173, #1176).
 - **Probe.** `go test ./internal/archtest -run TestInterfaceAssertions` names each exported pair
-  the rule covers that carries no assertion. It reports only a missing assertion, so an unexported
-  type's or a standard library interface's shows in what
+  the rule covers with no assertion. It reports only a missing assertion, so an unexported type's
+  or a standard library interface's shows in what
   `git grep -nE -e '^(var )?[[:space:]]*_(,[[:space:]]*_)* +[^=]*[^[:space:]=] +=' -e '^var _(, _)* +=' -- '*.go' ':!*_test.go' ':!*testdata*'`
   lists, bar a conversion inside a `var (...)` group.
 
