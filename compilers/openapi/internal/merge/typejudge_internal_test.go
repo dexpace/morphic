@@ -44,6 +44,7 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/enum-str-h"] = &ir.Enum{ID: "t/enum-str-h", Anonymous: true,
 		ValueType: ir.PrimString, Members: []ir.EnumMember{{ID: "h/a", Value: str("a")}}}
 	reg["t/lit-x"] = &ir.Literal{ID: "t/lit-x", Value: str("x")}
+	reg["t/lit-local"] = &ir.Literal{ID: "t/lit-local", Value: str("2024-01-01T00:00:00")}
 	reg["t/lit-1.5"] = &ir.Literal{ID: "t/lit-1.5", Value: num("1.5")}
 	reg["t/lit-null"] = &ir.Literal{ID: "t/lit-null", Value: ir.Value{Kind: ir.ValueNull}}
 	reg["t/lit-1"] = &ir.Literal{ID: "t/lit-1", Value: num("1")}
@@ -52,6 +53,30 @@ func judgeRegistry() map[ir.TypeID]ir.TypeDef {
 	reg["t/scalar-any"] = &ir.Scalar{ID: "t/scalar-any", Base: &ir.TypeRef{Target: "t/prim/any"}}
 	reg["t/scalar-enc"] = &ir.Scalar{ID: "t/scalar-enc", Base: &integer, Encoding: &ir.Encoding{Name: "x"}}
 	reg["t/scalar-opaque"] = &ir.Scalar{ID: "t/scalar-opaque"}
+	formatted := func(id ir.TypeID, enc ir.Encoding) *ir.Scalar {
+		return &ir.Scalar{ID: id, Base: &ir.TypeRef{Target: "t/prim/string"}, Encoding: &enc}
+	}
+	reg["t/scalar-time"] = formatted("t/scalar-time", ir.Encoding{Name: "time"})
+	timeMax := formatted("t/scalar-time-max", ir.Encoding{Name: "time"})
+	timeMax.Constraints = &ir.Constraints{MaxLength: new(int64(5))}
+	reg["t/scalar-time-max"] = timeMax
+	timeRoomy := formatted("t/scalar-time-roomy", ir.Encoding{Name: "time"})
+	timeRoomy.Constraints = &ir.Constraints{MaxLength: new(int64(20))}
+	reg["t/scalar-time-roomy"] = timeRoomy
+	reg["t/scalar-time-wire"] = formatted("t/scalar-time-wire", ir.Encoding{Name: "time", WireType: &ir.TypeRef{Target: "t/prim/string"}})
+	reg["t/scalar-time-schema"] = formatted("t/scalar-time-schema", ir.Encoding{Name: "time", Schema: &ir.TypeRef{Target: "t/prim/string"}})
+	timeDoc := formatted("t/scalar-time-doc", ir.Encoding{Name: "time"})
+	timeDoc.Docs = ir.Docs{Description: "d"}
+	reg["t/scalar-time-doc"] = timeDoc
+	reg["t/scalar-time-media"] = formatted("t/scalar-time-media", ir.Encoding{Name: "time", MediaType: "text/plain"})
+	reg["t/scalar-email"] = formatted("t/scalar-email", ir.Encoding{Name: "email"})
+	reg["t/alias-time"] = &ir.Scalar{ID: "t/alias-time", Base: &ir.TypeRef{Target: "t/scalar-time"}}
+	reg["t/alias-encoded-time"] = &ir.Scalar{ID: "t/alias-encoded-time", Base: &ir.TypeRef{Target: "t/scalar-time"},
+		Encoding: &ir.Encoding{Name: "base64"}}
+	reg["t/scalar-time-int"] = &ir.Scalar{ID: "t/scalar-time-int", Base: &integer, Encoding: &ir.Encoding{Name: "time"}}
+	reg["t/alias-offset"] = &ir.Scalar{ID: "t/alias-offset", Base: &ir.TypeRef{Target: "t/prim/datetime_offset"}}
+	reg["t/lit-time"] = &ir.Literal{ID: "t/lit-time", Value: str("12:00:00Z")}
+	reg["t/enum-time"] = &ir.Enum{ID: "t/enum-time", ValueType: ir.PrimString, Members: []ir.EnumMember{{Value: str("12:00:00Z")}}}
 	reg["t/any"] = &ir.Any{ID: "t/any"}
 	reg["t/model"] = &ir.Model{ID: "t/model"}
 	reg["t/list-int-null"] = &ir.List{ID: "t/list-int-null", Elem: nullable(integer)}
@@ -168,6 +193,29 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 		{"a literal string against integer", "t/lit-a", prim(ir.PrimInteger), relDisjoint},
 		{"a literal 1.5 against integer", "t/lit-1.5", prim(ir.PrimInteger), relDisjoint},
 		{"a literal against a kind with no judge", "t/lit-x", prim(ir.PrimBytes), relOverlap},
+		{"a literal the local date-time kind admits", "t/lit-local", prim(ir.PrimDatetime), relANarrower},
+		{"a literal the local date-time kind refuses", "t/lit-x", prim(ir.PrimDatetime), relDisjoint},
+		{"a time scalar within string", "t/scalar-time", prim(ir.PrimString), relANarrower},
+		{"a time scalar against a date-time", "t/scalar-time", prim(ir.PrimDatetimeOffset), relDisjoint},
+		{"a time scalar against a local time", "t/scalar-time", prim(ir.PrimTime), relDisjoint},
+		{"a time scalar against bytes", "t/scalar-time", prim(ir.PrimBytes), relOverlap},
+		{"a time scalar against an integer", "t/scalar-time", prim(ir.PrimInteger), relDisjoint},
+		{"an alias of a time scalar against a date-time", "t/alias-time", prim(ir.PrimDatetimeOffset), relDisjoint},
+		{"a time scalar whose encoding says more", "t/scalar-time-media", prim(ir.PrimDatetimeOffset), relOverlap},
+		{"a scalar of a format with no grammar here", "t/scalar-email", prim(ir.PrimDatetimeOffset), relOverlap},
+		{"a time a time scalar admits", "t/lit-time", "t/scalar-time", relANarrower},
+		{"a string a time scalar refuses", "t/lit-x", "t/scalar-time", relDisjoint},
+		{"a time a time scalar's bound refuses", "t/lit-time", "t/scalar-time-max", relDisjoint},
+		{"a time a time scalar's bound admits", "t/lit-time", "t/scalar-time-roomy", relANarrower},
+		{"a literal against an alias of a kind it is not", "t/lit-a", "t/scalar-int", relOverlap},
+		{"a time against a time scalar holding detail", "t/lit-time", "t/scalar-time-doc", relOverlap},
+		{"a time against an alias of a time scalar", "t/lit-time", "t/alias-time", relOverlap},
+		{"a time against a format with no grammar here", "t/lit-time", "t/scalar-email", relOverlap},
+		{"an enum no member of which is a time", "t/enum-str", "t/scalar-time", relDisjoint},
+		{"an enum with a time member", "t/enum-time", "t/scalar-time", relOverlap},
+		{"two time scalars declared apart", "t/scalar-time", "t/scalar-time-doc", relOverlap},
+		{"a time scalar against an alias of a date-time", "t/scalar-time", "t/alias-offset", relDisjoint},
+		{"a time scalar against a format with no grammar here", "t/scalar-time", "t/scalar-email", relOverlap},
 		{"a null literal against a bare integer", "t/lit-null", prim(ir.PrimInteger), relDisjoint},
 		{"a model against a bare kind", "t/model", prim(ir.PrimInteger), relDisjoint},
 		{"the top type spelled as an alias against a model", "t/scalar-any", "t/model", relUnrelated},
@@ -245,6 +293,60 @@ func TestTypeJudge_RelateArms(t *testing.T) {
 	nullInt.Nullable = true
 	assert.Equal(t, relANarrower, j.relate(ref("t/lit-null"), nullInt), "a null literal against a nullable integer")
 	assert.Equal(t, relBNarrower, j.relate(nullInt, ref("t/lit-null")), "a nullable integer against a null literal")
+
+	nullTime := ref("t/scalar-time")
+	nullTime.Nullable = true
+	assert.Equal(t, relANarrower, j.relate(ref("t/lit-null"), nullTime), "a null literal against a time scalar admitting null")
+	assert.Equal(t, relDisjoint, j.relate(ref("t/lit-null"), ref("t/scalar-time")), "and against one that does not")
+}
+
+// TestRelateKinds_ReadsAHeldFormatAsAStringFormat pins formatAgainst on the
+// kinds no lowered pair reaches: the top, which a field's judgment settles
+// before reading kinds, and a second held format, which only time is today.
+func TestRelateKinds_ReadsAHeldFormatAsAStringFormat(t *testing.T) {
+	t.Parallel()
+	held := valueKind{prim: ir.PrimString, format: "time"}
+	for _, tc := range []struct {
+		name string
+		k    valueKind
+		want relation
+	}{
+		{"the top", valueKind{prim: ir.PrimAny}, relANarrower},
+		{"itself", held, relSame},
+		{"another held format", valueKind{prim: ir.PrimString, format: "other"}, relDisjoint},
+		{"string", valueKind{prim: ir.PrimString}, relANarrower},
+		{"a string format", valueKind{prim: ir.PrimDate}, relDisjoint},
+	} {
+		assert.Equal(t, tc.want, relateKinds(held, tc.k), tc.name)
+		assert.Equal(t, tc.want.flipped(), relateKinds(tc.k, held), "%s, swapped", tc.name)
+	}
+}
+
+// TestKindOf_TheFirstEncodingDecidesTheFormat pins which Encoding on a Base
+// chain names the held format: the first met, read only over a chain ending in
+// string, so an alias encoding a time otherwise, or a time format over another
+// kind, holds none.
+func TestKindOf_TheFirstEncodingDecidesTheFormat(t *testing.T) {
+	t.Parallel()
+	j := typeJudge{Resolve: stubResolve(judgeRegistry())}
+	for _, tc := range []struct {
+		id   ir.TypeID
+		want valueKind
+	}{
+		{"t/scalar-time", valueKind{prim: ir.PrimString, format: "time"}},
+		{"t/alias-time", valueKind{prim: ir.PrimString, format: "time"}},
+		{"t/alias-encoded-time", valueKind{prim: ir.PrimString}},
+		{"t/scalar-time-int", valueKind{prim: ir.PrimInteger}},
+		{"t/scalar-time-media", valueKind{prim: ir.PrimString}},
+		{"t/scalar-time-wire", valueKind{prim: ir.PrimString}},
+		{"t/scalar-time-schema", valueKind{prim: ir.PrimString}},
+		{"t/scalar-email", valueKind{prim: ir.PrimString}},
+	} {
+		got, ok := j.kindOf(ref(tc.id))
+		require.True(t, ok, "%s", tc.id)
+		assert.Equal(t, tc.want.prim, got.prim, "%s", tc.id)
+		assert.Equal(t, tc.want.format, got.format, "%s: the held format", tc.id)
+	}
 }
 
 func TestTypeJudge_AdmitsPerNode(t *testing.T) {
@@ -272,6 +374,13 @@ func TestTypeJudge_AdmitsPerNode(t *testing.T) {
 	assert.True(t, j.admits(ref("t/scalar-int"), num("3")))
 	assert.False(t, j.admits(ref("t/scalar-enc"), num("3")), "an encoded scalar admits nothing")
 	assert.False(t, j.admits(ref("t/scalar-opaque"), num("3")), "an opaque scalar admits nothing")
+	assert.True(t, j.admits(ref("t/scalar-time"), str("12:00:00Z")), "a held format admits what its grammar does")
+	assert.False(t, j.admits(ref("t/scalar-time"), str("12:00:00")), "and refuses what it does not")
+	assert.False(t, j.admits(ref("t/scalar-time-max"), str("12:00:00Z")), "a held format's bounds are judged too")
+	assert.True(t, j.admits(ref("t/alias-time"), str("12:00:00Z")), "an alias of it admits what it does")
+	assert.False(t, j.admits(ref("t/scalar-time-media"), str("12:00:00Z")), "an encoding saying more admits nothing")
+	assert.False(t, j.admits(ref("t/scalar-email"), str("a@b.c")), "a format with no grammar here admits nothing")
+	assert.False(t, j.admits(ref("t/scalar-time-int"), str("12:00:00Z")), "nor does a time format over an integer")
 	assert.True(t, j.admits(ref("t/any"), str("a")))
 	assert.False(t, j.admits(ref("t/model"), str("a")))
 	assert.False(t, j.admits(ref("t/absent"), str("a")))
