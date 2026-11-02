@@ -26,7 +26,9 @@ import (
 // as maxNullConjuncts caps the same walk, and maxAdmissionMembers what a value set
 // costs each position naming it. A reading past either says nothing, and the
 // position stays the composition it would be with no reading at all, which loses
-// nothing.
+// nothing. Each position reads afresh, so a chain of allOfs each naming the next
+// pays up to maxAdmissionReads at every link: a reading is not remembered, as its
+// answer turns on the budget left.
 const (
 	maxAdmissionReads   = 256
 	maxAdmissionMembers = 4096
