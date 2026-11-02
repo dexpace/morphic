@@ -47,9 +47,13 @@ paths:
 	require.Len(t, op.Responses[0].Headers, 1)
 
 	assert.Nil(t, op.Params[0].Constraints)
-	assert.IsType(t, &ir.List{}, doc.Types[op.Params[0].Type.Target])
+	listed, ok := doc.Types[op.Params[0].Type.Target].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MinItems: new(int64(1))}, listed.Constraints)
 	assert.Nil(t, op.Responses[0].Headers[0].Constraints)
-	assert.IsType(t, &ir.List{}, doc.Types[op.Responses[0].Headers[0].Type.Target])
+	limited, ok := doc.Types[op.Responses[0].Headers[0].Type.Target].(*ir.List)
+	require.True(t, ok)
+	assert.Equal(t, &ir.Constraints{MaxItems: new(int64(5))}, limited.Constraints)
 }
 
 // TestParams_CollectionBoundBesideARefReachesTheCarrier pins the two carriers
