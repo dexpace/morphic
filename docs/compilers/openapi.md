@@ -529,9 +529,10 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   on a position holding no object of its kind (#809). A reference object reaching raw YAML of the
   source leaves the references inside what it reaches unresolved (#1320), and one whose pointer
   ends in `/` declares what it reaches at a second pointer (#1330). A reference object whose `$ref`
-  is a scalar under a local tag, which the model decodes no string from, lowers nothing, and
-  nothing reports it (#1368). A schema `$ref` whose pointer passes through a reference
-  object's alias lowers what it reaches a second time, at the pointer it spells (#1359).
+  is a scalar under a tag outside YAML's JSON schema ruleset, which the model decodes no string
+  from, lowers nothing, and nothing reports it (#1368). A schema `$ref` whose pointer passes
+  through a reference object's alias lowers what it reaches a second time, at the pointer it spells
+  (#1359).
 
 ### `reference-cycles`
 
@@ -3051,10 +3052,10 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
 - Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
   unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
   the IR undeduplicated (#738), a requirement whose only key is a `<<` naming no mapping lowers to
-  the empty option, beside the rule table's error (#1244), and a field under a tag outside YAML's JSON
-  schema ruleset reads as left out, so `scheme: !local bearer` is reported as omitted and names no
-  mechanism, and a `security` list under a local tag inherits with no finding (#1368), and a `$ref` written as null refuses the whole
-  document (#1284).
+  the empty option, beside the rule table's error (#1244), and a field under a tag outside YAML's
+  JSON schema ruleset reads as left out, so `scheme: !local bearer` is reported as omitted and names
+  no mechanism, and a `security` list under a local tag inherits with no finding (#1368), and a
+  `$ref` written as null refuses the whole document (#1284).
 
 ### `security-scheme-fields`
 

@@ -99,9 +99,10 @@ var validationReasons = map[string]string{
 		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
 		"reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
 	"plain-date": "the library reads a date written with no tag at a string field as a timestamp, the type the " +
-		"YAML parser gives it, and refuses it as the wrong type; an OpenAPI document holds YAML to its JSON schema " +
-		"ruleset (3.1.2 §Format: 'Tags MUST be limited to those allowed by YAML's JSON schema ruleset'), which has " +
-		"no timestamp, so the table reads it as the string it spells (docs/compilers/openapi.md#yaml-decoding)",
+		"YAML parser gives it, and refuses it as the wrong type; YAML 1.2, which OpenAPI recommends, has no timestamp " +
+		"and reads a plain date as a string, and OpenAPI limits its tags to the JSON schema ruleset's (3.1.2 §Format: " +
+		"'Tags MUST be limited to those allowed by YAML's JSON schema ruleset'), of which only !!str holds one, so " +
+		"the table reads it as the string it spells (docs/compilers/openapi.md#yaml-decoding)",
 	"over-strict": "the library warns of a field written beside a type it does not apply to; the specification's " +
 		"'Applies To' column says where a field has meaning and bars it nowhere (3.2.0 §Security Scheme Object: " +
 		"bearerFormat applies to http), so the table accepts it, and the security scheme lowering keeps the field " +
