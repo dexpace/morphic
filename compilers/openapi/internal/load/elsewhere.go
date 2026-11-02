@@ -141,15 +141,24 @@ func (w *elsewhere) next() (reachedEnd, bool) {
 }
 
 // eachReferenceIn calls visit with each reference object the walk of e
-// reaches, and the site writing it, in e's document. The walk starts at e's
+// reaches, media's included, and fault with each content entry media could not
+// model, with the site writing it, in e's document. The walk starts at e's
 // object, so each location is spelled from it (typed.PointerOf) and joined to
 // e's pointer. A panic stops the walk, and is returned as an error, to be
 // reported at e's object: the library spells no location of a walk started
 // there that names its position.
-func eachReferenceIn(ctx context.Context, e reachedEnd, visit func(refSite, resolvable)) error {
-	_, err := eachSighting(e.walk(ctx), resolverPanics, func(_ jsontext.Pointer, loc soa.Locations, r resolvable) error {
-		if r.IsReference() {
-			visit(refSite{doc: e.at.doc, pointer: e.at.pointer + typed.PointerOf(loc)}, r)
+func eachReferenceIn(ctx context.Context, e reachedEnd, media MediaTypes, visit func(refSite, resolvable),
+	fault func(refSite, mediaFault),
+) error {
+	_, err := eachSighting(media.within(ctx, e.walk(ctx)), resolverPanics, func(_ jsontext.Pointer, loc soa.Locations, model any) error {
+		site := refSite{doc: e.at.doc, pointer: e.at.pointer + typed.PointerOf(loc)}
+		switch m := model.(type) {
+		case mediaFault:
+			fault(site, m)
+		case resolvable:
+			if m.IsReference() {
+				visit(site, m)
+			}
 		}
 		return nil
 	})

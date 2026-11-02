@@ -365,13 +365,16 @@ components:
 			"every key here is one a path item declares: %+v", d)
 	}
 	for _, site := range unmodeledSites(doc) {
-		assert.NotContains(t, site.key, "openapi:pathItem/",
-			"nothing a path item declares is kept as a key it does not: %s at %s", site.key, site.path)
+		// The summary and description are kept beneath the same scope by their own
+		// reader (docs/compilers/openapi.md#path-item-docs), so they alone may be.
+		if keyword, scoped := strings.CutPrefix(site.key, "openapi:pathItem/"); scoped {
+			assert.Contains(t, []string{"summary", "description"}, keyword,
+				"nothing a path item declares is kept as a key it does not: %s at %s", site.key, site.path)
+		}
 	}
 	// An absence is only evidence where the reader ran, and the census runs once
-	// per operation lowered off a path item. Both items here have to reach it,
-	// the $ref'd one included, or the rows above hold over a walk that never
-	// looked.
+	// for each mount the walk reaches. Both items here have to reach it, the
+	// $ref'd one included, or the rows above hold over a walk that never looked.
 	for _, name := range []string{"getP", "getY"} {
 		_, ok := opByName(doc, name)
 		assert.True(t, ok, "%s lowers, so the census ran on the path item declaring it", name)
