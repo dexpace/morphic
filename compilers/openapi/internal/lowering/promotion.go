@@ -56,6 +56,12 @@ const (
 	TargetDeprecationRemovalVersion ExtensionTarget = "deprecation.removalVersion"
 	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
 	TargetDeprecationRemovalDate ExtensionTarget = "deprecation.removalDate"
+	// TargetDeprecationReplacedBy fills ir.Deprecation.ReplacedBy with what a key
+	// names as replacing what it sits on: a string or a list of strings, each the
+	// name the document gives an entity of that node's class. No default key
+	// names it, since no spelling for a replacement has become common; a document
+	// that writes one names its own mapping.
+	TargetDeprecationReplacedBy ExtensionTarget = "deprecation.replacedBy"
 
 	// TargetEnumOpen clears ir.Enum.Closed, saying the member set admits values
 	// the document does not list.
@@ -469,8 +475,16 @@ func redactionReading() reading[bool] {
 // as is a value the target cannot hold: the entry stays either way, so the
 // report is what tells a reader the field did not take it.
 func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource, r reading[T]) (T, bool, []ir.Diagnostic) {
+	kept, _, found, diags := firstStatedAt(unmodeled, sources, r)
+	return kept, found, diags
+}
+
+// firstStatedAt is firstStated, also returning the provenance of the source
+// whose value it returns.
+func firstStatedAt[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource, r reading[T]) (T, ir.Provenance, bool, []ir.Diagnostic) {
 	var kept T
 	var first ExtensionSource
+	var keptAt ir.Provenance
 	var found bool
 	var diags []ir.Diagnostic
 	for _, src := range sources {
@@ -495,14 +509,14 @@ func firstStated[T comparable](unmodeled ir.Unmodeled, sources []ExtensionSource
 				"extension %q %s, so it does not fill %s", src, r.want, r.target))
 		case said != states:
 		case !found:
-			kept, first, found = v, src, true
+			kept, first, keptAt, found = v, src, at, true
 		case v != kept:
 			diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, at,
 				"extension %q states another %s than %q, which the policy reads first, and does not fill it",
 				src, r.target, first))
 		}
 	}
-	return kept, found, diags
+	return kept, keptAt, found, diags
 }
 
 // readStability reads a value as a tier.

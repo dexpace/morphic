@@ -327,3 +327,8 @@ it sees. Changes made together in one bump are listed together under it.
     `openapi:links/<name>`, with an `openapi/invalid-link` or `openapi/untyped-link` finding, where it
     had kept the whole map under `openapi:links`. A consumer pinned to 0.34.0 refuses a document with
     a link, and finds no `openapi:links` entry where it read one.
+- **0.36.0** — `Deprecation` gained `ReplacedBy`, what the source says to use instead, each an
+  `EntityRef`: a new value naming one entity by its ID, in the field of its class
+  ([replacements](./annotations.md#replacements)). The OpenAPI compiler fills it only through a
+  promotion mapping naming the `deprecation.replacedBy` target, which no default does. A consumer
+  pinned to 0.35.0 refuses a document whose deprecation names a replacement.

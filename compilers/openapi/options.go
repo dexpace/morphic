@@ -68,6 +68,8 @@ const (
 	TargetDeprecationRemovalVersion = lowering.TargetDeprecationRemovalVersion
 	// TargetDeprecationRemovalDate fills ir.Deprecation.RemovalDate.
 	TargetDeprecationRemovalDate = lowering.TargetDeprecationRemovalDate
+	// TargetDeprecationReplacedBy fills ir.Deprecation.ReplacedBy.
+	TargetDeprecationReplacedBy = lowering.TargetDeprecationReplacedBy
 	// TargetEnumOpen clears ir.Enum.Closed.
 	TargetEnumOpen = lowering.TargetEnumOpen
 	// TargetUnionOpen clears ir.Union.Closed.

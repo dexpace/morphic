@@ -406,6 +406,14 @@ func (f *folding) foldDocs() {
 	}, slices.Equal[[]ir.Link])
 }
 
+// sameDeprecation reports whether a and b state one deprecation, field by
+// field and the replacements in order. TestSameDeprecation_ReadsEveryField
+// holds it to every field ir.Deprecation declares.
+func sameDeprecation(a, b *ir.Deprecation) bool {
+	return a.Message == b.Message && a.Since == b.Since && a.RemovalVersion == b.RemovalVersion &&
+		a.RemovalDate == b.RemovalDate && slices.Equal(a.ReplacedBy, b.ReplacedBy)
+}
+
 // foldAnnotations settles the field's deprecation and XML hints as foldDocs
 // settles its docs: neither is bound to a shape. A promotion marks the
 // declaration it read (lowering.Promoter.Deprecation), so the field takes the
@@ -414,7 +422,7 @@ func (f *folding) foldDocs() {
 func (f *folding) foldAnnotations() {
 	f.merged.Deprecation = firstWritten(f, "deprecation", func(_ int, p *ir.Property) (*ir.Deprecation, bool) {
 		return p.Deprecation, p.Deprecation != nil
-	}, func(a, b *ir.Deprecation) bool { return *a == *b })
+	}, sameDeprecation)
 	if i := slices.IndexFunc(f.decls, func(d declaration) bool { return d.prop.Deprecation != nil }); i > 0 {
 		f.merged.Provenance.Inferred = ir.JoinInferred(f.merged.Provenance.Inferred, f.decls[i].prop.Provenance.Inferred)
 	}

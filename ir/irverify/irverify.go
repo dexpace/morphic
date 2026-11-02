@@ -171,6 +171,7 @@ func walkChecks() []func(*ir.Document) walkCheck {
 		checkCallbacks,
 		checkPageStops,
 		checkLinkValues,
+		checkEntityRefs,
 	}
 }
 

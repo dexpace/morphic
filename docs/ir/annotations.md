@@ -18,7 +18,16 @@ type DocRef struct {
     Type               TypeID // the type the span names
 }
 
-type Deprecation struct { Message, Since, RemovalVersion, RemovalDate string }
+type Deprecation struct {
+    Message, Since, RemovalVersion, RemovalDate string
+    ReplacedBy []EntityRef       // what to use instead, in source order ([replacements](#replacements))
+}
+
+type EntityRef struct {          // one entity by its ID: exactly one field is set
+    Type TypeID; Operation OpID; Channel ChannelID; Message MessageID; Auth AuthID
+    Service ServiceID; Group GroupID; Property PropID; Param ParamID; Member EnumMemberID
+    Server ServerID
+}
 // A scheduled removal is two fields because a version and a date are two facts, not two
 // spellings of one: a document may state either or both, and neither is derivable from the
 // other without a release calendar the IR does not have. A consumer deciding whether removing
@@ -45,6 +54,29 @@ type ErrorExample struct { Type TypeRef; Content Value }
 // Field legality is contextual (validated): Value/Headers on types, properties, parameters,
 // contents, and messages; Input/Output/Error on operations. An Example never mixes the two arms.
 ```
+
+## Replacements
+
+A deprecation that says what to use instead names it in `ReplacedBy`, so a docs target can link
+"use `getOrderV2` instead" and an SDK can name the replacement in the deprecation it emits. Each
+entry is an `EntityRef`: the ID of the replacement in the field of its class, so a consumer reads
+which kind of entity it is from the field and finds it in the registry that field names, and the
+reference check (`ir/dangling-*-ref`) holds it like any other ID. `irverify` holds a ref to one
+field set (`ir/entity-ref-empty`, `ir/entity-ref-ambiguous`) and an entity to naming another
+(`ir/replaced-by-itself`). A list, because a source that splits an operation names two; an
+empty one names nothing.
+
+The replacement may be of another class than what it replaces, since a source can move a value
+from a query parameter into the body, so the reference names its class rather than taking the
+carrier's. A bare ID string was rejected because a consumer would have to try each registry to
+learn what it names, and the reference check could not see it; a field per class was chosen
+over a class tag beside a string so that the IDs stay typed, which is what the check reads. A
+replacement names an entity; it is no use of it, so neither `ir.TypeEdges` nor usage follows it.
+
+No format states a replacement in a keyword: Smithy, TypeSpec and GraphQL carry a deprecation's
+message and Protobuf only its flag, so a source that names a replacement does so in that prose or
+in a vendor extension. A compiler fills the field only from what its policy maps
+([promotion](./unmodeled.md#promotion)); a name in prose stays in `Message`.
 
 ## References in prose
 

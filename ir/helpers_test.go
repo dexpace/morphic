@@ -262,6 +262,7 @@ func populatedDeprecation() *ir.Deprecation {
 		Since:          "1.2.0",
 		RemovalVersion: "2.0.0",
 		RemovalDate:    "2026-08-01",
+		ReplacedBy:     []ir.EntityRef{{Operation: "op/v2"}, {Type: "t/v2"}},
 	}
 }
 

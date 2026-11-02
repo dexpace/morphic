@@ -4,12 +4,12 @@
 package operation
 
 import (
-	"cmp"
 	"slices"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/value"
 	"github.com/dexpace/morphic/ir"
 )
@@ -72,7 +72,7 @@ func (ex exchange) request(e expression) (ir.LinkValue, *linkFailure) {
 		}
 		return ir.LinkValue{Kind: ir.LinkRequest, Request: &ir.InputPath{Segments: segments}}, nil
 	}
-	found := boundParams(ex.from, ir.HTTPLocation(e.part), e.name)
+	found := lowering.BoundParams(ex.from, ir.HTTPLocation(e.part), e.name)
 	if len(found) != 1 {
 		return ir.LinkValue{}, untyped("reads %s parameter %q, which operation %q does not declare once",
 			e.part, e.name, ex.from.ID)
@@ -160,59 +160,16 @@ func memberNamed(flat ir.Flattening, name string) *ir.Property {
 	return nil
 }
 
-// targetParam returns the parameter of op that a link's parameters key names:
-// `<location>.<name>`, or a name alone, which must name one parameter only.
+// targetParam returns the parameter of op that a link's parameters key names
+// (lowering.ParamNamed), which must name one parameter only.
 func targetParam(op *ir.Operation, key string) (ir.ParamID, *linkFailure) {
-	if location, name, ok := strings.Cut(key, "."); ok && isParamLocation(location) {
-		if found := boundParams(op, ir.HTTPLocation(location), name); len(found) == 1 {
-			return found[0], nil
-		}
-	}
-	found := boundParams(op, "", key)
-	switch len(found) {
+	id, matched := lowering.ParamNamed(op, key)
+	switch matched {
 	case 1:
-		return found[0], nil
+		return id, nil
 	case 0:
 		return "", invalid("names parameter %q, which operation %q does not declare", key, op.ID)
 	default:
-		return "", invalid("names parameter %q, which operation %q declares in %d locations", key, op.ID, len(found))
+		return "", invalid("names parameter %q, which operation %q declares in %d locations", key, op.ID, matched)
 	}
-}
-
-// isParamLocation reports whether location is one a parameter's `in` names,
-// which a link's parameters key qualifies a name with.
-func isParamLocation(location string) bool {
-	switch ir.HTTPLocation(location) {
-	case ir.HTTPLocationPath, ir.HTTPLocationQuery, ir.HTTPLocationQuerystring, ir.HTTPLocationHeader,
-		ir.HTTPLocationCookie:
-		return true
-	case ir.HTTPLocationBody, ir.HTTPLocationBodyProperty, ir.HTTPLocationHost:
-		return false
-	default:
-		return false
-	}
-}
-
-// boundParams returns the parameters op's HTTP bindings place at location
-// under the wire name name, at any location but the host for an empty one. A
-// header's name matches in any case, as HTTP compares header names.
-func boundParams(op *ir.Operation, location ir.HTTPLocation, name string) []ir.ParamID {
-	names := make(map[ir.ParamID]string, len(op.Params))
-	for i := range op.Params {
-		names[op.Params[i].ID] = op.Params[i].Name.Source
-	}
-	var found []ir.ParamID
-	for _, b := range op.Bindings.HTTP {
-		for _, pb := range b.ParamBindings {
-			if pb.Location == ir.HTTPLocationHost || location != "" && pb.Location != location {
-				continue
-			}
-			wire := cmp.Or(pb.WireName, names[pb.Param])
-			matches := wire == name || pb.Location == ir.HTTPLocationHeader && strings.EqualFold(wire, name)
-			if matches && !slices.Contains(found, pb.Param) {
-				found = append(found, pb.Param)
-			}
-		}
-	}
-	return found
 }

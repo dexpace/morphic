@@ -68,6 +68,9 @@ type Deprecation struct {
 	// consumer, since no source format defines the field and so none defines
 	// its format either.
 	RemovalDate string `json:"removalDate,omitempty"`
+	// ReplacedBy names what the source says to use instead, in source order;
+	// empty = it names nothing. An entity is never its own replacement.
+	ReplacedBy []EntityRef `json:"replacedBy,omitempty"`
 }
 
 // Example is a documentation example. Field legality is contextual:
