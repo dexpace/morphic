@@ -17,7 +17,17 @@ import (
 
 // anonAny is an anonymous type holding nothing, keyed only by a position.
 func anonAny(id ir.TypeID) *ir.Any {
-	return &ir.Any{TypeCommon: ir.TypeCommon{ID: id, Anonymous: true}}
+	return &ir.Any{ID: id, Anonymous: true}
+}
+
+// withAnonymous returns defs followed by an anonymous type at each of ids.
+func withAnonymous(defs []ir.TypeDef, ids ...string) []ir.TypeDef {
+	out := make([]ir.TypeDef, 0, len(defs)+len(ids))
+	out = append(out, defs...)
+	for _, id := range ids {
+		out = append(out, anonAny(ir.TypeID(id)))
+	}
+	return out
 }
 
 // namedOp is an operation the source names, bound to GET path.
@@ -104,19 +114,19 @@ func TestCorrelation_KeysWhatAnOperationNamesByItsPosition(t *testing.T) {
 	op.Request = &ir.Payload{Contents: []ir.Content{{
 		MediaType: "application/json", Type: ir.TypeRef{Target: "t/anon/req"},
 		Item: &ir.TypeRef{Target: "t/anon/item"}, File: &ir.FileInfo{Contents: &ir.TypeRef{Target: "t/anon/file"}},
-		ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{Property: ir.Property{ID: "p/test/ih", Name: ir.Naming{Source: "X-I"}}}}},
+		ItemEncoding: &ir.PartEncoding{Headers: []ir.Header{{ID: "p/test/ih", Name: ir.Naming{Source: "X-I"}}}},
 	}, {MediaType: "text/plain", Type: ir.TypeRef{Target: "t/anon/text"}}}}
 	op.Responses = []ir.Response{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 200, To: 200}, {From: 400, To: 499}}},
 		Payload:    &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "t/anon/ok"}}}},
-		Headers: []ir.Header{{Property: ir.Property{
+		Headers: []ir.Header{{
 			ID: "p/test/rh", Name: ir.Naming{Source: "Retry-After"}, Type: ir.TypeRef{Target: "t/anon/rh"},
 			Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "t/anon/rhd"}},
-		}}},
+		}},
 	}}
 	op.Default = &ir.Response{
 		Payload: &ir.Payload{Contents: []ir.Content{{MediaType: "application/json", Type: ir.TypeRef{Target: "t/anon/def"}}}},
-		Headers: []ir.Header{{Property: ir.Property{ID: "p/test/dh", WireName: "X-D"}}},
+		Headers: []ir.Header{{ID: "p/test/dh", WireName: "X-D"}},
 	}
 	op.Errors = []ir.ErrorCase{{
 		Conditions: ir.ResponseConditions{StatusCodes: []ir.StatusRange{{From: 500, To: 599}}},
@@ -135,7 +145,8 @@ func TestCorrelation_KeysWhatAnOperationNamesByItsPosition(t *testing.T) {
 		defs = append(defs, anonAny(id))
 	}
 	doc := opsDoc([]ir.Operation{op}, defs...)
-	keys := []string{"p/test/ih", "p/test/rh", "p/test/dh"}
+	keys := make([]string, 0, 3+len(ids))
+	keys = append(keys, "p/test/ih", "p/test/rh", "p/test/dh")
 	for _, id := range ids {
 		keys = append(keys, string(id))
 	}
@@ -201,7 +212,7 @@ func TestCorrelation_KeysTheServiceLayerByName(t *testing.T) {
 func TestCorrelation_KeysAGroupOnlyWithinTheDepthBound(t *testing.T) {
 	t.Parallel()
 	ids := make([]string, ir.MaxGroupDepth+2)
-	var nested []ir.OperationGroup
+	nested := make([]ir.OperationGroup, 0, 1)
 	for depth := len(ids) - 1; depth >= 0; depth-- {
 		ids[depth] = "g/test/" + string(rune('a'+depth%26)) + string(rune('a'+depth/26))
 		nested = []ir.OperationGroup{{ID: ir.GroupID(ids[depth]), Groups: nested}}
@@ -267,17 +278,15 @@ func TestCorrelation_KeysWhatATypeHolds(t *testing.T) {
 		Elems: []ir.TypeRef{{Target: "t/anon/e0"}, {Target: "t/anon/scalar"}}, Rest: &ir.TypeRef{Target: "t/anon/rest"}}
 	scalar := &ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/anon/scalar", Anonymous: true},
 		Base: &ir.TypeRef{Target: "t/anon/base"}, Encoding: &ir.Encoding{Schema: &ir.TypeRef{Target: "t/anon/sd"}}}
-	defs := []ir.TypeDef{holder, list, mapT, tuple, scalar, &ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/prim/string"}, Prim: ir.PrimString}}
 	ids := []string{"t/anon/a", "t/anon/ad", "t/anon/arg", "t/anon/av", "t/anon/ak", "t/anon/pv", "t/anon/ld",
 		"t/anon/mk", "t/anon/e0", "t/anon/rest", "t/anon/base", "t/anon/sd"}
-	for _, id := range ids {
-		defs = append(defs, anonAny(ir.TypeID(id)))
-	}
+	defs := withAnonymous([]ir.TypeDef{holder, list, mapT, tuple, scalar,
+		&ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/prim/string"}, Prim: ir.PrimString}}, ids...)
 	var typedNil *ir.List
 	doc := irtest.DocOf(defs...)
 	doc.Types["t/test/nil"] = typedNil
-	got := keysOf(irfacts.New(doc), append(ids, "t/test/Holder", "p/test/a", "param/test/arg", "p/test/gone",
-		"p/test/l", "t/anon/list", "t/anon/map", "t/anon/tuple", "t/anon/scalar", "t/prim/string")...)
+	got := keysOf(irfacts.New(doc), slices.Concat(ids, []string{"t/test/Holder", "p/test/a", "param/test/arg", "p/test/gone",
+		"p/test/l", "t/anon/list", "t/anon/map", "t/anon/tuple", "t/anon/scalar", "t/prim/string"})...)
 	h := "ns:acme/ns:v1/type:Holder"
 	want := map[string]string{
 		"t/test/Holder": h, "t/prim/string": "prim:string",
@@ -371,12 +380,9 @@ func TestCorrelation_KeysAVariantsTypeByWhatNamesTheVariant(t *testing.T) {
 			{Name: ir.Naming{Source: "v"}, Type: ir.TypeRef{Target: "t/anon/v"}}, {Type: ir.TypeRef{Target: "t/anon/bare"}},
 		}}
 	named := irtest.ModelOf("t/test/Named", func(m *ir.Model) { m.Name = ir.Naming{Source: "Named"} })
-	defs := []ir.TypeDef{mapped, keyed, untagged, named}
 	ids := []string{"t/anon/a", "t/anon/b", "t/anon/c", "t/anon/w", "t/anon/n", "t/anon/none", "t/anon/v", "t/anon/bare"}
-	for _, id := range ids {
-		defs = append(defs, anonAny(ir.TypeID(id)))
-	}
-	got := keysOf(irfacts.New(irtest.DocOf(defs...)), append(ids, "t/test/Named")...)
+	defs := withAnonymous([]ir.TypeDef{mapped, keyed, untagged, named}, ids...)
+	got := keysOf(irfacts.New(irtest.DocOf(defs...)), slices.Concat(ids, []string{"t/test/Named"})...)
 	want := map[string]string{
 		"t/anon/a": "type:Mapped/tag:a", "t/anon/b": "type:Mapped/tag:b", "t/anon/c": "type:Mapped/variant:c",
 		"t/anon/w": "type:Keyed/tag:w", "t/anon/n": "type:Keyed/tag:n", "t/anon/none": "",
