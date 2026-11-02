@@ -361,7 +361,9 @@ var libraryAPI = sync.OnceValues(deriveResolutionAPI)
 
 // libraryMembers returns the API libraryAPI derives, after opening the module's
 // go.mod and go.sum. The library's sources sit in the module cache, which go
-// test never rechecks, so a bump reruns the tests only through these opens.
+// test never rechecks. A bump already reruns the package through archtest's walk
+// of the module root, which lists go.sum; these opens tie the tests to a bump
+// themselves.
 func libraryMembers(t *testing.T) []resolutionMember {
 	t.Helper()
 	irtest.ReadModuleFiles(t)
