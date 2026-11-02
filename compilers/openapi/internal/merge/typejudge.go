@@ -560,9 +560,9 @@ func (j typeJudge) enumMisses(ref ir.TypeRef, kind ir.PrimKind, nullable bool) b
 }
 
 // extras is what a list, map or tuple node holds beyond its members: its bounds,
-// its encoding, and its TypeCommon but where it was declared (siteless), so a
-// node kept for two loses nothing either holds, a deprecation or XML hints among
-// it, as sameNode compares a Scalar.
+// its encoding, and its TypeCommon but where it was declared (siteless), as
+// sameNode reads a Scalar. A node kept for two then loses nothing either holds,
+// a deprecation or XML hints included.
 type extras struct {
 	Constraints *ir.Constraints
 	Encoding    *ir.Encoding
