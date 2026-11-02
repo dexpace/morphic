@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -36,11 +37,16 @@ func TestDir_StoreRemovesTheOldestPastTheLimit(t *testing.T) {
 }
 
 // TestDir_StoreLeavesWhatItDidNotName puts a directory over its limit among
-// files only a loose match would take for its own: a directory is often
-// shared, and evicting must never reach a file the cache did not write.
+// files only a loose match would take for its own, and a directory named as an
+// entry, oldest of all: a directory is often shared, and evicting must never
+// reach a file the cache did not write.
 func TestDir_StoreLeavesWhatItDidNotName(t *testing.T) {
 	t.Parallel()
 	path := t.TempDir()
+	named := fileOf(path, keyN(3))
+	require.NoError(t, os.Mkdir(named, 0o700))
+	longAgo := time.Now().Add(-2 * time.Hour)
+	require.NoError(t, os.Chtimes(named, longAgo, longAgo))
 	hexName := keyN(0).String()
 	foreign := []string{
 		"openapi.yaml",
@@ -66,6 +72,7 @@ func TestDir_StoreLeavesWhatItDidNotName(t *testing.T) {
 	for _, name := range foreign {
 		assert.FileExists(t, filepath.Join(path, name), "a file the cache did not name")
 	}
+	assert.DirExists(t, named, "a directory is no entry, whatever its name")
 	assert.NoFileExists(t, fileOf(path, keyN(1)), "its own past entry goes")
 }
 
@@ -97,6 +104,26 @@ func TestDir_StoreLeavesAStoreInProgress(t *testing.T) {
 	assert.FileExists(t, live)
 	assert.FileExists(t, fileOf(path, keyN(1)), "the entries fit once it is left out")
 	assert.FileExists(t, fileOf(path, keyN(2)))
+}
+
+// TestPrune_TiesGoInNameOrder lists two entries last used at one moment, the
+// later name first. The earlier name goes whatever order the listing gives, so
+// two prunes over one directory remove the same entry.
+func TestPrune_TiesGoInNameOrder(t *testing.T) {
+	t.Parallel()
+	names := []string{keyN(0).String() + ".entry", keyN(1).String() + ".entry"}
+	slices.Sort(names)
+	var removed []string
+	dir := cache.NewDirLimited("d", 9)
+	cache.UseOps(dir, cache.Ops{
+		List: listing(listedEntry{name: names[1], size: 9}, listedEntry{name: names[0], size: 9}),
+		Remove: func(name string) error {
+			removed = append(removed, filepath.Base(name))
+			return nil
+		},
+	})
+	require.NoError(t, cache.Prune(dir))
+	assert.Equal(t, names[:1], removed)
 }
 
 func TestPrune_Failures(t *testing.T) {
