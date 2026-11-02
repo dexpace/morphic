@@ -209,9 +209,6 @@ func goOn(b *binder) bool {
 		return b.wait.release(b.find)
 	}
 	readHeld(b)
-	if b.work.over() {
-		return false
-	}
 	b.wait.requeue(b.find, b.hops)
 	return true
 }

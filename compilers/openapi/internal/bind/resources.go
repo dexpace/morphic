@@ -203,28 +203,23 @@ func (ix *identifiers) answer(uri string) []Position {
 // drain that counts it, so only the URIs those documents declare are answered
 // again, and a pass that goes on past what it held pays for what it adds.
 func (ix *identifiers) grow(reached []DocID) bool {
+	affected := map[string]bool{}
 	for _, d := range reached {
 		ix.counted[d] = true
-	}
-	next := map[string][]Position{}
-	for _, d := range reached {
 		for _, uri := range ix.byDoc[d] {
-			if _, done := next[uri]; done {
-				continue
-			}
-			next[uri] = ix.answer(uri)
-			if ix.asked[uri] && !slices.Equal(next[uri], ix.uris[uri]) {
-				return true
-			}
+			affected[uri] = true
 		}
 	}
-	for uri, at := range next {
-		if len(at) == 0 {
-			delete(ix.uris, uri)
-			continue
+	// Each URI here is declared by a document now counted, so none answers
+	// with no declaration.
+	next := map[string][]Position{}
+	for uri := range affected {
+		next[uri] = ix.answer(uri)
+		if ix.asked[uri] && !slices.Equal(next[uri], ix.uris[uri]) {
+			return true
 		}
-		ix.uris[uri] = at
 	}
+	maps.Copy(ix.uris, next)
 	return false
 }
 
