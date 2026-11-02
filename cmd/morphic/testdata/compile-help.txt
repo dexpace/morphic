@@ -23,8 +23,8 @@ It is for developing a compiler or a pass, and slows the run.
 run from there when nothing the document depends on has changed: this build,
 the spec and every document it reads, the settings, the passes, and the working
 directory. The output and the exit status are the same either way. A cache
-that cannot be read or written costs the time and a warning on stderr, and a
---verify run does not use it, as it exists to run the stages.
+that cannot be used costs the time and a warning on stderr, and a --verify run
+does not use it, as it exists to run the stages.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI

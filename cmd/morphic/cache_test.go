@@ -170,21 +170,49 @@ func TestRun_CacheDirAnUnusableDirectoryWarns(t *testing.T) {
 	assert.Regexp(t, `^morphic: warning: engine: cache: load: [^\n]+; engine: cache: store: [^\n]+\n$`, stderrBlocked)
 }
 
-// TestEngineFor_NoBuildNoEngine stops where the build would be named: with no
-// identity no key is sound, and the flag asked for one. It calls engineFor
-// because a run under a cancelled ctx fails anyway, whatever engine it got.
-func TestEngineFor_NoBuildNoEngine(t *testing.T) {
+// failBuildID makes naming this executable fail with err for the rest of the
+// test.
+func failBuildID(t *testing.T, err error) {
+	t.Helper()
+	orig := buildID
+	t.Cleanup(func() { buildID = orig })
+	buildID = func(context.Context) (string, error) { return "", err }
+}
+
+// TestRun_CacheDirAnUnreadableBuildWarns names a build no one can name, as an
+// executable of mode 0111 is. The run is a plain one and says why on one line.
+func TestRun_CacheDirAnUnreadableBuildWarns(t *testing.T) {
+	spec, dir := specFile(t), t.TempDir()
+	code, stdout, stderr := runCommand(t, "compile", spec)
+	require.Equal(t, 0, code, stderr)
+
+	failBuildID(t, os.ErrPermission)
+	codeFailed, stdoutFailed, stderrFailed := runCommand(t, "compile", spec, "--cache-dir", dir)
+
+	assert.Equal(t, code, codeFailed)
+	assert.Equal(t, stdout, stdoutFailed)
+	assert.Equal(t, "morphic: warning: "+os.ErrPermission.Error()+"\n", stderrFailed)
+	listed, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Empty(t, listed, "no key was sound, so nothing was kept")
+}
+
+// TestEngineFor_AStopWhileNamingTheBuildEndsTheRun stops the run there, and no
+// warning blames the cache for it.
+func TestEngineFor_AStopWhileNamingTheBuildEndsTheRun(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	eng, err := engineFor(ctx, specOptions{cacheDir: t.TempDir()})
+	var stderr bytes.Buffer
+	eng, err := engineFor(ctx, specOptions{cacheDir: t.TempDir()}, &stderr)
 	require.ErrorIs(t, err, context.Canceled)
 	assert.Nil(t, eng)
+	assert.Empty(t, stderr.String())
 }
 
-// TestRunPipeline_ABuildFailureEndsTheRun reports it as any failure outside the
-// spec is.
-func TestRunPipeline_ABuildFailureEndsTheRun(t *testing.T) {
+// TestRunPipeline_AStopWhileNamingTheBuildEndsTheRun reports it as any stop
+// is: exit 2.
+func TestRunPipeline_AStopWhileNamingTheBuildEndsTheRun(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

@@ -4,18 +4,11 @@
 package engine
 
 import (
-	"bytes"
-	"cmp"
 	"context"
 	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"maps"
 	"os"
-	"slices"
-	"strconv"
-	"strings"
-	"sync"
 
 	"github.com/dexpace/morphic/barrier"
 	"github.com/dexpace/morphic/compilers"
@@ -27,19 +20,16 @@ var _ Cache = (*cache.Dir)(nil)
 
 // Cache keeps what runs compiled, for WithCache. It holds opaque bytes, and
 // overlapping calls must be safe; cache.Dir is the implementation on disk. An
-// entry may be lost or damaged at any time, which costs a compile and never a
-// wrong document. It is trusted as the executable is: a hash tells damage from
-// a sound entry, not a forgery from a compile.
+// entry may be lost, damaged or returned for the wrong key at any time, which
+// costs a compile and never a wrong document (entry seals). It is trusted as
+// the executable is: a seal tells those from a sound entry, not a forgery from
+// a compile.
 type Cache interface {
 	// Load returns the entry named key, and false when there is none.
 	Load(ctx context.Context, key cache.Key) (entry []byte, ok bool, err error)
 	// Store keeps entry as the one named key, replacing any there.
 	Store(ctx context.Context, key cache.Key, entry []byte) error
 }
-
-// entrySeparator ends an entry's head. A head is compact JSON, which holds no
-// raw newline, so the first one is always the end of it.
-const entrySeparator = '\n'
 
 // cacheBinding is the cache an engine reads and what names its build.
 type cacheBinding struct {
@@ -114,67 +104,6 @@ func ctxAfterCache(ctx context.Context) error {
 	return nil
 }
 
-// keyOf derives the key of a run: everything the document depends on but the
-// documents it reads, which no key made before the compile can name, so an
-// entry lists them instead (entryHead.Reads). FailOn is absent: the verdict is
-// judged afresh. The format is too: it follows from the bytes, and finding it
-// is what a hit skips. The working directory is present because a compile reads
-// it, to relate a relative path to an absolute one, and so reaches type IDs
-// (#1297).
-func (b *cacheBinding) keyOf(spec compilers.Source, opts RunOptions, p plan) (cache.Key, error) {
-	dir, err := b.workingDir()
-	if err != nil {
-		return cache.Key{}, fmt.Errorf("engine: cache: %w", err)
-	}
-	passes := make([]string, 0, len(p.passes))
-	for _, np := range p.passes {
-		passes = append(passes, np.name)
-	}
-	return keyFor(keyInputs{
-		build: b.build, irVersion: ir.IRVersion, dir: dir, path: spec.Path, specHash: ir.SourceHash(spec.Data),
-		passes: passes, settings: opts.CompilerOptions,
-	}), nil
-}
-
-// keyInputs is what a run's key covers, a field per input.
-type keyInputs struct {
-	build, irVersion, dir, path, specHash string
-	passes                                []string
-	settings                              map[string]string
-}
-
-// keyFor frames in as cache.KeyOf wants: the passes after their count, then the
-// settings, last and so needing none, in sorted order.
-func keyFor(in keyInputs) cache.Key {
-	const leading = 6 // the fields before the passes
-	fields := make([]string, 0, leading+len(in.passes)+2*len(in.settings))
-	fields = append(fields, in.build, in.irVersion, in.dir, in.path, in.specHash, strconv.Itoa(len(in.passes)))
-	fields = append(fields, in.passes...)
-	for _, name := range slices.Sorted(maps.Keys(in.settings)) {
-		fields = append(fields, name, in.settings[name])
-	}
-	return cache.KeyOf(fields...)
-}
-
-// entryHead is the first line of an entry: what a run needs to tell whether the
-// document after it still answers, ahead of decoding that document.
-type entryHead struct {
-	// Format is Result.Format, which a hit does not detect.
-	Format compilers.SourceFormat `json:"format"`
-	// Reads is every document the compile read. An entry answers only a run
-	// reading the same bytes from each.
-	Reads []documentRead `json:"reads,omitempty"`
-	// Hash is the document's bytes as ir.SourceHash spells them, which is what
-	// tells a damaged entry from a sound one.
-	Hash string `json:"hash"`
-}
-
-// documentRead is one read a compile made, and the bytes it got.
-type documentRead struct {
-	Request compilers.DocumentRequest `json:"request"`
-	Hash    string                    `json:"hash"`
-}
-
 // fetch answers a run from the entry named key. ok is false for no entry, for
 // one a changed document outdates, and for one that fails, which err then says.
 // Rereading costs what the compile's reads cost, the network's among them.
@@ -183,7 +112,7 @@ func (b *cacheBinding) fetch(ctx context.Context, key cache.Key, docs compilers.
 	if err != nil || !ok {
 		return nil, false, err
 	}
-	head, body, err := decodeEntry(entry)
+	head, body, err := decodeEntry(key, entry)
 	if err != nil {
 		return nil, false, fmt.Errorf("engine: cache: entry %s: %w", key, err)
 	}
@@ -221,7 +150,7 @@ func (b *cacheBinding) keep(ctx context.Context, key cache.Key, res *Result, rea
 	if res.Document == nil || !sound {
 		return nil
 	}
-	entry, err := encodeEntry(res, listed)
+	entry, err := encodeEntry(key, res, listed)
 	if err != nil {
 		return fmt.Errorf("engine: cache: %w", err)
 	}
@@ -232,92 +161,4 @@ func (b *cacheBinding) keep(ctx context.Context, key cache.Key, res *Result, rea
 		return fmt.Errorf("engine: cache: store: %w", err)
 	}
 	return nil
-}
-
-// encodeEntry writes res as an entry: the head, then the compact document.
-func encodeEntry(res *Result, reads []documentRead) ([]byte, error) {
-	body, err := json.Marshal(res.Document)
-	if err != nil {
-		return nil, fmt.Errorf("encode document: %w", err)
-	}
-	head, err := json.Marshal(entryHead{Format: res.Format, Reads: reads, Hash: ir.SourceHash(body)})
-	if err != nil {
-		return nil, fmt.Errorf("encode head: %w", err)
-	}
-	return slices.Concat(head, []byte{entrySeparator}, body), nil
-}
-
-// decodeEntry splits entry into its head and document, refusing an entry whose
-// document is not the one its head names. An entry cut before its separator
-// fails here too: what is left is no head, or the hash of no document.
-func decodeEntry(entry []byte) (entryHead, []byte, error) {
-	line, body, _ := bytes.Cut(entry, []byte{entrySeparator})
-	var head entryHead
-	if err := json.Unmarshal(line, &head); err != nil {
-		return entryHead{}, nil, fmt.Errorf("decode head: %w", err)
-	}
-	if ir.SourceHash(body) != head.Hash {
-		return entryHead{}, nil, errors.New("document does not match its hash")
-	}
-	return head, body, nil
-}
-
-// stillRead reports whether each read returns what the compile got from it. A
-// read that fails, ctx's end among the ways, answers no: the compile it sends
-// the run to reports that as it should.
-func stillRead(ctx context.Context, docs compilers.DocumentReader, reads []documentRead) bool {
-	for _, read := range reads {
-		data, err := docs.ReadDocument(ctx, read.Request)
-		if err != nil || ir.SourceHash(data) != read.Hash {
-			return false
-		}
-	}
-	return true
-}
-
-// recorder reads through docs and notes what each read returned, which is what
-// makes an entry sound: it lists what the compile actually got, whatever
-// changed around it, and a compiler reads nothing but through its Reader.
-type recorder struct {
-	docs compilers.DocumentReader
-
-	mu sync.Mutex
-	// reads holds each request's bytes as ir.SourceHash spells them.
-	reads map[compilers.DocumentRequest]string
-	// unsound is set by a read no replay could vouch for: one that failed, since
-	// the document may appear later and nothing stored would notice, or one that
-	// answered a repeat with other bytes.
-	unsound bool
-}
-
-// ReadDocument implements compilers.DocumentReader.
-func (r *recorder) ReadDocument(ctx context.Context, req compilers.DocumentRequest) ([]byte, error) {
-	data, err := r.docs.ReadDocument(ctx, req)
-	var hash string
-	if err == nil {
-		hash = ir.SourceHash(data)
-	}
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	seen, repeated := r.reads[req]
-	r.unsound = r.unsound || err != nil || (repeated && seen != hash)
-	r.reads[req] = hash
-	return data, err
-}
-
-// settled returns every read in one order, and false when the record is
-// unsound. A compile that read concurrently has finished by now, but the lock
-// is what says so to the race detector.
-func (r *recorder) settled() ([]documentRead, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	reads := make([]documentRead, 0, len(r.reads))
-	for req, hash := range r.reads {
-		reads = append(reads, documentRead{Request: req, Hash: hash})
-	}
-	slices.SortFunc(reads, func(a, b documentRead) int {
-		return cmp.Or(strings.Compare(a.Request.Location, b.Request.Location),
-			strings.Compare(a.Request.Within, b.Request.Within), cmp.Compare(a.Request.Limit, b.Request.Limit))
-	})
-	return reads, !r.unsound
 }

@@ -484,10 +484,10 @@ working directory, the spec's path and bytes, the passes the run leaves on, in o
 textual compiler settings. Each is there because the document depends on it. The path is written
 into `Sources`. The working directory reaches type IDs: a compile reads it to relate a relative
 path to an absolute one, so one spec reaching one document can lower to two sets of IDs from two
-directories (#1297). The build is the identity of the code, compilers and passes included: `cache.BuildID`
-hashes the executable, since a module version names neither a dirty tree nor the toolchain. The
-threshold is not covered, as a hit judges the verdict afresh, and neither is the format, which
-follows from the bytes and which finding is what a hit skips.
+directories (#1297). The build is the identity of the code, compilers and passes included:
+`cache.BuildID` hashes the executable, since a module version names neither a dirty tree nor the
+toolchain. The threshold is not covered, as a hit judges the verdict afresh, and neither is the
+format, which follows from the bytes and which finding is what a hit skips.
 
 **What a key cannot cover.** Which other documents a compile reads is known only once it has run.
 So a compile reads through a recorder, the entry lists each request with the hash of what came
@@ -502,12 +502,19 @@ stores. A `FormatOptions` value is opaque to the engine, which cannot tell what 
 key on, so such a run does the same; the textual channel is the one that caches. `RunDocument`
 compiles nothing.
 
-**A cache never fails a run.** An entry that is damaged, a store that refuses, or a `Cache` that
-panics costs the compile and is reported on `Result.CacheErr`, and an entry whose document fails its
-hash is replaced by what the run compiles. `cache.Dir` publishes by atomic rename, so processes can
-share one, holds `cache.MaxBytes` at most, the oldest entries going first, and removes only files it
-named. A hash tells a damaged entry from a sound one, not a forged one from a compile, so a cache
-directory is trusted as the executable is; a new one is created private to its user.
+**A cache never fails a run.** An entry that is damaged, a store that refuses or panics, or a build
+that cannot be named costs the work and a report, on `Result.CacheErr` or as the CLI's warning. An
+entry is sealed by a hash over its key and all it holds, so one damaged anywhere, or handed back for
+another key, is refused and replaced by what the run compiles: a hash of the bytes alone would serve
+an intact entry to the wrong run. A seal tells damage from a sound entry, not a forgery from a
+compile, so a cache directory is trusted as the executable is.
+
+**The store on disk.** `cache.Dir` publishes by atomic rename, so processes can share one, creates
+its directory private to its user, and removes only files it named. It keeps its entries within
+`cache.MaxBytes`, those unused longest going first. Listing the directory costs what its entries
+number, so a store tallies its size in a ledger and prunes only once an eighth of the limit has been
+stored since the last prune, or a bounded number of stores have passed. The entries can pass the
+limit by that eighth between prunes, and a ledger it cannot read prunes at once.
 
 ## 3. Go package layout
 
@@ -617,8 +624,8 @@ disk (`RunSpec`, for an edited buffer or a harness), sources already in memory (
 reads nothing else), or a document already compiled (`RunDocument`, which runs the passes alone).
 `engine/reader` reads what a source's references name, `engine/output` writes the document to a
 stream or replaces a file atomically, `engine/report` renders diagnostics and `--explain`, and
-`engine/cache` keeps what a run compiled (§2.6). The CLI parses flags, picks the streams, cancels the run on SIGINT, SIGTERM or SIGHUP, and turns the
-run into an exit code.
+`engine/cache` keeps what a run compiled (§2.6). The CLI parses flags, picks the streams, cancels
+the run on SIGINT, SIGTERM or SIGHUP, and turns the run into an exit code.
 
 Two caps guard the shape rather than the graph, both in `internal/archtest` and `.golangci.yml`:
 no type under `compilers/` may carry more than 20 methods, and no function may exceed 70 lines or

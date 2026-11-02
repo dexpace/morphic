@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/dexpace/morphic/engine"
-	"github.com/dexpace/morphic/engine/cache"
 	"github.com/dexpace/morphic/engine/output"
 	"github.com/dexpace/morphic/engine/report"
 	"github.com/dexpace/morphic/ir"
@@ -53,8 +52,8 @@ It is for developing a compiler or a pass, and slows the run.
 run from there when nothing the document depends on has changed: this build,
 the spec and every document it reads, the settings, the passes, and the working
 directory. The output and the exit status are the same either way. A cache
-that cannot be read or written costs the time and a warning on stderr, and a
---verify run does not use it, as it exists to run the stages.
+that cannot be used costs the time and a warning on stderr, and a --verify run
+does not use it, as it exists to run the stages.
 
 --opt passes a setting to the compiler the spec selects, which names and
 validates its own options; morphic itself knows none of them. The OpenAPI
@@ -166,6 +165,7 @@ func bindSpecFlags(fs *pflag.FlagSet, opts *specOptions) {
 		"set one key=value option on the compiler the spec selects (repeatable)")
 	fs.StringVar(&opts.cacheDir, "cache-dir", "",
 		"keep compiled documents in this directory, and reuse one while nothing it depends on has changed")
+	fs.Lookup("cache-dir").Annotations = map[string][]string{cobra.BashCompSubdirsInDir: {}}
 }
 
 // completeSpecFile offers spec files, by extension, for the one operand compile
@@ -216,7 +216,7 @@ func specArgs(cmd *cobra.Command, args []string) error {
 func runPipeline(
 	ctx context.Context, specPath string, opts specOptions, stderr io.Writer,
 ) (res *engine.Result, code int, err error) {
-	eng, err := engineFor(ctx, opts)
+	eng, err := engineFor(ctx, opts, stderr)
 	if err != nil {
 		return nil, 0, failure(err)
 	}
@@ -244,20 +244,6 @@ func runPipeline(
 		return nil, code, nil
 	}
 	return res, code, nil
-}
-
-// engineFor builds the engine opts ask for: one keeping its documents in the
-// directory --cache-dir names, under this executable's identity, or the plain
-// one.
-func engineFor(ctx context.Context, opts specOptions) (*engine.Engine, error) {
-	if opts.cacheDir == "" {
-		return newEngine()
-	}
-	build, err := cache.BuildID(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return newEngine(engine.WithCache(cache.NewDir(opts.cacheDir), build))
 }
 
 // compileSpec runs the pipeline over specPath, writes the IR document and its

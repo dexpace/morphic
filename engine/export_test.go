@@ -4,6 +4,8 @@
 package engine
 
 import (
+	"slices"
+
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine/cache"
 	"github.com/dexpace/morphic/ir"
@@ -83,4 +85,12 @@ func SettledLocations(r *Recorder) ([]string, bool) {
 		locations = append(locations, read.Request.Location)
 	}
 	return locations, sound
+}
+
+// SealedEntry returns an entry for key holding head and body, sealed as a store
+// would hand it back intact: what a test writes to reach what follows the seal.
+func SealedEntry(key cache.Key, head, body string) []byte {
+	separator := []byte{entrySeparator}
+	content := slices.Concat([]byte(head), separator, []byte(body))
+	return slices.Concat(sealOf(key, content), separator, content)
 }

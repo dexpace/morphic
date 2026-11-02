@@ -8,12 +8,14 @@ import (
 	"context"
 	"encoding/json/v2"
 	"errors"
-	"fmt"
+	"go/types"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -31,6 +33,7 @@ import (
 	"github.com/dexpace/morphic/engine"
 	"github.com/dexpace/morphic/engine/cache"
 	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 )
@@ -145,34 +148,61 @@ func cachedEngine(t *testing.T, store engine.Cache, build string, opts ...engine
 	return eng, counter
 }
 
-// encoded is what a consumer of res reads, for comparing two runs.
-type encoded struct {
-	Document    string
-	Diagnostics []ir.Diagnostic
-	Sources     []ir.SourceInfo
-	Format      compilers.SourceFormat
-	Failed      bool
-}
-
-func encodedOf(t *testing.T, res *engine.Result) encoded {
-	t.Helper()
-	doc := ""
-	if res.Document != nil {
-		data, err := json.Marshal(res.Document)
-		require.NoError(t, err)
-		doc = string(data)
-	}
-	return encoded{
-		Document: doc, Diagnostics: res.Diagnostics, Sources: res.Sources, Format: res.Format, Failed: res.Failed,
-	}
+// sameRun compares two Results as a consumer reads them: every field but
+// CacheErr, which is the one a hit may differ in, and the document by its
+// encoding, which is the whole of what it says. Comparing the whole struct is
+// what holds a field Result gains to a hit as well.
+var sameRun = cmp.Options{
+	cmpopts.IgnoreFields(engine.Result{}, "CacheErr"),
+	cmpopts.EquateEmpty(),
+	cmp.Transformer("encoded", func(doc *ir.Document) string {
+		data, err := json.Marshal(doc)
+		if err != nil {
+			return "will not encode: " + err.Error()
+		}
+		return string(data)
+	}),
 }
 
 // assertSameRun fails unless the two results tell a consumer the same thing.
 func assertSameRun(t *testing.T, want, got *engine.Result) {
 	t.Helper()
-	if diff := cmp.Diff(encodedOf(t, want), encodedOf(t, got), cmpopts.EquateEmpty()); diff != "" {
+	if diff := cmp.Diff(want, got, sameRun); diff != "" {
 		t.Errorf("a hit differs from the compile it stands for (-compiled +cached):\n%s", diff)
 	}
+}
+
+// TestAssertSameRun_SeesEachField plants a difference in each field of a
+// Result, so a comparison that skipped one would show here, not in a hit.
+func TestAssertSameRun_SeesEachField(t *testing.T) {
+	t.Parallel()
+	base := engine.Result{
+		Document:    &ir.Document{IRVersion: ir.IRVersion, Name: "a"},
+		Diagnostics: []ir.Diagnostic{{Severity: ir.SeverityInfo, Code: "c"}},
+		Sources:     []ir.SourceInfo{{Path: "p"}}, Format: compilers.SourceFormat{Name: "n", Version: "1"},
+	}
+	rows := map[string]func(*engine.Result){
+		"Document":    func(r *engine.Result) { r.Document = &ir.Document{IRVersion: ir.IRVersion, Name: "b"} },
+		"Diagnostics": func(r *engine.Result) { r.Diagnostics = nil },
+		"Sources":     func(r *engine.Result) { r.Sources = []ir.SourceInfo{{Path: "q"}} },
+		"Format":      func(r *engine.Result) { r.Format.Version = "2" },
+		"Failed":      func(r *engine.Result) { r.Failed = true },
+	}
+	for field, change := range rows {
+		changed := base
+		change(&changed)
+		assert.NotEmpty(t, cmp.Diff(&base, &changed, sameRun), "a difference in %s goes unseen", field)
+	}
+	withErr := base
+	withErr.CacheErr = errors.New("cache failed")
+	assert.Empty(t, cmp.Diff(&base, &withErr, sameRun), "CacheErr is the one field a hit may differ in")
+
+	var declared []string
+	for field := range reflect.TypeFor[engine.Result]().Fields() {
+		declared = append(declared, field.Name)
+	}
+	assert.Empty(t, cmp.Diff(slices.Sorted(maps.Keys(rows)), slices.Sorted(slices.Values(slices.DeleteFunc(declared,
+		func(name string) bool { return name == "CacheErr" })))), "a field of Result has no row (-rows +declared)")
 }
 
 // countingPass is a pass that counts its runs and changes nothing.
@@ -747,24 +777,36 @@ func TestWithCache_NothingCompiledLeavesNoEntry(t *testing.T) {
 }
 
 // TestWithCache_ADamagedEntryCostsACompile damages an entry each way a store
-// could return it. The run must come back whole, say what it found, and leave
-// a sound entry in its place.
+// could return it: broken anywhere the seal covers, or sealed intact around a
+// head or a document that does not decode. The run must come back whole, say
+// what it found, and leave a sound entry in its place.
 func TestWithCache_ADamagedEntryCostsACompile(t *testing.T) {
 	t.Parallel()
-	hashed := func(body string) string {
-		return fmt.Sprintf(`{"format":{"Name":"openapi","Version":"3.1"},"hash":%q}`, ir.SourceHash([]byte(body))) + "\n" + body
+	const head = `{"format":{"Name":"openapi","Version":"3.1"}}`
+	flip := func(e []byte, at int) []byte {
+		flipped := slices.Clone(e)
+		flipped[at] ^= 1
+		return flipped
 	}
-	for name, damage := range map[string]func(entry []byte) []byte{
-		"emptied":             func([]byte) []byte { return nil },
-		"cut in its head":     func(e []byte) []byte { return e[:5] },
-		"cut in its document": func(e []byte) []byte { return e[:len(e)-1] },
-		"a head of no JSON":   func(e []byte) []byte { return append([]byte("garbage\n"), e...) },
-		"a document edited, still well formed": func(e []byte) []byte {
+	for name, damage := range map[string]func(key cache.Key, entry []byte) []byte{
+		"emptied":             func(cache.Key, []byte) []byte { return nil },
+		"cut in its seal":     func(_ cache.Key, e []byte) []byte { return e[:5] },
+		"cut in its document": func(_ cache.Key, e []byte) []byte { return e[:len(e)-1] },
+		"its seal edited":     func(_ cache.Key, e []byte) []byte { return flip(e, 0) },
+		"its head edited": func(_ cache.Key, e []byte) []byte {
+			return bytes.Replace(e, []byte(`"Version":"3.1"`), []byte(`"Version":"3.0"`), 1)
+		},
+		"a document edited, still well formed": func(_ cache.Key, e []byte) []byte {
 			return bytes.Replace(e, []byte(`"name":"Tiny"`), []byte(`"name":"Tiny, edited"`), 1)
 		},
-		"a document that decodes to nothing": func([]byte) []byte { return []byte(hashed(`{}`)) },
-		"a document of another generation": func([]byte) []byte {
-			return []byte(hashed(`{"irVersion":"0.0.0"}`))
+		"sealed around a head of no JSON": func(key cache.Key, _ []byte) []byte {
+			return engine.SealedEntry(key, "garbage", `{}`)
+		},
+		"sealed around a document that decodes to nothing": func(key cache.Key, _ []byte) []byte {
+			return engine.SealedEntry(key, head, `{}`)
+		},
+		"sealed around a document of another generation": func(key cache.Key, _ []byte) []byte {
+			return engine.SealedEntry(key, head, `{"irVersion":"0.0.0"}`)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -776,7 +818,7 @@ func TestWithCache_ADamagedEntryCostsACompile(t *testing.T) {
 			require.NoError(t, err)
 
 			key, entry := store.only(t)
-			damaged := damage(entry)
+			damaged := damage(key, entry)
 			require.NotEqual(t, entry, damaged, "a fixture that damages nothing")
 			store.entries[key] = damaged
 
@@ -792,6 +834,61 @@ func TestWithCache_ADamagedEntryCostsACompile(t *testing.T) {
 			assert.NoError(t, healed.CacheErr)
 		})
 	}
+}
+
+// TestWithCache_AnEntryForAnotherKeyIsRefused hands one run's intact entry back
+// for another's key, as a store mixing up two files would. A hash of the bytes
+// alone passes it, and the run is served the other spec's document.
+func TestWithCache_AnEntryForAnotherKeyIsRefused(t *testing.T) {
+	t.Parallel()
+	store := newMemoryCache()
+	eng, counter := cachedEngine(t, store, "b1")
+	alpha := writeNamed(t, "alpha.yaml", strings.ReplaceAll(testspec.Tiny, "title: Tiny", "title: Alpha"))
+	beta := writeNamed(t, "beta.yaml", strings.ReplaceAll(testspec.Tiny, "title: Tiny", "title: Beta"))
+	_, err := eng.Run(t.Context(), alpha, engine.RunOptions{})
+	require.NoError(t, err)
+	alphaKey, alphaEntry := store.only(t)
+	_, err = eng.Run(t.Context(), beta, engine.RunOptions{})
+	require.NoError(t, err)
+	require.Len(t, store.entries, 2)
+	for key := range store.entries {
+		if key != alphaKey {
+			store.entries[key] = alphaEntry
+		}
+	}
+
+	res, err := eng.Run(t.Context(), beta, engine.RunOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, "Beta", res.Document.Name)
+	assert.EqualValues(t, 3, counter.compiles.Load())
+	require.ErrorContains(t, res.CacheErr, "seal")
+}
+
+// TestWithCache_EveryRunOptionIsAnswered lists what a cached run does with each
+// field of RunOptions. A field added there is either in the key or keeps its run
+// out, and leaving it unanswered would serve one setting's document to another.
+func TestWithCache_EveryRunOptionIsAnswered(t *testing.T) {
+	t.Parallel()
+	answered := map[string]string{
+		"CompilerOptions": "in the key: TestWithCache_AChangedInputMisses",
+		"DisablePasses":   "in the key, as the passes left on: TestWithCache_APassTurnedOffDoesNotSeeItsDiagnostics",
+		"FailOn":          "judged afresh on a hit: TestWithCache_AHitIsJudgedAtTheRunsOwnThreshold",
+		"FormatOptions":   "keeps its run out: TestWithCache_FormatOptionsTakeNoPart",
+		"Verify":          "keeps its run out: TestWithCache_AVerifiedRunRunsItsStages",
+	}
+	p, err := decls.Load(reflect.TypeFor[engine.RunOptions]().PkgPath())
+	require.NoError(t, err)
+	named, err := p.Named("RunOptions")
+	require.NoError(t, err)
+	fields, ok := named.Underlying().(*types.Struct)
+	require.True(t, ok, "RunOptions is a struct")
+	declared := make([]string, 0, fields.NumFields())
+	for field := range fields.Fields() {
+		declared = append(declared, field.Name())
+	}
+	require.NotEmpty(t, declared, "a pin over no fields holds nothing")
+	assert.Empty(t, cmp.Diff(slices.Sorted(maps.Keys(answered)), slices.Sorted(slices.Values(declared))),
+		"say how a cached run treats each field (-answered +declared)")
 }
 
 func TestWithCache_AFailingStoreCostsOnlyTheWork(t *testing.T) {
