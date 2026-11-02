@@ -52,6 +52,11 @@ jobs:
             ${{ steps.toolchain.outputs.gomodcache }}
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ github.sha }}
           restore-keys: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-
+      # Go keys a cached test result on the time of each file a test opens, and
+      # a checkout gives every file a new one. This dates them from content.
+      - &filetimes
+        name: date files by content
+        run: make filetimes
       - name: gofmt
         run: make fmt
       - name: vet
@@ -96,6 +101,7 @@ jobs:
       - *setup-go
       - *toolchain
       - *restore
+      - *filetimes
       # Tests that load packages with go/packages run go list -export, which
       # compiles what make build does. Built first, that compile no longer runs
       # beside the tests that time a child process, which load can push past

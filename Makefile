@@ -7,6 +7,7 @@
 #
 #   make            the whole gate, one check at a time
 #   make coverage   the suite once, under -race, at exactly 100% coverage
+#   make filetimes  date tracked files by content, so a checkout reuses test results
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -75,7 +76,7 @@ FUZZTIME ?= 10s
 .NOTPARALLEL:
 
 .PHONY: gate fmt vet lint lint-planted check-lint-version build coverage \
-	fuzz bench bench-smoke print-lint-version print-go-version
+	fuzz bench bench-smoke print-lint-version print-go-version filetimes
 
 gate: fmt vet lint lint-planted build coverage fuzz bench-smoke
 
@@ -140,6 +141,14 @@ coverage:
 	fi; \
 	$(GO) test ./... -race -timeout 300s -covermode=atomic -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
+
+# Dates every tracked file from its content, so Go's test cache, which keys a
+# result on the time of each file a test opens, reuses one across checkouts. It
+# refuses a dirty worktree, the normal state while developing, and it is cache
+# plumbing that CI runs before its tests rather than a check, so the gate does
+# not list it.
+filetimes:
+	$(GO) run ./cmd/morphic-filetimes
 
 fuzz:
 	./scripts/fuzz.sh $(FUZZTIME)
