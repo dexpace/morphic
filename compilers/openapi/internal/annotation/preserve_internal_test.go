@@ -243,17 +243,19 @@ func TestCopyEntriesInto_KeepsWhatTheCarrierHolds(t *testing.T) {
 }
 
 // TestCopyEntriesInto_ReportsInKeyOrder pins that the refused entries are
-// reported in key order rather than the order a map iterates in. Eight keys
-// leave one chance in 40,320 that an unsorted report passes.
+// reported in key order rather than the order a map iterates in. Go iterates a
+// map of eight or fewer entries as a rotation of the order they were written in,
+// so eight keys written sorted would let an unsorted report pass one run in
+// eight. Sixty-four, written in reverse, leave the order to the map's hash seed.
 func TestCopyEntriesInto_ReportsInKeyOrder(t *testing.T) {
 	t.Parallel()
-	const refused = 8
-	p, src, want := ir.Unmodeled{}, ir.Unmodeled{}, make([]string, 0, refused)
-	for i := range refused {
-		key := fmt.Sprintf("openapi:k%d", i)
+	const refused = 64
+	p, src, want := ir.Unmodeled{}, ir.Unmodeled{}, make([]string, refused)
+	for i := refused - 1; i >= 0; i-- {
+		key := fmt.Sprintf("openapi:k%02d", i)
 		p[key] = ir.UnmodeledEntry{Value: ir.RawValue(`1`), Provenance: ir.Provenance{Pointer: "/held"}}
 		src[key] = ir.UnmodeledEntry{Value: ir.RawValue(`2`), Provenance: ir.Provenance{Pointer: jsontext.Pointer("/" + key)}}
-		want = append(want, "/"+key)
+		want[i] = "/" + key
 	}
 
 	diags := CopyEntriesInto(&p, src)
