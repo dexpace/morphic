@@ -170,9 +170,11 @@ place it was declared and the one place it is recorded.
 
 A format that admits nothing beside a reference annotates one use of a shared type by wrapping it:
 OpenAPI 3.0 writes `state: {allOf: [{$ref: Status}], description: the widget state}`, and keeps it
-losslessly as an anonymous `Model` whose `Base` is `Status`. 3.1 writes the same use `{$ref: Status,
-description: …}`, which hoists an anonymous `Scalar` alias over `Status` wherever no carrier holds
-the annotations ([one structural home per declaration](#one-structural-home-per-declaration)).
+losslessly as an anonymous `Model` whose `Base` is `Status`, where `Status` can be an object, and as
+the use it is where it cannot ([models](./models.md#an-allof-no-object-satisfies)). 3.1 writes the
+same use `{$ref: Status, description: …}`, which hoists an anonymous `Scalar` alias over `Status`
+wherever no carrier holds the annotations
+([one structural home per declaration](#one-structural-home-per-declaration)).
 Neither node says anything about a value that its `Base` does not. Such a node is a **decorator**,
 and `ir.Decorated` is the one statement of the rule: an anonymous type whose `Base` is set, and
 which is

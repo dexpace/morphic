@@ -52,12 +52,13 @@ components:
             - properties:
                 a: {type: string}
             - allOf: [false]
-    # A wrapper that also writes a keyword the merge does not consume is
-    # flattened, so A and B are Mixins, and is kept whole under
-    # openapi:allOf/0 with one degraded-construct naming description.
+    # A wrapper that also writes a keyword nothing consumes is flattened, so A
+    # and B are Mixins, and is kept whole under openapi:allOf/0 with one
+    # degraded-construct naming that keyword. Its description folds.
     Described:
       allOf:
-        - description: grouped
+        - additionalProperties: false
+          description: grouped
           allOf:
             - {$ref: '#/components/schemas/A'}
             - {$ref: '#/components/schemas/B'}

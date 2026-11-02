@@ -487,6 +487,31 @@ func TestCollectionBound_BesideAReferenceReachesTheCarrier(t *testing.T) {
 	}
 }
 
+// TestCollectionBound_BesideARefinementReachesWhatThePositionOwns pins an allOf
+// refining a $ref, which lowers to a reference as a $ref site does: a bound
+// beside the allOf reaches the alias or the carrier, and one on its branch stays
+// with the branch, which folds no collection bound (GitHub #1312).
+func TestCollectionBound_BesideARefinementReachesWhatThePositionOwns(t *testing.T) {
+	t.Parallel()
+	const refined = "{allOf: [{$ref: '#/components/schemas/Tags'}], minItems: 1, maxItems: 3, uniqueItems: true}"
+	doc, diags := parseFull(t, openapitest.ComponentSpec(tagsSchema+"    S: "+refined+"\n"+
+		"    Holder:\n      type: object\n      properties:\n        f: "+refined+"\n"+
+		"        onBranch: {allOf: [{$ref: '#/components/schemas/Tags'}, {minItems: 1}]}\n"))
+	openapitest.RequireNoErrorDiags(t, diags)
+
+	alias, ok := typeByName(doc, "S").(*ir.Scalar)
+	require.True(t, ok, "got %T", typeByName(doc, "S"))
+	assert.Equal(t, allBounds(), alias.Constraints)
+	assert.Empty(t, alias.Unmodeled)
+	f := propertyOf(t, doc, "Holder", "f")
+	assert.Equal(t, allBounds(), f.Constraints)
+	assert.Empty(t, f.Unmodeled, "a bound the carrier holds is not also kept")
+
+	branch := propertyOf(t, doc, "Holder", "onBranch")
+	assert.Nil(t, branch.Constraints)
+	assert.Contains(t, branch.Unmodeled, "openapi:allOf/1")
+}
+
 // TestCollectionBound_ReadsThePositionNotItsTarget pins that the rule asks what
 // the position wrote and never what the $ref names, as for a value bound: a
 // bound conjoins with whatever the target admits, and reading the target would

@@ -1,0 +1,114 @@
+# An allOf no conjunct can make an object is one use of the conjunct deciding it,
+# not a composition. Each user is declared before what it names, so a reading of
+# the registry, which holds nothing yet, would decide otherwise.
+openapi: 3.0.3
+info: {title: AllOfRefinement, version: "1.0.0"}
+paths:
+  /zones/{zone_id}:
+    post:
+      operationId: uploadToZone
+      parameters:
+        - name: zone_id
+          in: path
+          required: true
+          schema:
+            allOf:
+              - {$ref: '#/components/schemas/Identifier'}
+              - {description: The zone, maxLength: 32}
+      requestBody:
+        content:
+          application/octet-stream:
+            schema:
+              description: The upload
+              allOf: [{$ref: '#/components/schemas/Blob'}]
+      responses:
+        '200':
+          description: ok
+          headers:
+            X-Port:
+              schema: {allOf: [{$ref: '#/components/schemas/Port'}], type: integer}
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - {$ref: '#/components/schemas/Identifier'}
+                  - {description: The new zone}
+components:
+  schemas:
+    Zone:
+      type: object
+      properties:
+        # An object target keeps its composition, the annotations reading as
+        # written beside the allOf.
+        owner:
+          allOf:
+            - {$ref: '#/components/schemas/Owner'}
+            - {nullable: true, readOnly: true, description: The owner}
+        # What the target says stands where the use says nothing, and the bound
+        # binds the use.
+        zone_id:
+          allOf:
+            - {$ref: '#/components/schemas/Identifier'}
+            - {description: The zone, maxLength: 32}
+        # A restated type says nothing the reference does not.
+        port: {allOf: [{$ref: '#/components/schemas/Port'}], type: integer}
+        typed:
+          allOf:
+            - {$ref: '#/components/schemas/Identifier'}
+            - {type: string, example: x}
+        # An enum beats the $ref it narrows, which still speaks for the field.
+        mode:
+          allOf:
+            - {$ref: '#/components/schemas/Mode'}
+            - {enum: [set]}
+        # A value narrower than nothing the reference says stays verbatim.
+        width:
+          allOf:
+            - {$ref: '#/components/schemas/Port'}
+            - {type: integer, format: int32}
+        # A use reads through a component refining another.
+        scan: {$ref: '#/components/schemas/ScanID'}
+    Scores:
+      type: array
+      items:
+        allOf:
+          - {$ref: '#/components/schemas/Port'}
+          - {description: A score}
+    Variants:
+      oneOf:
+        - allOf: [{$ref: '#/components/schemas/Identifier'}]
+        - allOf: [{$ref: '#/components/schemas/Port'}, {description: A port}]
+    # Every branch a kind: the narrowest of them, in either order.
+    Prim:
+      allOf:
+        - {type: integer}
+        - {type: integer, format: int32}
+    PrimSwapped:
+      allOf:
+        - {type: integer, format: int32}
+        - {type: integer}
+    # A type beside the allOf is what the position is, and a branch says more.
+    Bounded:
+      type: string
+      allOf: [{maxLength: 3}]
+    # No value satisfies both, so the contradiction stands with its warnings.
+    Disjoint:
+      allOf:
+        - {type: integer}
+        - {type: string}
+    ScanID:
+      description: A scan
+      allOf: [{$ref: '#/components/schemas/Identifier'}]
+    Owner:
+      type: object
+      properties:
+        id: {type: string}
+    Identifier:
+      type: string
+      maxLength: 64
+      readOnly: true
+      title: An identifier
+      description: The identifier
+    Port: {type: integer}
+    Mode: {type: string, enum: [get, set], description: What to do}
+    Blob: {type: string, format: binary}

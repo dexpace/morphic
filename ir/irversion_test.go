@@ -67,6 +67,9 @@ var generations = []generation{
 	{version: "0.26.0", format: 1, shape: "bcf6a85eb64b4fc00b24c1797659dab7ee93b9307452d1db99fcb60bdd69a379",
 		names:   "a05a7ef4be5ea5108f3c7f1c842d573e0255d6a87393e8ce4b42c29fcc69a893",
 		meaning: "a collection bound beside a reference reaches the Constraints of the carrier or alias holding that use"},
+	{version: "0.27.0", format: 1, shape: "bcf6a85eb64b4fc00b24c1797659dab7ee93b9307452d1db99fcb60bdd69a379",
+		names:   "5506159ecd463736fdbbad0c4cabfad3fd50b48509b46fbea55862e82eca9675",
+		meaning: "an allOf no conjunct can make an object is a use of the conjunct deciding it, not a Model, and a node at an inline allOf branch is named as the schema holding it"},
 }
 
 // shapeGolden holds the description the newest row's shape hashes, so a change

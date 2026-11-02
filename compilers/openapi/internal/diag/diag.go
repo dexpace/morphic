@@ -451,12 +451,13 @@ const (
 	InvalidPathKey = "openapi/invalid-path-key"
 	// InferredNullable reports a null the nullable-widening policy reads in
 	// where the document's version does not: a `nullable: true` in a 3.1 or 3.2
-	// schema, beside a $ref, or in a 3.0 schema with no type beside it or a
-	// keyword that excludes null, at the keyword; or keywords beside a $ref that
-	// admit null over a target that does not, at the schema writing them. Each
-	// is reported once, and each reference whose null rests on it is marked
-	// Inferred (docs/compilers/openapi.md#nullable). Info: the reading is the
-	// document's evident intent, and the mark keeps the declared one.
+	// schema, beside a $ref, in a 3.0 schema with no type beside it or a keyword
+	// that excludes null, or on an allOf branch another conjunct contradicts, at
+	// the keyword; or keywords beside a $ref that admit null over a target that
+	// does not, at the schema writing them. Each is reported once, and each
+	// reference whose null rests on it is marked Inferred
+	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
+	// evident intent, and the mark keeps the declared one.
 	InferredNullable = "openapi/inferred-nullable"
 )
 

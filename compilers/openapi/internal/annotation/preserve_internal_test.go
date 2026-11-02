@@ -207,3 +207,18 @@ func TestMergeUnmodeled_AllocatesOnlyOnFirstWrite(t *testing.T) {
 		"a": {Reason: ir.ReasonOutOfScope}, "b": {Reason: ir.ReasonNoIRHome},
 	}, MergeUnmodeled(dst, src))
 }
+
+// TestUnderlayUnmodeled_ANearerEntryStands pins what a voice may add: an entry the
+// site does not hold, never one it does, so a keyword several write stays the
+// nearest's, its provenance with it.
+func TestUnderlayUnmodeled_ANearerEntryStands(t *testing.T) {
+	t.Parallel()
+	near := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/near"}}
+	far := ir.UnmodeledEntry{Reason: ir.ReasonVendorExtension, Provenance: ir.Provenance{Pointer: "/far"}}
+
+	got := underlayUnmodeled(ir.Unmodeled{"x-a": near}, ir.Unmodeled{"x-a": far, "x-b": far})
+	assert.Equal(t, ir.Unmodeled{"x-a": near, "x-b": far}, got)
+
+	assert.Equal(t, ir.Unmodeled{"x-b": far}, underlayUnmodeled(nil, ir.Unmodeled{"x-b": far}))
+	assert.Nil(t, underlayUnmodeled(nil, nil), "nothing to add allocates nothing")
+}

@@ -150,6 +150,7 @@ func (s nullSite) child(tokens ...string) nullSite {
 // an alias's own keywords included, within one budget for the whole read,
 // conjuncts.
 type nulls struct {
+	c         lowering.Ctx
 	refs      *typed.Bindings
 	is30      bool
 	conjuncts budget.Budget
@@ -171,7 +172,7 @@ type nullFinding struct {
 // dialect c's document declares. It returns a value so the read lives on its
 // caller's stack, as one per position read is.
 func newNulls(c lowering.Ctx) nulls {
-	return nulls{refs: c.Bindings(), is30: c.Is30(), conjuncts: budget.New(budget.AtMost(maxNullConjuncts)),
+	return nulls{c: c, refs: c.Bindings(), is30: c.Is30(), conjuncts: budget.New(budget.AtMost(maxNullConjuncts)),
 		declared: c.Doc.GetOpenAPI()}
 }
 
@@ -191,12 +192,12 @@ func (n *nulls) findings(c lowering.Ctx) []ir.Diagnostic {
 
 // schema reads a whole schema that writes no $ref, by conjoining what each of
 // its keyword families says (keywords), then widening it where it writes
-// `nullable: true`.
+// `nullable: true` or an inline allOf branch speaking for it does.
 func (n *nulls) schema(s *oas3.Schema, site nullSite) nullReading {
 	if s == nil || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
-	return n.widen(s, n.keywords(s, site), site)
+	return n.widenByBranch(s, n.widen(s, n.keywords(s, site), site), site)
 }
 
 // ref reads a $ref usage as JSON Schema reads it: the keywords beside the $ref
@@ -429,6 +430,57 @@ func (n *nulls) allOf(s *oas3.Schema, site nullSite) nullReading {
 		out = foldNullReadings(out, n.conjunct(b, site.child("allOf", strconv.Itoa(i))))
 	}
 	return out
+}
+
+// widenByBranch is the lenient reading of a `nullable: true` that folds: written
+// on an inline branch that speaks for the position, it says what the keyword
+// beside the allOf says, and widens all of s (widen), a `type` beside the allOf
+// included, where the declared reading leaves it conjoined. A branch whose own
+// keywords admit null said so by themselves, so widen said nothing of it, and it
+// is noted here, where s is written. A 3.1 `type: [T, "null"]` on a conjunct
+// stays conjoined, which beside a $ref it does not
+// (docs/compilers/openapi.md#allof-refinement).
+func (n *nulls) widenByBranch(s *oas3.Schema, r nullReading, site nullSite) nullReading {
+	for _, e := range nullableVoices(n.c, s) {
+		r.lenient = nullAdmitted
+		if !site.ok {
+			break // a read across a $ref reports nothing, so one widening is all it needs
+		}
+		if r.declared != nullAdmitted && n.keywords(e.schema.GetSchema(), nullSite{}).declared == nullAdmitted {
+			n.found = append(n.found, nullFinding{at: site.at + e.pointer + ids.Ptr("nullable"), message: "nullable: true " +
+				"is read as admitting null under the nullable-widening policy, though another conjunct of this allOf " +
+				"excludes null, and OpenAPI 3.0's nullable does not override it; a reference whose null rests on it " +
+				"is marked inferred"})
+		}
+	}
+	return r
+}
+
+// nullableVoicesOf keys what nullableVoices read of one schema.
+type nullableVoicesOf struct {
+	schema *oas3.Schema
+}
+
+// nullableVoices returns the branches of s's flattened allOf, each at its pointer
+// under s's, that speak for s, write `nullable: true` and write no properties
+// (foldsNullable). Every use of s asks, so it is read once a run. A branch writing
+// `false` widens nothing, though it speaks where the only `true` beside it is on a
+// $ref branch, which no fold compares.
+func nullableVoices(c lowering.Ctx, s *oas3.Schema) []allOfBranch {
+	return lowering.Remembered(c, nullableVoicesOf{s}, func() []allOfBranch {
+		if !allOfDecides(s) {
+			return nil
+		}
+		comp := allOfBranches(s, "")
+		var out []allOfBranch
+		for i, speaks := range voicesAmong(c, s) {
+			e := comp.branches[i]
+			if bs := e.schema.GetSchema(); speaks && bs.Nullable != nil && *bs.Nullable && foldsNullable(bs) {
+				out = append(out, e)
+			}
+		}
+		return out
+	})
 }
 
 // conjunct reads one allOf branch, or what a $ref lands on. A `false` schema

@@ -226,3 +226,15 @@ it sees. Changes made together in one bump are listed together under it.
   lowers to a reference had kept them verbatim under `Unmodeled`. No key changed. A consumer pinned
   to 0.25.0 that reads those entries no longer finds them, and a consumer that reads `ir.Decorated`
   finds such an alias is no longer a decorator, since it says something of the value.
+- **0.27.0** — no shape change; two changes to what a compiled document holds, made together:
+  - An `allOf` no conjunct can make an object is no `Model`, short of the cases
+    [models](./models.md#an-allof-no-object-satisfies) keeps composing: it lowers to a use of the
+    conjunct that decides it, a reference to its `$ref` or the node its inline branch lowers to. The
+    OpenAPI compiler had built a `Model` for every `allOf`, which asserted an object where the source
+    rules one out, so a consumer pinned to 0.26.0 finds a `Scalar`, an `Enum` or a reference where
+    it found a `Model`.
+  - A node built at an inline `allOf` branch takes the name of the schema holding the `allOf`
+    ([naming](./naming.md)), where it was named as a union's variant is, `variant_N`, so the
+    symbols an emitter generates from such a hint are renamed.
+
+  A consumer pinned to 0.26.0 refuses the document as another generation's.

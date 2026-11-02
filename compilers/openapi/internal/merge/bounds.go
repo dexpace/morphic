@@ -19,7 +19,7 @@ func boundsRelation(a, b *ir.Constraints) relation {
 		return relMeet
 	}
 	var met ir.Constraints
-	mergeConstraints(mergeConstraints(&met, a), b)
+	Constraints(Constraints(&met, a), b)
 	aHolds, bHolds := sameBounds(&met, a), sameBounds(&met, b)
 	switch {
 	case aHolds && bHolds:
@@ -127,7 +127,7 @@ func holdsDetail(wx, lx extras) bool {
 }
 
 // meetConstraints returns what sets say together, each keyword taking the value
-// saying what they all do (mergeConstraints), whatever their order; a nil set says
+// saying what they all do (Constraints), whatever their order; a nil set says
 // nothing. A keyword no one value states keeps the first set's value, and disagree
 // hears of each later set pinning it otherwise: that set's index, the index the
 // value was kept from, and the difference. No set is written to.
@@ -152,7 +152,7 @@ func meetConstraints(sets []*ir.Constraints, disagree func(i, kept int, detail s
 			kept = &own
 			continue
 		}
-		kept = mergeConstraints(kept, c)
+		kept = Constraints(kept, c)
 	}
 	return kept
 }
@@ -195,7 +195,7 @@ func nodeBounds(j typeJudge, ref ir.TypeRef) *ir.Constraints {
 // allBounds returns the bounds p holds and those on its type's node together.
 func allBounds(j typeJudge, p *ir.Property) *ir.Constraints {
 	var all ir.Constraints
-	return mergeConstraints(mergeConstraints(&all, p.Constraints), nodeBounds(j, p.Type))
+	return Constraints(Constraints(&all, p.Constraints), nodeBounds(j, p.Type))
 }
 
 // alike reports whether a and b are one type but for the bounds their nodes hold:

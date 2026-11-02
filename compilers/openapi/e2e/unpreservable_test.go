@@ -52,7 +52,7 @@ func TestUnpreservable_AnnouncementNeverOutrunsTheEntry(t *testing.T) {
 		{
 			name: "unmerged allOf branch",
 			spec: openapitest.ComponentSpec("    M:\n      allOf:\n" +
-				"        - {type: string, maxLength: 3, x-t: " + unpreservableValue + "}\n"),
+				"        - {additionalProperties: false, x-t: " + unpreservableValue + "}\n"),
 			at: "/components/schemas/M/allOf/0",
 		},
 		{
@@ -141,7 +141,7 @@ func TestUnpreservable_SchemaKeywordSites(t *testing.T) {
 func TestUnpreservable_ReportsTheFailureItself(t *testing.T) {
 	t.Parallel()
 	spec := openapitest.ComponentSpec("    M:\n      allOf:\n" +
-		"        - {type: string, maxLength: 3, x-t: " + unpreservableValue + "}\n")
+		"        - {additionalProperties: false, x-t: " + unpreservableValue + "}\n")
 	_, diags := parseFull(t, spec)
 
 	d, ok := openapitest.FirstDiag(diags, diag.UnpreservableConstruct)

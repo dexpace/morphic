@@ -114,7 +114,7 @@ func lowerContent(c lowering.Ctx, ts *compile.Types, mt string, media *soa.Media
 		content.Examples = ex
 	}
 	switch {
-	case isBinaryBody(c.Bindings(), mt, media.GetSchema()):
+	case isBinaryBody(c, mt, media.GetSchema()):
 		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 		content.Type = fileBodyType(ts, content.Type)
 	case isFormContent(mt):
@@ -154,14 +154,14 @@ func isFormContent(mt string) bool {
 }
 
 // isBinaryBody reports whether a content entry is a binary file body: a
-// string+binary schema, or an absent or boolean schema on
-// application/octet-stream.
-func isBinaryBody(refs *typed.Bindings, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	s := schemaOf(refs, js)
+// string+binary schema, the schema a refinement is a use of included, or an
+// absent or boolean schema on application/octet-stream.
+func isBinaryBody(c lowering.Ctx, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	s := schemaOf(c.Bindings(), js)
 	if s == nil {
 		return lowering.NormalizeMediaType(mt) == "application/octet-stream"
 	}
-	return schemaIsBinary(s)
+	return schemaIsBinary(schema.DecidingSchema(c, s))
 }
 
 // schemaIsBinary reports whether a schema is a string+binary body.

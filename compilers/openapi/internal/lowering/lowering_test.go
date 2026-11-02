@@ -341,6 +341,38 @@ x-lib:
 	assert.False(t, holds(loaded.Doc.GetRootNode(), "x-none"))
 }
 
+// TestRemembered_IsReadOnceAcrossCopies pins that a reading is read once for every
+// copy of a context, that WithLoaded starts afresh because a reading turns on what
+// it loaded, and that a context with nothing loaded reads every time.
+func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
+	t.Parallel()
+	reads := 0
+	read := func() int {
+		reads++
+		return reads
+	}
+	c := lowering.Ctx{}.WithLoaded(&load.Document{})
+
+	assert.Equal(t, 1, lowering.Remembered(c, "k", read))
+	assert.Equal(t, 1, lowering.Remembered(c.InScope(c.RefScope().InSource()), "k", read), "a copy shares what c read")
+	assert.Equal(t, 2, lowering.Remembered(c, "other", read), "another key is another reading")
+	assert.Equal(t, 3, lowering.Remembered(c.WithLoaded(&load.Document{}), "k", read), "WithLoaded remembers nothing")
+
+	var zero lowering.Ctx
+	assert.Equal(t, 4, lowering.Remembered(zero, "k", read))
+	assert.Equal(t, 5, lowering.Remembered(zero, "k", read), "a context with nothing loaded remembers nothing")
+}
+
+// TestRemembered_AKeyHoldsOneTypeOfAnswer pins a key misused by two kinds of
+// reading: the answer is read again rather than taken for the wrong type.
+func TestRemembered_AKeyHoldsOneTypeOfAnswer(t *testing.T) {
+	t.Parallel()
+	c := lowering.Ctx{}.WithLoaded(&load.Document{})
+
+	assert.Equal(t, 1, lowering.Remembered(c, "k", func() int { return 1 }))
+	assert.Equal(t, "s", lowering.Remembered(c, "k", func() string { return "s" }))
+}
+
 // TestTypePosition_IsReadOncePerScope pins the answers every copy of a context
 // shares: a position is read once in each scope it is read in, and a copy
 // reads what another remembered. A copy carrying other

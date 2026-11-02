@@ -7,14 +7,17 @@ components:
       type: object
       properties:
         id: {type: string}
-    # The inline branch contributes its properties; the cardinality bound it also
-    # declares is not merged, so it survives beside the composed model.
+    # The inline branch contributes its properties, and its description and
+    # cardinality bound read as written beside the allOf. Nothing reads its
+    # catch-all, so that survives beside the composed model, in the whole branch.
     Narrowed:
       allOf:
         - {$ref: '#/components/schemas/Base'}
         - type: object
           properties:
             name: {type: string}
+          additionalProperties: false
+          description: A narrowed base.
           maxProperties: 3
     # This branch declares a type that cannot be an object, which the composed
     # model asserts it is — the same residue, reported one severity higher.

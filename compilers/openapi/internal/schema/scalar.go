@@ -88,7 +88,7 @@ func hoistScalar(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, b
 			wireRef := ts.PrimRef(*wire)
 			enc.WireType = &wireRef
 		}
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
 		diags = append(diags, consDiags...)
 		return &ir.Scalar{
 			TypeCommon:  common,
