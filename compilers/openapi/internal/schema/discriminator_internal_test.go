@@ -82,7 +82,7 @@ func TestDiscriminatorDefault_ResolvesDeclaredComponent(t *testing.T) {
 	l := NewRawLowerer(openapitest.DocDeclaring("Cat"))
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Cat")}
 
-	id, diags := discriminatorDefault(l.Ctx, l.Types, d, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.Ctx, l.Types, d, mappingRoute{}, "/components/schemas/Pet")
 	assert.Equal(t, ids.Document{}.NamedType("/components/schemas/Cat"), id)
 	assert.Empty(t, diags, "a resolvable defaultMapping produces no diagnostic")
 }
@@ -94,7 +94,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 	// defaultMapping does not resolve and is dropped with one error diagnostic.
 	d := &oas3.Discriminator{PropertyName: "kind", DefaultMapping: new("Missing")}
 
-	id, diags := discriminatorDefault(l.Ctx, l.Types, d, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.Ctx, l.Types, d, mappingRoute{}, "/components/schemas/Pet")
 	assert.Empty(t, id, "an unresolved defaultMapping yields no target")
 	require.Len(t, diags, 1)
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code)
@@ -103,7 +103,7 @@ func TestDiscriminatorDefault_DroppedWhenUnresolved(t *testing.T) {
 func TestDiscriminatorDefault_EmptyIsNoOp(t *testing.T) {
 	t.Parallel()
 	l := NewRawLowerer(&soa.OpenAPI{})
-	id, diags := discriminatorDefault(l.Ctx, l.Types, &oas3.Discriminator{PropertyName: "kind"}, nil, "/components/schemas/Pet")
+	id, diags := discriminatorDefault(l.Ctx, l.Types, &oas3.Discriminator{PropertyName: "kind"}, mappingRoute{}, "/components/schemas/Pet")
 	assert.Empty(t, id)
 	assert.Empty(t, diags)
 }
@@ -136,7 +136,7 @@ func TestResolveMappingTarget_Branches(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec(mappingTargetSpec))
 	d := petDiscriminator(t, l)
 	resolveTarget := func(target string) (ir.TypeID, bool) {
-		return resolveMappingTarget(l.Ctx, l.Types, d, target, nil)
+		return resolveMappingTarget(l.Ctx, l.Types, d, target, mappingRoute{})
 	}
 
 	cat := ids.Document{}.NamedType(ids.Ptr("components", "schemas", "Cat"))
@@ -177,7 +177,7 @@ func TestResolveMappingTarget_RefusesWhatTheDocumentDoesNotDeclare(t *testing.T)
 		"#/components/schemas/Ghost":                  "an undeclared component is refused, not hoisted as an inline position",
 		"#/components/schemas/Pet/properties/missing": "a position the document does not declare does not resolve",
 	} {
-		_, ok := resolveMappingTarget(l.Ctx, l.Types, d, target, nil)
+		_, ok := resolveMappingTarget(l.Ctx, l.Types, d, target, mappingRoute{})
 		assert.False(t, ok, why)
 	}
 	reg, finished := l.Types.Finish(t.Context())

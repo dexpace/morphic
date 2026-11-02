@@ -51,14 +51,15 @@ func TestConformance(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseCorpus(t, tc.file)
 			assertOnlyErrorDiags(t, diags, invalidCases()[tc.file])
-			tc.assert(t, doc, diags)
-			// A failed capability assertion must not reach the golden. require
-			// aborts, but assert does not, and under -update a non-fatal failure
-			// would rewrite the snapshot with the regressed document — leaving a
-			// loud run behind a file that now agrees with the regression.
-			require.False(t, t.Failed(), "capability assertion failed; not comparing or rewriting the golden")
-			irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
+			// A subtest returns once its own parallel subtests have finished, so
+			// the check below sees a failure in any an assertion starts.
+			t.Run("assert", func(t *testing.T) { tc.assert(t, doc, diags) })
 			assertJSONRoundTrip(t, doc)
+			// A failed assertion must not reach the golden: under -update it would
+			// rewrite the snapshot with the regressed document, leaving a loud run
+			// behind a file that now agrees with the regression.
+			require.False(t, t.Failed(), "an assertion failed; not comparing or rewriting the golden")
+			irtest.CompareGolden(t, filepath.Join(conformanceDir, tc.file+".golden.json"), doc)
 		})
 	}
 }
@@ -173,13 +174,19 @@ func conformanceCases() []conformanceCase {
 		{"union-beside-ref", assertUnionBesideRef},
 		{"codeclared-keywords", assertCoDeclaredKeywords},
 		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
+		{"content-several-entries", assertContentSeveralEntries},
 		{"anyof-untagged", assertAnyOfUntagged},
 		{"union-decorated-branch", assertUnionDecoratedBranch},
 		{"negation-not", assertNegationNot},
 		{"dependent-required", assertDependentRequired},
 		{"dialect-keywords", assertDialectKeywords},
 		{"dynamic-ref", assertDynamicRef},
+		{"keywords-at-every-outcome", assertKeywordsAtEveryOutcome},
+		{"unknown-keywords-at-shared-nodes", assertUnknownKeywordsAtSharedNodes},
+		{"null-keywords", assertNullKeywords},
+		{"discriminator-aliased-branch", assertDiscriminatorAliasedBranch},
 		{"schema-identifiers", assertSchemaIdentifiers},
+		{"type-array-numeric", assertTypeArrayNumeric},
 		{"enum-string", assertEnumString},
 		{"enum-numeric", assertEnumNumeric},
 		{"empty-enum", assertEmptyEnum},
@@ -266,6 +273,8 @@ func conformanceCases() []conformanceCase {
 		{"oauth-flow-fields", assertOAuthFlowFields},
 		{"reached-outside-model", assertReachedOutsideModel},
 		{"security-or-and", assertSecurityOrAnd},
+		{"security-root-empty", assertSecurityRootEmpty},
+		{"security-unresolved", assertSecurityUnresolved},
 	}
 }
 
@@ -308,5 +317,14 @@ func invalidCases() map[string][]string {
 	return map[string][]string{
 		// A parameter and a header writing both schema and content: "but not both".
 		"codeclared-schema-content": {"openapi/validation/validation-mutually-exclusive-fields"},
+		// A parameter and a header whose content holds several entries, where the
+		// specification requires exactly one.
+		"content-several-entries": {"openapi/validation/validation-entry-count"},
+		// Requirements naming a scheme the document does not hold: each name
+		// "MUST correspond to a security scheme". An entry naming no mechanism
+		// and one whose $ref reaches nothing are among what they name.
+		"security-unresolved": {
+			"openapi/unresolved-security-scheme", "openapi/incomplete-security-scheme", "openapi/unresolved-ref",
+		},
 	}
 }

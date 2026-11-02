@@ -25,12 +25,13 @@ witnessing it.
 
 - Witnesses: `oneof-discriminated`, `anyof-discriminated`, `discriminator-inheritance`,
   `discriminator-inline-subtype`, `discriminator-default-mapping`, `discriminator-transitive`,
-  `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`
+  `discriminator-alias-mapping`, `discriminated-union-beside-model`, `nullable-union-discriminator`,
+  `discriminator-aliased-branch`
 
 ### `untagged-unions`
 
 - Witnesses: `allof-oneof-cooccurrence`, `allof-ref-branch-siblings`, `union-beside-ref`,
-  `anyof-untagged`, `union-decorated-branch`
+  `anyof-untagged`, `union-decorated-branch`, `type-array-numeric`
 
 ### `intersection`
 
@@ -175,7 +176,7 @@ witnessing it.
 
 ### `per-op-auth`
 
-- Witnesses: `security-or-and`
+- Witnesses: `security-or-and`, `security-root-empty`, `security-unresolved`
 
 ### `servers`
 

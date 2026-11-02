@@ -49,8 +49,9 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schem
 		diags = append(diags, unionDiags...)
 		return def
 	})
-	ref, nullDiags := schemaNullRef(c, tid, s, siteAt(pointer))
-	return ref, append(diags, nullDiags...)
+	owner, unhomedDiags := preserveUnhomedKeywords(c, ts, s, pointer, tid, dispatch{})
+	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
+	return ref, slices.Concat(diags, unhomedDiags, nullDiags)
 }
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
@@ -321,11 +322,11 @@ func decorates(td ir.TypeDef) bool {
 }
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
-// exclusive, untagged union with one variant per declared type.
-//
-// KNOWN GAP (GitHub #868): every integer is a number, so a type array naming
-// both admits values that match two variants, which Exclusive rejects; with an
-// integer width both variants are the same primitive.
+// untagged union with one variant per declared type, exclusive unless two of
+// them overlap (typesDisjoint). A type array asks for one of its types, not for
+// exactly one, so overlapping variants must not exclude each other; with an
+// integer width, integer and number name the same primitive, and the two
+// variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
@@ -342,10 +343,20 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		return &ir.Union{
 			TypeCommon: common,
 			Variants:   variants,
-			Exclusive:  true,
+			Exclusive:  typesDisjoint(types),
 		}
 	})
 	return id, diags
+}
+
+// typesDisjoint reports whether no instance has two of types. A type listed
+// twice overlaps itself, and JSON's types are otherwise disjoint but for one
+// pair: every integer is a number.
+func typesDisjoint(types []oas3.SchemaType) bool {
+	if len(slices.Compact(slices.Sorted(slices.Values(types)))) != len(types) {
+		return false
+	}
+	return !slices.Contains(types, oas3.SchemaTypeInteger) || !slices.Contains(types, oas3.SchemaTypeNumber)
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
@@ -634,6 +645,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 		diags = append(diags, unionDiags...)
 		return def
 	})
+	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
 		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants"))
 }
@@ -701,8 +713,7 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 //
 // The enclosing schema's value constraints are read as lowerAllOf reads them
 // (GitHub #407). Each variant carries a copy, since a bound on the schema
-// constrains both sides of the disjunction and this path never runs the
-// pointer's own census.
+// constrains both sides of the disjunction.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
 	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}

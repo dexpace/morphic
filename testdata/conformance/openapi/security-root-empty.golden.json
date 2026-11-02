@@ -1,0 +1,201 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "SecurityRootEmpty",
+  "version": "1.0.0",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "SecurityRootEmpty",
+        "canonical": "security_root_empty"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1open/get",
+              "name": {
+                "source": "inheritsTheRoot",
+                "canonical": "inherits_the_root"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/open",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1open/get"
+              }
+            },
+            {
+              "id": "op/openapi/paths/~1guarded/get",
+              "name": {
+                "source": "overridesTheRoot",
+                "canonical": "overrides_the_root"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "auth": [
+                {
+                  "schemes": [
+                    {
+                      "scheme": "auth/openapi/components/securitySchemes/bearerAuth"
+                    }
+                  ]
+                }
+              ],
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/guarded",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1guarded/get"
+              }
+            }
+          ]
+        }
+      ],
+      "auth": [],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "auth": {
+    "auth/openapi/components/securitySchemes/bearerAuth": {
+      "id": "auth/openapi/components/securitySchemes/bearerAuth",
+      "name": {
+        "source": "bearerAuth",
+        "canonical": "bearer_auth"
+      },
+      "kind": "http_bearer",
+      "docs": {},
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/securitySchemes/bearerAuth"
+      }
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "security-root-empty.yaml",
+      "hash": "c74e7a7dd276b112e42f27297c9ba256ae311c7c23acdd1c6699665835cd80ad"
+    }
+  ]
+}

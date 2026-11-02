@@ -351,6 +351,21 @@ func TestDynamicAnchors_CountsWhatADocumentDeclares(t *testing.T) {
 	}
 }
 
+// TestDynamicAnchors_ANullAnchorNamesNothing pins that a null $dynamicAnchor, in
+// each of its spellings, is the keyword left out, where its text would be a name
+// a $dynamicRef could spell. A quoted one is that name.
+func TestDynamicAnchors_ANullAnchorNamesNothing(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+"components:\n  schemas:\n    A: {$dynamicAnchor: null}\n    B: {$dynamicAnchor: ~}\n"+
+		"    C: {$dynamicAnchor: Null}\n    D: {$dynamicAnchor: }\n    E: {$dynamicAnchor: \"null\"}\n", self)
+	want := map[string][]bind.Position{"null": {{Doc: bind.Source, Pointer: "/components/schemas/E"}}, "Null": nil}
+	for name, at := range want {
+		sites, whole := table.DynamicAnchors(bind.Source, name)
+		assert.True(t, whole)
+		assert.Equal(t, at, sites, "$dynamicAnchor %q", name)
+	}
+}
+
 // anchoredPastTheBound writes a document with one $dynamicAnchor and a schema
 // merging through a chain deeper than the view expands.
 func anchoredPastTheBound() string {

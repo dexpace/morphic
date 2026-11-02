@@ -48,10 +48,6 @@ func checkDanglingRefs(refs *ir.IDReferences, truncated bool) []ir.Diagnostic {
 // path's root, which only a hand-kept list of fields could add;
 // checkDiscriminators makes the model-scoped claim for Discriminator.Property,
 // whose root is the model declaring it.
-//
-// Docs.Description's {t:TypeID} tokens are left unchecked: reaching them needs
-// a token parser, and a false positive in prose is noisier than a missing
-// check.
 func checkPropIDRefs(props *propIDSites, refs *ir.IDReferences) []ir.Diagnostic {
 	dangling := byLocation(props.dangling(refs))
 	diags := make([]ir.Diagnostic, 0, len(dangling))

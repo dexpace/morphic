@@ -144,7 +144,7 @@ func TestNewUniverse_ContainsTheIRsFacts(t *testing.T) {
 		"member Operation.auth",
 		"empty Operation.auth",
 		`value TypeKind "tuple"`,
-		`value StreamingMode "none"`,
+		`value StreamingMode ""`,
 	} {
 		assert.Equal(t, "0 0", got[want], want)
 	}

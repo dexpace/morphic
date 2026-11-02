@@ -1,0 +1,430 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Null keywords",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Null keywords",
+        "canonical": "null_keywords"
+      },
+      "docs": {},
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Values/properties/c": {
+      "kind": "literal",
+      "id": "t/anon/components/schemas/Values/properties/c",
+      "name": {
+        "hint": "c"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Values/properties/c"
+      },
+      "value": {
+        "kind": "null"
+      }
+    },
+    "t/openapi/components/schemas/Bounded": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Bounded",
+      "name": {
+        "source": "Bounded",
+        "canonical": "bounded"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bounded"
+      },
+      "base": {
+        "target": "t/prim/number",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Described": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Described",
+      "name": {
+        "source": "Described",
+        "canonical": "described"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Enumerated": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Enumerated",
+      "name": {
+        "source": "Enumerated",
+        "canonical": "enumerated"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Enumerated"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Identified": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Identified",
+      "name": {
+        "source": "Identified",
+        "canonical": "identified"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Identified"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Typed": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/Typed",
+      "name": {
+        "source": "Typed",
+        "canonical": "typed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Typed"
+      },
+      "base": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Unhomed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Unhomed",
+      "name": {
+        "source": "Unhomed",
+        "canonical": "unhomed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Unhomed"
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/Values": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Values",
+      "name": {
+        "source": "Values",
+        "canonical": "values"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Values"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Values/properties/c",
+          "name": {
+            "source": "c",
+            "canonical": "c"
+          },
+          "wireName": "c",
+          "type": {
+            "target": "t/anon/components/schemas/Values/properties/c",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Values/properties/c"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/Values/properties/d",
+          "name": {
+            "source": "d",
+            "canonical": "d"
+          },
+          "wireName": "d",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": true
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "default": {
+            "kind": "null"
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Values/properties/d"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
+    },
+    "t/prim/number": {
+      "kind": "primitive",
+      "id": "t/prim/number",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "number"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"description\" must be a string in OpenAPI 3.1 (Schema Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Described/description",
+        "position": {
+          "line": 8,
+          "column": 20
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"maximum\" must be a number in OpenAPI 3.1 (Schema Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Bounded/maximum",
+        "position": {
+          "line": 11,
+          "column": 16
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"maxLength\" must be a non-negative integer in OpenAPI 3.1 (Schema Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Unhomed/maxLength",
+        "position": {
+          "line": 14,
+          "column": 18
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"enum\" must be a list in OpenAPI 3.1 (Schema Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Enumerated/enum",
+        "position": {
+          "line": 17,
+          "column": 13
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"type\" must be a string or a list of strings in OpenAPI 3.1 (Schema Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Typed/type",
+        "position": {
+          "line": 19,
+          "column": 13
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"discriminator\" must be an object in OpenAPI 3.1 (Schema Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Identified/discriminator",
+        "position": {
+          "line": 23,
+          "column": 22
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"$id\" must be a string in OpenAPI 3.1 (Schema Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Identified/$id",
+        "position": {
+          "line": 22,
+          "column": 12
+        }
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/validation/validation-type-mismatch",
+      "message": "Schema Object field \"readOnly\" must be a boolean in OpenAPI 3.1 (Schema Object); it is null, which is read as the field left out",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Identified/readOnly",
+        "position": {
+          "line": 24,
+          "column": 17
+        }
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "null-keywords.yaml",
+      "hash": "5c28264d205b7a2aec9cb83ae69d61ea74b8a2dc8fd0072b576b9eed240b26b4"
+    }
+  ]
+}

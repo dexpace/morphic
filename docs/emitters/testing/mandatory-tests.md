@@ -99,9 +99,10 @@ throughout these documents.
     event shapes among them, reads the frame's fields under `FrameMembers` and the frame's `data`
     otherwise; a stream under a binding other than HTTP draws no `unframed-stream`; a media type
     only a compiler option names gets the one stream method, as `bytes`, with that warning; a
-    primary `Default` that streams is `bidi` beside a `Send`; a `bytes` side lowers as a file; and
-    each operation of the golden spec that streams gets a `StreamPlan`
-    ([streams](../plan/streams.md), [streaming](../operations/streaming.md)).
+    primary `Default` that streams is `bidi` beside a `Send`; a `bytes` side lowers as a file, and
+    a request's file body is a byte source whatever its `Type`; and each operation of the golden
+    spec that streams gets a `StreamPlan` ([streams](../plan/streams.md),
+    [streaming](../operations/streaming.md), [request shaping](../refine/requests.md)).
 25. **T-25 · Emit-layer rules** — one check per rule of the [emit rules](../emit/rules.md). A
     template's context type holds no pointer, map, function or method, by reflection. A golden whose
     enum value, description and example hold `{{ .X }}`, a `$x` and a `*/` keeps each verbatim and
@@ -135,3 +136,9 @@ throughout these documents.
     RPC operation's one response is its primary, leaving `Others` empty; and no golden operation's
     declared status is left to no entry ([which entry
     answers](../plan/responses.md#which-entry-answers), [return shapes](../operations/returns.md)).
+28. **T-28 · Unresolved schemes** — on every target, an operation whose only option names a scheme of
+    kind `unresolved` sends what the caller's `Authenticator` writes, and with none configured is
+    refused unsent, the error naming the scheme, from a call, a pager's first page and a stream's
+    open. An option beside it is taken in priority order, an option ANDing it with a declared scheme
+    needs both, and the service's credentials are never sent in its place
+    ([auth](../operations/auth.md#unresolved-schemes)).
