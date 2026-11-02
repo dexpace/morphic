@@ -255,8 +255,8 @@ func assertPathItemDocsKept(t *testing.T, op ir.Operation, summary, description 
 	require.Len(t, op.Bindings.HTTP, 1)
 	assert.Equal(t, ir.Docs{Summary: summary, Description: description}, op.Bindings.HTTP[0].PathDocs,
 		"the path item's pair documents the path on %s", op.ID)
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItemSummary")
-	assert.NotContains(t, op.Unmodeled, "openapi:pathItemDescription")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/summary", "nothing of the pair is kept verbatim")
+	assert.NotContains(t, op.Unmodeled, "openapi:pathItem/description")
 }
 
 // assertPathItemOperations pins that every operation a 3.2 path item declares
