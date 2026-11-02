@@ -261,46 +261,51 @@ func TestUnreferencedComponents_MergeDepthBoundIsReported(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components"), "got %v", diags)
 }
 
-// TestComponentMediaTypes_KeptWholeAtEveryVersion pins the components/mediaTypes
-// section while this compiler resolves nothing into it (GitHub #856): the map is
-// kept whole with an info rather than called undefined, merged in through `<<`
-// or not. Below 3.2, which does not define it, it is kept the same, and load
+// TestComponentMediaTypes_AnUnreferencedEntryIsKept pins components/mediaTypes
+// as a retained section (GitHub #856): an entry no content entry's $ref reaches
+// is kept on the document at its own key, with no diagnostic, merged in
+// through `<<` or not, and one a $ref reaches is not. The section is read at
+// every version, so the census calls neither undefined, and below 3.2 load
 // adds that the field is a later version's (GitHub #864).
-func TestComponentMediaTypes_KeptWholeAtEveryVersion(t *testing.T) {
+func TestComponentMediaTypes_AnUnreferencedEntryIsKept(t *testing.T) {
 	t.Parallel()
-	const body = `paths: {}
-components:
+	const paths = `paths:
+  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/Used'}
+`
+	const body = paths + `components:
   mediaTypes:
     Event: {schema: {type: string}}
+    Used: {schema: {type: string}}
 `
-	const merged = `paths: {}
-components:
-  <<: {mediaTypes: {Event: {schema: {type: string}}}}
+	const merged = paths + `components:
+  <<: {mediaTypes: {Event: {schema: {type: string}}, Used: {schema: {type: string}}}}
 `
 	for _, tc := range []struct {
 		name, version, body string
-		warnedAt            string // where load warns that the field is a later version's
 	}{
-		{"3.2", "3.2.0", body, ""},
-		{"3.2 merged in", "3.2.0", merged, ""},
-		{"3.1", "3.1.0", body, "/components/mediaTypes"},
-		// A node a `<<` merge key supplies is held at no pointer of the tree.
-		{"3.1 merged in", "3.1.0", merged, ""},
+		{"3.2", "3.2.0", body},
+		{"3.2 merged in", "3.2.0", merged},
+		{"3.1", "3.1.0", body},
+		{"3.1 merged in", "3.1.0", merged},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, "openapi: "+tc.version+"\ninfo: {title: T, version: \"1\"}\n"+tc.body)
-			kept, ok := doc.Unmodeled["openapi:components/mediaTypes"]
-			require.True(t, ok, "the section is kept whole")
+			kept, ok := doc.Unmodeled["openapi:components/mediaTypes/Event"]
+			require.True(t, ok, "an entry nothing reaches is kept")
 			assert.Equal(t, ir.ReasonNoIRHome, kept.Reason)
-			assert.NotEmpty(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo,
-				"/components/mediaTypes"))
+			assert.Equal(t, "/components/mediaTypes/Event", string(kept.Provenance.Pointer))
+			assert.NotContains(t, doc.Unmodeled, "openapi:components/mediaTypes/Used")
+			assert.NotContains(t, doc.Unmodeled, "openapi:components/mediaTypes")
+			assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "got %v", diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
-			assert.Equal(t, tc.version != "3.2.0", openapitest.HasDiag(diags, diag.LaterVersionConstruct),
-				"a field merged in through `<<` is written as the parser reads it")
-			if tc.warnedAt != "" {
-				assert.True(t, openapitest.HasDiagCodeAt(diags, diag.LaterVersionConstruct, tc.warnedAt))
-			}
+			assert.Equal(t, tc.version != "3.2.0", openapitest.HasDiag(diags, diag.LaterVersionConstruct))
 		})
 	}
 }

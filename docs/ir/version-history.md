@@ -250,19 +250,32 @@ it sees. Changes made together in one bump are listed together under it.
   declaring `format: time` keeps the format verbatim under `Unmodeled`. A consumer pinned to 0.27.0
   that reads `time` as carrying an offset finds values with none, and one reading the `time-local`
   or `date-time-local` encodings no longer finds them.
-- **0.29.0** — four changes to the type nodes, made together:
+- **0.29.0** — `Content` gained `Docs`: a media type's own documentation, as against the body's
+  ([payloads](./payloads.md)). The OpenAPI compiler writes there an OpenAPI 3.2 Media Type Object's
+  `description`, which it had kept verbatim under `Unmodeled` as `openapi:description`, and the
+  `summary` and `description` beside a content entry's `$ref` into `components/mediaTypes`, which
+  it now follows. A consumer pinned to 0.28.0 refuses the document as another generation's.
+- **0.30.0** — the OpenAPI compiler keeps a path item's own `summary` and `description` on each
+  operation it mounts under `openapi:pathItem/summary` and `openapi:pathItem/description`, beneath
+  the scope its extensions and undeclared keys already took, rather than under
+  `openapi:pathItemSummary` and `openapi:pathItemDescription`
+  ([`path-item-docs`](../compilers/openapi.md#path-item-docs)). No shape changed. A consumer pinned
+  to 0.29.0 that reads the old keys no longer finds the path's text there. Where an operation writes
+  an undeclared key of that name, it finds that key's value, which 0.29.0 let the path's text
+  replace.
+- **0.31.0** — four changes to the type nodes, made together:
   - `Union` gained `Closed` and `InputOnly`. `Closed` is false for an open union, whose payload may
     hold a variant it does not list; every union the OpenAPI compiler lowers is closed, since a
     `oneOf` or `anyOf` is. `InputOnly` marks a union only a request carries, as `Model.InputOnly`
-    marks an input object. Both are always written. A consumer pinned to 0.28.0 refuses the document
+    marks an input object. Both are always written. A consumer pinned to 0.30.0 refuses the document
     for its unknown members.
   - `Literal` gained `ValueType`, the primitive the source types its value as, so an integer and a
     number of one value, or a string and a date, are told apart where they were one `Value`, with
     the type or format kept verbatim under `Unmodeled`. Those entries are no longer written where
-    the value fits what was declared, so a consumer pinned to 0.28.0 that read them finds nothing.
+    the value fits what was declared, so a consumer pinned to 0.30.0 that read them finds nothing.
   - `AdditionalProps.Value` became optional: nil says no key beyond the patterns is allowed, and
     `additionalProperties: false` beside `patternProperties` lowers to it, where it had typed the
     catch-all as the top type beside a closure that forbade the same keys. A consumer pinned to
-    0.26.0 decoding the value as required fails on the missing member.
+    0.30.0 decoding the value as required fails on the missing member.
   - `ValueKind` gained `inf`, `neginf` and `nan`, the IEEE 754 non-finite numbers, each with no
     payload. No OpenAPI value is one, so no document the OpenAPI compiler writes holds them.
