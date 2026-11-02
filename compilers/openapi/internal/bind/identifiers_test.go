@@ -380,7 +380,8 @@ func anchoredPastTheBound() string {
 
 // TestDynamicAnchors_SaysWhenTheCountProvesNothing pins that a read a merge past
 // the bound stopped, or the budget, does not pass for whole, since an undercount
-// reads as the one declaration an expansion needs. A nil table knows of none.
+// reads as the one declaration an expansion needs. A merge past the bound outside
+// a schema hides none, and a nil table knows of none.
 func TestDynamicAnchors_SaysWhenTheCountProvesNothing(t *testing.T) {
 	t.Parallel()
 	const anchored = "components:\n  schemas:\n    A: {$dynamicAnchor: t}\n"
@@ -391,6 +392,12 @@ func TestDynamicAnchors_SaysWhenTheCountProvesNothing(t *testing.T) {
 	sites, whole := bound(t, anchoredPastTheBound(), self).DynamicAnchors(bind.Source, "t")
 	assert.Len(t, sites, 1)
 	assert.False(t, whole, "a schema past the bound may declare a second")
+
+	outside := bound(t, strings.Replace(anchoredPastTheBound(), "    B: {<<: *c70}\n", "  responses:\n    R: {<<: *c70}\n", 1),
+		self)
+	require.True(t, outside.Truncated(), "the response merges past the bound")
+	_, whole = outside.DynamicAnchors(bind.Source, "t")
+	assert.True(t, whole, "a response past the bound declares no anchor")
 
 	_, whole = bound(t, head+anchored, budgetConfig(budget.AtMost(4))).DynamicAnchors(bind.Source, "t")
 	assert.False(t, whole, "nor does a read the budget stopped")
