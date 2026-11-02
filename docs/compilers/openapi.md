@@ -500,12 +500,13 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestResolve_ReachedFindingsDoNotDependOnDeclarationOrder`,
   `e2e.TestCompile_AReferenceObjectToANonObjectIsReportedOnce`
 - Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). An absolute-path `$ref` in a remote document is read as a local
-  path (#936); a remote document can make the compiler request a private address (#937); and a
-  remote document reaching a local file is refused naming only its last such `$ref` (#940). A
-  reference object's pointer holding a character above U+FFFF is refused as malformed (#516), and an
-  unresolved reference object's message ends in the resolver's own wording, unless its chain ends
-  on a position holding no object of its kind (#809).
+  (#604). An absolute-path `$ref` in a remote document is read as a local path (#936); a remote
+  document can make the compiler request a private address (#937); and a remote document reaching a
+  local file is refused naming only its last such `$ref` (#940). A reference object's pointer
+  holding a character above U+FFFF is refused as malformed (#516), and an unresolved reference
+  object's message ends in the resolver's own wording, unless its chain ends on a position holding
+  no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file a
+  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040).
 
 ### `reference-cycles`
 
@@ -2066,14 +2067,14 @@ A reference is irreducible — and is then kept verbatim under `openapi:$dynamic
 (`degraded_lowering`) with an info `openapi/degraded-construct` at it naming which case it was —
 when the name is declared more than once in its document (the target is back under the evaluation
 path's control), when it is unresolvable, names another document, or is not a plain fragment, when
-its value is not a string at all, when a resource boundary stands between it and the anchor as above, when expanding it
-would close a cycle of aliases (a `$ref` cycle is refused outright for the same reason, and
-expansion must not mint one the refusal cannot see), or when it is co-declared with a `$ref`, a
-`oneOf`/`anyOf`, a shape of its own, or one of `items`/`prefixItems`/`required` — an expansion takes
-its target whole, so it has nowhere to put a sibling applicator. One further case is irreducible in
-the OpenAPI compiler specifically: in the source, an anchor declared anywhere but the top level of
-`components/schemas` has no ID that is stable without consulting the registry, and resolving it
-would make the reference depend on which position happened to lower first
+its value is not a string at all, when a resource boundary stands between it and the anchor as
+above, when expanding it would close a cycle of aliases (a `$ref` cycle is refused outright for the
+same reason, and expansion must not mint one the refusal cannot see), or when it is co-declared with
+a `$ref`, a `oneOf`/`anyOf`, a shape of its own, or one of `items`/`prefixItems`/`required` — an
+expansion takes its target whole, so it has nowhere to put a sibling applicator. One further case is
+irreducible in the OpenAPI compiler specifically: in the source, an anchor declared anywhere but the
+top level of `components/schemas` has no ID that is stable without consulting the registry, and
+resolving it would make the reference depend on which position happened to lower first
 ([models](../ir/models.md#composition-beside-a-union)), so it is preserved instead.
 
 A `$dynamicRef` is read against the anchors of the document it is written in, by this same rule, so
