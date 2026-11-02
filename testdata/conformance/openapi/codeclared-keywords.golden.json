@@ -158,7 +158,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/openapi/components/schemas/ConstWithinEnum": {
       "kind": "literal",
@@ -190,7 +192,8 @@
       "value": {
         "kind": "string",
         "str": "a"
-      }
+      },
+      "valueType": "string"
     },
     "t/openapi/components/schemas/NarrowedConst": {
       "kind": "literal",
@@ -223,7 +226,8 @@
       "value": {
         "kind": "string",
         "str": "a"
-      }
+      },
+      "valueType": "string"
     },
     "t/openapi/components/schemas/NarrowedEnum": {
       "kind": "enum",
@@ -327,7 +331,9 @@
         }
       ],
       "exclusive": true,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/prim/integer": {
       "kind": "primitive",

@@ -89,7 +89,8 @@
       "value": {
         "kind": "string",
         "str": "v1"
-      }
+      },
+      "valueType": "string"
     }
   },
   "servers": {

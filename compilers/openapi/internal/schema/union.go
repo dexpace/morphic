@@ -281,6 +281,7 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 		TypeCommon: common,
 		Variants:   variants,
 		Exclusive:  exclusive,
+		Closed:     true,
 	}
 	disc, discDiags := lowerDiscriminator(c, ts, s, nil, variants, pointer)
 	u.Discriminator = disc
@@ -344,6 +345,7 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 			TypeCommon: common,
 			Variants:   variants,
 			Exclusive:  typesDisjoint(types),
+			Closed:     true,
 		}
 	})
 	return id, diags

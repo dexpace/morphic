@@ -159,12 +159,17 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
 	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, lowering.Referent{}, &common.Deprecation, &common.Provenance)...)
 	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, lowering.Referent{}, &common.Sensitive, &common.Provenance)...)
-	// The enum-openness promotion is applied here rather than where the Enum is
-	// built, for the same reason the deprecation one is: a promotion reads the
-	// preserved Unmodeled entries, and this is the point at which the
+	// The openness promotions are applied here rather than where the Enum or
+	// Union is built, for the same reason the deprecation one is: a promotion
+	// reads the preserved Unmodeled entries, and this is the point at which the
 	// declaration's extensions have reached the node's map.
-	if enum, isEnum := td.(*ir.Enum); isEnum {
-		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, enum, &common.Provenance)...)
+	switch n := td.(type) {
+	case *ir.Enum:
+		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, n, &common.Provenance)...)
+	case *ir.Union:
+		diags = append(diags, c.Promoter().UnionOpenness(common.Unmodeled, n, &common.Provenance)...)
+	default:
+		// Openness is a fact of an enum's or a union's value space alone.
 	}
 	if len(a.Examples) > 0 {
 		common.Examples = a.Examples

@@ -94,7 +94,9 @@
         }
       ],
       "exclusive": false,
-      "wireTagged": false
+      "wireTagged": false,
+      "closed": true,
+      "inputOnly": false
     },
     "t/prim/integer": {
       "kind": "primitive",

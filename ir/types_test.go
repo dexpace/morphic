@@ -123,7 +123,7 @@ func TestModel_PopulatedRoundTrip(t *testing.T) {
 		Implements: []ir.TypeRef{{Target: "t/iface/A"}, {Target: "t/iface/B"}},
 		Mixins:     []ir.TypeRef{{Target: "t/mixin/M1"}},
 		AdditionalProps: &ir.AdditionalProps{
-			Value: populatedTypeRef(),
+			Value: new(populatedTypeRef()),
 			Key:   &ir.TypeRef{Target: "t/prim/string"},
 			Patterns: []ir.PatternProps{
 				{Pattern: "^x-", Value: populatedTypeRef()},
@@ -474,9 +474,9 @@ func TestWireIDRange_JSONContract(t *testing.T) {
 // schemas — round-trips.
 func TestAdditionalProps_JSONContract(t *testing.T) {
 	t.Parallel()
-	assertJSONContract(t, ir.AdditionalProps{}, `{"value":{"target":"","nullable":false}}`,
+	assertJSONContract(t, ir.AdditionalProps{}, `{}`,
 		ir.AdditionalProps{
-			Value: populatedTypeRef(),
+			Value: new(populatedTypeRef()),
 			Key:   &ir.TypeRef{Target: "t/prim/string"},
 			Patterns: []ir.PatternProps{
 				{Pattern: "^x-", Value: populatedTypeRef()},

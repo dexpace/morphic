@@ -13,6 +13,8 @@ type Union struct {
     WireTagged    bool           // the payload names its variant: by the Discriminator's tag, or by
                                  // a single key (Smithy union, protobuf oneof); false = untagged
     Discriminator *Discriminator // where the tag sits in the payload; set only when WireTagged
+    Closed        bool           // false = open: a payload may hold a variant this does not list
+    InputOnly     bool           // only a request carries it (GraphQL @oneOf input objects)
 }
 
 type Variant struct {
@@ -66,3 +68,25 @@ says the discriminator must not change the validation outcome, but that binds va
 wire: what validation admits stays in `Exclusive`, and on an `anyOf` the tag picks one of the
 several schemas a payload may satisfy. A mode for "tag plus validation" would spell the same wire
 shape twice.
+
+## Open unions
+
+`Closed` says whether a payload can hold a variant the union does not list, as `Enum.Closed` says
+of a value no member names ([enums](./enums.md)). A closed union admits its variants and nothing
+else; an open one may meet a variant added after the consumer was built, which the consumer must be
+able to represent rather than refuse, as an unknown-variant case beside the known ones. The default
+follows each format's semantics, never one target's: a JSON Schema `oneOf` or `anyOf` admits only
+what matches a listed schema, so every OpenAPI and AsyncAPI union is closed; a Smithy union is
+open, since a client must tolerate a member it does not know; a protobuf `oneof` is open, since an
+unknown field leaves no case set rather than failing the message; a GraphQL output union gains
+members as a schema evolves, and is open. A `@oneOf` input object is closed, since the server
+validates what a client sends. A document that marks an OpenAPI union open can only do it through
+an extension, which a promotion mapping may read into `Closed`
+([promotion](./unmodeled.md#promotion)); no spelling is common enough for the OpenAPI compiler's
+default mapping to name one. Whether a target tolerates an unknown variant of a closed union is
+its policy, never the IR's.
+
+`InputOnly` marks a union only a request may carry, with an identity distinct from every output
+type, as `Model.InputOnly` marks an input object ([models](./models.md)). GraphQL is the source: a
+`@oneOf` input object is such a union, and an emitter projecting separate input and output types
+reads the flag rather than a format-named marker.

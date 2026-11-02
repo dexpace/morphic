@@ -182,6 +182,30 @@ func TestVerify_DeclaredAuthKindIsClean(t *testing.T) {
 	}
 }
 
+// TestVerify_ALiteralsUndeclaredValueTypeIsAViolation holds a Literal's
+// ValueType to the declared kinds as a primitive's kind is held, at the field,
+// while an empty one, which says no primitive types the value, is sound.
+func TestVerify_ALiteralsUndeclaredValueTypeIsAViolation(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		vt    ir.PrimKind
+		paths []string
+	}{
+		{"an invented kind", "flt", []string{"types[t/x/L].ValueType"}},
+		{"a declared kind", ir.PrimDate, nil},
+		{"none", "", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := &ir.Document{Types: ir.TypeRegistry{"t/x/L": &ir.Literal{
+				TypeCommon: ir.TypeCommon{ID: "t/x/L"}, Value: ir.Value{Kind: ir.ValueString, Str: "a"}, ValueType: tc.vt,
+			}}}
+			assert.Equal(t, tc.paths, violationPaths(irverify.Verify(doc), "ir/unknown-prim-kind"))
+		})
+	}
+}
+
 // TestVerify_UndeclaredStabilityIsAViolation holds the check at both carriers a
 // walk meets, nested groups included: the field is held by its type, so a
 // carrier the check named by hand would be the one a new struct escapes.

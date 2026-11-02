@@ -159,7 +159,8 @@
       "value": {
         "kind": "number",
         "num": "1.8e308"
-      }
+      },
+      "valueType": "number"
     },
     "t/openapi/components/schemas/S": {
       "kind": "model",

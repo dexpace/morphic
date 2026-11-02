@@ -10,7 +10,8 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// checkPrimKinds asserts every primitive names a kind ir declares.
+// checkPrimKinds asserts every primitive names a kind ir declares, as does
+// every literal stating a ValueType.
 //
 // checkPrimIDs cannot reach this: it asks the ID to agree with the kind, and an
 // invented kind agrees with itself (GitHub #240). An emitter switches on
@@ -27,15 +28,26 @@ func checkPrimKinds(doc *ir.Document) []Violation {
 		if ir.IsNilTypeDef(td) {
 			continue // checkRegistryKeys reports the nil entry itself
 		}
-		prim, isPrim := td.(*ir.Primitive)
-		if !isPrim || prim.Prim.Valid() {
-			continue
+		switch n := td.(type) {
+		case *ir.Primitive:
+			if !n.Prim.Valid() {
+				vs = append(vs, Violation{
+					Code:    "ir/unknown-prim-kind",
+					Message: "primitive carries undeclared kind " + strconv.Quote(string(n.Prim)),
+					Path:    typePath(id),
+				})
+			}
+		case *ir.Literal:
+			if n.ValueType != "" && !n.ValueType.Valid() {
+				vs = append(vs, Violation{
+					Code:    "ir/unknown-prim-kind",
+					Message: "literal's value type is undeclared kind " + strconv.Quote(string(n.ValueType)),
+					Path:    typePath(id) + ".ValueType",
+				})
+			}
+		default:
+			// No other node names a PrimKind this check holds; #1190 holds the rest.
 		}
-		vs = append(vs, Violation{
-			Code:    "ir/unknown-prim-kind",
-			Message: "primitive carries undeclared kind " + strconv.Quote(string(prim.Prim)),
-			Path:    typePath(id),
-		})
 	}
 	return vs
 }

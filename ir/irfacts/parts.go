@@ -63,7 +63,7 @@ func (p *typeParts) model(m *ir.Model) {
 		}
 	}
 	if extra := m.AdditionalProps; extra != nil {
-		p.held = appendRef(appendTarget(p.held, extra.Value.Target), extra.Key)
+		p.held = appendRef(appendRef(p.held, extra.Value), extra.Key)
 		for i := range extra.Patterns {
 			p.held = appendTarget(p.held, extra.Patterns[i].Value.Target)
 		}

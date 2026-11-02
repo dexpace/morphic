@@ -250,17 +250,17 @@ func usageEdgeCases() map[string]usageEdge {
 	return map[string]usageEdge{
 		"property": {build: func(root ir.TypeID) ir.TypeDef { return useHolder(root, "x") }},
 		"additional value": {build: func(root ir.TypeID) ir.TypeDef {
-			return irtest.ModelOf(root, func(m *ir.Model) { m.AdditionalProps = &ir.AdditionalProps{Value: useRef("x")} })
+			return irtest.ModelOf(root, func(m *ir.Model) { m.AdditionalProps = &ir.AdditionalProps{Value: new(useRef("x"))} })
 		}},
 		"additional key": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
 			return irtest.ModelOf(root, func(m *ir.Model) {
-				m.AdditionalProps = &ir.AdditionalProps{Value: useRef("v"), Key: &ir.TypeRef{Target: "x"}}
+				m.AdditionalProps = &ir.AdditionalProps{Value: new(useRef("v")), Key: &ir.TypeRef{Target: "x"}}
 			})
 		}},
 		"additional pattern": {also: []ir.TypeID{"v"}, build: func(root ir.TypeID) ir.TypeDef {
 			return irtest.ModelOf(root, func(m *ir.Model) {
 				m.AdditionalProps = &ir.AdditionalProps{
-					Value: useRef("v"), Patterns: []ir.PatternProps{{Pattern: "^a", Value: useRef("x")}},
+					Value: new(useRef("v")), Patterns: []ir.PatternProps{{Pattern: "^a", Value: useRef("x")}},
 				}
 			})
 		}},

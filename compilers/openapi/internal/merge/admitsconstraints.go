@@ -29,9 +29,10 @@ func admitsConstraints(c *ir.Constraints, v ir.Value, depth int) bool {
 		return within(int64(len(v.List)), c.MinItems, c.MaxItems) && (!c.UniqueItems || distinct(v.List, depth))
 	case ir.ValueObject:
 		return within(int64(len(v.Object)), c.MinProps, c.MaxProps)
-	case ir.ValueNull, ir.ValueBool, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor:
+	case ir.ValueNull, ir.ValueBool, ir.ValueSymbol, ir.ValueRefKind, ir.ValueCtor,
+		ir.ValueInf, ir.ValueNegInf, ir.ValueNaN:
 		// No keyword constrains a null or a bool, and the kind judge refuses the
-		// rest before any keyword is read.
+		// rest before any keyword is read; no OpenAPI value is non-finite.
 		return true
 	default:
 		return false
