@@ -142,3 +142,16 @@ throughout these documents.
     open. An option beside it is taken in priority order, an option ANDing it with a declared scheme
     needs both, and the service's credentials are never sent in its place
     ([auth](../operations/auth.md#unresolved-schemes)).
+30. **T-30 · Plan identity** — one document under one policy builds plans of one `Version` across
+    processes and runs, and the policy round-trips through JSON unchanged; changing any policy
+    field, the `Revision`, or the document outside `sources` changes the `Version`, and changing
+    only `sources` does not. A plan golden that changes at an unmoved `Revision` fails
+    ([the plan's version](../plan/overview.md#the-plans-version)).
+31. **T-31 · Envelopes** — under an envelope matched by `Members` and one matched by `Bases`, on
+    every target, a method returns the member at `Value`, its `WithResponse` method holds the
+    envelope whole, and a 2xx whose flag holds `Fails` is a failure with no fault or kind whose body
+    decodes as `Failure`, even where the success type admits only `true`. A paginated operation's
+    page is read whole, its flag still read. A body naming only some of the members, an operation
+    `Except` lists and a failure body are read as they would be with no envelope, and the default
+    policy unwraps nothing ([envelopes](../plan/responses.md#envelopes),
+    [plan policy](../plan/policy.md#envelopes)).

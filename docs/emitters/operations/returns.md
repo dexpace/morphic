@@ -63,6 +63,14 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
 
   A zero value would not do here: Kotlin's `Rule` has none, a pager has no value to zero, and a nil
   `*Rule` beside a nil error reads as a created rule until the caller's next line dereferences it.
+- **An envelope** (`GET /zone` → `{success, errors, messages, result: Zone}`, under an envelope a
+  configuration names). **plan.** `Return.Type` is `Zone`, and `Return.Envelope` says it sits at
+  `result` and that `success: false` is a failure ([envelopes](../plan/responses.md#envelopes)).
+  **refine.** The method returns `Zone`, and a body whose flag says it failed is a failure, never a
+  `Zone` ([failures](errors.md)). The envelope's other members are not lost: an enveloped operation,
+  a paginated one aside, has a `WithResponse` method whatever its headers, and its `Response` holds
+  the envelope whole in `Envelope`, as `EnvelopeRead.Body` lowers, beside `Body`. On a response with
+  no envelope, `Envelope` is the target's empty value.
 - **A status the document does not list, and a body that does not decode** (`GET /zone` → `201`, or
   a `200` holding a proxy's HTML). **plan.** No field: [the
   plan](../plan/responses.md#which-entry-answers) says which entry answers. **refine.** The response

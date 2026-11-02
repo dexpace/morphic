@@ -8,6 +8,8 @@ How each [return shape](../../operations/returns.md) lowers in Kotlin.
 - **No body.** `Unit`.
 - **Declared headers.** `suspend fun getZoneWithResponse(): Response<Zone, GetZoneHeaders>`. The
   `Response`'s `Body` is `Unit` for `void`, and its `Headers` is `Unit` where they declare none.
+- **An envelope.** `suspend fun getZone(): Zone`, and `getZoneWithResponse()`'s `Response` holds
+  the envelope in `val envelope: Any?`, null on an operation with no envelope.
 - **Another declared response.** With no body, `suspend fun deleteMethod(): Deleted?`.
 
 ## `OtherResponse`

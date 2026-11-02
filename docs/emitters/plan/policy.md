@@ -5,35 +5,53 @@ Everything the plan *infers* rather than reads is a knob here; every inferred ou
 
 ```go
 type Policy struct {
-    ContentRanking  []string                          // default: json > form > multipart > binary
-    PrimaryResponse func(*ir.Operation) *ir.Response  // default: lowest 2xx, else the
-                                                      // unconditional one, else the Default
-    EnvelopeDetect  EnvelopePolicy                    // off unless explicitly enabled
-    Framings        map[string]Framing                // media type or +suffix → how it frames a stream (streams.md)
-    FrameMembers    bool                              // default on: an SSE schema naming only frame
-                                                      // fields describes the frame (streams.md)
-    OpenUnions      bool                              // default on: a union a client reads keeps a
-                                                      // variant it does not know (below)
+    ContentRanking  []string           // default: json > form > multipart > binary
+    PrimaryResponse []PrimaryRule      // default: lowest_2xx, unconditional, default; the first
+                                       // rule an operation meets picks its primary (below)
+    DefaultFails    bool               // default on: a Default no rule takes is the catch-all
+                                       // of Errors (below)
+    Envelopes       []Envelope         // default none: what unwraps a success body (below)
+    Framings        map[string]Framing // media type or +suffix → how it frames a stream
+                                       // (streams.md)
+    FrameMembers    bool               // default on: an SSE schema naming only frame
+                                       // fields describes the frame (streams.md)
+    OpenUnions      bool               // default on: a union a client reads keeps a
+                                       // variant it does not know (below)
 }
+
+type PrimaryRule string                  // "lowest_2xx" | "unconditional" | "default"
 ```
 
 A test asserts that disabling a heuristic removes the corresponding `Inferred` plan field — the
 guard against a heuristic silently defaulting on and quietly making the plan non-neutral.
 
+## The policy is data
+
+Every field is a value from a closed vocabulary the plan package defines, and none is a function.
+So a policy encodes, compares and hashes as what it says, and `Plan.Version` hashes it
+([the plan](overview.md#the-plans-version)). A function has no bytes to hash: its printed form is
+an address that changes every run, and skipping it gives two policies that pick different responses
+one version. A heuristic the vocabulary lacks is added to it, in this package and at a new
+`plan.Revision`, so a change of behaviour always changes the version. A strategy registered by name
+and version from outside was weighed and refused: changing its code without its version would be a
+silent cache hit, which is the failure this rule removes. So was a caller-supplied ID hashed in the
+policy's place, which fails the same way when the caller forgets it.
+
 ## The default response is classed here
 
 The IR states an operation's `Default` — OpenAPI's `default` — as neither a success nor a failure,
 since it answers every status the others do not name ([responses](../../ir/responses.md)).
-`PrimaryResponse` reads the whole operation for that reason, and its default takes the lowest 2xx
-`Response`, an exact status before a range that starts there, else one with no condition, which is
-an RPC's one response, or the `Default` where the operation declares neither, since a `default`
-answering every status is then the operation's only description of a success. A `Default` that is
-not the primary response is the catch-all of `Errors`, with its condition. Either use is marked
-`Inferred`, and a policy may take it as neither or both. Disabling the heuristic leaves an operation
-with no success response `void` ([body shapes](responses.md#body-shapes)) and its `Default` in no
-plan field. `Streaming` summarizes only the streams an operation's success responses declare, so no
-`StreamDetail` covers a `Default`, and a primary one streams only where a content of it declares an
-`Item` ([streams](streams.md)).
+`PrimaryResponse` reads the whole operation for that reason, rule by rule, and the first rule the
+operation meets picks: `lowest_2xx` the lowest 2xx `Response`, an exact status before a range that
+starts there; `unconditional` one with no condition, which is an RPC's one response; and `default`
+the `Default`, which is the only description of a success an operation declaring neither has. A
+`Default` that is not the primary response is the catch-all of `Errors`, with its condition, under
+`DefaultFails`. Either use is marked `Inferred`, and a policy may take it as neither or both.
+Leaving out the `default` rule and `DefaultFails` leaves an operation with no success response
+`void` ([body shapes](responses.md#body-shapes)) and its `Default` in no plan field. `Streaming`
+summarizes only the streams an operation's success responses declare, so no `StreamDetail` covers a
+`Default`, and a primary one streams only where a content of it declares an `Item`
+([streams](streams.md)).
 
 ## A union a client reads is open
 
@@ -47,6 +65,51 @@ has no field saying a union is open or closed (#664); once it does, a declared a
 [precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule) has it. The
 plan records the choice so that docs and a mock agree with the SDK ([docs and
 mocks](../docs-and-mock.md)).
+
+## Envelopes
+
+An envelope wraps an API's success bodies in members of its own, such as a failure flag, messages
+and page information, beside the one member a caller wants. An SDK that returns the envelope makes
+every call site dig. One that unwraps it has to know where the value and the failure signal live,
+so a configuration names its envelopes, and the default names none.
+
+```go
+type Envelope struct {
+    Name    string      // recorded in each Inferred mark this envelope sets
+    Bases   []ir.TypeID // matches a body whose model reaches one of these through Base or Mixins
+    Members []string    // matches a body whose model declares every one of these wire names
+    Value   []string    // the wire-name path to what the reader gets in the body's place
+    Flag    []string    // the path to the member saying whether the call succeeded; nil = none
+    Fails   *ir.Value   // the Flag value meaning the call failed; set exactly when Flag is
+    Except  []ir.OpID   // operations whose bodies this envelope never matches
+}
+```
+
+A body matches an `Envelope` when its type, read through `TypePlan.Alias`, is a model that reaches
+one of `Bases` through `Base` or `Mixins`, or declares every name in `Members`, read through
+`Flattened`. Either way it must also declare the members `Value` and `Flag` name. A body takes the
+first envelope it matches, and none of them on an operation its `Except` lists.
+[Responses](responses.md#envelopes) says how a matched body is read. Each field the match sets is
+marked `Inferred` with the envelope's `Name`. An `Except` or `Bases` entry naming nothing in the
+document is reported, as is a `Flag` without `Fails`.
+
+A body is matched by its members as well as by its composition, because composition alone misses
+real envelopes. On the golden spec (spec @319dc756, morphic @b206dc99), the primary bodies of 2,665
+of 3,763 operations declare `success`, `errors`, `messages` and `result`. 2,238 of them reach a
+named component declaring the `success` flag through `Base` or `Mixins`, 113 distinct components in
+all, since products declare their own; the other 427 declare it inline, and no `Bases` list reaches
+them. One `Members` entry matches all 2,665, and since it names every member, a body that merely has
+a `result` is never unwrapped by accident:
+
+```go
+plan.Envelope{
+    Name:    "result",
+    Members: []string{"success", "errors", "messages", "result"},
+    Value:   []string{"result"},
+    Flag:    []string{"success"},
+    Fails:   &ir.Value{Kind: ir.ValueBool, Bool: false},
+}
+```
 
 ## Framings
 

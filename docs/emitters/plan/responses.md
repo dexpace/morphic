@@ -7,10 +7,23 @@ declares, read by one `ResponsePlan`.
 // ResponsePlan is how one response reaches its reader. A success and a failure are read by the
 // same rules, so the election, the shapes, the codec and the headers have one home.
 type ResponsePlan struct {
-    Shape   BodyShape     // value | void | raw | stream
-    Content *ir.Content   // the content elected from the payload; nil = nothing to read
-    Type    *ir.TypeRef   // what a value body decodes into, of any kind; nil unless Shape is value
-    Headers []ir.Header   // the headers the response declares, each whole (below)
+    Shape    BodyShape     // value | void | raw | stream
+    Content  *ir.Content   // the content elected from the payload; nil = nothing to read
+    Type     *ir.TypeRef   // what a value body gives its reader, of any kind; nil unless
+                           // Shape is value
+    Envelope *EnvelopeRead // how an enveloped body is read; nil = the body decodes into
+                           // Type (below)
+    Headers  []ir.Header   // the headers the response declares, each whole (below)
+}
+
+// EnvelopeRead is a body one of plan.Policy.Envelopes matched (policy.md), as it is read here.
+type EnvelopeRead struct {
+    Name    string        // the Envelope that matched
+    Body    ir.TypeRef    // what the body decodes into: the elected content's type
+    Value   *ir.PropPath  // where Type sits inside Body; nil on a pager's page, read whole
+    Flag    *ir.PropPath  // the member saying whether the call succeeded; nil = none
+    Fails   *ir.Value     // the Flag value meaning it failed
+    Failure *ir.TypeRef   // what a failing body decodes into; nil = the target's untyped JSON
 }
 
 // BodyShape is how a body reaches its reader, a small closed enum:
@@ -68,11 +81,35 @@ in a second channel. The first rule that applies decides:
 plan](overview.md), [decorators](../refine/decorators.md)), so an anonymous `allOf` decorator around
 a model returns the model. Its `Nullable` is the content's, and a nullable return takes the target's
 nullable form ([optionality](../refine/models.md#optionality--nullability--presence-inv8)).
-Unwrapping an envelope, which `plan.Policy` may enable ([plan policy](policy.md)), would return a
-value found inside the content instead; what it records and where is #695's. Which codec reads a
+An envelope, which `plan.Policy` may name ([plan policy](policy.md#envelopes)), gives the reader a
+value found inside the content instead, as [envelopes](#envelopes) says. Which codec reads a
 media type is the target's, and a media type it has none for is a coded degrade of that target's
 that reads the body as `raw`. Every body of every document takes one of the four, since the rules
 end in a default; [Return shapes](../operations/returns.md) traces each through the first targets.
+
+## Envelopes
+
+A `value` body that one of `plan.Policy.Envelopes` matches ([plan policy](policy.md#envelopes)) is
+read through it, and `Envelope` records how, marked `Inferred` with the envelope's name:
+
+- **The value.** The body decodes into `Envelope.Body`, and the reader gets the member at `Value`:
+  `Type` is that member's type, so `Return.Type` is the `Zone` inside `{success, errors, messages,
+  result: Zone}`. The rest of the envelope stays reachable through the response
+  ([return shapes](../operations/returns.md)). A paginated operation's page is read whole, as any
+  page is: `Value` is nil, `Type` stays the page, and its items are where `Pagination.Items` says.
+- **A failure in-band.** Where `Flag` is set, the decoder reads that member before decoding the
+  body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)). A body
+  whose flag holds `Fails` is a failure despite its 2xx status, and decodes into `Failure`: the
+  `Type` of the first entry of `Errors` whose body the same envelope matches, or the target's
+  untyped JSON where none does. It is never decoded as `Body`, since an API whose success envelope
+  declares `success: true` alone sends a failure no success type admits
+  ([failures](../operations/errors.md#every-failure-has-one-place)). On the golden spec, 2,321 of
+  the 2,665 enveloped operations declare an error case the envelope matches, 2,225 of them only
+  one such type.
+- **Only a success.** A failure is read whole, so an entry of `Errors` has no `Envelope`, and a
+  body that does not match is read as it would be with no envelope configured.
+
+An entry of `Others` is read by the same rules, so `AsReturn` compares the types its reader gets.
 
 ## Headers
 
