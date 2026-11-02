@@ -38,13 +38,16 @@ go build -o "$tool" ./cmd/morphic-vet
 # above it.
 status=0
 go vet -vettool="$tool" ./... "./$reach" 2>"$work/vet.out" || status=$?
-mapfile -t found < <(sed -nE 's/^([^#][^:]*):[0-9]+:[0-9]+: .*/\1/p' "$work/vet.out")
+got="$(sed -nE 's/^([^#][^:]*):[0-9]+:[0-9]+: .*/\1/p' "$work/vet.out")"
 ok=0
-if [[ "${#found[@]}" -eq 1 && "$status" -eq 1 ]]; then
-	case "${found[0]}" in
-	"$reach/reach.go" | */"$reach/reach.go") ok=1 ;;
-	esac
-fi
+case "$got" in
+*$'\n'*) ;; # more than one finding
+"$reach/reach.go" | */"$reach/reach.go")
+	if [[ "$status" -eq 1 ]]; then
+		ok=1
+	fi
+	;;
+esac
 if [[ "$ok" -ne 1 ]]; then
 	echo "vet-rules: the one finding must be in $reach/reach.go (exit $status):" >&2
 	cat "$work/vet.out" >&2
