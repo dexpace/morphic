@@ -26,9 +26,12 @@ type objectKey struct {
 
 // judgment is what the table found in the source: its diagnostics, and the
 // objects it read, so the validation of what a reference reaches skips them.
+// checker is the table it judged against, built once a load, which judges
+// what the references reach and gives each document's Schema Object rows.
 type judgment struct {
-	diags []ir.Diagnostic
-	seen  map[objectKey]bool
+	checker oas.Checker
+	diags   []ir.Diagnostic
+	seen    map[objectKey]bool
 }
 
 // declaredVersion returns the version the document at root writes under
@@ -49,7 +52,7 @@ func declaredVersion(root *yaml.Node) string {
 // when an alias or a merge key mounts that node there. within bounds what the
 // check reads (see nodesAdmitted).
 func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, within budget.Limit) judgment {
-	j := judgment{seen: map[objectKey]bool{}}
+	j := judgment{checker: oas.NewChecker(), seen: map[objectKey]bool{}}
 	version := declaredVersion(root)
 	opts := oas.Options{
 		Budget: within,
@@ -59,7 +62,7 @@ func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, within b
 		},
 		ReadAt: true,
 	}
-	j.diags = append(oas.NewChecker().Check(ctx, root, version, opts),
+	j.diags = append(j.checker.Check(ctx, root, version, opts),
 		oas.CheckFormat(ctx, root, version, formatOptions(opts))...)
 	return j
 }

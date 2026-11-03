@@ -227,7 +227,8 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 			first = l.opts.OverlaySrcIndex + 1
 		}
 		unused := unreachedKeys(l.bound.bindings.Table(), resolved)
-		l.bound.others = newOthers(ctx, l.reader.read, first, "openapi@"+l.minor, unused)
+		source := dialects{spec: l.judged.checker.Spec(), version: l.doc.OpenAPI, minor: l.minor}
+		l.bound.others = newOthers(ctx, l.reader.read, first, source, unused)
 	}
 	l.placeSite = sitePlacer(l.at, l.bound.others)
 	l.resolved = append(l.pass.diags(l.placeSite), stillUnprepared(l.placeSite, l.missed)...)

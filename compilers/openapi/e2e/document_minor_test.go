@@ -1,0 +1,301 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package e2e_test
+
+import (
+	"encoding/json/jsontext"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/compilers/openapi"
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
+	"github.com/dexpace/morphic/ir"
+)
+
+// minorRoot is a document declaring version whose Holder's property p is a
+// $ref to the schema S of ext.yaml, whose one operation responds with the
+// response R ext.yaml declares, and which declares B, the empty schema, for
+// ext.yaml to reference back.
+func minorRoot(version string) string {
+	return "openapi: " + version + `
+info: {title: Root, version: "1"}
+paths:
+  /x:
+    get:
+      responses:
+        "200": {$ref: 'ext.yaml#/components/responses/R'}
+components:
+  schemas:
+    Holder:
+      type: object
+      properties:
+        p: {$ref: 'ext.yaml#/components/schemas/S'}
+    B: {}
+`
+}
+
+// minorExt is ext.yaml: head, which declares its version or none, then the
+// schemas it declares, and the response R, written as response.
+func minorExt(head, schemas, response string) string {
+	return head + "components:\n  schemas:\n" + schemas + "  responses:\n    R: " + response + "\n"
+}
+
+// declaring is the head of a document declaring version.
+func declaring(version string) string {
+	return "openapi: " + version + "\ninfo: {title: Ext, version: \"1\"}\npaths: {}\n"
+}
+
+// minorResponse is a response every minor admits.
+const minorResponse = "{description: ok}"
+
+// compileMinors compiles root beside ext, read from memory, with the
+// nullable-widening policy off where off says.
+func compileMinors(t *testing.T, root, ext string, off bool) (*ir.Document, []ir.Diagnostic) {
+	t.Helper()
+	dir := t.TempDir()
+	memory, err := reader.NewMemory([]compilers.Source{{Path: filepath.Join(dir, "ext.yaml"), Data: []byte(ext)}})
+	require.NoError(t, err)
+	opts := openapi.Options{AllowExternalRefs: true, NullableWidening: openapi.NullableWidening{Disabled: off}}
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+		compilers.Options{Reader: memory, FormatOptions: opts})
+	require.NoError(t, err)
+	require.NotNil(t, doc, "%+v", diags)
+	require.Len(t, doc.Sources, 2, "the root and ext.yaml")
+	return doc, diags
+}
+
+// extFindings returns the pointers in ext.yaml at which code is reported.
+func extFindings(diags []ir.Diagnostic, code string) []jsontext.Pointer {
+	var out []jsontext.Pointer
+	for _, d := range diags {
+		if d.Code == code && d.Provenance.Source == 1 {
+			out = append(out, d.Provenance.Pointer)
+		}
+	}
+	return out
+}
+
+// extBounds returns the exclusive lower bound of each scalar ext.yaml declares,
+// by its position there.
+func extBounds(doc *ir.Document) map[jsontext.Pointer]ir.BigVal {
+	out := map[jsontext.Pointer]ir.BigVal{}
+	for _, td := range doc.Types {
+		s, ok := td.(*ir.Scalar)
+		if ok && s.Provenance.Source == 1 && s.Constraints != nil && s.Constraints.ExclusiveMin != nil {
+			out[s.Provenance.Pointer] = *s.Constraints.ExclusiveMin
+		}
+	}
+	return out
+}
+
+// TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares pins GitHub #839:
+// a document a reference reaches is read at the minor it declares, its schemas
+// in that minor's dialect, its objects held to that minor's table and its
+// Document.Sources entry naming it, in either direction between two minors. A
+// document declaring no version, or one the compiler does not read, is read
+// at the source's, and the compile still stands.
+func TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares(t *testing.T) {
+	t.Parallel()
+	const exclusive30 = "    S: {type: integer, minimum: 5, exclusiveMinimum: true}\n"
+	const exclusive31 = "    S: {type: integer, exclusiveMinimum: 5}\n"
+	boundOnS := func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+		t.Helper()
+		assert.Equal(t, map[jsontext.Pointer]ir.BigVal{"/components/schemas/S": "5"}, extBounds(doc))
+	}
+	for _, tc := range []struct {
+		name, root, ext, format string
+		check                   func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
+	}{
+		{"a 3.0 root reaching a 3.1 response", minorRoot("3.0.3"),
+			minorExt(declaring("3.1.0"), exclusive31,
+				"{description: ok, content: {application/json: {schema: {type: integer, exclusiveMinimum: 5}}}}"),
+			"openapi@3.1", func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+				assert.Equal(t, map[jsontext.Pointer]ir.BigVal{
+					"/components/schemas/S": "5", "/components/responses/R/content/application~1json/schema": "5",
+				}, extBounds(doc))
+			}},
+		{"a 3.1 root reaching a 3.0 schema", minorRoot("3.1.0"), minorExt(declaring("3.0.3"), exclusive30, minorResponse),
+			"openapi@3.0", boundOnS},
+		{"a 3.0 array without items reached from 3.1", minorRoot("3.1.0"),
+			minorExt(declaring("3.0.3"), "    S: {type: array}\n", minorResponse), "openapi@3.0",
+			func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+				assert.Equal(t, []jsontext.Pointer{"/components/schemas/S"}, extFindings(diags, diag.MissingArrayItems))
+			}},
+		{"a 3.1 array without items reached from 3.0", minorRoot("3.0.3"),
+			minorExt(declaring("3.1.0"), "    S: {type: array}\n", minorResponse), "openapi@3.1",
+			func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+				assert.Empty(t, openapitest.PointersOf(diags, diag.MissingArrayItems))
+			}},
+		{"a 3.2 response reached from 3.1", minorRoot("3.1.0"),
+			minorExt(declaring("3.2.0"), exclusive31, "{content: {application/json: {schema: {type: string}}}}"),
+			"openapi@3.2", func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
+				assert.Empty(t, openapitest.PointersOf(diags, diag.Validation+"/validation-required-field"))
+			}},
+		{"a bare file reached from 3.0", minorRoot("3.0.3"), minorExt("", exclusive30, minorResponse), "openapi@3.0",
+			boundOnS},
+		{"a bare file reached from 3.1", minorRoot("3.1.0"), minorExt("", exclusive31, minorResponse), "openapi@3.1",
+			boundOnS},
+		{"a version the table does not cover", minorRoot("3.1.0"), minorExt(declaring("3.3.0"), exclusive31, minorResponse),
+			"openapi@3.1", boundOnS},
+		{"a Swagger 2.0 file", minorRoot("3.1.0"),
+			minorExt("swagger: \"2.0\"\ninfo: {title: Ext, version: \"1\"}\npaths: {}\n", exclusive31, minorResponse),
+			"openapi@3.1", boundOnS},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileMinors(t, tc.root, tc.ext, false)
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.Equal(t, tc.format, doc.Sources[1].Format)
+			tc.check(t, doc, diags)
+		})
+	}
+}
+
+// TestDocumentMinor_AnObjectIsHeldToItsDocumentsTable pins the other half of
+// validating at a document's minor: a 3.1 response reached from a 3.2 root
+// still requires the description 3.2 dropped, and the finding names 3.1.
+func TestDocumentMinor_AnObjectIsHeldToItsDocumentsTable(t *testing.T) {
+	t.Parallel()
+	_, diags := compileMinors(t, minorRoot("3.2.0"),
+		minorExt(declaring("3.1.0"), "    S: {type: string}\n", "{content: {application/json: {schema: {type: string}}}}"),
+		false)
+	var found []string
+	for _, d := range diags {
+		if d.Code == diag.Validation+"/validation-required-field" {
+			found = append(found, d.Message)
+		}
+	}
+	assert.Equal(t, []string{`Response Object field "description" is REQUIRED in OpenAPI 3.1 (Response Object)`}, found)
+}
+
+// TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument pins nullable across a
+// reference into a document of another minor, with the policy off: a 3.0
+// schema's nullable adds null to its type and a 3.1 one's says nothing, each
+// alias along a chain is read in its own document's dialect, whichever its end
+// is in, a $ref site's own keywords in its document's once its chain is read,
+// and the keys beside a 3.0 alias's $ref are later constructs of that
+// document.
+func TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument(t *testing.T) {
+	t.Parallel()
+	const alias = "    S: {$ref: '#/components/schemas/B', type: string, nullable: true}\n    B: {}\n"
+	const back = "    S: {$ref: 'root.yaml#/components/schemas/B', type: string, nullable: true}\n"
+	besideRef := strings.Replace(minorRoot("3.1.0"), "p: {$ref: 'ext.yaml#/components/schemas/S'}",
+		"p: {$ref: 'ext.yaml#/components/schemas/S', type: string, nullable: true}", 1)
+	for _, tc := range []struct {
+		name, root, ext string
+		nullable        bool
+		unknown, later  []jsontext.Pointer
+	}{
+		{"a 3.0 schema reached from 3.1", minorRoot("3.1.0"),
+			minorExt(declaring("3.0.3"), "    S: {type: string, nullable: true}\n", minorResponse), true, nil, nil},
+		{"a 3.0 alias reached from 3.1", minorRoot("3.1.0"), minorExt(declaring("3.0.3"), alias, minorResponse), true, nil,
+			[]jsontext.Pointer{"/components/schemas/S/type", "/components/schemas/S/nullable"}},
+		{"a 3.1 alias reached from 3.0", minorRoot("3.0.3"), minorExt(declaring("3.1.0"), alias, minorResponse), false,
+			[]jsontext.Pointer{"/components/schemas/S/nullable"}, nil},
+		{"a 3.0 alias over an end in 3.1", minorRoot("3.1.0"), minorExt(declaring("3.0.3"), back, minorResponse), true,
+			nil, []jsontext.Pointer{"/components/schemas/S/type", "/components/schemas/S/nullable"}},
+		{"a 3.1 alias over an end in 3.0", minorRoot("3.0.3"), minorExt(declaring("3.1.0"), back, minorResponse), false,
+			[]jsontext.Pointer{"/components/schemas/S/nullable"}, nil},
+		{"a 3.1 $ref site over a 3.0 schema", besideRef, minorExt(declaring("3.0.3"), "    S: {}\n", minorResponse),
+			false, nil, nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileMinors(t, tc.root, tc.ext, true)
+			openapitest.RequireNoErrorDiags(t, diags)
+			p := holderProps(t, doc)["p"].Type
+			assert.Equal(t, tc.nullable, p.Nullable)
+			assert.Empty(t, p.Inferred)
+			assert.Equal(t, tc.unknown, extFindings(diags, diag.UnknownSchemaKeyword))
+			assert.Equal(t, tc.later, extFindings(diags, diag.LaterVersionConstruct))
+		})
+	}
+}
+
+// TestDocumentMinor_AdmissionReadsEachSchemaInItsDialect pins what a
+// refinement admits across a reference: a 3.1 alias's nullable admits no
+// null, so no conjunct narrows the null default its target lends, which the
+// position takes as it takes the alias written without it.
+func TestDocumentMinor_AdmissionReadsEachSchemaInItsDialect(t *testing.T) {
+	t.Parallel()
+	root := `openapi: 3.0.3
+info: {title: Root, version: "1"}
+paths: {}
+components:
+  schemas:
+    H:
+      allOf:
+        - {$ref: 'ext.yaml#/components/schemas/S'}
+        - {type: string}
+    M:
+      type: object
+      properties:
+        p: {$ref: '#/components/schemas/H'}
+`
+	defaultOf := func(alias string) *ir.Value {
+		doc, diags := compileMinors(t, root, minorExt(declaring("3.1.0"), alias+"    U: {default: null}\n", minorResponse), false)
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := doc.Types[componentID("M")].(*ir.Model)
+		require.True(t, ok)
+		p, ok := propByWire(m, "p")
+		require.True(t, ok)
+		return p.Default
+	}
+	plain := defaultOf("    S: {$ref: '#/components/schemas/U', type: string}\n")
+	require.NotNil(t, plain, "no conjunct narrows the alias written plainly")
+	assert.Equal(t, plain, defaultOf("    S: {$ref: '#/components/schemas/U', type: string, nullable: true}\n"))
+}
+
+// TestDocumentMinor_DocumentsOfTwoMinorsAreEachReadAtTheirOwn pins that two
+// documents of different minors reached from one root share nothing of how
+// they are read: each bound reads in its own document's dialect, and each
+// Document.Sources entry names its own minor.
+func TestDocumentMinor_DocumentsOfTwoMinorsAreEachReadAtTheirOwn(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	memory, err := reader.NewMemory([]compilers.Source{
+		{Path: filepath.Join(dir, "a.yaml"), Data: []byte(minorExt(declaring("3.0.3"),
+			"    S: {type: integer, minimum: 5, exclusiveMinimum: true}\n", minorResponse))},
+		{Path: filepath.Join(dir, "b.yaml"), Data: []byte(minorExt(declaring("3.1.0"),
+			"    S: {type: integer, exclusiveMinimum: 6}\n", minorResponse))},
+	})
+	require.NoError(t, err)
+	root := `openapi: 3.2.0
+info: {title: Root, version: "1"}
+paths: {}
+components:
+  schemas:
+    Holder:
+      type: object
+      properties:
+        a: {$ref: 'a.yaml#/components/schemas/S'}
+        b: {$ref: 'b.yaml#/components/schemas/S'}
+`
+	doc, diags, err := openapi.New().Compile(t.Context(),
+		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
+		compilers.Options{Reader: memory, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+	require.NoError(t, err)
+	require.NotNil(t, doc)
+	openapitest.RequireNoErrorDiags(t, diags)
+	var formats []string
+	for _, src := range doc.Sources {
+		formats = append(formats, src.Format)
+	}
+	assert.Equal(t, []string{"openapi@3.2", "openapi@3.0", "openapi@3.1"}, formats)
+	bounds := map[string]ir.BigVal{}
+	for _, td := range doc.Types {
+		if s, ok := td.(*ir.Scalar); ok && s.Constraints != nil && s.Constraints.ExclusiveMin != nil {
+			bounds[doc.Sources[s.Provenance.Source].Path] = *s.Constraints.ExclusiveMin
+		}
+	}
+	assert.Equal(t, map[string]ir.BigVal{filepath.Join(dir, "a.yaml"): "5", filepath.Join(dir, "b.yaml"): "6"}, bounds)
+}

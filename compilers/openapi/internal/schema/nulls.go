@@ -222,26 +222,44 @@ func (n *nulls) usage(s *oas3.Schema, target nullReading, site nullSite) nullRea
 
 // lands reads what js's $ref lands on along the chain the bindings resolved:
 // the schema it ends on, read over by each alias it passes on the way, so an
-// alias's own keywords count as well as the end's. A chain that ends on no
-// schema says nothing. The hops are walked in a loop the chain's own length
-// bounds, not from the read's budget, so a long chain of aliases reads as a
-// short one does; what each alias conjoins still spends it.
+// alias's own keywords count as well as the end's, each in its own document's
+// dialect. A chain that ends on no schema says nothing. The hops are walked in
+// a loop the chain's own length bounds, not from the read's budget, so a long
+// chain of aliases reads as a short one does; what each alias conjoins still
+// spends it.
 func (n *nulls) lands(js *oas3.JSONSchema[oas3.Referenceable]) nullReading {
 	e, ok := n.refs.Entry(js)
 	if !ok || e.Chain.Status != bind.Resolved {
 		return alike(nullSilent)
 	}
-	var aliases []*oas3.Schema
-	hop := n.refs.Declared(js)
+	var aliases []nullHop
+	hop, at := n.refs.DeclaredAt(js)
 	for i := 1; i < e.Chain.Hops && hop != nil && resolve.IsRefSite(hop, hop.GetSchema()); i++ {
-		aliases = append(aliases, hop.GetSchema())
-		hop = n.refs.Declared(hop)
+		aliases = append(aliases, nullHop{s: hop.GetSchema(), nullable: definesNullableIn(n.c, at.Doc)})
+		hop, at = n.refs.DeclaredAt(hop)
 	}
+	outer := n.nullable
+	n.nullable = definesNullableIn(n.c, e.Chain.End.Doc)
 	r := n.conjunct(n.refs.At(e.Chain.End), nullSite{})
-	for _, s := range slices.Backward(aliases) {
-		r = n.usage(s, r, nullSite{})
+	for _, a := range slices.Backward(aliases) {
+		n.nullable = a.nullable
+		r = n.usage(a.s, r, nullSite{})
 	}
+	n.nullable = outer
 	return r
+}
+
+// nullHop is an alias a $ref chain passes, and whether the dialect of the
+// document holding it defines nullable.
+type nullHop struct {
+	s        *oas3.Schema
+	nullable bool
+}
+
+// definesNullableIn reports whether the dialect the schemas of document doc
+// are read in defines the nullable keyword.
+func definesNullableIn(c lowering.Ctx, doc bind.DocID) bool {
+	return lowering.SchemaRulesIn(c, doc).Defines("nullable")
 }
 
 // widenRef is the lenient reading of keywords beside a $ref that admit null

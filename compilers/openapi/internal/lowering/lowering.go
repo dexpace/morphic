@@ -81,9 +81,9 @@ type Ctx struct {
 	schemas map[string]bool
 
 	// rules is the Schema Object's rows at the minor the source declares, read
-	// once by New, so no copy of the context reads the version again
-	// (SchemaRules). It is one word, which keeps RefScope's closure in its size
-	// class.
+	// once by New, so no copy of the context reads the version again; another
+	// document's are its load.Other's (SchemaRules). It is one word, which keeps
+	// RefScope's closure in its size class.
 	rules oas.SchemaRules
 
 	// NullableWidening is the nullable-widening policy. It sits before foreign so
@@ -408,14 +408,34 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
-// SchemaRules returns the Schema Object's rows a schema c lowers is read with.
-// A reading that differs between minors, such as a boolean exclusiveMinimum, a
-// required `items` or the effect `nullable` has, asks these rather than the
-// version. A version the table does not cover, and a context with no document,
-// answer with the zero rows. They are the entry document's, whichever document
-// holds the schema, so a 3.1 file reached by $ref from a 3.0 root is read as
-// 3.0 (GitHub #839).
-func (c Ctx) SchemaRules() oas.SchemaRules { return c.rules }
+// SchemaRules returns the Schema Object's rows a schema c lowers is read with:
+// those of the document whose content c reads, which its scope names
+// (load.Other.Rules), the source's for its own. A reading that differs between
+// minors, such as a boolean exclusiveMinimum, a required `items` or the effect
+// `nullable` has, asks these rather than the version. A version the table does
+// not cover, and a context with no document, answer with the zero rows.
+//
+// The scope, not home, names that document: Declared can read one document's
+// content at another's positions.
+func (c Ctx) SchemaRules() oas.SchemaRules {
+	if c.foreign && c.loaded != nil {
+		if o, ok := c.loaded.others.Named(c.holder); ok {
+			return o.Rules
+		}
+	}
+	return c.rules
+}
+
+// SchemaRulesIn returns the rows the schemas document id of the bindings'
+// table declares are read with, for a reading that crosses a $ref without a
+// context of that document: the source's own for the source, and for one the
+// compile did not read beside it.
+func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
+	if _, o, ok := otherIn(c, id); ok {
+		return o.Rules
+	}
+	return c.rules
+}
 
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, what it declares, and the parsed document itself.
@@ -529,16 +549,25 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 	if id == bind.Source {
 		return c.InScope(c.RefScope().InSource()), true
 	}
-	if c.loaded == nil {
-		return c, false
-	}
-	name := c.Bindings().Table().Document(id).Name
-	o, ok := c.loaded.others.Named(name)
+	name, o, ok := otherIn(c, id)
 	if !ok {
 		return c, false
 	}
 	c.foreign, c.holder, c.home, c.homeDoc = true, name, o.Index, id
 	return c, true
+}
+
+// otherIn returns the name document id of the bindings' table is read by, and
+// the document the compile read beside the source under it, and false for the
+// source, for a context given no load phase, and for a document the compile
+// did not read beside the source.
+func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
+	if id == bind.Source || c.loaded == nil {
+		return "", load.Other{}, false
+	}
+	name := c.Bindings().Table().Document(id).Name
+	o, ok := c.loaded.others.Named(name)
+	return name, o, ok
 }
 
 // ProvenanceAt is where a Provenance is built, and the only place this compiler

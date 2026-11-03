@@ -55,4 +55,5 @@ func TestSchemaRules_ReadEachRowAtItsMinor(t *testing.T) {
 	assert.False(t, r30.RequiredWhen("items", "format", "array"), "another field decides nothing")
 	assert.False(t, r30.RequiredWhen("properties", "type", "array"))
 	assert.False(t, oas.Spec{}.SchemaRules("3.0.3").Defines("nullable"), "a table with no Schema Object defines nothing")
+	assert.True(t, oas.NewChecker().Spec().SchemaRules("3.0.3").Defines("nullable"), "a checker's table is the table")
 }

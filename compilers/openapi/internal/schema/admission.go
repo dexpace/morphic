@@ -273,8 +273,9 @@ func memberOf(v values.Value) (string, kindSet, bool) {
 // is told by incomplete, and says nothing.
 type admission struct {
 	c lowering.Ctx
-	// nullable reports whether the dialect of the schema being read defines the
-	// nullable keyword (oas.SchemaRules.Defines).
+	// nullable reports whether the dialect c reads its schemas in defines the
+	// nullable keyword (oas.SchemaRules.Defines). A schema the read reaches
+	// elsewhere is read in its own document's (nullableOf).
 	nullable bool
 	reads    budget.Budget
 	members  budget.Budget
@@ -296,8 +297,9 @@ func newAdmission(c lowering.Ctx) admission {
 // value it cannot convert.
 func (w *admission) incomplete() bool { return w.reads.Exhausted() || w.members.Exhausted() }
 
-// whole reads js, a schema of any form written anywhere: what its keywords say,
-// conjoined with its allOf, its unions and what its $ref lands on.
+// whole reads js, a schema of any form written anywhere, in the dialect of the
+// document holding it: what its keywords say, conjoined with its allOf, its
+// unions and what its $ref lands on.
 func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	if !w.reads.Spend(1) || !annotation.Written(js) {
 		return admitted{kinds: kindAny}
@@ -312,7 +314,7 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	if declaresDynamicRef(s) {
 		w.reads.Exhaust()
 	}
-	out := w.written(s)
+	out := w.writtenIn(s, w.nullableOf(js))
 	for _, b := range s.GetAllOf() {
 		out = out.and(w.whole(b))
 	}
@@ -453,12 +455,26 @@ func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admit
 	return out
 }
 
-// written reads the keywords s itself writes that say what a value is: `type`,
-// which OpenAPI 3.0's `nullable` adds null to, `format`, `enum`, `const` and
-// `items`. A `properties` with no type beside it claims an object, as
-// lowerUntyped reads one.
-func (w *admission) written(s *oas3.Schema) admitted {
-	out := admitted{kinds: writtenKinds(s, w.nullable)}
+// written reads the keywords s, a schema in c's document, itself writes that
+// say what a value is (writtenIn).
+func (w *admission) written(s *oas3.Schema) admitted { return w.writtenIn(s, w.nullable) }
+
+// nullableOf reports whether the dialect of the document holding js defines
+// nullable, where the bindings place js; one they do not is read in c's.
+func (w *admission) nullableOf(js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	at, ok := w.c.Bindings().Site(js)
+	if !ok {
+		return w.nullable
+	}
+	return definesNullableIn(w.c, at.Doc)
+}
+
+// writtenIn reads the keywords s itself writes that say what a value is:
+// `type`, which a `nullable` adds null to where nullable says the dialect
+// defines it, `format`, `enum`, `const` and `items`. A `properties` with no
+// type beside it claims an object, as lowerUntyped reads one.
+func (w *admission) writtenIn(s *oas3.Schema, nullable bool) admitted {
+	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := s.GetItems(); annotation.Written(items) && (!items.IsBool() || annotation.IsFalseSchema(items)) {
 		out.items = items
@@ -588,7 +604,7 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 // same JSON, read against one base where it writes a relative $ref: under an
 // $id naming another URI, the same spelling resolves elsewhere. A copy in
 // another document is read apart: its $refs resolve against that document, and
-// its dialect may differ (GitHub #839).
+// its dialect may differ (docs/compilers/openapi.md#openapi-versions).
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	at, placed := w.c.Bindings().Site(a)
 	bt, placedB := w.c.Bindings().Site(b)

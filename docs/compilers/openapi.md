@@ -35,7 +35,11 @@ gives the reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) 
 ### `openapi-versions`
 
 A document declaring `openapi: 3.0.x`, `3.1.x` or `3.2.x` is read as the minor its first two parts
-name, and every rule below that differs by minor follows that one. A version that is not three runs
+name, and every rule below that differs by minor follows that one. So is a document a reference
+reaches beside the source: its schemas are read in that minor's dialect, its objects are held to
+that minor's table, and its `Document.Sources` entry names that minor. One declaring no version, such
+as a bare schema file, or a version the compiler does not read, such as `3.3.0` or a Swagger 2.0
+file, is read at the source's minor, and the compile stands. A version that is not three runs
 of digits, major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an
 `openapi/validation` error, of the class `validation-invalid-format` ([`validation`](#validation)),
 and the document still lowers under the minor it names. Any other
@@ -47,6 +51,11 @@ Document.
 - Codes: `openapi/unsupported-version`, `openapi/validation`
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
   `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`,
+  `e2e.TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares`,
+  `e2e.TestDocumentMinor_AnObjectIsHeldToItsDocumentsTable`,
+  `e2e.TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument`,
+  `e2e.TestDocumentMinor_AdmissionReadsEachSchemaInItsDialect`,
+  `e2e.TestDocumentMinor_DocumentsOfTwoMinorsAreEachReadAtTheirOwn`,
   `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
   `detect.TestRecognize_AVersionThatIsNotServedIsStillADeclaration`
 
@@ -223,7 +232,8 @@ stands ([`security-requirements`](#security-requirements)).
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
 that kind, one under an `x-` key or in another document, is read as the kind the reference
-expects and held to the source's minor. A finding about it is placed at its node, in the entry of
+expects and held to the minor of the document that writes it
+([`openapi-versions`](#openapi-versions)). A finding about it is placed at its node, in the entry of
 `Document.Sources` for the document that writes that node, a file the source spells two ways being
 one document. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
@@ -261,8 +271,6 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
-- Status: partly built: a document a reference reaches is held to the source's minor until which
-  minor governs it is settled (#839).
 
 ### `minor-required-fields`
 
@@ -288,8 +296,6 @@ the field.
   `oas.TestCheck_AtLeastOneSectionStandsInADocument`,
   `oas.TestCheck_EmptyStringsAreRefusedWhereTheGrammarSaysSo`,
   `oas.TestCheck_NamesSentInAHeaderOrACookieAreTokens`, `oas.TestCheck_AnHTTPSchemeIsAToken`
-- Status: open: which minor governs a document a reference reaches, held to the source's until it is
-  settled (#839).
 
 ### `later-version-construct`
 
@@ -345,7 +351,7 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
   `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`
 - Status: partly built: a JSON Schema 2020-12 keyword in a 3.0 schema lowers with no diagnostic
-  (#820). Open: which minor governs a document a reference reaches (#839).
+  (#820).
 
 ### `references`
 
@@ -3007,8 +3013,6 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 - Codes: `openapi/inapplicable-location-keyword`
 - Tests: `oas.TestCheck_AllowReservedWarnsWhereItHasNoEffect`,
   `oas.TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot`
-- Status: open: which minor governs a parameter another document holds, held to the source's until
-  it is settled (#839).
 
 ### `parameter-schema-keywords`
 
