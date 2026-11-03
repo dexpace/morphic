@@ -107,15 +107,17 @@ func (u Use) Written() []annotation.Voice {
 // passage is how a use of a schema reads past it, into the one $ref its allOf
 // writes (throughRef).
 type passage struct {
-	// ref is nil for a refinement writing no $ref.
-	ref *oas3.JSONSchema[oas3.Referenceable]
-	// lost marks a ref the position does not lower to, so no Base reaches it.
-	lost bool
-	// principal is a refinement's, nil for any other schema.
-	principal *allOfBranch
 	// admits is what the schema admits, read only where narrows says it is less
 	// than ref admits: a default no narrowing excludes reads as beside a $ref.
-	admits  admitted
+	admits admitted
+	// ref is nil for a refinement writing no $ref.
+	ref *oas3.JSONSchema[oas3.Referenceable]
+	// principal is a refinement's, nil for any other schema.
+	principal *allOfBranch
+	// lost marks a ref the position does not lower to, so no Base reaches it.
+	lost bool
+	// narrows reports that the schema admits less than ref admits, so admits
+	// is read.
 	narrows bool
 }
 
