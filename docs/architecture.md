@@ -98,7 +98,9 @@ Internal phases every compiler follows (each format implements them its own way)
    Swagger 2.0 is lifted to the OpenAPI 3.x shape (`body`/`formData` params → request body,
    `host`+`basePath` → servers); OpenAPI 3.0 `nullable` and 3.1 `type: [T, "null"]` both become
    the IR's nullable bit. The IR never records which dialect a fact came from except in
-   provenance.
+   provenance. Versions differ on two axes, which objects and fields a document may write and how
+   its schemas read, and both are rows of the format's rule table keyed by the minors that define
+   them, so a lowering asks the table how a construct reads rather than asking the version.
 3. **Hoist & identify** — every anonymous inline type is hoisted into the type registry exactly
    once, keyed by its source pointer, with a naming *hint* (not a name) that is a function of the
    documents and that pointer alone. One function derives every inline name, whichever lowering

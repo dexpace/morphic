@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -156,6 +157,18 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 			assert.Equal(t, tc.want, got)
 		})
 	}
+}
+
+// TestSchemaRules_ReadsTheVersionTheDocumentDeclares pins the rows load hands
+// the lowering for a document: those of the minor it declares, and none for a
+// nil document or one declaring a version the table does not cover.
+func TestSchemaRules_ReadsTheVersionTheDocumentDeclares(t *testing.T) {
+	t.Parallel()
+	assert.True(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.0.3"}).Defines("nullable"))
+	assert.False(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.1.0"}).Defines("nullable"))
+	assert.True(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.1.0"}).Defines("prefixItems"))
+	assert.False(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.3.0"}).Defines("type"))
+	assert.False(t, SchemaRules(nil).Defines("type"))
 }
 
 // TestSupportedMinor_AllocatesNothing pins what the lowering's dialect check

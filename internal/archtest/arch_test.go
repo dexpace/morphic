@@ -269,11 +269,11 @@ var rules = map[string][]string{
 	// What is being lowered: the parsed document, the identity of the source, and
 	// the indexes derived from them at entry. It is the substrate both walks share
 	// and so must reach neither, which is why it sits here rather than with either
-	// one. It reaches load for the version grammar — the dialect question is asked
-	// of the document, and the grammar that answers it is the loader's — and for
-	// the schema bindings the load phase built, which its scope reads. It reaches
-	// naming for what each position is called, and budget for the limits it
-	// holds.
+	// one. It reaches load for the schema bindings the load phase built, which its
+	// scope reads, and for the rows a document's schemas are read with, which oas
+	// states: the dialect question is asked of the table, never of the version.
+	// It reaches naming for what each position is called, and budget for the
+	// limits it holds.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -282,6 +282,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/naming",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
 		"github.com/speakeasy-api/openapi/openapi"},
@@ -323,6 +324,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/lowering",
 		module + "/compilers/openapi/internal/merge",
 		module + "/compilers/openapi/internal/nodeview",
+		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",

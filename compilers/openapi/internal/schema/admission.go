@@ -272,21 +272,23 @@ func memberOf(v values.Value) (string, kindSet, bool) {
 // values a schema admits and mirrors no lowering's dispatch. A reading cut short
 // is told by incomplete, and says nothing.
 type admission struct {
-	c       lowering.Ctx
-	is30    bool
-	reads   budget.Budget
-	members budget.Budget
+	c lowering.Ctx
+	// nullable reports whether the dialect of the schema being read defines the
+	// nullable keyword (oas.SchemaRules.Defines).
+	nullable bool
+	reads    budget.Budget
+	members  budget.Budget
 	// walked hears how many members each value set comparison of the election
 	// looks up, for a test to hold it to the sets it compares; a compile leaves
 	// it nil.
 	walked func(int)
 }
 
-// newAdmission returns a read with the whole budget, in the dialect c's document
-// declares. It returns a value so the read lives on its caller's stack.
+// newAdmission returns a read with the whole budget, in the dialect c reads its
+// schemas in. It returns a value so the read lives on its caller's stack.
 func newAdmission(c lowering.Ctx) admission {
-	return admission{c: c, is30: c.Is30(), reads: budget.New(budget.AtMost(maxAdmissionReads)),
-		members: budget.New(budget.AtMost(maxAdmissionMembers))}
+	return admission{c: c, nullable: c.SchemaRules().Defines("nullable"),
+		reads: budget.New(budget.AtMost(maxAdmissionReads)), members: budget.New(budget.AtMost(maxAdmissionMembers))}
 }
 
 // incomplete reports whether the read met what it cannot answer for: a cycle
@@ -456,7 +458,7 @@ func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admit
 // `items`. A `properties` with no type beside it claims an object, as
 // lowerUntyped reads one.
 func (w *admission) written(s *oas3.Schema) admitted {
-	out := admitted{kinds: writtenKinds(s, w.is30)}
+	out := admitted{kinds: writtenKinds(s, w.nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := s.GetItems(); annotation.Written(items) && (!items.IsBool() || annotation.IsFalseSchema(items)) {
 		out.items = items
@@ -477,9 +479,10 @@ func (w *admission) written(s *oas3.Schema) admitted {
 }
 
 // writtenKinds reads a schema's `type`, or a type implied by what it declares,
-// with the null a 3.0 `nullable: true` adds to it, beside a $ref as anywhere. A
-// null `type` writes none (writesType).
-func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
+// with the null a `nullable: true` adds to it, beside a $ref as anywhere, where
+// the dialect defines the keyword, as nullable says. A null `type` writes none
+// (writesType).
+func writtenKinds(s *oas3.Schema, nullable bool) kindSet {
 	types := s.GetType()
 	if !writesType(s) {
 		if props := s.GetProperties(); props != nil && props.Len() > 0 {
@@ -491,7 +494,7 @@ func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
 	for _, t := range types {
 		out |= kindOfType(t)
 	}
-	if is30 && s.Nullable != nil && *s.Nullable {
+	if nullable && s.Nullable != nil && *s.Nullable {
 		out |= kindNull
 	}
 	return out
@@ -625,7 +628,7 @@ func (w *admission) text(js *oas3.JSONSchema[oas3.Referenceable]) ir.RawValue {
 func (w *admission) holds(held admitted, s *oas3.Schema, key string) bool {
 	switch key {
 	case "type":
-		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.is30)})
+		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})
 	case "format":
 		return held.formsWithin(w.written(s))
 	case "enum", "const":

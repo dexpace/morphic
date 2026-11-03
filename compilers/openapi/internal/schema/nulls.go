@@ -5,7 +5,6 @@ package schema
 
 import (
 	"encoding/json/jsontext"
-	"fmt"
 	"slices"
 	"strconv"
 
@@ -150,12 +149,13 @@ func (s nullSite) child(tokens ...string) nullSite {
 // an alias's own keywords included, within one budget for the whole read,
 // conjuncts.
 type nulls struct {
-	c         lowering.Ctx
-	refs      *typed.Bindings
-	is30      bool
+	c    lowering.Ctx
+	refs *typed.Bindings
+	// nullable reports whether the dialect of the schema being read defines the
+	// nullable keyword (oas.SchemaRules.Defines), the one question of the
+	// version this read asks.
+	nullable  bool
 	conjuncts budget.Budget
-	// declared is the version the document declares, which a report names.
-	declared string
 	// found is each null the lenient reading reads in where the declared one
 	// leaves its schema without null, at a site the walk has.
 	found []nullFinding
@@ -169,11 +169,11 @@ type nullFinding struct {
 }
 
 // newNulls returns a read with the whole budget, over c's bindings and in the
-// dialect c's document declares. It returns a value so the read lives on its
+// dialect c reads its schemas in. It returns a value so the read lives on its
 // caller's stack, as one per position read is.
 func newNulls(c lowering.Ctx) nulls {
-	return nulls{c: c, refs: c.Bindings(), is30: c.Is30(), conjuncts: budget.New(budget.AtMost(maxNullConjuncts)),
-		declared: c.Doc.GetOpenAPI()}
+	return nulls{c: c, refs: c.Bindings(), nullable: c.SchemaRules().Defines("nullable"),
+		conjuncts: budget.New(budget.AtMost(maxNullConjuncts))}
 }
 
 // findings returns what n found as diagnostics, or none while c's policy is
@@ -304,8 +304,8 @@ func (n *nulls) widen(s *oas3.Schema, own, r nullReading, site nullSite) nullRea
 // that lands on, which own's null conjoins with.
 func (n *nulls) why(s *oas3.Schema, own nullReading) string {
 	switch {
-	case !n.is30:
-		return fmt.Sprintf("this document declares OpenAPI %s, whose schemas define no nullable keyword", n.declared)
+	case !n.nullable:
+		return "the dialect this schema is read in defines no nullable keyword"
 	case !writesType(s):
 		return "OpenAPI 3.0 applies nullable only to a type written in the same Schema Object, " +
 			"and this schema writes none"
@@ -320,14 +320,14 @@ func (n *nulls) why(s *oas3.Schema, own nullReading) string {
 	}
 }
 
-// declaredTypeVerdict is typeNullVerdict as the document's version reads a
-// `nullable: true` beside the type. OpenAPI 3.0 adds null to a type written in
-// the same Schema Object, beside a $ref as anywhere, as `type: [T, "null"]`
-// spells it from 3.1, so the result then conjoins like any type. From 3.1,
-// nullable is no keyword of the dialect.
+// declaredTypeVerdict is typeNullVerdict as the dialect s is read in reads a
+// `nullable: true` beside the type. Where it defines the keyword, as 3.0 does,
+// it adds null to a type written in the same Schema Object, beside a $ref as
+// anywhere, as `type: [T, "null"]` spells it from 3.1, so the result then
+// conjoins like any type. Where it does not, nullable says nothing.
 func (n *nulls) declaredTypeVerdict(s *oas3.Schema) nullVerdict {
 	v := typeNullVerdict(s)
-	if v == nullForbidden && n.is30 && s.Nullable != nil && *s.Nullable {
+	if v == nullForbidden && n.nullable && s.Nullable != nil && *s.Nullable {
 		return nullAdmitted
 	}
 	return v

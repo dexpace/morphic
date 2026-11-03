@@ -381,6 +381,15 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
+// SchemaRules returns the Schema Object's rows at the minor doc declares
+// (oas.Spec.SchemaRules), which the lowering reads doc's schemas with, and the
+// zero rows for a nil doc or one declaring a version the table does not cover.
+// It is where the lowering's dialect question meets the version, so no lowering
+// reads the version itself.
+func SchemaRules(doc *soa.OpenAPI) oas.SchemaRules {
+	return oas.Table().SchemaRules(doc.GetOpenAPI())
+}
+
 // SupportedMinor returns the normalized major.minor prefix of an OpenAPI version
 // string and whether the compiler supports it: a minor the rule table covers
 // (oas.ParseMinor), so no document is compiled that the table holds to nothing.

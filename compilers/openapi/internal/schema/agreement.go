@@ -56,7 +56,7 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 		}
 		if !read {
 			// What it reports and keeps, the lowering reports and keeps where it reads it.
-			cons, _, _ = annotation.Constraints(conjunct, a.c.Is30(), "", unlocated)
+			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c), "", unlocated)
 			read = true
 		}
 		a.bound(entry).add(boundOf(entry, cons))

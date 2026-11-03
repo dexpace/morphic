@@ -91,7 +91,8 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 // site's keywords are held to it; a subschema kept verbatim, such as one under
 // `not`, never reaches it.
 func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if annotation.Written(s.GetItems()) || !slices.Contains(s.GetType(), oas3.SchemaTypeArray) || !c.Is30() {
+	if annotation.Written(s.GetItems()) || !slices.Contains(s.GetType(), oas3.SchemaTypeArray) ||
+		!c.SchemaRules().RequiredWhen("items", "type", string(oas3.SchemaTypeArray)) {
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,

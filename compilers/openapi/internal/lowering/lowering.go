@@ -14,6 +14,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -78,6 +79,12 @@ type Ctx struct {
 	// rather than merely discouraged, which is what TestCtx_HasNoExportedMap
 	// holds the struct to.
 	schemas map[string]bool
+
+	// rules is the Schema Object's rows at the minor the source declares, read
+	// once by New, so no copy of the context reads the version again
+	// (SchemaRules). It is one word, which keeps RefScope's closure in its size
+	// class.
+	rules oas.SchemaRules
 
 	// NullableWidening is the nullable-widening policy. It sits before foreign so
 	// the two share a word: RefScope copies the whole context into a closure,
@@ -183,6 +190,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		Grouping:         grouping,
 		Limits:           limits,
 		schemas:          declaredSchemaNames(doc),
+		rules:            load.SchemaRules(doc),
 		streaming:        streamingSet(streaming),
 		promoter:         newPromoter(promotions),
 		NullableWidening: nullable,
@@ -400,17 +408,14 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
-// Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
-// 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
-// as a boolean exclusiveMinimum, a required `items` or the effect `nullable`
-// has, asks this rather than parsing the version itself. An unrecognized
-// version, and a context with no document, answer false. It reads the entry
-// document's version, whichever document holds the schema, so a 3.1 file
-// reached by $ref from a 3.0 root is read as 3.0 (GitHub #839).
-func (c Ctx) Is30() bool {
-	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
-	return minor == "3.0"
-}
+// SchemaRules returns the Schema Object's rows a schema c lowers is read with.
+// A reading that differs between minors, such as a boolean exclusiveMinimum, a
+// required `items` or the effect `nullable` has, asks these rather than the
+// version. A version the table does not cover, and a context with no document,
+// answer with the zero rows. They are the entry document's, whichever document
+// holds the schema, so a 3.1 file reached by $ref from a 3.0 root is read as
+// 3.0 (GitHub #839).
+func (c Ctx) SchemaRules() oas.SchemaRules { return c.rules }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
 // own path, what it declares, and the parsed document itself.
