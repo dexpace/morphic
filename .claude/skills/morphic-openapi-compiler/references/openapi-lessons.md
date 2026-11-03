@@ -162,10 +162,10 @@ canary. A behaviour found that the page lacks is added there.
 ## Take a new bound's outcome from the rule entry for its kind
 `bound-outcome-from-the-rules`
 
-- **Rule.** A new bound in load, binding or lowering takes the outcome, refusal or warning, that
-  `docs/compilers/openapi.md#source-budgets` or `docs/compilers/openapi.md#references` gives a
-  bound of its kind, and joins that entry in the same change. A bound that stops a walk is
-  reported; a cut result never reads as a clean one.
+- **Rule.** A new bound of a kind `docs/compilers/openapi.md#source-budgets` or
+  `docs/compilers/openapi.md#references` holds, in whichever phase, takes the outcome, refusal or
+  warning, the entry gives that kind, and joins the entry in the same change. A bound that stops a
+  walk is reported; a cut result never reads as a clean one.
 - **Why.** Outcomes moved with the code: the reference-chain bounds that warned and let the compile
   go on are gone (#1016), nesting past the scan's bound is refused (#905), and changing one bound
   against its siblings broke a test two packages away (#563).
