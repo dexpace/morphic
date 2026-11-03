@@ -15,7 +15,7 @@ func Build(doc *ir.Document, facts *irfacts.Index, pp Policy) (*Plan, []ir.Diagn
 type Plan struct {
     Ops     map[ir.OpID]OpPlan          // one entry per operation
     Types   map[ir.TypeID]TypePlan      // one entry per registry type
-    Version string                      // hash(doc content-hash + PlanPolicy); feeds the manifest
+    Version string                      // hashes the document and policy it was built from (below)
 }
 ```
 
@@ -37,3 +37,27 @@ derivation reads a type's contents, such as the property a page's items are foun
 them through `TypePlan.Alias` ([decorators](../refine/decorators.md)), and every consumer lowers a
 reference it reads through `Alias`, the plan's as the IR's, so no field holds a reference already
 lowered beside others that are not.
+
+## The plan's version
+
+`Version` is a SHA-256 hash of two things: the document's digest and the policy's encoding under
+the options the document's own codec pins (INV7). The digest is SHA-256 over the document's
+canonical JSON (`MarshalJSONTo`) with `sources` and `diagnostics` left out, which `Build` never
+reads, so a spec reformatted, which moves only where its reports point, keeps its plan's version,
+as does a build that words a report anew. Two plans therefore share a `Version` exactly when they
+were built from one document, `sources` and `diagnostics` aside, under one policy, which is what
+the generation manifest ([write / integrate](../write-integrate.md)) records it for. It hashes the
+plan's policy alone: `naming.Policy` and the runtime policy shape no plan
+([plan or refine](plan-or-refine.md)), and what the manifest records of them is #713's.
+
+- **The policy is data** ([plan policy](policy.md#the-policy-is-data)), so its encoding is what it
+  says. A policy holding a function would encode to nothing stable: json/v2 refuses the field, its
+  printed form is an address that changes every run, and leaving it out gives two policies that pick
+  different responses one version.
+- **The code is the build's.** `Version` names no code, so the plan cache keys on it and on the
+  build, as the IR cache does ([architecture](../../architecture.md#26-ir-cache)): `cache.BuildID`
+  hashes the executable. A revision bumped by hand would name neither a dirty tree nor a fix to
+  `Build` that no plan golden reaches, and either would then serve a stale plan. The plan holds no
+  build, as the document holds none, so a plan golden is the same from build to build, and is what
+  shows a new toolchain left those bytes alone, as an IR golden is for a document's: json/v2
+  promises them only within one build.
