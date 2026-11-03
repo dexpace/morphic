@@ -65,9 +65,10 @@ func (r *nameReader) families() []func(*ir.Document) {
 
 // services reads the document's services as one scope.
 func (r *nameReader) services(doc *ir.Document) {
-	if readScope(r, doc.Services, func(s *ir.Service) ir.Naming { return s.Name }) {
+	svcs := doc.Services
+	if r.readScope(len(svcs), func(i int) ir.Naming { return svcs[i].Name }) {
 		r.report(scope{one: "service", many: "services",
-			ids: idsOf(doc.Services, func(s *ir.Service) string { return string(s.ID) })})
+			ids: idsOf(len(svcs), func(i int) string { return string(svcs[i].ID) })})
 	}
 }
 
@@ -80,28 +81,29 @@ func (r *nameReader) groups(doc *ir.Document) {
 	}
 	ir.ForEachGroup(doc, func(g ir.OperationGroup) {
 		r.groupList("operation group", string(g.ID), g.Groups)
-		if readScope(r, g.Operations, func(op *ir.Operation) ir.Naming { return op.Name }) {
+		ops := g.Operations
+		if r.readScope(len(ops), func(i int) ir.Naming { return ops[i].Name }) {
 			r.report(scope{in: "operation group", id: string(g.ID), one: "operation", many: "operations",
-				ids: idsOf(g.Operations, func(op *ir.Operation) string { return string(op.ID) })})
+				ids: idsOf(len(ops), func(i int) string { return string(ops[i].ID) })})
 		}
-		for i := range g.Operations {
-			r.params(&g.Operations[i])
+		for i := range ops {
+			r.params(ops[i].ID, ops[i].Params)
 		}
 	})
 }
 
 // groupList reads groups, held by the in named id, as one scope.
 func (r *nameReader) groupList(in, id string, groups []ir.OperationGroup) {
-	if readScope(r, groups, func(g *ir.OperationGroup) ir.Naming { return g.Name }) {
+	if r.readScope(len(groups), func(i int) ir.Naming { return groups[i].Name }) {
 		r.report(scope{in: in, id: id, one: "operation group", many: "operation groups",
-			ids: idsOf(groups, func(g *ir.OperationGroup) string { return string(g.ID) })})
+			ids: idsOf(len(groups), func(i int) string { return string(groups[i].ID) })})
 	}
 }
 
-// params reads op's parameters as one scope.
-func (r *nameReader) params(op *ir.Operation) {
-	if readScope(r, op.Params, func(p *ir.Parameter) ir.Naming { return p.Name }) {
-		r.report(scope{in: "operation", id: string(op.ID), one: "parameter", many: "parameters"})
+// params reads the parameters of the operation op as one scope.
+func (r *nameReader) params(op ir.OpID, params []ir.Parameter) {
+	if r.readScope(len(params), func(i int) ir.Naming { return params[i].Name }) {
+		r.report(scope{in: "operation", id: string(op), one: "parameter", many: "parameters"})
 	}
 }
 
@@ -127,7 +129,7 @@ func (r *nameReader) types(doc *ir.Document) {
 	}
 	if r.read() {
 		r.report(scope{one: "type", many: "types",
-			ids: idsOf(declared, func(id *ir.TypeID) string { return string(*id) })})
+			ids: idsOf(len(declared), func(i int) string { return string(declared[i]) })})
 	}
 }
 
@@ -149,15 +151,15 @@ func builtIn(td ir.TypeDef) bool {
 func (r *nameReader) typeParts(id ir.TypeID, td ir.TypeDef) {
 	switch t := td.(type) {
 	case *ir.Model:
-		if readScope(r, t.Properties, func(p *ir.Property) ir.Naming { return p.Name }) {
+		if r.readScope(len(t.Properties), func(i int) ir.Naming { return t.Properties[i].Name }) {
 			r.report(scope{in: "model", id: string(id), one: "property", many: "properties"})
 		}
 	case *ir.Enum:
-		if readScope(r, t.Members, func(m *ir.EnumMember) ir.Naming { return m.Name }) {
+		if r.readScope(len(t.Members), func(i int) ir.Naming { return t.Members[i].Name }) {
 			r.report(scope{in: "enum", id: string(id), one: "member", many: "members"})
 		}
 	case *ir.Union:
-		if readScope(r, t.Variants, func(v *ir.Variant) ir.Naming { return v.Name }) {
+		if r.readScope(len(t.Variants), func(i int) ir.Naming { return t.Variants[i].Name }) {
 			r.report(scope{in: "union", id: string(id), one: "variant", many: "variants"})
 		}
 	default:
@@ -174,6 +176,6 @@ func (r *nameReader) auth(doc *ir.Document) {
 	}
 	if r.read() {
 		r.report(scope{one: "auth scheme", many: "auth schemes",
-			ids: idsOf(ids, func(id *ir.AuthID) string { return string(*id) })})
+			ids: idsOf(len(ids), func(i int) string { return string(ids[i]) })})
 	}
 }

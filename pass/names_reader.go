@@ -86,12 +86,12 @@ func (sc scope) label(i int) string {
 	return sc.ids[i]
 }
 
-// idsOf lists the IDs of items, read through id, for a scope's report, and only
+// idsOf lists n IDs, the ith read through id, for a scope's report, and only
 // for one.
-func idsOf[T any](items []T, id func(*T) string) []string {
-	ids := make([]string, len(items))
-	for i := range items {
-		ids[i] = id(&items[i])
+func idsOf(n int, id func(i int) string) []string {
+	ids := make([]string, n)
+	for i := range ids {
+		ids[i] = id(i)
 	}
 	return ids
 }
@@ -105,12 +105,14 @@ func (sc scope) lead(b *strings.Builder) {
 	fmt.Fprintf(b, "in %s %s, ", sc.in, sc.id)
 }
 
-// readScope reads the names of items, through name, as one scope, and
-// reports whether it found anything to report.
-func readScope[T any](r *nameReader, items []T, name func(*T) ir.Naming) bool {
+// readScope reads n names, the ith through name, as one scope, and reports
+// whether it found anything to report. A name is read by index, never through
+// an element's address or a generic over the service tree, which
+// servicetreewrites refuses outside ir and the compilers.
+func (r *nameReader) readScope(n int, name func(i int) ir.Naming) bool {
 	r.parties = r.parties[:0]
-	for i := range items {
-		r.parties = append(r.parties, partyOf(name(&items[i])))
+	for i := range n {
+		r.parties = append(r.parties, partyOf(name(i)))
 	}
 	return r.read()
 }
