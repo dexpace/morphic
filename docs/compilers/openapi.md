@@ -1996,16 +1996,21 @@ the body's own `type`, so repeating the body never changes a verdict:
    branch. A schema restates its declarations where it is a boolean, which says nothing or only
    forbids what it is written for; where one of them is written alike against one base, as
    [`allof-refinement`](#allof-refinement) compares two schemas; where they admit nothing together;
-   or where each key it writes says nothing they do not say together, by points 1 and 2 read
-   against what they admit together, a `$ref` landing where one of theirs does, and its own
-   `properties` and `items` restating what they declare of those in turn. The keywords beside a
-   `$ref` conjoin with it at every version ([`ref-use-site`](#ref-use-site)). So `{type: string}`
-   restates `{type: string, format: uri, minLength: 1}`, `{type: string, minLength: 2}` restates
-   `{type: string}`, and `{type: string, format: uri}` restates `{type: string}` declared beside
-   `{format: uri}` but not `{type: string}` alone. A property or element none of the body's
-   declarations names is new shape.
-4. Every other keyword declares shape: `prefixItems`, `additionalProperties`, `patternProperties`,
-   an `unevaluatedProperties` of `false`, `allOf`, a nested `oneOf` or `anyOf`, `$dynamicRef`,
+   or where each key it writes says nothing they do not say together, by points 1, 2 and 4 read
+   against what they admit together, a `$ref` landing on a schema they compose through `allOf`
+   conjuncts and `$ref`s, and its own `properties` and `items` restating what they declare of those
+   in turn. The keywords beside a `$ref` conjoin with it at every version
+   ([`ref-use-site`](#ref-use-site)). So `{type: string}` restates
+   `{type: string, format: uri, minLength: 1}`, `{type: string, minLength: 2}` restates
+   `{type: string}`, `{type: string, format: uri}` restates `{type: string}` declared beside
+   `{format: uri}` but not `{type: string}` alone, and `{$ref: X}` restates
+   `{allOf: [{$ref: X}], description: d}`. A property or element none of the body's declarations
+   names is new shape.
+4. An `allOf` declares none where each conjunct declares none, judged as the schema writing it is,
+   so `{allOf: [{required: [a]}]}` reads as `{required: [a]}`. A `$ref` conjunct of a branch itself
+   declares shape, as a `$ref` branch does.
+5. Every other keyword declares shape: `prefixItems`, `additionalProperties`, `patternProperties`,
+   an `unevaluatedProperties` of `false`, a nested `oneOf` or `anyOf`, `$dynamicRef`,
    `discriminator`, `readOnly`, `writeOnly`, `default`, `xml`, the content vocabulary, `$id`,
    `$schema`, `$vocabulary` and any keyword of no vocabulary.
 

@@ -542,7 +542,8 @@ const restatingTargets = `    Target: {type: object, properties: {t: {type: stri
 // nothing of shape the body does not to the bare form: the union is kept under
 // validation_only, and nothing reports a degradation. A branch may narrow or
 // document the body, repeat its type or a property it declares or composes, or
-// write what the body already holds, beside a `type` or bare alike.
+// write what the body already holds, beside a `type` or bare alike, and through
+// an `allOf` or a `$ref` the declarations compose.
 func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ version, schema, keyword string }{
@@ -888,6 +889,33 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
       allOf: [{properties: {a: {type: object, additionalProperties: {type: string}}}}]
       oneOf: [{required: [a], properties: {a: {type: object, additionalProperties: {type: string}}}}]
 `, "openapi:oneOf"},
+		"RefTheDeclarationWrapsInAnAllOf": {"3.1.0", `      type: object
+      properties: {a: {allOf: [{$ref: '#/components/schemas/Target'}], description: d}}
+      oneOf: [{required: [a], properties: {a: {$ref: '#/components/schemas/Target'}}}]
+`, "openapi:oneOf"},
+		"RefTheBranchWrapsInAnAllOf": {"3.1.0", `      type: object
+      properties: {a: {$ref: '#/components/schemas/Target'}}
+      oneOf: [{required: [a], properties: {a: {allOf: [{$ref: '#/components/schemas/Target'}]}}}]
+`, "openapi:oneOf"},
+		"RefTheDeclarationReachesThroughAnotherRef": {"3.1.0", `      type: object
+      properties: {a: {$ref: '#/components/schemas/Mid'}}
+      oneOf: [{required: [a], properties: {a: {$ref: '#/components/schemas/Target'}}}]
+`, "openapi:oneOf"},
+		"NotBesideAllOf": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], allOf: [{properties: {a: {type: string}}}], not: {required: [b]}}]
+`, "openapi:oneOf"},
+		"BranchConjunctsEachNarrowing": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{allOf: [{required: [a]}, {properties: {a: {minLength: 1}}}, true]}, {required: [a]}]
+`, "openapi:oneOf"},
+		"PropertyConjunctsRestatingItAndItsElement": {"3.1.0", `      type: object
+      properties: {a: {$ref: '#/components/schemas/Targets'}}
+      anyOf:
+        - required: [a]
+          properties:
+            a: {allOf: [{$ref: '#/components/schemas/Targets'}, {type: array, minItems: 1, items: {type: object, required: [t]}}]}
+`, "openapi:anyOf"},
 		"NestedPropertyRestated": {"3.1.0", `      type: object
       properties: {a: {type: object, properties: {x: {type: string, minLength: 1}}}}
       oneOf: [{required: [a], properties: {a: {type: object, properties: {x: {type: string}}}}}]
@@ -945,7 +973,8 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 // way of doing so a looser comparison would read as a restatement: a type, a
 // value set, a format, an element or a referent the body's declarations do not
 // hold, a property none of them declares, or a keyword declaring shape, such as
-// `readOnly` or `prefixItems`, bare or beside a repeated `type`.
+// `readOnly` or `prefixItems`, bare or beside a repeated `type`, or any of
+// these in an `allOf` conjunct, a `$ref` conjunct of the branch among them.
 func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ version, schema, keyword string }{
@@ -987,6 +1016,26 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
       properties: {a: {$ref: '#/components/schemas/Target'}}
       oneOf: [{required: [a], properties: {a: {$ref: '#/components/schemas/Other'}}}]
 `, "openapi:oneOf"},
+		"RefConjunctOfTheBranch": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{allOf: [{$ref: '#/components/schemas/Target'}]}, {required: [a]}]
+`, "openapi:oneOf"},
+		"ConjunctDeclaringAnotherProperty": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{allOf: [{required: [a]}, {properties: {z: {type: string}}}]}]
+`, "openapi:oneOf"},
+		"PropertyConjunctOfAnotherType": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{required: [a], properties: {a: {allOf: [{type: integer}]}}}]
+`, "openapi:oneOf"},
+		"PropertyConjunctSayingMore": {"3.1.0", `      type: object
+      properties: {a: {$ref: '#/components/schemas/Target'}}
+      oneOf: [{required: [a], properties: {a: {allOf: [{$ref: '#/components/schemas/Target'}, {properties: {z: {type: string}}}]}}}]
+`, "openapi:oneOf"},
+		"PropertyConjunctRefLandingElsewhere": {"3.1.0", `      type: object
+      properties: {a: {$ref: '#/components/schemas/Target'}}
+      oneOf: [{required: [a], properties: {a: {allOf: [{$ref: '#/components/schemas/Other'}]}}}]
+`, "openapi:oneOf"},
 		"BooleanInTheBody": {"3.1.0", `      type: object
       properties: {a: true}
       oneOf: [{required: [a], properties: {a: {type: string}}}]
@@ -1026,10 +1075,6 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 		"NotBesideEnum": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, enum: [{a: x}], not: {required: [b]}}]
-`, "openapi:oneOf"},
-		"NotBesideAllOf": {"3.1.0", `      type: object
-      properties: {a: {type: string}}
-      oneOf: [{required: [a], allOf: [{properties: {a: {type: string}}}], not: {required: [b]}}]
 `, "openapi:oneOf"},
 		"NotBesideACatchAll": {"3.1.0", `      type: object
       properties: {a: {type: string}}
@@ -1273,10 +1318,12 @@ func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T)
 // once, each row one an eager or repeated read reddens.
 func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 	t.Parallel()
-	var onePlace, oneNestedPlace string
+	var onePlace, oneNestedPlace, declared, booleans string
 	for i := range schema.MaxAdmissionReads + 1 {
 		onePlace += fmt.Sprintf("{required: [a], properties: {a: {type: string, minLength: %d}}}, ", i)
 		oneNestedPlace += fmt.Sprintf("{properties: {o: {properties: {b: {type: string, minLength: %d}}}}}, ", i)
+		declared += fmt.Sprintf("p%d: {type: string}, ", i)
+		booleans += fmt.Sprintf("p%d: true, ", i)
 	}
 	members := make([]string, schema.MaxAdmissionMembers+1)
 	for i := range members {
@@ -1330,6 +1377,11 @@ func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 		"BranchesRestatingOneNestedPropertyReadItOnce": {
 			"      type: object\n      properties: {o: {type: object, properties: {b: {type: string}}}}\n" +
 				"      oneOf: [" + oneNestedPlace + "{required: [o]}]\n",
+			ir.ReasonValidationOnly, "",
+		},
+		"BooleanPropertiesReadNoDeclarations": {
+			"      type: object\n      properties: {" + declared + "a: {type: string}}\n" +
+				"      oneOf: [{properties: {" + booleans + "a: true}}, {required: [a]}]\n",
 			ir.ReasonValidationOnly, "",
 		},
 		"ABranchValueSetWithinTheMemberBudget": {

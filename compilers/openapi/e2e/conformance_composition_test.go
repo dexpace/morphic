@@ -728,6 +728,7 @@ func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 	for name, keyword := range map[string]string{
 		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
 		"RenderExclusive": "openapi:oneOf", "RenderBounded": "openapi:oneOf", "RenderDescribed": "openapi:oneOf",
+		"RenderConjoined": "openapi:anyOf",
 	} {
 		m, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s lowers to its body", name)

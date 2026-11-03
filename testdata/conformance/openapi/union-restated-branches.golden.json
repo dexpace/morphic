@@ -578,6 +578,117 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/RenderConjoined": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderConjoined",
+      "name": {
+        "source": "RenderConjoined",
+        "canonical": "render_conjoined"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:anyOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "required": [
+                "html"
+              ]
+            },
+            {
+              "properties": {
+                "links": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/RenderLinks"
+                    },
+                    {
+                      "items": {
+                        "minLength": 1
+                      },
+                      "minItems": 1,
+                      "type": "array"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "links"
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderConjoined/anyOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderConjoined"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderConjoined/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderConjoined/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderConjoined/properties/links",
+          "name": {
+            "source": "links",
+            "canonical": "links"
+          },
+          "wireName": "links",
+          "type": {
+            "target": "t/openapi/components/schemas/RenderLinks",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderConjoined/properties/links"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/RenderDescribed": {
       "kind": "model",
       "id": "t/openapi/components/schemas/RenderDescribed",
@@ -1048,6 +1159,25 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/RenderLinks": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/RenderLinks",
+      "name": {
+        "source": "RenderLinks",
+        "canonical": "render_links"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderLinks"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/RenderSizes": {
       "kind": "list",
       "id": "t/openapi/components/schemas/RenderSizes",
@@ -1302,13 +1432,22 @@
         "source": 0,
         "pointer": "/components/schemas/RenderJoint"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"anyOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderConjoined"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "union-restated-branches.yaml",
-      "hash": "c4c086eb79569df53a95b2c38b83138f09ded5f5cebc68337398adfe725be301"
+      "hash": "f74c1f501d4d3f5691439b4e32a4555cee72b48d14b73d89bf005580fdc8538e"
     }
   ]
 }

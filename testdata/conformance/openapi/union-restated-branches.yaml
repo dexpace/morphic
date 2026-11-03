@@ -95,3 +95,14 @@ components:
       oneOf:
         - {required: [kind], properties: {kind: {type: string, enum: [page, link]}}}
         - {required: [url], properties: {url: {type: object, properties: {href: {type: string}}}}}
+    RenderLinks: {type: array, items: {type: string}}
+    # A branch may restate a property through an allOf, here conjoining the
+    # declaration's own $ref with bounds on it and its element, which narrow.
+    RenderConjoined:
+      type: object
+      properties: {html: {type: string}, links: {$ref: '#/components/schemas/RenderLinks'}}
+      anyOf:
+        - {required: [html]}
+        - required: [links]
+          properties:
+            links: {allOf: [{$ref: '#/components/schemas/RenderLinks'}, {type: array, minItems: 1, items: {minLength: 1}}]}

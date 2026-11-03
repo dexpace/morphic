@@ -331,12 +331,14 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	return out.and(w.whole(next))
 }
 
-// declarationSet is a set of schemas declaring together, and the place of their
+// declarationSet is a set of schemas declaring together, with every schema they
+// compose, as the walk gathering them reached it, and the place of their
 // `items`, nil where none writes one. The place of a property is gathered from
 // the schemas the first time a claim asks for it, since a claim names few of
-// the properties a body declares.
+// those a body declares.
 type declarationSet struct {
 	schemas    []*oas3.Schema
+	composed   []*oas3.JSONSchema[oas3.Referenceable]
 	properties map[string]*place
 	items      *place
 }
@@ -430,6 +432,7 @@ func (w *admission) declare(out *declarationSet, stack []*oas3.JSONSchema[oas3.R
 	for len(stack) > 0 && w.reads.Spend(1) {
 		js := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
+		out.composed = append(out.composed, js)
 		cs := js.GetSchema()
 		out.add(cs)
 		stack = append(stack, cs.GetAllOf()...)

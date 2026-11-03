@@ -102,11 +102,7 @@ func branchDeclaresShape(body func() *bodyReading, b *oas3.JSONSchema[oas3.Refer
 		return false
 	}
 	r := body()
-	top := claim{written: b, held: r.held}
-	if annotation.DeclaresAny(s, nestingKeywords) {
-		top.decls = r.declared()
-	}
-	return !r.restates(top)
+	return !r.restates(claim{written: b, held: r.held})
 }
 
 // judged reports whether s's key is judged against what the body says: it is
@@ -115,14 +111,14 @@ func judged(s *oas3.Schema, key string) bool {
 	return !shapeless(s, key) && (key != "type" || len(effectiveTypes(s)) > 0)
 }
 
-// claim is a schema a branch writes, for itself or for a property or element,
-// with what the body admits there, what the body declares of its properties and
-// elements there, and the declarations a $ref it writes may land with.
+// claim is a schema a branch writes, for itself, a property or an element, or
+// as an allOf conjunct of one, with what the body admits there and the place
+// the body declares it, nil for the branch itself, which restates the body
+// whole.
 type claim struct {
 	written *oas3.JSONSchema[oas3.Referenceable]
 	held    admitted
-	decls   declarationSet
-	refs    []*oas3.JSONSchema[oas3.Referenceable]
+	at      *place
 }
 
 // nested is a property or an element a claim writes, and the place the body
@@ -132,18 +128,23 @@ type nested struct {
 	at      *place
 }
 
-// restates reports whether top, and each property and element it writes at any
-// depth, says nothing of shape the body does not. They are judged off a stack,
-// and each claim beyond top reads the declarations it restates, so admission's
-// budget bounds the walk, which adds no recursion cycle.
+// restates reports whether top, and each conjunct, property and element it
+// writes at any depth, says nothing of shape the body does not. They are judged
+// off a stack, so the walk adds no recursion cycle, and it visits the branch's
+// tree once: bounded by the size of a tree the load phase holds
+// (docs/compilers/openapi.md#source-budgets), while what each restates is read
+// within admission's budget.
 func (r *bodyReading) restates(top claim) bool {
 	claims := []claim{top}
 	for len(claims) > 0 {
 		c := claims[len(claims)-1]
 		claims = claims[:len(claims)-1]
-		inner, ok := r.keysRestate(c)
+		conjuncts, inner, ok := r.keysRestate(c)
 		if !ok {
 			return false
+		}
+		for _, j := range conjuncts {
+			claims = append(claims, claim{written: j, held: c.held, at: c.at})
 		}
 		for _, n := range inner {
 			sub, open, ok := r.claimOf(n)
@@ -159,32 +160,51 @@ func (r *bodyReading) restates(top claim) bool {
 }
 
 // keysRestate reports whether each key c writes says nothing of shape the body
-// does not, and returns the properties and element it writes for restates to
-// judge. A key declares none where it is not judged, a `$ref` landing where one
-// of c's declarations does, or a `type`, `format`, `enum` or `const` every value
-// c.held admits holds to. Keys are read off the raw node, which holds the keywords the model has no
-// field for (docs/parser-library.md#unmodeled-keywords).
-func (r *bodyReading) keysRestate(c claim) ([]nested, bool) {
+// does not, and returns the allOf conjuncts, which restate what c does, and the
+// properties and element it writes, for restates to judge. A key declares none
+// where it is not judged, a `$ref` landing where c's declarations compose, or a
+// `type`, `format`, `enum` or `const` every value c.held admits holds to. A
+// boolean conjunct says nothing or only forbids. Keys are read off the raw
+// node, which holds the keywords the model has no field for
+// (docs/parser-library.md#unmodeled-keywords).
+func (r *bodyReading) keysRestate(c claim) ([]*oas3.JSONSchema[oas3.Referenceable], []nested, bool) {
 	s := c.written.GetSchema()
+	if s == nil {
+		return nil, nil, true
+	}
 	var inner []nested
+	var conjuncts []*oas3.JSONSchema[oas3.Referenceable]
 	for _, kv := range nodeview.Pairs(s.GetRootNode()) {
 		switch {
 		case !judged(s, kv.Key):
+		case kv.Key == "allOf":
+			conjuncts = s.GetAllOf()
 		case kv.Key == "properties":
+			decls := r.declarationsAt(c)
 			for name, p := range s.GetProperties().All() {
-				inner = append(inner, nested{written: p, at: c.decls.property(name)})
+				inner = append(inner, nested{written: p, at: decls.property(name)})
 			}
 		case kv.Key == "items":
-			inner = append(inner, nested{written: s.GetItems(), at: c.decls.items})
+			inner = append(inner, nested{written: s.GetItems(), at: r.declarationsAt(c).items})
 		case kv.Key == "$ref":
 			if !r.lands(c) {
-				return nil, false
+				return nil, nil, false
 			}
 		case !r.w.holds(c.held, s, kv.Key):
-			return nil, false
+			return nil, nil, false
 		}
 	}
-	return inner, true
+	return conjuncts, inner, true
+}
+
+// declarationsAt returns what the body declares of what c nests: its own
+// declarations for the branch itself, and what c's place declares otherwise,
+// each read the first time a claim nests something.
+func (r *bodyReading) declarationsAt(c claim) declarationSet {
+	if c.at == nil {
+		return r.declared()
+	}
+	return r.w.innerAt(c.at)
 }
 
 // claimOf returns the claim n makes, and false for open where n says nothing
@@ -207,25 +227,19 @@ func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
 	if !held.reachable() {
 		return claim{}, false, true
 	}
-	sub = claim{written: n.written, held: held, refs: n.at.decls}
-	if annotation.DeclaresAny(n.written.GetSchema(), nestingKeywords) {
-		sub.decls = r.w.innerAt(n.at) // read only where n nests a claim
-	}
-	return sub, true, true
+	return claim{written: n.written, held: held, at: n.at}, true, true
 }
 
-// nestingKeywords are the keys a claim restates in turn, against what its
-// declarations declare of them.
-var nestingKeywords = []string{"properties", "items"}
-
-// lands reports whether the $ref c writes lands on a schema one of the
-// declarations it restates lands on, so it names what they already name. A
-// branch writes none here: unionBranchesDeclareShape settles a $ref branch.
+// lands reports whether the $ref c writes lands on a schema c's declarations
+// compose, through allOf conjuncts and $refs, so it names what they already
+// imply. The branch itself restates no declaration: unionBranchesDeclareShape
+// settles a $ref branch, and a $ref conjunct of one declares shape as it does.
 func (r *bodyReading) lands(c claim) bool {
+	if c.at == nil {
+		return false
+	}
 	at := r.w.c.Bindings().Declared(c.written)
-	return at != nil && slices.ContainsFunc(c.refs, func(d *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return r.w.c.Bindings().Declared(d) == at
-	})
+	return at != nil && slices.Contains(r.w.innerAt(c.at).composed, at)
 }
 
 // shapeless reports whether s's keyword key declares no shape whatever it
