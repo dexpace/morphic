@@ -159,11 +159,11 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 
 // idWrappers returns where the flattened wrappers of comp writing an $id are,
 // each an $id that may give what it holds another base than the position's.
-func idWrappers(comp allOfComposition) []string {
-	var out []string
+func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
+	out := map[jsontext.Pointer]bool{}
 	for _, e := range comp.branches {
 		if e.wrapper && annotation.RawPropertyNode(e.schema.GetSchema(), "$id") != nil {
-			out = append(out, string(e.pointer)+"/")
+			out[e.pointer] = true
 		}
 	}
 	return out
@@ -172,10 +172,19 @@ func idWrappers(comp allOfComposition) []string {
 // underID reports whether bs, the inline allOf branch e, or a wrapper holding
 // it writes an $id. Only such an $id can give the branch another base than the
 // position holding the allOf, so a branch under none reads at the position
-// without a base being looked up.
-func underID(e allOfBranch, bs *oas3.Schema, wrappers []string) bool {
-	return annotation.RawPropertyNode(bs, "$id") != nil ||
-		slices.ContainsFunc(wrappers, func(w string) bool { return strings.HasPrefix(string(e.pointer), w) })
+// without a base being looked up. The wrappers holding e are the prefixes of
+// its pointer, as many as MaxAllOfFlattenDepth allows, so each is looked up.
+func underID(e allOfBranch, bs *oas3.Schema, wrappers map[jsontext.Pointer]bool) bool {
+	if annotation.RawPropertyNode(bs, "$id") != nil {
+		return true
+	}
+	p := string(e.pointer)
+	for i := strings.LastIndexByte(p, '/'); i > 0; i = strings.LastIndexByte(p[:i], '/') {
+		if wrappers[jsontext.Pointer(p[:i])] {
+			return true
+		}
+	}
+	return false
 }
 
 // readsAtPosition reports whether the inline allOf branch e reads its $refs
