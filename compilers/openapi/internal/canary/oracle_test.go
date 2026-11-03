@@ -447,8 +447,8 @@ func runOracleChild(t *testing.T, path, skip string) result {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), oracleTimeout)
 	defer cancel()
-	cmd := exectest.Command(ctx, t, os.Args[0])
-	cmd.Env = append(cmd.Env, childEnv+"=binding-oracle", inputEnv+"="+path, oracleSkipEnv+"="+skip)
+	env := []string{childEnv + "=binding-oracle", inputEnv + "=" + path, oracleSkipEnv + "=" + skip}
+	cmd := exectest.Command(ctx, t, env, os.Args[0])
 	out, err := cmd.CombinedOutput()
 	code := 0
 	if exit, ok := errors.AsType[*exec.ExitError](err); ok {

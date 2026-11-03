@@ -56,8 +56,7 @@ func inChild(t *testing.T, test, env, value string) (string, childEnd) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), childTimeout)
 	defer cancel()
-	cmd := exectest.Command(ctx, t, os.Args[0], "-test.run=^"+test+"$")
-	cmd.Env = append(cmd.Env, env+"="+value)
+	cmd := exectest.Command(ctx, t, []string{env + "=" + value}, os.Args[0], "-test.run=^"+test+"$")
 
 	out, err := cmd.CombinedOutput()
 

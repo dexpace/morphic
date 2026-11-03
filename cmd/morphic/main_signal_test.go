@@ -25,6 +25,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/engine"
+	"github.com/dexpace/morphic/internal/exectest"
 	"github.com/dexpace/morphic/internal/testspec"
 	"github.com/dexpace/morphic/ir"
 )
@@ -329,9 +330,9 @@ func firstOf(t *testing.T, sigs []syscall.Signal) int {
 
 // morphic returns a command running the CLI with args in a child, which the
 // test's childContext kills when it ends.
-func morphic(t *testing.T, args ...string) *exec.Cmd {
+func morphic(t *testing.T, args ...string) *exectest.Cmd {
 	t.Helper()
-	return command(t, os.Args[0], args...)
+	return command(t, nil, os.Args[0], args...)
 }
 
 // childContext returns the context a test's children run under: its own,
@@ -405,7 +406,7 @@ type heldWrite struct {
 // reads, and returns once the child has written its first byte there. A child
 // writing more than pipeHolds there is then past every step before that write
 // and short of every step after it, until the test reads the rest.
-func holdIn(t *testing.T, cmd *exec.Cmd, stream *io.Writer) heldWrite {
+func holdIn(t *testing.T, cmd *exectest.Cmd, stream *io.Writer) heldWrite {
 	t.Helper()
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
@@ -615,8 +616,7 @@ func TestMain_AStopSignalAfterTheRunComesTooLate(t *testing.T) {
 		t.Run(sig.String(), func(t *testing.T) {
 			t.Parallel()
 			skipIfIgnored(t, sig)
-			cmd := morphic(t, "compile", spec)
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%d", signalAtExit, sig))
+			cmd := command(t, []string{fmt.Sprintf("%s=%d", signalAtExit, sig)}, os.Args[0], "compile", spec)
 			var stdout, stderr bytes.Buffer
 			cmd.Stdout, cmd.Stderr = &stdout, &stderr
 
@@ -636,7 +636,7 @@ func TestMain_AStopSignalAfterTheRunComesTooLate(t *testing.T) {
 func TestMain_AnIgnoredSIGINTOrSIGHUPStaysIgnored(t *testing.T) {
 	t.Parallel()
 	const schemas = 1000
-	cmd := command(t, "/bin/sh", "-c", `trap '' INT HUP; exec "$0" "$@"`,
+	cmd := command(t, nil, "/bin/sh", "-c", `trap '' INT HUP; exec "$0" "$@"`,
 		os.Args[0], "compile", reportingSpec(t, schemas))
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout

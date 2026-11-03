@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -130,8 +131,7 @@ func probe(t *testing.T, name, input string, env ...string) result {
 
 	ctx, cancel := context.WithTimeout(t.Context(), childTimeout)
 	defer cancel()
-	cmd := exectest.Command(ctx, t, os.Args[0])
-	cmd.Env = append(append(cmd.Env, env...), childEnv+"="+name, inputEnv+"="+path)
+	cmd := exectest.Command(ctx, t, append(slices.Clone(env), childEnv+"="+name, inputEnv+"="+path), os.Args[0])
 	out, err := cmd.CombinedOutput()
 
 	code := 0
