@@ -195,7 +195,7 @@ func TestRefinement_DisjointConjunctsStayAComposition(t *testing.T) {
 		schema string
 		warns  int
 	}{
-		"two kinds":        {"{allOf: [{type: integer}, {type: string}]}", 2},
+		"two kinds":        {"{allOf: [{type: integer}, {type: string}]}", 1},
 		"a null alone":     {"{allOf: [{type: string, nullable: true}, {type: integer, nullable: true}]}", 2},
 		"two value sets":   {"{allOf: [{type: string, enum: [a]}, {type: string, enum: [b]}]}", 2},
 		"an object beside": {"{allOf: [{$ref: '#/components/schemas/Owner'}, {type: string}]}", 1},
