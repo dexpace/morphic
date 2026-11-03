@@ -17,10 +17,11 @@ import (
 
 // shapelessKeywords are the keywords a union branch, or a property one
 // declares, may write whatever they hold and declare no shape: each documents
-// the instance, names the schema, or narrows what the body already shapes.
-// `nullable` is among them because admitting null or not is no shape here, as
-// admission's kindsWithin reads it. Every other keyword declares shape unless
-// the body's reading holds it (docs/compilers/openapi.md#union-beside-structure).
+// the instance, names the schema or holds schemas it does not apply, or narrows
+// what the body already shapes. `nullable` is among them because admitting null
+// or not is no shape here, as admission's kindsWithin reads it. Every other
+// keyword declares shape unless the body's reading holds it
+// (docs/compilers/openapi.md#union-beside-structure).
 var shapelessKeywords = slices.Concat(
 	[]string{"title", "description", "$comment", "deprecated", "examples", "example", "externalDocs"},
 	[]string{"$anchor", "$dynamicAnchor", "$defs"},

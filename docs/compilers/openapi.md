@@ -1225,7 +1225,7 @@ keywords fold as [`allof-inline-residue`](#allof-inline-residue) says. A `type`,
 a `const` or `items`, on a branch or beside the `allOf`, that the principal already says is consumed,
 so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. Two schemas written alike say the same
 only where every `$ref` in them reads against one base: a copy in another document, or under an
-`$id` naming another URI, names another schema with the same spelling. One saying more is kept: a
+`$id` naming another URI, may name another schema with the same spelling. One saying more is kept: a
 branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the `allOf` under
 `openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the branch or at the
 position. A `$ref` a value set beats is kept the same way, and its target still speaks for the
@@ -1966,11 +1966,12 @@ the body's own `type`, so repeating the body never changes a verdict:
 
 1. A keyword that documents the instance (`title`, `description`, `$comment`, `deprecated`,
    `examples`, `example`, `externalDocs` or an `x-` extension), names the schema (`$anchor`,
-   `$dynamicAnchor`, `$defs`), says whether it may be null (`nullable`), or only narrows what the
-   body shapes declares none, whatever it holds. The narrowing keywords are `required`, the value
-   constraints and collection bounds of [`constraints`](#constraints), and the validation-only
-   keywords of [boundaries](../ir/boundaries.md#validation-only-constructs), an
-   `unevaluatedProperties` other than `false` among them. A keyword written `null` is left out
+   `$dynamicAnchor`), holds schemas it does not apply (`$defs`), says whether it may be null
+   (`nullable`), or only narrows what the body shapes declares none, whatever it holds. The
+   narrowing keywords are `required`, the value constraints and collection bounds of
+   [`constraints`](#constraints), and the validation-only keywords of
+   [boundaries](../ir/boundaries.md#validation-only-constructs), an `unevaluatedProperties` other
+   than `false` among them. A keyword written `null` is left out
    ([`null-keywords`](#null-keywords)).
 2. `type`, `format`, `enum`, `const` and `items` declare none where every value the body admits
    holds to them, null aside for `type`, read as [`allof-refinement`](#allof-refinement) reads what
