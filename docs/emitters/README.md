@@ -118,11 +118,11 @@ compiler (spec → IR)  →  passes (IR → IR)  →  emitter (IR → artifacts)
 
 The engine (Layer 3) runs the compiler, then the passes, then — **once per document** — the
 derived-fact index and the shared plan, and finally each requested emitter. The passes designed are
-`link · dedup · filter · version-slice · overlay · validate`, and only `validate` is built
-(architecture.md §2.2). An emitter never sees a source spec, a compiler, another emitter, or the
-engine (INV1). Its only structural input is an `ir.Document`; everything else it needs is either
-derived from the IR in the plan/refine stages or supplied as a separate, non-IR input (runtime
-policy, shaping hints, the target's own options).
+`link · dedup · filter · version-slice · overlay · names · validate`, and only `names` and
+`validate` are built (architecture.md §2.2). An emitter never sees a source spec, a compiler,
+another emitter, or the engine (INV1). Its only structural input is an `ir.Document`; everything
+else it needs is either derived from the IR in the plan/refine stages or supplied as a separate,
+non-IR input (runtime policy, shaping hints, the target's own options).
 
 ## The architecture, and why this synthesis
 
