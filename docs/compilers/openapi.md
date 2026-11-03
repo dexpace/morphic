@@ -2009,12 +2009,13 @@ the body's own `type`, so repeating the body never changes a verdict:
    `discriminator`, `readOnly`, `writeOnly`, `default`, `xml`, the content vocabulary, `$id`,
    `$schema`, `$vocabulary` and any keyword of no vocabulary.
 
-A branch declaring shape falls to the five shapes above. The body is read within the bounds of
-[`allof-refinement`](#allof-refinement), which a union's branches share, and only as far as they
-need: a branch writing only keywords point 1 names reads none of it, the declarations of what a
-schema nests are read only where it nests something, and what the body declares of one property
-or element is read once, however many branches restate it. A read that does not finish says
-nothing, so its union is judged as one whose branches declare shape.
+A branch declaring shape falls to the five shapes above. The branches and the body are read within
+the bounds of [`allof-refinement`](#allof-refinement), which a union's branches share, an `enum`
+a branch writes counting its members, and the body only as far as they need: a branch writing only
+keywords point 1 names reads none of it, the declarations of what a schema nests are read only
+where it nests something, and what the body declares of one property or element is read once,
+however many branches restate it. A read that does not finish says nothing, so its union is judged
+as one whose branches declare shape.
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
   `keywords-at-every-outcome`, `union-restated-branches`

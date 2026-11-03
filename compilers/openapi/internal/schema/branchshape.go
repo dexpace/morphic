@@ -35,7 +35,8 @@ var shapelessKeywords = slices.Concat(
 // own keywords and its allOf admit, its unions apart, and what it declares of
 // its properties and elements, read once a branch nests a claim. One admission
 // reads all of it, so a body's branches share one budget, and each place they
-// restate is read once, so how many restate it changes no verdict.
+// restate is read once, so repeating a restatement reads no more of the body.
+// What each branch writes is still read within it, an enum's members included.
 type bodyReading struct {
 	w     admission
 	body  *oas3.Schema
