@@ -48,17 +48,29 @@ canary. A behaviour found that the page lacks is added there.
 `compare-raw-nodes`
 
 - **Rule.** `Schema.IsEqual` reads the model, which misses keywords
-  (`docs/parser-library.md#unmodeled-keywords`), so compare two schemas'
-  `annotation.RawFromNode` renderings, which read merges as the parser does and sort keys, though
-  a number spelled two ways stays two. Alike text means the same only under one base URI (#1408).
-  `yml.EqualNodes` tells apart what the parser reads alike (`docs/parser-library.md#merge-keys`),
-  so trust its "unequal" only where a false one errs safely.
+  (`docs/parser-library.md#unmodeled-keywords`), so compare the raw nodes'
+  `annotation.RawFromNode` renderings, which read merges as the parser does and sort keys, a failed
+  one unequal to all, as far as text decides
+  (`references/openapi-lessons.md#text-decides-under-one-base`). `yml.EqualNodes` tells apart more
+  still (`docs/parser-library.md#merge-keys`).
 - **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
   restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the
   body's property through `<<` or in another key order.
-- **Probe.** Compare `{x: {<<: {a: 1}}}` and `{description: d, type: string}` each beside its
-  plain spelling, and two schemas differing only in `dependentRequired`: the last pair differs, and
-  each other matches or takes the answer that errs safely.
+- **Probe.** Compare `{x: {<<: {a: 1}}}` and `{description: d, type: string}` with their plain
+  spellings, and two schemas differing only in `dependentRequired` or each writing a key twice: the
+  first two match or err safely, the others differ.
+
+## Trust a comparison of text only as far as text decides
+`text-decides-under-one-base`
+
+- **Rule.** Text alike names one schema only under one base URI, since a relative `$ref` resolves
+  against it, and text apart can name one schema, as a `$ref` and its target do. Trust a textual
+  "equal" only for two nodes read against one base, and its "unequal" only where a false one errs
+  safely.
+- **Why.** Inline `allOf` branches under different `$id` bases fold a keyword they spell alike
+  (#1408).
+- **Probe.** In #1408's spec, `S` spells a `$ref` alike under two bases where `T` spells one
+  absolutely: a comparison holding the rule lowers the two alike.
 
 ## Moving work out of the library moves its duties
 `library-duties`
