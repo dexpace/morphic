@@ -52,6 +52,18 @@ yourself. These rules are the ways that reading still lies.
 - **Why.** Unused variables and imports turned mutants into build failures that read as "not caught"
   (#321, #322) and as "killed" with an empty failure list (#1100).
 
+## A plant a run's schedule decides needs a measured kill rate
+`kill-rate-for-a-scheduled-detector`
+
+- **Rule.** The race detector reports a planted race only when the two accesses overlap in that
+  run, so one run of such a plant is no verdict. Run it at least 10 times with `-count=1`, which
+  skips the test cache, and report the rate. Below every run, move the plant to a path more tests
+  take, or give the rate as the result.
+- **Why.** A race planted in `pass`' `checkPropIDRefs` was reported in 3 of 14 runs, one on a path
+  many `pass` tests take in 5 of 5, so a single run read either way could be wrong (#1438).
+- **Probe.** `for i in $(seq 10); do go test -race -count=1 ./<pkg> 2>&1 | grep -c 'WARNING: DATA RACE'; done`,
+  counting the runs above 0.
+
 ## Rebuild a plant set nobody kept, rather than carrying its result over
 `rebuild-lost-plants`
 
