@@ -99,6 +99,16 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout.splitlines()[0]),
                          (1, f"commit: 74 characters with '(#1311)', over 72: {SIXTY_SIX}"))
 
+    def test_a_merged_in_commit_is_not_counted_where_origin_main_lags(self):
+        self.commit(SIXTY_SIX)
+        self.git("switch", "-q", "main")
+        self.commit("chore: move main")
+        self.git("switch", "-q", "topic")
+        self.git("merge", "-q", "--no-edit", "main")
+        r = self.run_script("1311", TITLE)
+        self.assertEqual((r.returncode, r.stdout.splitlines()[0]),
+                         (1, f"commit: 74 characters with '(#1311)', over 72: {SIXTY_SIX}"))
+
     def test_clean_branch_exits_zero(self):
         self.commit(SIXTY_SIX)
         self.commit("test: add a case")

@@ -7,13 +7,15 @@ lands, so that a push can run behind it.
 
 Usage: python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py NUMBER TITLE
 
-NUMBER is the PR's number, or the one it will get. The subjects are those of the commits
-origin/main..HEAD holds, merges left out, so a branch stacked on another PR's also counts that PR's
-commits as its own (#1341). A squash lands the title, or a branch's one commit under its own
-subject, with " (#NUMBER)" appended, so both are measured with it; a subject the squash replaces
-never lands as the subject, and is measured without. Each is held to the Conventional Commits form,
-no trailing period and 72 characters. Prints a "what: problem: subject" line per finding, then a
-summary line. Exit 0 when every subject holds, 1 on a finding, 2 when it cannot run.
+NUMBER is the PR's number, or the one it will get. The subjects are those of the commits on HEAD's
+first-parent line back to origin/main, merges left out, so a commit a merge brought in, from main or
+a stacked base, is not counted even where origin/main lags it, while a branch started on another
+PR's tip counts that PR's commits as its own (#1341). A squash lands the title, or a branch's one
+commit under its own subject, with " (#NUMBER)" appended, so both are measured with it; a subject
+the squash replaces never lands as the subject, and is measured without. Each is held to the
+Conventional Commits form, no trailing period and 72 characters. Prints a "what: problem: subject"
+line per finding, then a summary line. Exit 0 when every subject holds, 1 on a finding, 2 when it
+cannot run.
 """
 
 import argparse
@@ -51,8 +53,10 @@ def check(number: int, title: str, commits: list[str]) -> list[str]:
 
 
 def branch_subjects() -> list[str]:
-    """Return the subject of each commit origin/main..HEAD holds, merges left out."""
-    out = subprocess.run(["git", "log", "--no-merges", "--format=%s", f"{BASE}..HEAD"],
+    """Return the subject of each commit on HEAD's first-parent line back to origin/main, merges
+    left out."""
+    out = subprocess.run(["git", "log", "--no-merges", "--first-parent", "--format=%s",
+                          f"{BASE}..HEAD"],
                          capture_output=True, text=True, check=True).stdout
     return out.splitlines()
 
