@@ -171,8 +171,9 @@ func refBranchOf(conjuncts []conjunct) *conjunct {
 
 // disjoint reports whether the conjuncts share no value. A null they all admit
 // is no value a type is left to describe, unless a conjunct admits nothing else.
-// Such an allOf stays a composition, reported only where an inline `type` says
-// so (GitHub #1215).
+// Such an allOf stays a composition, and
+// docs/compilers/openapi.md#allof-refinement says which report each
+// contradiction gets.
 func disjoint(joint admitted, conjuncts []conjunct) bool {
 	if !joint.reachable() {
 		return true
