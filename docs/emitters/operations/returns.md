@@ -69,11 +69,12 @@ spelled as the target spells it ([Go](../targets/go/returns.md),
   ([envelopes](../plan/responses.md#envelopes)). **refine.** The method returns `Zone`, or the
   target's nullable form where `result` is optional or nullable, and a body whose flag says it
   failed is a failure, never a `Zone` ([failures](errors.md)). The envelope's other members are not
-  lost: an enveloped operation, a paginated or long-running one aside, has a `WithResponse` method
-  whatever its headers, which returns the runtime's `EnvelopedResponse`: what its `Response` would
-  hold, and `Envelope`, the body whole, typed as `EnvelopeRead.Body` lowers where every response the
-  method returns shares that type, and as the target's top type where they differ, as a `200` and a
-  `202` wrapped in two envelope types do. An operation with no envelope keeps `Response`, so no
+  lost: an operation whose method returns an enveloped response, a paginated or long-running one
+  aside, has a `WithResponse` method whatever its headers, which returns the runtime's
+  `EnvelopedResponse`: what its `Response` would hold, and `Envelope`, the body whole, typed as
+  `EnvelopeRead.Body` lowers where every response the method returns shares that type, and as the
+  target's top type where they differ or one has none, as a `200` and a `202` wrapped in two
+  envelope types do. One whose method returns no enveloped response keeps `Response`, so no
   signature grows a field it never fills.
 - **A status the document does not list, and a body that does not decode** (`GET /zone` → `201`, or
   a `200` holding a proxy's HTML). **plan.** No field: [the

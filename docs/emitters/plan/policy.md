@@ -10,7 +10,8 @@ type Policy struct {
                                        // rule an operation meets picks its primary (below)
     DefaultFails    bool               // default on: a Default no rule takes is the catch-all
                                        // of Errors (below)
-    Envelopes       []Envelope         // default none: what unwraps a success body (below)
+    Envelopes       []Envelope         // default none: the envelopes a success body is read
+                                       // through (below)
     Framings        map[string]Framing // media type or +suffix → how it frames a stream
                                        // (streams.md)
     FrameMembers    bool               // default on: an SSE schema naming only frame
