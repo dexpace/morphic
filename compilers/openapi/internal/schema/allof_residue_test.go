@@ -320,3 +320,99 @@ func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
 	}
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severities)
 }
+
+// rebasedBranchTargets declares the two schemas `n.json` names under the two
+// bases the rebased-branch cases write.
+const rebasedBranchTargets = `    A: {$id: 'https://ex.test/a/n.json', type: string}
+    B: {$id: 'https://ex.test/b/n.json', type: integer}
+`
+
+// TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing holds an inline branch
+// under an $id naming another URI to keeping what it writes, wherever the $id
+// is written: `n.json` names A there and B at the position, so folding its `not`
+// would read it as B's. Spelled shows the outer branch folding as it does when
+// its $ref names B outright, and Annotated that the rule holds for a keyword
+// with no $ref in it.
+func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct{ schema, kept, folded string }{
+		"Wrapped": {`      $id: 'https://ex.test/b/s.json'
+      allOf:
+        - $id: 'https://ex.test/a/w.json'
+          allOf: [{type: object, not: {$ref: 'n.json'}}]
+        - {type: object, not: {$ref: 'n.json'}}
+`, "openapi:allOf/0/allOf/0", `{"$ref":"n.json"}`},
+		"Spelled": {`      $id: 'https://ex.test/b/s.json'
+      allOf:
+        - $id: 'https://ex.test/a/w.json'
+          allOf: [{type: object, not: {$ref: 'n.json'}}]
+        - {type: object, not: {$ref: 'https://ex.test/b/n.json'}}
+`, "openapi:allOf/0/allOf/0", `{"$ref":"https://ex.test/b/n.json"}`},
+		"Annotated": {`      allOf:
+        - {type: object, properties: {a: {type: string}}}
+        - {$id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}, description: d}
+`, "openapi:allOf/1", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedBranchTargets+"    S:\n"+tc.schema))
+			openapitest.RequireNoErrorDiags(t, diags)
+			um := typeByName(doc, "S").Common().Unmodeled
+
+			kept, ok := um[tc.kept]
+			require.True(t, ok, "the branch is kept whole; got %+v", um)
+			assert.Contains(t, string(kept.Value), `"not":{"$ref":"n.json"}`)
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/"+tc.kept[len("openapi:"):]),
+				"reads its $refs against another base")
+			assert.Equal(t, tc.folded, string(um["openapi:not"].Value), "the outer branch folds its not, if it writes one")
+			assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing the kept branch writes folds")
+		})
+	}
+}
+
+// TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase pins that an $id
+// naming another URI keeps a branch whole only where what it folds writes a
+// relative $ref: text naming none reads the same at the position, so the bounds
+// and the `not` of branches under two other bases fold as they would with no
+// $id, and so do M's description beside a $ref its property resolves where it
+// is written, and N's beside an absolute $ref.
+func TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedBranchTargets+`    S:
+      type: string
+      allOf:
+        - {$id: 'https://ex.test/a/x.json', minLength: 1, not: {const: q}}
+        - $id: 'https://ex.test/a/w.json'
+          allOf: [{maxLength: 5}]
+    M:
+      type: object
+      allOf:
+        - {$id: 'https://ex.test/a/x.json', type: object, properties: {a: {$ref: 'n.json'}}, description: d}
+        - {type: object, properties: {b: {type: string}}}
+    N:
+      type: object
+      allOf:
+        - {$id: 'https://ex.test/a/x.json', description: d, not: {$ref: 'https://ex.test/b/n.json'}}
+        - {type: object, properties: {b: {type: string}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "M").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "d", m.Docs.Description)
+	n := typeByName(doc, "N").Common()
+	assert.Equal(t, "d", n.Docs.Description)
+	assert.JSONEq(t, `{"$ref":"https://ex.test/b/n.json"}`, string(n.Unmodeled["openapi:not"].Value))
+	assert.Equal(t, typeByName(doc, "A").Common().ID, openapitest.PropsByWire(m.Properties)["a"].Type.Target)
+	s, ok := typeByName(doc, "S").(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, s.Constraints)
+	require.NotNil(t, s.Constraints.MinLength)
+	require.NotNil(t, s.Constraints.MaxLength)
+	assert.Equal(t, int64(1), *s.Constraints.MinLength)
+	assert.Equal(t, int64(5), *s.Constraints.MaxLength)
+	assert.JSONEq(t, `{"const":"q"}`, string(s.Unmodeled["openapi:not"].Value))
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "against another base")
+	}
+}

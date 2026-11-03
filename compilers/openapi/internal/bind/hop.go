@@ -80,7 +80,7 @@ func (b *binder) named(in resource, uri string) (resource, Reason, string) {
 		return resource{root: root, uri: key, id: true}, NoReason, ""
 	case why == DuplicateID:
 		return resource{}, why, key
-	case in.id && !absolute(uri):
+	case in.id && !fragment.Absolute(uri):
 		return b.readAt(in, uri, key)
 	}
 	return b.opened(in, uri)
@@ -123,7 +123,7 @@ func (b *binder) readAt(in resource, uri, key string) (resource, Reason, string)
 // waits until the pass's walks are done (Held), since a document read meanwhile
 // may declare that URI, and an identifier is not a location to fetch (goOn).
 func (b *binder) read(name string) (resource, Reason, string) {
-	if absolute(name) && b.docs.unread(name) {
+	if fragment.Absolute(name) && b.docs.unread(name) {
 		b.held[name] = true
 		return resource{}, Held, ""
 	}
