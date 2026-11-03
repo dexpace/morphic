@@ -316,9 +316,9 @@ These all exist already — extend them rather than building a parallel mechanis
   `t.Parallel()`. Under a root only the first two count, and a package showing one is on the list or
   is a `racePipelineOnly` entry in the test with its reason. A package off the list elsewhere is a
   `raceExempt` entry with its reason, which no package under a root may be. So a race that only a
-  pipeline package's own tests reach is found after merge, by the nightly run of
-  `make race-pipeline`, and not on the pull request; a race that only an exempt package's own tests
-  reach is found by neither run.
+  pipeline package's own tests reach is found only by a run of `make race-pipeline`, which no job
+  starts yet, and not on the pull request; a race that only an exempt package's own tests reach is
+  found by neither run.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
 assertion shapes:

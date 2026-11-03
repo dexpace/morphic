@@ -13,10 +13,10 @@
 #   - a package off this list elsewhere is a raceExempt entry in that file
 #     with its reason, which no package under a root may be.
 #
-# Every package under a root is raced by `make race-pipeline`, which no
-# pull-request job runs. A race that only a pipeline package's own tests reach
-# is found after merge, by the nightly run, not on the pull request. A race
-# that only an exempt package's own tests reach is found by neither run.
+# Every package under a root is raced by `make race-pipeline`, which no job
+# starts yet. A race that only a pipeline package's own tests reach is found
+# only by a run of that target, and not on the pull request. A race that only
+# an exempt package's own tests reach is found by neither run.
 ./barrier
 ./cmd/morphic
 ./compilers/openapi/internal/load

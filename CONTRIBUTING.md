@@ -314,10 +314,11 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
    the package's `TestMain`. `make race-pipeline` runs the compiler under `-race` whatever it does,
    since `scripts/race-pipeline-roots.txt` lists `./compilers/...`, and a package under `compilers/`
-   may not be exempt from it. That target is outside the gate, so a race only the compiler's own
-   tests reach is found by the nightly run, after merge. A compiler package with a lock or a
-   goroutine also needs a line in `scripts/race-packages.txt`, which `make race` runs on every pull
-   request, or a `racePipelineOnly` entry in `internal/archtest` with its reason.
+   may not be exempt from it. That target is outside the gate and no job starts it yet, so a race
+   only the compiler's own tests reach is found only by a run of it, and not on the pull request.
+   A compiler package with a lock or a goroutine also needs a line in `scripts/race-packages.txt`,
+   which `make race` runs on every pull request, or a `racePipelineOnly` entry in
+   `internal/archtest` with its reason.
    `morphic compile --verify <spec>` holds your compiler's document, and every pass's, to the same
    invariants while you write it. A compiler composing hints also writes a spec holding one position
    for each way it composes one, as `testdata/golden/openapi/hint_positions.yaml` does, and adds its

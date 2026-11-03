@@ -716,8 +716,8 @@ something a caller asks for with `none`, never a default.
   calls `t.Parallel()`. Under a root only the first two count, and a package showing one is on the
   list or is a `racePipelineOnly` entry of the test with its reason. A package off the list
   elsewhere is a `raceExempt` entry with its reason, which no package under a root may have. A race
-  that only a pipeline package's own tests reach is found after merge, by the nightly run of
-  `make race-pipeline`, and not on the pull request; one that only an exempt package's own tests
+  that only a pipeline package's own tests reach is found only by a run of `make race-pipeline`,
+  which no job starts yet, and not on the pull request; one that only an exempt package's own tests
   reach is found by neither run.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that

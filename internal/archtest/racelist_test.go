@@ -85,15 +85,15 @@ var raceExempt = map[string]string{
 // racePipelineOnly names the pipeline directories whose goroutine or sync
 // import `make race` leaves off its list, each with the reason. They are not
 // exempt: `make race-pipeline` races them with every other package under a
-// root, so a race only their own tests reach is found by the nightly run, after
-// merge, and not on the pull request. It is a set of deferrals, not a second
-// list of targets.
+// root, so a race only their own tests reach is found only by a run of that
+// target, which no job starts yet, and not on the pull request. It is a set of
+// deferrals, not a second list of targets.
 var racePipelineOnly = map[string]string{
 	"compilers/openapi/e2e": "its two goroutines each run one Compile while the test waits under " +
-		"a deadline (amplification_test.go), so no test runs morphic code on two goroutines; " +
-		"its parallel tests are raced by make race-pipeline",
-	"compilers/openapi/internal/canary": "its goroutines belong to child processes and to the " +
-		"parser library: panicElsewhere and watchMemory run in a re-run of the test binary, " +
+		"a deadline (amplification_test.go), adding nothing to its parallel tests, which run " +
+		"Compile on many goroutines and are raced by make race-pipeline",
+	"compilers/openapi/internal/canary": "its goroutines run no pipeline code in the test " +
+		"process: panicElsewhere and watchMemory run in a re-run of the test binary, " +
 		"goroutinesAlive decodes one document on one goroutine, and the oracle's shards only " +
 		"drive children and merge their answers under a mutex; its parallel tests are raced by " +
 		"make race-pipeline, and child timeouts under load are #1010",
@@ -114,12 +114,13 @@ func TestRaceList_NamesEveryConcurrentPackage(t *testing.T) {
 	}
 }
 
-// TestRaceList_TheLiveTreeNeedsEachPipelineRoot holds that raceRootsFile names
-// ir, pass and compilers, the guard against a dropped root. Dropping one also
-// reddens the live rule today, since every package under a root has a parallel
-// test, which counts as a signal once the package lies under no root. This
-// assertion holds even when that stops being true.
-func TestRaceList_TheLiveTreeNeedsEachPipelineRoot(t *testing.T) {
+// TestRaceList_TheRootsFileNamesEachPipelineTree holds that raceRootsFile names
+// ir, pass and compilers, the guard against a dropped root. The tree half
+// belongs to TestRaceList_NamesEveryConcurrentPackage, which a dropped root
+// also reddens today, since every package under a root has a parallel test,
+// which counts as a signal once the package lies under no root. This assertion
+// holds even when that stops being true.
+func TestRaceList_TheRootsFileNamesEachPipelineTree(t *testing.T) {
 	t.Parallel()
 	roots, err := readRaceList(irtest.RepoRoot(t), raceRootsFile, raceRootEntry)
 	require.NoError(t, err)
@@ -298,7 +299,6 @@ func TestRaceListViolations_NamesEveryReasonAndEveryFile(t *testing.T) {
 func TestRaceListViolations_PipelineRootsCountOnlyWhatMakeRaceReaches(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
-	plain := "package p\n"
 	// Not reported: parallel tests alone, unlisted, under the root.
 	writeParallelTest(t, filepath.Join(root, "pipe", "par", "p_test.go"), "par")
 	// Reported: a goroutine, unlisted and not deferred.
@@ -324,7 +324,6 @@ func TestRaceListViolations_PipelineRootsCountOnlyWhatMakeRaceReaches(t *testing
 	// Not reported: a production file's Parallel(), and a test file's Parallel(x).
 	writeDocFile(t, filepath.Join(root, "prod", "p.go"), "package p\n\nfunc f(x interface{ Parallel() }) { x.Parallel() }\n")
 	writeDocFile(t, filepath.Join(root, "arg", "p_test.go"), "package p\n\nfunc f(x interface{ Parallel(int) }) { x.Parallel(1) }\n")
-	writeDocFile(t, filepath.Join(root, "pipe", "p.go"), plain)
 
 	got, err := raceListViolations(root, raceRule{
 		roots:        []string{"pipe", "gone"},
