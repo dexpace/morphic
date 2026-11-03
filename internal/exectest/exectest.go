@@ -12,7 +12,8 @@ import (
 	"testing"
 )
 
-// coverDirEnv names the directory a coverage build writes its data to.
+// coverDirEnv is the environment variable naming the directory a coverage
+// build writes its data to.
 const coverDirEnv = "GOCOVERDIR"
 
 // execCmd names exec.Cmd under a name no other package can select, so Cmd
@@ -25,7 +26,8 @@ type execCmd = exec.Cmd
 // can assign it.
 type Cmd struct{ *execCmd }
 
-// Env returns a copy of the environment the child runs with.
+// Env returns a copy of the list the child's environment is built from.
+// Where a key repeats, the child sees its last value, as Environ reports.
 func (c *Cmd) Env() []string { return slices.Clone(c.execCmd.Env) }
 
 // Command returns a command running name with args under ctx, in this

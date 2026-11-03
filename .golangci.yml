@@ -12,7 +12,7 @@ linters:
     - errorlint # %w discipline: errors.Is/As over == and type assertions
     - exhaustive # a switch over an IR enum names every member
     - fatcontext # no context wrapped again on each turn of a loop
-    - forbidigo # no stdout, stderr or logging from a pipeline stage
+    - forbidigo # no stage output or logs, no recover outside barrier or tests, no hand-built child
     - forcetypeassert # comma-ok on every type assertion outside tests
     - funlen # the styleguide's 70-line cap, enforced rather than declared
     - gocheckcompilerdirectives # a //go: directive the compiler knows, not one it silently ignores
@@ -241,11 +241,12 @@ linters:
         linters:
           - forcetypeassert
           - reassign
-      # exectest.Command is the one place a child is built.
+      # exectest.Command is the one place a child is built. Only the two names it
+      # uses are excused, so another starter written there is still refused.
       - path: ^internal/exectest/exectest\.go$
         linters:
           - forbidigo
-        text: exectest\.Command
+        text: use of `exec\.(CommandContext|Cmd)`
       # Countdown and recorder are each a context.Context: each embeds the one
       # it wraps to answer Err on a schedule or to record each call, which is
       # how a context decorator is written, not a context held for later.
