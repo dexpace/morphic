@@ -188,8 +188,8 @@ defect, keep a `main` control.
 ## A fix a review hands on is reviewed before it leaves
 `review-own-fixes`
 
-- **Rule.** Give each fix a review pushes, posts as a patch or offers as a suggestion every pass
-  on its own diff, written rules included, sweep its mechanism, and reread what it adds as
+- **Rule.** Give each fix a review pushes, posts as a patch or offers as a suggestion each pass
+  its own diff can affect, written rules included, sweep its mechanism, and reread what it adds as
   unreviewed
   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
   A fix to a mechanism a design document specifies first takes
@@ -197,11 +197,11 @@ defect, keep a `main` control.
   and its row of `references/review-probes.md#design-review-matrix`. Push a round's fixes once,
   behind the push checklist, as `git push origin HEAD:<branch>` from the detached setup, then rerun
   the setup.
-- **Why.** Later rounds of #1143's review found defects its own fixes had added, such as a command
-  failing from the root. #1233's author applied a posted redesign verbatim, and a later round found
-  five nits in it (#1411).
+- **Why.** #1143's later rounds found defects its own fixes had added, such as a command failing
+  from the root. #1233's author applied a posted redesign verbatim, and a later round found five
+  nits in it (#1411).
 - **Probe.** Before pushing or posting, apply the fixes in a throwaway worktree and read
-  `git diff <round's base>..HEAD` with every pass.
+  `git diff <round's base>..HEAD` with those passes.
 
 ## Review the tree as it will merge
 `recheck-against-final-tree`
