@@ -6,14 +6,14 @@ canary. A behaviour found that the page lacks is added there.
 ## Find every reader of a construct before changing how it is read
 `every-reader`
 
-- **Rule.** Before changing which `allOf` branches compose, how deep a walk goes, or how a keyword
-  is read, find each package outside the changed one reading the keyword by getter or key, and make
-  each agree in predicate and in bound:
-  `git grep -nE 'Get<Keyword>\(\)|"<keyword>"' -- 'compilers/openapi/*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`.
+- **Rule.** Before changing which `allOf` branches compose, a walk's depth, or how a keyword is
+  read, make each package outside the changed one reading it agree in predicate and in bound,
+  `<Getter>` as `oas3.Schema` names it (`GetRef`):
+  `git grep -nF -e '<Getter>()' -e '"<keyword>"' -- 'compilers/openapi/*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`.
 - **Why.** The multipart reader in `compilers/openapi/internal/operation` walked `allOf` with its own
-  bound and dropped an `encoding` silently (#998). A changed `oneOf` reading was shown to hold by
-  compiling both spellings at each position (#1278), and that key is read where its getter is not
-  (#1397).
+  bound and dropped an `encoding` silently (#998). #1278's `oneOf` change held in both spellings at
+  each position, and that key is read where its getter is not (#1397). As a regex, `"$ref"` matched
+  no reader (#1403).
 - **Probe.** Compile the old and new spelling at every position
   (`references/lossless-and-diagnostics.md#same-construct-at-every-position`), on `main` and the
   branch: each spelling takes one verdict across them. For `allOf`, one is a multipart body
