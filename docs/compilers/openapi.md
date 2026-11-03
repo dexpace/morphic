@@ -69,6 +69,18 @@ OpenAPI's limit on YAML tags forbids, refuses the source before the parser reads
 `openapi/tagged-mapping` error at the tagged mapping with the least pointer, and it compiles to no
 Document. A tagged scalar is not refused here; what it lowers to is [`values`](#values)'.
 
+A date such as `2021-01-01`, and a `<<` anywhere but as a mapping's key, written with no tag or
+under YAML's non-specific `!`, are the strings they spell, in the source and in each document read
+beside it. YAML 1.2, which OpenAPI recommends, has no timestamp or merge type: its core schema reads
+both as strings, `!` makes any scalar one, and `!!str` is the one tag of the JSON schema ruleset, to
+which OpenAPI limits YAML's tags, that holds them. The parser tags the first a timestamp and the
+second a merge, from neither of which its model decodes a string
+([`undecoded-scalar`](../parser-library.md#undecoded-scalar)), so the compiler tags each a string
+before the model is built: a field so written holds its text, and a `$ref` so written is followed
+like any other. A `<<` key still merges ([`merge-keys`](../parser-library.md#merge-keys)), and a
+scalar under any other tag keeps it.
+
+- Cases: `yaml-timestamp-scalars`
 - Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,
   `openapi/budget-exceeded`
 - Tests: `detect.TestRecognize_ABrokenDocumentIsReportedAtAnySize`,
@@ -77,9 +89,16 @@ Document. A tagged scalar is not refused here; what it lowers to is [`values`](#
   `detect.TestSniff_ReadsAMergeChainAsFarAsTheViewExpandsIt`,
   `detect.TestRecognize_AMergeCycleHidesNoKey`,
   `load.TestLoad_AStreamLowersItsFirstDocumentAndReportsTheRest`,
-  `load.TestLoad_ATaggedMappingIsRefusedBeforeParsing`
+  `load.TestLoad_ATaggedMappingIsRefusedBeforeParsing`,
+  `e2e.TestCompile_APlainDateCompilesAsItsQuotedTwin`,
+  `e2e.TestCompile_APlainMergeValueCompilesAsItsQuotedTwin`,
+  `e2e.TestCompile_APlainDateInAnExternalDocumentCompilesAsItsTwin`,
+  `e2e.TestCompile_APlainDateAnOverlayWritesCompilesAsItsTwin`,
+  `e2e.TestCompile_ADateTaggedOutrightKeepsItsTag`,
+  `load.TestResolveExternal_RecoversAPlainDateBehindARespelledURL`, `load.TestUnready`
 - Status: partly built: a JSON source holding a surrogate-pair escape is refused as undecodable
-  (#900).
+  (#900). A scalar or a sequence under a tag outside YAML's JSON schema ruleset is not reported,
+  and where the model reads a string or a list it reads as left out (#1368).
 
 ### `source-budgets`
 
@@ -547,10 +566,10 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   chain of documents each declaring the URI the one before it asked for costs a binding pass per
   link (#1372). A reference object reaching raw YAML of the source leaves the references inside what
   it reaches unresolved (#1320), and one whose pointer ends in `/` declares what it reaches at a
-  second pointer (#1330). A reference object whose `$ref` the model decodes no string from, such as
-  a plain date or a scalar under a local tag, lowers nothing, and nothing reports it (#1280). A
-  schema `$ref` whose pointer passes through a reference object's alias lowers what it reaches a
-  second time, at the pointer it spells (#1359).
+  second pointer (#1330). A reference object whose `$ref` is a scalar under a tag outside YAML's
+  JSON schema ruleset, which the model decodes no string from, lowers nothing, and nothing reports
+  it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what
+  it reaches a second time, at the pointer it spells (#1359).
 
 ### `reference-cycles`
 
@@ -777,7 +796,8 @@ one.
 
 A default, `const`, enum member or example lowers to an `ir.Value` read off the YAML node by its
 resolved tag alone, as the parser resolves it
-([`scalar-resolution`](../parser-library.md#scalar-resolution)), never by the type the schema
+([`scalar-resolution`](../parser-library.md#scalar-resolution)) but for a date written with no tag,
+which is a string ([`yaml-decoding`](#yaml-decoding)), never by the type the schema
 declares ([values](../ir/values.md)): `null`, `bool`, `string`, `list` and `object` (members as the
 parser reads them, `<<` merge keys merged in its order
 ([`merge-keys`](../parser-library.md#merge-keys)), each keyed by its text and a key that is no
@@ -3291,10 +3311,10 @@ requirement naming no scheme and a scheme naming no mechanism, and leaves them t
 - Status: partly built: a 3.2 requirement naming a scheme by URI lowers as unresolved (#1212), an
   unresolved scheme name gets no near-miss hint (#694), a scope a requirement repeats passes into
   the IR undeduplicated (#738), a requirement whose only key is a `<<` naming no mapping lowers to
-  the empty option, beside the rule table's error (#1244), and a field written as the model does not
-  decode it reads as left out with no finding, so `scheme: 2021-01-01` names no mechanism and a
-  `security` list under a local tag inherits (#1280), and a `$ref` written as null refuses the whole
-  document (#1284).
+  the empty option, beside the rule table's error (#1244), and a field under a tag outside YAML's
+  JSON schema ruleset reads as left out, so `scheme: !local bearer` is reported as omitted and names
+  no mechanism, and a `security` list under a local tag inherits with no finding (#1368), and a
+  `$ref` written as null refuses the whole document (#1284).
 
 ### `security-scheme-fields`
 
