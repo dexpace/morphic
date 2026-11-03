@@ -308,19 +308,20 @@ added and which [`reference-object-siblings`](#reference-object-siblings) folds 
 and every keyword beside a Schema Object's `$ref`, which 3.1 applies alongside the reference as JSON
 Schema 2020-12 conjoins them ([`ref-use-site`](#ref-use-site)). That is the one case: 3.0 reads
 either position as a Reference Object, which admits no key beside its `$ref` and says one SHALL be
-ignored, so a 3.0 document writing one is warned that it was read as 3.1 reads it. What the keyword
-then means is the 3.1 dialect's, so a `nullable` there, which no minor gives an effect beside a
-`$ref`, is read by the policy [`nullable`](#nullable) sets out. A keyword whose meaning differs
-between minors, such as `exclusiveMinimum`, follows the declared one
-([`constraints`](#constraints)).
+ignored, so a 3.0 document writing one is warned that it was applied as 3.1 applies it. It is then
+read as the declared minor's dialect defines it, the only reading that gives what the author wrote
+its meaning: a `nullable` there adds `null` to a `type` written beside it
+([`nullable`](#nullable)), an `exclusiveMinimum` there is a boolean modifying the bound beside it
+([`constraints`](#constraints)), and a `type: array` there requires `items`
+([`missing-array-items`](#missing-array-items)).
 
 Whether a construct is a later minor's is asked in one place, the table [`validation`](#validation)
 holds a document to, which gives the minor each field and value was added in; no lowering asks it,
 so no field's treatment can depend on whether the parser happens to model it. The construct's value
 is held to the shape its table row gives it, and any object inside it to the table like any other.
 The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, a Path
-Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering reads beside a
-3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
+Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering applies beside
+a 3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
 warned of as a later minor's construct as well, whatever it is, so no row of the table names them.
 An object a `$ref` reaches is judged as the source's own are, wherever it is written, and reported
 where [`validation`](#validation) places a finding about it. A
@@ -334,7 +335,7 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
 - Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`
 - Codes: `openapi/later-version-construct`
 - Tests: `e2e.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
-  `e2e.TestSchemaRefSiblings_LowerAsIn31`,
+  `e2e.TestSchemaRefSiblings_ApplyAsIn31`, `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
   `oas.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
   `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
@@ -873,8 +874,9 @@ lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node w
 
 ### `ref-use-site`
 
-The keywords written beside a schema's `$ref`, which 3.1 admits and which are read the same way in a
-3.0 document ([`later-version-construct`](#later-version-construct)), and the annotations its target
+The keywords written beside a schema's `$ref`, which 3.1 admits and which are applied the same way in
+a 3.0 document, each read in its own document's dialect
+([`later-version-construct`](#later-version-construct)), and the annotations its target
 declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
@@ -1043,8 +1045,8 @@ reference ([`union-null-variant`](#union-null-variant)).
 
 OpenAPI 3.0's `nullable: true` adds `null` to the `type` written in the same Schema Object, as
 `type: [T, "null"]` does from 3.1, and then conjoins as that does: 3.0.3 and 3.0.4 state it, as a
-clarification of every 3.0 release. With no `type` beside it, or beside a `$ref`, it has no effect,
-and 3.1 removed the keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
+clarification of every 3.0 release. With no `type` beside it, it has no effect, and 3.1 removed the
+keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
 use it to say that a schema admits null, and write `{$ref: T, type: [object, "null"]}` for the
 nullable reference that `{$ref: T, nullable: true}` was meant to be. So the nullable-widening
 policy, on by default, reads such a null as widening what it is written on rather than conjoining
@@ -1061,8 +1063,7 @@ keywords beside a `$ref`, at the schema that writes them, saying why its version
 whatever references its schema. The policy is the Go option `Options.NullableWidening`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
 `nullable-widening`, which `false` turns off. A
-`nullable` in a 3.1 or 3.2 schema, or beside a `$ref`, is then a keyword its dialect does not
-define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
+`nullable` in a 3.1 or 3.2 schema is then a keyword its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
 model does not name.
 
@@ -1073,6 +1074,7 @@ model does not name.
   `schema.TestNullableWidening_EachShapeReadsByItsVersion`,
   `e2e.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
   `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
+  `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
   `schema.TestNullableWidening_ABranchWidensTheAllOfHoldingIt`
@@ -2288,7 +2290,8 @@ warning at the schema's own pointer, wherever it sits (a property, a parameter's
 a union branch) and whatever it lowers to (a `Tuple`, an enum of arrays), since the report reads the
 declaration and not the node. Nothing is dropped or degraded, so no `openapi/degraded-construct`
 accompanies it. `items: {}` is silent, as is every schema at 3.1 and 3.2, where `items` is optional.
-Nor is a schema reported beside a `$ref`, whose siblings 3.0 ignores, an inline `allOf` branch,
+A schema writing a `$ref` is held to the rule by the keywords beside it, which the lowering applies
+([`later-version-construct`](#later-version-construct)). Nor is an inline `allOf` branch reported,
 which merges in place or restates what a refinement names, or a subschema kept verbatim, such as one
 under `not`; the branch a refinement lowers from is reported as the position it is
 ([`allof-refinement`](#allof-refinement)).

@@ -197,7 +197,8 @@ func (n *nulls) schema(s *oas3.Schema, site nullSite) nullReading {
 	if s == nil || !n.conjuncts.Spend(1) {
 		return alike(nullSilent)
 	}
-	return n.widenByBranch(s, n.widen(s, n.keywords(s, site), site), site)
+	own := n.keywords(s, site)
+	return n.widenByBranch(s, n.widen(s, own, own, site), site)
 }
 
 // ref reads a $ref usage as JSON Schema reads it: the keywords beside the $ref
@@ -216,7 +217,7 @@ func (n *nulls) ref(js *oas3.JSONSchema[oas3.Referenceable], site nullSite) null
 // where they admit null (widenRef) or write `nullable: true` (widen).
 func (n *nulls) usage(s *oas3.Schema, target nullReading, site nullSite) nullReading {
 	own := n.keywords(s, site)
-	return n.widen(s, n.widenRef(own, foldNullReadings(own, target), site), site)
+	return n.widen(s, own, n.widenRef(own, foldNullReadings(own, target), site), site)
 }
 
 // lands reads what js's $ref lands on along the chain the bindings resolved:
@@ -280,15 +281,16 @@ func (n *nulls) keywords(s *oas3.Schema, site nullSite) nullReading {
 
 // widen is the lenient reading of `nullable: true` on s: it admits null for
 // the whole of s, whatever else s says, where the declared reading makes it a
-// member of a `type` that the rest of s conjoins with. A keyword that admits
-// null only so is noted at site, with why its version does not.
-func (n *nulls) widen(s *oas3.Schema, r nullReading, site nullSite) nullReading {
+// member of a `type` that the rest of s conjoins with. own is what s's own
+// keywords say, and r what s says in all. A keyword that admits null only so
+// is noted at site, with why its version does not.
+func (n *nulls) widen(s *oas3.Schema, own, r nullReading, site nullSite) nullReading {
 	if s.Nullable == nil || !*s.Nullable {
 		return r
 	}
 	if r.declared != nullAdmitted && site.ok {
 		n.found = append(n.found, nullFinding{at: site.at + ids.Ptr("nullable"), message: "nullable: true is " +
-			"read as admitting null under the nullable-widening policy, though " + n.why(s) +
+			"read as admitting null under the nullable-widening policy, though " + n.why(s, own) +
 			"; a reference whose null rests on it is marked inferred"})
 	}
 	r.lenient = nullAdmitted
@@ -296,16 +298,12 @@ func (n *nulls) widen(s *oas3.Schema, r nullReading, site nullSite) nullReading 
 }
 
 // why says why the declared reading of s leaves it without null although s
-// writes `nullable: true`. Beside a $ref no version gives the keyword an
-// effect, so that reason names none. The last case is the one left once s
-// writes a `type` the keyword adds null to: a family the type conjoins with
-// forbids it, and only const, enum and allOf ever forbid with a type that
-// admits null.
-func (n *nulls) why(s *oas3.Schema) string {
+// writes `nullable: true`, own being what s's own keywords say. Once s writes
+// a `type` the keyword adds null to, only an enum, a const or an allOf beside
+// it forbids it, which leaves own without null, or, for s writing a $ref, what
+// that lands on, which own's null conjoins with.
+func (n *nulls) why(s *oas3.Schema, own nullReading) string {
 	switch {
-	case s.Ref != nil:
-		return "no OpenAPI version gives it an effect beside a $ref: 3.0 ignores every keyword there, " +
-			"and 3.1, which applies them, defines no nullable"
 	case !n.is30:
 		return fmt.Sprintf("this document declares OpenAPI %s, whose schemas define no nullable keyword", n.declared)
 	case !writesType(s):
@@ -315,19 +313,21 @@ func (n *nulls) why(s *oas3.Schema) string {
 		return "this schema's enum lists no null, and OpenAPI 3.0's nullable does not override it"
 	case constNullVerdict(s) == nullForbidden:
 		return "this schema's const is not null, and OpenAPI 3.0's nullable does not override it"
-	default:
+	case own.declared != nullAdmitted:
 		return "an allOf branch of this schema excludes null, and OpenAPI 3.0's nullable does not override it"
+	default:
+		return "what its $ref lands on excludes null, which the keywords beside it conjoin with"
 	}
 }
 
 // declaredTypeVerdict is typeNullVerdict as the document's version reads a
 // `nullable: true` beside the type. OpenAPI 3.0 adds null to a type written in
-// the same Schema Object, as `type: [T, "null"]` spells it from 3.1, so the
-// result then conjoins like any type. Beside a $ref, whose keywords 3.0 reads
-// as 3.1 does, and from 3.1, nullable is no keyword of the dialect.
+// the same Schema Object, beside a $ref as anywhere, as `type: [T, "null"]`
+// spells it from 3.1, so the result then conjoins like any type. From 3.1,
+// nullable is no keyword of the dialect.
 func (n *nulls) declaredTypeVerdict(s *oas3.Schema) nullVerdict {
 	v := typeNullVerdict(s)
-	if v == nullForbidden && n.is30 && s.Ref == nil && s.Nullable != nil && *s.Nullable {
+	if v == nullForbidden && n.is30 && s.Nullable != nil && *s.Nullable {
 		return nullAdmitted
 	}
 	return v

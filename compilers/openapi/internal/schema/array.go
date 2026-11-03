@@ -87,9 +87,9 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 //
 // It reads the declaration, never what it lowered to, so an array that lowers
 // to a tuple, an enum or an allOf is held to the rule as a List is; that a 3.0
-// prefixItems lowers at all is GitHub #820. `items: {}` is silent. Neither a
-// $ref site, whose siblings 3.0 ignores, nor a subschema kept verbatim, such as
-// one under `not`, reaches it.
+// prefixItems lowers at all is GitHub #820. `items: {}` is silent. A $ref
+// site's keywords are held to it; a subschema kept verbatim, such as one under
+// `not`, never reaches it.
 func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	if annotation.Written(s.GetItems()) || !slices.Contains(s.GetType(), oas3.SchemaTypeArray) || !c.Is30() {
 		return nil

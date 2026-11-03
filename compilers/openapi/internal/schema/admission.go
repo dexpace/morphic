@@ -476,7 +476,8 @@ func (w *admission) written(s *oas3.Schema) admitted {
 	return out
 }
 
-// writtenKinds reads a schema's `type`, or a type implied by what it declares. A
+// writtenKinds reads a schema's `type`, or a type implied by what it declares,
+// with the null a 3.0 `nullable: true` adds to it, beside a $ref as anywhere. A
 // null `type` writes none (writesType).
 func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
 	types := s.GetType()
@@ -490,7 +491,7 @@ func writtenKinds(s *oas3.Schema, is30 bool) kindSet {
 	for _, t := range types {
 		out |= kindOfType(t)
 	}
-	if is30 && s.Ref == nil && s.Nullable != nil && *s.Nullable {
+	if is30 && s.Nullable != nil && *s.Nullable {
 		out |= kindNull
 	}
 	return out
