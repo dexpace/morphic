@@ -57,4 +57,5 @@ cannot be turned off.
 
 - `references/ir-lessons.md`: version collisions, the hand lists a new field meets, new namespaces,
   invariants a type held, values a field's readers assume, design rules over their own document,
-  and what the verifier and codecs must reach.
+  mechanisms against their layer's requirements, what shapes a declaration, and what the verifier
+  and codecs must reach.

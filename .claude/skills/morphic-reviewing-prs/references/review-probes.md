@@ -15,6 +15,19 @@ defect, keep a `main` control.
   that read the new file found two code defects in it (#340). Each mutant #1153 listed reddened a
   test, while dropping an argument its new code passed reddened none.
 
+## Weigh a change's design against the alternatives it gave up
+`weigh-against-alternatives`
+
+- **Rule.** Before judging a mechanism's details, name what the change must deliver (a defect
+  fixed, sites covered, a regression guarded) and its alternatives: the issue's proposals, a
+  narrower scope and no mechanism. Probe or prototype each on `main` for what it keeps, and weigh
+  lines, scope, reliance on undocumented behaviour and the planned work it constrains (`gh issue list --state all --limit 1000 --search "<the mechanism's vocabulary>"`).
+  One keeping as much at a measured lower cost is a finding, its prototype attached.
+- **Why.** #1233's rounds checked a 479-line archtest rule's completeness while the tree built
+  commands in two shapes and #704 plans code it would trip; none asked what its breadth bought.
+- **Probe.** The report lists each alternative, what it keeps, its cost and the run measuring it;
+  a mechanism weighed against none is unreviewed.
+
 ## Check every class of claim in full, in the first round
 `sweep-each-claim-class`
 
@@ -132,16 +145,31 @@ defect, keep a `main` control.
 ## Give a normative document's rules something that can disagree with them
 `review-design-rules`
 
-- **Rule.** A document describing code that does not exist has no output to compare. So read each
-  rule it states against the cases of every other, and against a format or protocol it was not
-  written for; run the rules as a program over compiled specs, a planted defect showing the run
-  reacts; check each premise
+- **Rule.** With no output to compare, read each rule against every other's cases and a format
+  it was not written for; write the rules as a program from the document before reading the
+  author's, run both over compiled specs, a planted defect showing each reacts, and read each
+  disagreement against the document; check each premise
   (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise`); and run
   each sample as printed under the document's own checks.
 - **Why.** Names and citations were clean while a fallback overrode a gRPC stream's framing and a
   union of event shapes was misread, and `go vet` refused a sample that compiled (#1167, #1168).
-- **Probe.** The report lists each rule with what could have disagreed with it; a rule with nothing
-  is unreviewed.
+  Rerunning the author's program reproduced its count; one written from the document did not
+  (#1356).
+- **Probe.** The report names each item the programs disagree on, or says none, and gives the
+  matrix of `references/review-probes.md#design-review-matrix`.
+
+## Report a design review as a matrix of each rule's inputs and consumers
+`design-review-matrix`
+
+- **Rule.** Cross each rule's inputs
+  (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#design-rule-over-its-document`)
+  with its consumers: each target's codec and type-table requirements, output units, every
+  artifact the plan feeds (SDK, docs, mock), lifecycles and directions, later documents and other
+  formats. Every cell gets a result and the run behind it, or why it cannot change the answer.
+  Claim nothing is left only on a full matrix.
+- **Why.** #1329's review took eight rounds, each finding an input or a consumer's requirement no
+  earlier round had listed, after reports that checked a few cases per rule.
+- **Probe.** Count the cells and those with a result; a cell short is a round still open.
 
 ## A fix the review makes is reviewed before it is pushed
 `review-own-fixes`
@@ -149,7 +177,10 @@ defect, keep a `main` control.
 - **Rule.** When a review fixes what it finds, give each fix's own diff the passes, sweep its
   mechanism, and reread what it adds as unreviewed
   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
-  Push a round's fixes once, behind the push checklist, then rerun the setup.
+  A fix adding or changing a mechanism first takes
+  `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#prototype-against-every-requirement`
+  and its row of `references/review-probes.md#design-review-matrix`. Push a round's fixes once,
+  behind the push checklist, then rerun the setup.
 - **Why.** Later rounds of #1143's review kept finding defects its own fixes had added: a PR-body
   example the scripts listed as a closing reference, a command that failed from the repository
   root, and a sentence saying the lint ran on every branch.

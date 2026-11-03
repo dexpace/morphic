@@ -143,13 +143,42 @@ verifier and codecs must reach.
 `design-rule-over-its-document`
 
 - **Rule.** When a change to the IR or emitter design states a general rule, a placement
-  argument or a step order, list every field, input or step in the document it applies to and
-  check each; check a step order against what each step reads that a later step can still change.
-- **Why.** A rule giving derived facts no plan field stood beside a plan field copying one, a
-  placement argued for one per-target table and not its twin, and an import step ran before the
-  steps renaming what it imports (#1019).
-- **Probe.** `grep -n` the document for each field, input and step the rule names, and for their
-  neighbours.
+  argument or a step order, list its inputs from their definitions, not the rule's text: each
+  field of every IR type it reads and each sibling section of its document. Say whether each
+  changes the answer, compiling a minimal spec for a field the golden spec never sets. Check a step
+  order against what each step reads that a later one changes.
+- **Why.** A placement covered one per-target table and not its twin, an import step preceded the
+  steps renaming what it imports (#1019), and #1329's member rule named none of the fields that
+  later decided it.
+- **Probe.** `go doc ./ir <Type>` for each type the rule reads; a field it prints with no stated
+  effect is unchecked.
+
+## Prototype a specified mechanism against every requirement on its layer
+`prototype-against-every-requirement`
+
+- **Rule.** Prototype a mechanism a design document specifies on the target's own library, against
+  every requirement the emitter documents put on the layer it runs in, not only the property it is
+  for, and name each requirement's result in the document.
+- **Why.** Three decode mechanisms in turn passed a prototype of their cost and failed a sibling
+  document's requirement: builders could not reach a variant in another output unit, a second
+  `json.WithUnmarshalers` replaced a caller's own, and Kotlin `@Contextual` fields threw under a
+  caller's own `Json` (#1329).
+- **Probe.** `grep -rnwE 'must|never|only' docs/emitters/refine docs/emitters/contract docs/emitters/targets/<target>`
+  lists the candidate requirements; each that bears on the mechanism has a prototype run, or is
+  unmet.
+
+## Shape a declaration from its type's own definition
+`declaration-reads-its-definition`
+
+- **Rule.** A plan fact that shapes a declaration, such as a closed sum against a struct of
+  pointers, reads the type's own definition. Where it must read a distant fact (the directions the
+  type travels, the operations reaching it), the document names that fact and the break a change
+  of it causes the declaration's callers.
+- **Why.** A fix to #1329's member rule read which way a union travels, so a new operation
+  elsewhere would flip the union between a closed sum and a struct of pointers, breaking its
+  callers.
+- **Probe.** For each fact the rule reads, name the IR node it comes from; one outside the type's
+  own definition is named in the document with its break, or is a finding.
 
 ## Count what a design assumes about real input before choosing it
 `measure-the-premise`
