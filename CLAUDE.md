@@ -526,9 +526,8 @@ context-switch between repos.
   subject automatically — never type it yourself, but do count it, at the number the PR will get,
   on the title and on a branch's one commit, which lands under its subject. A subject the squash
   replaces lands, if at all, in the body, where nothing is appended, so it holds to 72 without the
-  number.
-  Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with `N` one
-  past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
+  number. Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with
+  `N` one past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
   over-length subjects in this history were *within* the cap until the number was appended, which
   is the whole failure mode; to see that split rather than trust it, pipe the log above through
   `awk 'length($0) > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
