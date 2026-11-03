@@ -155,10 +155,10 @@ throughout these documents.
     by JSON kind, by enum values and by a member one model requires and the other cannot hold,
     lowers as a closed sum and decodes each value into the one variant admitting it, by trying each
     where the ladder tells none apart, while a closed model with a catch-all governing that member
-    separates nothing, nor does a member a patch shape the union travels in leaves optional, and
-    `Inclusive` is the same in either order the unions are planned. A `null` that two nullable
-    variants admit, a `null` literal variant does or a variant that is such a union does, is held by
-    the reference, as a nullable one's is. A value no variant admits takes the fallback on an open
-    union and is a coded error on a closed one
+    separates nothing, nor does a `writeOnly` member, or one a patch shape the union travels in
+    leaves optional, and `Inclusive` is the same in either order the unions are planned. A `null`
+    that two nullable variants admit, a `null` literal variant does or a variant that is such a
+    union does, is held by the reference, as a nullable one's is. A value no variant admits takes
+    the fallback on an open union and is a coded error on a closed one
     ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).

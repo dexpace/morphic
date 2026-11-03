@@ -96,12 +96,11 @@ admitting no value in common, by these rules, and a pair none of them separates 
   has a catch-all (`AdditionalProps`), or one it declares at a position disjoint from the first's by
   these rules. A member is required as `Required` and `Undeclared` say, an overridden declaration
   counting, so a base requiring `id` separates subtypes that redeclare `id` as different one-value
-  enums. A member separates only where every shape the union travels in requires it, as `ModelShape`
-  projects each: a `readOnly` member is required of a read shape alone, a `writeOnly` one of a
-  create or update shape alone, and a patch shape requires none, so a union a PATCH body reaches is
-  separated by kinds and values alone. A catch-all beside a closure holds the members it governs, as
-  `patternProperties` beside `additionalProperties: false` does (#987), so the closure alone
-  separates nothing.
+  enums. A member separates only if every read, create and update shape requires it, so a `readOnly`
+  or `writeOnly` one separates nothing, whichever way the union travels, and a union a PATCH body
+  reaches, whose patch shape requires none, is separated by kinds and values alone. A catch-all
+  beside a closure holds the members it governs, as `patternProperties` beside
+  `additionalProperties: false` does (#987), so the closure alone separates nothing.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through
 a finite chain of separated members, and a cycle of models separates nothing by itself. The plan
@@ -117,14 +116,23 @@ The rules are sound, not complete. A pair they leave sharing may still admit no 
 loosely than a closed sum would. `Constraints` take no part, since admitting a value leaves them to
 validation, so two variants that differ only in a bound do share values.
 
+`Inclusive` shapes a declaration, so a document that changes it breaks that union's callers: a
+variant added or widened, a member no longer required, a catch-all beside a closure or a PATCH body
+newly reaching the union turns a closed sum inclusive, and the reverse narrows an inclusive one. The
+member rule reads no direction for that reason: reading which way a union travels would separate
+more, but would change a declaration the first time an operation elsewhere sends or receives it. A
+PATCH body is the one distant operation it reads, since a patch shape requires nothing, so any value
+its variants' members could form may arrive there.
+
 On the golden spec (spec @319dc756, morphic @3188471d), 515 unions are untagged, not exclusive, and
 have two or more variants. These rules prove 420 of them disjoint, and those lower as a closed sum,
 counting each model a PATCH body reaches, at any depth, in its patch shape: that leaves the zone
-settings, which their `id` separates where they are read, inclusive. Of the 95 left, 71 have two
-variants that both admit an object, such as the 16 identity providers an Access listing returns.
-Each refines one base whose `type` enum lists all 16, and each `config` is open with no required
-member, so nothing separates them: one provider's value is admitted by every other whose `config`
-declares none of its members at another type.
+settings, which their `id` separates where they are read, inclusive, and would not if an OpenAPI
+PATCH body kept the required members its schema states (#1400). Of the 95 left, 71 have two variants
+that both admit an object, such as the 16 identity providers an Access listing returns. Each refines
+one base whose `type` enum lists all 16, and each `config` is open with no required member, so
+nothing separates them: one provider's value is admitted by every other whose `config` declares none
+of its members at another type.
 
 ## ModelShape — visibility projection
 
