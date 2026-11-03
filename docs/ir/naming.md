@@ -147,9 +147,13 @@ words answers for all of them, and the `names` pass reports it to the document's
 - **A finding is placed** at what holds its scope, the document for its own, and names every
   party by its ID, or a union's variant, which has none, by the type it holds. A party's place in
   its scope follows declaration order where a mapping declared it, so a finding placed at a party
-  would move with that order. Nor is a party named by its index: the IR's list need not be the
-  source's, since an OpenAPI operation's parameters join those its path item declares, and a
-  union's variants leave out a `null` branch.
+  would move with that order. An index names a place in the IR's list, which need not be the
+  source's: an OpenAPI operation's parameters join those its path item declares, and two of one
+  spelling differ only in the location their IDs hold; a union's variants leave out a `null`
+  branch, and a hint has no spelling. A property or an enum member is the exception, named by its
+  index beside its quoted spelling, because its ID holds a source key or value verbatim, control
+  characters included: a key is unique in its mapping, and two members of one spelling are one
+  value written twice.
 - **An exact repeat is reported** like any other collision: two documents each declaring a
   component `Pet` give two types that render alike, which nothing else reports. A repeat may also
   draw a finding of the compiler's, such as `openapi/duplicate-enum-value`, which says what the

@@ -153,13 +153,11 @@ func (r *nameReader) typeParts(id ir.TypeID, td ir.TypeDef) {
 	switch t := td.(type) {
 	case *ir.Model:
 		if r.readScope(len(t.Properties), func(i int) ir.Naming { return t.Properties[i].Name }) {
-			r.report(scope{in: "model", id: string(id), one: "property", many: "properties",
-				ids: idsOf(len(t.Properties), func(i int) string { return string(t.Properties[i].ID) })})
+			r.report(scope{in: "model", id: string(id), one: "property", many: "properties"})
 		}
 	case *ir.Enum:
 		if r.readScope(len(t.Members), func(i int) ir.Naming { return t.Members[i].Name }) {
-			r.report(scope{in: "enum", id: string(id), one: "member", many: "members",
-				ids: idsOf(len(t.Members), func(i int) string { return string(t.Members[i].ID) })})
+			r.report(scope{in: "enum", id: string(id), one: "member", many: "members"})
 		}
 	case *ir.Union:
 		if r.readScope(len(t.Variants), func(i int) ir.Naming { return t.Variants[i].Name }) {

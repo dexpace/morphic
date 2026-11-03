@@ -6,6 +6,7 @@ package pass
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -61,9 +62,10 @@ type scope struct {
 	// one names a party, and many several, such as "operation" and
 	// "operations".
 	one, many string
-	// ids name the parties, in scope order: each by its own ID, and a union's
-	// variant, which has none, by the ID of the type it holds. An index would
-	// name a place in the IR's list, which need not be one the source wrote.
+	// ids name the parties, in scope order: each by its ID, and a union's
+	// variant, which has none, by the ID of the type it holds. It is nil for a
+	// model's properties and an enum's members, named by index, as their IDs
+	// hold a source key or value verbatim, control characters included.
 	ids []string
 }
 
@@ -85,6 +87,14 @@ func idsOf(n int, id func(i int) string) []string {
 		ids[i] = id(i)
 	}
 	return ids
+}
+
+// label names party i within sc.
+func (sc scope) label(i int) string {
+	if sc.ids == nil {
+		return strconv.Itoa(i)
+	}
+	return sc.ids[i]
 }
 
 // lead writes what holds sc, as a message about it begins, or nothing for a
@@ -154,7 +164,7 @@ func (r *nameReader) report(sc scope) {
 		var b strings.Builder
 		sc.lead(&b)
 		fmt.Fprintf(&b, "%s %s (%q) has no word character, so it has no neutral name, and a target names it "+
-			"from its characters", sc.one, sc.ids[i], r.parties[i].source)
+			"from its characters", sc.one, sc.label(i), r.parties[i].source)
 		r.diags = append(r.diags, diag(ir.SeverityInfo, "pass/name-without-words", b.String(), sc.at()))
 	}
 }
@@ -174,7 +184,7 @@ func (r *nameReader) collision(sc scope, first int) string {
 		default:
 			b.WriteString(", ")
 		}
-		b.WriteString(sc.ids[i])
+		b.WriteString(sc.label(i))
 		if src := r.parties[i].source; src != "" {
 			fmt.Fprintf(&b, " (%q)", src)
 		}
