@@ -12,7 +12,7 @@ What each [scope](../../refine/reserved-names.md) reserves in Go:
   field holding the catch-all ([`User`](models.md#user-in-go)). The struct Go gives a closed union
   declares those codecs, `Validate` and `Value` ([unions](unions.md)), and a wrapper those codecs
   and `Value`; no spec name lands in either. An inclusive union's struct declares those codecs,
-  `Validate`, `String` and `Unknown` beside a field per variant
+  `Validate`, `String` and, when open, `Unknown` beside a field per variant
   ([unions](unions.md#an-inclusive-union)), and each field yields to them.
 
 ## The escape

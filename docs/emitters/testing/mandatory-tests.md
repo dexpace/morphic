@@ -61,10 +61,11 @@ throughout these documents.
     in another unit compiles; and every partition error and warning of [output
     units](../refine/output-units.md) has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
-    members and union variants after every name each scope of [reserved
-    names](../refine/reserved-names.md) reserves, after characters alone and after names that begin
-    with a digit, and its groups after the standard-library packages its files import, generates
-    code that compiles on every target, with every template's declared names held to what it binds.
+    members and the variants of a closed and of an inclusive union after every name each scope of
+    [reserved names](../refine/reserved-names.md) reserves, after characters alone and after names
+    that begin with a digit, and its groups after the standard-library packages its files import,
+    generates code that compiles on every target, with every template's declared names held to what
+    it binds.
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -156,14 +157,15 @@ throughout these documents.
     lowers as a closed sum and decodes each value into the one variant admitting it, by trying each
     where the ladder tells none apart or names one that does not admit it, while a closed model with
     a catch-all governing that member separates nothing, nor does a `writeOnly` or `ClientOptional`
-    member, a member compared under any name but its JSON one, or one a patch shape the union
-    travels in leaves optional, an `any` primitive (`{}`) shares a kind with every variant, and
-    `Inclusive` is the same in either order the unions are planned. An `anyOf` of `string` and
-    `integer` that a query parameter carries is inclusive, and a mock reads `since=-10` into both. A
-    required member no shape holds (`Visibility.None`) is required of no value, and of two tuple
-    variants, one with two required positions and one with one and no `Rest`, each admits only its
-    own length. A `null` that two nullable variants admit, a `null` literal variant does or a
-    variant that is such a union does, is held by the reference, as a nullable one's is. A value no
-    variant admits takes the fallback on an open union and is a coded error on a closed one
+    member, a member an open model declares at another type only `writeOnly`, a member compared
+    under any name but its JSON one, or one a patch shape the union travels in leaves optional, an
+    `any` primitive (`{}`) shares a kind with every variant, and `Inclusive` is the same in either
+    order the unions are planned. An `anyOf` of `string` and `integer` that a query parameter
+    carries is inclusive, and a mock reads `since=-10` into both. A required member no shape holds
+    (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
+    positions and one with one and no `Rest`, each admits only its own length. A `null` that two
+    nullable variants admit, a `null` literal variant does or a variant that is such a union does,
+    is held by the reference, as a nullable one's is. A value no variant admits takes the fallback
+    on an open union and is a coded error on a closed one
     ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).

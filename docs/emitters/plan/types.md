@@ -88,20 +88,24 @@ admitting no value in common, by these rules, and a pair none of them separates 
   its root's where none does. A position admitting `null`
   ([unions](../refine/unions.md#a-null-a-variant-admits)) adds `null`, but a variant's own `null` is
   its union's, so the rules leave it out, and a variant admitting only `null` takes no part. Kinds
-  are JSON's, so they separate nothing in a union that text carries, at any depth: a parameter's,
-  a header's or a form field's, unless its content is JSON. `since=-10` is the text of an integer
-  and of a string alike, so there only values separate variants, compared by their texts.
+  are JSON's, so they separate nothing in a union that text carries, at any depth: a parameter's, a
+  header's, a form field's or a decoded body's, unless its content is JSON. `since=-10` is the text
+  of an integer and of a string alike, so there only values separate variants, compared by their
+  texts, with every spelling of a number its one value: `1.0` is also the text of `1`.
 - **Values.** Each admits finitely many values, as a closed enum, a literal or a union of them does,
   and no value is in both, compared as JSON Schema compares instances: `1` and `1.0` are one. A
-  `Flags` enum's values are its members' combinations, not its members alone.
+  `Flags` enum's values are its members' combinations, and one with a `FallbackMember` takes every
+  value of its `ValueType`, substituting that member for one it does not list.
 - **Members.** Both are models laid out by name, read through `Flattened` as the JSON wire lays them
   out: each member under its JSON name (`WireNameByFormat`'s entry for JSON, else `WireName`), a
   `Flatten` property's members at its model's own level, and a position's kinds read from the
   property's own `Encoding` before its type's. One requires a member the other cannot hold: one it
   does not declare while it is closed and no model in its flattening has a catch-all
   (`AdditionalProps`), or one it declares at a position disjoint from the first's by these rules. A
-  member is required as `Required` and `Undeclared` say, an overridden declaration counting, so a
-  base requiring `id` separates subtypes that redeclare `id` as different one-value enums. A member
+  shape that leaves a declaration out leaves the member undeclared there, so a declaration only some
+  shapes hold, as a `writeOnly` one is, separates only where its model is closed as well. A member
+  is required as `Required` and `Undeclared` say, an overridden declaration counting, so a base
+  requiring `id` separates subtypes that redeclare `id` as different one-value enums. A member
   separates only if no shape can leave it out, so only where its `Visibility` is the zero value: a
   `readOnly`, `writeOnly` or `None` one, or one any other visibility filter drops
   ([ModelShape](#modelshape--visibility-projection)), separates nothing, whichever way the union
@@ -124,7 +128,8 @@ pending lets the union planned first decide a later one's answer.
 The rules are sound, not complete. A pair they leave sharing may still admit no common value, as a
 `date` and a `uuid` string do, and is then inclusive: it holds every value correctly, though more
 loosely than a closed sum would. `Constraints` take no part, since admitting a value leaves them to
-validation, so two variants that differ only in a bound do share values.
+validation, bar a tuple's `MinItems`, which these rules leave unread too, so two variants that
+differ only in a bound do share values.
 
 `Inclusive` shapes a declaration, so a document that changes it breaks that union's callers: a
 variant added or widened, a member no longer required or newly limited to some shapes, a catch-all

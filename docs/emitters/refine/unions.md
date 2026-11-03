@@ -93,10 +93,12 @@ A variant admits a value when the value fits it at every position it reaches, re
 lays it out ([TypePlan](../plan/types.md#variants-that-can-share-a-value)), a polymorphic base
 admitting what its own decode order [below](#a-value-no-variant-recognizes) holds: its JSON kind is
 one the position's type admits, or, where text carries it, the position's type reads that text;
-`null` only where the position admits `null`; each closed model, closed enum and literal holds it,
-and a tuple with no `Rest` holds no element past its `Elems`; each scalar's codec reads its text;
-every model it reaches carries each member its `TypePlan.Required` and `Undeclared` list that the
-shape it travels in holds and keeps required
+`null` only where the position admits `null`; each closed model, literal and closed enum holds it,
+an enum's values counted as [TypePlan](../plan/types.md#variants-that-can-share-a-value) counts
+them, and a tuple with no `Rest` holds no element past its `Elems`; each scalar's codec reads its
+text; every model it reaches reads its members as the shape it travels in declares them, a member
+that shape leaves out being undeclared, and carries each member its `TypePlan.Required` and
+`Undeclared` list that the shape holds and keeps required
 ([ModelShape](../plan/types.md#modelshape--visibility-projection)), none of a patch shape making
 them optional, nor one `ClientOptional` marks; and every tuple it reaches carries the positions its
 `MinItems` requires ([tuples](../../ir/containers.md#tuples)). Bar what each scalar's codec reads,
@@ -104,8 +106,8 @@ that is a fact of the value and the IR, so targets set the same variants whereve
 the same texts, and a target's check decides it from the IR rather than from what its JSON library
 accepts: json/v2 decodes `null` into a Go `string` as `""` without an error. `Constraints` take no
 part, since they are validation's on every decoded value, bar a tuple's `MinItems`, which states its
-required positions rather than bounding them. So whether a variant admits a value never depends on
-a bound.
+required positions rather than bounding them. So whether a variant admits a value never depends on a
+bound.
 
 Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, or every
 variant where text carries the value, in declaration order, and sets every one that admits the
