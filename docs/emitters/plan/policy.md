@@ -106,6 +106,15 @@ reading a response has to survive. On the golden spec (spec @319dc756, morphic @
 enums are closed, since an OpenAPI `enum` is a closed value set, so without the policy each one a
 response carries would fail to decode the first time the API added a member.
 
+Whether a type is read is a fact about the operations reaching it, not about the type, so this rule
+and `OpenUnions`' read a distant fact. An operation that first returns an enum or a union until then
+only sent moves it to its open form, which breaks its callers where a target's two forms are
+different declarations: Kotlin's closed enum is an `enum class` and its open one a value class, and
+an open union gains an `Unknown` variant an exhaustive `when` must handle. On the golden spec (spec
+@319dc756, morphic @da6c9f18), 3,360 of 8,334 enums and 351 of 974 unions are only sent. Opening
+every one the policies cover, whatever reads it, would keep each declaration stable at the cost of
+strictness in what a caller sends, and is #1439's to decide.
+
 ## An operation's effects come from its binding
 
 `OpPlan.Effects` ([OpPlan](operations.md)) says whether calling an operation is safe and whether it
@@ -120,8 +129,10 @@ HTTP QUERY method's specification defines it. Any other method a document declar
 `additionalOperations` can, takes what the IANA HTTP Method Registry (RFC 9110 §16.1) records for
 it, its name compared with case as HTTP compares a method (RFC 9110 §9.1); the plan package holds
 the registry as data, so a change to it ships in a new build. A method the registry does not list,
-and an operation whose bindings define neither, as an RPC binding does, take neither, and one
-several bindings carry takes only what every one of them states.
+and an operation whose bindings define neither, as a message or an OTP binding does, take neither,
+and one several bindings carry takes only what every one of them states. An RPC system's own level,
+such as gRPC's `idempotency_level`, reaches `Operation.Idempotency` ([the
+matrix](../../ir-spec-matrix.md)), the declared fact above.
 
 A method says nothing of whether an operation destroys something: `DELETE` and `PUT` are
 idempotent and may be destructive, so nothing derives a confirmation from `Effects`. On the golden
