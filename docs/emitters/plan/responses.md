@@ -23,7 +23,8 @@ type EnvelopeRead struct {
     Value    *ir.PropPath  // where Type sits inside Body; nil = Type is Body, read whole
     Flag     *ir.PropPath  // the member saying whether the call succeeded; nil = none
     Succeeds []ir.Value    // the Flag values meaning it succeeded
-    Failure  *ir.TypeRef   // what a failing body decodes into; nil = the target's untyped JSON
+    Failures []ir.TypeRef  // what a failing body may decode into: the first whose flag admits
+                           // the value read (below); none admitting it = the target's untyped JSON
 }
 
 // BodyShape is how a body reaches its reader, a small closed enum:
@@ -105,27 +106,29 @@ as follows:
   stays reachable through the response ([return shapes](../operations/returns.md)).
 - **A page or a monitor, whole.** The paths the IR states into a body start at the whole body, so
   a paginated operation's page is read whole, as any page is: `Value` is nil, `Type` stays the page,
-  and its items are where `Page.ItemPath` says. A poller likewise decodes its poll's body as
-  `LRO.PollType` and finds the result at `LRO.ResultPath`. Either still reads the flag. So an
-  envelope records no page information: a pager's own paths reach it in the whole page, and where
+  and its items are where `Page.ItemPath` says. A poller likewise reads each body whole, its poll's
+  as `LRO.PollType`, and finds the result where its `LROPlan` says. Either still reads the flag. So
+  an envelope records no page information: a pager's own paths reach it in the whole page, and where
   those come from on OpenAPI is #989's.
 - **A failure in-band.** Where `Flag` is set, the decoder reads that member before decoding the
-  body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)). A body
-  whose flag holds a value `Succeeds` does not list is a failure despite its 2xx status, and decodes
-  into `Failure`: the `Type` of the first entry of `Errors` whose body the same envelope matches and
-  whose flag's type admits such a value, or the target's untyped JSON where none does. Its errors
-  are then read where that type declares them, so the envelope records no path to them. It is never
-  decoded as a type whose flag admits only success, `Body` among them, since an API whose success
-  envelope declares `success: true` alone sends a failure no success type admits
-  ([failures](../operations/errors.md#every-failure-has-one-place)). On the golden spec, 2,321 of
-  the 2,665 enveloped operations declare an error case the envelope matches, 2,225 of them only one
-  such type; the other 96 take the first that admits a failing flag, and a body that does not decode
-  as it is still a failure. In 6 the first declares `success: true` alone, as a body reusing the
-  success envelope does, and 2 of those have a later entry that admits `false`; the other 4 read
-  their failure as untyped JSON.
-- **A flag that says nothing.** A flag absent or null leaves the status to decide, so a 2xx body
-  without one is a success, as it would be with no envelope: the flag only overrides a status when
-  it speaks. 62 of the golden spec's 2,665 enveloped bodies do not require `success`.
+  body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)), and
+  compares it with `Succeeds` as [plan policy](policy.md#envelopes) says. A body whose flag holds a
+  value `Succeeds` does not list is a failure whatever its status says, and decodes into the first
+  of `Failures` whose flag admits the value read, or the target's untyped JSON where none does
+  ([failures](../operations/errors.md#every-failure-has-one-place)). `Failures` are, in their order,
+  the `Type`s of the entries of `Errors` whose body, read through `TypePlan.Alias`, is a model
+  declaring the member `Flag` names with a flag that admits a failing value, one neither null nor
+  listed in `Succeeds`. Such a body need not match the envelope: a failure is never unwrapped, and
+  an API's failure envelope may lack the member `Value` names, as the golden spec's shared failure
+  model lacks `result`. Choosing by the value read types each failure a flag tells apart, as JSend's
+  `fail` and `error` are, and never tries a type whose flag admits only success, as an error body
+  reusing the success envelope declares in 6 golden operations. Its errors are then read where that
+  type declares them, so the envelope records no path to them. On the golden spec, 2,547 of the
+  2,665 enveloped operations declare a failure whose `success` admits `false`, 170 of them several,
+  86 differing in shape, of which a body takes the first; the other 118 read theirs as untyped JSON.
+- **A flag that says nothing.** A flag absent or null says nothing, so the body is a success, as it
+  would be with no envelope: the flag overrides what the response says only when it speaks. 62 of
+  the golden spec's 2,665 enveloped bodies do not require `success`.
 - **Only a success.** A failure is never unwrapped, so an entry of `Errors` has no `Envelope`, and
   a body that does not match is read as it would be with no envelope configured.
 
@@ -145,9 +148,10 @@ shapes](../operations/returns.md)).
 
 `Others` holds every entry of `Operation.Responses` but the primary, and entries that agree on
 everything but `Conditions` collapse into one. A declared response is one the API said it may send,
-so it is never a failure, whatever its status: it has no `Fault`, no kind and no retry. Each is read
-by the rules above, and what a method does with it follows from how that reading compares with
-`Return` ([return shapes](../operations/returns.md)):
+so its status never makes it a failure: it has no `Fault`, no kind and no retry, though an
+envelope's flag may report a failure in its body ([envelopes](#envelopes)). Each is read by the
+rules above, and what a method does with it follows from how that reading compares with `Return`
+([return shapes](../operations/returns.md)):
 
 1. **It reads as `Return` does**: the same `Shape`, the same `Type` through `Alias`, its `Nullable`
    aside, for a `value` and the same `Element` for a `stream`. `AsReturn` is set, and the method
@@ -157,9 +161,9 @@ by the rules above, and what a method does with it follows from how that reading
    nullable form ([optionality](../refine/models.md#optionality--nullability--presence-inv8)), and a
    pager or a stream ends, as an empty one does.
 3. **It has a body the method cannot return**: a `202` of another type beside a `201`, or any body
-   beside a `void` `Return`. It is read whole, as a failure is, so a content that streams is `raw`,
-   and it reaches the caller as the runtime's `OtherResponse`, apart from every failure. Nothing
-   decodes it as `Return.Type`.
+   beside a `void` `Return`. It is never read frame by frame, as a failure is not, so a content
+   that streams is `raw`, and it reaches the caller as the runtime's `OtherResponse`, apart from
+   every failure. Nothing decodes it as `Return.Type`.
 
 A stream method reads `Recv` in `Return`'s place, and a poller takes each response of its start as
 its `LROPlan` says ([long-running operations](../operations/long-running.md)).

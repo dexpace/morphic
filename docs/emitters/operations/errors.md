@@ -71,10 +71,11 @@ answers](../plan/responses.md#which-entry-answers)):
   nil, with `RawBody` holding whatever arrived;
 - a body that does not decode never hides the failure: `Body` stays nil and `BodyErr` holds the
   decode error, since the status is what the caller must learn;
-- a failure an envelope reports in-band, a 2xx whose flag holds a value its `Succeeds` does not
-  list ([envelopes](../plan/responses.md#envelopes)), takes no entry: it has no `Fault` and no kind,
-  since its status states neither, its `Body` is what `EnvelopeRead.Failure` decodes, and it is
-  retried only as its status would be, which no default retries.
+- a failure an envelope reports in-band, a success whose flag holds a value its `Succeeds` does not
+  list ([envelopes](../plan/responses.md#envelopes)), takes no entry of `Errors`: it has no `Fault`
+  and no kind, since its status states neither, its `Body` is what the first of
+  `EnvelopeRead.Failures` its flag admits decodes, its `Headers` are what the response it arrived as
+  declares, and it is retried only as that response would be, which no default retries.
 
 A body is buffered up to `Policy.Errors`' bound and no further, so an endless one cannot exhaust the
 caller; `RawBody` holds what was read, and a body cut there is one that does not decode. A union

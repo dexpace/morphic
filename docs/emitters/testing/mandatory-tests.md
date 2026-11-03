@@ -123,8 +123,9 @@ throughout these documents.
     such method ([headers](../plan/responses.md#headers), [return
     shapes](../operations/returns.md)).
 27. **T-27 · Other responses** — on every target, an operation declaring a second response of the
-    primary's type returns it as the primary; one with no body, and a `304`, give the nullable
-    return and no error, with `WithResponse` stating the status, and a pager and a stream end at one
+    primary's type returns it as the primary, in the nullable form where only that response's type
+    is nullable; one with no body, and a `304`, give the nullable return and no error, with
+    `WithResponse` stating the status, and a pager and a stream end at one
     with no error; a header only such a response declares is a field of `WithResponse`'s `Headers`;
     one of another type, and a body beside a `void` primary, reach the caller as `OtherResponse`
     with its typed `Body`, `Headers` and raw bytes, a body that does not decode as `BodyErr` and one
@@ -192,17 +193,32 @@ throughout these documents.
     planned as if left out; and the zero `Policy` returns `void` from every operation
     ([the plan's version](../plan/overview.md#the-plans-version),
     [plan policy](../plan/policy.md#the-policy-is-data)).
-32. **T-32 · Envelopes** — under an envelope matched by `Members` and one matched by `Bases`, on
-    every target, a method returns the member at `Value`, in the target's nullable form where that
-    member is optional, and its `WithResponse` method returns the envelope whole and typed, as the
-    target's top type where a `200` and a `202` are wrapped in two envelope types; another 2xx
-    reaching an `OtherResponse` holds the member at `Value`. A 2xx whose flag holds a value
-    `Succeeds` does not list is a failure with no fault or kind whose body decodes as `Failure`,
-    even where the success type admits only `true`, an error entry whose flag admits only `true`
-    passed over, and one with no flag is a success. A paginated operation's page is read whole, its
-    flag still read. A body naming only some of the members and a failure body are read as they
-    would be with no envelope, an operation one envelope's `Except` lists is read by the next
-    envelope that matches it, and the default policy unwraps nothing. An envelope with a `Flag` and
-    no `Succeeds`, or a `Succeeds` its flag cannot hold, draws `emitters/plan/policy-invalid`, and
-    one no body matches `emitters/plan/envelope-unused`
-    ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes)).
+32. **T-32 · Envelopes** — on every target, under an envelope matched by `Members`, one matched by
+    `Bases`, a body whose type is a listed base among those it matches, and one with a nil `Value`:
+    a method returns the member at `Value`, at the end of a nested path too, in the target's
+    nullable form where a member on the path is optional or nullable, and the body whole under a nil
+    `Value`, its flag still read. Its `WithResponse` method returns the envelope whole and typed,
+    nullable where a `204` beside it has none and the target's top type where a `200` and a `202`
+    are wrapped in two envelope types, and an operation returning no enveloped response keeps
+    `Response`. Another 2xx whose member at `Value` differs from the primary's only in being
+    optional is returned as the primary is, in the nullable form, and one of another type reaches an
+    `OtherResponse` holding the member at `Value`. A flag of `0.0` succeeds where `Succeeds` lists
+    `0`. A success whose flag holds a value `Succeeds` does not list is a failure with no fault or
+    kind, retried by its response alone and holding that response's headers; its body decodes as
+    the first of `Failures` its flag admits, JSend's `error` beside a `fail` among them, as untyped
+    JSON where none does, and into `BodyErr` where it does not decode, and an error entry whose flag
+    admits only `true` is never tried. A flag absent or null is a success. A paginated operation's
+    page and a poller's monitor are read whole, their flag still read. A body naming only some of
+    the members, a failure body and a webhook's response are read as they would be with no envelope,
+    an operation one envelope's `Except` lists is read by the next envelope that matches it, and the
+    default policy unwraps nothing. An envelope with no `Name`, a shared one or one holding a comma,
+    neither `Bases` nor `Members`, neither `Value` nor `Flag`, or only one of `Flag` and `Succeeds`
+    draws `emitters/plan/policy-invalid` and matches nothing; a body whose flag admits no value
+    `Succeeds` lists, a string `success` under a boolean `Succeeds` among them, is read by the next
+    envelope or as with none and draws `emitters/plan/envelope-flag-mismatch`; one no body matches,
+    and an `Except` or `Bases` entry naming nothing, draw `emitters/plan/envelope-unused`. Each
+    field a match sets is marked `Inferred` as `envelope:` and the envelope's `Name`; the docs
+    emitter shows the member at `Value` of a response's example as what the method returns, and the
+    mock sends the envelope whole; and the surface differ reports a body that gains the last name
+    `Members` lists as a break ([envelopes](../plan/responses.md#envelopes),
+    [plan policy](../plan/policy.md#envelopes), [return shapes](../operations/returns.md)).

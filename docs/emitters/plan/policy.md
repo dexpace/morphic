@@ -88,7 +88,7 @@ so a configuration names its envelopes, and the default names none.
 ```go
 type Envelope struct {
     Name     string      // recorded in each Inferred mark this envelope sets
-    Bases    []ir.TypeID // matches a body whose model composes one of these, at any distance
+    Bases    []ir.TypeID // matches a body whose model is or composes one of these, at any distance
     Members  []string    // matches a body whose model declares every one of these wire names
     Value    []string    // the wire-name path to what the reader gets in the body's place;
                          // nil = the body itself
@@ -98,34 +98,43 @@ type Envelope struct {
 }
 ```
 
-A body matches an `Envelope` when its type, read through `TypePlan.Alias`, is a model that composes
-one of `Bases` through `Base`, `Implements` or `Mixins` at any distance, the models `Flattened`
-reads, or declares every name in `Members`, read through `Flattened`. Either way it must also
-declare the members `Value` and `Flag` name. A body takes the first envelope that matches it, and an
-envelope never matches a body of an operation its `Except` lists, so the next one may. An operation
-opts out through `Except` rather than a hint, since the plan reads none ([plan or
-refine](plan-or-refine.md)). [Responses](responses.md#envelopes) says how a matched body is read.
-Each field the match sets is marked `Inferred` with the envelope's `Name`.
+An envelope reads the bodies of `Return` and `Others`, the responses that succeed. A body matches
+an `Envelope` when its type, read through `TypePlan.Alias`, is a model that is one of `Bases` or
+composes one through `Base`, `Implements` or `Mixins` at any distance, as the models `Flattened`
+reads do, or declares every name in `Members`, read through `Flattened`. Either way it must also
+declare the members `Value` and `Flag` name, and where `Flag` is set a flag admitting a value
+`Succeeds` lists. A body takes the first envelope that matches it, and an envelope never matches a
+body of an operation its `Except` lists, so the next one may. An operation opts out through
+`Except` rather than a hint, since the plan reads none ([plan or refine](plan-or-refine.md)).
+[Responses](responses.md#envelopes) says how a matched body is read, a failure's among them. Each
+field the match sets is marked `Inferred` as `envelope:` followed by the envelope's `Name`, apart
+from every other heuristic's mark.
 
 An envelope is reported as an error `emitters/plan/policy-invalid`, and matches nothing, when it has
-no `Name` or one another envelope shares, neither `Bases` nor `Members`, only one of `Flag` and
-`Succeeds`, or a `Succeeds` holding no value the flag of a body it matches admits, which would fail
-every call. An `Except` or `Bases` entry naming nothing in the document, and an envelope no body
-matches, are reported as a warning `emitters/plan/envelope-unused`, since one policy may serve
-several documents.
+no `Name`, a `Name` holding a comma, which an `Inferred` list cannot hold, or a `Name` another
+envelope shares; when it has neither `Bases` nor `Members`, or neither `Value` nor `Flag`, which
+would read nothing; or when it has only one of `Flag` and `Succeeds`. A body it would match but for
+a flag admitting no value `Succeeds` lists draws a warning `emitters/plan/envelope-flag-mismatch`:
+reading it would fail every call, so it is left to the next envelope, or read as with none, and an
+envelope never reads a body worse than no envelope does. An `Except` or `Bases` entry naming nothing
+in the document, and an envelope no body matches, are reported as a warning
+`emitters/plan/envelope-unused`, since one policy may serve several documents.
 
 `Succeeds` lists what success looks like, not failure, because a flag may fail in more than one way:
-JSend's `status` fails as `fail` and as `error`, and a numeric `code` succeeds at `0` alone. A nil
-`Value` serves an API that puts its data beside the flag, such as `{ok, channel}`: the body is
-returned whole, and the flag is still read.
+JSend's `status` fails as `fail` and as `error`, and a numeric `code` succeeds at `0` alone. A
+flag's value is compared with them as JSON Schema compares instances, so `0.0` is `0`
+([TypePlan](types.md#variants-that-can-share-a-value)). A nil `Value` serves an API that puts its
+data beside the flag, such as `{ok, channel}`: the body is returned whole, and the flag is still
+read.
 
 A body is matched by its members as well as by its composition, because composition alone misses
 real envelopes. On the golden spec (spec @5c37ac8c, morphic @fd8b0730), the primary bodies of 2,665
 of 3,763 operations declare `success`, `errors`, `messages` and `result`. 2,238 of them compose a
-named component declaring the `success` flag, 113 distinct components in
-all, since products declare their own; the other 427 declare it inline, and no `Bases` list reaches
-them. One `Members` entry matches all 2,665, and since it names every member, a body that merely has
-a `result` is never unwrapped by accident:
+named component declaring the `success` flag, 113 distinct components in all, since products
+declare their own, and 9 more are one of those 113. The other 418 declare it themselves: 209 in 126
+named types a `Bases` list would have to add one by one, and 209 in an anonymous body, which no
+`Bases` list can name. One `Members` entry matches all 2,665, and since it names every member, a
+body that merely has a `result` is never unwrapped by accident:
 
 ```go
 plan.Envelope{
@@ -136,6 +145,15 @@ plan.Envelope{
     Succeeds: []ir.Value{{Kind: ir.ValueBool, Bool: true}},
 }
 ```
+
+That entry is not every envelope there: 680 more primary bodies declare `success` beside fewer
+members, 500 of them with a `result` and 171 without. Entries listed after it reach them, one with
+`Members: []string{"success", "result"}` and the same `Value`, then one with
+`Members: []string{"success"}` and a nil `Value`, each body taking the first that matches. One of
+those declares `success` as a string whose example is `"true"`: a boolean `Succeeds` passes it over
+with a warning, and an entry of its own listed before them, whose `Succeeds` is the string
+`"true"`, reads it. The other 9 are variants of a union, which no envelope matches, since only a
+model does.
 
 ## Framings
 
