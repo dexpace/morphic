@@ -435,7 +435,7 @@ func TestNesting_CountsAMergeValueWhereItIsWritten(t *testing.T) {
 
 // TestNesting_DoesNotReadAnchorNames pins that an alias's target is measured
 // by identity. The loader clears every anchor name before the model is built
-// (releaseAnchors), and a hand-built tree carries none, so a measure keyed on
+// (readyForModel), and a hand-built tree carries none, so a measure keyed on
 // names would fall short of the parser on both.
 func TestNesting_DoesNotReadAnchorNames(t *testing.T) {
 	t.Parallel()
