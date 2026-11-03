@@ -33,6 +33,10 @@ type Merger struct {
 	PropAt func(jsontext.Pointer) ir.PropID
 	// Report records one diagnostic a fold draws.
 	Report Reporter
+	// Alike reports whether what is written at a and at b reads each $ref it
+	// writes against one base, so the same text there says the same: under an
+	// $id naming another URI, a $ref spelled alike names another schema.
+	Alike func(a, b ir.Provenance) bool
 }
 
 // declaration is one declaration of a field, as the walk lowered it, and how
@@ -150,7 +154,8 @@ func newFolding(g *Merger, decls []declaration, field jsontext.Pointer) *folding
 	}
 	for i := range n {
 		for j := i + 1; j < n; j++ {
-			judge := typeJudge{Resolve: g.Resolve, written: [2]ir.Provenance{decls[i].prop.Provenance, decls[j].prop.Provenance}}
+			judge := typeJudge{Resolve: g.Resolve, sites: declarationSites{alike: g.Alike,
+				written: [2]ir.Provenance{decls[i].prop.Provenance, decls[j].prop.Provenance}}}
 			rel := judge.relate(decls[i].prop.Type, decls[j].prop.Type)
 			f.rel[i][j], f.rel[j][i] = rel, rel.flipped()
 		}
@@ -352,7 +357,7 @@ func (f *folding) takes(i int, v ir.Value, nullable bool) bool {
 		return nullable
 	}
 	winner, own := &f.decls[f.winner].prop, &f.decls[i].prop
-	judge := typeJudge{Resolve: f.g.Resolve, written: [2]ir.Provenance{winner.Provenance, own.Provenance}}
+	judge := typeJudge{Resolve: f.g.Resolve, sites: declarationSites{alike: f.g.Alike, written: [2]ir.Provenance{winner.Provenance, own.Provenance}}}
 	if !admitsConstraints(boundsBeyond(allBounds(judge, &f.merged), allBounds(judge, own)), v, 0) {
 		return false
 	}
@@ -474,7 +479,7 @@ func (f *folding) foldUnmodeled() {
 					merged = make(ir.Unmodeled, len(d.prop.Unmodeled))
 				}
 				merged[key], from[key] = entry, i
-			case !bytes.Equal(merged[key].Value, entry.Value):
+			case !bytes.Equal(merged[key].Value, entry.Value) || !f.g.Alike(merged[key].Provenance, entry.Provenance):
 				f.lost[i] = true
 				f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 					"declarations of field %q give its %s differently; kept the one the declaration at %s gives "+

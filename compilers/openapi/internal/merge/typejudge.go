@@ -63,11 +63,20 @@ const maxJudgeDepth = 8
 type typeJudge struct {
 	// Resolve looks a type up in the registry.
 	Resolve func(ir.TypeID) (ir.TypeDef, bool)
-	// written is where the declarations a and b were written. A node is a
-	// hoisted copy only where it was written at or under its declaration's
-	// pointer, in the same document; one a $ref reached elsewhere was declared
-	// apart.
+	// sites is where the declarations a and b were written.
+	sites declarationSites
+}
+
+// declarationSites is where the two declarations a judgment compares were written,
+// which decides whether two nodes alike are copies of one declaration.
+type declarationSites struct {
+	// written is where declarations a and b were written. A node is a hoisted
+	// copy only where it was written at or under its declaration's pointer, in
+	// the same document; one a $ref reached elsewhere was declared apart.
 	written [2]ir.Provenance
+	// alike is Merger.Alike: two copies are one type only where their
+	// declarations read their $refs against one base.
+	alike func(a, b ir.Provenance) bool
 }
 
 // relate compares a with b. The winner never depends on which is which:
@@ -125,13 +134,13 @@ func (j typeJudge) arms(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef
 	case aBare:
 		return j.nodeAgainstBare(b, bt, a, ap.Prim).flipped()
 	case sameNode(at, bt):
-		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
+		return j.sites.copies(a, at, b, bt)
 	}
 	rel := j.boundedNodes(at, bt, depth)
 	if rel == relSame {
 		// Two distinct nodes alike in member and detail: copies, by the rule
 		// sameNodes states for the others.
-		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
+		return j.sites.copies(a, at, b, bt)
 	}
 	if rel == relUnrelated {
 		return j.structures(a, at, b, bt)
@@ -146,7 +155,7 @@ func (j typeJudge) structures(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.T
 	aWithin, bWithin := j.within(a, at, b, bt), j.within(b, bt, a, at)
 	switch {
 	case aWithin && bWithin:
-		return sameNodes(a, b, hoistedAt(at, j.written[0]), hoistedAt(bt, j.written[1]))
+		return j.sites.copies(a, at, b, bt)
 	case aWithin:
 		return relANarrower
 	case bWithin:
@@ -401,6 +410,18 @@ func hoistedAt(td ir.TypeDef, at ir.Provenance) bool {
 	p := c.Provenance.Pointer
 	return c.Anonymous && c.Provenance.Source == at.Source &&
 		(p == at.Pointer || strings.HasPrefix(string(p), string(at.Pointer)+"/"))
+}
+
+// copies relates a and b, two nodes held alike, by sameNodes, each a copy
+// where it was hoisted at its own declaration. Two copies are one type only
+// where their declarations read their $refs against one base: elsewhere a $ref
+// spelled alike names another schema, so the two were declared apart.
+func (d declarationSites) copies(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
+	aHoisted, bHoisted := hoistedAt(at, d.written[0]), hoistedAt(bt, d.written[1])
+	if aHoisted && bHoisted && !d.alike(d.written[0], d.written[1]) {
+		return relOverlap
+	}
+	return sameNodes(a, b, aHoisted, bHoisted)
 }
 
 // sameNodes judges two nodes sameNode holds equal. Two hoisted copies are one

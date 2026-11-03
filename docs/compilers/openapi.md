@@ -1534,7 +1534,10 @@ declaration wrote, whose multiples are exactly those both admit. `pattern`, `pat
 to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
 hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
-declaration giving one differently is reported and kept.
+declaration giving one differently is reported and kept. An entry two declarations write alike is
+one only where both read their `$ref`s against one base, and so is a node hoisted at each as the
+same declaration written twice: under an `$id` naming another URI, a `$ref` spelled alike names
+another schema.
 
 A field keeping the first declaration's identity keeps that declaration's provenance, and either way
 it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
@@ -1717,7 +1720,10 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `e2e.TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne`,
   `e2e.TestExternalContent_ACopyInAnotherDocumentIsJudgedThere`,
   `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`,
-  `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
+  `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`,
+  `merge.TestFold_UnmodeledAlikeUnderAnotherBaseIsKept`,
+  `merge.TestTypeJudge_CopiesUnderAnotherBaseOverlap`,
+  `schema.TestAllOf_RedeclarationsUnderAnotherBaseStayApart`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), a list or map whose
   broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a

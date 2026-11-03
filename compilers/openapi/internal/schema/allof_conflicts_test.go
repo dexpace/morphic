@@ -1234,3 +1234,37 @@ func TestAllOf_RelatedStructuresAreNotCalledAConflict(t *testing.T) {
 			"openapi:conflicting-redeclaration/components/schemas/T/allOf/1/properties/v", tc.name)
 	}
 }
+
+// TestAllOf_RedeclarationsUnderAnotherBaseStayApart holds two declarations of
+// a field written alike but read against two bases, an $id at one naming
+// another URI, to two declarations: `n.json` names A at the first and B at the
+// second, so the second's `not` is kept and reported rather than folded into
+// the first's, whether it lands on the field or on a hoisted enum.
+func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
+	t.Parallel()
+	for name, x := range map[string]string{
+		"OnTheField":     "{type: string, not: {$ref: 'n.json'}}",
+		"OnAHoistedEnum": "{type: string, enum: [ab, abcdef], not: {$ref: 'n.json'}}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$id: 'https://ex.test/a/n.json', type: string, maxLength: 1}
+    B: {$id: 'https://ex.test/b/n.json', type: string, minLength: 5}
+    S:
+      $id: 'https://ex.test/b/s.json'
+      allOf:
+        - {$id: 'https://ex.test/a/c.json', type: object, properties: {x: `+x+`}}
+        - {type: object, properties: {x: `+x+`}}
+`))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			x, ok := openapitest.PropsByWire(m.Properties)["x"]
+			require.True(t, ok)
+			assert.Contains(t, x.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x",
+				"the second declaration is kept")
+			assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+				"%+v", diags)
+		})
+	}
+}
