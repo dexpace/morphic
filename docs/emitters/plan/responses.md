@@ -110,14 +110,16 @@ read through it, and `Envelope` records how, marked `Inferred` with the envelope
   body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)). A body
   whose flag holds a value `Succeeds` does not list is a failure despite its 2xx status, and decodes
   into `Failure`: the `Type` of the first entry of `Errors` whose body the same envelope matches and
-  whose flag's type admits such a value, or the target's untyped JSON where none does. It is never
+  whose flag's type admits such a value, or the target's untyped JSON where none does. Its errors
+  are then read where that type declares them, so the envelope records no path to them. It is never
   decoded as a type whose flag admits only success, `Body` among them, since an API whose success
   envelope declares `success: true` alone sends a failure no success type admits
   ([failures](../operations/errors.md#every-failure-has-one-place)). On the golden spec, 2,321 of
   the 2,665 enveloped operations declare an error case the envelope matches, 2,225 of them only one
   such type; the other 96 take the first that admits a failing flag, and a body that does not decode
   as it is still a failure. In 6 the first declares `success: true` alone, as a body reusing the
-  success envelope does, and 2 of those have a later entry that admits `false`.
+  success envelope does, and 2 of those have a later entry that admits `false`; the other 4 read
+  their failure as untyped JSON.
 - **A flag that says nothing.** A flag absent or null leaves the status to decide, so a 2xx body
   without one is a success, as it would be with no envelope: the flag only overrides a status when
   it speaks. 62 of the golden spec's 2,665 enveloped bodies do not require `success`.
