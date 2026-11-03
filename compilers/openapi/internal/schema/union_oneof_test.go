@@ -878,6 +878,16 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
       allOf: [{properties: {a: {format: uri}}}]
       oneOf: [{required: [a], properties: {a: {type: string, format: uri}}}]
 `, "openapi:oneOf"},
+		"PropertyWrittenAsTheFirstOfTwoDeclarations": {"3.1.0", `      type: object
+      properties: {a: {type: object, additionalProperties: {type: string}}}
+      allOf: [{properties: {a: {description: d}}}]
+      oneOf: [{required: [a], properties: {a: {type: object, additionalProperties: {type: string}}}}]
+`, "openapi:oneOf"},
+		"PropertyWrittenAsTheSecondOfTwoDeclarations": {"3.1.0", `      type: object
+      properties: {a: {description: d}}
+      allOf: [{properties: {a: {type: object, additionalProperties: {type: string}}}}]
+      oneOf: [{required: [a], properties: {a: {type: object, additionalProperties: {type: string}}}}]
+`, "openapi:oneOf"},
 		"NestedPropertyRestated": {"3.1.0", `      type: object
       properties: {a: {type: object, properties: {x: {type: string, minLength: 1}}}}
       oneOf: [{required: [a], properties: {a: {type: object, properties: {x: {type: string}}}}}]
@@ -1258,11 +1268,16 @@ func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T)
 // write: a reading cut short says nothing, and a value set cut short would
 // otherwise read as admitting nothing, which every keyword restates. What a
 // verdict does not need is not read, so it spends nothing: a branch writing
-// only what is judged without the body leaves it unread, and one, or a property
-// it writes, nesting nothing reads no declarations below it, each row one an
-// eager read reddens.
+// only what is judged without the body leaves it unread, one nesting nothing
+// reads no declarations below it, and a place many branches restate is read
+// once, each row one an eager or repeated read reddens.
 func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 	t.Parallel()
+	var onePlace, oneNestedPlace string
+	for i := range schema.MaxAdmissionReads + 1 {
+		onePlace += fmt.Sprintf("{required: [a], properties: {a: {type: string, minLength: %d}}}, ", i)
+		oneNestedPlace += fmt.Sprintf("{properties: {o: {properties: {b: {type: string, minLength: %d}}}}}, ", i)
+	}
 	members := make([]string, schema.MaxAdmissionMembers+1)
 	for i := range members {
 		members[i] = fmt.Sprintf("m%d", i)
@@ -1304,6 +1319,16 @@ func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 		"BareBranchLeavesTheBodyUnread": {
 			"      type: object\n      properties: {a: {type: string}}\n" + conjuncts +
 				"      oneOf: [{required: [a]}]\n",
+			ir.ReasonValidationOnly, "",
+		},
+		"BranchesRestatingOnePropertyReadItOnce": {
+			"      type: object\n      properties: {a: {type: string}}\n" +
+				"      oneOf: [" + onePlace + "{required: [a]}]\n",
+			ir.ReasonValidationOnly, "",
+		},
+		"BranchesRestatingOneNestedPropertyReadItOnce": {
+			"      type: object\n      properties: {o: {type: object, properties: {b: {type: string}}}}\n" +
+				"      oneOf: [" + oneNestedPlace + "{required: [o]}]\n",
 			ir.ReasonValidationOnly, "",
 		},
 	} {

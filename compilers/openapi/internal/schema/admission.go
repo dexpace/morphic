@@ -26,9 +26,9 @@ import (
 // as maxNullConjuncts caps the same walk, and maxAdmissionMembers what a value set
 // costs each position naming it. A reading past either says nothing, and the
 // position stays the composition it would be with no reading at all, which loses
-// nothing. Each position reads afresh, so a chain of allOfs each naming the next
-// pays up to maxAdmissionReads at every link: a reading is not remembered, as its
-// answer turns on the budget left.
+// nothing. Each position reads afresh, as a reading's answer turns on the budget
+// left, so a chain of allOfs each naming the next pays up to maxAdmissionReads at
+// every link.
 const (
 	maxAdmissionReads   = 256
 	maxAdmissionMembers = 4096
@@ -331,39 +331,93 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	return out.and(w.whole(next))
 }
 
-// declarationSet is what a set of schemas declares together: each declaration of
-// a property they make, by name, and each `items`.
+// declarationSet is a set of schemas declaring together, and the place of their
+// `items`, nil where none writes one. The place of a property is gathered from
+// the schemas the first time a claim asks for it, since a claim names few of
+// the properties a body declares.
 type declarationSet struct {
-	properties map[string][]*oas3.JSONSchema[oas3.Referenceable]
-	items      []*oas3.JSONSchema[oas3.Referenceable]
+	schemas    []*oas3.Schema
+	properties map[string]*place
+	items      *place
 }
 
-// add records what s itself declares. A nil s, a boolean schema's, declares
+// place is one property or element a set of schemas declares: each declaration
+// of it, and what they admit together and declare of what they nest, each read
+// the first time it is asked for and kept, so every claim restating the place
+// shares one reading.
+type place struct {
+	decls []*oas3.JSONSchema[oas3.Referenceable]
+	held  *admitted
+	inner *declarationSet
+}
+
+// newDeclarationSet returns an empty set, the one form property can be asked
+// of.
+func newDeclarationSet() declarationSet {
+	return declarationSet{properties: map[string]*place{}}
+}
+
+// add records s and its `items`. A nil s, a boolean schema's, declares
 // nothing, and the getters read it as empty.
 func (d *declarationSet) add(s *oas3.Schema) {
-	for name, p := range s.GetProperties().All() {
-		d.properties[name] = append(d.properties[name], p)
-	}
+	d.schemas = append(d.schemas, s)
 	if items := s.GetItems(); annotation.Written(items) {
-		d.items = append(d.items, items)
+		if d.items == nil {
+			d.items = &place{}
+		}
+		d.items.decls = append(d.items.decls, items)
 	}
+}
+
+// property returns the place of the property name, nil where no schema of d
+// declares it, gathered once.
+func (d *declarationSet) property(name string) *place {
+	if at, ok := d.properties[name]; ok {
+		return at
+	}
+	var at *place
+	for _, s := range d.schemas {
+		if p, ok := s.GetProperties().Get(name); ok {
+			if at == nil {
+				at = &place{}
+			}
+			at.decls = append(at.decls, p)
+		}
+	}
+	d.properties[name] = at
+	return at
 }
 
 // declarations returns what s declares: itself, each allOf conjunct and what
 // a $ref lands on, read as whole reads them and within the same budget.
 func (w *admission) declarations(s *oas3.Schema) declarationSet {
-	out := declarationSet{properties: map[string][]*oas3.JSONSchema[oas3.Referenceable]{}}
+	out := newDeclarationSet()
 	out.add(s)
 	w.declare(&out, slices.Clone(s.GetAllOf()))
 	return out
 }
 
-// declarationsOf returns what the schemas ds declare together, as declarations
-// reads one.
-func (w *admission) declarationsOf(ds []*oas3.JSONSchema[oas3.Referenceable]) declarationSet {
-	out := declarationSet{properties: map[string][]*oas3.JSONSchema[oas3.Referenceable]{}}
-	w.declare(&out, slices.Clone(ds))
-	return out
+// heldAt returns what p's declarations admit together, read once.
+func (w *admission) heldAt(p *place) admitted {
+	if p.held == nil {
+		held := w.whole(p.decls[0])
+		for _, d := range p.decls[1:] {
+			held = held.and(w.whole(d))
+		}
+		p.held = &held
+	}
+	return *p.held
+}
+
+// innerAt returns what p's declarations declare together, as declarations
+// reads one, read once.
+func (w *admission) innerAt(p *place) declarationSet {
+	if p.inner == nil {
+		inner := newDeclarationSet()
+		w.declare(&inner, slices.Clone(p.decls))
+		p.inner = &inner
+	}
+	return *p.inner
 }
 
 // declare adds to out what each schema on stack declares, its allOf conjuncts

@@ -34,7 +34,8 @@ var shapelessKeywords = slices.Concat(
 // bodyReading is what a union's branches are judged against: what the body's
 // own keywords and its allOf admit, its unions apart, and what it declares of
 // its properties and elements, read once a branch nests a claim. One admission
-// reads all of it, so a body's branches share one budget.
+// reads all of it, so a body's branches share one budget, and each place they
+// restate is read once, so how many restate it changes no verdict.
 type bodyReading struct {
 	w     admission
 	body  *oas3.Schema
@@ -123,11 +124,11 @@ type claim struct {
 	refs    []*oas3.JSONSchema[oas3.Referenceable]
 }
 
-// nested is a property or an element a claim writes, and the body's
-// declarations of it.
+// nested is a property or an element a claim writes, and the place the body
+// declares it, nil where the body declares none.
 type nested struct {
 	written *oas3.JSONSchema[oas3.Referenceable]
-	decls   []*oas3.JSONSchema[oas3.Referenceable]
+	at      *place
 }
 
 // restates reports whether top, and each property and element it writes at any
@@ -170,10 +171,10 @@ func (r *bodyReading) keysRestate(c claim) ([]nested, bool) {
 		case !judged(s, kv.Key):
 		case kv.Key == "properties":
 			for name, p := range s.GetProperties().All() {
-				inner = append(inner, nested{written: p, decls: c.decls.properties[name]})
+				inner = append(inner, nested{written: p, at: c.decls.property(name)})
 			}
 		case kv.Key == "items":
-			inner = append(inner, nested{written: s.GetItems(), decls: c.decls.items})
+			inner = append(inner, nested{written: s.GetItems(), at: c.decls.items})
 		case kv.Key == "$ref":
 			if !r.lands(c) {
 				return nil, false
@@ -194,23 +195,20 @@ func (r *bodyReading) keysRestate(c claim) ([]nested, bool) {
 // keywords beside a $ref conjoining with it at every version
 // (docs/compilers/openapi.md#ref-use-site).
 func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
-	if len(n.decls) == 0 {
+	if n.at == nil {
 		return claim{}, false, false
 	}
 	alike := func(d *oas3.JSONSchema[oas3.Referenceable]) bool { return r.w.sameText(d, n.written) }
-	if n.written.IsBool() || slices.ContainsFunc(n.decls, alike) {
+	if n.written.IsBool() || slices.ContainsFunc(n.at.decls, alike) {
 		return claim{}, false, true
 	}
-	held := r.w.whole(n.decls[0])
-	for _, d := range n.decls[1:] {
-		held = held.and(r.w.whole(d))
-	}
+	held := r.w.heldAt(n.at)
 	if !held.reachable() {
 		return claim{}, false, true
 	}
-	sub = claim{written: n.written, held: held, refs: n.decls}
+	sub = claim{written: n.written, held: held, refs: n.at.decls}
 	if annotation.DeclaresAny(n.written.GetSchema(), nestingKeywords) {
-		sub.decls = r.w.declarationsOf(n.decls) // read only where n nests a claim
+		sub.decls = r.w.innerAt(n.at) // read only where n nests a claim
 	}
 	return sub, true, true
 }
