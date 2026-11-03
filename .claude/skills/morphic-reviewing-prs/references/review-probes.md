@@ -19,12 +19,13 @@ defect, keep a `main` control.
 `weigh-against-alternatives`
 
 - **Rule.** Before judging a mechanism's details, name what the change must deliver (a defect
-  fixed, sites covered, a regression guarded) and its alternatives: the issue's proposals, a
+  fixed, sites covered, regressions guarded) and its alternatives: the issue's proposals, a
   narrower scope and no mechanism. Probe or prototype each on `main` for what it keeps, and weigh
-  lines, scope, reliance on undocumented behaviour and the planned work it constrains (`gh issue list --state all --limit 1000 --search "<the mechanism's vocabulary>"`).
-  One keeping as much at a measured lower cost is a finding, its prototype attached.
-- **Why.** #1233's rounds checked a 479-line archtest rule's completeness while the tree built
-  commands in two shapes and #704 plans code it would trip; none asked what its breadth bought.
+  lines, scope, reliance on undocumented behaviour and the planned work it constrains
+  (`gh issue list --state all --limit 1000 --search "<the mechanism's vocabulary>"`). One keeping
+  as much at a measured lower cost is a finding, its prototype attached.
+- **Why.** #1233's rounds checked a 479-line archtest rule's completeness (#1401) while the tree
+  built commands in two forms and #704 plans code it would trip; none asked what its breadth bought.
 - **Probe.** The report lists each alternative, what it keeps, its cost and the run measuring it;
   a mechanism weighed against none is unreviewed.
 
@@ -168,8 +169,8 @@ defect, keep a `main` control.
   artifact the plan feeds (SDK, docs, mock), lifecycles and directions, later documents and other
   formats. Every cell gets a result and the run behind it, or why it cannot change the answer.
   Claim nothing is left only on a full matrix.
-- **Why.** #1329's review took eight rounds, each finding an input or a consumer's requirement no
-  earlier round had listed, after reports that checked a few cases per rule.
+- **Why.** Each of #1329's review rounds two to eight found an input or a consumer's requirement
+  no earlier round had listed, after reports that checked a few cases per rule (#1402).
 - **Probe.** Count the cells and those with a result; a cell short is a round still open.
 
 ## A fix the review makes is reviewed before it is pushed
