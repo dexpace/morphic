@@ -21,10 +21,6 @@ import (
 type Types struct {
 	reg       ir.TypeRegistry
 	byPointer map[string]ir.TypeID
-	// refused holds why each rejected entry was rejected, and reported how many
-	// of them Finish has reported.
-	refused  []string
-	reported int
 	// spaces records how each namespace is addressed — true for minted, false
 	// for source-addressed — so claimSpace can catch one namespace used both
 	// ways whichever way round it happens.
@@ -34,18 +30,22 @@ type Types struct {
 	byID map[ir.TypeID]string
 	// promised holds every coordinate Promise queued, and promises those not
 	// yet taken; fulfilled records that Finish has built them. See Promise.
-	promised  map[string]bool
-	promises  map[string]func() []ir.Diagnostic
-	fulfilled bool
-	// minted counts the nodes Register added, so settle can tell them from a
-	// node a settlement wrote past it.
-	minted int
+	promised map[string]bool
+	promises map[string]func() []ir.Diagnostic
+	// refused holds why each rejected entry was rejected, and reported how many
+	// of them Finish has reported.
+	refused []string
 	// completing and pending hold the settlements Complete and Defer queued
 	// for Finish, and settled records that Finish has taken them. See
 	// Settlement.
 	completing []Settlement
 	pending    []Settlement
-	settled    bool
+	reported   int
+	// minted counts the nodes Register added, so settle can tell them from a
+	// node a settlement wrote past it.
+	minted    int
+	fulfilled bool
+	settled   bool
 }
 
 // refuse records why an entry was rejected. The registry declines to hold it
