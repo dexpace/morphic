@@ -46,7 +46,7 @@ var rules = map[string][]string{
 	"barrier":     {},
 	"ir":          {},
 	"ir/irfacts":  {module + "/ir"},
-	"ir/irtest":   {module + "/ir", "github.com/google/go-cmp" + subtreeSuffix},
+	"ir/irtest":   {module + "/ir", module + "/internal/exectest", "github.com/google/go-cmp" + subtreeSuffix},
 	"ir/irverify": {module + "/ir"},
 	"compilers":   {module + "/barrier", module + "/ir"},
 	// What every compiler shares: the type registry, diagnostics and the naming
