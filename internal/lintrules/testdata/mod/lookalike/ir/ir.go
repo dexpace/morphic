@@ -16,3 +16,9 @@ type Naming struct{ Canonical, Hint string }
 
 // Operation has the IR's Operation name and none of its fields.
 type Operation struct{}
+
+var lookalikeCount int
+
+// Count writes a package-level variable, which draws nothing: this ir is not
+// the root's.
+func Count() { lookalikeCount++ }

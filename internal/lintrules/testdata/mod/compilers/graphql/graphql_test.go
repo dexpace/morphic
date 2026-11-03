@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/dexpace/morphic/compilers/compile"
+	"github.com/dexpace/morphic/internal/lintrules/testdata/mod/compilers/graphql"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -17,6 +18,7 @@ func TestFixtures(t *testing.T) {
 	n.Hint = "fixture"
 	_, err := url.QueryUnescape("a+b")
 	_ = compile.OpID(compile.Space("graphql"+"x"), "")
+	graphql.Written++
 	if err != nil || n.Hint == "" {
 		t.Fatal(err)
 	}

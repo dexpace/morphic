@@ -46,7 +46,8 @@ func TestAnalyzers_DrawExactlyThePlantedFindings(t *testing.T) {
 
 // TestAnalyzers_ReadTheModulesLayout runs the rules as cmd/morphic-vet does,
 // rooted at the module. There the planted compiler sits under internal/, which
-// the registry rule holds and the ID rule, holding compilers only, does not.
+// the registry rule holds and the ID and globals rules, holding the pipeline's
+// packages only, do not: it writes a package-level variable, and draws nothing.
 func TestAnalyzers_ReadTheModulesLayout(t *testing.T) {
 	t.Parallel()
 	analyzers := Analyzers()
@@ -57,12 +58,13 @@ func TestAnalyzers_ReadTheModulesLayout(t *testing.T) {
 		names = append(names, a.Name)
 	}
 	assert.Equal(t, []string{
-		"registrywrites", "servicetreewrites", "fragmentreadings", "namechannels", "idderivations",
+		"registrywrites", "servicetreewrites", "fragmentreadings", "namechannels", "idderivations", "globalwrites",
 	}, names)
 
 	got := strings.Join(drawnFindings(t, analyzers, "./"+plantDir+"/compilers/graphql"), "\n")
 	assert.Contains(t, got, "registrywrites: ")
 	assert.NotContains(t, got, "idderivations: ")
+	assert.NotContains(t, got, "globalwrites: ")
 }
 
 // wantMarker is a line's marker: one or more quoted findings after "// want",
