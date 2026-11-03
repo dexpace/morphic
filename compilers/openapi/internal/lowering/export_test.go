@@ -1,0 +1,33 @@
+// Copyright (c) 2026 dexpace.
+// Licensed under the MIT License. See LICENSE in the repository root for details.
+
+package lowering
+
+import (
+	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
+	"github.com/dexpace/morphic/ir"
+)
+
+// Expansion exposes the reference-expansion count to this package's external
+// tests, which drive it with trees a document would take a compile to build.
+type Expansion = expansion
+
+// NewExpansion exposes newExpansion.
+func NewExpansion(l budget.Limit) *Expansion { return newExpansion(l) }
+
+// Admit exposes admit.
+func (e *expansion) Admit(root *yaml.Node) bool { return e.admit(root) }
+
+// Refusal exposes refusal.
+func (e *expansion) Refusal(srcIndex int) (ir.Diagnostic, bool) { return e.refusal(srcIndex) }
+
+// Spent is what the copies admitted so far were charged.
+func (e *expansion) Spent() int { return e.spent.Spent() }
+
+// Weighed counts the declarations weighed so far.
+func (e *expansion) Weighed() int { return len(e.weights) }
+
+// Weigh exposes weigh.
+func Weigh(root *yaml.Node, within budget.Limit) int { return weigh(root, within) }

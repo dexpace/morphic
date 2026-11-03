@@ -188,6 +188,13 @@ const (
 	// above are single files, and a description split per resource or per
 	// schema is what reading external documents is for.
 	DefaultMaxExternalDocuments = 1 << 14
+	// DefaultMaxReferenceExpansion is the reference-expansion budget:
+	// 16,777,216, a 5.1x margin over the 3,259,648 that the $refs of GitHub's
+	// REST API description copy, the most of the descriptions measured
+	// 2026-11-03: Cloudflare's copy 448,101, Stripe's nothing, and none of 1,840
+	// others more than 2,310,205. A document of extensions built to spend it
+	// peaks near 1.8 GB, about what compiling GitHub's costs.
+	DefaultMaxReferenceExpansion = 1 << 24
 )
 
 // Limits bounds the size and cardinality of one compile, so a legal but
@@ -240,6 +247,14 @@ type Limits struct {
 	// and MaxSourceNodes bound one at a time. The parser's resolver bounds
 	// neither (docs/parser-library.md#resolution-unbounded).
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
+	// MaxReferenceExpansion bounds what lowering copies through $refs. A
+	// declaration a $ref names, a schema aside, lowers again at every $ref
+	// naming it, so each such $ref is charged what the declaration weighs: one
+	// for each YAML node, each alias as a copy of what it names, and one for
+	// each byte of scalar text. A document whose $refs copy past it is refused
+	// as openapi/budget-exceeded, compiling to no Document. The other budgets
+	// bound the references and the declarations apart, not their product.
+	MaxReferenceExpansion int `json:"maxReferenceExpansion,omitzero"`
 }
 
 // Overlay is one OpenAPI Overlay document and how strictly to apply it.
@@ -298,11 +313,12 @@ const (
 // caller holding only text sets the budgets a Go caller does.
 func limitOptions(l *Limits) map[string]*int {
 	return map[string]*int{
-		"max-source-bytes":       &l.MaxSourceBytes,
-		"max-source-nodes":       &l.MaxSourceNodes,
-		"max-enum-members":       &l.MaxEnumMembers,
-		"max-alias-surplus":      &l.MaxAliasSurplus,
-		"max-external-documents": &l.MaxExternalDocuments,
+		"max-source-bytes":        &l.MaxSourceBytes,
+		"max-source-nodes":        &l.MaxSourceNodes,
+		"max-enum-members":        &l.MaxEnumMembers,
+		"max-alias-surplus":       &l.MaxAliasSurplus,
+		"max-external-documents":  &l.MaxExternalDocuments,
+		"max-reference-expansion": &l.MaxReferenceExpansion,
 	}
 }
 

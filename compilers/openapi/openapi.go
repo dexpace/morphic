@@ -101,7 +101,7 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
-	if err != nil {
+	if err != nil || out == nil {
 		return nil, all, err
 	}
 	out.Diagnostics = all
@@ -156,14 +156,14 @@ func (*Compiler) SourceTable(sources []compilers.Source, opts compilers.Options)
 // run drives the four-phase pipeline over one loaded document (architecture
 // §2.1) and assembles the Document. Order matters: named component schemas
 // first, so refs from operations find interned IDs; then security schemes, so
-// requirements reference registered IDs; then the service walk; then the
-// deferred settlements; then document metadata.
+// requirements reference registered IDs; then the service walk; then deferred
+// settlements; then document metadata.
 //
 // It reports cancellation as a Go error, not a diagnostic: nothing about the
-// document is wrong, the caller stopped asking. The document is dropped with it,
-// since the phases that honour ctx stop mid-registry and what is left
-// references types never interned or settled, but the diagnostics gathered
-// before the stop are returned.
+// document is wrong, the caller stopped asking. It drops the document, since
+// the phases honouring ctx stop mid-registry, leaving references to types never
+// interned or settled, but returns the diagnostics gathered before the stop.
+// It refuses a document past Limits.MaxReferenceExpansion without error.
 func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, []ir.Diagnostic, error) {
 	// out is this function's, not a struct's: a document being built
 	// (micro-compiler-design §4.1). Nothing below allocates it.
@@ -214,6 +214,13 @@ func run(ctx context.Context, c lowering.Ctx, ts *compile.Types) (*ir.Document, 
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, m.Unmodeled)
 	out.Unmodeled = annotation.MergeUnmodeled(out.Unmodeled, c.Kept.Entries())
 	acc.AppendAll(metaDiags)
+	// Past the budget no $ref lowered, so what the lowering found depends on
+	// which $ref came first: the refusal is reported alone, the same in any
+	// order. It is asked once every lowering has returned, so none charges
+	// after it.
+	if refusal, past := c.ExpansionRefusal(); past {
+		return nil, []ir.Diagnostic{refusal}, nil
+	}
 	out.IRVersion = ir.IRVersion
 	out.IDSpaces = ids.Namespaces(lowering.OtherIDs(c)...).Declaration()
 	out.Sources = c.Sources()
@@ -262,10 +269,14 @@ func loadOptions(o Options, reader compilers.DocumentReader, src compilers.Sourc
 // loweringCtx projects a loaded document and the caller's options onto the
 // lowering context, and is the loadOptions of the phase below: it is the one
 // place the loader's result type meets the lowering, so lowering.New can take
-// the facts it needs rather than the loader's struct. It reads the enum budget
-// as loadOptions reads the others.
+// the facts it needs rather than the loader's struct. It reads the budgets the
+// lowering holds, on enums and on what $refs copy, as loadOptions reads the
+// others.
 func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
-	limits := lowering.Limits{MaxEnumMembers: budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers)}
+	limits := lowering.Limits{
+		MaxEnumMembers:        budget.FromOption(o.Limits.MaxEnumMembers, DefaultMaxEnumMembers),
+		MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
+	}
 	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
 		o.StreamingMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
 }

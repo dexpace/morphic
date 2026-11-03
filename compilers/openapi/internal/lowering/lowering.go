@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -133,6 +134,12 @@ type Ctx struct {
 	// private, so a lowering writes it only through Once. Nil in a zero context,
 	// which keeps nothing.
 	Kept *KeptOnce
+
+	// expansion charges each $ref Declared resolves what its declaration
+	// weighs. Copies share it on purpose: the budget is the run's, so once it is
+	// crossed no copy lowers a $ref, and the run is refused (ExpansionRefusal).
+	// Nil in a zero context, which bounds nothing.
+	expansion *expansion
 }
 
 // loadResult holds what a context reads of the load phase (see WithLoaded): the
@@ -191,7 +198,16 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		typePositions: map[scopedPosition]bind.Position{},
 		reached:       resolve.NewReached(),
 		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
+		expansion:     newExpansion(limits.MaxReferenceExpansion),
 	}
+}
+
+// ExpansionRefusal returns the error refusing the document when the copies its
+// $refs made weighed past Limits.MaxReferenceExpansion, and false when they did
+// not. It is meant to be asked once every lowering has returned: a $ref past
+// the budget lowers nothing, so a crossing after the question goes unreported.
+func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
+	return c.expansion.refusal(c.SrcIndex)
 }
 
 // Promoter returns the vendor-extension promotion policy this context carries,
@@ -339,12 +355,24 @@ func Within[T, S any, R interface {
 // Otherwise it is the context of the document the chain ends in (InDocument)
 // and the position the bindings' table places the end at (bind.Table.Through),
 // the source's included for a reference another document writes (GitHub
-// #751). A chain the table places no end for keeps the use site.
+// #751), or the use site where it places none. Past
+// Limits.MaxReferenceExpansion a $ref resolves to nothing (ExpansionRefusal).
 func Declared[T, S any, R interface {
 	*S
 	resolve.Referenced[T, S]
+}, P interface {
+	*T
+	GetRootNode() *yaml.Node
 }](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
+	// The caller lowers a copy of what a $ref names, so each is charged what
+	// that weighs. One past the budget resolves to nothing, as an unresolved
+	// $ref does, which every caller skips, so no later copy costs anything. An
+	// inline entry is not charged, though a path item's own parameters reach
+	// each of its operations here, which 3.2 leaves unbounded (GitHub #1428).
+	if obj != nil && ref.GetReference() != "" && !c.expansion.admit(P(obj).GetRootNode()) {
+		return nil, c, usePtr
+	}
 	in := Within[T, S](c, ref)
 	if there, at, ok := declaredElsewhere(c, obj != nil && (in.foreign || c.home != 0), usePtr); ok {
 		return obj, there, at

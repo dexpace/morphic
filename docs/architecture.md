@@ -133,8 +133,9 @@ they bound (schema nesting depth, how deeply a document nests, how many times it
 document's aliases expand it to, reference-chain length), because nothing about them is a caller's
 to choose. The bounds on the *input* are, so they are options: `openapi.Options.Limits` carries a
 byte budget, a parsed-node budget and an alias budget for one source document, a member budget for
-one enum, and a budget on how many documents external references read in one compile, each with a
-documented default and each settable — zero takes the default, negative turns the budget off.
+one enum, a budget on how many documents external references read in one compile, and a budget on
+what the lowering copies of the declarations `$ref`s name, each with a documented default and each
+settable — zero takes the default, negative turns the budget off.
 Crossing one is a spec problem like any other, so it is an `openapi/budget-exceeded` diagnostic
 rather than a Go error. Inside the OpenAPI compiler these budgets, and every other count held to a
 limit, count through one type, `compilers/openapi/internal/budget`, so "unbounded" has one spelling
