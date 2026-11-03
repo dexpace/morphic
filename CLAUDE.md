@@ -526,11 +526,14 @@ context-switch between repos.
   subject automatically — never type it yourself, but do count it, at the number the PR will get,
   on the title and on a branch's one commit, which lands under its subject. A subject the squash
   replaces lands, if at all, in the body, where nothing is appended, so it holds to 72 without the
-  number. Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with
-  `N` one past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
+  number. Measure before opening, don't eyeball: run
+  `python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py "$N" "<title>"`, with `N` one
+  past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. It counts
+  characters, where `wc -c` and macOS's `awk` count bytes and call a subject with a `→` long. Most
   over-length subjects in this history were *within* the cap until the number was appended, which
   is the whole failure mode; to see that split rather than trust it, pipe the log above through
-  `awk 'length($0) > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
+  `perl -CS -nle 'print if length > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the
+  same `perl`.
 - **Never rewrite a pushed PR branch.** Every change to an open PR, whether a review round's fixes
   or `main` merged in, goes on as new commits pushed as a fast-forward. Never amend, squash, rebase
   or force-push it, not even to keep it at one commit. A force-push deletes the per-round diffs a
