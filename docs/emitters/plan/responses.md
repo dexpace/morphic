@@ -90,7 +90,10 @@ end in a default; [Return shapes](../operations/returns.md) traces each through 
 ## Envelopes
 
 A `value` body that one of `plan.Policy.Envelopes` matches ([plan policy](policy.md#envelopes)) is
-read through it, and `Envelope` records how, marked `Inferred` with the envelope's name:
+read through it, and `Envelope` records how, marked `Inferred` with the envelope's name. Only a body
+the client receives is matched: the response a webhook or a callback answers with is the SDK's to
+send, and no envelope wraps it, what an SDK generates for one being #1415's. A matched body is read
+as follows:
 
 - **The value.** The body decodes into `Envelope.Body`, and the reader gets the member at `Value`:
   `Type` is that member's type, so `Return.Type` is the `Zone` inside `{success, errors, messages,
