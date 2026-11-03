@@ -10,7 +10,7 @@ defect, keep a `main` control.
 - **Rule.** In the first round, before any corpus run: diff old against new semantics at every named
   bound, re-plant every mutation the PR lists and plant your own at each new branch, call or
   argument it skips, ask which input class the corpus cannot contain (deep nesting, oversized
-  documents, aliasing), compile each new distinction where nothing depends on what it compares
+  documents, aliasing), compile each new distinction where what it compares ignores its property
   (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#distinction-where-nothing-depends`),
   and grep for mutable globals and layering breaks.
 - **Why.** Three rounds that took their agenda from the PR body found only body defects. A fourth
@@ -38,7 +38,7 @@ defect, keep a `main` control.
 
 - **Rule.** Before the first finding, list the change's claim classes and check every member: each
   name against the tree, citation against the item it cites, no claim resting on an open PR's head
-  (`gh pr view <N> --json state`), statement about `main`'s code, library statement against its
+  (`gh pr view <N> --json state,headRefOid`), statement about `main`'s code, library statement against its
   `docs/parser-library.md` entry, quoted command run from the root, script run in each context (a
   subdirectory, each platform branch), body sentence on the final tree, each construct a rule
   settles (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule

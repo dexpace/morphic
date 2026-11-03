@@ -65,19 +65,19 @@ it.
 - **Probe.** Feed each guard an input it cannot classify, assert every glob matches a file, fail
   when no comparison ran, and rename a fixture.
 
-## Probe a new distinction where nothing depends on what it compares
+## Probe a new distinction where what it compares ignores its property
 `distinction-where-nothing-depends`
 
-- **Rule.** A check telling two things apart by a property (a base, scope or version) matters
-  only where what it compares depends on that property, as text does on a base only through a
-  reference. Compile one of its fixtures with the dependent deleted, and moved outside what it
-  compares, on `origin/main` and the branch: documents and diagnostics match unless the change says
-  why not. The probe passes on `main` by design, so its control is a build whose check fires
-  without the dependency, which must differ (`references/differentials.md#planted-control`). Each
-  form's test row keeps the match.
-- **Why.** #1406's base checks at a4dda68a fired on text under another `$id`, and every spec testing
-  them wrote a `$ref`: types lost the `minLength` of an `allOf` branch writing none, and the
-  `description` of one whose `$ref` sat in `properties`.
+- **Rule.** A check telling two things apart by a property matters only where what it compares
+  depends on that property, as text does on a base only through a relative reference. Compile a
+  fixture with the dependent deleted, moved outside what it compares, and made inert (an absolute
+  `$ref`), on `origin/main` and the branch: documents and diagnostics match unless the change says
+  why not. The probe matches `main` by design, so its control is a build whose check fires without
+  the dependency, which must differ (`references/differentials.md#planted-control`). Test rows
+  pin each form.
+- **Why.** #1406's checks at a4dda68a fired on text under another `$id`, and every spec testing them
+  wrote a `$ref`: types lost the `minLength` of an `allOf` branch writing none, and the
+  `description` of one whose `$ref` sat in `properties` or, at 1855a63f9, was absolute.
 
 ## Assert diagnostics by code, severity and subject, and the whole list
 `assert-diagnostics-by-identity-and-completely`
