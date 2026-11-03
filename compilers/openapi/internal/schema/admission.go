@@ -529,13 +529,15 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	at, placed := w.c.Bindings().Site(a)
 	bt, placedB := w.c.Bindings().Site(b)
-	base, known := w.c.Bindings().Table().Base(at)
-	other, knownB := w.c.Bindings().Table().Base(bt)
-	if !placed || !placedB || !known || !knownB || base != other {
+	text := w.text(a)
+	if !placed || !placedB || text == nil || !bytes.Equal(text, w.text(b)) {
 		return false
 	}
-	text := w.text(a)
-	return text != nil && bytes.Equal(text, w.text(b))
+	// The texts are remembered, so comparing them first leaves a base, which
+	// walks the document, to the rare pair written alike.
+	base, known := w.c.Bindings().Table().Base(at)
+	other, knownB := w.c.Bindings().Table().Base(bt)
+	return known && knownB && base == other
 }
 
 // textOf keys what text rendered of one schema.

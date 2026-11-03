@@ -136,9 +136,10 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	n := len(comp.branches)
 	out := voicing{speaks: make([]bool, n), lends: make([]bool, n), rebased: make([]bool, n)}
 	writes := make([][]string, n)
+	ids := idWrappers(comp)
 	for i, e := range comp.branches {
 		if bs := e.schema.GetSchema(); bs != nil && isInlineBranch(e.schema) {
-			if out.rebased[i] = !readsAtPosition(c, e); !out.rebased[i] {
+			if out.rebased[i] = underID(e, bs, ids) && !readsAtPosition(c, e); !out.rebased[i] {
 				writes[i] = a.write(bs)
 			}
 		}
@@ -154,6 +155,27 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 		}
 	}
 	return out
+}
+
+// idWrappers returns where the flattened wrappers of comp writing an $id are,
+// each an $id that may give what it holds another base than the position's.
+func idWrappers(comp allOfComposition) []string {
+	var out []string
+	for _, e := range comp.branches {
+		if e.wrapper && annotation.RawPropertyNode(e.schema.GetSchema(), "$id") != nil {
+			out = append(out, string(e.pointer)+"/")
+		}
+	}
+	return out
+}
+
+// underID reports whether bs, the inline allOf branch e, or a wrapper holding
+// it writes an $id. Only such an $id can give the branch another base than the
+// position holding the allOf, so a branch under none reads at the position
+// without a base being looked up.
+func underID(e allOfBranch, bs *oas3.Schema, wrappers []string) bool {
+	return annotation.RawPropertyNode(bs, "$id") != nil ||
+		slices.ContainsFunc(wrappers, func(w string) bool { return strings.HasPrefix(string(e.pointer), w) })
 }
 
 // readsAtPosition reports whether the inline allOf branch e reads its $refs

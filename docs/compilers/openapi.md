@@ -2010,8 +2010,10 @@ the body's own `type`, so repeating the body never changes a verdict:
    `$schema`, `$vocabulary` and any keyword of no vocabulary.
 
 A branch declaring shape falls to the five shapes above. The body is read within the bounds of
-[`allof-refinement`](#allof-refinement), and a read that does not finish says nothing, so its union
-is judged as one whose branches declare shape.
+[`allof-refinement`](#allof-refinement), and only as far as a branch needs: a branch writing only
+keywords point 1 names reads none of it, and the declarations of what a schema nests are read only
+where it nests something. A read that does not finish says nothing, so its union is judged as one
+whose branches declare shape.
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
   `keywords-at-every-outcome`, `union-restated-branches`

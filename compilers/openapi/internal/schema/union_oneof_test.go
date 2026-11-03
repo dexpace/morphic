@@ -1256,24 +1256,55 @@ func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T)
 // TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape holds a union whose
 // body is read past a budget to the degraded lowering, whatever its branches
 // write: a reading cut short says nothing, and a value set cut short would
-// otherwise read as admitting nothing, which every keyword restates.
+// otherwise read as admitting nothing, which every keyword restates. What a
+// verdict does not need is not read, so it spends nothing: a branch writing
+// only what is judged without the body leaves it unread, and one, or a property
+// it writes, nesting nothing reads no declarations below it, each row one an
+// eager read reddens.
 func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 	t.Parallel()
 	members := make([]string, schema.MaxAdmissionMembers+1)
 	for i := range members {
 		members[i] = fmt.Sprintf("m%d", i)
 	}
-	conjuncts := strings.Repeat("{description: c}, ", schema.MaxAdmissionReads)
-	for name, tc := range map[string]struct{ schema, why string }{
+	conjuncts := "      allOf: [" + strings.Repeat("{description: c}, ", schema.MaxAdmissionReads) + "{description: c}]\n"
+	// 80 conjuncts, 62 declaring `a`: reading what `a` nests would take the
+	// verdict past the read budget, which reading only what it needs does not.
+	var elsewhere string
+	for i := range 18 {
+		elsewhere += fmt.Sprintf("{properties: {z%d: {type: string}}}, ", i)
+	}
+	for name, tc := range map[string]struct {
+		schema string
+		reason ir.UnmodeledReason
+		why    string
+	}{
 		"ConjunctsPastTheReadBudget": {
-			"      type: object\n      properties: {a: {type: string}}\n" +
-				"      allOf: [" + conjuncts + "{description: c}]\n      oneOf: [{required: [a]}]\n",
-			"a branch is written inline",
+			"      type: object\n      properties: {a: {type: string}}\n" + conjuncts +
+				"      oneOf: [{type: object, required: [a]}]\n",
+			ir.ReasonDegradedLowering, "a branch is written inline",
 		},
 		"TypeAgainstAValueSetPastTheMemberBudget": {
 			"      type: string\n      enum: [" + strings.Join(members, ", ") + "]\n" +
 				"      oneOf: [{type: integer}]\n",
-			"the body is not a model",
+			ir.ReasonDegradedLowering, "the body is not a model",
+		},
+		"PropertyNestingNothingReadsNoNestedDeclarations": {
+			"      type: object\n      properties: {a: {type: string}}\n      allOf: [" + elsewhere +
+				strings.Repeat("{properties: {a: {type: string}}}, ", 61) + "{properties: {a: {type: string}}}]\n" +
+				"      oneOf: [{required: [a], properties: {a: {type: string, minLength: 1}}}]\n",
+			ir.ReasonValidationOnly, "",
+		},
+		"TypeReadsNoDeclarations": {
+			"      type: object\n      properties: {a: {type: string}}\n      allOf: [" +
+				strings.Repeat("{description: c}, ", 199) + "{description: c}]\n" +
+				"      oneOf: [{type: object, required: [a]}]\n",
+			ir.ReasonValidationOnly, "",
+		},
+		"BareBranchLeavesTheBodyUnread": {
+			"      type: object\n      properties: {a: {type: string}}\n" + conjuncts +
+				"      oneOf: [{required: [a]}]\n",
+			ir.ReasonValidationOnly, "",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -1283,10 +1314,12 @@ func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 
 			entry, ok := typeByName(doc, "S").Common().Unmodeled["openapi:oneOf"]
 			require.True(t, ok, "the union is kept verbatim")
-			assert.Equal(t, ir.ReasonDegradedLowering, entry.Reason)
-			assert.Contains(t,
-				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
-				tc.why)
+			assert.Equal(t, tc.reason, entry.Reason)
+			if tc.why != "" {
+				assert.Contains(t,
+					openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S"),
+					tc.why)
+			}
 		})
 	}
 }
