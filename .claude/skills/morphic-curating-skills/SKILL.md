@@ -19,8 +19,8 @@ Take the first that fits.
 3. **A rule in a skill.** Add it to a reference of the narrowest skill whose trigger fires when
    the lesson applies. If none does, widen a description or add a skill: a rule no trigger
    reaches is never read.
-4. **Not in the repository.** A fact about one machine, shell or person stays out of
-   `.claude/skills`.
+4. **Not in the repository.** A fact about one machine or person stays out; a shell's documented
+   default may stand where a command depends on it.
 
 List the skills with `grep -h '^description:' .claude/skills/*/SKILL.md`, not a hand list.
 
@@ -48,9 +48,9 @@ Probe asks. Cite a rule as `references/<file>.md#<key>`, from another skill by i
   `https://agentskills.io/specification`.
 - A reference file stays within 4,000 words. A full file takes a new rule only by merging or
   removing one.
-- Everything works from a fresh clone and names no machine. Paths start at the repository root,
-  bar those inside the skill's folder, and commands run from the root. Write paths in code
-  spans, where the lint holds each to the tree.
+- Everything works from a fresh clone. Paths start at the repository root, bar those inside the
+  skill's folder, and commands run from the root. Write paths in code spans, where the lint holds
+  each to the tree.
 - Scripts are executable Python 3.14, standard library only, each with a `test_<name>.py` beside it.
   Run a skill's tests with `python3.14 -m unittest discover -s .claude/skills/<skill>/scripts`.
 
@@ -59,6 +59,6 @@ Probe asks. Cite a rule as `references/<file>.md#<key>`, from another skill by i
 - Run `python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py` after every edit.
   The gate does not run it; the push checklist does.
 - After changing a rule's Why, confirm each item it cites is the work its clause describes.
-- A lesson a skill holds that failed again means the skill failed: sharpen its wording or trigger,
-  not add a copy.
+- A lesson that failed again means its skill failed: sharpen the wording or trigger, not add a
+  copy.
 - Skill changes ship like code, titled like `chore(skills): <subject>`.
