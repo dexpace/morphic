@@ -40,8 +40,8 @@ defect, keep a `main` control.
   settles (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
   (`references/review-probes.md#edited-rule-against-its-neighbours`). A class checked by sample is
   reported unreviewed, never clean.
-- **Why.** #1143's review took nine rounds, each sampling a class, leaving a misattribution
-  unread. Two Whys' counts rested on moving open PRs (#1409).
+- **Why.** #1143's review took nine rounds, each sampling a class, as a misattribution sat
+  unsampled. Two Whys' counts rested on moving open PRs (#1409).
 - **Probe.** The report gives each class and the members checked; fewer than its size is a round
   still open.
 
