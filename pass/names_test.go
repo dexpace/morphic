@@ -61,6 +61,8 @@ func withTypes(types ...ir.TypeDef) *ir.Document {
 	return doc
 }
 
+// TestNames_ReportsEachScope runs each case many times: a scope read from a map
+// in the map's order rather than by ID differs only in some runs.
 func TestNames_ReportsEachScope(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct {
@@ -86,9 +88,11 @@ func TestNames_ReportsEachScope(t *testing.T) {
 			{ID: "param/a", Name: named("account_id")}, {ID: "param/b", Name: named("limit")}, {ID: "param/c", Name: named("accountId")}}}}}),
 			[]ir.Diagnostic{collision("op",
 				`in operation op, parameters param/a ("account_id") and param/c ("accountId") share the neutral name "account_id"`)}},
-		{"declared types", withTypes(
+		{"declared types, past those left out", withTypes(
 			&ir.Model{ID: "t/b", Name: named("pet")},
-			&ir.Enum{ID: "t/a", Name: named("Pet")}),
+			&ir.Enum{ID: "t/a", Name: named("Pet")},
+			&ir.Model{ID: "t/0", Anonymous: true, Name: hinted("pet")},
+			&ir.Primitive{ID: "t/1", Name: named("pet"), Prim: ir.PrimString}),
 			[]ir.Diagnostic{collision("doc", `types t/a ("Pet") and t/b ("pet") share the neutral name "pet"`)}},
 		{"a model's properties", withTypes(&ir.Model{ID: "t/m", Anonymous: true, Name: hinted("m"),
 			Properties: []ir.Property{{ID: "p/a", Name: named("userId")}, {ID: "p/b", Name: named("user_id")}}}),
@@ -126,7 +130,11 @@ func TestNames_ReportsEachScope(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Empty(t, cmp.Diff(tt.want, namesOf(t, tt.doc)))
+			for range 16 {
+				if !assert.Empty(t, cmp.Diff(tt.want, namesOf(t, tt.doc))) {
+					break
+				}
+			}
 		})
 	}
 }
