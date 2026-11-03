@@ -40,14 +40,15 @@ git diff origin/main...HEAD -- ':!go.sum' | grep '^+' | grep -niE "$pat"
 `go.sum`'s hashes stay out. Grep the PR's own text the same way
 (`gh pr view N --json title,body --jq '.title, .body'`).
 
-Once every hit is fixed or justified, push behind the two checks that exit 1 on a hit. The lint
-exits on a name a skill uses that this branch leaves naming nothing, and the subject check on the
+Once every hit is fixed or justified, push behind the two checks that exit 1 on a hit: the lint
+on any finding, such as a name this branch leaves naming nothing, and the subject check on the
 title or a commit subject breaking `references/commits-and-prs.md#commit-and-pr-message-form` as it
-lands, measured with ` (#N)` only where the squash appends it.
+lands. `<title>` serves until the PR opens.
 
 ```bash
+t=$(gh pr view N --json title --jq .title 2>/dev/null) || t="<title>"
 python3.14 .claude/skills/morphic-curating-skills/scripts/skills_lint.py &&
-  python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py N "<title>" && git push origin HEAD
+  python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py N "$t" && git push origin HEAD
 ```
 
 ## Merging main in
