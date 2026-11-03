@@ -1794,12 +1794,12 @@ boolean entry, whose `false` is [`allof-false-branch`](#allof-false-branch)'s to
 landing on no schema, and a composition only `enum`, `const`, `format`, `oneOf` or `anyOf` empties.
 A keyword beside a `$ref` entry states nothing either: OpenAPI 3.0 ignores it, and reading it from
 3.1 on, where it applies, is left open, so `{allOf: [{$ref: Str, type: object}]}` draws no report at
-any version. A conjunct whose own `allOf` empties what it states also states nothing here, which is
-what keeps a schema composing a reported one from drawing a second report; the cost is a miss where
-nothing reports it, as for a conjunct admitting only a null its own entries share, or one nested
-past `MaxAllOfFlattenDepth`. An `allOf` that does not compose, one beside a `$ref`
-([`allof-beside-ref`](#allof-beside-ref)) or passed over for a `const` or `enum`
-([`competing-keywords`](#competing-keywords)), is not read.
+any version. A conjunct writing an `allOf` also states nothing here where its `type` and its entries
+leave at most a null, which is what keeps a schema composing a reported one from drawing a second
+report; the cost is a miss where nothing reports it, as for a conjunct admitting only a null its own
+entries share or a `type: "null"` beside them, or one nested past `MaxAllOfFlattenDepth`. An
+`allOf` that does not compose, one beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) or
+passed over for a `const` or `enum` ([`competing-keywords`](#competing-keywords)), is not read.
 
 - Cases: `allof-disjoint-conjuncts`
 - Codes: `openapi/degraded-construct`

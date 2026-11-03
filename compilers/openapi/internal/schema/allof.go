@@ -160,8 +160,9 @@ func stackPath(buf []int, stack []allOfFrame) []int {
 type allOfComposition struct {
 	pointer  jsontext.Pointer
 	branches []allOfBranch
-	// disjoint names what each conjunct states where they share no value, and is
-	// nil otherwise (readAllOf).
+	// disjoint names what each conjunct states where the schema draws the
+	// warning docs/compilers/openapi.md#allof-disjoint-conjuncts describes, and
+	// is nil otherwise (readAllOf).
 	disjoint []string
 	// speaks marks each branch that folds at the position (voicesAmong). It is nil
 	// for a composition distributed across a union, whose variants each keep every
@@ -401,7 +402,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 // contradicts. Any other residue only narrows a model the IR describes correctly,
 // the under-constrained case (docs/compilers/openapi.md#allof-inline-residue).
 // split says the conjuncts disagreed on what the branch writes, so it did not
-// fold. disjoint says they share no value, the schema's to report, so this
+// fold. disjoint says the schema reports its conjuncts share no value, so this
 // reports residue alone.
 func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch, split, disjoint bool) ir.Diagnostic {
 	if branchExcludesObject(bs) && !disjoint {

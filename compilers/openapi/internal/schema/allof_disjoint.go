@@ -86,10 +86,11 @@ type conjunctTypes struct {
 	steps budget.Budget
 }
 
-// schema is what s admits: its `type` conjoined with its allOf's entries. An
-// allOf that shares no value says nothing here, which keeps a schema composing
-// a reported one from drawing a second report. Where nothing reports it, as for
-// a null its own entries share, that is a miss.
+// schema is what s admits: its `type` conjoined with its allOf's entries. A
+// schema writing an allOf says nothing here where that conjunction leaves at
+// most a null, which keeps a schema composing a reported one from drawing a
+// second report. Where nothing reports it, as for a null its own entries share
+// or a `type: "null"` beside them, that is a miss.
 func (r *conjunctTypes) schema(s *oas3.Schema) kindSet {
 	if s == nil || !r.steps.Spend(1) {
 		return anyInstance
