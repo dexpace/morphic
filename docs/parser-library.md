@@ -502,10 +502,7 @@ pairs merged in come first, in the order their sources are written, an earlier s
 two share and none overriding a key the mapping writes itself; the mapping's own pairs follow. A
 source that writes a key twice gives its first copy, where the mapping itself gives its last
 ([`duplicate-key`](#duplicate-key)). A `<<` naming anything but a mapping or a list of mappings
-merges nothing, and nothing reports it. `yml.EqualNodes` follows aliases but otherwise compares nodes
-as written: kind, tag, value and children in order, a `<<` as a key like any other. So a mapping that
-merges a pair and one that writes it compare unequal, as do two writing the same keys in another
-order, or one value spelled two ways, such as `~` and `null`.
+merges nothing, and nothing reports it.
 
 ```yaml
 x-base: &base {k: {type: string}, z: {type: string}}

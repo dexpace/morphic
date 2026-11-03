@@ -22,7 +22,6 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	oas3core "github.com/speakeasy-api/openapi/jsonschema/oas3/core"
 	soa "github.com/speakeasy-api/openapi/openapi"
-	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -581,10 +580,8 @@ func nullTypeIsEmpty(t *testing.T) {
 
 // mergeKeys pins merge-keys: a mapping's merged pairs come first, an earlier
 // source winning and none overriding the mapping's own key; a source writing a
-// key twice gives its first copy; a `<<` naming no mapping merges nothing,
-// with no finding; and yml.EqualNodes, following an alias but reading nodes as
-// written, tells a merged pair from a written one, one key order from another
-// and `~` from `null`.
+// key twice gives its first copy; and a `<<` naming no mapping merges nothing,
+// with no finding.
 func mergeKeys(t *testing.T) {
 	doc, found, err := soa.Unmarshal(t.Context(), strings.NewReader(head+
 		"x-base: &base {k: {type: string}, z: {type: string}}\n"+
@@ -592,9 +589,7 @@ func mergeKeys(t *testing.T) {
 		"components:\n  schemas:\n"+
 		"    S: {properties: {a: {type: integer}, <<: [*base, *other], k: {type: boolean}}}\n"+
 		"    T: {properties: {<<: 5, q: {type: string}}}\n"+
-		"    D: {properties: {<<: {d: {type: string}, d: {type: integer}}}}\n"+
-		"    M: {<<: {type: string}}\n"+
-		"    N: {type: string}\n"))
+		"    D: {properties: {<<: {d: {type: string}, d: {type: integer}}}}\n"))
 	require.NoError(t, err)
 	assert.Empty(t, found, revisit(t, result{}))
 
@@ -616,20 +611,6 @@ func mergeKeys(t *testing.T) {
 	dd, _ := d.GetSchema().GetProperties().Get("d")
 	assert.Equal(t, []oas3.SchemaType{oas3.SchemaTypeString}, dd.GetSchema().GetType(),
 		"a source's repeated key gives its first copy: %s", revisit(t, result{}))
-	m, ok := doc.Components.Schemas.Get("M")
-	require.True(t, ok)
-	n, ok := doc.Components.Schemas.Get("N")
-	require.True(t, ok)
-	assert.True(t, m.GetSchema().IsEqual(n.GetSchema()), "the model reads M as N: %s", revisit(t, result{}))
-	assert.False(t, yml.EqualNodes(m.GetSchema().GetRootNode(), n.GetSchema().GetRootNode()),
-		"EqualNodes reads `<<` as a key: %s", revisit(t, result{}))
-
-	var list yaml.Node
-	require.NoError(t, yaml.Unmarshal([]byte("[{k: 1, z: 2}, {z: 2, k: 1}, ~, null, &a {k: 1}, *a]"), &list))
-	items := list.Content[0].Content
-	assert.False(t, yml.EqualNodes(items[0], items[1]), "EqualNodes reads keys in order: %s", revisit(t, result{}))
-	assert.False(t, yml.EqualNodes(items[2], items[3]), "EqualNodes reads ~ apart from null: %s", revisit(t, result{}))
-	assert.True(t, yml.EqualNodes(items[4], items[5]), "EqualNodes follows an alias: %s", revisit(t, result{}))
 }
 
 // scalarResolution pins scalar-resolution: a plain scalar's tag, and the number

@@ -48,11 +48,10 @@ canary. A behaviour found that the page lacks is added there.
 `compare-raw-nodes`
 
 - **Rule.** `Schema.IsEqual` reads the model, which misses keywords
-  (`docs/parser-library.md#unmodeled-keywords`), so compare the raw nodes'
-  `annotation.RawFromNode` renderings, which read merges as the parser does and sort keys, a failed
-  one unequal to all, as far as text decides
-  (`references/openapi-lessons.md#text-decides-under-one-base`). `yml.EqualNodes` tells apart more
-  still (`docs/parser-library.md#merge-keys`).
+  (`docs/parser-library.md#unmodeled-keywords`), and `yml.EqualNodes` the nodes as written, so
+  compare the raw nodes' `annotation.RawFromNode` renderings, which read merges as the parser does
+  and sort keys, a failed one unequal to all, as far as text decides
+  (`references/openapi-lessons.md#text-decides-under-one-base`).
 - **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
   restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the
   body's property through `<<` or in another key order.
