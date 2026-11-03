@@ -6,6 +6,8 @@ package exectest_test
 import (
 	"context"
 	"fmt"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -25,7 +27,7 @@ type fatalTB struct {
 	testing.TB
 }
 
-func (s *fatalTB) Fatal(args ...any) { panic(fatal(fmt.Sprint(args...))) }
+func (*fatalTB) Fatal(args ...any) { panic(fatal(fmt.Sprint(args...))) }
 
 // values returns the value of every entry env gives key, in order.
 func values(env []string, key string) []string {
@@ -69,15 +71,21 @@ func TestCommand_ACoveredChildWritesToADirectoryOfItsOwn(t *testing.T) {
 func TestCommand_AppendsEnvToThisEnvironmentWithoutPWD(t *testing.T) {
 	t.Setenv("PWD", "/nowhere")
 	t.Setenv("GOCOVERDIR", "/parent")
-	t.Setenv("EXECTEST_KEPT", "1")
+	// Keys sharing a prefix or a suffix with those two, and an empty value,
+	// are entries like any other.
+	t.Setenv("OLDPWD", "/old")
+	t.Setenv("PWD_KEPT", "1")
+	t.Setenv("GOCOVERDIR_KEPT", "1")
+	t.Setenv("EXECTEST_EMPTY", "")
+	kept := slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		key, _, _ := strings.Cut(kv, "=")
+		return key == "PWD" || key == "GOCOVERDIR"
+	})
 
 	env := exectest.Command(t.Context(), t, []string{"A=1"}, "x").Env()
 
-	assert.Empty(t, values(env, "PWD"))
-	assert.NotContains(t, values(env, "GOCOVERDIR"), "/parent")
-	assert.Equal(t, []string{"1"}, values(env, "EXECTEST_KEPT"))
-	require.GreaterOrEqual(t, len(env), 2)
-	assert.Equal(t, "A=1", env[len(env)-2])
+	require.NotEmpty(t, env)
+	assert.Equal(t, append(kept, "A=1"), env[:len(env)-1])
 }
 
 // TestCommand_DiscardsTheChildsDirectory pins that the child's coverage
@@ -104,7 +112,7 @@ func TestCmd_EnvReturnsACopy(t *testing.T) {
 	env := cmd.Env()
 	env[len(env)-1] = "GOCOVERDIR=/parent"
 
-	assert.NotContains(t, values(cmd.Env(), "GOCOVERDIR"), "/parent")
+	assert.NotContains(t, values(cmd.Environ(), "GOCOVERDIR"), "/parent")
 }
 
 // TestCommand_BindsTheCommandLineAndTheContext pins that the command runs name

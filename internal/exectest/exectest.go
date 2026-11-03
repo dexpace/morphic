@@ -26,7 +26,7 @@ type execCmd = exec.Cmd
 // can assign it.
 type Cmd struct{ *execCmd }
 
-// Env returns a copy of the list Command built the child's environment from.
+// Env returns a copy of the list the child's environment is built from.
 // Where a key repeats, the child sees its last value, as Environ reports.
 func (c *Cmd) Env() []string { return slices.Clone(c.execCmd.Env) }
 
