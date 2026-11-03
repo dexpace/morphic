@@ -52,7 +52,7 @@ canary. A behaviour found that the page lacks is added there.
   (`references/openapi-lessons.md#text-decides-under-one-base`), not by `Schema.IsEqual`, whose
   model misses keywords (`docs/parser-library.md#unmodeled-keywords`), or `yml.EqualNodes`. In
   `schema`, call `sameText` in `compilers/openapi/internal/schema/admission.go`, which renders each
-  schema once a run (#1408 tracks its base check); elsewhere, render each node once.
+  schema once a run; elsewhere, render each node once.
 - **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
   restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the
   body's property through `<<` or in another key order.
@@ -63,14 +63,17 @@ canary. A behaviour found that the page lacks is added there.
 ## Trust a comparison of text only as far as text decides
 `text-decides-under-one-base`
 
-- **Rule.** Text alike names one schema only under one base URI, since a relative `$ref` resolves
-  against it, and text apart can name one schema, as a `$ref` and its target do. Trust a textual
-  "equal" only for two nodes read against one base, and its "unequal" only where a false one errs
-  safely.
+- **Rule.** Text alike writing a `$ref` or `$dynamicRef` (`annotation.WritesReference`) names one
+  schema only under one base URI, which a relative one resolves against; text writing neither says
+  the same under any. Text apart can name one schema, as a `$ref` and its target do. So trust a
+  textual "equal" of text writing one only under one base, and an "unequal" only where a false one
+  errs safely.
 - **Why.** Inline `allOf` branches under different `$id` bases fold a keyword they spell alike
-  (#1408).
+  (#1408), and checking the base of text writing no `$ref` kept a bound out of `Constraints`
+  (#1406).
 - **Probe.** In #1408's spec, `S` spells a `$ref` alike under two bases where `T` spells one
-  absolutely: a comparison holding the rule lowers the two alike.
+  absolutely: a comparison holding the rule lowers the two alike, and each as `main` does with the
+  `$ref` deleted.
 
 ## Moving work out of the library moves its duties
 `library-duties`
