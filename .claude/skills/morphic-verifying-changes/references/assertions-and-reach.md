@@ -75,7 +75,7 @@ it.
   why not. The probe passes on `main` by design, so its control is a build whose check fires
   without the dependency, which must differ (`references/differentials.md#planted-control`). Each
   form's test row keeps the match.
-- **Why.** While #1406's `$id` base checks fired on any text under another `$id`, every spec testing
+- **Why.** #1406's base checks at a4dda68a fired on text under another `$id`, and every spec testing
   them wrote a `$ref`: types lost the `minLength` of an `allOf` branch writing none, and the
   `description` of one whose `$ref` sat in `properties`.
 

@@ -15,8 +15,9 @@ defect, keep a `main` control.
   and grep for mutable globals and layering breaks.
 - **Why.** Three rounds that took their agenda from the PR body found only body defects. A fourth
   that read the new file found two code defects in it (#340). Each mutant #1153 listed reddened a
-  test, while dropping an argument its new code passed reddened none. Mutants #1406 listed
-  reddened tests too, and its suite passed while its new checks fired on text writing no `$ref`.
+  test, while dropping an argument its new code passed reddened none. At #1406's a4dda68a its
+  listed mutants reddened tests too, and its suite passed while its new checks fired on text
+  writing no `$ref`.
 
 ## Weigh a change's design against the alternatives it gave up
 `weigh-against-alternatives`
@@ -36,7 +37,7 @@ defect, keep a `main` control.
 `sweep-each-claim-class`
 
 - **Rule.** Before the first finding, list the change's claim classes and check every member: each
-  name against the tree, citation against the item it cites, no count resting on an open PR
+  name against the tree, citation against the item it cites, no claim resting on an open PR's head
   (`gh pr view <N> --json state`), statement about `main`'s code, library statement against its
   `docs/parser-library.md` entry, quoted command run from the root, script run in each context (a
   subdirectory, each platform branch), body sentence on the final tree, each construct a rule
@@ -44,21 +45,22 @@ defect, keep a `main` control.
   (`references/review-probes.md#edited-rule-against-its-neighbours`). A class checked by sample is
   reported unreviewed, never clean.
 - **Why.** #1143's review took nine rounds, each sampling a class, as a misattribution sat
-  unsampled. Two Whys' counts rested on moving open PRs (#1409).
-- **Probe.** The report gives each class and the members checked; fewer than its size is a round
-  still open.
+  unsampled. Whys pinned claims to moving open PRs (#1409, #1425).
+- **Probe.** The report gives each class and the members checked; fewer than all is a round still
+  open.
 
-## Read an edited rule against the rules governing the same act
+## Read an edited rule against those on its acts and constructs
 `edited-rule-against-its-neighbours`
 
 - **Rule.** For a change to `.claude/skills` or `CLAUDE.md`, name the acts each edited rule governs
-  (commit, push, merge, review, plant a mutant), grep both for the other rules governing each act,
-  and read each pair for an instruction one gives and the other forbids, keeping the best of both
+  (commit, push, review) and constructs it names, grep both for other rules on each, and
+  read each pair for an instruction one gives and the other forbids, keeping the best of both
   where they do. A script finds a pair but not a conflict, so this stays a reader's.
-- **Why.** Two rules one PR edited each held against the tree, while one gated a push on reading
-  what a checklist printed and the other on an exit status in the same command (#1153, #1160).
-- **Probe.** The report lists each edited rule, its acts and the rules read against it; a rule with
-  none is a round still open.
+- **Why.** Two rules a PR edited held against the tree, while one gated a push on reading a
+  checklist's output and the other on its exit status in one command (#1153, #1160). A search by
+  act missed a rule on the same construct (#1426).
+- **Probe.** The report lists each edited rule, its acts and constructs and the rules read against
+  it; a rule with none is a round still open.
 
 ## Try to disprove a finding before reporting it
 `disprove-each-finding`
@@ -115,8 +117,8 @@ defect, keep a `main` control.
 
 - **Rule.** When asked to post, write one comment per defect, naming the rule it breaks, and link
   code by full SHA, as a line on a moving branch drifts. Offer a committable suggestion only if it
-  fixes the defect alone, passes the checks it touches and breaks no rule governing the same act:
-  otherwise describe the fix.
+  fixes the defect alone, passes the checks it touches and breaks no rule on the same act or
+  construct: otherwise describe the fix.
 - **Why.** A suggested Probe said to delete a hit in a commit body, which a pushed branch cannot do,
   and a suggested regex missed a generic no test row held (#1169).
 - **Probe.** Apply each suggestion in a throwaway worktree, run the checks it touches, and give it
