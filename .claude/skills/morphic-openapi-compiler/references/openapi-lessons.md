@@ -55,8 +55,8 @@ canary. A behaviour found that the page lacks is added there.
   restated-branch check, comparing raw nodes, widened the schema package's allowlist with no rule
   saying whether a `nodeview` wrapper should have stood instead.
 - **Probe.** Run the comparison on two schemas differing only in `dependentRequired`, and on
-  `{<<: {type: string}}` beside `{type: string}`: the first pair differs, and the second matches or
-  takes the answer that errs safely.
+  `{<<: {type: string, description: d}}` beside `{type: string, description: d}`: the first pair
+  differs, and the second matches or takes the answer that errs safely.
 
 ## Moving work out of the library moves its duties
 `library-duties`
