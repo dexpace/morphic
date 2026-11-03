@@ -174,3 +174,34 @@ components:
 		})
 	}
 }
+
+// TestBodyFile_ReadsKeywordsBesideA30Ref holds the reading beside a $ref to
+// every version: a 3.0 document's keywords beside a $ref are read as the
+// schema lowering reads them, so a format there keeps a body from being a file
+// and a description does not.
+func TestBodyFile_ReadsKeywordsBesideA30Ref(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		beside string
+		file   bool
+	}{
+		{"format: byte", false},
+		{"description: The bytes.", true},
+	} {
+		t.Run(tc.beside, func(t *testing.T) {
+			t.Parallel()
+			doc, _ := streamingSpec(t, openapitest.PathsSpecVer("3.0.3", `  /f:
+    put:
+      operationId: f
+      requestBody:
+        content:
+          application/octet-stream: {schema: {$ref: '#/components/schemas/Opaque', `+tc.beside+`}}
+      responses: {"204": {description: ok}}
+components:
+  schemas:
+    Opaque: {description: Says nothing}
+`), openapi.Options{})
+			assert.Equal(t, tc.file, openapitest.FindOp(t, doc, "f").Request.Contents[0].File != nil)
+		})
+	}
+}

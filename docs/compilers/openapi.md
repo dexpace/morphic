@@ -3081,9 +3081,10 @@ type. It leaves the media type to say where it is absent, `true`, or writes no k
 `examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
 the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
-where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since from 3.1
-such a keyword holds with what the `$ref` names; a chain is followed up to a bound of its own, and
-one longer says the body is something else. Such a body is a declared file on
+where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
+keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering reads one
+([`later-version-construct`](#later-version-construct)); a chain is followed up to a bound of its
+own, and one longer says the body is something else. Such a body is a declared file on
 `application/octet-stream`, matched on the normalized key ([`media-types`](#media-types)), since RFC
 2046 defines that type as arbitrary octets, and a file the binary policy reads on a media type it
 names ([`binary-media`](#binary-media)), where `FileInfo.Inferred` is `binary-media-type`. Any other
@@ -3103,7 +3104,8 @@ response and an error case.
   `operation.TestContent_ARefinedBinaryBodyIsAFile`,
   `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`,
   `operation.TestBodyFile_ReadsTheSchemaAndTheMediaType`,
-  `operation.TestBodyFile_ReadsAChainOfRefsUpToItsBound`
+  `operation.TestBodyFile_ReadsAChainOfRefsUpToItsBound`,
+  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`
 
 ### `binary-media`
 

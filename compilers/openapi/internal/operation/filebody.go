@@ -88,9 +88,10 @@ func readBranch(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileRea
 const maxFileRefHops = 64
 
 // besideRefsOpen reports whether each $ref on the chain from js writes beside it
-// only what a file's schema may (openKeyword), type aside: from 3.1 a keyword
-// beside a $ref holds with what the $ref names, so
-// `{$ref: X, contentEncoding: base64}` says a body is text where X says nothing.
+// only what a file's schema may (openKeyword), type aside: a keyword beside a
+// $ref holds with what the $ref names, beside a 3.0 $ref too as the schema
+// lowering reads one, so `{$ref: X, contentEncoding: base64}` says a body is
+// text where X says nothing.
 func besideRefsOpen(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) bool {
 	for range maxFileRefHops + 1 {
 		if js == nil || js.IsBool() || js.GetSchema().Ref == nil {
