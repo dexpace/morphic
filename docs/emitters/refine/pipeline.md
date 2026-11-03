@@ -29,7 +29,8 @@ type Ctx struct {
     Facts   *irfacts.Index      // read-only derived facts, the engine's one index (../contract/emitter.md)
     Plan    *plan.Plan          // read-only shared decisions
     Types   typemap.Table       // the merged type table (../contract/type-table.md), built from Options
-    Policy  policy.Policy        // read-only SDK runtime policy (../contract/runtime-policy.md)
+    Policy  policy.Resolved      // read-only SDK runtime policy, resolved per operation
+                                 // (../contract/runtime-policy.md#layers-and-operations)
     Naming  naming.Policy        // the target's casing engine over its options' naming tables
                                  // (INV4; naming.md)
     Hints   map[emitter.EntityID]emitter.ShapeHint

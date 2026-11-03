@@ -22,7 +22,12 @@ throughout these documents.
    silent `any` and never a panic, a fact outside M3's scope included ([what M3
    lowers](../milestones.md#what-m3-lowers)).
 8. **T-8 · Manifest ID-keying** — the entity→symbol map survives path/name churn.
-9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults.
+9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
+   at a document-wide setting and at an operation's, in every layer. A project's document-wide
+   setting beats a per-operation one the document embeds, an operation's own setting beats its
+   layer's document-wide one, an operation ID no operation has is reported, and an embedded value a
+   higher layer replaces draws an info naming both
+   ([layers](../contract/runtime-policy.md#layers-and-operations)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
@@ -58,8 +63,9 @@ throughout these documents.
     while an operation in another group moves to the shared unit exactly the types it makes a second
     group reach; under `SplitByGroup` the units' imports form no cycle, and groups whose names
     render alike, or as a name the units' scope reserves, get distinct units; a union with a variant
-    in another unit compiles; and every partition error and warning of [output
-    units](../refine/output-units.md) has a fixture that draws it.
+    in another unit compiles; two groups whose operations `AlsoMount` puts in each other's client
+    compile, the types those operations reach in the shared unit; and every partition error and
+    warning of [output units](../refine/output-units.md) has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
     members and the variants of a closed and of an inclusive union after every name each scope of
     [reserved names](../refine/reserved-names.md) reserves, after characters alone and after names
@@ -223,3 +229,50 @@ throughout these documents.
     body that gains the last name `Members` lists as a break
     ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes),
     [return shapes](../operations/returns.md)).
+33. **T-33 · Embedded policy and hints** — a mapping reading a key on the document, on a path item,
+    on an operation and on a parameter configures the document, each of that path item's operations,
+    that operation and that parameter's hint, a `hint` key at an OpenAPI document's root configures
+    its one service, and one reading an `out_of_scope` entry reads it as a `vendor_extension` one;
+    an operation's own key beats its path item's for one field, and two other keys setting one field
+    set it from neither; a key on a node it cannot configure, a tag's key the document holds, a
+    value of the wrong shape, a group named by words rather than its ID, a conflict and a key the
+    document holds under a reason the reader refuses are each reported under their codes, the entry
+    staying in `Unmodeled`; the default mapping reads nothing, and `Disabled` reads nothing however
+    the mapping is written ([embedded policy](../contract/embedded-policy.md)).
+34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it a
+    client setting, which every operation declaring it in that wire form sends unless the call gives
+    its own; a call with neither is refused unsent; an operation declaring it at another wire form
+    keeps it as an input and is reported once; a header setting fills a header two operations spell
+    in different letter case; a hint naming a parameter no operation declares is reported, as is one
+    at a location a setting cannot fill, such as `body`; a `host` label setting fills the host; no
+    parameter becomes a setting unless a hint names it, and the plan reports every candidate in one
+    info, the most used first ([client settings](../operations/client.md#client-settings)).
+35. **T-35 · Effects** — a declared `Idempotency` of each kind beats the binding, a `GET` with none
+    is safe and idempotent, a `PUT` and a `DELETE` idempotent, a `POST` neither, a `QUERY` safe and
+    idempotent, a method `additionalOperations` declares as the method registry records it and one
+    the registry does not list neither, a GraphQL `query` safe and idempotent and a `mutation`
+    neither, each derived one marked `Inferred`; turning `ProtocolEffects` off leaves every
+    undeclared operation neither; and on every target a request that got no response is sent again
+    for an idempotent operation and never for a `POST`, under the default `Retry.WhenUncertain`
+    ([effects](../plan/policy.md#an-operations-effects-come-from-its-binding)).
+36. **T-36 · Open enums and overlapping oneOfs** — on every target, a closed enum a response carries
+    decodes a value it does not list and re-encodes it as it came, its constants naming only the
+    listed members, while one only ever sent stays strict and turning `OpenEnums` off restores
+    strict decoding, one declaring a `FallbackMember` reads an unlisted value as that member, and an
+    open `Flags` enum keeps a bit no member names in its flags form; an enum declared open is `Open`
+    wherever it is used, with no `Inferred` mark. A `oneOf` of two string variants only their
+    `pattern`s tell apart decodes each value into the variant whose pattern it meets, in either
+    declaration order; a value both admit and meet decodes into the first, and under
+    `StrictExclusive` is a coded error, as is one both admit and neither meets ([plan
+    policy](../plan/policy.md#an-enum-a-client-reads-is-open),
+    [unions](../refine/unions.md#variant-identity-and-recognition)).
+37. **T-37 · Retries and redirects** — on every target, against the behavior server (T-14) and with
+    each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
+    a `POST`; a 500, a 502, a 504 and a request that got no response are sent again for a `PUT` and
+    never for a `POST`; a request whose body was a stream is not sent again after a 503; a
+    `Retry-After` is waited for up to `Backoff.Max`, and one past it returns the response. A 307
+    sends the method and body again, a 303 a `GET`, a 301 to a `DELETE` the `DELETE`, while a 302
+    the operation declares, a 301 to a `POST`, a 307 whose body was a stream, a redirect from
+    `https` to `http` and the redirect past `Redirects.Max` are returned as the response; a redirect
+    to another origin carries none of the client's credentials ([runtime
+    policy](../contract/runtime-policy.md#the-canonical-vocabulary)).
