@@ -232,16 +232,17 @@ and every diagnostic is true, located, and decided from what actually happened.
 ## Lower one construct at every position that can hold it
 `same-construct-at-every-position`
 
-- **Rule.** When a change lowers, keeps or reports a keyword at one schema position, enumerate each
-  position the spec allows: every key the `fields` table in
-  `compilers/openapi/internal/bind/grammar.go` maps to `sSchema`, `sSchemaMap` or `sSchemaList`,
-  with the schema written inline, as a `$ref` to a declaration and beside a `$ref`. Make each reach
-  the same path or record what it cannot carry.
-- **Why.** One construct lowered two ways by position, and parameter, header and nested-object
-  positions dropped keywords the property position kept (#149, #156).
+- **Rule.** When a change lowers, keeps or reports a keyword at one schema position, enumerate every
+  position: each key the `fields` table in `compilers/openapi/internal/bind/grammar.go` maps to
+  `sSchema`, `sSchemaMap` or `sSchemaList`, with the schema written inline, as a `$ref` to a
+  declaration, beside a `$ref`, and under an `$id` naming another base with its `$ref`s written
+  relative and absolute. Make each reach the same path or record what it cannot carry.
+- **Why.** Parameter, header and nested-object positions dropped keywords the property position
+  kept (#149, #156), and inline branches under two `$id` bases fold a keyword they spell alike
+  (#1408).
 - **Probe.** Compile one fixture writing the construct, with a sibling keyword and an `x-` key, at
   every position `grep -nE -B3 '(: |= )sSchema' compilers/openapi/internal/bind/grammar.go` lists,
-  and diff the IR and diagnostics per position.
+  and diff the IR and diagnostics per position and per spelling.
 
 ## Decide and test the combination when keywords co-occur
 `test-co-declared-keywords-together`
