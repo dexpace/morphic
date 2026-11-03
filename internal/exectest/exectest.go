@@ -30,11 +30,11 @@ func (c *Cmd) Env() []string { return slices.Clone(c.execCmd.Env) }
 
 // Command returns a command running name with args under ctx, in this
 // process's environment with env appended. PWD is left out, so it cannot
-// contradict a Dir the caller sets. When the test binary is built for
-// coverage, the child writes to a coverage directory of its own, which is
-// discarded: children sharing one race to rename the meta-data file the
-// runtime names from the clock. A statement only a child runs therefore needs
-// an in-process test as well.
+// contradict a Dir the caller sets. The child writes coverage to a directory
+// of its own, which is discarded: children sharing one race to rename the
+// meta-data file the runtime names from the clock, and a covered child given
+// none prints a warning. A statement only a child runs therefore needs an
+// in-process test as well.
 func Command(ctx context.Context, t testing.TB, env []string, name string, args ...string) *Cmd {
 	t.Helper()
 	if ctx == nil {
@@ -46,11 +46,8 @@ func Command(ctx context.Context, t testing.TB, env []string, name string, args 
 	full := slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		return strings.HasPrefix(kv, coverDirEnv+"=") || strings.HasPrefix(kv, "PWD=")
 	})
-	full = append(full, env...)
-	if os.Getenv(coverDirEnv) != "" {
-		// Last, so that no entry of env can name another.
-		full = append(full, coverDirEnv+"="+t.TempDir())
-	}
+	// Last, so that no entry of env can name another.
+	full = append(append(full, env...), coverDirEnv+"="+t.TempDir())
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Env = full
 	return &Cmd{cmd}

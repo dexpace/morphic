@@ -40,41 +40,50 @@ func values(env []string, key string) []string {
 	return vs
 }
 
-// TestCommand_ACoveredChildWritesToADirectoryOfItsOwn pins the fix: in a
-// coverage build the child's last GOCOVERDIR is a directory of the test's own,
-// not this process's, whatever env says.
+// TestCommand_ACoveredChildWritesToADirectoryOfItsOwn pins the fix: the
+// child's last GOCOVERDIR is a directory of the test's own, whatever this
+// process's says and whatever env says.
 func TestCommand_ACoveredChildWritesToADirectoryOfItsOwn(t *testing.T) {
-	parent := t.TempDir()
-	t.Setenv("GOCOVERDIR", parent)
+	tests := []struct {
+		name   string
+		parent string
+	}{
+		{"this process has one", t.TempDir()},
+		{"this process has none", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GOCOVERDIR", tt.parent)
 
-	cmd := exectest.Command(t.Context(), t, []string{"GOCOVERDIR=" + parent}, "x")
+			cmd := exectest.Command(t.Context(), t, []string{"GOCOVERDIR=" + tt.parent}, "x")
 
-	got := values(cmd.Env(), "GOCOVERDIR")
-	require.NotEmpty(t, got)
-	own := got[len(got)-1]
-	assert.NotEqual(t, parent, own)
-	assert.DirExists(t, own)
+			got := values(cmd.Env(), "GOCOVERDIR")
+			require.NotEmpty(t, got)
+			own := got[len(got)-1]
+			assert.NotEqual(t, tt.parent, own)
+			assert.DirExists(t, own)
+		})
+	}
 }
 
-// TestCommand_WithoutCoverageTheChildIsGivenNoDirectory pins that a build
-// without coverage hands the child no GOCOVERDIR, and that env is appended to
-// this process's environment without its PWD.
-func TestCommand_WithoutCoverageTheChildIsGivenNoDirectory(t *testing.T) {
-	t.Setenv("GOCOVERDIR", "")
+// TestCommand_AppendsEnvToThisEnvironmentWithoutPWD pins that env follows
+// this process's environment, which keeps every entry but PWD.
+func TestCommand_AppendsEnvToThisEnvironmentWithoutPWD(t *testing.T) {
 	t.Setenv("PWD", "/nowhere")
 	t.Setenv("EXECTEST_KEPT", "1")
 
 	env := exectest.Command(t.Context(), t, []string{"A=1"}, "x").Env()
 
-	assert.Empty(t, values(env, "GOCOVERDIR"))
 	assert.Empty(t, values(env, "PWD"))
 	assert.Equal(t, []string{"1"}, values(env, "EXECTEST_KEPT"))
-	assert.Equal(t, "A=1", env[len(env)-1])
+	require.GreaterOrEqual(t, len(env), 2)
+	assert.Equal(t, "A=1", env[len(env)-2])
 }
 
-// TestCommand_BindsTheNameAndTheContext pins that the command runs name under
-// ctx: with ctx already cancelled, Run starts no child and returns its error.
-func TestCommand_BindsTheNameAndTheContext(t *testing.T) {
+// TestCommand_BindsTheCommandLineAndTheContext pins that the command runs name
+// with args under ctx: Path and Args are what the caller passed, and with ctx
+// already cancelled, Run starts no child and returns its error.
+func TestCommand_BindsTheCommandLineAndTheContext(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -82,6 +91,7 @@ func TestCommand_BindsTheNameAndTheContext(t *testing.T) {
 	cmd := exectest.Command(ctx, t, nil, "/bin/sh", "-c", "exit 0")
 
 	assert.Equal(t, filepath.Clean("/bin/sh"), cmd.Path)
+	assert.Equal(t, []string{"/bin/sh", "-c", "exit 0"}, cmd.Args)
 	assert.ErrorIs(t, cmd.Run(), context.Canceled)
 }
 
