@@ -86,7 +86,9 @@ admitting no value in common, by these rules, and a pair none of them separates 
   encoding names (`ScalarChain.Encoding`), the type its values travel as, and its root's where none
   does. A position admitting `null` ([unions](../refine/unions.md#a-null-a-variant-admits)) adds
   `null`, but a variant's own `null` is its union's, so the rules leave it out, and a variant
-  admitting only `null` takes no part.
+  admitting only `null` takes no part. Kinds are JSON's: a union decoded from text, as a response
+  header's is, finds `5` the text of a number and of a string alike, so there only values separate
+  variants, compared by their texts.
 - **Values.** Each admits finitely many values, as a closed enum, a literal or a union of them does,
   and no value is in both, compared as JSON Schema compares instances: `1` and `1.0` are one.
 - **Members.** Both are models laid out by name, read through `Flattened`, and one requires a member
@@ -94,8 +96,12 @@ admitting no value in common, by these rules, and a pair none of them separates 
   has a catch-all (`AdditionalProps`), or one it declares at a position disjoint from the first's by
   these rules. A member is required as `Required` and `Undeclared` say, an overridden declaration
   counting, so a base requiring `id` separates subtypes that redeclare `id` as different one-value
-  enums. A catch-all beside a closure holds the members it governs, as `patternProperties` beside
-  `additionalProperties: false` does (#987), so the closure alone separates nothing.
+  enums. A member separates only where every shape the union travels in requires it, as `ModelShape`
+  projects each: a `readOnly` member is required of a read shape alone, a `writeOnly` one of a
+  create or update shape alone, and a patch shape requires none, so a union a PATCH body reaches is
+  separated by kinds and values alone. A catch-all beside a closure holds the members it governs, as
+  `patternProperties` beside `additionalProperties: false` does (#987), so the closure alone
+  separates nothing.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through
 a finite chain of separated members, and a cycle of models separates nothing by itself. The plan
@@ -112,11 +118,13 @@ loosely than a closed sum would. `Constraints` take no part, since admitting a v
 validation, so two variants that differ only in a bound do share values.
 
 On the golden spec (spec @319dc756, morphic @3188471d), 515 unions are untagged, not exclusive, and
-have two or more variants. These rules prove 421 of them disjoint, and those lower as a closed sum.
-Of the 94 left, 70 have two variants that both admit an object, such as the 16 identity providers
-an Access listing returns. Each refines one base whose `type` enum lists all 16, and each `config`
-is open with no required member, so nothing separates them: one provider's value is admitted by
-every other whose `config` declares none of its members at another type.
+have two or more variants. These rules prove 420 of them disjoint, and those lower as a closed sum,
+counting each model a PATCH body reaches, at any depth, in its patch shape: that leaves the zone
+settings, which their `id` separates where they are read, inclusive. Of the 95 left, 71 have two
+variants that both admit an object, such as the 16 identity providers an Access listing returns.
+Each refines one base whose `type` enum lists all 16, and each `config` is open with no required
+member, so nothing separates them: one provider's value is admitted by every other whose `config`
+declares none of its members at another type.
 
 ## ModelShape — visibility projection
 

@@ -90,12 +90,13 @@ A tag picks one variant, so a discriminated or key-tagged union is never inclusi
 A variant admits a value when the value fits it at every position it reaches: its JSON kind is one
 the position's type admits, `null` only where the position admits `null`; each closed model, closed
 enum and literal holds it; each scalar's codec reads its text; and every model it reaches carries
-each member its `TypePlan.Required` and `Undeclared` list. Bar what each scalar's codec reads, that
-is a fact of the value and the IR, so targets set the same variants wherever their codecs read the
-same texts, and a target's check decides it from the IR rather than from what its JSON library
-accepts: json/v2 decodes `null` into a Go `string` as `""` without an error. `Constraints` take no
-part, since they are validation's on every decoded value. So whether a variant admits a value never
-depends on a bound.
+each member its `TypePlan.Required` and `Undeclared` list, as the shape it travels in requires: a
+`readOnly` member only of a read shape, a `writeOnly` one only of a create or update shape, and none
+of a patch shape. Bar what each scalar's codec reads, that is a fact of the value and the IR, so
+targets set the same variants wherever their codecs read the same texts, and a target's check
+decides it from the IR rather than from what its JSON library accepts: json/v2 decodes `null` into a
+Go `string` as `""` without an error. `Constraints` take no part, since they are validation's on
+every decoded value. So whether a variant admits a value never depends on a bound.
 
 Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, in
 declaration order, and sets every one that admits the value. If none admits it, the order
@@ -148,13 +149,17 @@ The designs this was weighed against:
   misnames a value several variants admit and drops what only the others declare, as the identity
   providers show.
 - **A record of which variant pairs overlap**, beside `Inclusive`, so a target could close a sum
-  over the variants no other shares a value with: on the golden spec, 312 of the 330 variants of
+  over the variants no other shares a value with: on the golden spec, 376 of the 394 variants of
   inclusive unions overlap another (spec @319dc756, morphic @3188471d), so it would close almost
   nothing.
 - **Builders generated over one parse**, for every variant: decoding is then linear outright, but a
   variant in another output unit, a Go package or a Gradle module, is reachable only through its
   own codec unless that unit exports a helper for it, and each type would carry a second reading of
   its wire form beside its codec. Keying decoded positions keeps one codec per type.
+- **An `Inclusive` per direction**, one for the shapes an SDK decodes and one for those a mock does,
+  so a union a PATCH body reaches could stay a closed sum where it is read: the SDK and the mock
+  would then declare one type two ways, where the plan gives every artifact one answer, and on the
+  golden spec it would close one union, the zone settings.
 - **Writing a position only where every set variant writes one text**: a codec that normalizes, as
   a timestamp's does, would then refuse to encode a value just decoded.
 
