@@ -54,10 +54,10 @@ func tagDocsFrom(t *soa.Tag) ir.Docs {
 // strategy, outermost first, by identity: the ID is both the group's key here
 // and its ID in the IR, so two operations share a group exactly when they share
 // an ID. The untagged group's hint stays "default" beside a tag of that name:
-// the IDs differ, and the emitter resolves name collisions by ID
-// (docs/emitters/refine/naming.md). By tags, the group is the first
-// navigational tag's, nested under the tags its declared parents name (GitHub
-// #613).
+// the IDs differ, the emitter resolves name collisions by ID
+// (docs/emitters/refine/naming.md), and the names pass reports this one. By
+// tags, the group is the first navigational tag's, nested under the tags its
+// declared parents name (GitHub #613).
 func (g *serviceGroups) groupFor(c lowering.Ctx, src *soa.Operation, path string) []groupLevel {
 	if c.Grouping == lowering.GroupByPathPrefix {
 		seg := firstPathSegment(path)
