@@ -24,9 +24,9 @@ spells it ([Go](../targets/go/errors.md#ratelimited-in-go),
 response decoder fills from the entry a response takes. The retry wiring reads
 `Retryable`/`Throttling` **from the IR fact** and falls back to `Policy.Retry` only where the spec
 is silent ([precedence](../contract/runtime-policy.md#precedence--declared-ir-facts-win-hard-rule));
-throttling selects the throttling backoff class. The error types are runtime boilerplate ([structure
-and boilerplate](../emit/templates.md)): their kinds come from `Policy.Errors`, so a template
-renders them and no spec changes them.
+throttling selects the throttling backoff, `Retry.Throttled`. The error types are runtime
+boilerplate ([structure and boilerplate](../emit/templates.md)): their kinds come from
+`Policy.Errors`, so a template renders them and no spec changes them.
 
 ## The status tells failures apart
 
