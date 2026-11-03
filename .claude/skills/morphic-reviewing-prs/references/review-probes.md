@@ -53,9 +53,9 @@ defect, keep a `main` control.
 `edited-rule-against-its-neighbours`
 
 - **Rule.** For a change to `.claude/skills` or `CLAUDE.md`, name the acts each edited rule governs
-  (commit, push, review) and constructs it names, grep both for other rules on each, and
-  read each pair for an instruction one gives and the other forbids, keeping the best of both
-  where they do. A script finds a pair but not a conflict, so this stays a reader's.
+  (commit, push, review) and constructs it names (a keyword, a field, a check), grep both for other
+  rules on each, and read each pair for an instruction one gives and the other forbids, keeping the
+  best of both where they do. A script finds a pair, not a conflict.
 - **Why.** Two rules a PR edited held against the tree, while one gated a push on reading a
   checklist's output and the other on its exit status in one command (#1153, #1160). A search by
   act missed a rule on the same construct (#1426).
