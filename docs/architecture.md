@@ -18,7 +18,7 @@ between stages. The IR itself is specified in the [IR design](./ir/README.md).
                         ┌── IR passes (IR → IR) ───┐
                         │  link · dedup · filter   │
                         │  version-slice · overlay │
-                        │  validate                │
+                        │  names · validate        │
                         └──────────┬───────────────┘
                                    ▼
                  ┌────────────── emitters ───────────────┐
@@ -351,6 +351,11 @@ Built, and in the default list:
   is a warning, and a `host` binding is additive ([http-binding](./ir/http-binding.md)).
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
+- **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
+  of one scope whose names any target may render alike, which it can then tell apart only by ID, as
+  a warning, and a name with no word character, which a target names from its characters,
+  as an info ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and
+  it runs after every transform, before `validate`, which stays last.
 
 Designed, not yet built:
 
@@ -565,7 +570,7 @@ morphic/
 │   │       ├── document/   #             info, and what the document keeps verbatim
 │   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
-├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
+├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── cache/              #           Keeps a run's entries on disk, and names the build.
@@ -576,6 +581,7 @@ morphic/
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
+├── internal/exectest/      #           The one way a test builds a child command (tooling, tests only).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/ircases/       #           Tables ir's tests and fuzz targets share (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).

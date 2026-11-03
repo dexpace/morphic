@@ -1176,9 +1176,12 @@ be, with nothing lost, where:
    ([`union-beside-structure`](#union-beside-structure));
 5. two conjuncts are `$ref`s: both keep composing, since keeping one reference typed would mean
    dropping the other ([models](../ir/models.md#composition-entries));
-6. the conjuncts share no value, so that a warning at each contradicted branch says so
-   ([`allof-inline-residue`](#allof-inline-residue)), a null they all admit being no shared value
-   unless a conjunct admits nothing else.
+6. the conjuncts share no value, a null they all admit being no shared value unless a conjunct
+   admits nothing else. A warning says so at the schema where their instance types share none
+   ([`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)), and otherwise at a branch writing a
+   `type` that excludes an object ([`allof-inline-residue`](#allof-inline-residue)). Where neither
+   holds, as for two `enum`s sharing no member, each branch is kept with an info and no report
+   names the contradiction.
 
 An `enum` or a `const` beside the `allOf` wins the election of
 [`competing-keywords`](#competing-keywords) first, so it is no refinement, though a `$ref` the
@@ -1267,10 +1270,9 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_PastItsBudgetStaysAComposition`,
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
   `schema.TestRefinement_ACappedBranchStaysAComposition`
-- Status: partly built: conjuncts sharing no value are reported only where an inline `type` says so
-  (#1215), a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition (#661), a
-  structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes (#1067), and an
-  `allOf` an `enum` or a `const` beside it passes over stays verbatim (#1309).
+- Status: partly built: a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition
+  (#661), a structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes
+  (#1067), and an `allOf` an `enum` or a `const` beside it passes over stays verbatim (#1309).
 
 ### `allof-beside-ref`
 
@@ -1327,12 +1329,14 @@ keyword the dialect gains later is residue without anyone maintaining an enumera
 read through YAML aliases and merge keys, so a branch written `[*shared]` or `[{<<: *shared}]`
 derives the same residue as one written out. The diagnostic is an info, and a warning where the
 branch declares a `type` that excludes `object`, because the composing `Model` then asserts a shape
-the source contradicts: `{allOf: [{$ref: Pet}, {type: string, maxLength: 3}]}` composes a model over
-a source that says `string`, which no value satisfies. Two branch kinds are outside this rule rather
-than limits of it: a `$ref` branch owns a node, so what is written beside the `$ref` is *modeled* on
-the branch alias [models](../ir/models.md#composition-entries) describes rather than kept as residue,
-and a boolean branch declares no keywords at all, so there is no residue to derive — it is a
-decision about the composed node instead, stated with the `false`-schema rule
+the source contradicts: `{allOf: [{$ref: Pet}, {type: string, maxLength: 3}]}`, over a `Pet` writing
+no `type`, composes a model over a source that says `string`. Where the conjuncts share no value, as
+they do when `Pet` writes `type: object`, [`allof-disjoint-conjuncts`](#allof-disjoint-conjuncts)
+reports that once at the schema and the branch's report is an info. Two branch kinds are outside this
+rule rather than limits of it: a `$ref` branch owns a node, so what is written beside the `$ref` is
+*modeled* on the branch alias [models](../ir/models.md#composition-entries) describes rather than kept
+as residue, and a boolean branch declares no keywords at all, so there is no residue to derive — it is
+a decision about the composed node instead, stated with the `false`-schema rule
 [`allof-false-branch`](#allof-false-branch).
 
 A flattened entry kept as residue is whole too, its own entries included, so an entry inside it that
@@ -1756,6 +1760,60 @@ and keeps the branch, and the branch is reported once.
 - Tests: `schema.TestAllOf_NestedFalseBranchClosesModel`,
   `schema.TestAllOf_FalseBranchBesideUnionClosesEveryVariant`
 
+### `allof-disjoint-conjuncts`
+
+An `allOf` whose conjuncts share no value admits no instance, as
+`{allOf: [{$ref: List}], type: object}` does over an array and `{allOf: [{$ref: Str}, {$ref: Obj}]}`
+over a string and an object. Such a schema lowers as any composition does
+([`allof-classification`](#allof-classification)), a distributed one included
+([`union-beside-structure`](#union-beside-structure)), and draws one `openapi/degraded-construct`
+warning at the composing schema, naming each conjunct that narrows the instance types and what it
+states. An inline branch that [`allof-inline-residue`](#allof-inline-residue) would warn about
+reports its residue as an info there, so the contradiction is reported once however it is spelled.
+
+The reading is of the source, since a `Model` cannot say whether its source wrote `type: object`,
+and `{properties: …}` alone admits a string. That is where it parts from the reading
+[`allof-refinement`](#allof-refinement) elects a principal by, which takes such a `properties` to
+claim an object: one chooses a lowering, and this one says what the source admits. Each conjunct
+states a set of JSON instance types, an `integer` within a `number` and named as written: the `type`
+beside the `allOf`; an inline entry's `type`, conjoined with
+what its own `allOf` states; and for a `$ref` entry, what the schema it lands on states. The schema
+is reported where those sets share no member and the schema admits no null as
+[`nullable`](#nullable) reads it, under the nullable-widening policy where that is on: a null every
+conjunct admits is a shared value, as
+[`allof-redeclared-property`](#allof-redeclared-property) reads a pair of declarations. A read of
+null that runs out of its budget is undecided and reports nothing. Where only one conjunct narrows
+the instance types nothing is reported, since one conjunct contradicts nothing: a `type: "null"`
+beside a `false`, `enum` or `const` is silent. The null reading is the whole schema's, so two or
+more narrowing conjuncts beside a `false`, `enum` or `const` are reported though that entry alone
+takes away the null they share: `{allOf: [{type: [string, "null"]}, {type: [object, "null"]},
+false]}` draws the warning beside the `false`'s own report.
+
+What writes no `type` states nothing, so a report is made only of what the source declares: a
+boolean entry, whose `false` is [`allof-false-branch`](#allof-false-branch)'s to report, a `$ref`
+landing on no schema, and a composition only `enum`, `const`, `format`, `oneOf` or `anyOf` empties.
+A keyword beside a `$ref` entry states nothing either: OpenAPI 3.0 ignores it, and reading it from
+3.1 on, where it applies, is left open, so `{allOf: [{$ref: Str, type: object}]}` draws no report at
+any version. A conjunct writing an `allOf` also states nothing here where its `type` and its entries
+leave at most a null, which is what keeps a schema composing a reported one from drawing a second
+report; the cost is a miss where nothing reports it, as for a conjunct admitting only a null its own
+entries share or a `type: "null"` beside them, or one nested past `MaxAllOfFlattenDepth`. An
+`allOf` that does not compose, one beside a `$ref` ([`allof-beside-ref`](#allof-beside-ref)) or
+passed over for a `const` or `enum` ([`competing-keywords`](#competing-keywords)), is not read.
+
+- Cases: `allof-disjoint-conjuncts`
+- Codes: `openapi/degraded-construct`
+- Tests: `schema.TestAllOf_DisjointConjunctsReportOnceAtTheSchema`,
+  `schema.TestAllOf_DisjointReportStaysSilent`,
+  `schema.TestAllOf_KeywordBesideARefStatesNothing`,
+  `schema.TestAllOf_ComposingADisjointSchemaDrawsNoSecondReport`,
+  `schema.TestAllOf_DisjointInlineBranchReportsItsResidueAsInfo`,
+  `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
+  `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
+  `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`
+- Status: partly built: a keyword beside a `$ref` entry is not read from 3.1 on, where it applies
+  (#1390), and an `allOf` an `enum` or a `const` beside it passes over is not read (#1309).
+
 ### `union`
 
 A `oneOf` lowers to a `Union` with `Exclusive` set and an `anyOf` to one without it
@@ -1898,19 +1956,40 @@ A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {requi
 a degradation and is not one of the five: it narrows the body without reshaping it, which is
 validation logic, so it is kept under `validation_only` with the keyword family of
 [boundaries](../ir/boundaries.md#validation-only-constructs) and reported as an info
-`openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)).
+`openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)). A branch
+that repeats the body declares none either: it writes nothing but `type`, `nullable`, `properties`,
+`required`, `not`, `title` and `description`, where `required` and `not` narrow as they do in a bare
+branch whatever they hold; the `type` it writes, if any, is the body's, with `nullable` agreeing;
+and each property it writes is one the schema's own `properties` declares, written alike as a
+schema object (a boolean schema has no keywords to repeat), or written in nothing but `$ref`,
+`type`, `format` and `nullable`, each as the body's declaration writes it, with the two agreeing on
+`$ref` and `nullable`. So `{type: string}` in a branch repeats `{type: string, minLength: 1}` in the
+body. A branch writing any other keyword, such as `{type: string, const: a}`, `minLength`, `items`
+or `format`, does not repeat the body, so it is judged as written: one that writes a `type`, a
+`properties` or another keyword declaring shape falls to the five shapes above, even beside a
+`not`, and one that only narrows, as `{required: [a], minProperties: 2}` does, stays validation
+logic. A `not` written inside a property repeats the body only where the property is written
+alike. A property the schema only composes through `allOf` has no one declaration to repeat, so it
+does not repeat the body. Declarations are compared as written, so one spelling its keywords in
+another order is not alike.
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
-  `keywords-at-every-outcome`
+  `keywords-at-every-outcome`, `union-restated-branches`
 - Codes: `openapi/composition-lowering`, `openapi/degraded-construct`, `openapi/unresolved-ref`,
   `openapi/validation-only-keyword`
 - Tests: `schema.TestOneOf_CoDeclaredNotDistributedReasons`,
   `schema.TestOneOf_CoDeclaredUnresolvableBranchIsNotDistributed`,
-  `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`
-- Status: partly built: restating a property's type inside xor-of-required branches degrades the
-  union (#620), and a multi-typed base's discriminator routes to no subtype (#853). Open: keeping a
-  discriminated `oneOf` a union when structural keywords sit beside it (#594), and distributing a
-  union's inline branches when properties sit beside it (#661).
+  `schema.TestDiscriminatorBesideUnion_LeavesAMapWhenItMoves`,
+  `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,
+  `schema.TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape`,
+  `schema.TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel`,
+  `schema.TestOneOf_CoDeclaredBranchWritingNotIsValidationLogicAtEachPosition`
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853); a branch
+  writing only `items`, `prefixItems` or `$dynamicRef` is kept as validation logic (#1393); and a
+  branch repeating the body degrades the union beside a keyword declaring no shape (#1394), or
+  where the property it repeats is composed through `allOf` (#1395). Open: keeping a discriminated
+  `oneOf` a union when structural keywords sit beside it (#594), and distributing a union's inline
+  branches when properties sit beside it (#661).
 
 ### `union-beside-ref`
 

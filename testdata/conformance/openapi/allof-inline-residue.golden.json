@@ -132,7 +132,7 @@
         "pointer": "/components/schemas/Contradicted"
       },
       "base": {
-        "target": "t/openapi/components/schemas/Base",
+        "target": "t/openapi/components/schemas/Untyped",
         "nullable": false
       },
       "constraints": {
@@ -220,6 +220,53 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/Untyped": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Untyped",
+      "name": {
+        "source": "Untyped",
+        "canonical": "untyped"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Untyped"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Untyped/properties/id",
+          "name": {
+            "source": "id",
+            "canonical": "id"
+          },
+          "wireName": "id",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Untyped/properties/id"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/prim/string": {
       "kind": "primitive",
       "id": "t/prim/string",
@@ -270,7 +317,7 @@
     {
       "format": "openapi@3.1",
       "path": "allof-inline-residue.yaml",
-      "hash": "31cb1febc3e112196f3da954baf526caf300d3d730c7fa1617a8a1d75293636b"
+      "hash": "0618ca5b3ff2ff694206549b6caa1ad1023afd261dfc9ca2639267ef3734ff19"
     }
   ]
 }

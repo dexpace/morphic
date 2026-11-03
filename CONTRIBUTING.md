@@ -229,14 +229,16 @@ needless; a verified run catches one.
    document a run of it returned, which carries that run's findings, it returns an equal one,
    `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
    between its rule families, and stops soon once it is done: the engine then fails the run, reading
-   nothing it returned. `ir.ForEachOperation` walks the operations, and the package's `diag` helper in
-   `pass/diag.go` builds a diagnostic on a node.
+   nothing it returned. `ir.ForEachOperation` walks the operations and `ir.ForEachGroup` the groups,
+   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
    *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
    `make vet` for a registry or a slice of the service tree built, or written into, other than
-   through an `ir.Editor`.
+   through an `ir.Editor`. It refuses an element's address, and a generic instantiated with a
+   service, group or operation or a slice of one, even to read it, since it cannot see a write
+   through either: read the tree by value or by index.
    A run fails with an error wrapping `pass.ErrContract` for a pass that panics, returns no document
    or another IR version, moves a source or puts findings on the document, and under
    `morphic compile --verify` for one that changes its input or returns a document that breaks

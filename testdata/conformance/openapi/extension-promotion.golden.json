@@ -178,7 +178,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/x",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1x/get/parameters/legacy/query",
@@ -190,6 +189,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -395,7 +395,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/z",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1z/get/parameters/byKey/query",
@@ -407,6 +406,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
