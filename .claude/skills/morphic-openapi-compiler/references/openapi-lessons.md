@@ -33,11 +33,14 @@ canary. A behaviour found that the page lacks is added there.
 
 - **Rule.** Call the library's functions for every reading it already implements (reference parsing,
   anchors, URI resolution) and `nodeview.View` for tree reads, but compare two schemas as
-  `references/openapi-lessons.md#compare-raw-nodes` says. Key a per-node map by a set when an
-  alias can make one node several schemas. A guard that must agree with the resolver makes the call
-  the resolver makes.
+  `references/openapi-lessons.md#compare-raw-nodes` says. Call a `yml` function `nodeview` lacks
+  directly, under its own allowlist entry
+  (`.claude/skills/morphic-designing-code/references/design-rules.md#no-forwarding-layer`). Key a
+  per-node map by a set when an alias can make one node several schemas. A guard that must agree
+  with the resolver makes the call the resolver makes.
 - **Why.** Each miss of a reach check was a re-derived reading (#563). `View` and the resolver
-  disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`).
+  disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`). #1278 widened an
+  allowlist for `yml`, no rule saying whether a wrapper should stand instead.
 - **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`, `.`
   and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
 
@@ -45,18 +48,17 @@ canary. A behaviour found that the page lacks is added there.
 `compare-raw-nodes`
 
 - **Rule.** `Schema.IsEqual` reads the model, which misses keywords
-  (`docs/parser-library.md#unmodeled-keywords`), so compare two schemas by their raw nodes. Call a
-  `yml` function `nodeview` lacks directly, adding `yml` to the package's `internal/archtest` entry
-  (`.claude/skills/morphic-designing-code/references/design-rules.md#no-forwarding-layer`).
-  `yml.EqualNodes` does not expand `<<` (`docs/parser-library.md#merge-keys`): trust its "unequal"
-  only where a false one errs safely, or compare each key through `nodeview.Pairs` and
-  `nodeview.Child`, which read merges as the parser does.
-- **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it, and #1278's
-  restated-branch check, comparing raw nodes, widened the schema package's allowlist with no rule
-  saying whether a `nodeview` wrapper should have stood instead.
-- **Probe.** Run the comparison on two schemas differing only in `dependentRequired`, and on
-  `{<<: {type: string, description: d}}` beside `{type: string, description: d}`: the first pair
-  differs, and the second matches or takes the answer that errs safely.
+  (`docs/parser-library.md#unmodeled-keywords`), so compare two schemas'
+  `annotation.RawFromNode` renderings, which read merges as the parser does and sort keys, though
+  a number spelled two ways stays two. Alike text means the same only under one base URI (#1408).
+  `yml.EqualNodes` tells apart what the parser reads alike (`docs/parser-library.md#merge-keys`),
+  so trust its "unequal" only where a false one errs safely.
+- **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
+  restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the
+  body's property through `<<` or in another key order.
+- **Probe.** Compare `{x: {<<: {a: 1}}}` and `{description: d, type: string}` each beside its
+  plain spelling, and two schemas differing only in `dependentRequired`: the last pair differs, and
+  each other matches or takes the answer that errs safely.
 
 ## Moving work out of the library moves its duties
 `library-duties`
