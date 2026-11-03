@@ -38,10 +38,10 @@ defect, keep a `main` control.
 
 - **Rule.** Before the first finding, list the change's claim classes and check every member: each
   name against the tree, citation against the item it cites, no claim resting on an open PR's head
-  (`gh pr view <N> --json state,headRefOid`), statement about `main`'s code, library statement against its
-  `docs/parser-library.md` entry, quoted command run from the root, script run in each context (a
-  subdirectory, each platform branch), body sentence on the final tree, each construct a rule
-  settles (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
+  (`gh pr view <N> --json state,headRefOid`), statement about `main`'s code, library statement
+  against its `docs/parser-library.md` entry, quoted command run from the root, script run in each
+  context (a subdirectory, each platform branch), body sentence on the final tree, each construct a
+  rule settles (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
   (`references/review-probes.md#edited-rule-against-its-neighbours`). A class checked by sample is
   reported unreviewed, never clean.
 - **Why.** #1143's review took nine rounds, each sampling a class, as a misattribution sat
