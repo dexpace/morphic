@@ -1,0 +1,30 @@
+# Names that collide once canonicalized, in each scope pass/names reads whose
+# order follows a mapping. Each collision is declared off-centre, so reversing
+# the mappings, as the harness's order oracle does, moves which party comes
+# second, while what holds the scope stays put.
+openapi: 3.1.0
+info: {title: Name collisions, version: "1"}
+tags: [{name: Billing}, {name: billing}]
+paths:
+  /users:
+    get:
+      operationId: getUser
+      tags: [Billing]
+      parameters:
+        - {name: account_id, in: query, schema: {type: string}}
+        - {name: accountId, in: header, schema: {type: string}}
+      responses: {"200": {description: ok}}
+  /people:
+    get: {operationId: get_user, tags: [Billing], responses: {"200": {description: ok}}}
+  /invoices:
+    get: {operationId: listInvoices, tags: [billing], responses: {"200": {description: ok}}}
+components:
+  schemas:
+    Pet:
+      type: object
+      properties:
+        userId: {type: string}
+        user_id: {type: string}
+        name: {type: string}
+    pet: {type: string}
+    Comparison: {type: string, enum: [less, LESS, "<"]}
