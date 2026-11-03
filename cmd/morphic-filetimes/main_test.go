@@ -20,6 +20,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // windowFrom and windowTo are the window blobTime's doc comment states, spelled
@@ -86,8 +88,7 @@ func newRepo(t *testing.T) *repo {
 // gitOut runs git in the repository and returns its combined output.
 func (r *repo) gitOut(args ...string) (string, error) {
 	r.t.Helper()
-	cmd := exec.Command("git", append([]string{"-C", r.dir}, args...)...)
-	cmd.Env = append(os.Environ(), hermeticEnv()...)
+	cmd := exectest.Command(r.t.Context(), r.t, hermeticEnv(), "git", append([]string{"-C", r.dir}, args...)...)
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }

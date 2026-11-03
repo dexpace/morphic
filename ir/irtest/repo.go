@@ -5,11 +5,12 @@ package irtest
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // RepoRoot returns the directory holding the module's go.mod, walking up from
@@ -106,8 +107,7 @@ func RequireOpens(t *testing.T, test string, paths ...string) {
 		remaining: time.Until(deadline),
 		bounded:   bounded,
 		run: func(args []string) ([]byte, error) {
-			cmd := exec.CommandContext(t.Context(), os.Args[0], args...)
-			cmd.Env = append(os.Environ(), opensChildEnv+"=1")
+			cmd := exectest.Command(t.Context(), t, []string{opensChildEnv + "=1"}, os.Args[0], args...)
 			return cmd.CombinedOutput()
 		},
 		read: os.ReadFile,

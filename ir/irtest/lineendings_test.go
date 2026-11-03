@@ -152,7 +152,7 @@ func listDirectories(t *testing.T, root string, dirs map[string]bool) {
 func TestTrackedFiles_ListsEveryDirectoryAboveAFile(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
-	cmd := exec.Command("git", "ls-files", "-z")
+	cmd := exectest.Command(t.Context(), t, nil, "git", "ls-files", "-z")
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
