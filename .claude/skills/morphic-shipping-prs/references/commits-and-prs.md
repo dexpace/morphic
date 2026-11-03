@@ -39,16 +39,16 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Check commit subjects, PR titles and bodies against the message rules before first push
 `commit-and-pr-message-form`
 
-- **Rule.** Every commit subject and the PR title are Conventional Commits, imperative, with no
-  final period and at most 72 characters, counting the ` (#N)` a squash appends to the title and to
-  a branch's one commit, which lands under its subject. A breaking commit carries `!` and explains
-  the break in its body. No text carries tool attribution or session artifacts.
+- **Rule.** Every commit subject and the PR title are imperative Conventional Commits with no final
+  period, within 72 characters counting the ` (#N)` a squash appends to the title and to a branch's
+  one commit, which lands under its subject. A breaking commit carries `!` and explains the break in
+  its body. No text carries tool attribution or session artifacts. No CI checks these (#1417).
 - **Why.** Over-length subjects and prose titles land via squash, unfixable without rewriting a
-  pushed branch; a break marked only in the title is invisible in branch history (#834, #157). A
-  one-commit branch landed at 73 (#1232); counting the number on a subject a squash replaces
-  flagged one that never lands as a subject (#1345).
-- **Probe.** `python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py N "<title>"` and
-  the push checklist's artifact greps, on the PR's tree.
+  pushed branch; a break the title alone marks is invisible in branch history (#834, #157). A
+  one-commit branch landed at 73 (#1232); a replaced subject was measured with the number (#1345).
+- **Probe.** On the PR's tree,
+  `python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py N "$(gh pr view N --json title --jq .title)"`
+  and the push checklist's artifact greps.
 
 ## Hold a commit body when it is pushed and the landing body at merge
 `body-lands-at-merge`
