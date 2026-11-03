@@ -125,39 +125,41 @@ An alias can also collide with *another* entity's name, and that is not a rule o
 Two entities may share a neutral name. Words cannot tell `getUser`, `get_user` and `GetUser` apart,
 nor `-1` from `1`, and a source may write the same name twice. That is no defect of the IR: an
 emitter tells such names apart by ID ([naming](../emitters/refine/naming.md)), and renames
-nothing in the document. But every target meets the collision alike, so one check over the neutral
-words answers for all of them, and the `names` pass reports it to the document's author
+nothing in the document. But any target may meet the collision, since rendering a name from its
+words alone is conforming
+([naming](../emitters/refine/naming.md#the-source-spelling-for-letter-case-only)), so one check over
+the neutral words answers for all of them, and the `names` pass reports it to the document's author
 (`pass/name-collision`, a warning).
 
 - **The name compared** is the one a target renders from: `Canonical`, or `Hint` where there is
   none, so a hint meeting a source spelling collides with it, as the group of untagged operations,
   hinted `default`, does with a tag `default`.
-- **The scopes** are the siblings every target renders into one namespace: the document's
+- **The scopes** are the siblings a target renders into one namespace: the document's
   services, its declared types and its auth schemes; a service's groups; a group's groups and its
   operations; an operation's parameters; a model's own properties; an enum's members; a union's
   variants. One name in two scopes is no collision.
 - **Declared types** are one scope, whatever their `Namespace`: a target places a type by its
-  options, never by its namespace ([output units](../emitters/refine/output-units.md)), so two types
-  of one name render alike wherever they were declared. An alias is another matter: it is matched
-  against a writer's names within its namespace, which is why the registry is no scope of its
-  aliases (above). An anonymous type is left out, since a target may inline it rather than name it,
-  and its hint is the compiler's suggestion. So is a primitive, an `Any` node or an `External`,
-  which a target resolves through its type table and never declares
-  ([type table](../emitters/contract/type-table.md)).
-- **A finding is placed** at what holds its scope, the document for its own, and names every
-  party by its ID, or a union's variant, which has none, by the type it holds. A party's place in
+  options, never by its namespace, and by default places every type in one unit
+  ([output units](../emitters/refine/output-units.md)), so two types of one name meet wherever they
+  were declared. An alias is another matter: it is matched against a writer's names within its
+  namespace, which is why the registry is no scope of its aliases (above). An anonymous type is left
+  out, since a target may inline it rather than name it, and its hint is the compiler's suggestion.
+  So is a primitive, an `Any` node or an `External`, which a target resolves through its type table
+  and never declares ([type table](../emitters/contract/type-table.md)).
+- **A finding is placed** at what holds its scope, the document for its own. A party's place in
   its scope follows declaration order where a mapping declared it, so a finding placed at a party
-  would move with that order. An index names a place in the IR's list, which need not be the
-  source's: an OpenAPI operation's parameters join those its path item declares, and two of one
-  spelling differ only in the location their IDs hold; a union's variants leave out a `null`
-  branch, and a hint has no spelling. A property or an enum member is the exception, named by its
-  index beside its quoted spelling, because its ID holds a source key or value verbatim, control
-  characters included: a key is unique in its mapping, and two members of one spelling are one
-  value written twice.
+  would move with that order.
+- **A party is named** by its ID, or a union's variant, which has none, by the type it holds. An
+  index names a place in the IR's list, which need not be the source's: an OpenAPI operation's
+  parameters join those its path item declares, and two of one spelling differ only in the location
+  their IDs hold; a union's variants leave out a `null` branch, and a hint has no spelling. A
+  property or an enum member is named by its index beside its quoted spelling instead, because its
+  ID holds a source key or value verbatim, control characters included: a key is unique in its
+  mapping, and two members of one spelling are one value written twice.
 - **An exact repeat is reported** like any other collision: two documents each declaring a
   component `Pet` give two types that render alike, which nothing else reports. A repeat may also
   draw a finding of the compiler's, such as `openapi/duplicate-enum-value`, which says what the
-  source repeats, where this one says what every target does with it.
+  source repeats, where this one says what a target does with it.
 - **A name with no word character** has no neutral name at all, and a target names it from its
   characters
   ([naming](../emitters/refine/naming.md#a-name-with-no-words-takes-its-characters-names)), so the
@@ -186,3 +188,8 @@ Left out, each for its reason:
   (`openapi/duplicate-status-key`).
 - **Channels and messages**, which no compiler produces yet, and for which no emitter design says
   what scope their names render into. They and servers join once a target names them (#1413).
+- **A response's or an error case's headers**, which a target renders as the fields of one type.
+  Neither has an ID to report at, and a path through its operation's list moves with the order the
+  source declares responses in (#1418).
+- **A service's renames** (`Service.Renames`), which no compiler writes yet: a declared type is
+  compared by its own name, though a rename presents it by another in its service (#1419).

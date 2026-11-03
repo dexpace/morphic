@@ -16,8 +16,8 @@ var _ Pass = Names{}
 // NamesName is the stable name of the [Names] pass.
 const NamesName = "names"
 
-// Names reports what a document's names leave to every target alike: entities
-// of one scope whose names every target renders alike, which it can tell apart
+// Names reports what a document's names leave to its targets: entities of one
+// scope whose names any target may render alike, which it can then tell apart
 // only by ID, and a name with no word character, which a target names from its
 // characters (docs/ir/naming.md#names-one-scope-shares). It is an analysis, so
 // Run hands back the document it was given.
@@ -40,7 +40,9 @@ func (Names) Run(ctx context.Context, doc *ir.Document) (*ir.Document, []ir.Diag
 // namespace, a family of scopes at a time, and returns what they report, or
 // ctx's error alone once ctx is done. It asks ctx before each family and after
 // the last, so a cancel waits out one at most. Servers, channels and messages
-// wait for a target to name them (GitHub #1413).
+// wait for a target to name them (GitHub #1413), a response's headers for a
+// place to report at (GitHub #1418), and a service's renames for a compiler to
+// write one (GitHub #1419).
 func checkNames(ctx context.Context, doc *ir.Document) ([]ir.Diagnostic, error) {
 	if doc == nil {
 		return nil, nil

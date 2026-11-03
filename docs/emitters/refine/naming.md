@@ -39,7 +39,7 @@ there is no lossy runtime re-splitting of a cased string (oagen's `splitWords` c
 built from the wire channel, so wire correctness never depends on the rendered identifier
 ([T-4](../testing/mandatory-tests.md)). Collisions are resolved deterministically in `Ctx.Syms`,
 which is keyed by IR ID: adding one endpoint never renames an existing method (the oagen
-collision-cascade counterexample; INV3). Those every target meets, neutral names one scope shares,
+collision-cascade counterexample; INV3). Those any target may meet, neutral names one scope shares,
 the `names` pass reports to the document's author
 ([naming](../../ir/naming.md#names-one-scope-shares)), and resolving them stays here. Anonymous
 hoisted types get an emitter-chosen name from `Naming.Hint`. Per-service presentation renames

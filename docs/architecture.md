@@ -351,9 +351,9 @@ Built, and in the default list:
   is a warning, and a `host` binding is additive ([http-binding](./ir/http-binding.md)).
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
-- **names** — what a document's names leave to every target alike, which no IR rule forbids: two
-  entities of one scope whose names every target renders alike, which a target can tell apart only
-  by ID, as a warning, and a name with no word character, which a target names from its characters,
+- **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
+  of one scope whose names any target may render alike, which it can then tell apart only by ID, as
+  a warning, and a name with no word character, which a target names from its characters,
   as an info ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and
   it runs after every transform, before `validate`, which stays last.
 
