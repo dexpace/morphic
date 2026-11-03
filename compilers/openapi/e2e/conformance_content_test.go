@@ -6,6 +6,7 @@ package e2e_test
 import (
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -157,6 +158,46 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	node, ok := doc.Types[stored.Type.Target]
 	require.True(t, ok)
 	assert.Equal(t, "The stored object.", node.Common().Docs.Description, "and keeps its docs")
+}
+
+// assertFileMedia pins the file idioms beyond a binary string: a schema saying
+// nothing on octet-stream and a union of strings and raw bytes there are
+// declared files; a schemaless or string body on a binary media type is a file
+// the binary policy reads, marked so; an SVG is none. In a multipart body an
+// array of raw bytes, an array of untyped items and an untyped part whose
+// encoding names only image types are file parts, the last marked, and a
+// string naming its media type is text.
+func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	render, ok := opByName(doc, "render")
+	require.True(t, ok)
+	assert.Equal(t, &ir.FileInfo{ContentTypes: []string{"application/octet-stream"}}, requestContent(t, render).File)
+	assert.Equal(t, ir.TypeID("t/prim/bytes"), requestContent(t, render).Type.Target)
+	require.Len(t, render.Responses, 1)
+	require.NotNil(t, render.Responses[0].Payload)
+	out := render.Responses[0].Payload.Contents
+	require.Len(t, out, 3)
+	for _, c := range out[:2] {
+		assert.Equal(t, &ir.FileInfo{ContentTypes: []string{c.MediaType}, Inferred: "binary-media-type"}, c.File,
+			c.MediaType)
+	}
+	assert.Equal(t, ir.TypeID("t/prim/any"), out[0].Type.Target, "a file the policy reads keeps its type")
+	assert.Nil(t, out[2].File, "an SVG is text")
+
+	value, ok := opByName(doc, "putValue")
+	require.True(t, ok)
+	assert.Equal(t, &ir.FileInfo{ContentTypes: []string{"application/octet-stream"}}, requestContent(t, value).File)
+
+	upload, ok := opByName(doc, "upload")
+	require.True(t, ok)
+	parts := map[string]ir.PartEncoding{}
+	for id, pe := range requestContent(t, upload).Encoding {
+		parts[string(id)[strings.LastIndex(string(id), "/")+1:]] = pe
+	}
+	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["files"])
+	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["attachments"])
+	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Filename: true,
+		Inferred: "binary-media-type"}, parts["profileImage"])
+	assert.NotContains(t, parts, "avatar", "a string part is text, whatever media type it names")
 }
 
 // assertMediaTypeSpelling pins that a media type is classified by its type alone

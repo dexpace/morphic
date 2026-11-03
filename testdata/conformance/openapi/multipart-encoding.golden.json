@@ -291,7 +291,7 @@
                           "image/png"
                         ],
                         "multi": true,
-                        "filename": false,
+                        "filename": true,
                         "allowReserved": false
                       },
                       "p/openapi/components/schemas/UploadForm/properties/tags": {

@@ -328,7 +328,7 @@ components:
 // (docs/ir/models.md#the-flattening): the later conjunct's, whichever the allOf
 // lists last, with the flags read off that declaration's type. The declarations
 // differ, a file and a list of files, so a key or a flag read off the other one
-// shows.
+// shows. Both are files, so Filename shows nothing either way.
 func TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -373,7 +373,7 @@ components:
 			require.True(t, ok, "the part is keyed on the later conjunct's declaration; got %v", enc)
 			assert.Equal(t, []string{"image/png"}, pe.ContentTypes)
 			assert.Equal(t, tc.multi, pe.Multi, "the flags are read off the declaration the key names")
-			assert.Equal(t, !tc.multi, pe.Filename)
+			assert.True(t, pe.Filename, "a file and a list of files are both files")
 		})
 	}
 }
@@ -472,7 +472,7 @@ func TestPartEncoding_FlagsComeFromTheMergedType(t *testing.T) {
 		{"string and binary", `{type: string}`, binary, true, false},
 		{"untyped and binary", `{description: the file}`, binary, true, false},
 		{"untyped and a list of binary", `{description: the files}`,
-			`{type: array, items: ` + binary + `}`, false, true},
+			`{type: array, items: ` + binary + `}`, true, true},
 		{"untyped and byte", `{description: the file}`, `{type: string, format: byte}`, true, false},
 		{"untyped and a hoisted binary", `{description: the file}`,
 			`{$ref: "#/components/schemas/Blob", description: the blob}`, true, false},
@@ -587,7 +587,7 @@ func TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema(t *testin
 	files := onlyPartEncoding(t,
 		`{enum: [x], properties: {file: {type: array, items: {type: string, format: binary}}}}`)
 	assert.True(t, files.Multi, "an array part repeats")
-	assert.False(t, files.Filename)
+	assert.True(t, files.Filename, "and an array of files is files")
 }
 
 // TestPartEncodings_ReadsTheFlattenedComposition holds bodyParts to the

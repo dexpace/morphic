@@ -22,16 +22,16 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// partEncodings builds the multipart/form per-part wire config, keyed by each
+// partEncodings builds a form body's per-part wire config, keyed by each
 // body-model property's PropID. A part is included when it carries an explicit
-// encoding entry or is itself a repeated (array) or file (binary) part. body is
-// the TypeID the content's own schema position lowered to.
+// encoding entry or is itself a repeated or file part. body is the TypeID the
+// content's schema, under mt, lowered to.
 //
 // It returns the map with no keys yet: keys and structural flags read the model
 // behind body, which may be a node a $ref promised and nothing has built yet
 // (compile.Types.Promise), so partKeys settles both once every node exists. It
 // is nil where the body declares no part; one left with no key reads alike.
-func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	walk := walkBodyParts(c.Bindings(), media.GetSchema())
 	parts := walk.parts
 	cutDiags := diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema"))
@@ -42,7 +42,8 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, medi
 	var unmodeled ir.Unmodeled
 	encMap := media.GetEncoding()
 	fallbackDoc, fallback := bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
-	keys := partKeys{c: c, body: body, fallbackDoc: fallbackDoc, fallback: fallback}
+	multipart := isMultipart(mt)
+	keys := partKeys{c: c, body: body, fallbackDoc: fallbackDoc, fallback: fallback, multipart: multipart}
 	for _, part := range parts {
 		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, part, encMap, mediaPtr)
 		diags = append(diags, partDiags...)
@@ -50,7 +51,8 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, medi
 		// only x-* lowers to an empty PartEncoding that is left out of the map, and
 		// what it did declare would go with it.
 		unmodeled = annotation.MergeUnmodeled(unmodeled, partUnmodeled)
-		keys.parts = append(keys.parts, keyedPart{name: part.name, encoding: pe})
+		keys.parts = append(keys.parts, keyedPart{name: part.name, encoding: pe,
+			file: readPartFile(c, part, pe.ContentTypes, multipart)})
 	}
 	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
 	ts.Defer(keys)
@@ -61,10 +63,10 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, medi
 // names (partPropID), once the registry is whole (compile.Settlement): out is
 // the map the body's Content holds, and Settle fills it with each part left
 // carrying something (partFlags). Keys follow where the model behind body was
-// interned (bodyModel), its document and pointer, so they align with that
-// model's property IDs (invariant 2/3), else fallback in fallbackDoc, where the
-// body's schema names (bodySchemaPointer). Asking the IR keeps this in step
-// with schemaOf, which reads a $ref chain's end. c is the context the content
+// interned (bodyModel), its document and pointer, so they align with its
+// property IDs (invariant 2/3), else fallback in fallbackDoc, where the body's
+// schema names (bodySchemaPointer). Asking the IR keeps this in step with
+// schemaOf, which reads a $ref chain's end. c is the context the content
 // lowered in.
 type partKeys struct {
 	c           lowering.Ctx
@@ -73,11 +75,15 @@ type partKeys struct {
 	fallbackDoc ids.Document
 	fallback    jsontext.Pointer
 	parts       []keyedPart
+	// multipart says the body is multipart, whose parts can carry raw bytes.
+	multipart bool
 }
 
-// keyedPart is one part's name and the encoding it carries, its flags read off
-// the schemas declaring it.
+// keyedPart is one part's name, the encoding it carries, its flags read off the
+// schemas declaring it, and what those schemas and its encoding entry say of it
+// being a file (readPartFile).
 type keyedPart struct {
+	file     partFile
 	name     string
 	encoding ir.PartEncoding
 }
@@ -97,7 +103,7 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	members := partMembers(reg, k.body)
 	for _, p := range k.parts {
 		prop := members[p.name]
-		pe := partFlags(node, prop, p.encoding)
+		pe := p.file.apply(partFlags(node, prop, p.encoding, k.multipart))
 		if partEncodingEmpty(pe) {
 			continue
 		}
@@ -294,14 +300,15 @@ func partMembers(reg ir.TypeRegistry, body ir.TypeID) map[string]*ir.Property {
 }
 
 // partFlags returns pe with the structural flags of the part prop holds, read
-// off the type the allOf merge settled on (partTypeFlags). Where the body model
-// has no such property, or its type is a kind partTypeFlags cannot decide, pe
-// keeps the flags read off every schema declaring the part.
-func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), prop *ir.Property, pe ir.PartEncoding) ir.PartEncoding {
+// off the type the allOf merge settled on (partTypeFlags), multipart saying
+// whether the body is multipart. Where the body model has no such property, or
+// its type is a kind partTypeFlags cannot decide, pe keeps the flags read off
+// every schema declaring the part.
+func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), prop *ir.Property, pe ir.PartEncoding, multipart bool) ir.PartEncoding {
 	if prop == nil {
 		return pe
 	}
-	if multi, file, decided := partTypeFlags(node, prop.Type); decided {
+	if multi, file, decided := partTypeFlags(node, prop.Type, multipart); decided {
 		pe.Multi, pe.Filename = multi, file
 	}
 	return pe
@@ -309,10 +316,13 @@ func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), prop *ir.Property, pe ir
 
 // partTypeFlags reads the structural flags of a part from its type: multi when
 // it is a list or tuple, file when it is bytes, following the alias scalars a
-// hoisted position or `format: byte` puts over the primitive. decided reports
-// that the walk judged the type; false means the type is a kind it cannot
-// answer for. The walk is bounded by maxBodyAliasHops.
-func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef) (multi, file, decided bool) {
+// hoisted position or `format: byte` puts over the primitive, or, in a
+// multipart body, a list of raw bytes (rawBytes). A part's own `format: byte`
+// and a form body's bytes still read as files (GitHub #1214), and a tuple's
+// elements are not read (GitHub #1433). decided reports that the walk judged
+// the type; false means the type is a kind it cannot answer for. The walk is
+// bounded by maxBodyAliasHops.
+func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
 	id := ref.Target
 	for range maxBodyAliasHops {
 		td, found := node(id)
@@ -320,7 +330,9 @@ func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef) (mul
 			return false, false, false
 		}
 		switch t := td.(type) {
-		case *ir.List, *ir.Tuple:
+		case *ir.List:
+			return true, multipart && rawBytes(node, t.Elem), true
+		case *ir.Tuple:
 			return true, false, true
 		case *ir.Primitive:
 			return false, t.Prim == ir.PrimBytes, true
@@ -440,6 +452,6 @@ func bodySchemaPointer(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], 
 // TestPartEncodingEmpty_ReadsEveryField holds it to: one it skipped would drop
 // a part declaring nothing else.
 func partEncodingEmpty(pe ir.PartEncoding) bool {
-	return len(pe.ContentTypes) == 0 && len(pe.Headers) == 0 &&
-		!pe.Multi && !pe.Filename && pe.Style == "" && pe.Explode == nil && !pe.AllowReserved
+	return len(pe.ContentTypes) == 0 && len(pe.Headers) == 0 && !pe.Multi && !pe.Filename &&
+		pe.Style == "" && pe.Explode == nil && !pe.AllowReserved && pe.Inferred == ""
 }

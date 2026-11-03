@@ -41,8 +41,8 @@ type Ctx struct {
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
 	// of the caller policies the context carries, beside the budgets, the
-	// streaming media list, the promotion mapping and NullableWidening; everything
-	// else here is a fact about the document.
+	// streaming and binary media lists, the promotion mapping and
+	// NullableWidening; everything else here is a fact about the document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -62,6 +62,11 @@ type Ctx struct {
 	// Unlike Grouping it is unexported, because it holds a map, which a struct
 	// copy would share, as with the other maps here.
 	streaming map[string]bool
+
+	// binary is the binary media-type policy, normalized into the set
+	// MediaTypeBinary answers from, and nil when the caller disabled it. It is
+	// unexported for the reason streaming is.
+	binary map[string]bool
 
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
@@ -172,10 +177,10 @@ type scopedPosition struct {
 //
 // The schema-name index is built here, not on first use, so every reader sees
 // the same set whatever the source order: a $ref resolved mid-lowering must see
-// a component declared later. The streaming policy is normalized here so
-// readers cannot disagree about a media type, and the promotion policy is
-// copied so no lowering can write through the context into the caller's map.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
+// a component declared later. The streaming and binary policies are normalized
+// here so readers cannot disagree about a media type, and the promotion policy
+// is copied so no lowering can write through the context into the caller's map.
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, binary BinaryMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
 	return Ctx{
 		Doc:              doc,
 		Source:           src,
@@ -184,6 +189,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		Limits:           limits,
 		schemas:          declaredSchemaNames(doc),
 		streaming:        streamingSet(streaming),
+		binary:           binarySet(binary),
 		promoter:         newPromoter(promotions),
 		NullableWidening: nullable,
 		overlay:          origin,

@@ -236,6 +236,7 @@ func conformanceCases() []conformanceCase {
 		{"multi-content", assertMultiContent},
 		{"multipart-encoding", assertMultipartEncoding},
 		{"file-body", assertFileBody},
+		{"file-media", assertFileMedia},
 		{"media-type-spelling", assertMediaTypeSpelling},
 		{"sequential-media", assertSequentialMedia},
 		{"streaming-media-30", assertStreamingMedia30},

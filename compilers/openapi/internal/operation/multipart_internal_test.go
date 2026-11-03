@@ -233,11 +233,49 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 		{l.types.PrimID(ir.PrimString), false, true},
 	}
 	for _, tc := range cases {
-		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target})
+		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target}, true)
 		assert.Equal(t, tc.multi, multi, "%s multi", tc.target)
 		assert.False(t, file, "%s is not bytes", tc.target)
 		assert.Equal(t, tc.decided, decided, "%s decided", tc.target)
 	}
+}
+
+// TestPartTypeFlags_AListOfRawBytesIsFiles holds a list part's Filename to its
+// element: bytes, through the aliases a hoisted position puts over them, are
+// files in a multipart body, and neither a form body's nor a base64 element,
+// nor a tuple's, nor a model, nor an element that names no node, is read as one.
+func TestPartTypeFlags_AListOfRawBytesIsFiles(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	bytes := l.types.PrimRef(ir.PrimBytes)
+	l.types.Register("t/alias", &ir.Scalar{ID: "t/alias", Base: &bytes})
+	l.types.Register("t/base64", &ir.Scalar{ID: "t/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
+	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
+	l.types.Register("t/cycle", &ir.Scalar{ID: "t/cycle", Base: &ir.TypeRef{Target: "t/cycle"}})
+	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+	for _, tc := range []struct {
+		list      *ir.List
+		multipart bool
+		file      bool
+	}{
+		{&ir.List{ID: "t/bytes", Elem: bytes}, true, true},
+		{&ir.List{ID: "t/aliases", Elem: ir.TypeRef{Target: "t/alias"}}, true, true},
+		{&ir.List{ID: "t/form", Elem: bytes}, false, false},
+		{&ir.List{ID: "t/encoded", Elem: ir.TypeRef{Target: "t/base64"}}, true, false},
+		{&ir.List{ID: "t/opaques", Elem: ir.TypeRef{Target: "t/opaque"}}, true, false},
+		{&ir.List{ID: "t/cycles", Elem: ir.TypeRef{Target: "t/cycle"}}, true, false},
+		{&ir.List{ID: "t/strings", Elem: l.types.PrimRef(ir.PrimString)}, true, false},
+		{&ir.List{ID: "t/absent", Elem: ir.TypeRef{Target: "t/nothing"}}, true, false},
+		{&ir.List{ID: "t/models", Elem: ir.TypeRef{Target: "t/model"}}, true, false},
+	} {
+		l.types.Register(tc.list.ID, tc.list)
+		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.list.ID}, tc.multipart)
+		assert.True(t, multi && decided, "%s repeats", tc.list.ID)
+		assert.Equal(t, tc.file, file, "%s file", tc.list.ID)
+	}
+	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{bytes}})
+	_, file, _ := partTypeFlags(l.types.Node, ir.TypeRef{Target: "t/tuple"}, true)
+	assert.False(t, file, "a tuple's elements are not read")
 }
 
 // refSite loads a source declaring a component Ref whose $ref spells ref, and

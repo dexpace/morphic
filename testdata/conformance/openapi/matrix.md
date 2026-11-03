@@ -129,7 +129,7 @@ witnessing it.
 
 ### `multipart-encoding`
 
-- Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`
+- Witnesses: `multipart-encoding`, `media-type-spelling`, `nested-encoding-32`, `file-media`
 
 ### `per-status-errors`
 
