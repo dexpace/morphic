@@ -167,14 +167,30 @@ canary. A behaviour found that the page lacks is added there.
 
 - **Rule.** A new bound of a kind `docs/compilers/openapi.md#source-budgets` or
   `docs/compilers/openapi.md#references` holds, in whichever phase, takes the outcome, refusal or
-  warning, the entry gives that kind, and joins the entry in the same change. A bound that stops a
-  walk is reported; a cut result never reads as a clean one.
+  warning, the entry gives that kind, and joins the entry in the same change. Such a bound that stops
+  a walk is reported, as a cut result never reads as a clean one; a bound of another kind takes
+  `references/openapi-lessons.md#bound-of-another-kind`.
 - **Why.** Outcomes moved with the code: the reference-chain bounds that warned and let the compile
   go on are gone (#1016), nesting past the scan's bound is refused (#905), and changing one bound
   against its siblings broke a test two packages away (#563).
 - **Probe.** Compile a document at the bound and one past it; read each diagnostic's code, severity
   and pointer, and whether a Document came back. A refusal also takes
   `references/openapi-lessons.md#refusal-findings-in-its-table`.
+
+## Report a bound of another kind by what its cut changes
+`bound-of-another-kind`
+
+- **Rule.** A bound of a kind neither `docs/compilers/openapi.md#source-budgets` nor
+  `docs/compilers/openapi.md#references` holds joins the entry of the construct it bounds. Past it,
+  one that can drop or invent a declared fact is reported, as
+  `docs/compilers/openapi.md#allof-redeclared-property` reports the declarations past its 64. One
+  that only takes a reading away, leaving what the compiler gave before the reading existed, reports
+  nothing, as `docs/compilers/openapi.md#allof-disjoint-conjuncts`' undecided null does. A test pins
+  each at the bound and one past it.
+- **Why.** A lowering bound narrowing a guess had no rule, and "reported" did not fit a cut that
+  leaves the output only less guessed (#1440).
+- **Probe.** Compile a document at the bound and one past it, read every diagnostic, and diff the IR
+  past it against a build without the reading.
 
 ## A refusal after a `$ref` has read a document keeps its findings in its source table
 `refusal-findings-in-its-table`
