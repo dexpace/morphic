@@ -47,19 +47,18 @@ canary. A behaviour found that the page lacks is added there.
 ## Compare two schemas by rendering their raw nodes
 `compare-raw-nodes`
 
-- **Rule.** `Schema.IsEqual` reads the model, which misses keywords
-  (`docs/parser-library.md#unmodeled-keywords`), and `yml.EqualNodes` the nodes as written, so
-  compare the raw nodes' `annotation.RawFromNode` renderings, which read merges as the parser does
-  and sort keys, a failed one unequal to all, as far as text decides
-  (`references/openapi-lessons.md#text-decides-under-one-base`). In the schema package, call
-  `sameText` in `compilers/openapi/internal/schema/admission.go`, which renders each schema once a
-  run; elsewhere, render each node once.
+- **Rule.** Compare two schemas by their `annotation.RawFromNode` renderings, which read merges as
+  the parser does and sort keys, a failed one unequal to all, as far as text decides
+  (`references/openapi-lessons.md#text-decides-under-one-base`), not by `Schema.IsEqual`, whose
+  model misses keywords (`docs/parser-library.md#unmodeled-keywords`), or `yml.EqualNodes`. In
+  `schema`, call `sameText` in `compilers/openapi/internal/schema/admission.go`, which renders each
+  schema once a run (#1408 tracks its base check); elsewhere, render each node once.
 - **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
   restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the
   body's property through `<<` or in another key order.
-- **Probe.** Compare `{x: {<<: {a: 1}}}` and `{description: d, type: string}` with their plain
-  spellings, and two schemas differing only in `dependentRequired` or each writing a key twice: the
-  first two match or err safely, the others differ.
+- **Probe.** Compare `{x: {<<: {a: 1}}}` and `{<<: {description: d, type: string}}` with their
+  plain spellings, and two schemas differing only in `dependentRequired` or each writing a key
+  twice: the first two match or err safely, the others differ.
 
 ## Trust a comparison of text only as far as text decides
 `text-decides-under-one-base`
