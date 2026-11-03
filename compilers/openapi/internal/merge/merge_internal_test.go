@@ -45,7 +45,9 @@ func declaring(id ir.TypeID) *ir.Model {
 }
 
 // judge is the type judgment over the registry g reads.
-func judge(g *Merger) typeJudge { return typeJudge{Resolve: g.Resolve} }
+func judge(g *Merger) typeJudge {
+	return typeJudge{Resolve: g.Resolve, sites: declarationSites{alike: alwaysAlike}}
+}
 
 // stubMerger returns a Merger backed by a plain map and a diagnostic recorder,
 // with no lowerer, parser or document in the setup, so the conflict lattice can
@@ -62,12 +64,16 @@ func stubMerger(reg map[ir.TypeID]ir.TypeDef) (*Merger, *[]ir.Diagnostic) {
 		},
 		Interned: func(jsontext.Pointer) bool { return false },
 		PropAt:   func(pointer jsontext.Pointer) ir.PropID { return "p/minted" + ir.PropID(pointer) },
+		Alike:    alwaysAlike,
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			*recorded = append(*recorded, diag.Newf(sev, code, ir.Provenance{Pointer: pointer}, format, args...))
 		},
 	}
 	return g, recorded
 }
+
+// alwaysAlike is Merger.Alike for declarations all read against one base.
+func alwaysAlike(ir.Provenance, ir.Provenance) bool { return true }
 
 // composedAt is the ID stubMerger mints a composition under, for the field the
 // declaration at pointer names.
