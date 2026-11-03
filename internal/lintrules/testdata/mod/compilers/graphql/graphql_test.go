@@ -4,6 +4,8 @@ import (
 	"net/url"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
+
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/ir"
 )
@@ -17,7 +19,8 @@ func TestFixtures(t *testing.T) {
 	n.Hint = "fixture"
 	_, err := url.QueryUnescape("a+b")
 	_ = compile.OpID(compile.Space("graphql"+"x"), "")
-	if err != nil || n.Hint == "" {
+	doc := &soa.OpenAPI{OpenAPI: "3.0.3"}
+	if err != nil || n.Hint == "" || doc.GetOpenAPI() == "" {
 		t.Fatal(err)
 	}
 }

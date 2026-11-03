@@ -326,7 +326,9 @@ holds a document to, which gives the minor each field and value was added in; no
 so no field's treatment can depend on whether the parser happens to model it. How a schema keyword
 reads at its document's minor is asked of the same table, the Schema Object's rows at that minor:
 whether it defines `nullable`, the shape `exclusiveMinimum` takes, and whether `items` is required
-beside `type: array`. No lowering asks the version. The construct's value
+beside `type: array`. No lowering asks the version: nothing outside the load phase and the table
+reads the version a document declares, and `make vet` refuses a reading anywhere else (the
+`versionreadings` analyzer). The construct's value
 is held to the shape its table row gives it, and any object inside it to the table like any other.
 The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, a Path
 Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering applies beside

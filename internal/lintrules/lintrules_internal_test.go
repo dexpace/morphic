@@ -46,7 +46,8 @@ func TestAnalyzers_DrawExactlyThePlantedFindings(t *testing.T) {
 
 // TestAnalyzers_ReadTheModulesLayout runs the rules as cmd/morphic-vet does,
 // rooted at the module. There the planted compiler sits under internal/, which
-// the registry rule holds and the ID rule, holding compilers only, does not.
+// the registry rule holds and the ID rule, holding compilers only, does not,
+// and the planted load is no package the version rule exempts.
 func TestAnalyzers_ReadTheModulesLayout(t *testing.T) {
 	t.Parallel()
 	analyzers := Analyzers()
@@ -57,12 +58,16 @@ func TestAnalyzers_ReadTheModulesLayout(t *testing.T) {
 		names = append(names, a.Name)
 	}
 	assert.Equal(t, []string{
-		"registrywrites", "servicetreewrites", "fragmentreadings", "namechannels", "idderivations",
+		"registrywrites", "servicetreewrites", "fragmentreadings", "versionreadings", "namechannels", "idderivations",
 	}, names)
 
 	got := strings.Join(drawnFindings(t, analyzers, "./"+plantDir+"/compilers/graphql"), "\n")
 	assert.Contains(t, got, "registrywrites: ")
 	assert.NotContains(t, got, "idderivations: ")
+
+	planted := strings.Join(drawnFindings(t, analyzers, "./"+plantDir+"/compilers/openapi/internal/load"), "\n")
+	assert.Contains(t, planted, "versionreadings: soa.OpenAPI.OpenAPI ",
+		"the planted load is not the module's, so its read of the version is refused")
 }
 
 // wantMarker is a line's marker: one or more quoted findings after "// want",
@@ -218,5 +223,34 @@ func TestRegistryOf_TakesAMapKeyedByANamedString(t *testing.T) {
 			assert.Equal(t, tt.noun != "", ok)
 			assert.Equal(t, tt.noun, r.noun)
 		})
+	}
+}
+
+// TestVersionField_IsTheFieldTheDocumentTypeDeclares pins which field the
+// version rule keys on: the OpenAPI field of the library's document type, and
+// none where the package declares no such type, a type that is no struct, or
+// a struct without that field.
+func TestVersionField_IsTheFieldTheDocumentTypeDeclares(t *testing.T) {
+	t.Parallel()
+	declaring := func(under types.Type) *types.Package {
+		pkg := types.NewPackage(soaPath, "openapi")
+		if under != nil {
+			tn := types.NewTypeName(token.NoPos, pkg, "OpenAPI", nil)
+			types.NewNamed(tn, under, nil)
+			pkg.Scope().Insert(tn)
+		}
+		return pkg
+	}
+	field := func(name string) *types.Var {
+		return types.NewField(token.NoPos, nil, name, types.Typ[types.String], false)
+	}
+	version := field("OpenAPI")
+	assert.Same(t, version, versionField(declaring(types.NewStruct([]*types.Var{field("Info"), version}, nil))))
+	for name, under := range map[string]types.Type{
+		"no type":          nil,
+		"no struct":        types.Typ[types.String],
+		"no version field": types.NewStruct([]*types.Var{field("Info")}, nil),
+	} {
+		assert.Nil(t, versionField(declaring(under)), name)
 	}
 }
