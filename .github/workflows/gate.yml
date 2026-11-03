@@ -20,19 +20,20 @@ concurrency:
 # `make gate` runs them all. The fuzz search is the third job, which runs only on
 # a schedule or by hand and which `make gate` leaves out.
 #
-# Only the suite job reads a cached test result: the checks job runs go test
-# only with -bench, and the fuzz search job only with -fuzz, neither of which go
-# help test lists as cacheable. So the suite job first sets each tracked file's
-# time from its content, because Go keys a cached test result on the size, mode
-# and time of each file inside the module that the test opens, and a checkout
-# gives every file a new time.
+# Two steps read a cached test result: coverage in the suite job and race in the
+# checks job. The rest of the checks job runs go test only with -bench, and the
+# fuzz search job only with -fuzz, neither of which go help test lists as
+# cacheable. So each of the two jobs first sets each tracked file's time from its
+# content, because Go keys a cached test result on the size, mode and time of
+# each file inside the module that the test opens, and a checkout gives every
+# file a new time.
 #
 # A run on main restores the cache the previous run of the same job, toolchain
-# and go.sum saved, and saves. The suite job clears the test results first.
-# Clearing keeps the builds and the module cache, so main rebuilds only what its
-# commit changed, but it reruns every test and so cannot replay a stale pass. A
-# pull request restores that save, reuses the results of the tests its change
-# leaves alone, and never saves.
+# and go.sum saved, and saves. Each of the two jobs clears the test results
+# before its test step. Clearing keeps the builds and the module cache, so main
+# rebuilds only what its commit changed, but it reruns every test and so cannot
+# replay a stale pass. A pull request restores that save, reuses the results of
+# the tests its change leaves alone, and never saves.
 #
 # The cache stays bounded for three reasons. The go command deletes build cache
 # entries unused for five days, scanning once a day (cmd/go/internal/cache,
@@ -43,7 +44,7 @@ concurrency:
 # key, bounded by make fuzz-prune.
 jobs:
   checks:
-    name: lint, bench
+    name: lint, bench, race detector
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -96,6 +97,40 @@ jobs:
         run: make fuzz-check
       - name: benchmarks
         run: make bench-smoke
+      # Go keys a cached test result on the time of each file inside the module
+      # that the test opens, and a checkout gives every file a new one. This
+      # dates them from content.
+      # After every step above, since each runs git: make fmt lists the tracked
+      # files, the scripts find the repository root, and go build and go list
+      # run git status to stamp VCS information, which gives .git a new time.
+      # Go hashes every entry of a directory a test lists, the root among them.
+      # No package race runs does that today (dating, then git status, then race
+      # left every result cached), while irtest and archtest, which the suite
+      # job's coverage run covers, do. The order keeps a package added to the
+      # race list that does from missing the cache on every run. Nothing may run
+      # git between this step and race, bar the rev-parse that race-reach.sh
+      # runs after the package tests have returned.
+      - &date-files
+        name: date files by content
+        run: make filetimes
+      # Not -count=1, which stores no results: a pull request would then find
+      # none to reuse. This writes an expiry that voids the restored ones. It
+      # precedes race, the one step here that reads a cached test result, as it
+      # would otherwise replay a pass main stored.
+      - &clear-results
+        name: clear restored test results
+        if: github.event_name == 'push'
+        run: go clean -testcache
+      # Here and not in suite to balance the two jobs, which coverage and race
+      # in one made unequal (#1386). No make build comes first: the race
+      # packages' tests that load packages run go list -export, which compiles
+      # what make build does, and after make vet that compiles nothing. Probed
+      # on an empty cache, running this job's steps in order: go list -export
+      # over ir, engine and compilers/openapi/internal/load compiled 0 packages
+      # (291 on an empty cache with nothing before it), and 0 after vet on a
+      # tree with a change in ir (29 before vet).
+      - name: race
+        run: make race
       - &save
         name: save caches
         if: github.event_name == 'push'
@@ -107,7 +142,7 @@ jobs:
           key: go-${{ github.job }}-${{ runner.os }}-go${{ steps.toolchain.outputs.version }}-${{ hashFiles('go.sum') }}-${{ github.sha }}
 
   suite:
-    name: build, coverage (exactly 100%), race detector
+    name: build, coverage (exactly 100%)
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -122,25 +157,16 @@ jobs:
       # their bound (#1010).
       - name: build
         run: make build
-      # Go keys a cached test result on the time of each file inside the module
-      # that the test opens, and a checkout gives every file a new one. This
-      # dates them from content.
+      # Dates the files from content, as in the checks job.
       # After build, as any git status, go build's VCS stamping included, gives
       # .git a new time that the tests listing the module root hash. Nothing may
-      # run git between this step and the first test step.
-      - name: date files by content
-        run: make filetimes
-      # Not -count=1, which stores no results: a pull request would then find
-      # none to reuse. This writes an expiry that voids the restored ones. It
-      # precedes both test steps, as the race step is a test run that would
-      # otherwise replay a pass main stored.
-      - name: clear restored test results
-        if: github.event_name == 'push'
-        run: go clean -testcache
+      # run git between this step and the test step.
+      - *date-files
+      # Voids the restored results before coverage, the one test step here, as
+      # the clear in the checks job does before race.
+      - *clear-results
       - name: coverage
         run: make coverage
-      - name: race
-        run: make race
       - *save
 
   # The search keeps what it finds between nights: Go holds a found input in
