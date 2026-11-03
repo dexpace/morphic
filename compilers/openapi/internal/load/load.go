@@ -106,16 +106,17 @@ func readyForModel(ctx context.Context, root *yaml.Node) {
 	}}.Run(ctx, root)
 }
 
-// mistagged reports whether the i-th of n's Content is a scalar written with no
-// tag that the parser tags as no string where YAML 1.2, which OpenAPI
-// recommends, reads the string it spells: any date, a timestamp to the parser
-// (docs/parser-library.md#scalar-resolution), and a `<<` anywhere but a
-// mapping's key, the one place it merges. The model decodes no string from
-// either, so a field so written reads as left out
-// (docs/parser-library.md#undecoded-scalar, GitHub #1280).
+// mistagged reports whether the i-th of n's Content is a scalar the parser tags
+// as no string where YAML 1.2, which OpenAPI recommends, reads the string it
+// spells: a date, a timestamp to the parser
+// (docs/parser-library.md#scalar-resolution), or a `<<` anywhere but a
+// mapping's key, the one place it merges, written with no tag or YAML's
+// non-specific `!`. The model decodes no string from either, so a field so
+// written reads as left out (docs/parser-library.md#undecoded-scalar, GitHub
+// #1280).
 //
-// A scalar the source tags outright keeps its tag: what that reads as is
-// GitHub #245's and #1368's to settle.
+// A scalar under any other tag keeps it: what that reads as is GitHub #245's
+// and #1368's to settle.
 func mistagged(n *yaml.Node, i int) bool {
 	c := n.Content[i]
 	if c == nil || c.Kind != yaml.ScalarNode || c.Style&yaml.TaggedStyle != 0 {

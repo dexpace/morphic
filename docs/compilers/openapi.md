@@ -69,16 +69,16 @@ OpenAPI's limit on YAML tags forbids, refuses the source before the parser reads
 `openapi/tagged-mapping` error at the tagged mapping with the least pointer, and it compiles to no
 Document. A tagged scalar is not refused here; what it lowers to is [`values`](#values)'.
 
-A date written with no tag, such as `2021-01-01`, and a `<<` written with none anywhere but as a
-mapping's key, are the strings they spell, in the source and in each document read beside it. YAML
-1.2, which OpenAPI recommends, has no timestamp or merge type: its core schema reads both as
-strings, and `!!str` is the one tag of the JSON schema ruleset, to which OpenAPI limits YAML's tags,
-that holds them. The parser tags the first a timestamp and the second a merge, from neither of which
-its model decodes a string ([`undecoded-scalar`](../parser-library.md#undecoded-scalar)), so the
-compiler tags each a string before the model is built: a field so written holds its text, and a
-`$ref` so written is followed like any other. A `<<` key still merges
-([`merge-keys`](../parser-library.md#merge-keys)), and a scalar the source tags outright keeps its
-tag.
+A date such as `2021-01-01`, and a `<<` anywhere but as a mapping's key, written with no tag or
+under YAML's non-specific `!`, are the strings they spell, in the source and in each document read
+beside it. YAML 1.2, which OpenAPI recommends, has no timestamp or merge type: its core schema reads
+both as strings, `!` makes any scalar one, and `!!str` is the one tag of the JSON schema ruleset, to
+which OpenAPI limits YAML's tags, that holds them. The parser tags the first a timestamp and the
+second a merge, from neither of which its model decodes a string
+([`undecoded-scalar`](../parser-library.md#undecoded-scalar)), so the compiler tags each a string
+before the model is built: a field so written holds its text, and a `$ref` so written is followed
+like any other. A `<<` key still merges ([`merge-keys`](../parser-library.md#merge-keys)), and a
+scalar under any other tag keeps it.
 
 - Cases: `yaml-timestamp-scalars`
 - Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,

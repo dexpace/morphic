@@ -733,8 +733,8 @@ func TestPreparedFor(t *testing.T) {
 }
 
 // TestUnready holds unready to what readyForModel changes: an anchor however
-// deep, a plain date, and a plain `<<` but as a key, and not either the source
-// quotes or tags outright.
+// deep, a plain date, and a plain `<<` but as a key, and neither one when the
+// source quotes it or tags it outright.
 func TestUnready(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -753,6 +753,7 @@ func TestUnready(t *testing.T) {
 		{"a date tagged a timestamp outright", "a: {b: [1, !!timestamp 2021-01-01]}\n", false},
 		{"a << as a value", "a: {b: <<}\n", true},
 		{"a << as an item", "a: [1, <<]\n", true},
+		{"a << value under the non-specific tag", "a: {b: ! <<}\n", true},
 		{"a << as a merge key", "a: {<<: {b: 1}}\n", false},
 		{"a quoted << value", "a: {b: '<<'}\n", false},
 		{"a << value tagged a merge outright", "a: {b: !!merge <<}\n", false},
