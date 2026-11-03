@@ -39,7 +39,8 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, positionVoices(c, ts, s, pointer, ir.TypeRef{}), pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
-		comp := allOfBranches(s, pointer) // the one flattened list; the readers below take it, not s
+		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
+		diags = append(diags, diagDisjointConjuncts(c, comp)...)
 		if allOfDecides(s) {
 			comp.speaks = voicesAmong(c, s)
 		}
@@ -159,6 +160,10 @@ func stackPath(buf []int, stack []allOfFrame) []int {
 type allOfComposition struct {
 	pointer  jsontext.Pointer
 	branches []allOfBranch
+	// disjoint names what each conjunct states where the schema draws the
+	// warning docs/compilers/openapi.md#allof-disjoint-conjuncts describes, and
+	// is nil otherwise (readAllOf).
+	disjoint []string
 	// speaks marks each branch that folds at the position (voicesAmong). It is nil
 	// for a composition distributed across a union, whose variants each keep every
 	// branch.
@@ -233,7 +238,12 @@ func FlattenedAllOf(s *oas3.Schema) []FlatBranch {
 // and its path from the composed schema. The path's tokens are `allOf` and
 // decimal indices, so trimming the prefix is exact.
 func (a allOfComposition) branchKey(bptr jsontext.Pointer) string {
-	return "openapi:" + strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
+	return "openapi:" + a.branchPath(bptr)
+}
+
+// branchPath is the path of the allOf branch at bptr from the composed schema.
+func (a allOfComposition) branchPath(bptr jsontext.Pointer) string {
+	return strings.TrimPrefix(string(bptr), string(a.pointer)+"/")
 }
 
 // flattensInto reports whether the allOf branch b, at nesting depth depth, is a
@@ -353,7 +363,7 @@ func applyFalseBranches(c lowering.Ctx, m *ir.Model, comp allOfComposition) []ir
 // preserveUnmergedBranch keeps an inline allOf branch verbatim beside the
 // composed model when it declares more than the merge consumes, under
 // ReasonDegradedLowering and located at the branch
-// (docs/compilers/openapi.md#allof-inline-residue). key names the entry, so
+// (docs/compilers/openapi.md#allof-inline-residue). comp keys the entry, so
 // sibling branches never overwrite one another. A flattened branch's allOf is
 // consumed: allOfBranches replaced it by its own entries.
 //
@@ -380,7 +390,7 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 		return keptDiags
 	}
 	split := comp.speaks != nil && !speaks && disagreed(bs, residue)
-	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e, split))
+	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e, split, len(comp.disjoint) > 0))
 }
 
 // diagUnmergedBranch builds the diagnostic announcing one merged branch's
@@ -391,10 +401,11 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 // info: the composed ir.Model asserts the value *is* an object, which the branch
 // contradicts. Any other residue only narrows a model the IR describes correctly,
 // the under-constrained case (docs/compilers/openapi.md#allof-inline-residue).
-// split says the conjuncts disagreed on what the branch writes, which is why it
-// did not fold.
-func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch, split bool) ir.Diagnostic {
-	if branchExcludesObject(bs) {
+// split says the conjuncts disagreed on what the branch writes, so it did not
+// fold. disjoint says the schema reports its conjuncts share no value, so this
+// reports residue alone.
+func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch, split, disjoint bool) ir.Diagnostic {
+	if branchExcludesObject(bs) && !disjoint {
 		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
 			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
 		if e.capped {

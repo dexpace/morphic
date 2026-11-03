@@ -91,7 +91,7 @@ components:
     Bounded:
       type: string
       allOf: [{maxLength: 3}]
-    # No value satisfies both, so the contradiction stands with its warnings.
+    # No value satisfies both, so the contradiction stands with its warning.
     Disjoint:
       allOf:
         - {type: integer}

@@ -19,9 +19,16 @@ components:
           additionalProperties: false
           description: A narrowed base.
           maxProperties: 3
+    # Untyped constrains objects and writes no type, so a string satisfies it.
+    Untyped:
+      properties:
+        id: {type: string}
     # This branch declares a type that cannot be an object, which the composed
-    # model asserts it is — the same residue, reported one severity higher.
+    # model asserts it is — the same residue, reported one severity higher. It
+    # composes Untyped: beside the Base the conjuncts would share no value, and
+    # allof-disjoint-conjuncts would report that once at the schema, leaving the
+    # branch an info.
     Contradicted:
       allOf:
-        - {$ref: '#/components/schemas/Base'}
+        - {$ref: '#/components/schemas/Untyped'}
         - {type: string, maxLength: 3}
