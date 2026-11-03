@@ -46,10 +46,10 @@ components:
 
 // TestReadPartFile_ReadsDeclarationsEncodingAndVersion holds a part's Filename
 // and marker to its declaration, its encoding entry's media types and the
-// version's default media type, in a multipart body: raw bytes, an array of
-// them, an untyped part from 3.1 and a part whose encoding names only binary
-// types are files, and a part saying it is text is none, as a url-encoded one
-// never is beyond what its own bytes say (GitHub #1214).
+// version's default media type, in a multipart body: raw bytes, an array or a
+// tuple of them, an untyped part from 3.1 and a part whose encoding names only
+// binary types are files, and a part saying it is text is none, as a
+// url-encoded one never is beyond what its own bytes say (GitHub #1214).
 func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 	t.Parallel()
 	const (
@@ -77,6 +77,22 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 			openapi.Options{}, false, true, ""},
 		{"an array writing no items", "3.1.0", multipart, "{type: array}", "", openapi.Options{}, false, true, ""},
 		{"an array of base64", "3.1.0", multipart, "{type: array, items: {type: string, format: byte}}", "",
+			openapi.Options{}, false, true, ""},
+		{"a closed tuple of binary", "3.1.0", multipart,
+			"{type: array, prefixItems: [" + binary + ", " + binary + "], items: false}", "", openapi.Options{}, true, true, ""},
+		{"a tuple whose rest is binary", "3.1.0", multipart,
+			"{type: array, prefixItems: [" + binary + "], items: " + binary + "}", "", openapi.Options{}, true, true, ""},
+		{"a tuple whose rest writes no type", "3.1.0", multipart,
+			"{type: array, prefixItems: [" + binary + "], items: {}}", "", openapi.Options{}, true, true, ""},
+		{"a tuple writing no items", "3.1.0", multipart, "{type: array, prefixItems: [" + binary + "]}", "",
+			openapi.Options{}, false, true, ""},
+		{"a tuple of binary and a string", "3.1.0", multipart,
+			"{type: array, prefixItems: [" + binary + ", {type: string}], items: false}", "", openapi.Options{}, false, true, ""},
+		{"a tuple of untyped elements of a binary type", "3.1.0", multipart,
+			"{type: array, prefixItems: [{}, {}], items: false}", "{contentType: image/png}", openapi.Options{}, true, true, marker},
+		{"an array admitting no element", "3.1.0", multipart, "{type: array, items: false}", "",
+			openapi.Options{}, false, true, ""},
+		{"a form's tuple of binary", "3.1.0", form, "{type: array, prefixItems: [" + binary + "], items: false}", "",
 			openapi.Options{}, false, true, ""},
 		{"an untyped part", "3.1.0", multipart, "{description: the image}", "", openapi.Options{}, true, false, ""},
 		{"an untyped part in 3.0", "3.0.3", multipart, "{}", "", openapi.Options{}, false, false, ""},

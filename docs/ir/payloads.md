@@ -32,8 +32,10 @@ type Content struct {
     Type      TypeRef
     Item      *TypeRef            // element shape of a sequential stream declared per media type
                                   // (OpenAPI 3.2 itemSchema for SSE/JSONL/json-seq); nil = not sequential
-    ItemEncoding *PartEncoding    // wire encoding of a sequential stream's item (3.2 itemEncoding);
-                                  // singular like Item, because it governs every item alike.
+    ItemEncoding *PartEncoding    // wire encoding of a sequential stream's item (3.2 itemEncoding),
+                                  // or one saying only that each item is a file where a multipart
+                                  // stream of files writes none; singular like Item, because it
+                                  // governs every item alike.
                                   // Positional per-item encoding (3.2 prefixEncoding) has no form
                                   // here and stays in Unmodeled — see docs/ir/unmodeled.md
     Encoding  map[PropID]PartEncoding // multipart/form: per-property (part) wire config, keyed by the

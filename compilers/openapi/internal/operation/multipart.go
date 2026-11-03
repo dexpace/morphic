@@ -317,11 +317,11 @@ func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), prop *ir.Property, pe ir
 // partTypeFlags reads the structural flags of a part from its type: multi when
 // it is a list or tuple, file when it is bytes, following the alias scalars a
 // hoisted position or `format: byte` puts over the primitive, or, in a
-// multipart body, a list of raw bytes (rawBytes). A part's own `format: byte`
-// and a form body's bytes still read as files (GitHub #1214), and a tuple's
-// elements are not read (GitHub #1433). decided reports that the walk judged
-// the type; false means the type is a kind it cannot answer for. The walk is
-// bounded by maxBodyAliasHops.
+// multipart body, a list or tuple whose every element is raw bytes (rawBytes,
+// rawTuple). A part's own `format: byte` and a form body's bytes still read as
+// files (GitHub #1214). decided reports that the walk judged the type; false
+// means the type is a kind it cannot answer for. The walk is bounded by
+// maxBodyAliasHops.
 func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
 	id := ref.Target
 	for range maxBodyAliasHops {
@@ -333,7 +333,7 @@ func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, mult
 		case *ir.List:
 			return true, multipart && rawBytes(node, t.Elem), true
 		case *ir.Tuple:
-			return true, false, true
+			return true, multipart && rawTuple(node, t), true
 		case *ir.Primitive:
 			return false, t.Prim == ir.PrimBytes, true
 		case *ir.Scalar:

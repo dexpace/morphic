@@ -8,6 +8,7 @@ import (
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
@@ -32,23 +33,31 @@ func (f partFile) apply(pe ir.PartEncoding) ir.PartEncoding {
 
 // readPartFile reads part, a part of a multipart body or not as multipart says,
 // as a file (docs/compilers/openapi.md#multipart-encoding): every declaration
-// of it, or of each element of an array it declares, must read so. A part
-// declaring raw bytes is one; a part leaving its media type to say is one where
-// its encoding entry names only binary media types (partContentFile), or, from
-// OpenAPI 3.1 and naming none, where it writes no type, whose default media
-// type is application/octet-stream. Only a multipart part can carry raw bytes.
+// of it, or each element of an array or tuple it declares (partElements), must
+// read so, as fileFor judges it. Only a multipart part can carry raw bytes.
 func readPartFile(c lowering.Ctx, part bodyPart, contentTypes []string, multipart bool) partFile {
 	if !multipart || len(part.schemas) == 0 {
 		return partFile{}
 	}
 	least := readsBinary
 	for _, js := range part.schemas {
-		elem, ok := partElement(c, js)
+		elems, ok := partElements(c, js)
 		if !ok {
 			return partFile{}
 		}
-		least = min(least, readFile(c, elem))
+		for _, elem := range elems {
+			least = min(least, readFile(c, elem))
+		}
 	}
+	return fileFor(c, least, contentTypes)
+}
+
+// fileFor judges a multipart part or item whose schemas read as least, with
+// contentTypes its encoding entry's: a file where it declares raw bytes; where
+// it leaves its media type to say, one where the entry names only binary media
+// types (partContentFile), or, from OpenAPI 3.1 and naming none, where it
+// writes no type, whose default media type is application/octet-stream.
+func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile {
 	switch {
 	case least == readsBinary:
 		return partFile{file: true}
@@ -61,19 +70,25 @@ func readPartFile(c lowering.Ctx, part bodyPart, contentTypes []string, multipar
 	}
 }
 
-// partElement returns the schema each value of a part declared by js has: the
-// items of an array, else js. An array writing no items is not read, so ok is
-// false: what its elements are is left unsaid, not said to be anything.
-func partElement(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) (*oas3.JSONSchema[oas3.Referenceable], bool) {
+// partElements returns the schemas the values of a part declared by js have:
+// an array's prefixItems and the items following them, items false admitting
+// none, else js alone. An array writing no items is not read, so ok is false:
+// what the elements past its prefix are is left unsaid, not said to be
+// anything. Neither is one admitting no element at all.
+func partElements(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) ([]*oas3.JSONSchema[oas3.Referenceable], bool) {
 	s := schemaOf(c.Bindings(), js)
-	if s == nil {
-		return js, true
-	}
-	if !slices.Equal(withoutNull(s.GetType()), []oas3.SchemaType{oas3.SchemaTypeArray}) {
-		return js, true
+	if s == nil || !slices.Equal(withoutNull(s.GetType()), []oas3.SchemaType{oas3.SchemaTypeArray}) {
+		return []*oas3.JSONSchema[oas3.Referenceable]{js}, true
 	}
 	items := s.GetItems()
-	return items, items != nil
+	if !annotation.Written(items) {
+		return nil, false
+	}
+	elems := slices.Clone(s.GetPrefixItems())
+	if !annotation.IsFalseSchema(items) {
+		elems = append(elems, items)
+	}
+	return elems, len(elems) > 0
 }
 
 // partContentFile reads a part whose schema leaves its media type to say, and
@@ -92,6 +107,21 @@ func partContentFile(c lowering.Ctx, contentTypes []string) partFile {
 		}
 	}
 	return out
+}
+
+// rawTuple reports whether every element t admits is raw bytes (rawBytes):
+// each of Elems and, where elements may follow them, Rest. A tuple admitting
+// no element at all is no file.
+func rawTuple(node func(ir.TypeID) (ir.TypeDef, bool), t *ir.Tuple) bool {
+	if len(t.Elems) == 0 && t.Rest == nil {
+		return false
+	}
+	for _, elem := range t.Elems {
+		if !rawBytes(node, elem) {
+			return false
+		}
+	}
+	return t.Rest == nil || rawBytes(node, *t.Rest)
 }
 
 // rawBytes reports whether ref ends in bytes that travel raw, through the alias

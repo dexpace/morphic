@@ -53,6 +53,14 @@ paths:
                 attachments:
                   type: array
                   items: {}
+                # A tuple whose every element is raw bytes, and admitting no
+                # more, is file parts too.
+                pair:
+                  type: array
+                  prefixItems:
+                    - {type: string, format: binary}
+                    - {type: string, format: binary}
+                  items: false
                 # A part whose encoding names only binary media types.
                 profileImage: {}
                 # contentMediaType without contentEncoding leaves the part

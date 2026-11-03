@@ -195,9 +195,32 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	}
 	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["files"])
 	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["attachments"])
+	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["pair"])
 	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Filename: true,
 		Inferred: "binary-media-type"}, parts["profileImage"])
 	assert.NotContains(t, parts, "avatar", "a string part is text, whatever media type it names")
+}
+
+// assertFileItems32 pins the item encoding of a multipart stream of files: raw
+// bytes and an item writing no type are files, the second with an item
+// encoding though it writes none, and a string item is a file the binary policy
+// reads, marked so.
+func assertFileItems32(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
+	for _, tc := range []struct {
+		op   string
+		want ir.PartEncoding
+	}{
+		{"listPhotos", ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Multi: true, Filename: true}},
+		{"listAttachments", ir.PartEncoding{Multi: true, Filename: true}},
+		{"listThumbnails", ir.PartEncoding{ContentTypes: []string{"image/webp"}, Multi: true, Filename: true,
+			Inferred: "binary-media-type"}},
+	} {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, tc.op)
+		item := firstContent(t, op).ItemEncoding
+		require.NotNil(t, item, tc.op)
+		assert.Equal(t, tc.want, *item, tc.op)
+	}
 }
 
 // assertMediaTypeSpelling pins that a media type is classified by its type alone
