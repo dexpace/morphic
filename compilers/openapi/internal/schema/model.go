@@ -92,8 +92,24 @@ func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 		Report: func(sev ir.Severity, code string, pointer jsontext.Pointer, format string, args ...any) {
 			diags = append(diags, s.c.DiagAt(sev, code, pointer, format, args...))
 		},
+		Alike: s.alike,
 	})
 	return diags
+}
+
+// alike is merge.Merger.Alike. Each site is read at s.c's position for its
+// pointer, as the model's own document holds it; a site in another document,
+// such as a component a $ref there reached, one c does not place, or one whose
+// base the bindings cannot tell, is no match.
+func (s settledMerge) alike(a, b ir.Provenance) bool {
+	base := func(p ir.Provenance) (string, bool) {
+		at, placed := s.c.Position(p.Pointer)
+		uri, known := s.c.Bindings().Table().Base(at)
+		return uri, placed && known && p.Source == s.c.ProvenanceAt(p.Pointer).Source
+	}
+	ua, okA := base(a)
+	ub, okB := base(b)
+	return okA && okB && ua == ub
 }
 
 // mint registers node, the type of the field the declaration at pointer names.

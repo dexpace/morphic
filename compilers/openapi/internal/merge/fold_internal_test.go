@@ -481,3 +481,36 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 	_, ok = judge(g).kindOf(ir.TypeRef{Target: "t/absent"})
 	assert.False(t, ok, "a target the registry does not hold resolves to no kind")
 }
+
+// TestFold_UnmodeledAlikeUnderAnotherBaseIsKept pins that an entry two
+// declarations write alike, writing a reference, is one only where Merger.Alike
+// says they read it against one base: elsewhere the same text may name another
+// schema, so the later one is reported and kept as one given differently is.
+// An entry writing no reference is one under any base.
+func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		value    string
+		wantKeys []string
+		reports  int
+	}{
+		{`{"$ref":"n.json"}`, []string{"openapi:not", losingDeclarationKey + "/allOf/1/properties/p"}, 1},
+		{`{"const":"n.json"}`, []string{"openapi:not"}, 0},
+		{`{"$ref":"https://ex.test/n.json"}`, []string{"openapi:not"}, 0},
+	} {
+		entry := ir.UnmodeledEntry{Value: ir.RawValue(tc.value)}
+		first, second := stringAt("/allOf/0/properties/p", `{"x":0}`), stringAt("/allOf/1/properties/p", `{"x":1}`)
+		first.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
+		second.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
+		g, recorded := stubMerger(narrowingRegistry())
+		g.Alike = func(ir.Provenance, ir.Provenance) bool { return false }
+
+		got := g.fold([]declaration{first, second})
+
+		assert.ElementsMatch(t, tc.wantKeys, slices.Collect(maps.Keys(got.Unmodeled)), tc.value)
+		assert.Len(t, *recorded, tc.reports, tc.value)
+		for _, d := range *recorded {
+			assert.Contains(t, d.Message, "give its openapi:not differently", tc.value)
+		}
+	}
+}

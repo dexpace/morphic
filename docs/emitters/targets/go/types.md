@@ -30,10 +30,12 @@ for one.
 
 ## Enums
 
-Go cannot express open enums, so `Closed=false` lowers to a named string type + typed consts + a
-passthrough that preserves unknown values and honors `FallbackMember` on decode; `Closed=true`
-lowers to typed consts with strict decode; `Flags=true` → bitset. A `ValueType` whose Go type has
-no constant form, such as `date`, `uuid` or `decimal`, has no Go lowering yet (#1202).
+A `Flags` enum lowers to a bitset, open or closed, an open one keeping a bit no member names. Go
+cannot express other open enums, so any other enum `TypePlan.Open` marks, every one `Closed=false`
+declares among them ([enums](../../refine/enums.md)), lowers to a named string type + typed consts +
+a passthrough that preserves unknown values and honors `FallbackMember` on decode, and any other
+lowers to typed consts with strict decode. A `ValueType` whose Go type has no constant form, such as
+`date`, `uuid` or `decimal`, has no Go lowering yet (#1202).
 
 A Go constant is declared at package level, where every enum's constants meet, so Go names a
 member's constant by its enum's identifier, as rendered, followed by the member's name
