@@ -44,16 +44,16 @@ gives. A clock does none of that reliably; a counter does.
 ## Count allocations in the builds the gate runs, and take the fewest
 `count-in-the-gates-build`
 
-- **Rule.** Run an allocation or byte-count test in each build the gate gives it:
-  `-covermode=set -coverprofile=…`, and `-race` alone when `make race` covers the package.
-  Under `-race`, `sync.Pool` drops one `Put` in four, so anything touching a pool allocates at
-  random: build every input before the measured call, take the fewest of single measurements, and
-  where one visit makes many pool round trips, take the pool off the hot path instead.
+- **Rule.** Run an allocation or byte-count test in each build covering it:
+  `-covermode=set -coverprofile=…`, and `-race` alone when `make race` or the nightly
+  `make race-pipeline` covers the package. Under `-race`, `sync.Pool` drops one `Put` in four, so
+  pool users allocate at random: build every input before the measured call, take the fewest of
+  single measurements, and where a visit makes many pool round trips, drop the pool.
 - **Why.** Allocation tests that passed `go test` failed the coverage step (#1137); a byte count
   flaked under `-race` until its inputs were formatted outside it (#1006); fewest-of-twenty failed
   for a visit with a pool round trip per entry (#1147).
 - **Probe.** `go test ./<pkg> -covermode=set -coverprofile=/dev/null -count=50 -run '<Test>'`, then
-  `go test ./<pkg> -race -count=50 -run '<Test>'` if `make race` covers it.
+  `go test ./<pkg> -race -count=50 -run '<Test>'` if `make race` or `make race-pipeline` covers it.
 
 ## Expect instrumentation to move what escapes
 `what-allocates-when-instrumented`

@@ -148,7 +148,7 @@ build:
 # The suite runs once, and cmd/morphic-covergate judges its profile statement by
 # statement; its doc says why go test's percentage is not enough. Set mode is
 # enough because the gate reads only whether a block ran, never how often. The
-# race detector has a target of its own, `race` below.
+# race detector has targets of its own, `race` and `race-pipeline` below.
 #
 # -timeout is explicit so that a test that never returns, as one would if the
 # third-party resolver hung on a document the compiler no longer refuses, ends

@@ -294,8 +294,8 @@ These all exist already — extend them rather than building a parallel mechanis
   `testdata/mod`, a tree laid out like the module. Lines there carry the findings they must draw.
   A new rule gets its plants beside the others, and a new linter a place in the script's list.
   `make vet` also requires the one finding planted in `testdata/reach`, which shows `go vet` runs
-  the analyzers at all, and `make race` the race planted in `internal/archtest/testdata/racereach`,
-  which shows its command runs the detector.
+  the analyzers at all, and `make race` and `make race-pipeline` the race planted in
+  `internal/archtest/testdata/racereach`, which shows each command runs the detector.
 - **Declaration pins**: a test that holds a hand-written list (an enum's members, a sealed sum's
   kinds, the fields of a shape) to what a package declares reads the package through
   `internal/decls`, which type-checks it with `go/packages`. It does not parse the sources: parsed
@@ -308,12 +308,17 @@ These all exist already — extend them rather than building a parallel mechanis
   `.Go(...)` call (`sync.WaitGroup.Go`, `errgroup.Group.Go`) appears. It finds only a goroutine
   blocked on an unreachable primitive — not a running one, nor one a global still holds; whether
   `goleak` should cover those too is #568. Beside it, `make race` runs the packages on
-  `scripts/race-packages.txt` under `-race`, and `TestRaceList_NamesEveryConcurrentPackage` requires
-  every package under `ir/`, `pass` and `compilers/` to be on that list. Elsewhere it requires every
-  package with a non-test file importing `sync` or `sync/atomic`, any file starting a goroutine (a
-  `go` statement or a single-argument `.Go(...)` call), or a test calling `t.Parallel()`, to be on
-  the list or in the test's `raceExempt` with its reason, which no package under those roots
-  may be. A race on a path only an exempt package's own tests take goes unreported.
+  `scripts/race-packages.txt` under `-race`, and `make race-pipeline`, outside the gate, adds every
+  package under the roots `scripts/race-pipeline-roots.txt` names (`ir/`, `pass` and `compilers/`).
+  `TestRaceList_NamesEveryConcurrentPackage` holds both files to the tree. Outside the roots, a
+  package belongs on the list when a non-test file imports `sync` or `sync/atomic`, any file starts
+  a goroutine (a `go` statement or a single-argument `.Go(...)` call), or a test calls
+  `t.Parallel()`. Under a root only the first two count, and a package showing one is on the list or
+  is a `racePipelineOnly` entry in the test with its reason. A package off the list elsewhere is a
+  `raceExempt` entry with its reason, which no package under a root may be. So a race that only a
+  pipeline package's own tests reach is found after merge, by the nightly run of
+  `make race-pipeline`, and not on the pull request; a race that only an exempt package's own tests
+  reach is found by neither run.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
 assertion shapes:
