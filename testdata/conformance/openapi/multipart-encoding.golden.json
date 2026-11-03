@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -174,10 +175,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -255,10 +256,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload-composed",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -328,10 +329,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload-redeclared",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -359,10 +360,10 @@
                     },
                     "encoding": {
                       "p/openapi/paths/~1submit/post/requestBody/content/application~1x-www-form-urlencoded/schema/properties/ids": {
+                        "explode": true,
+                        "style": "form",
                         "multi": true,
                         "filename": false,
-                        "style": "form",
-                        "explode": true,
                         "allowReserved": true
                       }
                     }
@@ -395,10 +396,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/submit",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/x-www-form-urlencoded"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }

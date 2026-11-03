@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -116,7 +117,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/things",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1things/get/parameters/ids/query",
@@ -128,6 +128,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }

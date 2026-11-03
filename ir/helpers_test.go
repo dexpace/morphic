@@ -214,7 +214,8 @@ func populatedNaming() ir.Naming {
 func populatedDocs() ir.Docs {
 	return ir.Docs{
 		Summary:     "short summary",
-		Description: "long CommonMark description with a {t:t/x} cross-reference",
+		Description: "long CommonMark description naming Pet",
+		Refs:        []ir.DocRef{{StartByte: 34, EndByte: 37, Type: "t/x"}},
 		ExternalDocs: []ir.Link{
 			{URL: "https://example.com/a", Description: "doc a"},
 			{URL: "https://example.com/b", Description: "doc b"},

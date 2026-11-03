@@ -30,7 +30,7 @@ import (
 func lowerModel(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, pointer)
+		cons, consDiags := ConstraintsOf(c, &common.Unmodeled, s, nil, pointer)
 		diags = append(diags, consDiags...)
 		m := &ir.Model{TypeCommon: common, Constraints: cons}
 		diags = append(diags, fillModelProperties(c, ts, depth, propIndex(c, ts, m), s, pointer)...)
@@ -96,15 +96,16 @@ func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	return diags
 }
 
-// mint registers m, the composition of the field the declaration at pointer
-// names. That pointer denotes the declaration's own schema, so m takes the ID of
-// a node no schema occupies (ids.ComposedType) and points back at it, as a
+// mint registers node, the type of the field the declaration at pointer names.
+// That pointer denotes the declaration's own schema, so node takes the ID of a
+// node no schema occupies (ids.ComposedType) and points back at it, as a
 // distributed variant points at its branch. The variants of one distributed
 // union fold the same declarations, so each mints this one node, alike.
-func (s settledMerge) mint(pointer jsontext.Pointer, m *ir.Model) ir.TypeID {
+func (s settledMerge) mint(pointer jsontext.Pointer, node ir.TypeDef) ir.TypeID {
 	id := s.c.IDs().ComposedType(pointer)
-	m.TypeCommon = commonFor(s.c, id, pointer)
-	s.ts.Register(id, m)
+	site, common := commonFor(s.c, id, pointer), node.Common()
+	common.ID, common.Name, common.Anonymous, common.Provenance = site.ID, site.Name, site.Anonymous, site.Provenance
+	s.ts.Register(id, node)
 	return id
 }
 
@@ -129,7 +130,13 @@ func fillModelProperties(c lowering.Ctx, ts *compile.Types, depth int, idx *merg
 			Provenance: c.ProvenanceAt(ppointer),
 		}
 		diags = append(diags, FillPropertyDetail(c, ts, &p, js, ppointer)...)
-		idx.MergeProperty(p, redeclarationSource(js))
+		declared := p.Secret
+		diags = append(diags, PromoteUse(c, KeysLentTo(c, ts, js, p.Type, ppointer), p.Unmodeled, &p.Deprecation, &p.Secret, &p.Provenance)...)
+		var secretBy ir.Inferred
+		if p.Secret && !declared {
+			secretBy = lowering.ExtensionPromotionHeuristic
+		}
+		idx.MergeProperty(p, redeclarationSource(js), secretBy)
 	}
 	return diags
 }

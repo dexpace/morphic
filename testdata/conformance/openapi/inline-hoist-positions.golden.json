@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -158,7 +159,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/orders",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1orders/post/parameters/audit/query",
@@ -173,8 +173,6 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
                         "expression": "{$request.body#/callbackUrl}",
@@ -182,7 +180,10 @@
                           "op/openapi/paths/~1orders/post/callbacks/onProgress/{$request.body#~1callbackUrl}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
                   }
                 ]
               },
@@ -235,10 +236,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/callbackUrl}",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -301,13 +302,13 @@
                 "http": [
                   {
                     "method": "POST",
-                    "sharedRoute": false,
+                    "webhookName": "onShipped",
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "onShipped"
+                    "isWebhook": true
                   }
                 ]
               },

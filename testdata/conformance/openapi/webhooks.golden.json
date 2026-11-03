@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -101,13 +102,13 @@
                 "http": [
                   {
                     "method": "POST",
-                    "sharedRoute": false,
+                    "webhookName": "newPet",
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "newPet"
+                    "isWebhook": true
                   }
                 ]
               },
@@ -146,10 +147,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "webhookName": "{tenant}.created",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "{tenant}.created"
+                    "isWebhook": true
                   }
                 ]
               },

@@ -4,6 +4,8 @@
 package engine
 
 import (
+	"github.com/dexpace/morphic/compilers"
+	"github.com/dexpace/morphic/engine/cache"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irverify"
 )
@@ -47,4 +49,42 @@ func OnVerify(e *Engine, f func()) {
 		f()
 		return inner(doc)
 	}
+}
+
+// KeyInputs is what a run's key covers, for a test that changes one input a run
+// cannot, such as the IR version.
+type KeyInputs = keyInputs
+
+// DeriveKey exposes deriveKey.
+func DeriveKey(in KeyInputs) cache.Key { return deriveKey(in) }
+
+// FailWorkingDirectory makes e unable to name its working directory, which a
+// test cannot rely on a system to refuse: removing it leaves some still naming it.
+func FailWorkingDirectory(e *Engine, err error) {
+	e.cache.workingDir = func() (string, error) { return "", err }
+}
+
+// Recorder exposes the reader a cached compile reads through.
+type Recorder = recorder
+
+// NewRecorder returns a Recorder reading through docs.
+func NewRecorder(docs compilers.DocumentReader) *Recorder {
+	return newRecorder(docs)
+}
+
+// SettledLocations returns where r read, in the order an entry lists them, and
+// whether r could vouch for them.
+func SettledLocations(r *Recorder) ([]string, bool) {
+	reads, sound := r.settled()
+	locations := make([]string, 0, len(reads))
+	for _, read := range reads {
+		locations = append(locations, read.Request.Location)
+	}
+	return locations, sound
+}
+
+// SealedEntry returns an entry for key holding head and body, sealed as a store
+// would hand it back intact: what a test writes to reach what follows the seal.
+func SealedEntry(key cache.Key, head, body string) []byte {
+	return sealed(key, []byte(head), []byte(body))
 }

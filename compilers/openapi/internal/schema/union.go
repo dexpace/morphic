@@ -11,12 +11,14 @@ import (
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
+	"github.com/speakeasy-api/openapi/yml"
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -49,8 +51,9 @@ func lowerOneOfAnyOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schem
 		diags = append(diags, unionDiags...)
 		return def
 	})
-	ref, nullDiags := schemaNullRef(c, tid, s, siteAt(pointer))
-	return ref, append(diags, nullDiags...)
+	owner, unhomedDiags := preserveUnhomedKeywords(c, ts, s, pointer, tid, dispatch{})
+	ref, nullDiags := schemaNullRef(c, owner, s, siteAt(pointer))
+	return ref, slices.Concat(diags, unhomedDiags, nullDiags)
 }
 
 // nullUnionCollapse detects a oneOf/anyOf with exactly one non-null branch
@@ -289,17 +292,20 @@ func buildUnion(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, common ir.Typ
 
 // variantHint is the hint the union variant for the branch b written at vptr,
 // which lowered to t, takes: the branch's own (lowering.NameAt), unless b is
-// written inline and t is a decorator (ir.Decorated) over the $ref b's allOf
-// names, when it is the name that $ref suggests (lowering.NameThrough), as a
-// branch holding it would be named. 3.0 annotates a branch only by wrapping
-// its $ref, so `{allOf: [{$ref: X}], description: …}` names its variant as
-// 3.1's `{$ref: X, description: …}` does (GitHub #1018). The node t keeps the
-// branch's own: a decorator collapses into its reference wherever it is used.
+// inline and refines the $ref its allOf names, or t is a decorator (ir.Decorated)
+// over it, when it is the name the $ref suggests (lowering.NameThrough). 3.0
+// annotates a branch only by wrapping its $ref, so `{allOf: [{$ref: X}],
+// description: …}` names its variant as 3.1's `{$ref: X, description: …}` does
+// (GitHub #1018). The node t keeps the branch's own: a decorator collapses into
+// its reference wherever it is used.
 func variantHint(c lowering.Ctx, ts *compile.Types, b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer, t ir.TypeRef) string {
 	own := lowering.NameAt(c, vptr)
 	s := annotation.SchemaOf(b)
 	if s == nil || isRefBranch(b) {
 		return own
+	}
+	if r, refines := refinementOf(c, s, vptr); refines && r.ref != nil {
+		return cmp.Or(lowering.NameThrough(c, r.ref.pointer), own)
 	}
 	// The flattened list, as b lowers: a $ref a nested wrapper holds names the
 	// variant as it would written at the top.
@@ -321,11 +327,11 @@ func decorates(td ir.TypeDef) bool {
 }
 
 // lowerUnion hoists a multi-typed schema (e.g. type: [string, integer]) as an
-// exclusive, untagged union with one variant per declared type.
-//
-// KNOWN GAP (GitHub #868): every integer is a number, so a type array naming
-// both admits values that match two variants, which Exclusive rejects; with an
-// integer width both variants are the same primitive.
+// untagged union with one variant per declared type, exclusive unless two of
+// them overlap (typesDisjoint). A type array asks for one of its types, not for
+// exactly one, so overlapping variants must not exclude each other; with an
+// integer width, integer and number name the same primitive, and the two
+// variants stay, for an emitter to keep apart (docs/emitters/targets/go/unions.md).
 func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer, types []oas3.SchemaType) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
@@ -342,10 +348,20 @@ func lowerUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		return &ir.Union{
 			TypeCommon: common,
 			Variants:   variants,
-			Exclusive:  true,
+			Exclusive:  typesDisjoint(types),
 		}
 	})
 	return id, diags
+}
+
+// typesDisjoint reports whether no instance has two of types. A type listed
+// twice overlaps itself, and JSON's types are otherwise disjoint but for one
+// pair: every integer is a number.
+func typesDisjoint(types []oas3.SchemaType) bool {
+	if len(slices.Compact(slices.Sorted(slices.Values(types)))) != len(types) {
+		return false
+	}
+	return !slices.Contains(types, oas3.SchemaTypeInteger) || !slices.Contains(types, oas3.SchemaTypeNumber)
 }
 
 // hasUnionSiblings reports whether a oneOf/anyOf schema also carries structural
@@ -429,19 +445,22 @@ func classifyUnionSiblings(c lowering.Ctx, s *oas3.Schema) unionLowering {
 }
 
 // unionBranchesDeclareShape reports whether any oneOf/anyOf branch contributes
-// data shape. When none does — `oneOf: [{required: [a]}, {required: [b]}]`, the
-// commonest instance — the union narrows what the sibling body accepts without
-// changing it, which is dependentRequired's job description: validation logic,
-// not shape (docs/ir/boundaries.md#validation-only-constructs).
+// data shape s does not declare itself. When none does —
+// `oneOf: [{required: [a]}, {required: [b]}]`, the commonest instance — the
+// union narrows what the sibling body accepts without changing it, which is
+// dependentRequired's job description: validation logic, not shape
+// (docs/ir/boundaries.md#validation-only-constructs).
 func unionBranchesDeclareShape(s *oas3.Schema) bool {
-	return slices.ContainsFunc(s.GetOneOf(), branchDeclaresShape) ||
-		slices.ContainsFunc(s.GetAnyOf(), branchDeclaresShape)
+	declares := func(b *oas3.JSONSchema[oas3.Referenceable]) bool { return branchDeclaresShape(s, b) }
+	return slices.ContainsFunc(s.GetOneOf(), declares) || slices.ContainsFunc(s.GetAnyOf(), declares)
 }
 
-// branchDeclaresShape reports whether one union branch declares data shape. A
-// $ref always does; a bare `type: null` never does, since it contributes only
-// the enclosing reference's Nullable bit.
-func branchDeclaresShape(b *oas3.JSONSchema[oas3.Referenceable]) bool {
+// branchDeclaresShape reports whether one union branch declares data shape of
+// its own beside body, the schema writing the union. A $ref always does; a bare
+// `type: null` never does, since it contributes only the enclosing reference's
+// Nullable bit; and a type or a property set that only repeats body's does not
+// (restatesBody).
+func branchDeclaresShape(body *oas3.Schema, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if isRefBranch(b) {
 		return true
 	}
@@ -449,7 +468,77 @@ func branchDeclaresShape(b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if s == nil {
 		return false // a boolean branch declares no shape of its own
 	}
-	return declaresShape(s) || len(s.GetOneOf())+len(s.GetAnyOf()) > 0
+	if len(s.GetOneOf())+len(s.GetAnyOf()) > 0 {
+		return true
+	}
+	return declaresShape(s) && !restatesBody(body, s)
+}
+
+// restatingBranchKeywords are the keywords a branch may write and declare no
+// shape the body does not: those that can repeat it, and `required` and `not`,
+// which only narrow it whatever they hold. The list is closed: any other keeps
+// the verdict declaresShape gives the branch, even one declaring no shape, such
+// as `minProperties` or `$comment` (#1394).
+var restatingBranchKeywords = []string{"type", "nullable", "properties", "required", "not", "title", "description"}
+
+// restatesBody reports whether branch writes only restatingBranchKeywords, and
+// the type and the properties among them say nothing body's own do not
+// (docs/compilers/openapi.md#union-beside-structure). A `nullable` beside a
+// type widens it, so the two must agree on that too. Only body's own properties
+// count: one it composes through allOf is settled by the merge, so no one
+// declaration stands for it here (#1395). The raw node holds every keyword,
+// where the model has no field for some
+// (docs/parser-library.md#unmodeled-keywords).
+func restatesBody(body, branch *oas3.Schema) bool {
+	for _, p := range nodeview.Pairs(branch.GetRootNode()) {
+		if !slices.Contains(restatingBranchKeywords, p.Key) {
+			return false
+		}
+	}
+	sameType := slices.Equal(branch.GetType(), body.GetType()) && branch.GetNullable() == body.GetNullable()
+	if len(branch.GetType()) > 0 && !sameType {
+		return false
+	}
+	declared := body.GetProperties()
+	for name, p := range branch.GetProperties().All() {
+		d, ok := declared.Get(name)
+		if !ok || !restatesProperty(d, p) {
+			return false
+		}
+	}
+	return true
+}
+
+// typeKeywords are the keywords a branch may write of a property whose
+// declaration in the body writes more: those naming the property's type. The
+// list is closed, so any other keyword keeps the branch from being a repeat,
+// even written as the body writes it (#1394), rather than asking of each
+// whether it reads its siblings, as additionalProperties reads `properties`.
+// restatesProperty says why `$ref` and `nullable` must also agree.
+var typeKeywords = []string{"$ref", "type", "format", "nullable"}
+
+// restatesProperty reports whether branch, a union branch's declaration of a
+// property, says nothing body, the property's own declaration, does not: it is
+// written alike, or writes only typeKeywords, each as body does, and agrees on
+// the two a body can say more with, a `$ref` that in 3.0 replaces what stands
+// beside it and a `nullable` that widens `type`. The raw nodes hold every
+// keyword, where the model has no field for some
+// (docs/parser-library.md#unmodeled-keywords).
+func restatesProperty(body, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+	declared, written := body.GetSchema(), branch.GetSchema()
+	if declared == nil || written == nil {
+		return false // a boolean schema has no keywords to hold to the other's
+	}
+	d, w := declared.GetRootNode(), written.GetRootNode()
+	if yml.EqualNodes(d, w) {
+		return true
+	}
+	for _, p := range nodeview.Pairs(w) {
+		if !slices.Contains(typeKeywords, p.Key) || !yml.EqualNodes(p.Val, nodeview.Child(d, p.Key)) {
+			return false
+		}
+	}
+	return declared.GetRef() == written.GetRef() && declared.GetNullable() == written.GetNullable()
 }
 
 // composesAsModel reports whether the structural siblings lower to a Model,
@@ -624,7 +713,8 @@ const refSiteUnionWhy = "oneOf/anyOf beside a $ref conjoin with it rather than c
 func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer jsontext.Pointer) (ir.TypeID, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
 	id := internNode(c, ts, pointer, func(common ir.TypeCommon) ir.TypeDef {
-		body := composedBody{schema: s, comp: allOfBranches(s, pointer), id: common.ID}
+		body := composedBody{schema: s, comp: readAllOf(c, s, pointer), id: common.ID}
+		diags = append(diags, diagDisjointConjuncts(c, body.comp)...)
 		def, unionDiags := buildUnion(c, ts, s, common, pointer,
 			func(b *oas3.JSONSchema[oas3.Referenceable], vptr jsontext.Pointer) ir.TypeRef {
 				ref, variantDiags := composedVariant(c, ts, depth, body, b, vptr)
@@ -634,6 +724,7 @@ func lowerDistributedUnion(c lowering.Ctx, ts *compile.Types, depth int, s *oas3
 		diags = append(diags, unionDiags...)
 		return def
 	})
+	diags = append(diags, preserveVariantsUnhomed(c, ts, s, id, distributedShape, nil, pointer)...)
 	return id, append(diags, c.DiagAt(ir.SeverityInfo, diag.CompositionLowering, pointer,
 		"oneOf/anyOf co-declared with structural keywords; the composition is distributed across the union variants"))
 }
@@ -701,10 +792,9 @@ func composedVariantRef(c lowering.Ctx, id ir.TypeID, body *oas3.Schema, branch 
 //
 // The enclosing schema's value constraints are read as lowerAllOf reads them
 // (GitHub #407). Each variant carries a copy, since a bound on the schema
-// constrains both sides of the disjunction and this path never runs the
-// pointer's own census.
+// constrains both sides of the disjunction.
 func buildComposedVariant(c lowering.Ctx, ts *compile.Types, depth int, body composedBody, branch ir.TypeID, common ir.TypeCommon) (ir.TypeDef, []ir.Diagnostic) {
-	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, body.comp.pointer)
+	cons, diags := ConstraintsOf(c, &common.Unmodeled, body.schema, nil, body.comp.pointer)
 	m := &ir.Model{TypeCommon: common, Constraints: cons}
 	idx := propIndex(c, ts, m)
 	diags = append(diags, fillAllOf(c, ts, depth, m, idx, body.comp)...)

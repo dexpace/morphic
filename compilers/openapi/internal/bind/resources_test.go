@@ -139,7 +139,7 @@ func TestBind_ReadsTheSourcesIdentifiersFromAnotherDocument(t *testing.T) {
 	a := entryAt(t, table, "/components/schemas/A")
 	require.Equal(t, bind.Resolved, a.Chain.Status)
 	assert.Equal(t, at("/components/schemas/B"), a.Chain.End)
-	assert.Equal(t, bind.AnchorUnread, entryAt(t, table, "/components/schemas/C").Hop.Reason)
+	assert.Equal(t, bind.Position{Doc: 1, Pointer: "/T"}, entryAt(t, table, "/components/schemas/C").Hop.Target)
 }
 
 // TestBind_ReadsAMappingValueByIdentifier pins that a discriminator's mapping

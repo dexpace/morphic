@@ -9,7 +9,7 @@ type Policy struct {
     PrimaryResponse func(*ir.Operation) *ir.Response  // default: lowest 2xx, else the
                                                       // unconditional one, else the Default
     EnvelopeDetect  EnvelopePolicy                    // off unless explicitly enabled
-    Framings        map[string]Framing                // media type → how it frames a stream (streams.md)
+    Framings        map[string]Framing                // media type or +suffix → how it frames a stream (streams.md)
     FrameMembers    bool                              // default on: an SSE schema naming only frame
                                                       // fields describes the frame (streams.md)
     OpenUnions      bool                              // default on: a union a client reads keeps a
@@ -54,8 +54,11 @@ Framings state what a media type means, not a guess about an API, so the table m
 `Inferred`: whether a content streams is the source's to declare or the compiler's to infer, and the
 table says only how it divides. Its default holds the sequential media types OpenAPI 3.2 names:
 `text/event-stream` is `sse`; `application/jsonl` and `application/x-ndjson` are `json_lines`;
-`application/json-seq` and `application/geo+json-seq` are `json_seq`; and `multipart/mixed` is
-`multipart`. An entry matches a media type compared as [one election](responses.md#one-election)
-says, and a configuration adds one for a media type its compiler was told streams. A framing a
-target has no reader for is that target's coded degrade to `raw` ([body
+`application/json-seq` and the `+json-seq` structured suffix, which `application/geo+json-seq`
+carries, are `json_seq`; and `multipart/mixed` is `multipart`. An entry matches a media type
+compared as [one election](responses.md#one-election) says, and one starting with `+` every media
+type with that suffix, as the compiler's streaming policy reads one
+([`streaming-media`](../../compilers/openapi.md#streaming-media)), an entry naming the whole media
+type winning over a suffix. A configuration adds one for a media type its compiler was told streams.
+A framing a target has no reader for is that target's coded degrade to `raw` ([body
 shapes](responses.md#body-shapes)).

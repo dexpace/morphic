@@ -30,11 +30,30 @@ func TestConstraintsOf_NonSchemaInputs(t *testing.T) {
 		annotation.SchemaOf(oas3.NewJSONSchemaFromReference("#/components/schemas/Other")),
 	} {
 		var kept ir.Unmodeled
-		cons, diags := ConstraintsOf(l.Ctx, &kept, js, "/p")
+		cons, diags := ConstraintsOf(l.Ctx, &kept, js, nil, "/p")
 		assert.Nil(t, cons)
 		assert.Empty(t, diags)
 		assert.Empty(t, kept)
 	}
+}
+
+// TestReferenceConstraintsOf_NilSchema pins that a position with no schema reads
+// as ConstraintsOf reads it, holding nothing.
+func TestReferenceConstraintsOf_NilSchema(t *testing.T) {
+	t.Parallel()
+	l := NewRawLowerer(&soa.OpenAPI{})
+	var kept ir.Unmodeled
+	cons, diags := referenceConstraintsOf(l.Ctx, &kept, nil, nil, "/p")
+	assert.Nil(t, cons)
+	assert.Empty(t, diags)
+	assert.Empty(t, kept)
+}
+
+// TestReferenceHolds_NoCollectionBoundIsHeld pins the switch's default, which
+// keywordHome's arm never reaches: a keyword that is no collection bound.
+func TestReferenceHolds_NoCollectionBoundIsHeld(t *testing.T) {
+	t.Parallel()
+	assert.False(t, referenceHolds(&oas3.Schema{}, "pattern"))
 }
 
 // TestConstraintsOf_EmptyRefSchema covers a $ref pointer that is present but
@@ -47,7 +66,7 @@ func TestConstraintsOf_EmptyRefSchema(t *testing.T) {
 	l := NewRawLowerer(&soa.OpenAPI{})
 	js := oas3.NewJSONSchemaFromSchema[oas3.Referenceable](&oas3.Schema{Ref: new(references.Reference(""))})
 	var kept ir.Unmodeled
-	cons, diags := ConstraintsOf(l.Ctx, &kept, annotation.SchemaOf(js), "/p")
+	cons, diags := ConstraintsOf(l.Ctx, &kept, annotation.SchemaOf(js), nil, "/p")
 	assert.Nil(t, cons)
 	assert.Empty(t, diags)
 	assert.Empty(t, kept)

@@ -124,9 +124,12 @@ func knownInvalid() map[string]bool {
 		// (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f12-refs.yaml"): true,
 		// A security requirement naming a scheme with no
-		// components.securitySchemes declaration, dropped with an
-		// unresolved-ref error rather than a dangling AuthID (#14).
+		// components.securitySchemes declaration, kept with an error beside it,
+		// naming a scheme minted for it rather than a dangling AuthID (#14).
 		filepath.FromSlash("../../testdata/dangling/openapi/f30-protocol-surface.yaml"): true,
+		// The same at every carrier, with a name an entry holds and states no
+		// mechanism for, which the specification bars just the same.
+		filepath.FromSlash("../../testdata/conformance/openapi/security-unresolved.yaml"): true,
 		// A $ref whose pointer escapes non-canonically (a raw '~' for a
 		// component named "A~B"). The compiler resolves it to the interned
 		// node, but the loader reports the malformed JSON pointer as an
@@ -136,6 +139,10 @@ func knownInvalid() map[string]bool {
 		// specification bars ("but not both"); the case pins how such a document
 		// lowers.
 		filepath.FromSlash("../../testdata/conformance/openapi/codeclared-schema-content.yaml"): true,
+		// A parameter and a header whose content holds several entries, which the
+		// specification bars ("MUST only contain one entry"); the case pins how
+		// such a document lowers.
+		filepath.FromSlash("../../testdata/conformance/openapi/content-several-entries.yaml"): true,
 		// Discriminator mappings naming a schema that is not a variant of the
 		// base: a sub-schema (f08, f13), a component named "" (f31), and a
 		// $defs entry mapped from a base with no composition (defs_at_root,

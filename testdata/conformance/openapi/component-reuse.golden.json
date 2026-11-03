@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -145,7 +146,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/widgets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1widgets/get/parameters/sort/query",
@@ -157,6 +157,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -257,7 +258,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/gadgets",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1gadgets/get/parameters/sort/query",
@@ -269,6 +269,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -390,12 +391,9 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/orders",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
-                    "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
                         "expression": "{$request.body#/callbackUrl}",
@@ -403,7 +401,10 @@
                           "op/openapi/paths/~1orders/post/callbacks/onShipped/{$request.body#~1callbackUrl}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
                   }
                 ]
               },

@@ -1,9 +1,11 @@
 # Decorators collapse into their references
 
 OpenAPI 3.0 admits nothing beside a `$ref`, so a document annotates one use of a shared schema by
-wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. The compiler keeps
-that losslessly, as an anonymous `Model` whose `Base` is `Status` and which carries the description
-([models](../../ir/models.md#composition-entries)). 3.1's spelling of the same use,
+wrapping it: `state: {allOf: [{$ref: Status}], description: the widget state}`. Where `Status` can
+be an object the compiler keeps that losslessly, as an anonymous `Model` whose `Base` is `Status` and
+which carries the description ([models](../../ir/models.md#composition-entries)); where it cannot,
+the position is a use of `Status` as the 3.1 spelling is
+([models](../../ir/models.md#an-allof-no-object-satisfies)). 3.1's spelling of the same use,
 `{$ref: Status, description: …}`, hoists an anonymous `Scalar` alias over `Status` wherever no
 property or parameter holds the annotations
 ([annotations](../../ir/annotations.md#one-structural-home-per-declaration)), and so does an
@@ -32,15 +34,18 @@ decorator it passed collapses nowhere, and each of its nodes lowers as it would 
 alias, once that pass exists, is followed the same way.
 
 **What refine does.** `CollapseAliases` runs before every other step. An aliased type emits no
-declaration, and each reference to it — a `TypeRef`, or a `TypeID` a discriminator's mapping or
-default names — is lowered as a reference to its `Alias`, keeping the referring reference's
-`Nullable`, which answers for the whole decorator
+declaration, and each reference to it — a `TypeRef`, a `TypeID` a discriminator's mapping or default
+names, or the type a [`DocRef`](../../ir/annotations.md#references-in-prose) marks — is lowered as a
+reference to its `Alias`, keeping the referring reference's `Nullable`, which answers for the whole
+decorator
 ([type-graph](../../ir/type-graph.md#type-references)). The decorators' annotations fold onto the
 carrier holding the reference — a property, a parameter, a header or a union variant, each of which
 has a field for all three — so the reference documents its input exactly as the 3.1 `$ref` it stands
 for does:
 
-- **`Docs` and `Deprecation`**, each field from the first that sets it: the carrier's own, then each
+- **`Docs` and `Deprecation`**, each field from the first that sets it, a `Description` and its
+  `Refs` counting as one since each span indexes its own description
+  ([references in prose](../../ir/annotations.md#references-in-prose)): the carrier's own, then each
   decorator's along the chain; a carrier is deprecated where any of them is. At a property,
   parameter or header the annotations of the type `Alias` names come last, merged as
   [annotations](../../ir/annotations.md#what-a-reference-carries-down) merges a `$ref` target's onto

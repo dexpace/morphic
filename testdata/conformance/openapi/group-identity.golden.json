@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -420,10 +421,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "webhookName": "onEvent",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "onEvent"
+                    "isWebhook": true
                   }
                 ]
               },

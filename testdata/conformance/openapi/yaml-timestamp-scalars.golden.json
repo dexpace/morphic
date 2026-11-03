@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -37,7 +38,7 @@
     ]
   },
   "name": "YamlTimestampScalars",
-  "version": "1.0.0",
+  "version": "2021-01-01",
   "docs": {},
   "services": [
     {
@@ -61,7 +62,9 @@
                 "source": "getItem",
                 "canonical": "get_item"
               },
-              "docs": {},
+              "docs": {
+                "summary": "2021-01-01"
+              },
               "responses": [
                 {
                   "name": {
@@ -139,21 +142,11 @@
       "anonymous": false,
       "docs": {},
       "sensitive": false,
-      "unmodeled": {
-        "openapi:format": {
-          "reason": "degraded_lowering",
-          "value": "date",
-          "provenance": {
-            "source": 0,
-            "pointer": "/components/schemas/D/format"
-          }
-        }
-      },
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/D"
       },
-      "valueType": "string",
+      "valueType": "date",
       "members": [
         {
           "id": "e/openapi/components/schemas/D/s:2021-01-01",
@@ -339,15 +332,6 @@
   "diagnostics": [
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "this position lowered to a node of kind \"enum\", which has no home for format declared beside it; kept verbatim under Unmodeled",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/D"
-      }
-    },
-    {
-      "severity": "info",
       "code": "openapi/validation-only-keyword",
       "message": "validation-only keyword \"not\" kept verbatim under Unmodeled",
       "provenance": {
@@ -360,7 +344,7 @@
     {
       "format": "openapi@3.1",
       "path": "yaml-timestamp-scalars.yaml",
-      "hash": "b68b751a3b3278260b857b08d920d07d9e9ba0fe7c832e0db92b50ddb3db9bcf"
+      "hash": "132bd24ecee2773ee8cdd3d07b5b60ddd82bf059317a0e4228118b2b71cbcdc2"
     }
   ]
 }

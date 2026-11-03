@@ -1249,3 +1249,30 @@ func TestAnnotationRetention_NoDuplicateCells(t *testing.T) {
 		seen[tc.cell] = true
 	}
 }
+
+// TestDocs_TextShapedLikeAReferenceStaysText pins that OpenAPI prose is only
+// prose. The format has no syntax for naming a type, so text shaped like the
+// tokens a description once meant to hold is kept byte for byte, escaped or in
+// a code span alike, and marks no span and draws no finding.
+func TestDocs_TextShapedLikeAReferenceStaysText(t *testing.T) {
+	t.Parallel()
+	const prose = "Reads {t:t/anon/pet} and `{t:1}` and \\\\{t:x} as written."
+	doc, diags := compileAnnotationSpec(t, "reference-shaped prose", `openapi: 3.1.0
+info: {title: t, version: "1"}
+paths: {}
+components:
+  schemas:
+    Pet:
+      type: object
+      description: "`+prose+`"
+`)
+	assert.Empty(t, diags)
+	var docs ir.Docs
+	for _, td := range doc.Types {
+		if td.Common().Name.Source == "Pet" {
+			docs = td.Common().Docs
+		}
+	}
+	assert.Equal(t, "Reads {t:t/anon/pet} and `{t:1}` and \\{t:x} as written.", docs.Description)
+	assert.Empty(t, docs.Refs)
+}

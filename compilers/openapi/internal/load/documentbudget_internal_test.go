@@ -203,7 +203,7 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 	data := []byte(spec)
 	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	rebuilds := 0
@@ -214,7 +214,7 @@ func resolveCounting(t *testing.T, spec, path string, opts Options) ([]ir.Diagno
 	}
 	opts.Reader = reader.Disk{}
 	at := pointerAt(0, overlay.Origin{})
-	_, _, ext, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{},
+	_, _, ext, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{}, MediaTypes{},
 		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil), opts, rebuild)
 	require.NoError(t, err)
 	return append(passDiags(at, pass, missed), crossed(at, ext)...), rebuilds

@@ -23,6 +23,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -145,6 +146,17 @@ func (r *externalReads) once(key string, read func() answer) answer {
 		rd.answer = read()
 	})
 	return rd.answer
+}
+
+// keys returns the key of every document read so far.
+func (r *externalReads) keys() map[string]bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	keys := make(map[string]bool, len(r.data))
+	for key := range r.data {
+		keys[key] = true
+	}
+	return keys
 }
 
 // charge charges the read of the document under key to the document budget,
@@ -291,6 +303,8 @@ func emptyOf(obj resolvable) (any, bool) {
 		return &soa.ReferencedCallback{}, true
 	case *soa.ReferencedSecurityScheme:
 		return &soa.ReferencedSecurityScheme{}, true
+	case *refscope.ReferencedMediaType:
+		return &refscope.ReferencedMediaType{}, true
 	default:
 		return nil, false
 	}
@@ -393,23 +407,23 @@ func (r *externalReads) handOver(doc *soa.OpenAPI, used []usedDocument) {
 //
 // net/url respells a URL many-to-one, so a stored tree can miss the resolver's
 // key. Each resolved reference records the document it read; when one the
-// resolver parsed holds an anchor, or a $ref the prepared tree respells (see
-// escapes), doc is rebuilt and resolved again, handed every prepared tree (see
-// handOver) and answered from the first pass's reads. That reaches no new
-// document, as both passes walk alike; one found unprepared is returned, an
-// internal fault (stillUnprepared).
-func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self sourceDocument, opts Options,
-	rebuild func() (*soa.OpenAPI, error),
+// resolver parsed holds a node readyForModel changes, or a $ref the prepared
+// tree respells (escapes), doc is rebuilt and resolved again, handed every
+// prepared tree (handOver) and answered from the first pass's reads. That
+// reaches no new document, as both passes walk alike; one found unprepared is
+// returned, an internal fault (stillUnprepared).
+func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media MediaTypes, self sourceDocument,
+	opts Options, rebuild func() (*soa.OpenAPI, error),
 ) (*soa.OpenAPI, Siblings, *external, *resolution, []usedDocument, error) {
 	read := newExternalReads(self, opts.MaxExternalDocuments)
 	reader := newExternal(ctx, doc, opts, read)
-	pass := resolveWith(ctx, doc, sibs, self, opts, &reader)
+	pass := resolveWith(ctx, doc, sibs, media, self, opts, &reader)
 	used := pass.used()
 	first := unprepared(doc, read, used)
 	// A rebuild reads no context. Each walk deciding on one finds what it looks
 	// for only by visiting it, so a walk a cancel cut short answers no, and no
 	// rebuild starts once the context has refused.
-	if !anyAnchored(ctx, doc, first) && !anyRewritable(ctx, doc, first, self.escapes) {
+	if !anyUnready(ctx, doc, first) && !anyRewritable(ctx, doc, first, self.escapes) {
 		return doc, sibs, &reader, pass, nil, nil
 	}
 
@@ -419,18 +433,21 @@ func resolveExternal(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, self 
 	}
 	again.InitCache()
 	// Modelled again, since the first models hold what the first pass resolved.
-	// Their faults are the first models', reported already.
+	// Their faults are the first models', reported already. The pass holds the
+	// media types it modelled (resolution.media).
 	sibs, _ = modelSiblings(ctx, again, nowhere)
+	media, _ = modelMediaTypes(ctx, again, nowhere)
 	read.handOver(again, used)
 	reader = newExternal(ctx, again, opts, read)
-	pass = resolveWith(ctx, again, sibs, self, opts, &reader)
+	pass = resolveWith(ctx, again, sibs, media, self, opts, &reader)
 	return again, sibs, &reader, pass, unprepared(again, read, pass.used()), nil
 }
 
-// anyAnchored reports whether any document in missed, as the resolver parsed
-// it, carries an anchor — the one thing the fold's skip reads.
-func anyAnchored(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument) bool {
-	return anyParsed(ctx, doc, missed, hasAnchor)
+// anyUnready reports whether any document in missed, as the resolver parsed
+// it, holds a node readyForModel changes: an anchor, the one thing the fold's
+// skip reads, or a mistagged scalar, which the model reads as no string.
+func anyUnready(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument) bool {
+	return anyParsed(ctx, doc, missed, unready)
 }
 
 // anyRewritable reports whether any document in missed, as the resolver parsed
@@ -453,14 +470,19 @@ func anyParsed(ctx context.Context, doc *soa.OpenAPI, missed []usedDocument,
 	})
 }
 
-// hasAnchor reports whether any node of the tree under root carries an anchor.
-// It follows Content and never an alias, so it visits each node once. The
-// resolver parsed the tree from bytes the reader admitted (external.prepare),
-// so the walk's bound cuts none.
-func hasAnchor(ctx context.Context, root *yaml.Node) bool {
+// unready reports whether any node of the tree under root carries an anchor or
+// is mistagged, which readyForModel changes. It follows Content and never an
+// alias, so it visits each node once. The resolver parsed the tree from bytes
+// the reader admitted (external.prepare), so the walk's bound cuts none.
+func unready(ctx context.Context, root *yaml.Node) bool {
 	return nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		if n.Anchor != "" {
 			return nodeview.Stop
+		}
+		for i := range n.Content {
+			if mistagged(n, i) {
+				return nodeview.Stop
+			}
 		}
 		return nodeview.Descend
 	}}.Run(ctx, root).Stopped
@@ -478,7 +500,7 @@ func stillUnprepared(place func(refSite) ir.Provenance, missed []usedDocument) [
 		reported[m.key] = true
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, place(m.site),
 			"internal: the second resolution read %s itself; "+
-				"anchored entries in it may be missing (GitHub #538)", m.key))
+				"anchored entries, dates and `<<` values in it may be misread (GitHub #538)", m.key))
 	}
 	return diags
 }
@@ -606,6 +628,8 @@ func resolutionChain(model any) chain {
 	case *soa.ReferencedCallback:
 		return recordsOf(r)
 	case *soa.ReferencedSecurityScheme:
+		return recordsOf(r)
+	case *refscope.ReferencedMediaType:
 		return recordsOf(r)
 	default:
 		return chain{}

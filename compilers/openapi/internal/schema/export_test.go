@@ -24,6 +24,15 @@ const MaxDiscriminatorAncestorDepth = maxDiscriminatorAncestorDepth
 // MaxTypePositionHops is maxTypePositionHops, for the external tests.
 const MaxTypePositionHops = maxTypePositionHops
 
+// MaxAdmissionReads is maxAdmissionReads, for the external tests.
+const MaxAdmissionReads = maxAdmissionReads
+
+// MaxAdmissionMembers is maxAdmissionMembers, for the external tests.
+const MaxAdmissionMembers = maxAdmissionMembers
+
+// MaxRefinedConjuncts is maxRefinedConjuncts, for the external tests.
+const MaxRefinedConjuncts = maxRefinedConjuncts
+
 // Lowerer is test scaffolding, not a compiler type. The compiler has no such
 // struct: every lowering is a function of the context and the registry, and
 // the caller owns the document being built (#177). It is declared here, once,

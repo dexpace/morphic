@@ -13,6 +13,40 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ynode"
 )
 
+// TestStrings_ReadsAListOfScalarsByItsText pins what counts as a list of strings:
+// scalars of any tag but null, aliases followed, and nothing else, so an item that
+// is no string spoils the list rather than vanishing from it.
+func TestStrings_ReadsAListOfScalarsByItsText(t *testing.T) {
+	t.Parallel()
+	date := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!timestamp", Value: "2021-01-01"}
+	null := &yaml.Node{Kind: yaml.ScalarNode, Tag: "!!null", Value: "~"}
+	read := ynode.Scalar("read")
+	tests := []struct {
+		name string
+		node *yaml.Node
+		want []string
+		ok   bool
+	}{
+		{name: "no node"},
+		{name: "a scalar", node: read},
+		{name: "a mapping", node: ynode.Map(read, read)},
+		{name: "an empty list", node: ynode.Seq(), want: []string{}, ok: true},
+		{name: "a date beside a string", node: ynode.Seq(read, date), want: []string{"read", "2021-01-01"}, ok: true},
+		{name: "an alias of an item", node: ynode.Seq(ynode.Alias(date)), want: []string{"2021-01-01"}, ok: true},
+		{name: "an alias of the list", node: ynode.Alias(ynode.Seq(read)), want: []string{"read"}, ok: true},
+		{name: "a null item", node: ynode.Seq(read, null)},
+		{name: "a list item", node: ynode.Seq(read, ynode.Seq(read))},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := nodeview.Strings(tc.node)
+			assert.Equal(t, tc.ok, ok)
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
 // TestChild_ReadsOnlyWhatAMappingHolds pins the inputs Child answers nil for
 // and the shapes its one pass serves without a view: a node that is no
 // mapping, a key nothing writes, a document node or an alias standing for the

@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -1164,6 +1165,15 @@
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/RefCarrier/properties/p"
+      }
+    },
+    {
+      "severity": "warning",
+      "code": "openapi/degraded-construct",
+      "message": "the conjuncts of this allOf share no value (type: string, allOf/0: object), so no instance satisfies this schema, which a composition cannot state",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/AllOfWithScalarType"
       }
     },
     {

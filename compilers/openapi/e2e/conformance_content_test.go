@@ -143,6 +143,20 @@ func assertFileBody(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	require.NotNil(t, resp.File, "a string+binary schema is a file body whatever the media type")
 	assert.Equal(t, []string{"image/png"}, resp.File.ContentTypes)
 	assert.Equal(t, ir.TypeID("t/prim/bytes"), resp.Type.Target)
+
+	documented, ok := opByName(doc, "putDocumented")
+	require.True(t, ok)
+	require.NotNil(t, documented.Request)
+	require.Len(t, documented.Request.Contents, 1)
+	blob := documented.Request.Contents[0]
+	require.NotNil(t, blob.File, "a binary $ref is a file body")
+	assert.Equal(t, componentID("Blob"), blob.Type.Target, "and keeps the schema it names")
+
+	stored := firstContent(t, documented)
+	require.NotNil(t, stored.File, "an inline binary schema is a file body")
+	node, ok := doc.Types[stored.Type.Target]
+	require.True(t, ok)
+	assert.Equal(t, "The stored object.", node.Common().Docs.Description, "and keeps its docs")
 }
 
 // assertMediaTypeSpelling pins that a media type is classified by its type alone
@@ -250,21 +264,32 @@ func assertSequentialMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 }
 
 // assertComponentMediaTypes32 pins a 3.2 document using components/mediaTypes
-// while this compiler resolves no reference into it (GitHub #856): nothing is
-// lost, as the section is kept whole and each content entry keeps its $ref, and
-// nothing the dialect defines is called undefined.
+// (GitHub #856): a content entry written as a $ref, directly or through an
+// alias, lowers what the entry it names declares, its $ref'd example and its
+// extension included, documented by its description and the summary beside
+// the $ref; the entry nothing references is kept on the document; and nothing
+// the dialect defines is called undefined.
 func assertComponentMediaTypes32(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
-	for _, name := range []string{"listEvents", "getEvent"} {
+	want := map[string]ir.Docs{
+		"listEvents": {Summary: "Every event.", Description: "One event."},
+		"getEvent":   {Description: "One event."},
+	}
+	for name, docs := range want {
 		op, ok := opByName(doc, name)
 		require.True(t, ok)
 		content := op.Responses[0].Payload.Contents[0]
 		assert.Equal(t, "application/json", content.MediaType)
-		assert.Equal(t, ir.ReasonDegradedLowering, content.Unmodeled["openapi:$ref"].Reason,
-			"%s: the reference is kept, not followed", name)
+		assert.Equal(t, componentID("Event"), content.Type.Target, name)
+		assert.Equal(t, docs, content.Docs, name)
+		require.Len(t, content.Examples, 1, name)
+		assert.Contains(t, content.Unmodeled, "openapi:x-note", name)
 	}
-	assert.Equal(t, ir.ReasonNoIRHome, doc.Unmodeled["openapi:components/mediaTypes"].Reason)
+	assert.Contains(t, doc.Unmodeled, "openapi:components/mediaTypes/Unused")
+	for _, reached := range []string{"mediaTypes/Event", "mediaTypes/EventAlias", "examples/One"} {
+		assert.NotContains(t, doc.Unmodeled, "openapi:components/"+reached)
+	}
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey))
-	openapitest.AssertInfoDiagAt(t, diags, "/components/mediaTypes")
+	assert.False(t, openapitest.HasDiag(diags, diag.DegradedConstruct), "got %v", diags)
 }
 
 // assertNestedEncoding32 pins GitHub #615's nested Encoding fields: each is kept

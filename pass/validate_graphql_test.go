@@ -4,11 +4,15 @@
 package pass_test
 
 import (
+	"reflect"
+	"slices"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/decls"
 	"github.com/dexpace/morphic/ir"
 	"github.com/dexpace/morphic/ir/irtest"
 	"github.com/dexpace/morphic/pass"
@@ -55,6 +59,41 @@ func TestValidate_GraphQLReachableTypesAllowArgs(t *testing.T) {
 		Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}},
 	}}
 	assert.NotContains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
+}
+
+// TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable pins that prose naming a
+// type gives it no GraphQL reach, at either step of the traversal: a type named
+// only by a description is not reachable, so its field arguments stay illegal,
+// whether the operation root's docs name it or a reachable type's do.
+func TestValidate_ADocRefDoesNotMakeATypeGraphQLReachable(t *testing.T) {
+	t.Parallel()
+	mention := ir.Docs{Description: "see Mentioned", Refs: []ir.DocRef{{StartByte: 4, EndByte: 13, Type: "t/mentioned"}}}
+	for _, tc := range []struct {
+		name     string
+		op, root ir.Docs
+	}{
+		{name: "an operation's docs", op: mention},
+		{name: "a reachable type's docs", root: mention},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc := validDoc()
+			doc.Types["t/mentioned"] = &ir.Model{ID: "t/mentioned", Properties: []ir.Property{{
+				ID: "p/args", Name: ir.Naming{Source: "field"}, WireName: "field",
+				Type: ir.TypeRef{Target: "t/prim/string"},
+				Args: []ir.Parameter{{Name: ir.Naming{Source: "first"}, Type: ir.TypeRef{Target: "t/prim/string"}}},
+			}}}
+			doc.Types["t/root"] = &ir.Model{ID: "t/root", Docs: tc.root}
+			op := ir.Operation{
+				ID:       "q",
+				Docs:     tc.op,
+				Params:   []ir.Parameter{{Name: ir.Naming{Source: "in"}, Type: ir.TypeRef{Target: "t/root"}}},
+				Bindings: ir.OpBindings{GraphQL: &ir.GraphQLBinding{Kind: "query", FieldPath: []string{"q"}}},
+			}
+			doc.Services = []ir.Service{{ID: "s", Groups: []ir.OperationGroup{{Operations: []ir.Operation{op}}}}}
+			assert.Contains(t, irtest.DiagCodes(validated(t, doc)), "pass/args-outside-graphql")
+		})
+	}
 }
 
 // argModel is a model whose one property carries a field argument, so the model
@@ -197,4 +236,32 @@ func TestAppendTypeIDs_UnmodeledBytesYieldNoReference(t *testing.T) {
 		Value:  ir.RawValue(`"t/ghost/in-bytes"`),
 	}}}
 	assert.Empty(t, pass.AppendTypeIDs(nil, doc))
+}
+
+// TestAppendTypeIDs_ReadsWhatTheTypeGraphReads fills every field of each kind
+// and holds what this reflective reader takes from it to ir.TypeEdges, past the
+// kind's own ID. A position naming a type without using it is no edge, so it
+// must be no reachability root, and nothing else asks that of a new position.
+// A position only an operation holds is no field of a kind: this cannot reach it.
+func TestAppendTypeIDs_ReadsWhatTheTypeGraphReads(t *testing.T) {
+	t.Parallel()
+	p, err := decls.Load(reflect.TypeFor[ir.Document]().PkgPath())
+	require.NoError(t, err)
+	kinds, err := p.StringConsts("TypeKind")
+	require.NoError(t, err)
+	require.NotEmpty(t, kinds, "the ir package must declare its type kinds")
+	for _, kind := range kinds {
+		t.Run(kind.Value, func(t *testing.T) {
+			t.Parallel()
+			td, ok := ir.NewTypeDef(ir.TypeKind(kind.Value))
+			require.True(t, ok, "no concrete type for kind %q", kind.Value)
+			irtest.Fill(t, td)
+			edges := slices.Collect(ir.TypeEdges(td))
+			require.NotEmpty(t, edges, "a filled %s holds no edge, so this compares nothing", kind.Value)
+			read := slices.DeleteFunc(pass.AppendTypeIDs(nil, td), func(id ir.TypeID) bool {
+				return id == td.Common().ID
+			})
+			assert.Empty(t, cmp.Diff(edges, read), "mismatch (-edges +read)")
+		})
+	}
 }

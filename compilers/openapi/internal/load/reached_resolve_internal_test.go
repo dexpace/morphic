@@ -251,12 +251,12 @@ components:
 
 // TestResolve_EveryKindOfObjectIsValidated reaches each kind of object a $ref
 // names that the other tests do not, a header, request body, callback,
-// example, link and security scheme, each with a defect only its own table
-// entry finds. Each finding is placed in other.yaml's entry at the node it is
-// about, under the rule and severity the table gives it.
+// example, link, security scheme and media type, each with a defect only its
+// own table entry finds. Each finding is placed in other.yaml's entry at the
+// node it is about, under the rule and severity the table gives it.
 func TestResolve_EveryKindOfObjectIsValidated(t *testing.T) {
 	t.Parallel()
-	root := `openapi: 3.1.0
+	root := `openapi: 3.2.0
 info: {title: T, version: "1"}
 paths:
   /a:
@@ -269,7 +269,8 @@ paths:
           description: ok
           headers: {X: {$ref: './other.yaml#/components/headers/H'}}
           links: {l: {$ref: './other.yaml#/components/links/L'}}
-          content: {application/json: {examples: {e: {$ref: './other.yaml#/components/examples/E'}}}}
+          content: {application/json: {examples: {e: {$ref: './other.yaml#/components/examples/E'}}},
+            text/plain: {$ref: './other.yaml#/components/mediaTypes/M'}}
 components:
   securitySchemes:
     s: {$ref: './other.yaml#/components/securitySchemes/S'}
@@ -287,6 +288,8 @@ components:
     L: {operationId: a, operationRef: '#/paths/~1a/get'}
   securitySchemes:
     S: {type: bogus}
+  mediaTypes:
+    M: {example: 1, examples: {e: {value: 2}}}
 `})
 
 	_, diags := loadExternal(t, dir, root, Options{})
@@ -301,6 +304,7 @@ components:
 		"1 /components/requestBodies/B/content/application~1json/schema/minLength error " +
 			"openapi/validation/validation-type-mismatch",
 		"1 /components/examples/E error openapi/validation/validation-mutually-exclusive-fields",
+		"1 /components/mediaTypes/M error openapi/validation/validation-mutually-exclusive-fields",
 		"1 /components/headers/H/style error openapi/validation/validation-allowed-values",
 		"1 /components/links/L error openapi/validation/validation-mutually-exclusive-fields",
 	}

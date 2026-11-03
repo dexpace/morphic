@@ -1,0 +1,490 @@
+{
+  "idSpaces": {
+    "auth": [
+      "openapi",
+      "unresolved"
+    ],
+    "e": [
+      "anon",
+      "openapi"
+    ],
+    "g": [
+      "default",
+      "path-prefix",
+      "tags",
+      "webhooks"
+    ],
+    "op": [
+      "openapi"
+    ],
+    "p": [
+      "composed",
+      "openapi"
+    ],
+    "param": [
+      "openapi"
+    ],
+    "s": [
+      "openapi"
+    ],
+    "server": [
+      "default",
+      "openapi"
+    ],
+    "t": [
+      "anon",
+      "composed",
+      "openapi"
+    ]
+  },
+  "name": "Unknown keywords at shared nodes",
+  "version": "1",
+  "docs": {},
+  "services": [
+    {
+      "id": "s/openapi/0",
+      "name": {
+        "source": "Unknown keywords at shared nodes",
+        "canonical": "unknown_keywords_at_shared_nodes"
+      },
+      "docs": {},
+      "groups": [
+        {
+          "id": "g/default",
+          "name": {
+            "hint": "default"
+          },
+          "docs": {},
+          "operations": [
+            {
+              "id": "op/openapi/paths/~1a/get",
+              "name": {
+                "hint": "get_a"
+              },
+              "docs": {},
+              "responses": [
+                {
+                  "name": {
+                    "hint": "200"
+                  },
+                  "conditions": {
+                    "statusCodes": [
+                      {
+                        "from": 200,
+                        "to": 200
+                      }
+                    ]
+                  },
+                  "payload": {
+                    "contents": [
+                      {
+                        "mediaType": "application/json",
+                        "type": {
+                          "target": "t/anon/paths/~1a/get/responses/200/content/application~1json/schema",
+                          "nullable": false
+                        }
+                      }
+                    ]
+                  },
+                  "docs": {
+                    "description": "ok"
+                  }
+                }
+              ],
+              "oneWay": false,
+              "idempotency": {},
+              "bindings": {
+                "http": [
+                  {
+                    "method": "GET",
+                    "uriTemplate": "/a",
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
+                  }
+                ]
+              },
+              "provenance": {
+                "source": 0,
+                "pointer": "/paths/~1a/get"
+              }
+            }
+          ]
+        }
+      ],
+      "servers": [
+        "server/default"
+      ],
+      "provenance": {
+        "source": 0
+      }
+    }
+  ],
+  "types": {
+    "t/anon/components/schemas/Items/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Items/items",
+      "name": {
+        "hint": "items_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:k-items": {
+          "reason": "out_of_scope",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Items/items/k-items"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Items/items"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/ItemsRef/items": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/ItemsRef/items",
+      "name": {
+        "hint": "items_ref_item"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:k-itemsref": {
+          "reason": "out_of_scope",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/ItemsRef/items/k-itemsref"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsRef/items"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/S",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Map/additionalProperties": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Map/additionalProperties",
+      "name": {
+        "hint": "map_value"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:k-map": {
+          "reason": "out_of_scope",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Map/additionalProperties/k-map"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Map/additionalProperties"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/components/schemas/Union/oneOf/0": {
+      "kind": "scalar",
+      "id": "t/anon/components/schemas/Union/oneOf/0",
+      "name": {
+        "hint": "variant_0"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:k-branch": {
+          "reason": "out_of_scope",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Union/oneOf/0/k-branch"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Union/oneOf/0"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/anon/paths/~1a/get/responses/200/content/application~1json/schema": {
+      "kind": "scalar",
+      "id": "t/anon/paths/~1a/get/responses/200/content/application~1json/schema",
+      "name": {
+        "hint": "response"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:k-content": {
+          "reason": "out_of_scope",
+          "value": 1,
+          "provenance": {
+            "source": 0,
+            "pointer": "/paths/~1a/get/responses/200/content/application~1json/schema/k-content"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/get/responses/200/content/application~1json/schema"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Items": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Items",
+      "name": {
+        "source": "Items",
+        "canonical": "items"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Items"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/Items/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/ItemsRef": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/ItemsRef",
+      "name": {
+        "source": "ItemsRef",
+        "canonical": "items_ref"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsRef"
+      },
+      "elem": {
+        "target": "t/anon/components/schemas/ItemsRef/items",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Map": {
+      "kind": "map",
+      "id": "t/openapi/components/schemas/Map",
+      "name": {
+        "source": "Map",
+        "canonical": "map"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Map"
+      },
+      "value": {
+        "target": "t/anon/components/schemas/Map/additionalProperties",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Plain": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/Plain",
+      "name": {
+        "source": "Plain",
+        "canonical": "plain"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Plain"
+      },
+      "elem": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/S": {
+      "kind": "scalar",
+      "id": "t/openapi/components/schemas/S",
+      "name": {
+        "source": "S",
+        "canonical": "s"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/S"
+      },
+      "base": {
+        "target": "t/prim/string",
+        "nullable": false
+      }
+    },
+    "t/openapi/components/schemas/Union": {
+      "kind": "union",
+      "id": "t/openapi/components/schemas/Union",
+      "name": {
+        "source": "Union",
+        "canonical": "union"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Union"
+      },
+      "variants": [
+        {
+          "name": {
+            "hint": "variant_0"
+          },
+          "type": {
+            "target": "t/anon/components/schemas/Union/oneOf/0",
+            "nullable": false
+          },
+          "docs": {}
+        },
+        {
+          "name": {
+            "hint": "variant_1"
+          },
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "docs": {}
+        }
+      ],
+      "exclusive": true,
+      "wireTagged": false
+    },
+    "t/prim/integer": {
+      "kind": "primitive",
+      "id": "t/prim/integer",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "integer"
+    },
+    "t/prim/string": {
+      "kind": "primitive",
+      "id": "t/prim/string",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "string"
+    }
+  },
+  "servers": {
+    "server/default": {
+      "id": "server/default",
+      "name": {
+        "hint": "server"
+      },
+      "urlTemplate": "/",
+      "description": {},
+      "provenance": {
+        "source": 0
+      }
+    }
+  },
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "openapi/unknown-schema-keyword",
+      "message": "keyword \"k-items\" has no field in the schema model this compiler lowers and no IR position of its own; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Items/items/k-items"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/unknown-schema-keyword",
+      "message": "keyword \"k-itemsref\" has no field in the schema model this compiler lowers and no IR position of its own; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/ItemsRef/items/k-itemsref"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/unknown-schema-keyword",
+      "message": "keyword \"k-map\" has no field in the schema model this compiler lowers and no IR position of its own; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Map/additionalProperties/k-map"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/unknown-schema-keyword",
+      "message": "keyword \"k-branch\" has no field in the schema model this compiler lowers and no IR position of its own; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Union/oneOf/0/k-branch"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/unknown-schema-keyword",
+      "message": "keyword \"k-content\" has no field in the schema model this compiler lowers and no IR position of its own; kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1a/get/responses/200/content/application~1json/schema/k-content"
+      }
+    }
+  ],
+  "sources": [
+    {
+      "format": "openapi@3.1",
+      "path": "unknown-keywords-at-shared-nodes.yaml",
+      "hash": "825d28c841b6e4cac5161dd713b4d7fdaf41297ed3dff5868f2c22e760a34d25"
+    }
+  ]
+}

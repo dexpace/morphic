@@ -166,13 +166,13 @@ func path(quoted string) string {
 }
 
 // TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional pins that a null written
-// for an optional field is a warning, read as left out, a keyword whose value
-// is a schema included, and one for a required field an error, whether every
-// object of its kind or a rule requires it, as oauth2 does flows. One for
-// another object's schema, read as the empty schema, or for a Schema Object's
-// other keywords (GitHub #1069) is an error. One whose requirement another
-// package reports, as 3.0's items, is that package's, and a rule reading the
-// null as a sibling's value reads nothing.
+// for an optional field is a warning, read as left out, every keyword of a
+// Schema Object included, a bound whose shape another package owns as well, and
+// one for a required field an error, whether every object of its kind or a rule
+// requires it, as oauth2 does flows. One for another object's schema, read as
+// the empty schema, is an error. One whose requirement another package reports,
+// as 3.0's items, is that package's, and a rule reading the null as a sibling's
+// value reads nothing.
 func TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional(t *testing.T) {
 	severity := func(kind oas.Kind, doc string) ir.Severity {
 		diags := run(t, "3.1.0", kind, doc)
@@ -192,7 +192,12 @@ func TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional(t *testing.T) {
 	assert.Empty(t, run(t, "3.0.3", oas.Schema, `{type: array, items: ~}`), "the schema lowering reports the missing items")
 	assert.Equal(t, ir.SeverityError, severity(oas.MediaType, `{schema: ~}`))
 	assert.Equal(t, ir.SeverityError, severity(oas.Parameter, `{name: p, in: query, schema: ~}`))
-	assert.Equal(t, ir.SeverityError, severity(oas.Schema, `{description: ~}`))
+	assert.Equal(t, ir.SeverityWarning, severity(oas.Schema, `{description: ~}`))
+	assert.Equal(t, ir.SeverityWarning, severity(oas.Schema, `{maximum: ~}`))
+	assert.Equal(t, ir.SeverityWarning, severity(oas.Schema, `{type: ~}`))
+	assert.Empty(t, run(t, "3.1.0", oas.Schema, `{const: ~, default: ~, example: ~}`), "a null there is a value")
+	assert.Equal(t, ir.SeverityWarning, severity(oas.Schema, `{$ref: ~, title: t}`), "a null $ref is no reference")
+	assert.Equal(t, ir.SeverityError, severity(oas.Parameter, `{$ref: ~}`), "only in a Schema Object")
 	assert.Equal(t, ir.SeverityError, severity(oas.Info, `{title: t, version: v, contact: x}`))
 	assert.Equal(t, ir.SeverityError, severity(oas.Info, `{title: t, version: v, contact: []}`))
 	for _, d := range run(t, "3.1.0", oas.Info, `{title: t, version: v, description: ~}`) {
@@ -205,6 +210,21 @@ func TestCheck_NullIsReadAsAbsentWhereTheFieldIsOptional(t *testing.T) {
 	for _, d := range run(t, "3.1.0", oas.OAuthFlows, `{deviceAuthorization: {tokenUrl: ~, scopes: {}}}`) {
 		assert.Equal(t, ir.SeverityWarning, d.Severity, "%+v", d)
 	}
+}
+
+// TestCheck_ANullBesideARequirementsNameListsNoScopes pins that a security
+// requirement's null is no field left out: the name stands, as the lowering keeps
+// it, while any other value that is no list of strings is an error.
+func TestCheck_ANullBesideARequirementsNameListsNoScopes(t *testing.T) {
+	diags := run(t, "3.1.0", oas.SecurityRequirement, `{key: ~}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, mismatch, diags[0].Code)
+	assert.Equal(t, ir.SeverityWarning, diags[0].Severity)
+	assert.Contains(t, diags[0].Message, "read as listing no scopes")
+
+	diags = run(t, "3.1.0", oas.SecurityRequirement, `{key: 5}`)
+	require.Len(t, diags, 1)
+	assert.Equal(t, ir.SeverityError, diags[0].Severity)
 }
 
 // TestCheck_ANullReadAsLeftOutIsNoFieldToARule pins that a rule reads a null

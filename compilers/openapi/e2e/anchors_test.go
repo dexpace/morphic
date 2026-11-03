@@ -182,7 +182,65 @@ func compileServed(t *testing.T, first, second string) (*ir.Document, *ir.Docume
 // has the source's path and content hash cleared so a caller can compare two.
 func compileReferring(t *testing.T, path, uri string) *ir.Document {
 	t.Helper()
-	src := anchorFixtureHead + "paths:\n  /x: {$ref: \"" + uri + "#/paths/~1x\"}\n"
+	return compileSource(t, path, anchorFixtureHead+"paths:\n  /x: {$ref: \""+uri+"#/paths/~1x\"}\n")
+}
+
+// TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild pins that a source
+// the load phase rebuilds, which an upper-cased scheme forces for an anchored
+// document it reads (GitHub #538), lowers its content entries written as a $ref
+// as one it does not rebuild: modelled again with the rebuilt source, one into
+// that document lowers at its declaration there (GitHub #856).
+func TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild(t *testing.T) {
+	t.Parallel()
+	const ext = `openapi: 3.2.0
+info: {title: O, version: "1"}
+paths:
+  /x:
+    get: &g
+      operationId: getX
+      responses: {"200": {description: ok}}
+components:
+  mediaTypes:
+    M: {schema: {type: object, properties: {b: {type: integer}}}}
+`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/yaml")
+		_, err := w.Write([]byte(ext))
+		assert.NoError(t, err)
+	}))
+	t.Cleanup(srv.Close)
+	host := strings.TrimPrefix(srv.URL, "http://")
+	compile := func(scheme string) *ir.Document {
+		return compileSource(t, "root.yaml", strings.ReplaceAll(`openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /x: {$ref: "OTHER#/paths/~1x"}
+  /m:
+    get:
+      operationId: getM
+      responses:
+        "200":
+          description: ok
+          content: {application/json: {$ref: "OTHER#/components/mediaTypes/M"}}
+`, "OTHER", scheme+"://"+host+"/other.yaml"))
+	}
+
+	plain := compile("http")
+	m, ok := operationNamed(plain, "getM")
+	require.True(t, ok)
+	target := m.Responses[0].Payload.Contents[0].Type.Target
+	assert.Equal(t, 1, plain.Types[target].Common().Provenance.Source,
+		"declared in the document read: %s", target)
+	if diff := cmp.Diff(plain, compile("HTTP")); diff != "" {
+		t.Errorf("the rebuilt source lowered other IR (-not rebuilt +rebuilt):\n%s", diff)
+	}
+}
+
+// compileSource compiles src, a source at path, with external references
+// allowed, and returns its IR with every source's path and content hash
+// cleared, so a caller can compare two.
+func compileSource(t *testing.T, path, src string) *ir.Document {
+	t.Helper()
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: path, Data: []byte(src)}},
 		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})

@@ -5,6 +5,8 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -17,15 +19,19 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
 // typeSpelling is how a parameter or header stated its type: the schema node,
-// the pointer that node sits at, the media type serializing it — empty for the
-// `schema` spelling — the examples a content-style entry declares, and what the
-// elected entry writes beyond its type and the spelling the election passed
-// over, kept for the carrier at this position to merge onto its own Unmodeled.
+// the context and pointer it is declared at, the media type serializing it —
+// empty for the `schema` spelling — the examples a content-style entry
+// declares, and what the elected entry writes beyond its type and the spelling
+// the election passed over, kept for the carrier at this position to merge onto
+// its own Unmodeled. A content entry written as a $ref declares its schema
+// where the chain ends (declaredMedia), in that document's context.
 type typeSpelling struct {
+	ctx       lowering.Ctx
 	js        *oas3.JSONSchema[oas3.Referenceable]
 	pointer   jsontext.Pointer
 	mediaType string
@@ -50,25 +56,22 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 	carrier, home string,
 ) (typeSpelling, []ir.Diagnostic) {
 	// A content parameter or header declares exactly one media type;
-	// singleContentEntry takes it and reports a document that declares more,
-	// rather than dropping the extras in silence (GitHub #139).
-	mt, media, ok, diags := singleContentEntry(c, content, at)
+	// electContentEntry takes it, and passedOverEntries keeps and reports what a
+	// document declares beyond it, rather than dropping that in silence (GitHub
+	// #139).
+	var diags []ir.Diagnostic
+	mt, media, ok := electContentEntry(content)
 	if ok {
 		mediaPtr := at + ids.Ptr("content", mt)
-		scope := ids.Scope("content", mt)
-		examples, residue, residueDiags := contentEntryFields(c, media, mediaPtr, scope, carrier, home)
-		diags = append(diags, residueDiags...)
-		elected := typeSpelling{
-			js:        media.GetSchema(),
-			pointer:   mediaPtr + ids.Ptr("schema"),
-			mediaType: mt,
-			unmodeled: residue,
-			examples:  examples,
-		}
+		elected, electedDiags := contentSpelling(c, media, mt, mediaPtr, carrier, home)
+		diags = append(diags, electedDiags...)
+		diags = append(diags, c.Kept.Once(c.IDs().Coordinate(at), func() (ir.Unmodeled, []ir.Diagnostic) {
+			return passedOverEntries(c, nodeview.Pairs(nodeview.Child(root, "content")), mt, at)
+		})...)
 		diags = append(diags, passedOverSpelling(c, &elected.unmodeled, root, "schema", "content", at)...)
 		return elected, diags
 	}
-	elected := typeSpelling{js: js, pointer: at + ids.Ptr("schema")}
+	elected := typeSpelling{ctx: c, js: js, pointer: at + ids.Ptr("schema")}
 	if js == nil {
 		// Neither spelling states a type — a header carrying only a description,
 		// or a `content` map naming no usable entry — so there is no winner, and
@@ -79,6 +82,25 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 	return elected, diags
 }
 
+// contentSpelling is the typeSpelling of media, the elected entry of a
+// parameter's or header's content map, written under mt at mediaPtr: its
+// schema, examples and residue as it declares them (declaredMedia). One
+// written as a $ref that resolves to nothing states no type, as one naming no
+// schema does, but still names its media type.
+func contentSpelling(c lowering.Ctx, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer,
+	carrier, home string,
+) (typeSpelling, []ir.Diagnostic) {
+	elected := typeSpelling{ctx: c, pointer: mediaPtr + ids.Ptr("schema"), mediaType: mt}
+	d, found := declaredMedia(c, media, mediaPtr)
+	if !found {
+		return elected, nil
+	}
+	examples, residue, diags := contentEntryFields(d, ids.Scope("content", mt), carrier, home)
+	elected.ctx, elected.js, elected.pointer = d.ctx, d.media.GetSchema(), d.pointer+ids.Ptr("schema")
+	elected.unmodeled, elected.examples = residue, examples
+	return elected, diags
+}
+
 // passedOverSpelling keeps verbatim the spelling the election passed over and
 // reports it once, naming both. A document that wrote only the elected one
 // records nothing and says nothing.
@@ -86,7 +108,7 @@ func electTypeSpelling(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable],
 // The reason is ReasonDegradedLowering, as schema.recordSkippedFamilies uses for
 // the keyword families its own election passes over. The severity is warning,
 // not the info announcing a conjunction JSON Schema allows, because OpenAPI
-// forbids this one; it matches singleContentEntry's. It is not an error: the
+// forbids this one; it matches passedOverEntries'. It is not an error: the
 // document lowers as well as an election can make it, and harness.Check stops
 // at the first error diagnostic, hiding later findings.
 func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed, elected string, at jsontext.Pointer) []ir.Diagnostic {
@@ -101,49 +123,89 @@ func passedOverSpelling(c lowering.Ctx, u *ir.Unmodeled, root *yaml.Node, passed
 			"both, so it lowered as its %s, with %s kept verbatim under Unmodeled", elected, passed))
 }
 
-// singleContentEntry returns the one entry a content-style header or parameter
-// declares, and reports a document declaring more than one.
+// electContentEntry returns the one entry a content-style header or parameter
+// lowers through, or false where no entry holds one.
 //
-// OpenAPI requires exactly one entry at both positions, so only the first can
-// lower — ir.Property and ir.Parameter each hold a single type. Taking it in
-// silence would drop the other entries' schemas without a word, the loss GitHub
-// #139 fixed for the one entry a content-style header declares; the extras are
-// named instead so the document's own error is visible rather than absorbed.
-func singleContentEntry(c lowering.Ctx, content *sequencedmap.Map[string, *soa.MediaType], at jsontext.Pointer) (string, *soa.MediaType, bool, []ir.Diagnostic) {
-	if content == nil || content.Len() == 0 {
-		return "", nil, false, nil
-	}
-	var first string
+// OpenAPI requires exactly one entry at both positions, and ir.Property and
+// ir.Parameter each hold a single type, so a document declaring more needs an
+// election. It takes the lowest key as written, which no declaration order can
+// change: the specification ranks none, and the entry a run lowers must not
+// follow the order of a map.
+func electContentEntry(content *sequencedmap.Map[string, *soa.MediaType]) (string, *soa.MediaType, bool) {
+	var elected string
 	var chosen *soa.MediaType
-	ignored := make([]string, 0, content.Len()-1)
 	for mt, media := range content.All() {
-		if chosen == nil {
-			first, chosen = mt, media
-			continue
+		if media != nil && (chosen == nil || mt < elected) {
+			elected, chosen = mt, media
 		}
-		ignored = append(ignored, mt)
 	}
-	var diags []ir.Diagnostic
-	if len(ignored) > 0 {
-		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
-			"a content-style header or parameter must declare exactly one media type; "+
-				"%q is lowered and %s ignored", first, strings.Join(ignored, ", ")))
-	}
-	return first, chosen, chosen != nil, diags
+	return elected, chosen, chosen != nil
 }
 
-// contentEntryFields returns everything a Media Type Object declares at a
+// passedOverEntries returns each entry of written, a content map's pairs, but
+// elected, kept verbatim under openapi:<its coordinate>, and reports them once at
+// the map, sorted, so the report follows no declaration order.
+//
+// They are the Document's rather than the carrier's (lowering.KeptOnce): a carrier
+// a $ref reaches lowers once per reference, and an entry belongs to the
+// declaration, which no node stands for. So what they cost is what the source
+// wrote, and none need dropping.
+//
+// The reason and severity are passedOverSpelling's. An entry interns no node, and
+// --explain does not read Unmodeled (GitHub #693), so only the warning names it.
+func passedOverEntries(c lowering.Ctx, written []nodeview.Pair, elected string, at jsontext.Pointer) (ir.Unmodeled, []ir.Diagnostic) {
+	passed := slices.DeleteFunc(slices.SortedFunc(slices.Values(written), byKey),
+		func(entry nodeview.Pair) bool { return entry.Key == elected })
+	var entries ir.Unmodeled
+	var diags []ir.Diagnostic
+	var kept []string
+	for _, entry := range passed {
+		pointer := at + ids.Ptr("content", entry.Key)
+		ok, keptDiags := annotation.PreserveNodeInto(&entries, "openapi:"+c.IDs().Coordinate(pointer),
+			entry.Val, ir.ReasonDegradedLowering, c.ProvenanceAt(pointer))
+		diags = append(diags, keptDiags...)
+		if ok {
+			kept = append(kept, entry.Key)
+		}
+	}
+	if len(kept) == 0 {
+		return entries, diags
+	}
+	return entries, append(diags, c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, at+ids.Ptr("content"),
+		"a content-style header or parameter must declare exactly one media type; "+
+			"%q is lowered and %s kept verbatim under the document's Unmodeled", elected, namedEntries(kept)))
+}
+
+// namedEntries lists keys for one warning: each quoted, so a key cannot break the
+// line or read as two, and past annotation.MaxUnknownKeys a count of the rest,
+// since the document sets how many there are.
+func namedEntries(keys []string) string {
+	named := keys[:min(len(keys), annotation.MaxUnknownKeys)]
+	quoted := make([]string, len(named))
+	for i, key := range named {
+		quoted[i] = strconv.Quote(key)
+	}
+	list := strings.Join(quoted, ", ")
+	if rest := len(keys) - len(named); rest > 0 {
+		return list + " and " + strconv.Itoa(rest) + " more"
+	}
+	return list
+}
+
+// byKey orders two pairs of one mapping, whose keys differ.
+func byKey(a, b nodeview.Pair) int { return strings.Compare(a.Key, b.Key) }
+
+// contentEntryFields returns everything the Media Type Object d declares at a
 // parameter's or header's elected `content` position beyond the one type that
 // position lowers: its example/examples, its x-* and undeclared keys, the
-// fields contentOnlyFields names, and what keepMediaTypeFields keeps, none of
-// which may vanish without a diagnostic (GitHub #611).
+// fields contentOnlyFields names, and what keepContentDocs keeps, none of which
+// may vanish without a diagnostic (GitHub #611).
 //
 // scope is the content entry's own path, so several media types and the
 // enclosing object cannot collide on one key. carrier and home name the
 // position in each content-only field's info, with ReasonNoIRHome.
-func contentEntryFields(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer,
-	scope, carrier, home string,
-) ([]ir.Example, ir.Unmodeled, []ir.Diagnostic) {
+func contentEntryFields(d mediaDecl, scope, carrier, home string) ([]ir.Example, ir.Unmodeled, []ir.Diagnostic) {
+	c, media, mediaPtr := d.ctx, d.media, d.pointer
 	examples, diags := exampleList(c, media.GetExample(), media.GetExamples(), mediaPtr)
 	var unmodeled ir.Unmodeled
 	ext, extDiags := annotation.ExtensionsUnder(media.GetExtensions(), c.ProvenanceAt, mediaPtr, scope)
@@ -161,11 +223,116 @@ func contentEntryFields(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.
 			"%s content media type %s has no %s home; kept verbatim under Unmodeled",
 			carrier, field.keyword, home))
 	}
-	diags = append(diags, keepMediaTypeFields(c, &unmodeled, media, mediaPtr, scope)...)
+	taken, docDiags := keepContentDocs(d, &unmodeled, scope, carrier, home)
+	diags = append(diags, docDiags...)
 	// Last, so the keys the readers above kept are already recorded and the census
 	// leaves them alone: it answers only for what nothing read.
 	return examples, unmodeled,
-		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.ProvenanceAt, mediaPtr, scope)...)
+		append(diags, annotation.UnknownKeysUnder(&unmodeled, media, c.ProvenanceAt, mediaPtr, scope, taken...)...)
+}
+
+// keepContentDocs keeps verbatim what documents a parameter's or header's
+// content entry, which the carrier has no home for: the summary and the
+// description the fold over the entry's chain takes, each from the nearest
+// position writing it, as a body's Content.Docs takes them
+// (docs/compilers/openapi.md#reference-object-siblings), at the census's own
+// entry, with an info. It returns the keys of the declaration it read, kept or
+// overridden, for the census to leave alone. A summary its declaration writes,
+// which a Media Type Object does not define, is the census's, and loses that
+// entry to one the fold takes (GitHub #396).
+func keepContentDocs(d mediaDecl, u *ir.Unmodeled, scope, carrier, home string) ([]string, []ir.Diagnostic) {
+	hops := docHops(d)
+	var taken []string
+	if nodeview.Child(d.media.GetRootNode(), "description") != nil {
+		taken = []string{"description"}
+	}
+	var diags []ir.Diagnostic
+	for _, key := range []string{"summary", "description"} {
+		h, node, ok := nearestWriting(hops, key)
+		if !ok {
+			continue
+		}
+		if !h.placed {
+			diags = append(diags, unplacedDoc(d, key))
+			continue
+		}
+		at := h.at + ids.Ptr(key)
+		kept, keptDiags := annotation.PreserveNodeInto(u, annotation.EntryKey(scope, key), node,
+			ir.ReasonNoIRHome, h.c.ProvenanceAt(at))
+		diags = append(diags, keptDiags...)
+		if kept {
+			diags = append(diags, h.c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+				"%s content media type %s has no %s home; kept verbatim under Unmodeled", carrier, key, home))
+		}
+	}
+	return taken, diags
+}
+
+// docHop is a position a content entry's docs may be written at: the mapping
+// there, and the context and pointer it is written at, unless placed is false.
+// summary reports whether a summary written there documents the entry: a
+// Media Type Object defines none, so one its declaration writes is an
+// undefined key, which the census keeps.
+type docHop struct {
+	root    *yaml.Node
+	c       lowering.Ctx
+	at      jsontext.Pointer
+	placed  bool
+	summary bool
+}
+
+// docHops returns the positions d's docs may be written at, nearest first:
+// the entry's own, each components/mediaTypes alias its chain passes, and the
+// declaration. An alias is placed only where the entry is written in the
+// source and the alias is too, as resolve.ObjectAt reads a chain.
+func docHops(d mediaDecl) []docHop {
+	decl := docHop{root: d.media.GetRootNode(), c: d.ctx, at: d.pointer, placed: true}
+	if d.use == nil {
+		return []docHop{decl}
+	}
+	hops := []docHop{{root: d.use.GetCore().GetRootNode(), c: d.entryCtx, at: d.entryPtr, placed: true,
+		summary: true}}
+	scope, placed := d.entryCtx.RefScope(), !d.entryCtx.RefScope().Foreign
+	last := d.use
+	for _, hop := range resolve.Hops[soa.MediaType](scope, d.use) {
+		target, inSource := scope.InternalPointer(last.GetReference().String())
+		placed = placed && inSource && !hop.Foreign
+		hops = append(hops, docHop{root: hop.Ref.GetCore().GetRootNode(), c: d.entryCtx.InScope(scope.InSource()),
+			at: target, placed: placed, summary: true})
+		scope, last = scope.InSource(), hop.Ref
+	}
+	return append(hops, decl)
+}
+
+// nearestWriting returns the first of hops writing key, and the node written.
+// A key written empty or null is read as unset, as resolve.UseDocs reads it,
+// so it leaves the one beneath it standing.
+func nearestWriting(hops []docHop, key string) (docHop, *yaml.Node, bool) {
+	for _, h := range hops {
+		if key == "summary" && !h.summary {
+			continue
+		}
+		if node := nodeview.Child(h.root, key); node != nil && !unset(node) {
+			return h, node, true
+		}
+	}
+	return docHop{}, nil, false
+}
+
+// unset reports whether node, a docs field's value, reads as no value: a null,
+// or an empty scalar.
+func unset(node *yaml.Node) bool {
+	n := nodeview.Deref(node)
+	return n.Kind == yaml.ScalarNode && (n.Value == "" || n.ShortTag() == "!!null")
+}
+
+// unplacedDoc reports, at d's entry, the key the fold takes from an alias in
+// another document, which no position of this compile places, as the fields
+// beside a path item's $ref there are reported (GitHub #823).
+func unplacedDoc(d mediaDecl, key string) ir.Diagnostic {
+	return d.entryCtx.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, d.entryPtr,
+		"the %s this media type takes is written beside a $ref in another document, which this compiler "+
+			"does not place; it is not kept", key)
 }
 
 // contentOnlyFields returns the Media Type Object fields the IR models at a

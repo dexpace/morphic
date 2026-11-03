@@ -27,7 +27,7 @@ func buildDoc(t *testing.T, spec string) (*soa.OpenAPI, *yaml.Node) {
 	t.Helper()
 	parsed, err := parsedFor(t.Context(), compilers.Source{Path: "spec.yaml", Data: []byte(spec)})
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), parsed.root)
+	readyForModel(t.Context(), parsed.root)
 	doc, err := unmarshal(t.Context(), []byte(spec), parsed.root)
 	require.NoError(t, err)
 	require.NotNil(t, doc)
@@ -121,7 +121,7 @@ func markerPosition(t *testing.T, spec, marker string) (line, col int) {
 func resolveSpecWith(t *testing.T, spec string, rebuild func() (*soa.OpenAPI, error)) (*soa.OpenAPI, []ir.Diagnostic, error) {
 	t.Helper()
 	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), modelOf(t, spec),
-		Siblings{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
+		Siblings{}, MediaTypes{}, sourceDocument{path: "root.yaml"}, Options{Reader: reader.Disk{}}, rebuild)
 	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
 }
 

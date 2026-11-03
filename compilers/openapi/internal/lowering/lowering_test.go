@@ -5,10 +5,11 @@ package lowering_test
 
 import (
 	"encoding/json/jsontext"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
-	"strings"
+	"slices"
 	"testing"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -18,7 +19,6 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
-	"github.com/dexpace/morphic/compilers/openapi/internal/anchors"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -129,46 +129,6 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	assert.Equal(t, 7, c.SrcIndex)
 }
 
-// TestWithAuth_ExtendsACopy pins the half of the auth design that makes the
-// "no window in which it reads empty" claim true: the extended context answers
-// for the schemes it was given, and the context it was derived from still
-// answers for none. A WithAuth that wrote through would make every lowering
-// above the security-scheme phase able to see them.
-func TestWithAuth_ExtendsACopy(t *testing.T) {
-	t.Parallel()
-	doc := openapitest.DocDeclaring("User")
-	src := ir.SourceInfo{Format: "openapi@3.1", Path: "spec.yaml", Hash: "abc"}
-	before := lowering.New(7, doc, src, lowering.GroupByPathPrefix, lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-	schemes := map[ir.AuthID]ir.AuthScheme{"a/apiKey": {ID: "a/apiKey"}}
-
-	after := before.WithAuth(schemes)
-
-	assert.True(t, after.DeclaresAuth("a/apiKey"), "the extended context answers for what it was given")
-	assert.False(t, after.DeclaresAuth("a/other"), "and only for that")
-	assert.False(t, before.DeclaresAuth("a/apiKey"),
-		"the context it was derived from is unchanged, so nothing before the auth phase can read them")
-
-	// The schemes are the only difference. Asserting that is not pedantry: a
-	// WithAuth that built a fresh context around the map would satisfy all three
-	// assertions above and hand the service walk a context with no document in
-	// it, and the declared-name index — unexported, so no field comparison would
-	// notice — is what every $ref resolved below here reads.
-	assert.Same(t, doc, after.Doc, "the document survives the extension")
-	assert.Equal(t, src, after.Source)
-	assert.Equal(t, 7, after.SrcIndex)
-	assert.Equal(t, lowering.GroupByPathPrefix, after.Grouping)
-	assert.True(t, after.DeclaresSchema("User"), "as does the index derived at entry")
-}
-
-// TestDeclaresAuth_TheZeroContextDeclaresNothing pins the nil-map read, which is
-// the state every lowering before the security-scheme phase holds.
-func TestDeclaresAuth_TheZeroContextDeclaresNothing(t *testing.T) {
-	t.Parallel()
-	var c lowering.Ctx
-	assert.False(t, c.DeclaresAuth("a/apiKey"))
-	assert.False(t, c.DeclaresAuth(""))
-}
-
 // TestIs30_TheZeroContextReadsAs2020 pins that a context with no document
 // answers false rather than panicking: the accessor reaches through the
 // document pointer, and half this file drives the type as a Ctx literal.
@@ -214,10 +174,47 @@ func TestReached_IsSharedByTheContextAndItsScope(t *testing.T) {
 	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	require.NotNil(t, c.RefScope().Reached)
-	assert.Same(t, c.RefScope().Reached, c.WithAuth(nil).RefScope().Reached, "copies share one record")
+	assert.Same(t, c.RefScope().Reached, c.InScope(c.RefScope()).RefScope().Reached, "copies share one record")
 	assert.False(t, c.Reached("/components/parameters/P"), "nothing has been resolved yet")
 	assert.False(t, lowering.Ctx{}.Reached("/components/parameters/P"))
 	assert.Nil(t, lowering.Ctx{}.RefScope().Reached)
+}
+
+// TestKeptOnce_ReadsADeclarationOnce holds what makes a kept entry cost what the
+// source wrote: the first reach reads and reports, a later one through any copy of
+// the context does neither, and another declaration is a read of its own.
+func TestKeptOnce_ReadsADeclarationOnce(t *testing.T) {
+	t.Parallel()
+	c := lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	reads := 0
+	keep := func(key string) func() (ir.Unmodeled, []ir.Diagnostic) {
+		return func() (ir.Unmodeled, []ir.Diagnostic) {
+			reads++
+			return ir.Unmodeled{key: {Reason: ir.ReasonDegradedLowering}}, []ir.Diagnostic{{Code: key}}
+		}
+	}
+
+	assert.Len(t, c.Kept.Once("/a", keep("a")), 1, "the first reach reports")
+	assert.Empty(t, c.InScope(c.RefScope()).Kept.Once("/a", keep("a")), "a copy shares what was read")
+	assert.Len(t, c.Kept.Once("/b", keep("b")), 1)
+
+	assert.Equal(t, 2, reads)
+	assert.Equal(t, []string{"a", "b"}, slices.Sorted(maps.Keys(c.Kept.Entries())))
+}
+
+// TestKeptOnce_AZeroContextKeepsNothing is the state New never leaves: with nowhere
+// to hold a read, it asks for none rather than report what nothing kept.
+func TestKeptOnce_AZeroContextKeepsNothing(t *testing.T) {
+	t.Parallel()
+	asked := false
+	diags := lowering.Ctx{}.Kept.Once("/a", func() (ir.Unmodeled, []ir.Diagnostic) {
+		asked = true
+		return nil, nil
+	})
+	assert.False(t, asked)
+	assert.Empty(t, diags)
+	assert.Nil(t, lowering.Ctx{}.Kept.Entries())
 }
 
 // TestRefScope_IsTheContextSeenAsAScope pins the two facts reference resolution
@@ -287,7 +284,6 @@ func TestRefScope_CarriesTheBindingsItWasGiven(t *testing.T) {
 	assert.Same(t, loaded.Bindings, carrying.Bindings())
 	assert.Same(t, loaded.Bindings, carrying.RefScope().Bindings)
 	assert.Same(t, loaded.Bindings, carrying.InScope(carrying.RefScope()).Bindings(), "a copy shares it")
-	assert.Same(t, loaded.Bindings, carrying.WithAuth(nil).RefScope().Bindings)
 	at, ok := carrying.RefScope().Target(alias)
 	require.True(t, ok, "its $ref lands where the load phase resolved it")
 	assert.Equal(t, bind.Position{Pointer: "/components/schemas/Target"}, at)
@@ -341,6 +337,38 @@ x-lib:
 	require.NotNil(t, holds)
 	assert.True(t, holds(loaded.Doc.GetRootNode(), "x-lib"))
 	assert.False(t, holds(loaded.Doc.GetRootNode(), "x-none"))
+}
+
+// TestRemembered_IsReadOnceAcrossCopies pins that a reading is read once for every
+// copy of a context, that WithLoaded starts afresh because a reading turns on what
+// it loaded, and that a context with nothing loaded reads every time.
+func TestRemembered_IsReadOnceAcrossCopies(t *testing.T) {
+	t.Parallel()
+	reads := 0
+	read := func() int {
+		reads++
+		return reads
+	}
+	c := lowering.Ctx{}.WithLoaded(&load.Document{})
+
+	assert.Equal(t, 1, lowering.Remembered(c, "k", read))
+	assert.Equal(t, 1, lowering.Remembered(c.InScope(c.RefScope().InSource()), "k", read), "a copy shares what c read")
+	assert.Equal(t, 2, lowering.Remembered(c, "other", read), "another key is another reading")
+	assert.Equal(t, 3, lowering.Remembered(c.WithLoaded(&load.Document{}), "k", read), "WithLoaded remembers nothing")
+
+	var zero lowering.Ctx
+	assert.Equal(t, 4, lowering.Remembered(zero, "k", read))
+	assert.Equal(t, 5, lowering.Remembered(zero, "k", read), "a context with nothing loaded remembers nothing")
+}
+
+// TestRemembered_AKeyHoldsOneTypeOfAnswer pins a key misused by two kinds of
+// reading: the answer is read again rather than taken for the wrong type.
+func TestRemembered_AKeyHoldsOneTypeOfAnswer(t *testing.T) {
+	t.Parallel()
+	c := lowering.Ctx{}.WithLoaded(&load.Document{})
+
+	assert.Equal(t, 1, lowering.Remembered(c, "k", func() int { return 1 }))
+	assert.Equal(t, "s", lowering.Remembered(c, "k", func() string { return "s" }))
 }
 
 // TestTypePosition_IsReadOncePerScope pins the answers every copy of a context
@@ -570,6 +598,47 @@ func TestWithLoaded_CarriesTheSiblingsOnACopy(t *testing.T) {
 	assert.False(t, ok, "the context it was made from is unchanged")
 }
 
+// TestWithLoaded_CarriesTheMediaTypeUsesOnACopy holds where a lowering reads
+// the model of a content entry written as a $ref: from the load phase's, on the
+// copy WithLoaded returns, while the context it was made from knows the entry
+// is one and holds no model of it.
+func TestWithLoaded_CarriesTheMediaTypeUsesOnACopy(t *testing.T) {
+	t.Parallel()
+	spec := openapitest.PathsSpecVer("3.2.0", `  /a:
+    get:
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json: {$ref: '#/components/mediaTypes/M'}
+            text/plain: {schema: {type: string}}
+components:
+  mediaTypes:
+    M: {schema: {type: string}}
+`)
+	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(spec)}, load.Options{})
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	base := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	carrying := base.WithLoaded(doc)
+	item, ok := doc.Doc.GetPaths().Get("/a")
+	require.True(t, ok)
+	response, ok := item.GetObject().Get().GetResponses().Get("200")
+	require.True(t, ok)
+	content := response.GetObject().GetContent()
+
+	use, isUse := carrying.MediaTypeUse(content.GetOrZero("application/json"))
+	require.True(t, isUse)
+	assert.True(t, use.IsReference(), "the copy reads the load phase's model")
+	_, isUse = carrying.MediaTypeUse(content.GetOrZero("text/plain"))
+	assert.False(t, isUse, "an entry written inline is no use")
+
+	use, isUse = base.MediaTypeUse(content.GetOrZero("application/json"))
+	assert.True(t, isUse)
+	assert.Nil(t, use, "the context it was made from holds no model")
+}
+
 // TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex pins that a context carrying
 // the load phase's results reads the raw YAML a walk leaves the model for
 // through an index, where the one it was made from asks the library, which
@@ -586,59 +655,38 @@ func TestWithLoaded_ReadsRawYAMLThroughTheLoadIndex(t *testing.T) {
 	assert.NotNil(t, base.WithLoaded(doc).RefScope().Holds)
 }
 
-// TestDynamicAnchorSites_ReportsATruncatedWalkOnce pins what a reader is told
-// when the $dynamicAnchor index is partial. Truncation only ever drops
-// declarations, and a dropped duplicate reads as "declared exactly once", the
-// count that expands, so an unreported truncation would turn an ambiguous
-// reference into a confident one. The index is built once for every copy of
-// the context, so the warning is too.
-func TestDynamicAnchorSites_ReportsATruncatedWalkOnce(t *testing.T) {
-	t.Parallel()
-	// The walk descends into every key, so an extension at the document root
-	// nests the tree past the cap without any schema lowering seeing it.
-	deep := strings.Repeat("{a: ", anchors.MaxDepth) + "1" + strings.Repeat("}", anchors.MaxDepth)
-	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n") + "x-deep: " + deep + "\n"
-	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
-	require.NoError(t, err)
-	openapitest.RequireNoErrorDiags(t, diags)
-	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
-
-	sites, got := c.DynamicAnchorSites("m")
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A"}, sites, "the index is built even when partial")
-	require.Len(t, got, 1, "the truncation is announced: %+v", got)
-	assert.Equal(t, ir.SeverityWarning, got[0].Severity)
-	assert.Contains(t, got[0].Message, "not verified")
-
-	_, again := c.InScope(c.RefScope()).DynamicAnchorSites("absent")
-	assert.Empty(t, again, "a copy reads the built index and does not announce it again")
-
-	bare := lowering.Ctx{Doc: doc.Doc}
-	_, first := bare.DynamicAnchorSites("m")
-	_, second := bare.DynamicAnchorSites("m")
-	assert.Len(t, first, 1, "a context New did not build keeps no index")
-	assert.Len(t, second, 1, "so it builds one, and announces it, on every ask")
-}
-
-// TestDynamicAnchorSites_ReadsACompleteIndexQuietly pins the ordinary case: a
-// document the walk reads whole names each anchor's sites and reports
-// nothing, and a context holding no document finds none.
-func TestDynamicAnchorSites_ReadsACompleteIndexQuietly(t *testing.T) {
+// TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument pins that the sites are
+// the table's for the document c reads, every one of them counted, and that a
+// context given no bindings finds none and reads as whole.
+func TestDynamicAnchorSites_ReadsTheBindingsOfItsDocument(t *testing.T) {
 	t.Parallel()
 	src := openapitest.ComponentSpec("    A: {$dynamicAnchor: m, type: string}\n    B: {$dynamicAnchor: m}\n")
 	doc, diags, err := load.Load(t.Context(), 0, compilers.Source{Path: "spec.yaml", Data: []byte(src)}, load.Options{})
 	require.NoError(t, err)
 	openapitest.RequireNoErrorDiags(t, diags)
 	c := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
-		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
 
-	sites, got := c.DynamicAnchorSites("m")
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A", "/components/schemas/B"}, sites)
-	assert.Empty(t, got)
+	sites, whole := c.DynamicAnchorSites("m")
+	assert.Equal(t, []bind.Position{{Pointer: "/components/schemas/A"}, {Pointer: "/components/schemas/B"}}, sites)
+	assert.True(t, whole)
 
-	sites, got = lowering.Ctx{}.DynamicAnchorSites("m")
+	sites, whole = lowering.Ctx{}.DynamicAnchorSites("m")
 	assert.Empty(t, sites)
-	assert.Empty(t, got)
+	assert.True(t, whole)
+}
+
+// TestPosition_PlacesWhatADocumentHolds pins that a context reading the source,
+// or a document at its own coordinates, places a pointer, and that one reading
+// another document's content at the source's places nothing.
+func TestPosition_PlacesWhatADocumentHolds(t *testing.T) {
+	t.Parallel()
+	p, placed := lowering.Ctx{}.Position("/a")
+	assert.True(t, placed)
+	assert.Equal(t, bind.Position{Pointer: "/a"}, p)
+
+	_, placed = lowering.Ctx{}.InScope(resolve.Scope{Foreign: true, Holder: "other.yaml"}).Position("/a")
+	assert.False(t, placed)
 }
 
 // TestNew_CarriesTheLimits pins that the budgets reach the walk through the

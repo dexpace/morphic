@@ -2,13 +2,15 @@
 
 A comparison is evidence only when it could have come out the other way. `scripts/sweep.py`
 compiles a corpus with two builds and prints facts, never a verdict: each side's exit codes, each
-spec whose exit code, IR or diagnostics differ, and a row per spec in `results.tsv`. Morphic exits
-0 when no diagnostic reaches `--fail-on` (errors, by default), so a spec with only warnings exits 0;
-1 when one does or the spec lowered to no document; and 2 when it was misused, could not do its
-I/O, ran a stage that broke its contract or was stopped by a signal. The sweep records 137 for a
-compile it killed at its time limit and minus the number of a signal that ended one. A spec that
-agrees on 2, 137 or a negative code was compiled by neither build, so its agreement says nothing.
-These rules decide whether the answer means anything.
+spec whose exit code, IR or diagnostics differ, and a row per spec in `results.tsv`. An `IRVersion`
+bump is set aside and printed once, a spec it alone changed is `stamp` in `results.tsv`, and only a
+spec that differs past that keeps its outputs for diffing. Morphic exits 0 when no diagnostic
+reaches `--fail-on` (errors, by default), so a spec with only warnings exits 0; 1 when one does or
+the spec lowered to no document; and 2 when it was misused, could not do its I/O, ran a stage that
+broke its contract or was stopped by a signal. The sweep records 137 for a compile it killed at its
+time limit and minus the number of a signal that ended one. A spec that agrees on 2, 137 or a
+negative code was compiled by neither build, so its agreement says nothing. These rules decide
+whether the answer means anything.
 
 ## A probe that passes on main did not reach the defect
 `main-control`
@@ -30,10 +32,12 @@ These rules decide whether the answer means anything.
 `generator-width`
 
 - **Rule.** List the read paths and spellings the claim covers and make the generator write each
-  one: positions past a `$ref`, aliases, merge keys, empty keys, every position kind, both
+  one: positions past a `$ref`, aliases, merge keys, empty keys, a scalar the parser tags as no
+  string (a plain date or `<<` value, `!!binary`, a local tag), every position kind, both
   declaration orders, wide documents as well as deep ones. Assert a floor on what was exercised.
 - **Why.** A corpus differential never read through a reference (#774). A generator without `''`
   keys missed 69 regressions (#946). A corpus with no `+` in any fragment reached nothing (#933).
+  Grids writing no plain date left two defects for a later probe (#1226).
 - **Probe.** Count the positions passed and the answers given, not only the inputs.
 
 ## Probe the join, not only the output

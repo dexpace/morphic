@@ -8,7 +8,6 @@ import (
 
 	soa "github.com/speakeasy-api/openapi/openapi"
 
-	"github.com/dexpace/morphic/compilers/openapi/internal/anchors"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
@@ -64,11 +63,11 @@ type Ctx struct {
 	// copy would share, as with the other maps here.
 	streaming map[string]bool
 
-	// promotions is the vendor-extension promotion policy, normalized into the
-	// map PromoteDeprecation reads, and nil when the caller disabled it.
-	//
-	// Unexported for the reason streaming is: it holds a map.
-	promotions map[string]ExtensionTarget
+	// promoter is the vendor-extension promotion policy, normalized, and read
+	// through Promoter. It is unexported for the reason streaming is: it holds a
+	// map. It sits behind one pointer for the reason loaded does: RefScope copies
+	// the whole context into a closure.
+	promoter *Promoter
 
 	// schemas is the set of component-schema names the document declares.
 	//
@@ -100,17 +99,6 @@ type Ctx struct {
 	home    int
 	homeDoc bind.DocID
 
-	// auth is the document's declared security schemes, keyed by the IDs a
-	// requirement names. It is unexported, and read through a predicate rather
-	// than handed back, for the reason schemas is.
-	//
-	// Unlike every other field it is not derived at entry: resolving the schemes
-	// is a lowering that reports, and micro-compiler-design §4.1 keeps such work
-	// out of New so it cannot report on documents that never ask. The compiler
-	// resolves it once and extends the context with WithAuth, so the derivation
-	// stays a lowering and only its result becomes context.
-	auth map[ir.AuthID]ir.AuthScheme
-
 	// overlay attributes a position to the overlay document that introduced it,
 	// where one was applied. Its zero value answers for every compile without an
 	// overlay, so nothing below has to ask whether there was one.
@@ -133,17 +121,18 @@ type Ctx struct {
 	// Nil in a zero context.
 	typePositions map[scopedPosition]bind.Position
 
-	// anchors is the source's $dynamicAnchor index, built on first use
-	// (DynamicAnchorSites). Copies share it on purpose, as typePositions: it
-	// reads only the document. Nil in a zero context, which builds it on
-	// every ask.
-	anchors *anchorMemo
-
 	// reached records where each reference a lowering resolved landed in the
 	// source. Copies share it on purpose: only the document's lowering reads it,
 	// once every other lowering has returned (Reached), so it cannot change their
 	// answers. Nil in a zero context, which records nothing.
 	reached *resolve.Reached
+
+	// Kept holds what the run keeps for the Document rather than a node. Copies
+	// share it on purpose, as reached: only run reads what it keeps, once every
+	// lowering has returned, so it cannot change their answers. Its own fields are
+	// private, so a lowering writes it only through Once. Nil in a zero context,
+	// which keeps nothing.
+	Kept *KeptOnce
 }
 
 // loadResult holds what a context reads of the load phase (see WithLoaded): the
@@ -153,6 +142,9 @@ type Ctx struct {
 // in RefScope would allocate each time.
 type loadResult struct {
 	siblings load.Siblings
+	// media is each components/mediaTypes entry and each content entry written
+	// as a $ref, modelled and resolved with the document (MediaTypeUse).
+	media load.MediaTypes
 	// names names the nodes built at the positions of the documents the
 	// bindings read, remembering each name (NameAt).
 	names *naming.Namer
@@ -162,6 +154,9 @@ type loadResult struct {
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
 	reads resolve.Scope
+	// readings remembers each answer Remembered read. It sits here for the
+	// reason loaded is a pointer, and copies share it as they do typePositions.
+	readings map[any]any
 }
 
 // scopedPosition is a position, the document it is in, and the scope it is
@@ -180,9 +175,6 @@ type scopedPosition struct {
 // a component declared later. The streaming policy is normalized here so
 // readers cannot disagree about a media type, and the promotion policy is
 // copied so no lowering can write through the context into the caller's map.
-//
-// The $dynamicAnchor index is built on first use instead (GitHub #172): its
-// bounds diagnostic would warn about documents that never write $dynamicRef.
 func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
 	return Ctx{
 		Doc:              doc,
@@ -192,14 +184,23 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		Limits:           limits,
 		schemas:          declaredSchemaNames(doc),
 		streaming:        streamingSet(streaming),
-		promotions:       promotionSet(promotions),
+		promoter:         newPromoter(promotions),
 		NullableWidening: nullable,
 		overlay:          origin,
 
 		typePositions: map[scopedPosition]bind.Position{},
-		anchors:       &anchorMemo{},
 		reached:       resolve.NewReached(),
+		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
 	}
+}
+
+// Promoter returns the vendor-extension promotion policy this context carries,
+// which a zero context reads as disabled.
+func (c Ctx) Promoter() Promoter {
+	if c.promoter == nil {
+		return Promoter{}
+	}
+	return *c.promoter
 }
 
 // Reached reports whether a lowering run under this context, or any copy of it,
@@ -231,22 +232,6 @@ func (c Ctx) Sources() []ir.SourceInfo {
 	return out
 }
 
-// WithAuth returns a copy of c carrying the resolved security schemes.
-//
-// Only the service walk is given the extended value; the phases that run before
-// it keep the plain one. That is what keeps "populated partway through" from
-// being a trap: the lowerings that run before the schemes are resolved never
-// hold a context that could answer this, so there is no window in which it reads
-// empty.
-//
-// A copy, not a fresh context: everything the service walk is about to lower —
-// the document, its identity and index, and the declared-name index derived at
-// entry — has to survive the extension.
-func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
-	c.auth = auth
-	return c
-}
-
 // WithLoaded returns a copy of c carrying what the load phase resolved with
 // doc: where each schema $ref lands (its bindings), and the fields its path
 // items write beside their $refs. They come with the document rather than
@@ -255,9 +240,10 @@ func (c Ctx) WithAuth(auth map[ir.AuthID]ir.AuthScheme) Ctx {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, others: doc.Others, names: naming.New(doc.Bindings.Table()),
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others,
+		names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
-			Bindings: doc.Bindings}}
+			Bindings: doc.Bindings}, readings: map[any]any{}}
 	c.typePositions = map[scopedPosition]bind.Position{}
 	return c
 }
@@ -289,6 +275,25 @@ func (c Ctx) TypePosition(at bind.Position, read func() bind.Position) bind.Posi
 	return named
 }
 
+// Remembered returns read's answer for key, read once and remembered for every
+// copy of c. read must turn only on the documents and their bindings, which no
+// lowering changes, and key on all else it turns on; a package's own key type
+// keeps its readings from another's. A key holding another type of answer reads
+// again, and a context given no load phase reads every time.
+func Remembered[V any](c Ctx, key any, read func() V) V {
+	if c.loaded == nil {
+		return read()
+	}
+	if held, seen := c.loaded.readings[key]; seen {
+		if answer, ok := held.(V); ok {
+			return answer
+		}
+	}
+	answer := read()
+	c.loaded.readings[key] = answer
+	return answer
+}
+
 // Siblings returns the fields the load phase modelled beside the document's
 // path item $refs (see WithLoaded). A load.Siblings only answers questions, so
 // handing it out lets no copy of c change what another reads.
@@ -297,6 +302,16 @@ func (c Ctx) Siblings() load.Siblings {
 		return load.Siblings{}
 	}
 	return c.loaded.siblings
+}
+
+// MediaTypeUse returns the model the load phase built of media, a content
+// entry, and whether media is written as a $ref (load.MediaTypes.Use). In a
+// context given no load result, one written so has no model.
+func (c Ctx) MediaTypeUse(media *soa.MediaType) (*resolve.ReferencedMediaType, bool) {
+	if c.loaded == nil {
+		return load.MediaTypes{}.Use(media)
+	}
+	return c.loaded.media.Use(media)
 }
 
 // Within returns c for lowering what the entry ref resolves to, in the scope
@@ -384,12 +399,6 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // DeclaresSchema reports whether the document declares a component schema of
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
-
-// DeclaresAuth reports whether the document declares the security scheme a
-// requirement names. It is a predicate rather than a getter for the reason
-// DeclaresSchema is: handing back the map would make it writable by every
-// caller, which is the one thing keeping it unexported was for.
-func (c Ctx) DeclaresAuth(id ir.AuthID) bool { _, ok := c.auth[id]; return ok }
 
 // Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
 // 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
@@ -545,37 +554,15 @@ func (c Ctx) ProvenanceAt(pointer jsontext.Pointer, from ...jsontext.Pointer) ir
 	return ir.Provenance{Source: c.overlay.IndexOf(pointer, from, c.SrcIndex), Pointer: pointer}
 }
 
-// anchorMemo holds the source's $dynamicAnchor index once it is built.
-type anchorMemo struct {
-	built bool
-	index anchors.Index
+// Position returns where pointer is in the bindings' table, and false where c
+// reads what another document holds at the source's coordinates (InScope), which
+// no position of the table places.
+func (c Ctx) Position(pointer jsontext.Pointer) (bind.Position, bool) {
+	return bind.Position{Doc: c.homeDoc, Pointer: pointer}, !c.foreign || c.home != 0
 }
 
-// DynamicAnchorSites returns the pointers of the source declaring the
-// $dynamicAnchor name (anchors.Build), and, the first time any copy of c asks,
-// a warning when the index walk stopped at a bound. It is built on first use
-// rather than at entry because that warning would report on documents that
-// never write $dynamicRef (GitHub #172). A context holding no document finds
-// none. Building the index reads no context.Context, which the schema lowering
-// asking for it does not hold, so a cancel waits for the walk
-// (docs/architecture.md §2.1).
-func (c Ctx) DynamicAnchorSites(name string) ([]jsontext.Pointer, []ir.Diagnostic) {
-	if c.Doc == nil {
-		return nil, nil
-	}
-	memo := c.anchors
-	if memo == nil {
-		memo = &anchorMemo{}
-	}
-	if memo.built {
-		return memo.index.Sites(name), nil
-	}
-	memo.index, memo.built = anchors.Build(c.Doc.GetRootNode()), true
-	if memo.index.Complete() {
-		return memo.index.Sites(name), nil
-	}
-	return memo.index.Sites(name), []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, "",
-		"the $dynamicAnchor index stopped at its walk bounds (%d levels, %d nodes); "+
-			"a $dynamicRef expanded below is not verified to name the document's only anchor of its name",
-		anchors.MaxDepth, anchors.MaxNodes)}
+// DynamicAnchorSites returns the positions of c's document declaring the
+// $dynamicAnchor name, and whether that is every one (bind.Table.DynamicAnchors).
+func (c Ctx) DynamicAnchorSites(name string) ([]bind.Position, bool) {
+	return c.Bindings().Table().DynamicAnchors(c.homeDoc, name)
 }

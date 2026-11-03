@@ -4,10 +4,13 @@
 package ir_test
 
 import (
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/ir"
 )
@@ -38,6 +41,7 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 		Docs:         populatedDocs(),
 		Deprecation:  populatedDeprecation(),
 		Availability: populatedAvailability(),
+		Stability:    ir.StabilityBeta,
 		Params: []ir.Parameter{
 			{Name: ir.Naming{Source: "limit"}, Type: populatedTypeRef(), Required: true},
 			{Name: ir.Naming{Source: "offset"}, Type: populatedTypeRef(), Required: false},
@@ -102,15 +106,72 @@ func TestOperation_PopulatedRoundTrip(t *testing.T) {
 }
 
 // TestStreamingMode_Constants pins the on-disk spelling of every StreamingMode
-// value.
+// value, including the empty-string "none" state.
 func TestStreamingMode_Constants(t *testing.T) {
 	t.Parallel()
 	assertConstantSpellings(t, map[ir.StreamingMode]string{
-		ir.StreamingNone:   "none",
+		ir.StreamingNone:   "",
 		ir.StreamingClient: "client",
 		ir.StreamingServer: "server",
 		ir.StreamingBidi:   "bidi",
-	}, "unspecified")
+	}, "none")
+}
+
+// TestStreamingMode_TiesToConstBlock holds Valid to the package's declarations
+// rather than a list, the empty mode among them. A mode added without teaching
+// Valid fails here, not as a spurious ir/unknown-streaming-mode on a document
+// that states it correctly.
+func TestStreamingMode_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "StreamingMode")
+	require.NotEmpty(t, declared, "the ir sources must declare StreamingMode constants")
+	for _, c := range declared {
+		assert.True(t, ir.StreamingMode(c.Value).Valid(), "declared mode %q must be Valid", c.Value)
+	}
+}
+
+// TestStreamingMode_UnknownIsInvalid pins the other direction: Valid rejects a
+// mode no const declares, the spelling the empty mode replaced among them.
+func TestStreamingMode_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	for _, mode := range []ir.StreamingMode{"none", "Server", "duplex"} {
+		assert.False(t, mode.Valid(), "%q", mode)
+	}
+}
+
+// TestStability_Constants pins the on-disk spelling of every Stability value,
+// including the empty string that states none.
+func TestStability_Constants(t *testing.T) {
+	t.Parallel()
+	assertConstantSpellings(t, map[ir.Stability]string{
+		ir.StabilityUnstated: "",
+		ir.StabilityAlpha:    "alpha",
+		ir.StabilityBeta:     "beta",
+		ir.StabilityStable:   "stable",
+	}, "unstated")
+}
+
+// TestStability_TiesToConstBlock keeps Valid to the const block, read from the
+// ir package's declarations: a tier added without teaching Valid about it fails
+// here, not as a spurious ir/unknown-stability on a document that spells it
+// correctly.
+func TestStability_TiesToConstBlock(t *testing.T) {
+	t.Parallel()
+	declared := declaredConstsOfType(t, "Stability")
+	require.NotEmpty(t, declared, "the ir sources must declare Stability constants")
+	for _, c := range declared {
+		assert.True(t, ir.Stability(c.Value).Valid(), "declared tier %q must be Valid", c.Value)
+	}
+}
+
+// TestStability_UnknownIsInvalid pins the other direction, with the spellings a
+// compiler reading a source's own vocabulary would write by hand: each is a word
+// a source uses, none is a tier the IR declares.
+func TestStability_UnknownIsInvalid(t *testing.T) {
+	t.Parallel()
+	for _, word := range []string{"preview", "generally-available", "GA", "Beta", "deprecated"} {
+		assert.False(t, ir.Stability(word).Valid(), word)
+	}
 }
 
 // TestIdempotencyKind_Constants pins the on-disk spelling of every
@@ -160,6 +221,7 @@ func TestParameter_JSONContract(t *testing.T) {
 			Docs:         populatedDocs(),
 			Deprecation:  populatedDeprecation(),
 			Availability: populatedAvailability(),
+			Secret:       true,
 			Examples: []ir.Example{
 				{Name: "ex1", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("1")}},
 				{Name: "ex2", Value: &ir.Value{Kind: ir.ValueNumber, Num: ir.BigVal("2")}},
@@ -251,6 +313,7 @@ func TestContent_JSONContract(t *testing.T) {
 		Examples: []ir.Example{
 			{Name: "ex1", Value: &ir.Value{Kind: ir.ValueString, Str: "v1"}},
 		},
+		Docs:      ir.Docs{Summary: "One form.", Description: "The body as a form."},
 		Unmodeled: populatedUnmodeled(),
 	})
 }
@@ -284,7 +347,9 @@ func TestContent_ItemEncodingSingular(t *testing.T) {
 		ItemEncoding: &ir.PartEncoding{Multi: true, Style: "a"},
 	}
 	got := assertDeterministicMarshal(t, content)
-	assert.Contains(t, got, `"itemEncoding":{"multi":true,"filename":false,"style":"a","allowReserved":false}`)
+	var members map[string]jsontext.Value
+	require.NoError(t, json.Unmarshal([]byte(got), &members))
+	assert.JSONEq(t, `{"multi":true,"filename":false,"style":"a","allowReserved":false}`, string(members["itemEncoding"]))
 }
 
 // TestPartEncoding_JSONContract pins PartEncoding's omitempty contract — Multi,

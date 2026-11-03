@@ -291,7 +291,7 @@ func TestEscapes_NilRegistryDoesNothing(t *testing.T) {
 
 	esc.escape(t.Context(), root)
 	esc.restoreTrees()
-	site, err := esc.restore(t.Context(), nil, Siblings{}, nil)
+	site, err := esc.restore(t.Context(), nil, Siblings{}, MediaTypes{}, nil)
 	_, was := esc.original(node)
 
 	assert.Equal(t, []string{"#/a+b"}, refValues(root), "nothing is rewritten")
@@ -486,7 +486,7 @@ type escapedSource struct {
 func escapeSource(t *testing.T, src string) escapedSource {
 	t.Helper()
 	root := decodeRoot(t, src)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	esc := newEscapes(nil)
 	esc.escape(t.Context(), root)
 	doc, err := unmarshal(t.Context(), []byte(src), root)
@@ -684,7 +684,7 @@ func TestEscapes_RestoreFromWalksNothingWhenNothingWasRewritten(t *testing.T) {
 	t.Parallel()
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walked") })
 
-	site, err := newEscapes(nil).restoreFrom(t.Context(), panicking, nil)
+	site, err := newEscapes(nil).restoreFrom(t.Context(), panicking, MediaTypes{}, nil)
 
 	require.NoError(t, err)
 	assert.Empty(t, site)
@@ -705,7 +705,7 @@ components:
 	require.Equal(t, []string{"#/paths/~1a%2Bb"}, refValues(root))
 	panicking := iter.Seq[soa.WalkItem](func(func(soa.WalkItem) bool) { panic("walk fault") })
 
-	site, err := esc.restoreFrom(t.Context(), panicking, nil)
+	site, err := esc.restoreFrom(t.Context(), panicking, MediaTypes{}, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "restoring $refs as written panicked")

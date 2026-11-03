@@ -3,12 +3,12 @@
 
 package ir
 
-// AuthKind names one authentication mechanism (docs/ir/auth.md). X509 is
-// distinct from mutual_tls (certificate as credential vs mutual verification);
-// compilers must not conflate them.
+// AuthKind names one authentication mechanism, or says the compiler holds none
+// (docs/ir/auth.md). X509 is distinct from mutual_tls (certificate as credential
+// vs mutual verification); compilers must not conflate them.
 type AuthKind string
 
-// Authentication mechanisms.
+// Authentication kinds.
 const (
 	// AuthKindAPIKey is an API key in a header, query, cookie, or transport slot.
 	AuthKindAPIKey AuthKind = "apiKey"
@@ -41,20 +41,24 @@ const (
 	AuthKindSASLGSSAPI AuthKind = "sasl_gssapi"
 	// AuthKindCustom is a custom/unmodeled scheme.
 	AuthKindCustom AuthKind = "custom"
+	// AuthKindUnresolved is a scheme the source names and the compiler resolved
+	// no mechanism for. It records what the compiler holds, not that the source
+	// states none (docs/ir/auth.md).
+	AuthKindUnresolved AuthKind = "unresolved"
 )
 
-// Valid reports whether k is one of the mechanisms declared above. AuthKind is a
-// bare string enum, so nothing rejects an empty, misspelled or stale value on
-// the wire, and a scheme naming no mechanism is indistinguishable from one
-// naming oauth2 to every structural check that reads only its key and its ID.
-// irverify calls this so such a scheme is reported as the compiler bug it is.
+// Valid reports whether k is one of the kinds declared above. AuthKind is a bare
+// string enum, so nothing rejects an empty, misspelled or stale value on the
+// wire, and a scheme with such a kind is indistinguishable from one naming
+// oauth2 to every structural check that reads only its key and its ID. irverify
+// calls this so such a scheme is reported as the compiler bug it is.
 func (k AuthKind) Valid() bool {
 	switch k {
 	case AuthKindAPIKey, AuthKindHTTPBasic, AuthKindHTTPBearer, AuthKindOAuth2,
 		AuthKindOpenIDConnect, AuthKindMutualTLS, AuthKindUserPassword, AuthKindX509,
 		AuthKindSymmetricEncryption, AuthKindAsymmetricEncryption,
 		AuthKindSASLPlain, AuthKindSASLSCRAMSHA256, AuthKindSASLSCRAMSHA512,
-		AuthKindSASLGSSAPI, AuthKindCustom:
+		AuthKindSASLGSSAPI, AuthKindCustom, AuthKindUnresolved:
 		return true
 	default:
 		return false
@@ -68,7 +72,8 @@ type AuthScheme struct {
 	ID AuthID `json:"id,omitempty"`
 	// Name is the scheme's naming.
 	Name Naming `json:"name"`
-	// Kind is the authentication mechanism.
+	// Kind is the authentication mechanism, or AuthKindUnresolved where the
+	// compiler holds none.
 	Kind AuthKind `json:"kind,omitempty"`
 	// Docs is the scheme's documentation.
 	Docs Docs `json:"docs"`
@@ -126,6 +131,10 @@ type OAuthFlow struct {
 	TokenEndpointAuthMethods []string `json:"tokenEndpointAuthMethods,omitempty"`
 	// Unmodeled holds source constructs the IR does not model, kept verbatim.
 	Unmodeled Unmodeled `json:"unmodeled,omitempty"`
+	// Inferred lists the heuristics that read a fact out of Unmodeled, as
+	// [Provenance].Inferred does on a node that has one; empty means none did
+	// (docs/ir/unmodeled.md#promotion).
+	Inferred Inferred `json:"inferred,omitempty"`
 }
 
 // OAuthScope is one scope an OAuthFlow offers (docs/ir/auth.md).

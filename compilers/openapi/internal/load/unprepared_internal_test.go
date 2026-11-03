@@ -40,14 +40,14 @@ func resolveSpec(t *testing.T, spec, path string) (*soa.OpenAPI, []ir.Diagnostic
 	data := []byte(spec)
 	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	rebuild := func() (*soa.OpenAPI, error) {
 		again, err := unmarshal(t.Context(), data, root)
 		return again, err
 	}
-	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{},
+	resolved, _, _, pass, missed, err := resolveExternal(t.Context(), doc, Siblings{}, MediaTypes{},
 		newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil),
 		Options{Reader: reader.Disk{}}, rebuild)
 	return resolved, passDiags(pointerAt(0, overlay.Origin{}), pass, missed), err
@@ -356,7 +356,7 @@ func modelOf(t *testing.T, spec string) *soa.OpenAPI {
 	data := []byte(spec)
 	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	return doc
@@ -732,26 +732,40 @@ func TestPreparedFor(t *testing.T) {
 	})
 }
 
-// TestHasAnchor covers both arms: a tree with no anchor anywhere, and one whose
-// only anchor is several levels deep.
-func TestHasAnchor(t *testing.T) {
+// TestUnready holds unready to what readyForModel changes: an anchor however
+// deep, a plain date, and a plain `<<` but as a key, and neither one when the
+// source quotes it or tags it outright.
+func TestUnready(t *testing.T) {
 	t.Parallel()
+	for _, tc := range []struct {
+		name, src string
+		want      bool
+	}{
+		{"nothing to change", "a: {b: [1, 2]}\n", false},
+		{"an anchor deep in the tree", "a: {b: [1, &x 2]}\n", true},
+		{"a plain date deep in the tree", "a: {b: [1, 2021-01-01]}\n", true},
+		{"a plain date as a key", "a: {2021-01-01: 1}\n", true},
+		{"a plain date with one-digit fields", "a: 2021-1-1\n", true},
+		{"a plain date and time", "a: 2001-12-14T21:59:43.10Z\n", true},
+		{"a plain date and time spaced apart", "a: 2001-12-14 21:59:43.10\n", true},
+		{"a date under the non-specific tag", "a: ! 2021-01-01\n", true},
+		{"a quoted date", "a: {b: [1, '2021-01-01']}\n", false},
+		{"a date tagged a timestamp outright", "a: {b: [1, !!timestamp 2021-01-01]}\n", false},
+		{"a << as a value", "a: {b: <<}\n", true},
+		{"a << as an item", "a: [1, <<]\n", true},
+		{"a << value under the non-specific tag", "a: {b: ! <<}\n", true},
+		{"a << as a merge key", "a: {<<: {b: 1}}\n", false},
+		{"a quoted << value", "a: {b: '<<'}\n", false},
+		{"a << value tagged a merge outright", "a: {b: !!merge <<}\n", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			root, err := parseTree(t.Context(), []byte(tc.src))
+			require.NoError(t, err)
 
-	t.Run("no anchor anywhere", func(t *testing.T) {
-		t.Parallel()
-		root, err := parseTree(t.Context(), []byte("a: {b: [1, 2]}\n"))
-		require.NoError(t, err)
-
-		assert.False(t, hasAnchor(t.Context(), root))
-	})
-
-	t.Run("an anchor deep in the tree", func(t *testing.T) {
-		t.Parallel()
-		root, err := parseTree(t.Context(), []byte("a: {b: [1, &x 2]}\n"))
-		require.NoError(t, err)
-
-		assert.True(t, hasAnchor(t.Context(), root))
-	})
+			assert.Equal(t, tc.want, unready(t.Context(), root))
+		})
+	}
 }
 
 // TestUnprepared covers unprepared's edge arms directly: a document this

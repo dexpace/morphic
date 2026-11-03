@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -109,7 +110,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/get/parameters/beside/query",
@@ -121,6 +121,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -141,20 +142,20 @@
                     "pointer": "/paths/~1a/bogusBeside"
                   }
                 },
+                "openapi:pathItem/summary": {
+                  "reason": "no_ir_home",
+                  "value": "written beside the ref",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/summary"
+                  }
+                },
                 "openapi:pathItem/x-beside": {
                   "reason": "vendor_extension",
                   "value": "use",
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1a/x-beside"
-                  }
-                },
-                "openapi:pathItemSummary": {
-                  "reason": "no_ir_home",
-                  "value": "written beside the ref",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1a/summary"
                   }
                 }
               },
@@ -217,7 +218,6 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/put/parameters/beside/query",
@@ -229,6 +229,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -249,20 +250,20 @@
                     "pointer": "/paths/~1a/bogusBeside"
                   }
                 },
+                "openapi:pathItem/summary": {
+                  "reason": "no_ir_home",
+                  "value": "written beside the ref",
+                  "provenance": {
+                    "source": 0,
+                    "pointer": "/paths/~1a/summary"
+                  }
+                },
                 "openapi:pathItem/x-beside": {
                   "reason": "vendor_extension",
                   "value": "use",
                   "provenance": {
                     "source": 0,
                     "pointer": "/paths/~1a/x-beside"
-                  }
-                },
-                "openapi:pathItemSummary": {
-                  "reason": "no_ir_home",
-                  "value": "written beside the ref",
-                  "provenance": {
-                    "source": 0,
-                    "pointer": "/paths/~1a/summary"
                   }
                 }
               },
@@ -366,21 +367,21 @@
   },
   "diagnostics": [
     {
-      "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
-      "provenance": {
-        "source": 0,
-        "pointer": "/paths/~1b/get"
-      }
-    },
-    {
       "severity": "warning",
       "code": "openapi/unknown-object-key",
       "message": "key \"bogusBeside\" is not defined by the OpenAPI object it is written on and is not an x- extension; kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/paths/~1a/bogusBeside"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "path-item documentation kept under Unmodeled; it documents the path rather than this operation, and ir.Docs holds the operation's own summary and description",
+      "provenance": {
+        "source": 0,
+        "pointer": "/paths/~1b/get"
       }
     },
     {

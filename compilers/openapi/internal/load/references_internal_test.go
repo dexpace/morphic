@@ -759,7 +759,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		if diag.HasError(refusals(t.Context(), scan.InSource(0), root, Options{})) {
 			continue // a pre-parse refusal fixture: never reaches a resolver
 		}
-		releaseAnchors(t.Context(), root)
+		readyForModel(t.Context(), root)
 		doc1, err := unmarshal(t.Context(), data, root)
 		if err != nil {
 			continue
@@ -770,7 +770,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 
 		root2, _, err := decodeStream(t.Context(), data)
 		require.NoError(t, err, path)
-		releaseAnchors(t.Context(), root2)
+		readyForModel(t.Context(), root2)
 		doc2, err := unmarshal(t.Context(), data, root2)
 		require.NoError(t, err, path)
 
@@ -782,7 +782,7 @@ func TestResolve_ResolvesWhatTheLibraryResolves(t *testing.T) {
 		})
 		want := referencePairs(t, doc1)
 
-		resolveWith(t.Context(), doc2, Siblings{}, sourceDocument{path: path}, Options{}, nil)
+		resolveWith(t.Context(), doc2, Siblings{}, MediaTypes{}, sourceDocument{path: path}, Options{}, nil)
 		got := referencePairs(t, doc2)
 
 		if d := cmp.Diff(want, got); d != "" {
@@ -888,6 +888,6 @@ x-lib: {S: just a string}
 // reports.
 func resolvedDiags(t *testing.T, doc *soa.OpenAPI, path string) []ir.Diagnostic {
 	t.Helper()
-	return resolveWith(t.Context(), doc, Siblings{}, sourceDocument{path: path}, Options{}, nil).
+	return resolveWith(t.Context(), doc, Siblings{}, MediaTypes{}, sourceDocument{path: path}, Options{}, nil).
 		diags(sitePlacer(pointerAt(0, overlay.Origin{}), Others{}))
 }

@@ -31,7 +31,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	t.Helper()
 	tree, _, err := decodeStream(t.Context(), []byte(root))
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), tree)
+	readyForModel(t.Context(), tree)
 	doc, err := unmarshal(t.Context(), []byte(root), tree)
 	require.NoError(t, err)
 	self := newSourceDocument(filepath.Join(dir, "root.yaml"), []byte(root), tree, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, tree), nil)
@@ -39,7 +39,7 @@ func resumedOver(t *testing.T, dir, root string, limit int) (*resumeWork, []ir.D
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
 	ext.work.steps = budget.New(budget.AtMost(limit))
 	at := pointerAt(0, overlay.Origin{})
-	pass := newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
+	pass := newResolution(t.Context(), doc, Siblings{}, MediaTypes{}, self, opts, &ext)
 	pass.run(t.Context(), doc)
 	return ext.work, append(pass.diags(sitePlacer(at, Others{})), crossed(at, &ext)...)
 }

@@ -27,10 +27,12 @@ import (
 // skips it drops what was written at it without a word — which is what both
 // GitHub #116 and #143 were.
 func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
-	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed)
+	voices := positionVoices(c, ts, s, pointer, target)
+	ref, diags := hoistDeclarationHome(c, ts, s, target, pointer, home, unhomed || declaresScoped(c, voices))
 	if s != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer)...)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, s, pointer, target)...)
 	}
+	diags = append(diags, recordVoicedResidue(c, ts, voices, pointer, home)...)
 	return ref, append(diags, recordDeclarationResidue(c, ts, s, pointer, home)...)
 }
 
@@ -44,13 +46,14 @@ func homeDeclaration(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, target i
 // $ref naming the position only promises one (resolvePointer), so no home
 // depends on declaration order (docs/ir/models.md#composition-beside-a-union).
 //
-// unhomed is the census verdict of a $ref site or a collapsed union, which
-// declaresPositionScoped cannot judge.
+// unhomed is the census verdict of a position lowered to a reference
+// (referenceOutcomeKeywords, or a $ref site), which declaresPositionScoped
+// cannot judge.
 func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref ir.TypeRef, pointer jsontext.Pointer, home annotation.Home, unhomed bool) (ir.TypeRef, []ir.Diagnostic) {
 	if home != annotation.HomeOwnNode || s == nil {
 		return ref, nil
 	}
-	if !unhomed && !declaresPositionScoped(s) {
+	if !unhomed && !declaresPositionScoped(c, s) {
 		return ref, nil
 	}
 	// The home stands where its target stood, so it keeps what the reference
@@ -60,23 +63,25 @@ func hoistDeclarationHome(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, ref
 		out.Target = id
 		return out, nil
 	}
-	id, diags := internAlias(c, ts, s, pointer, ref)
+	id, diags := internReferenceAlias(c, ts, s, pointer, ref)
 	out.Target = id
 	return out, diags
 }
 
 // declaresPositionScoped reports whether s writes anything that binds the
 // position it is written at rather than the shape it lowers to — an annotation
-// attachDeclaredAnnotations records, a value constraint internAlias carries, or
-// a keyword recordDeclarationResidue keeps. It is the gate on hoisting an alias,
-// so it must stay in step with what those actually keep: a keyword listed here
-// but stored nowhere would hoist an empty node, and one stored but missing here
-// would still be dropped.
-func declaresPositionScoped(s *oas3.Schema) bool {
+// attachDeclaredAnnotations records, a bound internReferenceAlias carries, a
+// keyword recordDeclarationResidue keeps, or one PreserveUnknownKeywords keeps.
+// It is the gate on hoisting an alias, so it must stay in step with what those
+// actually keep: a keyword listed here but stored nowhere would hoist an empty
+// node, and one stored but missing here would still be dropped.
+func declaresPositionScoped(c lowering.Ctx, s *oas3.Schema) bool {
 	return declaresAnnotations(s) || declaresValueConstraints(s) ||
+		annotation.DeclaresAny(s, collectionBoundKeywords) ||
 		declaresValidationOnly(s) || annotation.DeclaresAny(s, residueKeywords) ||
 		declaresContentVocabulary(s) || declaresDynamicRef(s) ||
-		annotation.DeclaresAny(s, annotation.DialectKeywords)
+		annotation.DeclaresAny(s, annotation.DialectKeywords) ||
+		annotation.WritesUnknownKeyword(s) || len(undefinedKeywords(c, s)) > 0
 }
 
 // declaresAnnotations reports whether s carries documentation, deprecation, a
@@ -86,7 +91,7 @@ func declaresAnnotations(s *oas3.Schema) bool {
 	if s.GetTitle() != "" || s.GetDescription() != "" || s.GetExternalDocs() != nil {
 		return true
 	}
-	if annotation.EffectiveDeprecated(s, nil) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
+	if annotation.EffectiveDeprecated([]*oas3.Schema{s}) || annotation.DeclaresRedaction(s) || s.GetXML() != nil {
 		return true
 	}
 	if ext := s.GetExtensions(); ext != nil && ext.Len() > 0 {
@@ -123,16 +128,16 @@ func declaresValidationOnly(s *oas3.Schema) bool {
 // attachDeclaredAnnotations records every annotation s declares on the type
 // node pointer owns, the one structural home they have (ir.TypeCommon).
 //
-// It is the sole reader of declaration-scoped annotations and runs above
-// lower()'s dispatch: every declaration reaches it through homeDeclaration or
-// an alias fallback (lowerComponentSchema, hoistSubSchema), so a new lowering
+// It reads every declaration's annotations, above lower()'s dispatch: each
+// reaches it through homeDeclaration or an alias fallback, so a new lowering
 // destination cannot forget to read them (GitHub #114).
 //
 // A schema whose body reduced to a shared primitive owns no node; its
 // annotations stay with the declaring property (FillPropertyDetail). Ownership
 // is checked before conversion because callers cover a pointer in either order,
-// and only the one that finds a node may emit conversion diagnostics.
-func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+// and only the one that finds a node may emit conversion diagnostics. target
+// says what speaks there (nodeUse).
+func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema, pointer jsontext.Pointer, target ir.TypeRef) []ir.Diagnostic {
 	// No node here means a position that reduced to a shared primitive, or one
 	// still being built further up this walk, whose builder attaches the same
 	// declaration once its build returns (GitHub #749).
@@ -140,7 +145,8 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	if !ok {
 		return nil
 	}
-	a, diags := annotation.Read(annotation.Site{Kind: annotation.Declaration, Node: s}, pointer, c.ProvenanceAt)
+	use := nodeUse(c, ts, s, pointer, target)
+	a, diags := annotation.Read(use.Site(s), pointer, c.ProvenanceAt)
 
 	common := td.Common()
 	common.Docs = a.Docs
@@ -154,13 +160,15 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 		common.XML = a.XML
 	}
 	common.Unmodeled = annotation.MergeUnmodeled(common.Unmodeled, a.Unmodeled)
-	diags = append(diags, c.PromoteDeprecation(common.Unmodeled, common.Deprecation, &common.Provenance)...)
+	from := use.lentKeys(c, s)
+	diags = append(diags, c.Promoter().Deprecation(common.Unmodeled, from, &common.Deprecation, &common.Provenance)...)
+	diags = append(diags, c.Promoter().Redaction(common.Unmodeled, from, &common.Sensitive, &common.Provenance)...)
 	// The enum-openness promotion is applied here rather than where the Enum is
 	// built, for the same reason the deprecation one is: a promotion reads the
 	// preserved Unmodeled entries, and this is the point at which the
 	// declaration's extensions have reached the node's map.
 	if enum, isEnum := td.(*ir.Enum); isEnum {
-		c.PromoteEnumOpenness(common.Unmodeled, enum, &common.Provenance)
+		diags = append(diags, c.Promoter().EnumOpenness(common.Unmodeled, enum, &common.Provenance)...)
 	}
 	if len(a.Examples) > 0 {
 		common.Examples = a.Examples

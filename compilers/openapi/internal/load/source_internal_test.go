@@ -98,13 +98,13 @@ func heldResolution(t *testing.T, spec, path string) (*soa.OpenAPI, *resolution)
 	data := []byte(spec)
 	root, _, err := decodeStream(t.Context(), data)
 	require.NoError(t, err)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	doc, err := unmarshal(t.Context(), data, root)
 	require.NoError(t, err)
 	self := newSourceDocument(path, data, root, judgment{}, newSourceTree(t.Context(), 0, overlay.Origin{}, root), nil)
 	opts := Options{Reader: reader.Disk{}}
 	ext := newExternal(t.Context(), doc, opts, newExternalReads(self, budget.Unbounded()))
-	return doc, newResolution(t.Context(), doc, Siblings{}, self, opts, &ext)
+	return doc, newResolution(t.Context(), doc, Siblings{}, MediaTypes{}, self, opts, &ext)
 }
 
 // TestSourceTree_IndexesUnderTheLoadsContext pins that the tree's pointer

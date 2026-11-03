@@ -29,6 +29,10 @@ member 0 0 Discriminator.envelope
 member 0 0 Discriminator.envelopeValueName
 member 0 0 Discriminator.index
 member 0 0 Discriminator.inferred
+member 0 0 DocRef.endByte
+member 0 0 DocRef.startByte
+member 0 0 DocRef.type
+member 0 0 Docs.refs
 member 0 0 Document.channels
 member 0 0 Document.messages
 member 0 0 Document.versions
@@ -40,6 +44,7 @@ member 0 0 EnumMember.docs
 member 0 0 EnumMember.examples
 member 0 0 EnumMember.unmodeled
 member 0 0 EnumMember.wireName
+member 0 0 ErrorCase.inferred
 member 0 0 ErrorCase.retryable
 member 0 0 ErrorCase.throttling
 member 0 0 ErrorExample.content
@@ -107,6 +112,7 @@ member 0 0 Model.implements
 member 0 0 Model.inputOnly
 member 0 0 Model.positional
 member 0 0 Naming.aliases
+member 0 0 OAuthFlow.inferred
 member 0 0 OAuthFlow.tokenEndpointAuthMethods
 member 0 0 OTPBinding.behaviour
 member 0 0 OTPBinding.kind
@@ -128,6 +134,7 @@ member 0 0 Operation.parameterVisibility
 member 0 0 Operation.returnTypeVisibility
 member 0 0 OperationGroup.availability
 member 0 0 OperationGroup.resource
+member 0 0 OperationGroup.stability
 member 0 0 OperationGroup.unmodeled
 member 0 0 Pagination.firstLink
 member 0 0 Pagination.inferred
@@ -250,9 +257,7 @@ value 0 0 PageStrategy "token"
 value 0 0 PresenceKind "explicit"
 value 0 0 PresenceKind "implicit"
 value 0 0 PresenceKind "required"
-value 0 0 PrimKind "datetime"
 value 0 0 PrimKind "float"
-value 0 0 StreamingMode "none"
 value 0 0 TypeKind "external"
 value 0 0 ValueKind "ctor"
 value 0 0 ValueKind "ref"

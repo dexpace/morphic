@@ -82,23 +82,54 @@ type Options struct {
 	rebuildDoc func(ctx context.Context, data []byte, root *yaml.Node) (*soa.OpenAPI, error)
 }
 
-// releaseAnchors clears the anchor name from every node of the model's source
-// tree, so the parser folds every entry the document writes. root must not be
-// nil.
+// readyForModel readies every node of the model's source tree, in one walk: it
+// clears each anchor's name, and tags each mistagged scalar a string. root
+// must not be nil.
 //
 // The parser skips an anchored mapping entry where the model folds entries into
 // a map, and drops it silently (docs/parser-library.md#anchored-entry-dropped,
-// GitHub #459). That skip is the only read of an anchor's name;
-// an alias reaches its target by a kept pointer. Run it after the pre-parse
-// refusals, which do read names. A document read through external is released
-// too (GitHub #501), and replaces the resolver's own parse on a second
-// resolution (GitHub #538).
-func releaseAnchors(ctx context.Context, root *yaml.Node) {
-	// An alias is a leaf of the walk: a recursive anchor cannot loop it.
+// GitHub #459). That skip is the only read of a name; an alias reaches its
+// target by a kept pointer. Run it after the pre-parse refusals, which read
+// names. A document read through external is readied too (GitHub #501), and
+// replaces the resolver's own parse on a second resolution (GitHub #538).
+func readyForModel(ctx context.Context, root *yaml.Node) {
+	// An alias is a leaf of the walk: a recursive anchor cannot loop it. A scalar
+	// is judged from its parent, which knows whether it is a key.
 	nodeview.Walk{Nodes: maxTreeNodes, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		n.Anchor = ""
+		for i, c := range n.Content {
+			if mistagged(n, i) {
+				c.Tag = "!!str"
+			}
+		}
 		return nodeview.Descend
 	}}.Run(ctx, root)
+}
+
+// mistagged reports whether the i-th of n's Content is a scalar the parser tags
+// as no string where YAML 1.2, which OpenAPI recommends, reads the string it
+// spells: a date, a timestamp to the parser
+// (docs/parser-library.md#scalar-resolution), or a `<<` anywhere but a
+// mapping's key, the one place it merges, written with no tag or YAML's
+// non-specific `!`. The model decodes no string from either, so a field so
+// written reads as left out (docs/parser-library.md#undecoded-scalar, GitHub
+// #1280).
+//
+// A scalar under any other tag keeps it: what that reads as is GitHub #245's
+// and #1368's to settle.
+func mistagged(n *yaml.Node, i int) bool {
+	c := n.Content[i]
+	if c == nil || c.Kind != yaml.ScalarNode || c.Style&yaml.TaggedStyle != 0 {
+		return false
+	}
+	switch c.ShortTag() {
+	case "!!timestamp":
+		return true
+	case "!!merge":
+		return n.Kind != yaml.MappingNode || i%2 == 1
+	default:
+		return false
+	}
 }
 
 // ErrParse marks a hard failure to read a source document: bytes that are not
@@ -129,8 +160,10 @@ type Document struct {
 	// zero value — nothing applied — is the answer for a compile with no overlay.
 	Overlay overlay.Origin
 	// Siblings holds the fields the source writes beside its path items' $refs,
-	// modelled and resolved with the document.
-	Siblings Siblings
+	// modelled and resolved with the document, and MediaTypes the media types
+	// it reuses, which the parser does not model.
+	Siblings   Siblings
+	MediaTypes MediaTypes
 	// Others is every document a reference read beside the source, in the
 	// order Document.Sources lists them after the source and its overlay.
 	Others Others
@@ -221,10 +254,10 @@ func (o Options) rebuilder(ctx context.Context, data []byte, root *yaml.Node) fu
 // reading past a path item $ref into the fields beside it, less any resolved
 // already reports (see besideRefs).
 func sourceChecks(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, doc *soa.OpenAPI, sibs Siblings,
-	resolved []ir.Diagnostic,
+	media MediaTypes, resolved []ir.Diagnostic,
 ) []ir.Diagnostic {
-	diags := listRepeats(at, sibs, walkSource(ctx, doc, sibs))
-	return append(diags, besideRefs(at, sibs, walkSource(ctx, doc, sibs), resolved)...)
+	diags := listRepeats(at, sibs, walkSource(ctx, doc, sibs, media))
+	return append(diags, besideRefs(at, sibs, walkSource(ctx, doc, sibs, media), resolved)...)
 }
 
 // defaultIndex indexes a decoded tree under the compiler's node bound. It is

@@ -39,7 +39,7 @@ func TestHelp_NamesEveryFormatTheEngineCompiles(t *testing.T) {
 func TestHelp_SaysWhyFormatsCannotBeListed(t *testing.T) {
 	orig := newEngine
 	t.Cleanup(func() { newEngine = orig })
-	newEngine = func() (*engine.Engine, error) { return nil, errors.New("no compilers") }
+	newEngine = func(...engine.Option) (*engine.Engine, error) { return nil, errors.New("no compilers") }
 
 	assert.Equal(t, "The formats this build compiles cannot be listed: no compilers.", servedFormats())
 }

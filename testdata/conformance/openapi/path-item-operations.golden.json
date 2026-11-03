@@ -1,7 +1,8 @@
 {
   "idSpaces": {
     "auth": [
-      "openapi"
+      "openapi",
+      "unresolved"
     ],
     "e": [
       "anon",
@@ -87,9 +88,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/index",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
                         "expression": "{$request.body#/callbackUrl}",
@@ -97,7 +95,10 @@
                           "op/openapi/paths/~1index/post/callbacks/onEvent/{$request.body#~1callbackUrl}/additionalOperations/PURGE"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
                   }
                 ]
               },
@@ -193,10 +194,10 @@
                   {
                     "method": "QUERY",
                     "uriTemplate": "/index",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -333,10 +334,10 @@
                 "http": [
                   {
                     "method": "FLUSH",
+                    "webhookName": "cacheFlushed",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "cacheFlushed"
+                    "isWebhook": true
                   }
                 ]
               },
