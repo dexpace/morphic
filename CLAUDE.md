@@ -309,10 +309,11 @@ These all exist already — extend them rather than building a parallel mechanis
   blocked on an unreachable primitive — not a running one, nor one a global still holds; whether
   `goleak` should cover those too is #568. Beside it, `make race` runs the packages on
   `scripts/race-packages.txt` under `-race`, and `TestRaceList_NamesEveryConcurrentPackage` requires
-  every package with a non-test file importing `sync` or `sync/atomic`, or any file starting a
-  goroutine (a `go` statement or a single-argument `.Go(...)` call), to be on that list or exempt
-  with its reason. Parallel tests alone do not count, so `internal/harness` and `internal/census`
-  are off the list; `scripts/race-packages.txt` says why.
+  every package under `ir/`, `pass` and `compilers/` to be on that list. Elsewhere it requires every
+  package with a non-test file importing `sync` or `sync/atomic`, any file starting a goroutine (a
+  `go` statement or a single-argument `.Go(...)` call), or a test calling `t.Parallel()`, to be on
+  the list or in the test's `raceExempt` with its reason, which no package under those roots
+  may be. A race on a path only an exempt package's own tests take goes unreported.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
 assertion shapes:

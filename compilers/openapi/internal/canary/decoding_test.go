@@ -238,7 +238,7 @@ const nodeCount = 1000
 
 // aliveShare is the share of a map's or a sequence's goroutines that must be
 // alive at once, as one over it: a fifth, under half what the slower
-// scheduling of a developer's -race run leaves, and far past any cap an
+// scheduling of the gate's race run leaves, and far past any cap an
 // errgroup limit sets.
 const aliveShare = 5
 
