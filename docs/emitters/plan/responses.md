@@ -73,9 +73,9 @@ in a second channel. The first rule that applies decides:
    decodes it.
 3. **`stream`** — the elected content streams ([streams](streams.md)): frames are read one at a
    time, as `Stream` describes ([streaming](../operations/streaming.md)).
-4. **`value`** — otherwise: the elected content's codec decodes the body into `Type`, whatever its
-   kind — a model, a list, a map, a union, an enum, a scalar, `any`. A paginated operation's
-   `Return.Type` is one page, from which `Page` takes the items.
+4. **`value`** — otherwise: the elected content's codec decodes the body, and its reader gets
+   `Type`, whatever its kind — a model, a list, a map, a union, an enum, a scalar, `any`. A
+   paginated operation's `Return.Type` is one page, from which `Page` takes the items.
 
 `Type` is the elected content's type, lowered through `TypePlan.Alias` as any reference is ([the
 plan](overview.md), [decorators](../refine/decorators.md)), so an anonymous `allOf` decorator around
@@ -94,29 +94,33 @@ read through it, and `Envelope` records how, marked `Inferred` with the envelope
 
 - **The value.** The body decodes into `Envelope.Body`, and the reader gets the member at `Value`:
   `Type` is that member's type, so `Return.Type` is the `Zone` inside `{success, errors, messages,
-  result: Zone}`. `Type` is nullable where a member on the path is optional or nullable, since the
-  body may then hold no value
+  result: Zone}`. `Type` is nullable where a member on the path is nullable or optional, which
+  `TypePlan.Required` decides over every declaration of it, since the body may then hold no value
   ([optionality](../refine/models.md#optionality--nullability--presence-inv8)): on the golden spec,
-  2,039 of the 2,665 enveloped bodies leave `result` optional or nullable, deletions among them, and
+  1,418 of the 2,665 enveloped bodies leave `result` optional or nullable, deletions among them, and
   an overlay that requires it is how a caller says the API always sends it. The rest of the envelope
   stays reachable through the response ([return shapes](../operations/returns.md)).
 - **A page or a monitor, whole.** The paths the IR states into a body start at the whole body, so
   a paginated operation's page is read whole, as any page is: `Value` is nil, `Type` stays the page,
   and its items are where `Page.ItemPath` says. A poller likewise decodes its poll's body as
-  `LRO.PollType` and finds the result at `LRO.ResultPath`. Either still reads the flag.
+  `LRO.PollType` and finds the result at `LRO.ResultPath`. Either still reads the flag. So an
+  envelope records no page information: a pager's own paths reach it in the whole page, and where
+  those come from on OpenAPI is #989's.
 - **A failure in-band.** Where `Flag` is set, the decoder reads that member before decoding the
   body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)). A body
   whose flag holds a value `Succeeds` does not list is a failure despite its 2xx status, and
   decodes into `Failure`: the `Type` of the first entry of `Errors` whose body the same envelope
-  matches, or the target's untyped JSON where none does. It is never decoded as `Body`, since an
-  API whose success envelope declares `success: true` alone sends a failure no success type admits
+  matches and whose flag's type admits such a value, or the target's untyped JSON where none does.
+  It is never decoded as a type whose flag admits only success, `Body` among them, since an API
+  whose success envelope declares `success: true` alone sends a failure no success type admits
   ([failures](../operations/errors.md#every-failure-has-one-place)). On the golden spec, 2,321 of
   the 2,665 enveloped operations declare an error case the envelope matches, 2,225 of them only
   one such type; the other 96 take the first, and a body that does not decode as it is still a
-  failure.
+  failure. In 6 the first declares `success: true` alone, as a body reusing the success envelope
+  does, and 2 of those have a later entry that admits `false`.
 - **A flag that says nothing.** A flag absent or null leaves the status to decide, so a 2xx body
   without one is a success, as it would be with no envelope: the flag only overrides a status when
-  it speaks. 101 of the golden spec's 2,665 enveloped bodies do not require `success`.
+  it speaks. 62 of the golden spec's 2,665 enveloped bodies do not require `success`.
 - **Only a success.** A failure is read whole, so an entry of `Errors` has no `Envelope`, and a
   body that does not match is read as it would be with no envelope configured.
 

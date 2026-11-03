@@ -45,7 +45,9 @@ lowered beside others that are not.
 document's canonical JSON (`MarshalJSONTo`) with `sources` left out, which `Build` never reads, so a
 spec reformatted into the same IR keeps its plan's version. Two plans therefore share a `Version`
 exactly when they were built from one document, `sources` aside, under one policy, which is what
-the generation manifest ([write / integrate](../write-integrate.md)) records it for.
+the generation manifest ([write / integrate](../write-integrate.md)) records it for. It hashes the
+plan's policy alone: `naming.Policy` and the runtime policy shape no plan
+([plan or refine](plan-or-refine.md)), and what the manifest records of them is #713's.
 
 - **The policy is data** ([plan policy](policy.md#the-policy-is-data)), so its encoding is what it
   says. A policy holding a function would encode to nothing stable: json/v2 refuses the field, its

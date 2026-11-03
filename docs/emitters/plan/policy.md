@@ -38,11 +38,14 @@ a run sets, so neither its name and version nor the build fixes what it does, an
 differently would share a key. So was a caller-supplied ID hashed in the policy's place, which fails
 the same way when the caller forgets to change it.
 
-`DefaultPolicy()` returns the defaults the comments above name, and a configuration is read over it,
-so a field it leaves out keeps its default. The zero `Policy` is not the default: it turns every
-switch off and lists nothing, so no rule picks a primary response and every operation returns
-`void`. A rule outside the vocabulary or listed twice is reported as an error
-`emitters/plan/policy-invalid`, and the plan is built as if it were left out.
+A configuration is read as a target's options are ([target options](../contract/options.md)):
+strictly, and over the defaults of the version it states, which `DefaultPolicy(version)` returns,
+so a default that changes is a new version and an existing configuration keeps planning what it did.
+The comments above name the current version's defaults. The zero `Policy` is not the default: it
+turns every switch off and lists nothing, so no rule picks a primary response and every operation
+returns `void`. A `Policy` built in Go meets no decoder, so `Build` reports a rule outside the
+vocabulary or listed twice as an error `emitters/plan/policy-invalid`, and plans as if it were left
+out.
 
 ## The default response is classed here
 
@@ -97,7 +100,9 @@ A body matches an `Envelope` when its type, read through `TypePlan.Alias`, is a 
 one of `Bases` through `Base` or `Mixins`, or declares every name in `Members`, read through
 `Flattened`. Either way it must also declare the members `Value` and `Flag` name. A body takes the
 first envelope that matches it, and an envelope never matches a body of an operation its `Except`
-lists, so the next one may. [Responses](responses.md#envelopes) says how a matched body is read.
+lists, so the next one may. An operation opts out through `Except` rather than a hint, since the
+plan reads none ([plan or refine](plan-or-refine.md)). [Responses](responses.md#envelopes) says how
+a matched body is read.
 Each field the match sets is marked `Inferred` with the envelope's `Name`. An envelope with no
 `Name` or one another envelope shares, with neither `Bases` nor `Members`, or with only one of
 `Flag` and `Succeeds` is reported as an error `emitters/plan/policy-invalid` and matches nothing. An
