@@ -9,13 +9,13 @@ canary. A behaviour found that the page lacks is added there.
 - **Rule.** Before changing which `allOf` branches compose, how deep a walk goes, or how a keyword
   is read, find each package outside the changed one reading the keyword by getter or key, and make
   each agree in predicate and in bound:
-  `git grep -nE 'Get<Keyword>\(\)|"<keyword>"' -- 'compilers/openapi/*.go' ':!*_test.go' ':!*/<package>/*'`.
-- **Why.** The multipart part reader in `compilers/openapi/internal/operation` walks `allOf` with
-  its own bound and drifted from the schema lowering, dropping an `encoding` silently (#998). A
-  changed reading of a `oneOf` branch was shown to hold by compiling both spellings at each
-  position (#1278).
-- **Probe.** Compile the old and the new spelling at every position
-  (`references/lossless-and-diagnostics.md#same-construct-at-every-position`), on `main` and on the
+  `git grep -nE 'Get<Keyword>\(\)|"<keyword>"' -- 'compilers/openapi/*.go' ':!*_test.go' ':!compilers/openapi/internal/<package>/*'`.
+- **Why.** The multipart reader in `compilers/openapi/internal/operation` walked `allOf` with its own
+  bound and dropped an `encoding` silently (#998). A changed `oneOf` reading was shown to hold by
+  compiling both spellings at each position (#1278), and that key is read where its getter is not
+  (#1397).
+- **Probe.** Compile the old and new spelling at every position
+  (`references/lossless-and-diagnostics.md#same-construct-at-every-position`), on `main` and the
   branch: each spelling takes one verdict across them. For `allOf`, one is a multipart body
   encoding a part inside the changed shape.
 
