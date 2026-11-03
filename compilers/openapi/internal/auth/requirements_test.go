@@ -99,10 +99,11 @@ components:
 }
 
 // TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope pins that a scope
-// is the text a list writes, whatever tag the parser gave it. A plain date is a
-// string to OpenAPI, and the model, which decodes no such item
-// (docs/parser-library.md#undecoded-scalar), would lose every scope beside it
-// with nothing reported.
+// is the text a list writes, whatever tag it is written under. The model decodes
+// no item under a tag outside YAML's JSON schema ruleset
+// (docs/parser-library.md#undecoded-scalar), and would lose every scope beside it
+// with nothing reported. A plain date, which the load phase tags a string, is a
+// scope too.
 func TestSecurityRequirement_AScalarTheModelDoesNotDecodeIsAScope(t *testing.T) {
 	t.Parallel()
 	for written, want := range map[string][]string{

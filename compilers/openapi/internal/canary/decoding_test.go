@@ -667,6 +667,7 @@ func nonScalarKey(t *testing.T) {
 func undecodedScalar(t *testing.T) {
 	for written, text := range map[string]string{
 		"2021-01-01":    "2021-01-01",
+		"<<":            "<<",
 		"!!binary aGk=": "aGk=",
 		"!local tagged": "tagged",
 	} {

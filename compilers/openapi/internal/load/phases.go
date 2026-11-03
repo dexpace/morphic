@@ -159,7 +159,7 @@ func (l *loading) judge(ctx context.Context) (bool, error) {
 // not support. The trees are put back when build returns, and the models at
 // the end of resolution.
 func (l *loading) buildModel(ctx context.Context) (bool, error) {
-	releaseAnchors(ctx, l.root)
+	readyForModel(ctx, l.root)
 	l.esc = newEscapes(refusedByName(l.opts, l.src.Path))
 	l.esc.escape(ctx, l.root)
 	// The model build reads no context, so a cancel that cut the walks above
