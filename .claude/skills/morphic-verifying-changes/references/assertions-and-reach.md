@@ -65,6 +65,19 @@ it.
 - **Probe.** Feed each guard an input it cannot classify, assert every glob matches a file, fail
   when no comparison ran, and rename a fixture.
 
+## Probe a new distinction where nothing depends on what it compares
+`distinction-where-nothing-depends`
+
+- **Rule.** A check telling two things apart by a property (a base, scope or version) matters
+  only where something depends on it, as a base does only to a reference. Delete what depends on it
+  from one of its fixtures, keep the property, and compile that on `origin/main` and the branch:
+  documents and diagnostics match unless the change says why not. Passing on `main` by design, the
+  probe takes its control from a build whose check fires without the dependency, which must differ
+  (`references/differentials.md#planted-control`). A test row of that fixture keeps the match.
+- **Why.** Every spec testing #1406's `$id` base checks wrote a `$ref`, while the checks fired on
+  any text under another `$id`: a type lost an `allOf` branch's `minLength` to `Unmodeled`, though
+  the branch wrote no `$ref`.
+
 ## Assert diagnostics by code, severity and subject, and the whole list
 `assert-diagnostics-by-identity-and-completely`
 

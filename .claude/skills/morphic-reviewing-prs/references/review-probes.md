@@ -10,10 +10,13 @@ defect, keep a `main` control.
 - **Rule.** In the first round, before any corpus run: diff old against new semantics at every named
   bound, re-plant every mutation the PR lists and plant your own at each new branch, call or
   argument it skips, ask which input class the corpus cannot contain (deep nesting, oversized
-  documents, aliasing), and grep for mutable globals and layering breaks.
+  documents, aliasing), compile each new distinction where nothing depends on what it compares
+  (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#distinction-where-nothing-depends`),
+  and grep for mutable globals and layering breaks.
 - **Why.** Three rounds that took their agenda from the PR body found only body defects. A fourth
   that read the new file found two code defects in it (#340). Each mutant #1153 listed reddened a
-  test, while dropping an argument its new code passed reddened none.
+  test, while dropping an argument its new code passed reddened none. Mutants #1406 listed
+  reddened tests too, and its suite passed while its new checks fired on text writing no `$ref`.
 
 ## Weigh a change's design against the alternatives it gave up
 `weigh-against-alternatives`
