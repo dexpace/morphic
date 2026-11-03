@@ -175,6 +175,7 @@ func conformanceCases() []conformanceCase {
 		{"nullable-union-discriminator", assertNullableUnionDiscriminator},
 		{"unhomed-keywords", assertUnhomedKeywords},
 		{"union-beside-ref", assertUnionBesideRef},
+		{"union-restated-branches", assertUnionRestatedBranches},
 		{"codeclared-keywords", assertCoDeclaredKeywords},
 		{"codeclared-schema-content", assertCoDeclaredSchemaContent},
 		{"content-several-entries", assertContentSeveralEntries},
