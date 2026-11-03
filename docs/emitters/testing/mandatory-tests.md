@@ -215,10 +215,11 @@ throughout these documents.
     neither `Bases` nor `Members`, neither `Value` nor `Flag`, or only one of `Flag` and `Succeeds`
     draws `emitters/plan/policy-invalid` and matches nothing; a body whose flag admits no value
     `Succeeds` lists, a string `success` under a boolean `Succeeds` among them, is read by the next
-    envelope or as with none and draws `emitters/plan/envelope-flag-mismatch`; one no body matches,
-    and an `Except` or `Bases` entry naming nothing, draw `emitters/plan/envelope-unused`. Each
-    field a match sets is marked `Inferred` as `envelope:` and the envelope's `Name`; the docs
-    emitter shows the member at `Value` of a response's example as what the method returns, and the
-    mock sends the envelope whole; and the surface differ reports a body that gains the last name
-    `Members` lists as a break ([envelopes](../plan/responses.md#envelopes),
-    [plan policy](../plan/policy.md#envelopes), [return shapes](../operations/returns.md)).
+    envelope that matches it, or as with none, drawing `emitters/plan/envelope-flag-mismatch` once
+    and only then; one no body matches, and an `Except` or `Bases` entry naming nothing, draw
+    `emitters/plan/envelope-unused`. Each field a match sets is marked `Inferred` as `envelope:` and
+    the envelope's `Name`; the docs emitter shows the member at `Value` of a response's example as
+    what the method returns, and the mock sends the envelope whole; and the surface differ reports a
+    body that gains the last name `Members` lists as a break
+    ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes),
+    [return shapes](../operations/returns.md)).

@@ -113,12 +113,14 @@ from every other heuristic's mark.
 An envelope is reported as an error `emitters/plan/policy-invalid`, and matches nothing, when it has
 no `Name`, a `Name` holding a comma, which an `Inferred` list cannot hold, or a `Name` another
 envelope shares; when it has neither `Bases` nor `Members`, or neither `Value` nor `Flag`, which
-would read nothing; or when it has only one of `Flag` and `Succeeds`. A body it would match but for
-a flag admitting no value `Succeeds` lists draws a warning `emitters/plan/envelope-flag-mismatch`:
-reading it would fail every call, so it is left to the next envelope, or read as with none, and an
-envelope never reads a body worse than no envelope does. An `Except` or `Bases` entry naming nothing
-in the document, and an envelope no body matches, are reported as a warning
-`emitters/plan/envelope-unused`, since one policy may serve several documents.
+would read nothing; or when it has only one of `Flag` and `Succeeds`. A body that only its flag,
+admitting no value `Succeeds` lists, keeps from matching is passed over, since reading it would fail
+every call, so the next envelope may match it, and an envelope never reads a body worse than no
+envelope does. Such a body that no envelope then matches is read as with none and draws a warning
+`emitters/plan/envelope-flag-mismatch`, once, so a configuration whose later entry reads it draws
+none. An `Except` or `Bases` entry naming nothing in the document, and an envelope no body matches,
+are reported as a warning `emitters/plan/envelope-unused`, since one policy may serve several
+documents.
 
 `Succeeds` lists what success looks like, not failure, because a flag may fail in more than one way:
 JSend's `status` fails as `fail` and as `error`, and a numeric `code` succeeds at `0` alone. A
@@ -150,10 +152,10 @@ That entry is not every envelope there: 680 more primary bodies declare `success
 members, 500 of them with a `result` and 171 without. Entries listed after it reach them, one with
 `Members: []string{"success", "result"}` and the same `Value`, then one with
 `Members: []string{"success"}` and a nil `Value`, each body taking the first that matches. One of
-those declares `success` as a string whose example is `"true"`: a boolean `Succeeds` passes it over
-with a warning, and an entry of its own listed before them, whose `Succeeds` is the string
-`"true"`, reads it. The other 9 are variants of a union, which no envelope matches, since only a
-model does.
+those declares `success` as a string whose example is `"true"`, which both pass over: an entry
+listed after them whose `Succeeds` is the string `"true"` reads it, and without one it is read as
+with no envelope, with a warning. The other 9 are variants of a union, which no envelope matches,
+since only a model does.
 
 ## Framings
 
