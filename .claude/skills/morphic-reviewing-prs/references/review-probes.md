@@ -179,10 +179,11 @@ defect, keep a `main` control.
 - **Rule.** When a review fixes what it finds, give each fix's own diff the passes, sweep its
   mechanism, and reread what it adds as unreviewed
   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
-  A fix adding or changing a mechanism first takes
+  A fix adding or changing a mechanism a design document specifies first takes
   `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#prototype-against-every-requirement`
   and its row of `references/review-probes.md#design-review-matrix`. Push a round's fixes once,
-  behind the push checklist, then rerun the setup.
+  behind the push checklist, as `git push origin HEAD:<branch>`, since the setup's worktree is
+  detached, then rerun the setup.
 - **Why.** Later rounds of #1143's review kept finding defects its own fixes had added: a PR-body
   example the scripts listed as a closing reference, a command that failed from the repository
   root, and a sentence saying the lint ran on every branch.
