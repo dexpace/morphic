@@ -77,9 +77,9 @@ spec ──▶ compiler ──▶ IR ──▶ passes ──▶ IR ──▶ emi
   recognizes its own format from the bytes and owns its options. OpenAPI 3.x is the first; the
   formats planned after it are in [Status](#status).
 - **Passes** (`pass/`) are small, order-explicit IR → IR transforms. `validate` checks referential
-  integrity and the well-formedness rules the IR states, and runs by default. Deduplication,
-  filtering, version slicing and IR overlays are designed in [Architecture](docs/architecture.md)
-  but not built.
+  integrity and the well-formedness rules the IR states, and `names` reports names any target may
+  render alike; both run by default. Deduplication, filtering, version slicing and IR overlays are
+  designed in [Architecture](docs/architecture.md) but not built.
 - **Emitters** (`emitters/*`, not built yet) turn an IR document into the artifacts for one
   target. SDK runtime policy (retries, timeouts, telemetry, the error taxonomy) is a separate
   emitter input, not part of the IR.
