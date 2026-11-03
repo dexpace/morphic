@@ -142,12 +142,12 @@ verifier and codecs must reach.
 ## Check a design rule against every input it reads
 `design-rule-over-its-document`
 
-- **Rule.** When an IR or emitter design states a general rule, placement argument or step order,
-  list its inputs from their declarations: each field of every IR type it reads, each enumeration
-  value those fields take, each kind's `docs/ir` page, and each sibling section of its document,
-  cited, not restated
+- **Rule.** When an IR or emitter design states a rule, placement argument or step order, list
+  its inputs from their declarations: each field of every IR type it reads, every `TypeKind` and
+  enumeration value those fields reach, each kind's `docs/ir` page, and each sibling section of
+  its document, cited, not restated
   (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#single-source-no-restatement`).
-  Say whether each changes the answer, compiling a minimal spec for one the golden spec never sets.
+  Say whether each changes the answer, compiling a minimal spec for one the golden spec lacks.
   Check a step order against what each step reads that a later one changes.
 - **Why.** A placement covered one per-target table and not its twin, an import step preceded the
   steps renaming what it imports (#1019), and #1329's rules missed fields, enumeration values,
