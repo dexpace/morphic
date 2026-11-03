@@ -169,11 +169,11 @@ coverage:
 	$(GO) test ./... -timeout 300s -covermode=set -coverprofile="$$profile" && \
 	$(GO) run ./cmd/morphic-covergate "$$profile"
 
-# The race detector runs alone, over the packages that run code on more than
-# one goroutine (scripts/race-packages.txt says which, and what a package left
-# off must say). go test refuses -race with -covermode=set, and #1271 measured
-# -race with atomic coverage missing a planted race that -race alone caught, so
-# coverage and the detector do not share a run.
+# The race detector runs alone, over the packages on scripts/race-packages.txt,
+# whose header states the rule for them and what a package left off must say.
+# go test refuses -race with -covermode=set, and #1271 measured -race with
+# atomic coverage missing a planted race that -race alone caught, so coverage
+# and the detector do not share a run.
 #
 # The two tests skipped (RACE_SKIP) test cancellation one step at a time, which
 # is sequential, so the detector learns nothing from them and they are slow
