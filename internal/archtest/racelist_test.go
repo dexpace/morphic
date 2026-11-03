@@ -91,8 +91,9 @@ func TestRaceList_NamesEveryConcurrentPackage(t *testing.T) {
 // TestRaceList_TheLiveTreeNeedsEachPipelineRoot holds the roots the live rule
 // reads. Every package under one carries the pipeline reason, a signal or not,
 // so with no entry and no exemption the report names each tree. The live rule
-// alone cannot show a dropped root, since every package in these trees has a
-// signal of its own today.
+// alone cannot show a dropped root: the list's subtree entries already cover
+// every package under the roots, so dropping one removes only a need the list
+// already meets.
 func TestRaceList_TheLiveTreeNeedsEachPipelineRoot(t *testing.T) {
 	t.Parallel()
 	report := strings.Join(liveRaceViolations(t, nil, nil), "\n")
