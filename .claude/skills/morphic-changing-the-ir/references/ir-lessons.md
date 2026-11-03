@@ -186,12 +186,14 @@ verifier and codecs must reach.
 `measure-the-premise`
 
 - **Rule.** Before choosing a shape a consumer will use, write the job they do with it and the fact
-  about real input it rests on, then count it on the golden spec and the corpus. A program
-  running the proposed rules shows only that they are total, since it assumes that fact; a worked
-  example, chosen because it fits, shows nothing.
+  about real input it rests on, then count it on the golden spec and the corpus, through `ir`'s
+  own derivations
+  (`.claude/skills/morphic-reviewing-prs/references/review-probes.md#program-from-the-document`).
+  A program running the proposed rules shows only that they are total, since it assumes that fact;
+  a worked example, chosen because it fits, shows nothing.
 - **Why.** A design kept one error type per body, as a worked example had it, and a run placed every
-  failure. Most operations with several error bodies used one type for all, so status told failures
-  apart, which nobody counted until a reviewer's question led there (#1167).
+  failure, yet most operations with several error bodies used one type for all, status telling
+  failures apart, uncounted until a reviewer asked (#1167).
 - **Probe.** For each decision in the PR body, name its premise and the command that could
   have falsified it. A decision with neither is unproved.
 

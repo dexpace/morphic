@@ -148,17 +148,27 @@ defect, keep a `main` control.
 `review-design-rules`
 
 - **Rule.** With no output to compare, read each rule against every other's cases and a format
-  it was not written for; implement every clause of the rules as a program from the document
-  before reading the author's, run both over compiled specs, a plant showing each reacts, and read
-  each disagreement against the document; check each premise
+  it was not written for; run the rules as a program
+  (`references/review-probes.md#program-from-the-document`); check each premise
   (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise`); and run
-  each printed sample under the document's own checks.
+  each sample as printed under the document's own checks.
 - **Why.** Names and citations were clean while a fallback overrode a gRPC stream's framing and a
   union of event shapes was misread, and `go vet` refused a sample that compiled (#1167, #1168).
-  Rerunning the author's program reproduced its count; one written from the document did not
-  (#1356).
-- **Probe.** The report names each item the programs disagree on, or says none, and gives the
-  matrix of `references/review-probes.md#design-review-matrix`.
+- **Probe.** The report gives the matrix of `references/review-probes.md#design-review-matrix`.
+
+## Write a design document's rules as a program before reading the author's
+`program-from-the-document`
+
+- **Rule.** Implement every clause of the rules from the document alone, before reading the
+  author's program, and read each fact `ir` or `ir/irfacts` derives (a flattening, exposed
+  properties, an alias read) through its exported function, from a scratch module whose `go.mod`
+  replaces this repository's module with the tree under review. Run both programs over compiled
+  specs, a plant showing each reacts, and read each item they disagree on against the document.
+- **Why.** Rerunning the author's program reproduced its count, and one written from the document
+  did not (#1356). A flattening written by hand kept a member's first declaration and counted 2,039
+  enveloped bodies leaving `result` optional or nullable, where `ir.FlattenedProperties` gives
+  1,418 (#1356).
+- **Probe.** The report names each item the programs disagree on, or says they agree on every one.
 
 ## Report a design review as a matrix of each rule's inputs and consumers
 `design-review-matrix`
