@@ -139,19 +139,21 @@ verifier and codecs must reach.
   none, and grepping the field and its old values on the request side found nothing (#1191, #1204).
 - **Probe.** List in the PR body each consumer asked, and its answer.
 
-## Check a design rule against everything in its document it governs
+## Check a design rule against every input it reads
 `design-rule-over-its-document`
 
-- **Rule.** When a change to the IR or emitter design states a general rule, a placement
-  argument or a step order, list its inputs from their definitions: each field of every IR type
-  it reads and each sibling section of its document. Say whether each
-  changes the answer, compiling a minimal spec for a field the golden spec never sets. Check a step
-  order against what each step reads that a later one changes.
+- **Rule.** When an IR or emitter design states a general rule, placement argument or step order,
+  list its inputs from their declarations: each field of every IR type it reads, each enumeration
+  value those fields take, each kind's `docs/ir` page, and each sibling section of its document,
+  cited, not restated
+  (`.claude/skills/morphic-verifying-changes/references/derive-never-maintain.md#single-source-no-restatement`).
+  Say whether each changes the answer, compiling a minimal spec for one the golden spec never sets.
+  Check a step order against what each step reads that a later one changes.
 - **Why.** A placement covered one per-target table and not its twin, an import step preceded the
-  steps renaming what it imports (#1019), and #1329's member rule named none of the fields that
-  decided it.
-- **Probe.** `go doc ./ir <Type>` for each type the rule reads, and `grep -n '^#' <document>`; a
-  field or section with no stated effect is unchecked.
+  steps renaming what it imports (#1019), and #1329's rules missed fields, enumeration values,
+  kind documents and restated sections (#1402).
+- **Probe.** `go doc -all ./ir <Type>` and `grep -n '^#' <document>`; an input with no stated
+  effect is unchecked.
 
 ## Prototype a specified mechanism against every requirement on its layer
 `prototype-against-every-requirement`

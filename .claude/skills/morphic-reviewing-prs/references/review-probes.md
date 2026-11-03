@@ -147,11 +147,11 @@ defect, keep a `main` control.
 `review-design-rules`
 
 - **Rule.** With no output to compare, read each rule against every other's cases and a format
-  it was not written for; write the rules as a program from the document before reading the
-  author's, run both over compiled specs, a planted defect showing each reacts, and read each
-  disagreement against the document; check each premise
+  it was not written for; implement every clause of the rules as a program from the document
+  before reading the author's, run both over compiled specs, a plant showing each reacts, and read
+  each disagreement against the document; check each premise
   (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise`); and run
-  each sample as printed under the document's own checks.
+  each printed sample under the document's own checks.
 - **Why.** Names and citations were clean while a fallback overrode a gRPC stream's framing and a
   union of event shapes was misread, and `go vet` refused a sample that compiled (#1167, #1168).
   Rerunning the author's program reproduced its count; one written from the document did not
