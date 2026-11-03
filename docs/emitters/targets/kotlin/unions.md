@@ -17,11 +17,15 @@ The fallback ([the shared rule](../../refine/unions.md#a-value-no-variant-recogn
 
 An inclusive union ([the shared rule](../../refine/unions.md#a-value-several-variants-admit)) is a
 final class with a nullable property per variant, named by the variant as its wrapper class is, and
-`unknown: JsonElement?` on an open one. Its `KSerializer` reads the value once as a `JsonElement`
-and builds the class from it in generated code, as [Go's codec](../go/unions.md#an-inclusive-union)
-does, rather than through `Json.decodeFromJsonElement` per variant: it decides which variants admit
-each element by the shared rule, and decodes each element once per type, the properties holding it
-sharing that value. It encodes the merge. `validate()` passes when a set property's does, reports
-every set property's failures when none does, and reports a value with no property set, which no
-`init` check does, since a decoded value always has one. `toString` redacts a member any set
-property holds as `Secret` or at a `Sensitive` type, in every property it renders.
+`unknown: JsonElement?` on an open one. Its `KSerializer` reads the value once as a `JsonElement`,
+decides which variants admit it by a check generated from the IR, and decodes each that does from
+that element through the variant's own serializer, as [Go's
+codec](../go/unions.md#an-inclusive-union) does. It decodes them under a `Json` derived for the one
+decode, whose module supplies the serializer of each inclusive union a field holds, marked
+`@Contextual`, with a memo keyed by the element's identity and the type: an element one variant
+decoded is handed to the next without being walked, so the decode is linear in the value.
+Multiplatform keys it with an identity map of its own, since `IdentityHashMap` is the JVM's. It
+encodes the merge. `validate()` passes when a set property's does, reports every set property's
+failures when none does, and reports a value with no property set, which no `init` check does, since
+a decoded value always has one. `toString` redacts a member any set property holds as `Secret` or at
+a `Sensitive` type, in every property it renders.

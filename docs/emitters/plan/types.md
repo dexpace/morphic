@@ -79,15 +79,16 @@ every other shape. What admitting a value means is in
 admitting no value in common, by these rules, and a pair none of them separates can share one:
 
 - **Kinds.** Their JSON kinds have none in common. A variant's kinds are its type's: object for a
-  model or a map, array for a list, a tuple or a `Positional` model, its values' for an enum or a
-  literal, its variants' for a union, its base's for a model that only stands over one, and every
-  kind for `any`. A primitive's is boolean for `bool`, a number for a numeric kind and a string for
-  every other. A scalar's are those of the `WireType` its encoding names (`ScalarChain.Encoding`),
-  the type its values travel as, and its root's where none does. A position admitting `null`
-  ([unions](../refine/unions.md#a-null-a-variant-admits)) adds `null`, but a variant's own `null` is
-  its union's, so the rules leave it out, and a variant admitting only `null` takes no part.
+  model or a map, array for a list, a tuple or a `Positional` model, its values' for a closed enum
+  or a literal, its `ValueType`'s for an open enum, its variants' for a union, its base's for a
+  model that only stands over one, and every kind for `any`. A primitive's is boolean for `bool`, a
+  number for a numeric kind and a string for every other. A scalar's are those of the `WireType` its
+  encoding names (`ScalarChain.Encoding`), the type its values travel as, and its root's where none
+  does. A position admitting `null` ([unions](../refine/unions.md#a-null-a-variant-admits)) adds
+  `null`, but a variant's own `null` is its union's, so the rules leave it out, and a variant
+  admitting only `null` takes no part.
 - **Values.** Each admits finitely many values, as a closed enum, a literal or a union of them does,
-  and no value is in both, compared as JSON values.
+  and no value is in both, compared as JSON Schema compares instances: `1` and `1.0` are one.
 - **Members.** Both are models laid out by name, read through `Flattened`, and one requires a member
   the other cannot hold: one it does not declare while it is closed and no model in its flattening
   has a catch-all (`AdditionalProps`), or one it declares at a position disjoint from the first's by

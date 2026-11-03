@@ -74,11 +74,15 @@ An `anyOf` lets one value satisfy several variants, and what the union holds the
 
 - **Not inclusive.** No value is admitted by two variants, so holding the one that admits it loses
   nothing, and the union lowers as a `oneOf` does: the target's closed sum, recognized as above.
+  Where the ladder finds no strategy, trying each variant as an inclusive union does recognizes the
+  one, since at most one admits a value, so no proven-disjoint union takes the degrade a missing
+  strategy forces.
 - **Inclusive.** The union holds every variant that admits the value, each whole and under its own
   name: an optional member per variant, set when that variant admits the value. Holding only the
   first would misname the value and drop what the others declare. An Access identity provider would
   decode as whichever provider is listed first, whatever its `type`, and its own `config` members
-  would be lost.
+  would be lost. A target whose types are structural, as TypeScript's are, holds the value as the
+  one object it is, typed by the union, and needs no member per variant.
 
 A tag picks one variant, so a discriminated or key-tagged union is never inclusive, whatever
 `Exclusive` says.
@@ -86,11 +90,12 @@ A tag picks one variant, so a discriminated or key-tagged union is never inclusi
 A variant admits a value when the value fits it at every position it reaches: its JSON kind is one
 the position's type admits, `null` only where the position admits `null`; each closed model, closed
 enum and literal holds it; each scalar's codec reads its text; and every model it reaches carries
-each member its `TypePlan.Required` lists. That is a fact of the value and the IR, so every target
-sets the same variants, and a target's check decides it from the IR rather than from what its JSON
-library accepts: json/v2 decodes `null` into a Go `string` as `""` without an error. `Constraints`
-take no part, since they are validation's on every decoded value. So whether a variant admits a
-value never depends on a bound.
+each member its `TypePlan.Required` lists. Bar what each scalar's codec reads, that is a fact of the
+value and the IR, so targets set the same variants wherever their codecs read the same texts, and a
+target's check decides it from the IR rather than from what its JSON library accepts: json/v2
+decodes `null` into a Go `string` as `""` without an error. `Constraints` take no part, since they
+are validation's on every decoded value. So whether a variant admits a value never depends on a
+bound.
 
 Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, in
 declaration order, and sets every one that admits the value. If none admits it, the order
@@ -98,11 +103,15 @@ declaration order, and sets every one that admits the value. If none admits it, 
 on a closed one. Trying every variant is what `anyOf` asks: no step of the ladder above can tell
 whether a second variant admits a value too.
 
-Decoding stays linear in the value however inclusive unions nest. Whether a type admits a position
-of the value is decided once per type and position, and what the position decodes to at that type
-is decoded once and given to every set variant holding it there. Decoding each variant afresh would
-decode a position once per path to it: under a union of two models that both hold a list of the
-union, the innermost position of a value nested `d` deep would decode `2^d` times.
+Decoding never repeats beneath a position, however inclusive unions nest. Whether a type admits a
+position of the value is decided once per type and position, and what the position decodes to at
+that type is decoded once and given to every set variant holding it there. Decoding each variant
+afresh would decode a position once per path to it: under a union of two models that both hold a
+list of the union, the innermost position of a value nested `d` deep would decode `2^d` times.
+Decoded once per type, a value costs time in proportion to its size where a target decodes from one
+parsed tree, and to its size times the variants tried along its deepest path of inclusive unions
+where a target reads the bytes once per variant.
+
 
 Encoding writes one value that each set variant decodes back to what it holds. Objects merge member
 by member, in the order the first set variant writes them, then each later variant's new members,
@@ -129,6 +138,22 @@ This is not the optional-field merge [the rule above](#variant-identity-and-reco
 That merge pools the variants' properties into one bag, losing which variant a member belongs to and
 admitting values no variant admits. Here each variant keeps its identity and its whole shape, and
 validation still requires one.
+
+The designs this was weighed against:
+
+- **The first variant that admits the value**, the closed sum every untagged union lowered to: it
+  misnames a value several variants admit and drops what only the others declare, as the identity
+  providers show.
+- **A record of which variant pairs overlap**, beside `Inclusive`, so a target could close a sum
+  over the variants no other shares a value with: on the golden spec, 312 of the 330 variants of
+  inclusive unions overlap another (spec @319dc756, morphic @3188471d), so it would close almost
+  nothing.
+- **Builders generated over one parse**, for every variant: decoding is then linear outright, but a
+  variant in another output unit, a Go package or a Gradle module, is reachable only through its
+  own codec unless that unit exports a helper for it, and each type would carry a second reading of
+  its wire form beside its codec. Keying decoded positions keeps one codec per type.
+- **Writing a position only where every set variant writes one text**: a codec that normalizes, as
+  a timestamp's does, would then refuse to encode a value just decoded.
 
 ## A value no variant recognizes
 

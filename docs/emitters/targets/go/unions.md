@@ -61,12 +61,14 @@ type Target struct {        // anyOf: [Zone, Account], which one value can fit
   closed sum, `Zone` where the wrapper would be `TargetZone`, so two variants that lower to one Go
   type stay apart.
 - **The struct declares the codec pair**, as a closed sum's struct does. `UnmarshalJSONFrom` reads
-  the value once (`dec.ReadValue()`) and builds the struct from it in generated code rather than by
-  decoding it into each variant: that code decides which variants admit each position by the shared
-  rule, nullability included, which json/v2 does not check, and decodes each position once per
-  type, its leaves under `dec.Options()`. Variants holding one position at one type are given the
-  one value it decoded to, its slices and maps shared, so decoding never repeats beneath a position.
-  `MarshalJSONTo` writes the merge.
+  the value once (`dec.ReadValue()`) and decides which variants admit it by a check generated from
+  the IR over that value, which reads nullability and required members where json/v2 does not. It
+  decodes each variant that admits it through the variant's own codec, under `dec.Options()` joined
+  with a `json.WithUnmarshalers` entry for each inclusive union the value can reach. That entry
+  keys a position by its type and its offset in the outermost value, so a position one variant
+  decoded is handed to the next rather than decoded again. Every type keeps its one codec, which
+  reaches a variant in another unit with no exported helper, and each variant still reads the
+  bytes beneath it. `MarshalJSONTo` writes the merge.
 - **`Validate` passes when a set field's `Validate` passes**, reports every set field's failures
   when none does, and reports a struct with no field set. With no sum to close, it has no marker, no
   wrapper and no switch-completeness test.
