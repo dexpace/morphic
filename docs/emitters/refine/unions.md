@@ -73,10 +73,13 @@ An `anyOf` lets one value satisfy several variants, and what the union holds the
 ([TypePlan](../plan/types.md#variants-that-can-share-a-value)):
 
 - **Not inclusive.** No value is admitted by two variants, so holding the one that admits it loses
-  nothing, and the union lowers as a `oneOf` does: the target's closed sum, recognized as above.
-  Where the ladder finds no strategy, trying each variant as an inclusive union does recognizes the
-  one, since at most one admits a value, so no proven-disjoint union takes the degrade a missing
-  strategy forces.
+  nothing, and the union lowers as a `oneOf` does: the target's closed sum, recognized as above. The
+  variant recognition names must admit the value: where it does not, as a unique-field strategy can
+  when the value carries the field and fails the variant elsewhere, or the ladder finds no strategy,
+  trying each variant as an inclusive union does recognizes the one, since at most one admits a
+  value. So no proven-disjoint union holds a value in a variant that refuses it, nor takes the
+  degrade a missing strategy forces. The ladder stays the fast path: one admission check confirms
+  what it names, where trying each of a union's variants would check them all.
 - **Inclusive.** The union holds every variant that admits the value, each whole and under its own
   name: an optional member per variant, set when that variant admits the value. Holding only the
   first would misname the value and drop what the others declare. An Access identity provider would
