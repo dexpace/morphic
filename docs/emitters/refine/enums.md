@@ -13,4 +13,5 @@ because the fact reached refine.
 An enum `TypePlan.Open` marks ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open))
 lowers to the target's open form whatever `Closed` says, so a response carrying a member a later
 version added decodes and keeps its value. Its constants still name only the members the document
-lists, which is all `Closed` asks of what the SDK sends.
+lists, which is all `Closed` asks of what the SDK sends. A `Flags` enum keeps its flags form either
+way, its value a set of bits, and an open one keeps a bit no member names.

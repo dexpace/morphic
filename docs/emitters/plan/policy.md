@@ -22,8 +22,8 @@ type Policy struct {
                                        // it does not list (below)
     StrictExclusive bool               // default off: every one_of union is TypePlan.Strict
                                        // (../refine/unions.md)
-    MethodSemantics bool               // default on: an operation stating no effects takes
-                                       // its method's (below)
+    ProtocolEffects bool               // default on: an operation stating no effects takes
+                                       // what its binding's protocol defines (below)
 }
 
 type PrimaryRule string                  // "lowest_2xx" | "unconditional" | "default"
@@ -106,20 +106,22 @@ reading a response has to survive. On the golden spec (spec @319dc756, morphic @
 enums are closed, since an OpenAPI `enum` is a closed value set, so without the policy each one a
 response carries would fail to decode the first time the API added a member.
 
-## An operation's effects come from its method
+## An operation's effects come from its binding
 
 `OpPlan.Effects` ([OpPlan](operations.md)) says whether calling an operation is safe and whether it
 is idempotent. A declared `Operation.Idempotency` decides, its token kind counting as idempotent
-since a retry sends the token it first sent. Where the IR states none, `MethodSemantics` takes them
-from the binding's method as RFC 9110 §9.2 defines them, marked `Inferred`: `GET`, `HEAD`, `OPTIONS`
-and `TRACE` are safe, and those with `PUT` and `DELETE` are idempotent, while `POST` and `PATCH`
-state neither. `QUERY`, which OpenAPI 3.2 names, is safe and idempotent, as the HTTP QUERY method's
-specification defines it. Any other method a document declares, as OpenAPI 3.2's
+since a retry sends the token it first sent. Where the IR states none, `ProtocolEffects` takes them
+from what the operation's binding defines, marked `Inferred`. A GraphQL binding's `query` is safe
+and idempotent, since GraphQL defines a query as a read-only fetch (GraphQL §2.3), and a `mutation`
+or `subscription` is neither. An HTTP binding's method counts as RFC 9110 §9.2 defines it: `GET`,
+`HEAD`, `OPTIONS` and `TRACE` are safe, and those with `PUT` and `DELETE` are idempotent, while
+`POST` and `PATCH` state neither. `QUERY`, which OpenAPI 3.2 names, is safe and idempotent, as the
+HTTP QUERY method's specification defines it. Any other method a document declares, as OpenAPI 3.2's
 `additionalOperations` can, takes what the IANA HTTP Method Registry (RFC 9110 §16.1) records for
 it, its name compared with case as HTTP compares a method (RFC 9110 §9.1); the plan package holds
 the registry as data, so a change to it ships in a new build. A method the registry does not list,
-and an operation no HTTP binding carries, take neither, and one several HTTP bindings carry takes
-only what every one of their methods states.
+and an operation whose bindings define neither, as an RPC binding does, take neither, and one
+several bindings carry takes only what every one of them states.
 
 A method says nothing of whether an operation destroys something: `DELETE` and `PUT` are
 idempotent and may be destructive, so nothing derives a confirmation from `Effects`. On the golden

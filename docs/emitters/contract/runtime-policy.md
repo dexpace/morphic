@@ -57,7 +57,10 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
   operation does. An idempotency key the runtime generates (`Idempotency`) makes an operation
   idempotent only where the IR declares its token, since only then is the server known to honor one.
   A request whose body the runtime cannot replay, such as a stream the caller gave it, is never sent
-  again, whatever came back: its failure is returned.
+  again, whatever came back: its failure is returned. The lists name HTTP statuses; a protocol with
+  statuses of its own takes lists of its own, each status placed by whether it says the server did
+  not act, as `Policy.Errors` gives such a protocol rows of its own
+  ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)).
 - **`Retry-After`** is the server saying when to come back. Honoring it is the default, and it never
   waits past `Backoff.Max`, so a server cannot park a caller indefinitely; a value past it ends the
   retries and returns the response.

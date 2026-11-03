@@ -51,5 +51,8 @@ where it has one, since an alias commonly carries a name of its own. The method 
 manifest under the operation's ID with the group beside it, as a declaration derived from an entity
 is ([write / integrate](../write-integrate.md)), so the surface differ sees one operation reached
 two ways. A `Mount` naming the group the operation is placed in, after any `Remount`, or a group
-another `Mount` of it names, is reported and read once. Under a split by group, an operation mounted
-in another group counts as that group's for placement ([output units](../refine/output-units.md)).
+another `Mount` of it names, is reported and read once. `Remount` and each `Mount` name a group of
+the operation's own service, whose client holds the servers, auth and settings its calls need; a
+group of another service is reported and configures nothing. Under a split by group, an operation
+mounted in another group counts as that group's for placement ([output
+units](../refine/output-units.md)).
