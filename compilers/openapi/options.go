@@ -248,9 +248,9 @@ type Limits struct {
 	// neither (docs/parser-library.md#resolution-unbounded).
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
 	// MaxReferenceExpansion bounds what lowering copies through $refs. A
-	// declaration a $ref names, a schema aside, lowers again at every $ref
-	// naming it, so each such $ref is charged what the declaration weighs: one
-	// for each YAML node, each alias as a copy of what it names, and one for
+	// declaration a $ref names, a schema or a link aside, lowers again at every
+	// $ref naming it, so each such $ref is charged what the declaration weighs:
+	// one for each YAML node, each alias as a copy of what it names, and one for
 	// each byte of scalar text. A document whose $refs copy past it is refused
 	// as openapi/budget-exceeded, compiling to no Document. The other budgets
 	// bound the references and the declarations apart, not their product.

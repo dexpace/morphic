@@ -101,8 +101,15 @@ func (c *Compiler) Compile(ctx context.Context, sources []compilers.Source, opts
 	out, lowerDiags, err := run(ctx, loweringCtx(loadedDoc, formatOpts), compile.NewTypes())
 	// Load diagnostics precede lowering diagnostics.
 	all := slices.Concat(diags, withoutRereported(lowerDiags, diags))
-	if err != nil || out == nil {
+	if err != nil {
 		return nil, all, err
+	}
+	if out == nil {
+		// A refusal's findings are read against SourceTable, which names no
+		// document a $ref read (compilers.Compiled), so what the load phase found
+		// in one is left out with the Document that would have listed it.
+		n := len(c.SourceTable(sources, opts))
+		return nil, slices.DeleteFunc(all, func(d ir.Diagnostic) bool { return !d.Provenance.InTable(n) }), nil
 	}
 	out.Diagnostics = all
 	return out, out.Diagnostics, nil

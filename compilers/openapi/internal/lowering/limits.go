@@ -18,6 +18,6 @@ type Limits struct {
 	// MaxEnumMembers bounds the members of a single enum.
 	MaxEnumMembers budget.Limit
 	// MaxReferenceExpansion bounds what the declarations $refs name weigh,
-	// summed over every $ref but a schema's (see expansion).
+	// summed over every $ref that lowers a copy of one (see expansion).
 	MaxReferenceExpansion budget.Limit
 }

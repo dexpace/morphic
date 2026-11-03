@@ -4,6 +4,9 @@
 package openapi_test
 
 import (
+	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
+	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -79,11 +83,11 @@ func TestCompile_ReferenceExpansionBindsOnlyPastTheLimit(t *testing.T) {
 	requireRefused(t, doc, diags, "73")
 }
 
-// TestCompile_EveryReferenceButASchemasIsCharged runs a $ref at each position
+// TestCompile_EveryCopiedDeclarationIsCharged runs a $ref at each position
 // the lowering copies what one names, under a budget no declaration fits:
 // each is refused, and admitted with the budget off. A schema's $ref names one
 // registry entry, and a link's is kept as written, so neither is charged.
-func TestCompile_EveryReferenceButASchemasIsCharged(t *testing.T) {
+func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name    string
@@ -164,17 +168,38 @@ func TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder(t *testing.T) 
 	}
 }
 
-// TestCompile_AReferenceExpansionRefusalKeepsTheLoadPhasesFindings pins the
-// one thing a refused document reports besides its refusal: what the load
-// phase found, which no $ref's place in the walk changes.
-func TestCompile_AReferenceExpansionRefusalKeepsTheLoadPhasesFindings(t *testing.T) {
+// TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace pins what a
+// refused document reports besides its refusal: what the load phase found,
+// which no $ref's place in the walk changes, in the documents SourceTable
+// lists. A refusal's findings are read against that table, which names no
+// document a $ref read, so what the load phase found there is left out.
+func TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace(t *testing.T) {
 	t.Parallel()
-	src := pathsWith(getWith("/p", "      parameters:\n        - $ref: '#/components/parameters/P'\n"+
+	dir := t.TempDir()
+	// ext.yaml's P declares neither schema nor content, which the load phase
+	// reports there.
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "ext.yaml"), []byte("P: {name: q, in: query}\n"), 0o600))
+	src := pathsWith(getWith("/p", "      parameters:\n        - $ref: './ext.yaml#/P'\n"+
 		"        - $ref: '#/components/parameters/Missing'\n"+okResponses), paramP)
+	sources := []compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}}
+	compile := func(limit int) (*ir.Document, []ir.Diagnostic, int) {
+		opts := compilers.Options{Reader: reader.Disk{},
+			FormatOptions: openapi.Options{Limits: openapi.Limits{MaxReferenceExpansion: limit}}}
+		doc, diags, err := openapi.New().Compile(t.Context(), sources, opts)
+		require.NoError(t, err)
+		return doc, diags, len(openapi.New().SourceTable(sources, opts))
+	}
 
-	doc, diags := compileExpanding(t, src, 1)
+	doc, diags, _ := compile(-1)
+	require.NotNil(t, doc)
+	require.True(t, slices.ContainsFunc(diags, func(d ir.Diagnostic) bool { return d.Provenance.Source == 1 }),
+		"the load phase reports in ext.yaml: %+v", diags)
+
+	doc, diags, table := compile(1)
 	assert.Nil(t, doc)
+	_, outside := ir.FirstOutsideTable(diags, table)
+	assert.False(t, outside, "every finding of a refusal indexes its table: %+v", diags)
 	require.Len(t, diags, 2, "%+v", diags)
-	assert.Equal(t, diag.UnresolvedRef, diags[0].Code, "the load phase's finding comes first")
+	assert.Equal(t, diag.UnresolvedRef, diags[0].Code, "the load phase's finding in the source comes first")
 	assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
 }
