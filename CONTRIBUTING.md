@@ -223,7 +223,9 @@ needless; a verified run catches one.
    returns, its own findings appended.
    *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
    `make vet` for a registry or a slice of the service tree built, or written into, other than
-   through an `ir.Editor`.
+   through an `ir.Editor`. It refuses an element's address, and a generic instantiated with a
+   service, group or operation or a slice of one, even to read it, since it cannot see a write
+   through either: read the tree by value or by index.
    A run fails with an error wrapping `pass.ErrContract` for a pass that panics, returns no document
    or another IR version, moves a source or puts findings on the document, and under
    `morphic compile --verify` for one that changes its input or returns a document that breaks
