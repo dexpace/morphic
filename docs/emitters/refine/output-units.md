@@ -53,9 +53,9 @@ derives from another lands in that one's unit — a visibility shape
 ([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a union's interface,
 wrappers and fallback in the union's, an operation's request and headers types in the operation's —
 and a unit is a namespace of its own, so two declarations collide only within one ([reserved
-names](reserved-names.md)). A wrapper imports a variant another unit holds, which is how a union
-reaches into the shared unit. A service-wide error's headers type lands where a type all its groups
-reach does. T-18 holds placement to these rules.
+names](reserved-names.md)). A wrapper, or an inclusive union's field, imports a variant another unit
+holds, which is how a union reaches into the shared unit. A service-wide error's headers type lands
+where a type all its groups reach does. T-18 holds placement to these rules.
 
 ## The size check
 

@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -30,33 +31,87 @@ const raceListFile = "scripts/race-packages.txt"
 // whole subtree, as it does in a go test pattern.
 const raceSubtree = "/..."
 
-// raceExempt names the directories that run code on a goroutine and are still
-// off the race list, each with the reason. A directory belongs here only when
-// no morphic code runs on more than one goroutine in it.
+// pipelineRoots names the trees that hold the compile pipeline. Every Go
+// package directory under one is covered by a race list entry and may not be in
+// raceExempt, whatever the package does: their tests run the pipeline on
+// parallel goroutines, and a race on a path that only those tests take must not
+// go unreported. A new pipeline tree, such as emitters, joins this set.
+var pipelineRoots = []string{"ir", "pass", "compilers"}
+
+// raceExempt names the directories that run code concurrently and are
+// deliberately off the race list, each with the reason. All of them are
+// tooling outside the pipeline, and no directory under pipelineRoots may be
+// here. A race on a path that only an exempt package's own tests take goes
+// unreported.
 var raceExempt = map[string]string{
-	"compilers/openapi/e2e": "its goroutine only puts a deadline on one compile, which runs on " +
-		"that goroutine alone (amplification_test.go)",
-	"compilers/openapi/internal/canary": "its goroutines drive child processes and the parser " +
-		"library, not morphic code running concurrently; child timeouts under load are #1010",
-	"ir/irtest": "each goroutine hosts a recording testing.T, so that FailNow's Goexit ends " +
-		"that goroutine and not the test, and hands its result back over a channel",
+	"cmd/morphic-census": "tooling outside the pipeline: its parallel tests call run on separate " +
+		"goroutines, each compiling specs through the engine into buffers of its own",
+	"cmd/morphic-covergate": "tooling outside the pipeline: its parallel tests call run and " +
+		"tallyOf over coverage profiles they write to their own temporary files",
+	"cmd/morphic-filetimes": "tooling outside the pipeline: its parallel tests run execute, which " +
+		"shells out to git, each in a temporary repository of its own, and call its helpers over " +
+		"values held in memory",
+	"cmd/morphic-harness": "tooling outside the pipeline: its parallel tests call run on separate " +
+		"goroutines, each sweeping a directory of its own through harness.CheckPath",
+	"cmd/morphic-vet": "tooling outside the pipeline: its one parallel test starts the test " +
+		"binary as a child process (main_test.go), so no morphic code of its own runs twice",
+	"internal/archtest": "tooling outside the pipeline: its parallel tests read the module's " +
+		"sources and type-check them through go/packages, whose go/types race is #855",
+	"internal/census": "tooling outside the pipeline: #1271 left it off, and its parallel tests " +
+		"call (*Census).Add and Report, each on a Census of its own",
+	"internal/conformance": "tooling outside the pipeline: its parallel tests read the " +
+		"conformance matrix and corpus as text and ask engine.New which formats it registers; " +
+		"they compile no spec",
+	"internal/decls": "tooling outside the pipeline: its parallel tests call Load, which " +
+		"type-checks packages through go/packages, each on a fixture of its own",
+	"internal/exectest": "test infrastructure outside the pipeline: its parallel tests build " +
+		"commands with Command and read their environments, and one runs /bin/sh",
+	"internal/harness": "tooling outside the pipeline: #1271 left it off, and its parallel tests " +
+		"call harness.Check on parallel goroutines",
+	"internal/jsonshape": "tooling outside the pipeline: its parallel tests call Describe and " +
+		"Read over fixture packages that internal/decls loads",
+	"internal/keydoc": "tooling outside the pipeline: its parallel tests parse Markdown and " +
+		"comments held in memory, and walk temporary trees of their own",
+	"internal/lintrules": "tooling outside the pipeline: its parallel tests run the analyzers " +
+		"over planted packages that go/packages loads",
 }
 
 // TestRaceList_NamesEveryConcurrentPackage holds scripts/race-packages.txt to
-// the directories that run concurrently: each is listed or exempt in
-// raceExempt with a reason, and no entry or exemption names a directory that
-// does not. raceListViolations says what counts as concurrent.
+// the directories that need the race run: every package under pipelineRoots,
+// and elsewhere each that concurrencyReasons flags. Each is covered by an entry,
+// or exempt in raceExempt with a reason unless it lies under a pipeline root;
+// no entry or exemption names a directory that does not need it.
 func TestRaceList_NamesEveryConcurrentPackage(t *testing.T) {
 	t.Parallel()
-	root := irtest.RepoRoot(t)
-	entries, err := readRaceList(filepath.Join(root, filepath.FromSlash(raceListFile)))
+	entries, err := readRaceList(filepath.Join(irtest.RepoRoot(t), filepath.FromSlash(raceListFile)))
 	require.NoError(t, err)
 
-	violations, err := raceListViolations(root, entries, raceExempt)
-	require.NoError(t, err)
-	for _, v := range violations {
+	for _, v := range liveRaceViolations(t, entries, raceExempt) {
 		t.Error(v)
 	}
+}
+
+// TestRaceList_TheLiveTreeNeedsEachPipelineRoot holds the roots the live rule
+// reads. Every package under one carries the pipeline reason, a signal or not,
+// so with no entry and no exemption the report names each tree. The live rule
+// alone cannot show a dropped root: the list's subtree entries already cover
+// every package under the roots, so dropping one removes only a need the list
+// already meets.
+func TestRaceList_TheLiveTreeNeedsEachPipelineRoot(t *testing.T) {
+	t.Parallel()
+	report := strings.Join(liveRaceViolations(t, nil, nil), "\n")
+	for _, r := range []string{"ir", "pass", "compilers"} {
+		assert.Contains(t, report, "pipeline code under "+r, "the report names no package under %s", r)
+	}
+}
+
+// liveRaceViolations returns raceListViolations for the repository's own tree
+// with the real pipeline roots, which the planted tests do not read.
+func liveRaceViolations(t *testing.T, entries []string, exempt map[string]string) []string {
+	t.Helper()
+	violations, err := raceListViolations(irtest.RepoRoot(t), pipelineRoots, entries, exempt)
+	require.NoError(t, err)
+	return violations
 }
 
 // TestParseRaceList_ReadsTheFormatTheMakefileReads feeds the reader one file it
@@ -133,41 +188,97 @@ func TestRaceListViolations_PlantedShapesAreReported(t *testing.T) {
 	entries := []string{"nested/...", "both", "gone", "calm/..."}
 	exempt := map[string]string{"exempt": "r", "calm": "r", "both": "r", "vanished": "r"}
 
-	got, err := raceListViolations(root, entries, exempt)
+	got, err := raceListViolations(root, nil, entries, exempt)
 	require.NoError(t, err)
 	want := []string{
-		`./calm/...: covers no package that runs concurrently`,
-		`./gone: covers no package that runs concurrently`,
+		`./calm/...: covers no package that needs the race run`,
+		`./gone: covers no package that needs the race run`,
 		`both: is on the race list and in raceExempt, which are exclusive`,
-		`calm: is in raceExempt but runs nothing concurrently`,
-		`nestedx: runs concurrently (nestedx/w_test.go starts a goroutine) but is neither on the race ` +
+		`calm: is in raceExempt but needs no race run`,
+		`nestedx: needs the race run (nestedx/w_test.go starts a goroutine) but is neither on the race ` +
 			`list nor in raceExempt`,
-		`unlisted: runs concurrently (unlisted/p.go imports "sync") but is neither on the race list ` +
+		`unlisted: needs the race run (unlisted/p.go imports "sync") but is neither on the race list ` +
 			`nor in raceExempt`,
-		`vanished: is in raceExempt but runs nothing concurrently`,
+		`vanished: is in raceExempt but needs no race run`,
 	}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("report differs (-want +got):\n%s", d)
 	}
 }
 
-// TestRaceListViolations_NamesBothReasonsAndEveryFile holds that a directory
-// flagged twice over reports each file with the reason it met, in path order.
-func TestRaceListViolations_NamesBothReasonsAndEveryFile(t *testing.T) {
+// TestRaceListViolations_NamesEveryReasonAndEveryFile holds that a directory
+// flagged by each signal reports each file with the reason it met, in path order.
+func TestRaceListViolations_NamesEveryReasonAndEveryFile(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	writeNamedGoCall(t, filepath.Join(root, "d", "b_test.go"), "d")
 	writeDocFile(t, filepath.Join(root, "d", "a.go"), "package d\n\nimport \"sync/atomic\"\n\nvar n atomic.Int64\n")
 	writeGoStmt(t, filepath.Join(root, "d", "c.go"), "d")
+	writeParallelTest(t, filepath.Join(root, "d", "e_test.go"), "d")
 
-	got, err := raceListViolations(root, []string{"d"}, nil)
+	got, err := raceListViolations(root, nil, []string{"d"}, nil)
 	require.NoError(t, err)
 	require.Empty(t, got, "a listed directory is not reported")
 
-	got, err = raceListViolations(root, nil, nil)
+	got, err = raceListViolations(root, nil, nil, nil)
 	require.NoError(t, err)
-	want := []string{`d: runs concurrently (d/a.go imports "sync/atomic", d/b_test.go starts a goroutine, ` +
-		`d/c.go starts a goroutine) but is neither on the race list nor in raceExempt`}
+	want := []string{`d: needs the race run (d/a.go imports "sync/atomic", d/b_test.go starts a goroutine, ` +
+		`d/c.go starts a goroutine, d/e_test.go runs tests in parallel) but is neither on the race list nor in raceExempt`}
+	if d := cmp.Diff(want, got); d != "" {
+		t.Errorf("report differs (-want +got):\n%s", d)
+	}
+}
+
+// TestRaceListViolations_PipelineRootsNeedNoSignal plants each shape the
+// pipeline rule reports and each it leaves alone, and expects exactly the
+// report: a package under a root needs the race run whatever it does, may not
+// be exempt, and outside the roots a test file's t.Parallel() counts alone.
+func TestRaceListViolations_PipelineRootsNeedNoSignal(t *testing.T) {
+	t.Parallel()
+	root := t.TempDir()
+	plain := "package p\n"
+	// Not reported: the root itself, a covered child and a covered subtree.
+	writeDocFile(t, filepath.Join(root, "pipe", "p.go"), plain)
+	writeDocFile(t, filepath.Join(root, "pipe", "ok", "p.go"), plain)
+	// Reported: no signal and no entry, which only the roots make a need.
+	writeDocFile(t, filepath.Join(root, "pipe", "quiet", "p.go"), plain)
+	// Reported: the entry names the parent without "/...", so not its child.
+	writeDocFile(t, filepath.Join(root, "pipe", "parent", "p.go"), plain)
+	writeDocFile(t, filepath.Join(root, "pipe", "parent", "child", "p.go"), plain)
+	// Reported: a signal as well as the root, both named.
+	writeParallelTest(t, filepath.Join(root, "pipe", "signalled", "p_test.go"), "signalled")
+	// Reported: a covered directory that is also exempt.
+	writeDocFile(t, filepath.Join(root, "pipe", "covered", "p.go"), plain)
+	// Reported: an uncovered directory that is exempt, so the exemption does not stand in.
+	writeDocFile(t, filepath.Join(root, "pipe", "skipped", "p.go"), plain)
+	// Not reported: a sibling whose name only starts with the root's, and testdata.
+	writeDocFile(t, filepath.Join(root, "pipex", "p.go"), plain)
+	writeDocFile(t, filepath.Join(root, "pipe", "testdata", "p.go"), plain)
+	// Reported: outside the roots, a test file calling t.Parallel() is the only signal.
+	writeParallelTest(t, filepath.Join(root, "tool", "p_test.go"), "tool")
+	// Not reported: a production file's Parallel(), and a test file's Parallel(x).
+	writeDocFile(t, filepath.Join(root, "prod", "p.go"), "package p\n\nfunc f(x interface{ Parallel() }) { x.Parallel() }\n")
+	writeDocFile(t, filepath.Join(root, "arg", "p_test.go"), "package p\n\nfunc f(x interface{ Parallel(int) }) { x.Parallel(1) }\n")
+
+	entries := []string{"pipe", "pipe/ok", "pipe/parent", "pipe/covered/..."}
+	exempt := map[string]string{"pipe/covered": "r", "pipe/skipped": "r", "pipe/vanished": "r"}
+
+	got, err := raceListViolations(root, []string{"pipe"}, entries, exempt)
+	require.NoError(t, err)
+	const cannot = `, whose packages cannot be exempt`
+	want := []string{
+		`pipe/covered: is in raceExempt but lies under the pipeline root "pipe"` + cannot,
+		`pipe/parent/child: needs the race run (pipeline code under pipe) but is neither on the race ` +
+			`list nor in raceExempt`,
+		`pipe/quiet: needs the race run (pipeline code under pipe) but is neither on the race list ` +
+			`nor in raceExempt`,
+		`pipe/signalled: needs the race run (pipe/signalled/p_test.go runs tests in parallel, pipeline ` +
+			`code under pipe) but is neither on the race list nor in raceExempt`,
+		`pipe/skipped: is in raceExempt but lies under the pipeline root "pipe"` + cannot,
+		`pipe/vanished: is in raceExempt but lies under the pipeline root "pipe"` + cannot,
+		`tool: needs the race run (tool/p_test.go runs tests in parallel) but is neither on the race ` +
+			`list nor in raceExempt`,
+	}
 	if d := cmp.Diff(want, got); d != "" {
 		t.Errorf("report differs (-want +got):\n%s", d)
 	}
@@ -181,10 +292,10 @@ func TestRaceListViolations_RootDirectoryIsNamedDot(t *testing.T) {
 	root := t.TempDir()
 	writeGoStmt(t, filepath.Join(root, "w_test.go"), "root")
 
-	got, err := raceListViolations(root, nil, nil)
+	got, err := raceListViolations(root, nil, nil, nil)
 	require.NoError(t, err)
 	require.Len(t, got, 1)
-	assert.True(t, strings.HasPrefix(got[0], ".: runs concurrently (w_test.go starts a goroutine)"), got[0])
+	assert.True(t, strings.HasPrefix(got[0], ".: needs the race run (w_test.go starts a goroutine)"), got[0])
 }
 
 // TestRaceListViolations_FailuresAreReturned holds that a file that does not
@@ -194,8 +305,17 @@ func TestRaceListViolations_FailuresAreReturned(t *testing.T) {
 	root := t.TempDir()
 	writeDocFile(t, filepath.Join(root, "p.go"), "package p\n\nfunc {")
 
-	_, err := raceListViolations(root, nil, nil)
+	_, err := raceListViolations(root, nil, nil, nil)
 	require.Error(t, err)
+}
+
+// writeParallelTest plants a _test.go file whose test calls t.Parallel(), the
+// signal a package's tests run concurrently.
+func writeParallelTest(t *testing.T, file, pkg string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+	src := "package " + pkg + "\n\nimport \"testing\"\n\nfunc TestRuns(t *testing.T) {\n\tt.Parallel()\n}\n"
+	require.NoError(t, os.WriteFile(file, []byte(src), 0o644))
 }
 
 // readRaceList reads the race list at file and returns its entries as
@@ -259,33 +379,43 @@ func raceEntry(line string) (string, error) {
 	return rest, nil
 }
 
-// concurrentDirs returns, for each directory under root that runs code on more
-// than one goroutine, the files that show it and the reason each met. Two
-// things count: a non-test file importing "sync" or "sync/atomic", and any
-// file, test or not, that startsGoroutine recognizes. A test file importing
-// "sync" alone does not, nor does t.Parallel: tests that run one goroutine of
-// morphic code are the race checking the list gives up. Directories are keyed
-// by path relative to root, slash-separated, "." for root itself.
-func concurrentDirs(root string) (map[string][]string, error) {
-	flags := map[string][]string{}
-	err := walkGoFiles(root, func(rel string, _ *token.FileSet, f *ast.File) {
-		dir := path.Dir(rel)
-		if !strings.HasSuffix(rel, "_test.go") {
-			if name := importsSync(f); name != "" {
-				flags[dir] = append(flags[dir], fmt.Sprintf("%s imports %q", rel, name))
-			}
+// concurrencyReasons returns why the file rel, parsed as f, shows its
+// directory running code on more than one goroutine. Three things count: a
+// non-test file importing "sync" or "sync/atomic", any file, test or not, that
+// startsGoroutine recognizes, and a test file that callsParallel. A test file
+// importing "sync" alone does not.
+func concurrencyReasons(rel string, f *ast.File) []string {
+	var reasons []string
+	isTest := strings.HasSuffix(rel, "_test.go")
+	if name := importsSync(f); name != "" && !isTest {
+		reasons = append(reasons, fmt.Sprintf("%s imports %q", rel, name))
+	}
+	if startsGoroutine(f) {
+		reasons = append(reasons, rel+" starts a goroutine")
+	}
+	if isTest && callsParallel(f) {
+		reasons = append(reasons, rel+" runs tests in parallel")
+	}
+	return reasons
+}
+
+// callsParallel reports whether f calls a method named Parallel with no
+// argument, whatever its receiver's type, as t.Parallel() does. Like
+// isNamedGoCall it reads the syntax alone, so a Parallel method of another type
+// counts too, which errs towards requiring the race run.
+func callsParallel(f *ast.File) bool {
+	found := false
+	ast.Inspect(f, func(n ast.Node) bool {
+		call, isCall := n.(*ast.CallExpr)
+		if !isCall {
+			return !found
 		}
-		if startsGoroutine(f) {
-			flags[dir] = append(flags[dir], rel+" starts a goroutine")
+		if sel, isSel := call.Fun.(*ast.SelectorExpr); isSel && sel.Sel.Name == "Parallel" && len(call.Args) == 0 {
+			found = true
 		}
+		return !found
 	})
-	if err != nil {
-		return nil, err
-	}
-	for _, reasons := range flags {
-		slices.Sort(reasons)
-	}
-	return flags, nil
+	return found
 }
 
 // importsSync returns the first of "sync" and "sync/atomic" that f imports, or
@@ -311,42 +441,93 @@ func raceCovers(entry, dir string) bool {
 	return subtree && (dir == p || strings.HasPrefix(dir, p+"/"))
 }
 
+// pipelineRootOf returns the entry of roots that dir is or lies under, or "".
+func pipelineRootOf(roots []string, dir string) string {
+	for _, r := range roots {
+		if dir == r || strings.HasPrefix(dir, r+"/") {
+			return r
+		}
+	}
+	return ""
+}
+
+// raceNeeds returns, for each directory under root that the race run must
+// cover, the reasons it does: those concurrencyReasons gives its files, and for
+// a directory holding a Go file under one of roots, that it is pipeline code.
+// Reasons are sorted. Directories are keyed by path relative to root,
+// slash-separated, "." for root itself.
+func raceNeeds(root string, roots []string) (map[string][]string, error) {
+	needs := map[string][]string{}
+	err := walkGoFiles(root, func(rel string, _ *token.FileSet, f *ast.File) {
+		dir := path.Dir(rel)
+		needs[dir] = append(needs[dir], concurrencyReasons(rel, f)...)
+		if r := pipelineRootOf(roots, dir); r != "" && !slices.Contains(needs[dir], "pipeline code under "+r) {
+			needs[dir] = append(needs[dir], "pipeline code under "+r)
+		}
+	})
+	if err != nil {
+		return nil, err
+	}
+	for dir, reasons := range needs {
+		if len(reasons) == 0 {
+			delete(needs, dir)
+		}
+		slices.Sort(reasons)
+	}
+	return needs, nil
+}
+
 // raceListViolations returns, sorted, one message for each way the race list
 // and exempt (directory to reason) disagree with the directories under root
-// that run concurrently (concurrentDirs): one that runs concurrently and is
-// neither covered by an entry nor exempt; an entry that covers no such
-// directory, a directory the entry does not name included; an exemption for a
-// directory that does not run concurrently; and one that is both covered and
-// exempt. Paths are relative to root.
-func raceListViolations(root string, entries []string, exempt map[string]string) ([]string, error) {
-	flagged, err := concurrentDirs(root)
+// that need the race run (raceNeeds): one that is neither covered by an entry
+// nor exempt; an entry that covers no such directory, a directory the entry
+// does not name included; an exemption under one of roots, which no pipeline
+// package may have; an exemption for a directory that needs no race run; and
+// one that is both covered and exempt. Paths are relative to root.
+func raceListViolations(root string, roots, entries []string, exempt map[string]string) ([]string, error) {
+	needs, err := raceNeeds(root, roots)
 	if err != nil {
 		return nil, err
 	}
 
 	var out []string
-	for _, dir := range slices.Sorted(maps.Keys(flagged)) {
-		covered := slices.ContainsFunc(entries, func(e string) bool { return raceCovers(e, dir) })
-		_, isExempt := exempt[dir]
-		switch {
-		case covered && isExempt:
-			out = append(out, dir+": is on the race list and in raceExempt, which are exclusive")
-		case !covered && !isExempt:
+	for _, dir := range slices.Sorted(maps.Keys(needs)) {
+		if _, isExempt := exempt[dir]; !isExempt && !raceListCovers(entries, dir) {
 			out = append(out, fmt.Sprintf(
-				"%s: runs concurrently (%s) but is neither on the race list nor in raceExempt",
-				dir, strings.Join(flagged[dir], ", ")))
+				"%s: needs the race run (%s) but is neither on the race list nor in raceExempt",
+				dir, strings.Join(needs[dir], ", ")))
 		}
 	}
 	for _, e := range entries {
-		if !slices.ContainsFunc(slices.Collect(maps.Keys(flagged)), func(dir string) bool { return raceCovers(e, dir) }) {
-			out = append(out, "./"+e+": covers no package that runs concurrently")
+		if !slices.ContainsFunc(slices.Collect(maps.Keys(needs)), func(dir string) bool { return raceCovers(e, dir) }) {
+			out = append(out, "./"+e+": covers no package that needs the race run")
 		}
 	}
-	for dir := range exempt {
-		if _, ok := flagged[dir]; !ok {
-			out = append(out, dir+": is in raceExempt but runs nothing concurrently")
-		}
+	for _, dir := range slices.Sorted(maps.Keys(exempt)) {
+		out = append(out, exemptionProblem(roots, needs, dir, raceListCovers(entries, dir))...)
 	}
 	slices.Sort(out)
 	return out, nil
+}
+
+// raceListCovers reports whether any of entries covers dir.
+func raceListCovers(entries []string, dir string) bool {
+	return slices.ContainsFunc(entries, func(e string) bool { return raceCovers(e, dir) })
+}
+
+// exemptionProblem returns the message for the raceExempt entry dir, or nil
+// when it is sound: dir lies under none of roots, needs the race run (needs
+// has it), and is not covered.
+func exemptionProblem(roots []string, needs map[string][]string, dir string, covered bool) []string {
+	switch _, needed := needs[dir]; {
+	case pipelineRootOf(roots, dir) != "":
+		return []string{dir + ": is in raceExempt but lies under the pipeline root " +
+			strconv.Quote(pipelineRootOf(roots, dir)) + ", whose packages cannot be exempt"}
+	case !needed:
+		return []string{dir + ": is in raceExempt but needs no race run"}
+	case covered:
+		return []string{dir + ": is on the race list and in raceExempt, which are exclusive"}
+	default:
+		return nil
+	}
 }
