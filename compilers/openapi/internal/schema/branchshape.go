@@ -72,7 +72,8 @@ func (r *bodyReading) declared() declarationSet {
 // accepts without reshaping it, which is validation logic
 // (docs/ir/boundaries.md#validation-only-constructs). A $ref branch always
 // declares shape, so the body is read only once an inline branch needs it, and
-// a reading its budget cut short says nothing, so it counts as one that does.
+// a reading its budget cut short says nothing, so it counts as one that does,
+// even where the body's own keywords would settle it (GitHub #1423).
 func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
 	var r *bodyReading
 	body := func() *bodyReading {
@@ -137,7 +138,8 @@ type nested struct {
 // off a stack, so the walk adds no recursion cycle, and it visits the branch's
 // tree once: bounded by the size of a tree the load phase holds
 // (docs/compilers/openapi.md#source-budgets), while what each restates is read
-// within admission's budget.
+// within admission's budget. Comparing a nested schema's text renders it again
+// at each level (GitHub #1424).
 func (r *bodyReading) restates(top claim) bool {
 	claims := []claim{top}
 	for len(claims) > 0 {
