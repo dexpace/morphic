@@ -68,6 +68,8 @@ def parse(argv: list[str]) -> argparse.Namespace:
     args = p.parse_args(argv)
     if args.number < 1:
         p.error(f"number must be positive, not {args.number}")
+    if not args.title.strip():
+        p.error("title is empty: a failed `gh pr view` prints none")
     return args
 
 

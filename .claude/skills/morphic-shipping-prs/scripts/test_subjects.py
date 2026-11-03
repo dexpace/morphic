@@ -129,6 +129,13 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stderr.splitlines()[-1:]),
                          (2, ["subjects.py: error: number must be positive, not 0"]))
 
+    def test_an_empty_title_exits_two(self):
+        for title in ("", " "):
+            with self.subTest(repr(title)):
+                r = self.run_script("1311", title)
+                self.assertEqual((r.returncode, r.stdout), (2, ""))
+                self.assertIn("title is empty", r.stderr)
+
     def test_cannot_run_exits_two(self):
         self.assertEqual(self.run_script("x", TITLE).returncode, 2)
         self.git("update-ref", "-d", "refs/remotes/origin/main")
