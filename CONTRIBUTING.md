@@ -216,8 +216,8 @@ needless; a verified run catches one.
    document a run of it returned, which carries that run's findings, it returns an equal one,
    `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
    between its rule families, and stops soon once it is done: the engine then fails the run, reading
-   nothing it returned. `ir.ForEachOperation` walks the operations, and the package's `diag` helper in
-   `pass/diag.go` builds a diagnostic on a node.
+   nothing it returned. `ir.ForEachOperation` walks the operations and `ir.ForEachGroup` the groups,
+   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
