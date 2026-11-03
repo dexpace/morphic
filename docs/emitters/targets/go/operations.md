@@ -29,8 +29,9 @@ operation has no input ([request shaping](../../refine/requests.md)). `Stream[T]
 a caller that stops early must do. What `T` is follows from `Recv`:
 
 - an `Element` is what its type lowers to. A union's is its struct
-  ([`Payment`](unions.md#payment-in-go)), and `Recv` returns `io.EOF` after a variant whose
-  `Variant.Event.Terminal` is true, so an event union needs nothing of its own beyond that.
+  ([`Payment`](unions.md#payment-in-go)), and `Recv` returns `io.EOF` after an element holding a
+  variant whose `Variant.Event.Terminal` is true, so an event union needs nothing of its own beyond
+  that.
 - no `Element` is `Stream[string]`, each frame's text, unread.
 - a `bytes` side has no frames and no `Stream`: `Recv` lowers as a file does, to `*RawBody` ([return
   shapes](returns.md)), and `Send` to an `io.Reader` field of the request type.
