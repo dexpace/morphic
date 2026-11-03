@@ -100,16 +100,14 @@ jobs:
       # Go keys a cached test result on the time of each file inside the module
       # that the test opens, and a checkout gives every file a new one. This
       # dates them from content.
-      # After every step above, since each runs git: make fmt lists the tracked
+      # After every step above that runs git: make fmt lists the tracked
       # files, the scripts find the repository root, and go build and go list
       # run git status to stamp VCS information, which gives .git a new time.
       # Go hashes every entry of a directory a test lists, the root among them.
-      # No package race runs does that today (dating, then git status, then race
-      # left every result cached), while irtest and archtest, which the suite
-      # job's coverage run covers, do. The order keeps a package added to the
-      # race list that does from missing the cache on every run. Nothing may run
-      # git between this step and race, bar the rev-parse that race-reach.sh
-      # runs after the package tests have returned.
+      # irtest and archtest, which the suite job's coverage runs, do, and a race
+      # package that did would miss the cache on every run if git ran after this
+      # step. Nothing may run git between this step and race, bar the rev-parse
+      # that race-reach.sh runs after the package tests have returned.
       - &date-files
         name: date files by content
         run: make filetimes
@@ -124,11 +122,7 @@ jobs:
       # Here and not in suite to balance the two jobs, which coverage and race
       # in one made unequal (#1386). No make build comes first: the race
       # packages' tests that load packages run go list -export, which compiles
-      # what make build does, and after make vet that compiles nothing. Probed
-      # on an empty cache, running this job's steps in order: go list -export
-      # over ir, engine and compilers/openapi/internal/load compiled 0 packages
-      # (291 on an empty cache with nothing before it), and 0 after vet on a
-      # tree with a change in ir (29 before vet).
+      # what make build does, and after make vet that compiles nothing.
       - name: race
         run: make race
       - &save
