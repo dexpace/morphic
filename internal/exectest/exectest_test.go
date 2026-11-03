@@ -67,7 +67,7 @@ func TestCommand_ACoveredChildWritesToADirectoryOfItsOwn(t *testing.T) {
 }
 
 // TestCommand_AppendsEnvToThisEnvironmentWithoutPWD pins that env follows
-// this process's environment, which keeps every entry but PWD.
+// this process's environment, which keeps every entry but PWD and GOCOVERDIR.
 func TestCommand_AppendsEnvToThisEnvironmentWithoutPWD(t *testing.T) {
 	t.Setenv("PWD", "/nowhere")
 	t.Setenv("EXECTEST_KEPT", "1")
