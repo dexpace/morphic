@@ -48,8 +48,8 @@ The procedure decided every existing field:
    type, flags and fallback member, a union's variant list, and the operation-group tree
    ([BindingView](bindings.md)). `Union` replaces a classification that copied the variant list and
    a second discriminator beside the tag mode it derived, and `Scalar` replaces a bare root that
-   left the constraints it merged nowhere. `NeedShapes` is gone too: it listed again the lifecycles
-   `Shapes` is keyed by ([ModelShape](types.md#modelshape--visibility-projection)). A client's
+   left the constraints it merged nowhere. `NeedShapes` is gone too: it listed again the shapes
+   `Shapes` holds ([ModelShape](types.md#modelshape--visibility-projection)). A client's
    servers are stated by the IR as well, so they get no field ([the
    client](../operations/client.md)).
 4. **The parameter-passing shape** fails the first test and moved to refine ([request

@@ -14,10 +14,10 @@ type TypePlan struct {
     Discrim    *DiscrimFacts        // a union's or hierarchy's discriminator, as variant IDs
     Open       bool                 // a union or polymorphic base keeps a value no variant
                                     // recognizes rather than refusing it (policy.md, ../refine/unions.md)
-    Inclusive  bool                 // an any_of union two of whose variants can admit one value,
-                                    // holding every variant a value admits (below); false otherwise
+    Inclusive  bool                 // an any_of union two of whose variants can admit one value in
+                                    // the declaration no shape projects (below); false otherwise
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
-    Shapes     map[ir.Lifecycle]ModelShape // the wire shapes the document exercises (below)
+    Shapes     []ModelShape         // the shapes the document exercises it in, sorted (below)
     Alias      ir.TypeID            // the type every reference to this one is emitted as, this
                                     // one emitting nothing: a decorator's end (../refine/decorators.md), or a dedup
                                     // alias's target once that pass (architecture.md §2.2) and its
@@ -73,8 +73,10 @@ not hold what it admits, so each refiner lowers it or degrades with a code of it
 
 ## Variants that can share a value
 
-`Inclusive` is true on an `any_of` union when two of its variants can admit one value, and false on
-every other shape. What admitting a value means is in
+An `any_of` union is inclusive in a shape when two of its variants can admit one value there, and a
+union of any other wire shape is inclusive nowhere. The plan decides it for each shape the union is
+projected in ([below](#a-shape-reaches-what-it-holds)), as that shape's `ModelShape.Inclusive`, and
+for the declaration no shape projects, as `TypePlan.Inclusive`. What admitting a value means is in
 [unions](../refine/unions.md#a-value-several-variants-admit). The plan proves two variants disjoint,
 admitting no value in common, by these rules, and a pair none of them separates can share one:
 
@@ -101,29 +103,29 @@ admitting no value in common, by these rules, and a pair none of them separates 
   `Flatten` property's members at its model's own level, and a position's kinds read from the
   property's own `Encoding` before its type's. One requires a member the other cannot hold: one it
   does not declare while it is closed and no model in its flattening has a catch-all
-  (`AdditionalProps`), or one it declares at a position disjoint from the first's by these rules. A
-  shape that leaves a declaration out leaves the member undeclared there, so a declaration only some
-  shapes hold, as a `writeOnly` one is, separates only where its model is closed as well. A member
-  is required as `Required` and `Undeclared` say, an overridden declaration counting, so a base
-  requiring `id` separates subtypes that redeclare `id` as different one-value enums. A member
-  separates only if no shape can leave it out, so only where its `Visibility` is the zero value: a
-  `readOnly`, `writeOnly` or `None` one, or one any other visibility filter drops
-  ([ModelShape](#modelshape--visibility-projection)), separates nothing, whichever way the union
-  travels, nor does one `ClientOptional` marks, which a client treats as optional. A union a patch
-  shape reaches is separated by kinds and values alone where that shape makes members optional, as a
-  PATCH body's does unless its binding disables it. A catch-all beside a closure holds the members
-  it governs, as `patternProperties` beside `additionalProperties: false` does (#987), so the
-  closure alone separates nothing, and a polymorphic base, which holds its subtypes' values and the
-  members they add, counts as open.
+  (`AdditionalProps`), or one it declares at a position disjoint from the first's by these rules.
+  Both are read in the shape the union is decided in
+  ([ModelShape](#modelshape--visibility-projection)): a member that shape leaves out is undeclared
+  there, and one separates only where the shape holds and requires it, as `Required` and
+  `Undeclared` say, an overridden declaration counting, so a base requiring `id` separates subtypes
+  that redeclare `id` as different one-value enums. A `readOnly` member separates in a read shape
+  and not in a create one, none separates in a patch shape, whose members are optional, and none
+  `ClientOptional` marks, which a client treats as optional. The declaration no shape projects is
+  decided for every filter at once: a member separates only where no filter can leave it out, its
+  `Visibility` the zero value, and a declaration some filter leaves out separates only where its
+  model is closed as well. A catch-all beside a closure holds the members it governs, as
+  `patternProperties` beside `additionalProperties: false` does (#987), so the closure alone
+  separates nothing, and a polymorphic base, which holds its subtypes' values and the members they
+  add, counts as open.
 
-Disjointness is the least relation these rules close over, so two models are disjoint only through
-a finite chain of separated members, and a cycle of models separates nothing by itself. The plan
-computes it once for the document, over the pairs of positions its `any_of` unions reach, adding
-each pair a rule separates until a round adds none. That costs a polynomial in those pairs, and each
-union's answer is the same in whatever order the unions are planned. A walk per union that counts a
-pair it is still comparing as sharing finds the same pairs, but it compares a pair once per path to
-it, exponentially many as required members nest, and caching what it finds while another pair is
-pending lets the union planned first decide a later one's answer.
+Disjointness is the least relation these rules close over, so two models are disjoint only through a
+finite chain of separated members, and a cycle of models separates nothing by itself. The plan
+computes it once for the document, over the pairs of positions its `any_of` unions reach in each
+shape, adding each pair a rule separates until a round adds none. That costs a polynomial in those
+pairs, and each union's answer is the same in whatever order the unions are planned. A walk per
+union that counts a pair it is still comparing as sharing finds the same pairs, but it compares a
+pair once per path to it, exponentially many as required members nest, and caching what it finds
+while another pair is pending lets the union planned first decide a later one's answer.
 
 The rules are sound, not complete. A pair they leave sharing may still admit no common value, as a
 `date` and a `uuid` string do, and is then inclusive: it holds every value correctly, though more
@@ -131,62 +133,93 @@ loosely than a closed sum would. `Constraints` take no part, since admitting a v
 validation, bar a tuple's `MinItems`, which these rules leave unread too, so two variants that
 differ only in a bound do share values.
 
-`Inclusive` shapes a declaration, so a document that changes it breaks that union's callers: a
-variant added or widened, a member no longer required or newly limited to some shapes, a catch-all
-beside a closure, or a patch shape or text newly reaching the union turns a closed sum inclusive,
-and the reverse narrows an inclusive one. The member rule reads no direction for that reason:
-reading which way a union travels would separate more, but would change a declaration the first time
-an operation elsewhere sends or receives it. A patch shape and text are the two distant reads the
-rules keep, since each admits values the rest of the document does not: a patch shape making
-members optional admits any value its variants' members could form, and text drops the kinds that
-separate variants elsewhere.
+Whether a union is inclusive shapes its declaration, so a document that changes it breaks that
+declaration's callers: a variant added or widened, a member no longer required or newly left out of
+the shape, a catch-all beside a closure, or text newly carrying the union turns a closed sum
+inclusive, and the reverse narrows an inclusive one. Each shape is decided apart, so a new place a
+union travels adds a declaration rather than changing one: an operation that first sends a union in
+a `PATCH` body adds its patch shape, inclusive where members alone separated its variants, and
+leaves the closed sum read elsewhere as it was. Text is the one distant read the rules keep, since
+it drops the kinds that separate variants elsewhere, so a parameter or header first carrying a union
+changes every declaration whose projection that position shares.
 
 On the golden spec (spec @319dc756, morphic @438bebe2), 515 unions are untagged, not exclusive, and
-have two or more variants. These rules prove 382 of them disjoint, and those lower as a closed sum.
-A parameter reaches 53, 52 of them in a query string, and values separate one, so 38 the rules would
-separate in JSON are inclusive, such as `since: anyOf [string, integer]`, whose `-10` both variants
-read. Counting each model a PATCH body reaches, at any depth, in its patch shape leaves the zone
-settings, which their `id` separates where they are read, inclusive too, and would not if an OpenAPI
-PATCH body kept the required members its schema states (#1400). Of the 133 left, 73 have two
-variants that both admit an object, such as the 16 identity providers an Access listing returns.
-Each refines one base whose `type` enum lists all 16, and each `config` is open with no required
-member, so nothing separates them: one provider's value is admitted by every other whose `config`
-declares none of its members at another type.
+have two or more variants. Operations reach 484 of them, in 486 declarations, and none reaches the
+other 31. These rules prove 383 disjoint in every declaration they take, and those lower as a closed
+sum; no union is a closed sum in one shape and inclusive in another. A parameter reaches 53, 52 of
+them in a query string, and values separate one, so 38 the rules would separate in JSON are
+inclusive, such as `since: anyOf [string, integer]`, whose `-10` both variants read. The zone
+settings stay a closed sum in the `PATCH` body that reaches them, a list of them whose elements keep
+the `id` separating them. Of the 132 left, 72 have two variants that both admit an object, such as
+the 16 identity providers an Access listing returns. Each refines one base whose `type` enum lists
+all 16, and each `config` is open with no required member, so nothing separates them: one provider's
+value is admitted by every other whose `config` declares none of its members at another type.
 
 ## ModelShape — visibility projection
 
-One logical model produces N wire shapes across the lifecycle. `ModelShape(model, lifecycle)` is a
-**computed traversal in the plan layer**; the IR stores only the single logical model plus visibility
-facts and never the projected variants (INV2; [properties](../../ir/properties.md#visibility)). The
-plan emits one `ModelShape` per lifecycle the document actually exercises, in the type's
-`TypePlan.Shapes`, so a refiner knows exactly which shapes to build: those keys are the projections
-the type needs, and nothing else lists them.
+One logical model produces N wire shapes across the lifecycle. A shape is a visibility filter, the
+lifecycles a member must be visible in one of, and whether a `PATCH` body relaxes the members it
+holds. `ModelShape(type, shape)` is a **computed traversal in the plan layer**; the IR stores only
+the single logical model plus visibility facts and never the projected variants (INV2;
+[properties](../../ir/properties.md#visibility)). The plan keeps one `ModelShape` for each shape the
+document exercises a type in, in the type's `TypePlan.Shapes`, sorted by filter, lifecycle by
+lifecycle, and then by patch, so a refiner knows exactly which shapes to build: those entries are
+the projections the type needs, and nothing else lists them. They are a list, since a filter is a
+set of lifecycles, which no string key holds without an escaping of its own ([the
+plan](overview.md)).
 
 ```go
 type ModelShape struct {
-    Props   []ir.PropID  // properties visible in this lifecycle
-    Patch   bool         // PATCH shape: properties are implicitly optional unless the binding disables it
-    Inferred map[string]ir.Provenance
+    Filter    []ir.Lifecycle // the lifecycles a member must be visible in one of, sorted
+    Patch     bool           // a PATCH body's: its members optional unless the binding disables it
+    Props     []ir.PropID    // a model's properties visible in this shape
+    Inclusive bool           // a union's: two variants can admit one value in this shape (above)
+    Inferred  map[string]ir.Provenance
 }
 ```
 
 `Props` are drawn from `TypePlan.Flattened`, so a composed model's shapes hold what it inherits and
 mixes in, each member visible as the declaration it takes says
-([models](../../ir/models.md#the-flattening)). `readOnly → Only:[read, delete, query]`;
+([models](../../ir/models.md#the-flattening)). A member is visible when its `Only` names a lifecycle
+of the filter, or none of the filter's class: `readOnly → Only:[read, delete, query]`;
 `writeOnly → Only:[create, update]` ([properties](../../ir/properties.md#visibility));
-`Visibility.None` → excluded from every projection (distinct from the zero value); PATCH flips
-properties optional unless `HTTPBinding.PatchImplicitOptionality` points at `false` (nil is the
-protocol default, which flips them), and a patch shape never carries a property's default onto the
-wire ([values](../refine/values.md)); operation-level `ParameterVisibility` / `ReturnTypeVisibility`
-override which filter applies. Unknown visibility classes are opaque filters evaluated per class
+`Visibility.None` → excluded from every projection (distinct from the zero value). A patch shape
+makes properties optional unless `HTTPBinding.PatchImplicitOptionality` points at `false` (nil is
+the protocol default, which flips them), and never carries a property's default onto the wire
+([values](../refine/values.md)). Unknown visibility classes are opaque filters evaluated per class
 ([properties](../../ir/properties.md#visibility)).
+
+## A shape reaches what it holds
+
+An operation's response, its headers included, takes the filter `ReturnTypeVisibility` names, else
+`read`. Its request, parameters, headers and body, takes the filter `ParameterVisibility` names,
+else its HTTP method's: `query` for `GET` and `HEAD`, `create` for `POST`, `create` and `update` for
+`PUT`, `update` for `PATCH`, `delete` for `DELETE`, and `create` and `update` for any other method
+or protocol. A `PATCH` body's shape is a patch shape unless its binding sets
+`PatchImplicitOptionality` to `false`. So a `readOnly` member, visible in `read`, `delete` and
+`query`, reaches a `GET`'s parameters and a `DELETE`'s body, and never a `POST`'s or a `PUT`'s. A
+webhook (`IsWebhook`) arrives at the client, so its two sides swap: its request takes `read`, and
+its response its method's filter. A callback is not marked inbound yet (#625), so it takes an
+outbound operation's filters.
+
+A shape reaches every type a position of it holds, in that same shape: each member the shape holds,
+a catch-all's values, a union's variants, a polymorphic base's subtypes, a map's values, and a
+decorator's or alias's base. A list's or a tuple's elements take the same filter without the patch,
+since a patch replaces an array whole (RFC 7396 §2): the golden spec's zone-settings `PATCH` sends a
+list of settings, each carrying the `id` that names it. So every type holding a model a shape
+projects is projected with it, `Target` beside `TargetCreate` and `TargetPatch`, each holding its
+variants' projections in that shape and each decided apart. Shapes whose projections of a type
+coincide, every model it reaches holding and requiring the same members in both, may share one
+declaration ([models](../refine/models.md#visibility-projections--n-wire-shapes)), so they take one
+answer, inclusive where either is. A type no shape reaches is declared once, unprojected, and
+`TypePlan.Inclusive` decides it.
 
 ## A model with lifecycle visibility
 
 IR: `Model{ Properties:[id (readOnly), name (required), email, password (writeOnly, Secret)],
 Additional:"closed" }`.
 
-`ModelShape(User, read)` = {id,name,email}; `ModelShape(User, create)` = {name,email,password}.
+`ModelShape(User, {read})` = {id,name,email}; `ModelShape(User, {create})` = {name,email,password}.
 `Flattened` walks `Base`, `Implements` and `Mixins` (none here). That `User` is both written and
 read is the derived-fact index's, `Facts.Usage(User)` = Input|Output, which no plan field copies
 ([plan or refine](plan-or-refine.md)).

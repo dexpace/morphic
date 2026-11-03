@@ -156,12 +156,15 @@ throughout these documents.
     by JSON kind, by enum values and by a member one model requires and the other cannot hold,
     lowers as a closed sum and decodes each value into the one variant admitting it, by trying each
     where the ladder tells none apart or names one that does not admit it, while a closed model with
-    a catch-all governing that member separates nothing, nor does a `writeOnly` or `ClientOptional`
-    member, a member an open model declares at another type only `writeOnly`, a member compared
-    under any name but its JSON one, or one a patch shape the union travels in leaves optional, an
-    `any` primitive (`{}`) shares a kind with every variant, and `Inclusive` is the same in either
-    order the unions are planned. An `anyOf` of `string` and `integer` that a query parameter
-    carries is inclusive, and a mock reads `since=-10` into both. A required member no shape holds
+    a catch-all governing that member separates nothing, nor does a `ClientOptional` member, a
+    member compared under any name but its JSON one, or, where the union is read, a `writeOnly`
+    member or one an open model declares at another type only `writeOnly`; an `any` primitive (`{}`)
+    shares a kind with every variant, and `Inclusive` is the same in either order the unions are
+    planned. An `anyOf` of `string` and `integer` that a query parameter carries is inclusive, and a
+    mock reads `since=-10` into both. A union of two models a required member separates, sent in a
+    `PATCH` body and read in a response, is inclusive in its patch shape and a closed sum where it
+    is read, and adding the `PATCH` operation changes no other declaration; sent as a `PATCH` body's
+    list, its elements keep the member and it stays closed. A required member no shape holds
     (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
     positions and one with one and no `Rest`, each admits only its own length. A `null` that two
     nullable variants admit, a `null` literal variant does or a variant that is such a union does,
@@ -169,3 +172,12 @@ throughout these documents.
     on an open union and is a coded error on a closed one
     ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
+30. **T-30 · Visibility projections** — on every target, a model holding a model, a union, a list
+    and a map of models with a `readOnly` and a `writeOnly` member each, sent in a `POST`, a `PUT`
+    and a `PATCH` body and read in a response, gets a declaration per shape for every type holding a
+    projected one: `readOnly` members absent from each request shape and `writeOnly` ones from the
+    response, a `PUT` body holding what `create` or `update` makes visible, and the `PATCH` body's
+    members optional at every depth but inside the list, whose elements keep their required
+    members. `ParameterVisibility` and `ReturnTypeVisibility` replace the method's filter, and two
+    shapes whose projections coincide take one answer
+    ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)).

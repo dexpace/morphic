@@ -2,12 +2,14 @@
 
 ## Visibility projections → N wire shapes
 
-`ProjectVisibilityShapes` consumes the precomputed `ModelShape` map and emits the concrete
+`ProjectVisibilityShapes` consumes the precomputed `ModelShape` list and emits the concrete
 create/read/update/patch declarations the target needs — Speakeasy's "public type vs wire
-(de)serialize shape" split made explicit. `None` properties are excluded from every projection;
-PATCH shapes make properties optional unless the binding disables it. A model used as both input
-and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for GraphQL inputs) may emit
-two shapes.
+(de)serialize shape" split made explicit — for every type a shape reaches, so a union, a model or a
+list holding a projected model is projected with it
+([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)). `None` properties are excluded from
+every projection; PATCH shapes make properties optional unless the binding disables it. A model used
+as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for GraphQL
+inputs) may emit two shapes.
 
 ## Optionality × Nullability × Presence (INV8)
 

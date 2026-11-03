@@ -67,8 +67,8 @@ envelope `{kind, value}` whose `value` is `null`: the tag names that variant, wh
 
 ## A value several variants admit
 
-An `anyOf` lets one value satisfy several variants, and what the union holds then turns on
-`TypePlan.Inclusive`, which the plan proves once
+An `anyOf` lets one value satisfy several variants, and what the union holds then turns on whether
+it is inclusive in the shape it travels in, which the plan proves once
 ([TypePlan](../plan/types.md#variants-that-can-share-a-value)):
 
 - **Not inclusive.** No value is admitted by two variants, so holding the one that admits it loses
@@ -161,17 +161,20 @@ The designs this was weighed against:
   misnames a value several variants admit and drops what only the others declare, as the identity
   providers show.
 - **A record of which variant pairs overlap**, beside `Inclusive`, so a target could close a sum
-  over the variants no other shares a value with: on the golden spec, 489 of the 507 variants of
+  over the variants no other shares a value with: on the golden spec, 425 of the 443 variants of
   inclusive unions overlap another (spec @319dc756, morphic @438bebe2), so it would close almost
   nothing.
 - **Builders generated over one parse**, for every variant: decoding is then linear outright, but a
   variant in another output unit, a Go package or a Gradle module, is reachable only through its
   own codec unless that unit exports a helper for it, and each type would carry a second reading of
   its wire form beside its codec. Keying decoded positions keeps one codec per type.
-- **An `Inclusive` per direction**, one for the shapes an SDK decodes and one for those a mock does,
-  so a union a PATCH body reaches could stay a closed sum where it is read: the SDK and the mock
-  would then declare one type two ways, where the plan gives every artifact one answer, and on the
-  golden spec it would close one union, the zone settings.
+- **One answer for every shape**, which a union a `PATCH` body reaches makes inclusive wherever it
+  travels: an operation that first sent a union in a `PATCH` body would turn the closed sum every
+  other operation reads into an inclusive one, breaking callers that never touch the patch. Each
+  shape is a declaration of its own in the SDK, the docs and the mock alike, so an answer per shape
+  still gives every artifact one answer for each declaration.
+- **An answer per direction**, one for the shapes an SDK decodes and one for those a mock does: the
+  SDK and the mock would then declare one type two ways.
 - **Writing a position only where every set variant writes one text**: a codec that normalizes, as
   a timestamp's does, would then refuse to encode a value just decoded.
 
