@@ -32,16 +32,16 @@ defect, keep a `main` control.
 ## Check every class of claim in full, in the first round
 `sweep-each-claim-class`
 
-- **Rule.** Before the first finding, list the change's classes of claim and check every member:
-  each name against the tree, citation against the item it cites, statement about code on `main`,
-  statement about a library against its `docs/parser-library.md` entry, quoted command run from
-  the root, script in each context it runs in (a subdirectory, each platform branch), body sentence
-  on the final tree, each construct a rule settles
-  (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
+- **Rule.** Before the first finding, list the change's claim classes and check every member: each
+  name against the tree, citation against the item it cites, no count resting on an open PR
+  (`gh pr view <N> --json state`), statement about `main`'s code, library statement against its
+  `docs/parser-library.md` entry, quoted command run from the root, script run in each context (a
+  subdirectory, each platform branch), body sentence on the final tree, each construct a rule
+  settles (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
   (`references/review-probes.md#edited-rule-against-its-neighbours`). A class checked by sample is
   reported unreviewed, never clean.
-- **Why.** A review of #1143 took nine rounds, each sampling a class: citations were read for 58 of
-  203 rules before all 383, and a misattribution sat in the rest.
+- **Why.** #1143's review took nine rounds, each sampling a class, leaving a misattribution
+  unread. Two Whys' counts rested on moving open PRs (#1409).
 - **Probe.** The report gives each class and the members checked; fewer than its size is a round
   still open.
 
