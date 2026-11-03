@@ -1268,3 +1268,33 @@ func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
 		})
 	}
 }
+
+// TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase is the other side
+// of TestAllOf_RedeclarationsUnderAnotherBaseStayApart: two declarations
+// written alike that write no $ref say the same under any base, so they fold
+// to one field, or one hoisted enum, with nothing kept or reported.
+func TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase(t *testing.T) {
+	t.Parallel()
+	for name, x := range map[string]string{
+		"OnTheField":     "{type: string, not: {const: q}}",
+		"OnAHoistedEnum": "{type: string, enum: [ab, abcdef], not: {const: q}}",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    S:
+      $id: 'https://ex.test/b/s.json'
+      allOf:
+        - {$id: 'https://ex.test/a/c.json', type: object, properties: {x: `+x+`}}
+        - {type: object, properties: {x: `+x+`}}
+`))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok)
+			x, ok := openapitest.PropsByWire(m.Properties)["x"]
+			require.True(t, ok)
+			assert.NotContains(t, x.Unmodeled, "openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x")
+			assert.False(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+				"%+v", diags)
+		})
+	}
+}

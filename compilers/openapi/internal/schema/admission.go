@@ -580,18 +580,23 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 	})
 }
 
-// sameText reports whether a and b, read against one base, write the same
-// JSON. A $ref in a copy under another document, or under an $id naming
-// another URI, would resolve elsewhere, though it is spelled alike.
+// sameText reports whether a and b, both written in one document, write the
+// same JSON, read against one base where it writes a $ref: under an $id naming
+// another URI, the same spelling resolves elsewhere. A copy in another document
+// is read apart: its $refs resolve against that document, and its dialect may
+// differ (GitHub #839).
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	at, placed := w.c.Bindings().Site(a)
 	bt, placedB := w.c.Bindings().Site(b)
 	text := w.text(a)
-	if !placed || !placedB || text == nil || !bytes.Equal(text, w.text(b)) {
+	if !placed || !placedB || at.Doc != bt.Doc || text == nil || !bytes.Equal(text, w.text(b)) {
 		return false
 	}
 	// The texts are remembered, so comparing them first leaves a base, which
 	// walks the document, to the rare pair written alike.
+	if !annotation.WritesReference(text) {
+		return true
+	}
 	base, known := w.c.Bindings().Table().Base(at)
 	other, knownB := w.c.Bindings().Table().Base(bt)
 	return known && knownB && base == other

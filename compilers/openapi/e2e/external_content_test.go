@@ -982,6 +982,36 @@ components:
 	}
 }
 
+// TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart pins that a
+// refinement's branch written as its target in another document writes it is
+// no restatement, though it writes no $ref: what another document says is read
+// in that document, whose dialect may differ (GitHub #839). In the source, the
+// same branch restates its target and is consumed.
+func TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	const words = "{type: array, items: {type: string, minLength: 1}}"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(
+		"openapi: 3.1.0\ninfo: {title: O, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n    W: "+words+"\n"), 0o600))
+	root := "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n  schemas:\n    W: " + words + "\n" +
+		"    H:\n      type: object\n      properties:\n" +
+		"        there: {allOf: [{$ref: './other.yaml#/components/schemas/W'}, " + words + "]}\n" +
+		"        here: {allOf: [{$ref: '#/components/schemas/W'}, " + words + "]}\n"
+	path := filepath.Join(dir, "root.yaml")
+	require.NoError(t, os.WriteFile(path, []byte(root), 0o600))
+
+	doc, diags, err := openapi.New().Compile(t.Context(), []compilers.Source{{Path: path, Data: []byte(root)}},
+		compilers.Options{Reader: reader.Disk{}, FormatOptions: openapi.Options{AllowExternalRefs: true}})
+
+	require.NoError(t, err)
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := doc.Types["t/openapi/components/schemas/H"].(*ir.Model)
+	require.True(t, ok)
+	props := openapitest.PropsByWire(m.Properties)
+	assert.Contains(t, props["there"].Unmodeled, "openapi:allOf/1", "the copy in another document is kept")
+	assert.Empty(t, props["here"].Unmodeled, "the copy in the source restates its target")
+}
+
 // TestExternalContent_ACopyInAnotherDocumentIsJudgedThere pins that the copy
 // rule reads a declaration's document as well as its pointer when the
 // composing model is itself another document's. F2 writes an enum inline and

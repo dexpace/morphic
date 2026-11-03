@@ -483,21 +483,35 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 }
 
 // TestFold_UnmodeledAlikeUnderAnotherBaseIsKept pins that an entry two
-// declarations write alike is one only where Merger.Alike says they read their
-// $refs against one base: elsewhere the same text may name another schema, so
-// the later one is reported and kept as one given differently is.
+// declarations write alike, writing a reference, is one only where Merger.Alike
+// says they read it against one base: elsewhere the same text may name another
+// schema, so the later one is reported and kept as one given differently is.
+// An entry writing no reference is one under any base.
 func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 	t.Parallel()
-	entry := ir.UnmodeledEntry{Value: ir.RawValue(`{"$ref":"n.json"}`)}
-	first, second := stringAt("/allOf/0/properties/p", `{"x":0}`), stringAt("/allOf/1/properties/p", `{"x":1}`)
-	first.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
-	second.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
-	g, recorded := stubMerger(narrowingRegistry())
-	g.Alike = func(ir.Provenance, ir.Provenance) bool { return false }
+	for _, tc := range []struct {
+		value string
+		kept  bool
+	}{
+		{`{"$ref":"n.json"}`, true},
+		{`{"const":"n.json"}`, false},
+	} {
+		entry := ir.UnmodeledEntry{Value: ir.RawValue(tc.value)}
+		first, second := stringAt("/allOf/0/properties/p", `{"x":0}`), stringAt("/allOf/1/properties/p", `{"x":1}`)
+		first.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
+		second.prop.Unmodeled = ir.Unmodeled{"openapi:not": entry}
+		g, recorded := stubMerger(narrowingRegistry())
+		g.Alike = func(ir.Provenance, ir.Provenance) bool { return false }
 
-	got := g.fold([]declaration{first, second})
+		got := g.fold([]declaration{first, second})
 
-	assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(second.prop.Provenance.Pointer), "the other is kept verbatim")
-	require.Len(t, *recorded, 1)
-	assert.Contains(t, (*recorded)[0].Message, "give its openapi:not differently")
+		if !tc.kept {
+			assert.Equal(t, ir.Unmodeled{"openapi:not": entry}, got.Unmodeled, tc.value)
+			assert.Empty(t, *recorded, tc.value)
+			continue
+		}
+		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(second.prop.Provenance.Pointer), "the other is kept verbatim")
+		require.Len(t, *recorded, 1)
+		assert.Contains(t, (*recorded)[0].Message, "give its openapi:not differently")
+	}
 }

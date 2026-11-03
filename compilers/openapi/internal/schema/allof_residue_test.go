@@ -374,3 +374,40 @@ func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 		})
 	}
 }
+
+// TestAllOf_ABranchWritingNoReferenceFoldsUnderAnyBase pins that an $id naming
+// another URI keeps a branch whole only where what it folds writes a $ref: text
+// naming none reads the same at the position, so the bounds and the `not` of
+// branches under two other bases fold as they would with no $id, and so does
+// M's description beside a $ref its property resolves where it is written.
+func TestAllOf_ABranchWritingNoReferenceFoldsUnderAnyBase(t *testing.T) {
+	t.Parallel()
+	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedBranchTargets+`    S:
+      type: string
+      allOf:
+        - {$id: 'https://ex.test/a/x.json', minLength: 1, not: {const: q}}
+        - $id: 'https://ex.test/a/w.json'
+          allOf: [{maxLength: 5}]
+    M:
+      type: object
+      allOf:
+        - {$id: 'https://ex.test/a/x.json', type: object, properties: {a: {$ref: 'n.json'}}, description: d}
+        - {type: object, properties: {b: {type: string}}}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	m, ok := typeByName(doc, "M").(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, "d", m.Docs.Description)
+	assert.Equal(t, typeByName(doc, "A").Common().ID, openapitest.PropsByWire(m.Properties)["a"].Type.Target)
+	s, ok := typeByName(doc, "S").(*ir.Scalar)
+	require.True(t, ok)
+	require.NotNil(t, s.Constraints)
+	require.NotNil(t, s.Constraints.MinLength)
+	require.NotNil(t, s.Constraints.MaxLength)
+	assert.Equal(t, int64(1), *s.Constraints.MinLength)
+	assert.Equal(t, int64(5), *s.Constraints.MaxLength)
+	assert.JSONEq(t, `{"const":"q"}`, string(s.Unmodeled["openapi:not"].Value))
+	for _, d := range diags {
+		assert.NotContains(t, d.Message, "against another base")
+	}
+}

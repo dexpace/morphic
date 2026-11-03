@@ -1223,14 +1223,15 @@ something ([annotations](../ir/annotations.md#one-structural-home-per-declaratio
 that says nothing beyond its `$ref` is that `$ref`, with no node and no diagnostic. An inline branch's
 keywords fold as [`allof-inline-residue`](#allof-inline-residue) says. A `type`, a `format`, an `enum`,
 a `const` or `items`, on a branch or beside the `allOf`, that the principal already says is consumed,
-so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. Two schemas written alike say the same
-only where every `$ref` in them reads against one base: a copy in another document, or under an
-`$id` naming another URI, may name another schema with the same spelling. One saying more is kept: a
-branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the `allOf` under
-`openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the branch or at the
-position. A `$ref` a value set beats is kept the same way, and its target still speaks for the
-position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set takes it, and
-still lowers, though nothing else names it, as a position no component holds lowers for a `$ref`.
+so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. Two schemas written alike in one document
+say the same where every `$ref` in them reads against one base: under an `$id` naming another URI,
+the same spelling may name another schema. A copy in another document is read apart. One saying
+more is kept: a branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the
+`allOf` under `openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the
+branch or at the position. A `$ref` a value set beats is kept the same way, and its target still
+speaks for the position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set
+takes it, and still lowers, though nothing else names it, as a position no component holds lowers
+for a `$ref`.
 
 Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
@@ -1272,7 +1273,8 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_PastItsBudgetStaysAComposition`,
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
   `schema.TestRefinement_ACappedBranchStaysAComposition`,
-  `schema.TestRefinement_RawTextIsComparedAgainstOneBase`
+  `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
+  `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition
   (#661), a structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes
   (#1067), and an `allOf` an `enum` or a `const` beside it passes over stays verbatim (#1309).
@@ -1319,10 +1321,11 @@ agree where they meet, as a redeclared field's do
 folds to `3`, and `multipleOf: 4` beside `multipleOf: 6` to `12`, whatever their order, a number
 written two ways keeping the first spelling. Two `pattern`s have no one value, and neither has a 3.0
 `exclusiveMinimum` with no bound beside it, which fills no field, so each disagrees with another
-written differently. A branch reading its `$ref`s against another base than the position does, an
-`$id` at or above it naming another URI, folds nothing either, since a `$ref` it writes would name
-another schema read at the position; it stays whole, with its report, and is no conjunct the others
-are compared with.
+written differently. A branch whose folding keywords write a `$ref` it reads against another base
+than the position does, an `$id` at or above it naming another URI, folds nothing either, since that
+`$ref` would name another schema read at the position; it stays whole, with its report, and is no
+conjunct the others are compared with. One writing no `$ref` there reads the same at the position,
+so an `$id` alone keeps nothing it writes from folding.
 
 A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
@@ -1367,6 +1370,7 @@ every entry reads that one twice.
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
   `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`,
   `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
+  `schema.TestAllOf_ABranchWritingNoReferenceFoldsUnderAnyBase`,
   `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`
 - Status: partly built: a collection bound on an inline branch of a refinement stays with its
   branch, which folds none, where one beside the `allOf` reaches `Constraints`, whatever the
@@ -1535,9 +1539,9 @@ to set one keeps it, as does `multipleOf` for two steps past 1,024 significant d
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
 hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
 declaration giving one differently is reported and kept. An entry two declarations write alike is
-one only where both read their `$ref`s against one base, and so is a node hoisted at each as the
-same declaration written twice: under an `$id` naming another URI, a `$ref` spelled alike names
-another schema.
+one where it writes no `$ref`, or both read it against one base, and so is a node hoisted at each as
+the same declaration written twice, by what it keeps under `Unmodeled`: under an `$id` naming
+another URI, a `$ref` spelled alike names another schema.
 
 A field keeping the first declaration's identity keeps that declaration's provenance, and either way
 it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
@@ -1723,7 +1727,8 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`,
   `merge.TestFold_UnmodeledAlikeUnderAnotherBaseIsKept`,
   `merge.TestTypeJudge_CopiesUnderAnotherBaseOverlap`,
-  `schema.TestAllOf_RedeclarationsUnderAnotherBaseStayApart`
+  `schema.TestAllOf_RedeclarationsUnderAnotherBaseStayApart`,
+  `schema.TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), a list or map whose
   broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a

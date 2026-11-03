@@ -112,8 +112,8 @@ func voicesAmong(c lowering.Ctx, s *oas3.Schema) []bool {
 // voicing is what a schema's allOf says for the position holding it: whether
 // each branch of the flattened list folds, whether it lends a use what s and
 // the folding branches before it do not, an entry none of them writes, and
-// whether it reads its $refs against another base than the position does
-// (readsAtPosition), so nothing it writes folds.
+// whether what it folds writes a $ref it reads against another base than the
+// position does (readsAtPosition), so nothing it writes folds.
 type voicing struct {
 	speaks  []bool
 	lends   []bool
@@ -139,7 +139,7 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	ids := idWrappers(comp)
 	for i, e := range comp.branches {
 		if bs := e.schema.GetSchema(); bs != nil && isInlineBranch(e.schema) {
-			if out.rebased[i] = underID(e, bs, ids) && !readsAtPosition(c, e); !out.rebased[i] {
+			if out.rebased[i] = underID(e, bs, ids) && foldsReference(bs) && !readsAtPosition(c, e); !out.rebased[i] {
 				writes[i] = a.write(bs)
 			}
 		}
@@ -185,6 +185,15 @@ func underID(e allOfBranch, bs *oas3.Schema, wrappers map[jsontext.Pointer]bool)
 		}
 	}
 	return false
+}
+
+// foldsReference reports whether what bs folds writes a $ref, the one text a
+// base changes: a branch writing none in it says the same read at any base.
+func foldsReference(bs *oas3.Schema) bool {
+	return slices.ContainsFunc(rawMappingKeys(bs.GetRootNode()), func(keyword string) bool {
+		entry, fold := foldEntry(bs, keyword)
+		return fold && annotation.WritesReference(foldValue(bs, entry).raw)
+	})
 }
 
 // readsAtPosition reports whether the inline allOf branch e reads its $refs

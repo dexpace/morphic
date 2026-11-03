@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/spelling"
 	"github.com/dexpace/morphic/ir"
 )
@@ -74,8 +75,8 @@ type declarationSites struct {
 	// copy only where it was written at or under its declaration's pointer, in
 	// the same document; one a $ref reached elsewhere was declared apart.
 	written [2]ir.Provenance
-	// alike is Merger.Alike: two copies are one type only where their
-	// declarations read their $refs against one base.
+	// alike is Merger.Alike: two copies keeping a reference are one type only
+	// where their declarations read it against one base.
 	alike func(a, b ir.Provenance) bool
 }
 
@@ -413,15 +414,29 @@ func hoistedAt(td ir.TypeDef, at ir.Provenance) bool {
 }
 
 // copies relates a and b, two nodes held alike, by sameNodes, each a copy
-// where it was hoisted at its own declaration. Two copies are one type only
-// where their declarations read their $refs against one base: elsewhere a $ref
-// spelled alike names another schema, so the two were declared apart.
+// where it was hoisted at its own declaration. Two copies keeping a reference
+// are one type only where their declarations read it against one base:
+// elsewhere a $ref spelled alike names another schema, so the two were
+// declared apart.
 func (d declarationSites) copies(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
 	aHoisted, bHoisted := hoistedAt(at, d.written[0]), hoistedAt(bt, d.written[1])
-	if aHoisted && bHoisted && !d.alike(d.written[0], d.written[1]) {
+	if aHoisted && bHoisted && (keepsReference(at) || keepsReference(bt)) && !d.alike(d.written[0], d.written[1]) {
 		return relOverlap
 	}
 	return sameNodes(a, b, aHoisted, bHoisted)
+}
+
+// keepsReference reports whether td keeps a reference under Unmodeled
+// (annotation.WritesReference), the one text of a node a base reads: what else
+// it holds names nodes by ID, each resolved where it was written, and the nodes
+// it names are judged as copies in turn.
+func keepsReference(td ir.TypeDef) bool {
+	for _, entry := range td.Common().Unmodeled {
+		if annotation.WritesReference(entry.Value) {
+			return true
+		}
+	}
+	return false
 }
 
 // sameNodes judges two nodes sameNode holds equal. Two hoisted copies are one

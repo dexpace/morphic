@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/ir"
 )
@@ -35,7 +36,8 @@ type Merger struct {
 	Report Reporter
 	// Alike reports whether what is written at a and at b reads each $ref it
 	// writes against one base, so the same text there says the same: under an
-	// $id naming another URI, a $ref spelled alike names another schema.
+	// $id naming another URI, a $ref spelled alike names another schema. The
+	// fold asks it only of text writing one (annotation.WritesReference).
 	Alike func(a, b ir.Provenance) bool
 }
 
@@ -479,7 +481,7 @@ func (f *folding) foldUnmodeled() {
 					merged = make(ir.Unmodeled, len(d.prop.Unmodeled))
 				}
 				merged[key], from[key] = entry, i
-			case !bytes.Equal(merged[key].Value, entry.Value) || !f.g.Alike(merged[key].Provenance, entry.Provenance):
+			case !sameEntry(f.g.Alike, merged[key], entry):
 				f.lost[i] = true
 				f.note(i, ir.SeverityInfo, diag.DegradedConstruct,
 					"declarations of field %q give its %s differently; kept the one the declaration at %s gives "+
@@ -489,6 +491,14 @@ func (f *folding) foldUnmodeled() {
 		}
 	}
 	f.merged.Unmodeled = merged
+}
+
+// sameEntry reports whether a and b, the entry two declarations give one key,
+// are one: written alike, and read against one base where they write a
+// reference (alike, Merger.Alike), which the same text under another base may
+// read as another schema.
+func sameEntry(alike func(a, b ir.Provenance) bool, a, b ir.UnmodeledEntry) bool {
+	return bytes.Equal(a.Value, b.Value) && (!annotation.WritesReference(a.Value) || alike(a.Provenance, b.Provenance))
 }
 
 // finish reports, declaration by declaration, what the fold noted there,
