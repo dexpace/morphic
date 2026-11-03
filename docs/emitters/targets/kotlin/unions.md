@@ -17,7 +17,10 @@ The fallback ([the shared rule](../../refine/unions.md#a-value-no-variant-recogn
 
 An inclusive union ([the shared rule](../../refine/unions.md#a-value-several-variants-admit)) is a
 final class with a nullable property per variant, named by the variant as its wrapper class is, and
-`unknown: JsonElement?` on an open one. The class names its `KSerializer` in
+`unknown: JsonElement?` on an open one. It is built through a `Builder` and compares by generated
+`equals` and `hashCode`, as a
+[model](models.md#models-and-request-types-are-classes-not-data-classes) is, so a variant the spec
+adds is a new setter rather than a new constructor parameter. The class names its `KSerializer` in
 `@Serializable(with = …)`, so any `Json` decodes it, a caller's own included. The serializer reads
 the value once as a `JsonElement`, decides which variants admit it by a check generated from the IR,
 and decodes each that does from that element through the variant's own serializer, as [Go's

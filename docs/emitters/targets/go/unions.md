@@ -59,7 +59,8 @@ type Target struct {        // anyOf: [Zone, Account], which one value can fit
 - **A pointer per variant**, whatever the variant's Go type, so nil means "does not admit it" for a
   slice or a string too. Each field takes the variant's part of the name its wrapper takes in a
   closed sum, `Zone` where the wrapper would be `TargetZone`, so two variants that lower to one Go
-  type stay apart.
+  type stay apart, and yields to the methods and the fallback the struct declares itself ([reserved
+  names](naming.md#reserved-names)): Go refuses a field and a method of one name.
 - **The struct declares the codec pair**, as a closed sum's struct does. `UnmarshalJSONFrom` reads
   the value once (`dec.ReadValue()`) and decides which variants admit it by a check generated from
   the IR over that value, which reads nullability and required members where json/v2 does not. It

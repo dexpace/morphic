@@ -51,17 +51,16 @@ seam buys and the fused-pipeline generator cannot have.
 
 On an untagged union, `null` is the union's value, never a variant's. A variant admits `null` when
 `null` decodes into it: its reference is `Nullable`, or its type, read through decorators and alias
-scalars, is the `null` literal, an enum with a `null` member, `any`, or a union one of whose
-variants admits `null`. `null` holds nothing a variant could keep apart, so the union holds it
-itself: every reference to a union with such a variant lowers as a nullable reference does
-([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never reaches a
-variant, and a variant admitting nothing else lowers to no member. The rule reads through unions:
-`Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
+scalars, is the `null` literal, an enum with a `null` member, the `Any` type or the `any` primitive,
+or a union one of whose variants admits `null`. `null` holds nothing a variant could keep apart, so
+the union holds it itself: every reference to a union with such a variant lowers as a nullable
+reference does ([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never
+reaches a variant, and a variant admitting nothing else lowers to no member. The rule reads through
+unions: `Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
 nullable, and holds it, where a rule read only at `Outer`'s own variants would let a `null` reach
 them and match none. Both spellings the compiler can give a null member (#618) then lower alike. The
-golden spec's single-result envelope declares `result` as
-`anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a string or
-`null`, the last held by the reference.
+golden spec's single-result envelope declares `result` as `anyOf: [{type: object, nullable: true},
+{type: string, nullable: true}]`: an object, a string or `null`, the last held by the reference.
 
 Under a tag or a key, `null` is a variant's payload rather than the union's value, as in an
 envelope `{kind, value}` whose `value` is `null`: the tag names that variant, which keeps it.
@@ -91,20 +90,26 @@ A tag picks one variant, so a discriminated or key-tagged union is never inclusi
 `Exclusive` says.
 
 A variant admits a value when the value fits it at every position it reaches, read as the JSON wire
-lays it out ([TypePlan](../plan/types.md#variants-that-can-share-a-value)), a polymorphic base's
-value fitting the subtype its tag names: its JSON kind is one the position's type admits, `null`
-only where the position admits `null`; each closed model, closed enum and literal holds it; each
-scalar's codec reads its text; and every model it reaches carries each member its
-`TypePlan.Required` and `Undeclared` list, as the shape it travels in requires: a `readOnly` member
-only of a read shape, a `writeOnly` one only of a create or update shape, and none of a patch shape,
-nor one `ClientOptional` marks. Bar what each scalar's codec reads, that is a fact of the value and
-the IR, so targets set the same variants wherever their codecs read the same texts, and a target's
-check decides it from the IR rather than from what its JSON library accepts: json/v2 decodes `null`
-into a Go `string` as `""` without an error. `Constraints` take no part, since they are validation's
-on every decoded value. So whether a variant admits a value never depends on a bound.
+lays it out ([TypePlan](../plan/types.md#variants-that-can-share-a-value)), a polymorphic base
+admitting what its own decode order [below](#a-value-no-variant-recognizes) holds: its JSON kind is
+one the position's type admits, or, where text carries it, the position's type reads that text;
+`null` only where the position admits `null`; each closed model, closed enum and literal holds it,
+and a tuple with no `Rest` holds no element past its `Elems`; each scalar's codec reads its text;
+every model it reaches carries each member its `TypePlan.Required` and `Undeclared` list that the
+shape it travels in holds and keeps required
+([ModelShape](../plan/types.md#modelshape--visibility-projection)), none of a patch shape making
+them optional, nor one `ClientOptional` marks; and every tuple it reaches carries the positions its
+`MinItems` requires ([tuples](../../ir/containers.md#tuples)). Bar what each scalar's codec reads,
+that is a fact of the value and the IR, so targets set the same variants wherever their codecs read
+the same texts, and a target's check decides it from the IR rather than from what its JSON library
+accepts: json/v2 decodes `null` into a Go `string` as `""` without an error. `Constraints` take no
+part, since they are validation's on every decoded value, bar a tuple's `MinItems`, which states its
+required positions rather than bounding them. So whether a variant admits a value never depends on
+a bound.
 
-Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, in
-declaration order, and sets every one that admits the value. If none admits it, the order
+Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, or every
+variant where text carries the value, in declaration order, and sets every one that admits the
+value. If none admits it, the order
 [below](#a-value-no-variant-recognizes) applies: the fallback on an open union, a coded decode error
 on a closed one. Trying every variant is what `anyOf` asks: no step of the ladder above can tell
 whether a second variant admits a value too.
@@ -154,8 +159,8 @@ The designs this was weighed against:
   misnames a value several variants admit and drops what only the others declare, as the identity
   providers show.
 - **A record of which variant pairs overlap**, beside `Inclusive`, so a target could close a sum
-  over the variants no other shares a value with: on the golden spec, 376 of the 394 variants of
-  inclusive unions overlap another (spec @319dc756, morphic @3188471d), so it would close almost
+  over the variants no other shares a value with: on the golden spec, 489 of the 507 variants of
+  inclusive unions overlap another (spec @319dc756, morphic @438bebe2), so it would close almost
   nothing.
 - **Builders generated over one parse**, for every variant: decoding is then linear outright, but a
   variant in another output unit, a Go package or a Gradle module, is reachable only through its

@@ -81,16 +81,19 @@ admitting no value in common, by these rules, and a pair none of them separates 
 - **Kinds.** Their JSON kinds have none in common. A variant's kinds are its type's: object for a
   model or a map, array for a list, a tuple or a `Positional` model, its values' for a closed enum
   or a literal, its `ValueType`'s for an open enum, its variants' for a union, its base's for a
-  model that only stands over one, and every kind for `any`. A primitive's is boolean for `bool`, a
-  number for a numeric kind and a string for every other. A scalar's are those of the `WireType` its
-  encoding names (`ScalarChain.Encoding`), the type its values travel as, and its root's where none
-  does. A position admitting `null` ([unions](../refine/unions.md#a-null-a-variant-admits)) adds
-  `null`, but a variant's own `null` is its union's, so the rules leave it out, and a variant
-  admitting only `null` takes no part. Kinds are JSON's: a union decoded from text, as a response
-  header's is, finds `5` the text of a number and of a string alike, so there only values separate
-  variants, compared by their texts.
+  model that only stands over one, and every kind for the `Any` type, the `any` primitive, which
+  `{}` compiles to, and an `External`, whose wire form is its library type's. Each other primitive's
+  is boolean for `bool`, a number for a numeric kind and a string for the rest. A scalar's are those
+  of the `WireType` its encoding names (`ScalarChain.Encoding`), the type its values travel as, and
+  its root's where none does. A position admitting `null`
+  ([unions](../refine/unions.md#a-null-a-variant-admits)) adds `null`, but a variant's own `null` is
+  its union's, so the rules leave it out, and a variant admitting only `null` takes no part. Kinds
+  are JSON's, so they separate nothing in a union that text carries, at any depth: a parameter's,
+  a header's or a form field's, unless its content is JSON. `since=-10` is the text of an integer
+  and of a string alike, so there only values separate variants, compared by their texts.
 - **Values.** Each admits finitely many values, as a closed enum, a literal or a union of them does,
-  and no value is in both, compared as JSON Schema compares instances: `1` and `1.0` are one.
+  and no value is in both, compared as JSON Schema compares instances: `1` and `1.0` are one. A
+  `Flags` enum's values are its members' combinations, not its members alone.
 - **Members.** Both are models laid out by name, read through `Flattened` as the JSON wire lays them
   out: each member under its JSON name (`WireNameByFormat`'s entry for JSON, else `WireName`), a
   `Flatten` property's members at its model's own level, and a position's kinds read from the
@@ -99,13 +102,15 @@ admitting no value in common, by these rules, and a pair none of them separates 
   (`AdditionalProps`), or one it declares at a position disjoint from the first's by these rules. A
   member is required as `Required` and `Undeclared` say, an overridden declaration counting, so a
   base requiring `id` separates subtypes that redeclare `id` as different one-value enums. A member
-  separates only if every read, create and update shape requires it, so a `readOnly` or `writeOnly`
-  one separates nothing, whichever way the union travels, nor does one `ClientOptional` marks, which
-  a client treats as optional, and a union a PATCH body reaches, whose patch shape requires none, is
-  separated by kinds and values alone. A catch-all beside a closure holds the members it governs, as
-  `patternProperties` beside `additionalProperties: false` does (#987), so the closure alone
-  separates nothing, and a polymorphic base, which holds its subtypes' values and the members they
-  add, counts as open.
+  separates only if no shape can leave it out, so only where its `Visibility` is the zero value: a
+  `readOnly`, `writeOnly` or `None` one, or one any other visibility filter drops
+  ([ModelShape](#modelshape--visibility-projection)), separates nothing, whichever way the union
+  travels, nor does one `ClientOptional` marks, which a client treats as optional. A union a patch
+  shape reaches is separated by kinds and values alone where that shape makes members optional, as a
+  PATCH body's does unless its binding disables it. A catch-all beside a closure holds the members
+  it governs, as `patternProperties` beside `additionalProperties: false` does (#987), so the
+  closure alone separates nothing, and a polymorphic base, which holds its subtypes' values and the
+  members they add, counts as open.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through
 a finite chain of separated members, and a cycle of models separates nothing by itself. The plan
@@ -122,22 +127,26 @@ loosely than a closed sum would. `Constraints` take no part, since admitting a v
 validation, so two variants that differ only in a bound do share values.
 
 `Inclusive` shapes a declaration, so a document that changes it breaks that union's callers: a
-variant added or widened, a member no longer required, a catch-all beside a closure or a PATCH body
-newly reaching the union turns a closed sum inclusive, and the reverse narrows an inclusive one. The
-member rule reads no direction for that reason: reading which way a union travels would separate
-more, but would change a declaration the first time an operation elsewhere sends or receives it. A
-PATCH body is the one distant operation it reads, since a patch shape requires nothing, so any value
-its variants' members could form may arrive there.
+variant added or widened, a member no longer required or newly limited to some shapes, a catch-all
+beside a closure, or a patch shape or text newly reaching the union turns a closed sum inclusive,
+and the reverse narrows an inclusive one. The member rule reads no direction for that reason:
+reading which way a union travels would separate more, but would change a declaration the first time
+an operation elsewhere sends or receives it. A patch shape and text are the two distant reads the
+rules keep, since each admits values the rest of the document does not: a patch shape making
+members optional admits any value its variants' members could form, and text drops the kinds that
+separate variants elsewhere.
 
-On the golden spec (spec @319dc756, morphic @3188471d), 515 unions are untagged, not exclusive, and
-have two or more variants. These rules prove 420 of them disjoint, and those lower as a closed sum,
-counting each model a PATCH body reaches, at any depth, in its patch shape: that leaves the zone
-settings, which their `id` separates where they are read, inclusive, and would not if an OpenAPI
-PATCH body kept the required members its schema states (#1400). Of the 95 left, 71 have two variants
-that both admit an object, such as the 16 identity providers an Access listing returns. Each refines
-one base whose `type` enum lists all 16, and each `config` is open with no required member, so
-nothing separates them: one provider's value is admitted by every other whose `config` declares none
-of its members at another type.
+On the golden spec (spec @319dc756, morphic @438bebe2), 515 unions are untagged, not exclusive, and
+have two or more variants. These rules prove 382 of them disjoint, and those lower as a closed sum.
+A parameter reaches 53, 52 of them in a query string, and values separate one, so 38 the rules would
+separate in JSON are inclusive, such as `since: anyOf [string, integer]`, whose `-10` both variants
+read. Counting each model a PATCH body reaches, at any depth, in its patch shape leaves the zone
+settings, which their `id` separates where they are read, inclusive too, and would not if an OpenAPI
+PATCH body kept the required members its schema states (#1400). Of the 133 left, 73 have two
+variants that both admit an object, such as the 16 identity providers an Access listing returns.
+Each refines one base whose `type` enum lists all 16, and each `config` is open with no required
+member, so nothing separates them: one provider's value is admitted by every other whose `config`
+declares none of its members at another type.
 
 ## ModelShape — visibility projection
 
