@@ -935,7 +935,7 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 // way of doing so a looser comparison would read as a restatement: a type, a
 // value set, a format, an element or a referent the body's declarations do not
 // hold, a property none of them declares, or a keyword declaring shape, such as
-// `readOnly` or `items`, bare or beside a repeated `type`.
+// `readOnly` or `prefixItems`, bare or beside a repeated `type`.
 func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ version, schema, keyword string }{
@@ -1208,8 +1208,8 @@ func TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel(t *testing.T) {
 // TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType holds every
 // keyword of the 2020-12 vocabularies, and OpenAPI's own, to one verdict in a
 // branch written alone and in one beside the body's `type`, and that verdict to
-// whether the keyword declares shape. The list below is the decision, written
-// out: a keyword outside it declares none whatever it holds.
+// whether the keyword declares shape. The list below is the decision for each
+// keyword as the vocabulary table writes it, beside a body writing no element.
 func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T) {
 	t.Parallel()
 	declaresShape := []string{
