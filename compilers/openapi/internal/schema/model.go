@@ -97,9 +97,9 @@ func (s settledMerge) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	return diags
 }
 
-// alike is merge.Merger.Alike. The declarations a fold reads are written in
-// the model's own document, its properties and its inline conjuncts', so each
-// is read at s.c's position for its pointer; one c does not place, or whose
+// alike is merge.Merger.Alike. Each site is read at s.c's position for its
+// pointer, as the model's own document holds it; a site in another document,
+// such as a component a $ref there reached, one c does not place, or one whose
 // base the bindings cannot tell, is no match.
 func (s settledMerge) alike(a, b ir.Provenance) bool {
 	base := func(p ir.Provenance) (string, bool) {

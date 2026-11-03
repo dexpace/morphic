@@ -1414,7 +1414,11 @@ whether hoisted inline, and the provenance of the node and of what it keeps unde
 one type where both were written inline at the field's own declarations, in their document, as the
 same declaration written twice; a node declared elsewhere, a component or a schema a `$ref` reaches
 in this document or another, wins over an inline copy of itself in either order, and two such nodes
-are two types the source declared apart, which overlap. Two lists, or two maps with one key, compare
+are two types the source declared apart, which overlap. A copy is one type with the other node, or
+gives way to it, only where what the two keep under `Unmodeled` writes no `$ref`, or both read it
+against one base where each is written: under an `$id` naming another URI, or in another document,
+a `$ref` spelled alike names another schema, so the two were declared apart and overlap. Two lists,
+or two maps with one key, compare
 by element or value, nested up to a bound, and the narrower one wins only where it admits null no
 more widely than the other, its bounds say all the other's do, and the other holds nothing else the
 winner lacks, read as two `Scalar`s are but where each was declared: no encoding, documentation,
@@ -1539,9 +1543,8 @@ to set one keeps it, as does `multipleOf` for two steps past 1,024 significant d
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
 hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
 declaration giving one differently is reported and kept. An entry two declarations write alike is
-one where it writes no `$ref`, or both read it against one base, and so is a node hoisted at each as
-the same declaration written twice, by what it keeps under `Unmodeled`: under an `$id` naming
-another URI, a `$ref` spelled alike names another schema.
+one where it writes no `$ref`, or both read it against one base: under an `$id` naming another URI,
+a `$ref` spelled alike names another schema.
 
 A field keeping the first declaration's identity keeps that declaration's provenance, and either way
 it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
@@ -1728,7 +1731,9 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_UnmodeledAlikeUnderAnotherBaseIsKept`,
   `merge.TestTypeJudge_CopiesUnderAnotherBaseOverlap`,
   `schema.TestAllOf_RedeclarationsUnderAnotherBaseStayApart`,
-  `schema.TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase`
+  `schema.TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase`,
+  `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
+  `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), a list or map whose
   broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a

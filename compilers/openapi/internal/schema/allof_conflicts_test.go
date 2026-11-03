@@ -1269,6 +1269,54 @@ func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
 	}
 }
 
+// TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart pins a declaration
+// written as the schema another declaration names: an $id at the copy's
+// branch, or at the resource holding the schema, gives the two different
+// bases, so `#n` names A in one and B in the other, and the copy is kept and
+// reported. Without a $ref the copy says what the schema says, so that schema
+// is the field's type and nothing is kept.
+func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
+	t.Parallel()
+	const anchors = `    A: {$anchor: n, type: string, maxLength: 1}
+`
+	for name, tc := range map[string]struct{ named, schemas string }{
+		"CopyUnderAnID": {"E", `    E: %[1]s
+    S:
+      allOf:
+        - {type: object, properties: {x: {$ref: '#/components/schemas/E'}}}
+        - $id: 'https://ex.test/b/w.json'
+          $defs: {b: {$anchor: n, type: string, minLength: 5}}
+          type: object
+          properties: {x: %[1]s}
+`},
+		"NamedInAnotherResource": {"C", `    C:
+      $id: 'https://ex.test/b/c.json'
+      $defs: {b: {$anchor: n, type: string, minLength: 5}, e: %[1]s}
+    S:
+      allOf:
+        - {type: object, properties: {x: {$ref: 'https://ex.test/b/c.json#/$defs/e'}}}
+        - {type: object, properties: {x: %[1]s}}
+`},
+	} {
+		for _, not := range []string{"{$ref: '#n'}", "{const: q}"} {
+			x := "{type: string, enum: [ab, abcdef], not: " + not + "}"
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", anchors+fmt.Sprintf(tc.schemas, x)))
+			openapitest.RequireNoErrorDiags(t, diags)
+			m, ok := typeByName(doc, "S").(*ir.Model)
+			require.True(t, ok, name)
+			got, ok := openapitest.PropsByWire(m.Properties)["x"]
+			require.True(t, ok, name)
+			assert.NotContains(t, got.Type.Target, "/allOf/", "%s %s: the named schema is the type", name, not)
+			want := not != "{const: q}"
+			_, kept := got.Unmodeled["openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x"]
+			assert.Equal(t, want, kept, "%s %s", name, not)
+			assert.Equal(t, want,
+				openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+				"%s %s", name, not)
+		}
+	}
+}
+
 // TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase is the other side
 // of TestAllOf_RedeclarationsUnderAnotherBaseStayApart: two declarations
 // written alike that write no $ref say the same under any base, so they fold

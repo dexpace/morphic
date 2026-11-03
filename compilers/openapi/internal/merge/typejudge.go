@@ -75,8 +75,8 @@ type declarationSites struct {
 	// copy only where it was written at or under its declaration's pointer, in
 	// the same document; one a $ref reached elsewhere was declared apart.
 	written [2]ir.Provenance
-	// alike is Merger.Alike: two copies keeping a reference are one type only
-	// where their declarations read it against one base.
+	// alike is Merger.Alike: two nodes held alike keeping a reference are one
+	// type only where they read it against one base.
 	alike func(a, b ir.Provenance) bool
 }
 
@@ -414,13 +414,15 @@ func hoistedAt(td ir.TypeDef, at ir.Provenance) bool {
 }
 
 // copies relates a and b, two nodes held alike, by sameNodes, each a copy
-// where it was hoisted at its own declaration. Two copies keeping a reference
-// are one type only where their declarations read it against one base:
-// elsewhere a $ref spelled alike names another schema, so the two were
-// declared apart.
+// where it was hoisted at its own declaration. A copy keeping a reference is
+// one type with the other node only where the two read it against one base,
+// each where it is written: elsewhere a $ref spelled alike names another
+// schema, so the two were declared apart, whether the other is a copy or a
+// node declared elsewhere.
 func (d declarationSites) copies(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
 	aHoisted, bHoisted := hoistedAt(at, d.written[0]), hoistedAt(bt, d.written[1])
-	if aHoisted && bHoisted && (keepsReference(at) || keepsReference(bt)) && !d.alike(d.written[0], d.written[1]) {
+	if (aHoisted || bHoisted) && (keepsReference(at) || keepsReference(bt)) &&
+		!d.alike(at.Common().Provenance, bt.Common().Provenance) {
 		return relOverlap
 	}
 	return sameNodes(a, b, aHoisted, bHoisted)

@@ -701,10 +701,11 @@ func TestTypeJudge_ComparesReferentsNotReferences(t *testing.T) {
 		"a structural type and a primitive are different kinds")
 }
 
-// TestTypeJudge_CopiesUnderAnotherBaseOverlap pins that two hoisted copies
-// keeping a reference are one type only where their declarations read it
+// TestTypeJudge_CopiesUnderAnotherBaseOverlap pins that a hoisted copy keeping
+// a reference is one type with a node held alike only where the two read it
 // against one base (Merger.Alike): elsewhere they are two types declared apart,
-// which overlap. Copies keeping none say the same under any base.
+// which overlap, whether the other is a copy or a node declared elsewhere.
+// Copies keeping none say the same under any base.
 func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	t.Parallel()
 	reg := judgeRegistry()
@@ -712,9 +713,11 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 	for _, id := range []ir.TypeID{"t/lit-a-ref1", "t/lit-a-ref2"} {
 		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: not}
 	}
+	reg["t/lit-a-ref"] = &ir.Literal{ID: "t/lit-a-ref", Value: str("a"), Unmodeled: not}
 	never := func(ir.Provenance, ir.Provenance) bool { return false }
 	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: never}}
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref1"), ref("t/lit-a-ref2")))
+	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")
 	assert.Equal(t, relANarrower, j.relate(ref("t/enum-str"), ref("t/enum-str-h")),
 		"a node declared apart still wins over a hoisted copy")
