@@ -1926,9 +1926,12 @@ another order is not alike.
   `schema.TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape`,
   `schema.TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel`,
   `schema.TestOneOf_CoDeclaredBranchWritingNotIsValidationLogicAtEachPosition`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853). Open:
-  keeping a discriminated `oneOf` a union when structural keywords sit beside it (#594), and
-  distributing a union's inline branches when properties sit beside it (#661).
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853); a branch
+  writing only `items`, `prefixItems` or `$dynamicRef` is kept as validation logic (#1393); and a
+  branch repeating the body degrades the union beside a keyword declaring no shape (#1394), or
+  where the property it repeats is composed through `allOf` (#1395). Open: keeping a discriminated
+  `oneOf` a union when structural keywords sit beside it (#594), and distributing a union's inline
+  branches when properties sit beside it (#661).
 
 ### `union-beside-ref`
 

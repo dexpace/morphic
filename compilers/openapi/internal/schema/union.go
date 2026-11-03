@@ -476,8 +476,9 @@ func branchDeclaresShape(body *oas3.Schema, b *oas3.JSONSchema[oas3.Referenceabl
 
 // restatingBranchKeywords are the keywords a branch may write and declare no
 // shape the body does not: those that can repeat it, and `required` and `not`,
-// which only narrow it whatever they hold. Any other says something the body may
-// not, so the branch keeps the verdict declaresShape gives it.
+// which only narrow it whatever they hold. The list is closed: any other keeps
+// the verdict declaresShape gives the branch, even one declaring no shape, such
+// as `minProperties` or `$comment` (#1394).
 var restatingBranchKeywords = []string{"type", "nullable", "properties", "required", "not", "title", "description"}
 
 // restatesBody reports whether branch writes only restatingBranchKeywords, and
@@ -485,8 +486,9 @@ var restatingBranchKeywords = []string{"type", "nullable", "properties", "requir
 // (docs/compilers/openapi.md#union-beside-structure). A `nullable` beside a
 // type widens it, so the two must agree on that too. Only body's own properties
 // count: one it composes through allOf is settled by the merge, so no one
-// declaration stands for it here. The raw node holds every keyword, where the
-// model has no field for some (docs/parser-library.md#unmodeled-keywords).
+// declaration stands for it here (#1395). The raw node holds every keyword,
+// where the model has no field for some
+// (docs/parser-library.md#unmodeled-keywords).
 func restatesBody(body, branch *oas3.Schema) bool {
 	for _, p := range nodeview.Pairs(branch.GetRootNode()) {
 		if !slices.Contains(restatingBranchKeywords, p.Key) {
@@ -510,8 +512,8 @@ func restatesBody(body, branch *oas3.Schema) bool {
 // typeKeywords are the keywords a branch may write of a property whose
 // declaration in the body writes more: those naming the property's type. The
 // list is closed, so any other keyword keeps the branch from being a repeat,
-// even written as the body writes it, rather than asking of each whether it
-// reads its siblings, as additionalProperties reads `properties`.
+// even written as the body writes it (#1394), rather than asking of each
+// whether it reads its siblings, as additionalProperties reads `properties`.
 // restatesProperty says why `$ref` and `nullable` must also agree.
 var typeKeywords = []string{"$ref", "type", "format", "nullable"}
 
