@@ -41,9 +41,9 @@ func refusal(limit int) ir.Diagnostic {
 			"a declaration other than a schema or a link lowers its own copy of it", limit)}
 }
 
-// requireRefused asserts a compile refused for its $refs' copies: no Document,
+// assertRefused asserts a compile refused for its $refs' copies: no Document,
 // and the refusal alone.
-func requireRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, limit int) {
+func assertRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, limit int) {
 	t.Helper()
 	assert.Nil(t, doc)
 	assert.Equal(t, []ir.Diagnostic{refusal(limit)}, diags)
@@ -115,7 +115,7 @@ func TestCompile_ReferenceExpansionBindsOnlyPastTheLimit(t *testing.T) {
 	assert.Len(t, openapitest.FindOp(t, doc, "b").Params, 1, "the second copy is lowered")
 
 	doc, diags = compileExpanding(t, src, 2*37-1)
-	requireRefused(t, doc, diags, 73)
+	assertRefused(t, doc, diags, 73)
 }
 
 // TestCompile_EveryCopiedDeclarationIsCharged runs a $ref at each position
@@ -179,7 +179,7 @@ func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 			require.NotNil(t, doc, "at the declaration's weight, %d: %+v", weight, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
 			doc, diags = compileExpanding(t, tc.src, weight-1)
-			requireRefused(t, doc, diags, weight-1)
+			assertRefused(t, doc, diags, weight-1)
 		})
 	}
 }
@@ -201,7 +201,7 @@ func TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
 
 	doc, diags = compileExpanding(t, src, both-1)
-	requireRefused(t, doc, diags, both-1)
+	assertRefused(t, doc, diags, both-1)
 }
 
 // TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder pins what a
@@ -225,7 +225,7 @@ func TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder(t *testing.T) 
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileExpanding(t, pathsWith(paths, components), 90)
-			requireRefused(t, doc, diags, 90)
+			assertRefused(t, doc, diags, 90)
 		})
 	}
 }

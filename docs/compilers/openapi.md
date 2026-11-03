@@ -102,9 +102,10 @@ scalar under any other tag keeps it.
 
 ### `source-budgets`
 
-`Options.Limits` bounds how large a source the compiler lowers, each budget taking its default when
-unset and none when negative. A source past `MaxSourceBytes` is refused before it is parsed, as one
-past the budget rather than one of a size: `MaxSourceBytes` is the compiler's `SourceLimit`, so a
+`Options.Limits` bounds how large a source the compiler lowers, and how much its lowering copies,
+each budget taking its default when unset and none when negative. A source past `MaxSourceBytes` is
+refused before it is parsed, as one past the budget rather than one of a size: `MaxSourceBytes` is
+the compiler's `SourceLimit`, so a
 caller may hand detection only its first bytes, one past the budget. A source whose YAML parses to
 more than `MaxSourceNodes` nodes, or whose aliases add more than `MaxAliasSurplus` nodes to it, is
 refused before its model is built. Each is an `openapi/budget-exceeded` error, compiling to no

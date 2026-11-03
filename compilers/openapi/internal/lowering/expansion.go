@@ -14,13 +14,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// expansion counts what a run's $refs copy against Limits.MaxReferenceExpansion.
-// A declaration a $ref names, a schema or a link aside, lowers again at every
-// $ref naming it (GitHub #1240), so each such $ref is charged what the
-// declaration weighs, and the sum bounds the product of references and size
-// that the source budgets leave free. A declaration is weighed once and its weight remembered: one
-// weighed past what was left is remembered past it, which nothing reads again,
-// since the budget is then crossed.
+// expansion counts what a run's $refs copy against
+// Limits.MaxReferenceExpansion. A declaration a $ref names, a schema or a link
+// aside, lowers again at every $ref naming it (GitHub #1240), so each such $ref
+// is charged what the declaration weighs, and the sum bounds the product of
+// references and size that the source budgets leave free. A declaration is
+// weighed once and its weight remembered: one weighed past what was left is
+// remembered past it, which nothing reads again, since the budget is then
+// crossed.
 type expansion struct {
 	spent   budget.Budget
 	weights map[*yaml.Node]int
@@ -66,12 +67,12 @@ func (e *expansion) refusal(srcIndex int) (ir.Diagnostic, bool) {
 			"declaration other than a schema or a link lowers its own copy of it", e.spent.Limit().Cap()), true
 }
 
-// weightOf returns what a copy of the declaration under root weighs: one for each
-// node, an alias counting as a copy of what it names, as the model is built
-// (docs/parser-library.md#alias-expansion), and one for each byte of a scalar's
-// text. It visits no more than one node past within, and a declaration of more
-// nodes than that weighs past within anyway, so a weight past within is all
-// it says of one.
+// weightOf returns what a copy of the declaration under root weighs: one for
+// each node, an alias counting as a copy of what it names, as the model is
+// built (docs/parser-library.md#alias-expansion), and one for each byte of a
+// scalar's text. It visits no more than one node past within, and a
+// declaration of more nodes than that weighs past within anyway, so a weight
+// past within is all it says of one.
 //
 // No alias leads back up: an anchor naming its own ancestor was refused before
 // lowering. It takes no context, as nothing below a path item does.
