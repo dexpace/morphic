@@ -201,7 +201,6 @@
                       {
                         "method": "GET",
                         "uriTemplate": "/books",
-                        "sharedRoute": false,
                         "paramBindings": [
                           {
                             "param": "param/openapi/paths/~1books/get/parameters/filter/querystring",
@@ -212,6 +211,7 @@
                             "contentType": "application/x-www-form-urlencoded"
                           }
                         ],
+                        "sharedRoute": false,
                         "checksumRequired": false,
                         "isWebhook": false
                       }
@@ -415,13 +415,13 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/books",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/mixed",
                       "multipart/related",
                       "multipart/form-data",
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -515,10 +515,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "webhookName": "bookAdded",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "bookAdded"
+                    "isWebhook": true
                   }
                 ]
               },

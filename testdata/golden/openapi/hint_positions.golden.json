@@ -270,7 +270,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/pets/{petId}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1pets~1{petId}/get/parameters/petId/path",
@@ -292,6 +291,7 @@
                         "contentType": "application/json"
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -366,10 +366,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -472,7 +472,6 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/uploads",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1uploads/put/parameters/limit/query",
@@ -487,6 +486,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -540,10 +540,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/uploads",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -586,9 +586,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/subscriptions",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
                         "expression": "{$request.body#/url}",
@@ -602,7 +599,10 @@
                           "op/openapi/paths/~1subscriptions/post/callbacks/onShared/{$request.body#~1shared}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
                   }
                 ]
               },
@@ -654,10 +654,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/url}",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -711,10 +711,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "{$request.body#/shared}",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -835,10 +835,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/forms",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "multipart/form-data"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -922,7 +922,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/shared",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1shared/post/parameters/scope/query",
@@ -937,6 +936,7 @@
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -1102,7 +1102,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/structures",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1structures/get/parameters/filter/query",
@@ -1123,6 +1122,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -1176,10 +1176,10 @@
                   {
                     "method": "PUT",
                     "uriTemplate": "/structures",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -1234,10 +1234,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/structures",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -1450,13 +1450,13 @@
                 "http": [
                   {
                     "method": "POST",
-                    "sharedRoute": false,
+                    "webhookName": "ping",
                     "requestContentTypes": [
                       "application/json"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "ping"
+                    "isWebhook": true
                   }
                 ]
               },
@@ -1495,10 +1495,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "webhookName": "pong",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "pong"
+                    "isWebhook": true
                   }
                 ]
               },
@@ -2263,7 +2263,7 @@
       "kind": "model",
       "id": "t/anon/components/schemas/Positions/properties/composed/allOf/1",
       "name": {
-        "hint": "variant_1"
+        "hint": "composed"
       },
       "anonymous": true,
       "docs": {},

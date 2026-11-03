@@ -153,10 +153,17 @@ type Alt struct {
 
 // Field is one field of an object.
 type Field struct {
-	Name  string
-	Shape Shape
-	// Of is the object kind an Object, Map or List holds.
-	Of Kind
+	Name string
+	// Owner is the package that reports the field's missing-field finding.
+	Owner string
+	// ShapeOwner is the package that reports a value of the wrong shape.
+	ShapeOwner string
+	// Values is the values admitted, if the field is enumerated.
+	Values []Value
+	// Alts are the other shapes the field admits.
+	Alts []Alt
+	// Cites are the sentences of the specification the field comes from.
+	Cites []Cite
 	// Defined is the minors whose object defines the field. A construct
 	// written at an earlier minor is reported as added by a later one.
 	Defined Span
@@ -165,21 +172,16 @@ type Field struct {
 	Required Span
 	// NonEmpty is the minors whose grammar refuses the empty string.
 	NonEmpty Span
-	// Values is the values admitted, if the field is enumerated.
-	Values []Value
-	// Alts are the other shapes the field admits.
-	Alts []Alt
+	// Shape is the form the field's value takes in the source.
+	Shape Shape
+	// Of is the object kind an Object, Map or List holds.
+	Of Kind
 	// Format is the syntax of a string value; Keys that of a map's keys.
 	Format Format
 	Keys   Format
-	// Owner is the package that reports the field's missing-field finding.
-	Owner string
-	// ShapeOwner is the package that reports a value of the wrong shape.
-	ShapeOwner string
 	// Keyword marks a JSON Schema keyword: one a later minor adds is read
 	// as the schema lowering reads it, not reported here.
 	Keyword bool
-	Cites   []Cite
 }
 
 // Pattern is a family of keys an object admits beside its fixed fields:
@@ -234,11 +236,6 @@ const (
 
 // Rule binds several fields of an object, or judges one beyond its shape.
 type Rule struct {
-	Kind  RuleKind
-	Span  Span
-	Level Level
-	// Fields is the fields an exclusion, alternative or ban names.
-	Fields []string
 	// Field is the field a conditional, count, member or unique rule judges.
 	Field string
 	// Of names the list field a Member rule reads.
@@ -247,29 +244,37 @@ type Rule struct {
 	Key string
 	// Value is the value a MustBe rule demands.
 	Value string
-	// Format is the syntax a Syntax rule demands of Field.
-	Format Format
-	// Min and Max bound a Count rule.
-	Min, Max int
-	When     []Term
 	// Scope says, for an Inapplicable rule, where the field does apply.
 	Scope string
 	// Name names the predicate of a Code rule.
 	Name string
 	// Owner is the package that already reports the rule; the engine skips it.
 	Owner string
+	// Fields is the fields an exclusion, alternative or ban names.
+	Fields []string
+	// When is the terms a conditional rule applies under: it judges only where
+	// every one holds.
+	When []Term
+	// Cites are the sentences of the specification the rule comes from.
 	Cites []Cite
+	// Min and Max bound a Count rule.
+	Min, Max int
+	// Span is the minors the rule holds at, Kind what it demands, and Level how
+	// firmly the specification states it.
+	Span  Span
+	Kind  RuleKind
+	Level Level
+	// Format is the syntax a Syntax rule demands of Field.
+	Format Format
 }
 
 // Object is one OpenAPI object: its fields, its pattern fields and its rules.
 type Object struct {
-	Kind Kind
 	// Name is the specification's title for the object: "Info Object".
-	Name       string
-	Fields     []Field
-	Patterned  []Pattern
-	Rules      []Rule
-	Extensible bool
+	Name      string
+	Fields    []Field
+	Patterned []Pattern
+	Rules     []Rule
 	// Referenceable is the minors at which a Reference Object may stand in
 	// the object's place.
 	Referenceable Span
@@ -281,6 +286,11 @@ type Object struct {
 	// such key is a later minor's construct; empty for an object whose $ref
 	// no minor gives siblings.
 	RefSiblings Span
+	// Kind is the object's kind.
+	Kind Kind
+	// Extensible reports whether the object admits extension keys, those
+	// starting "x-".
+	Extensible bool
 }
 
 // Spec is the table: every object of the specification.

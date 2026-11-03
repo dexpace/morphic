@@ -142,13 +142,6 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
-	// The $dynamicAnchor declarations of a source tree, which a $dynamicRef
-	// expands against. It reads the tree through nodeview, as the parser reads
-	// it, spells pointers through ids, counts the nodes it reads through budget,
-	// and reaches nothing that lowers.
-	"compilers/openapi/internal/anchors": {module + "/compilers/openapi/internal/budget",
-		module + "/compilers/openapi/internal/ids",
-		module + "/compilers/openapi/internal/nodeview", "go.yaml.in/yaml/v3"},
 	// One walk over the decoded source tree, answering what the pre-lowering
 	// refusals would otherwise each walk it to ask. It reaches nodeview for the
 	// document root and budget for the steps its measure takes, and nothing
@@ -278,10 +271,9 @@ var rules = map[string][]string{
 	// one. It reaches load for the version grammar — the dialect question is asked
 	// of the document, and the grammar that answers it is the loader's — and for
 	// the schema bindings the load phase built, which its scope reads. It reaches
-	// naming for what each position is called, anchors for the $dynamicAnchor
-	// index it builds on first ask, and budget for the limits it holds.
+	// naming for what each position is called, and budget for the limits it
+	// holds.
 	"compilers/openapi/internal/lowering": {module + "/ir",
-		module + "/compilers/openapi/internal/anchors",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
 		module + "/compilers/openapi/internal/budget",
@@ -334,7 +326,8 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
-		"github.com/speakeasy-api/openapi/values", "go.yaml.in/yaml/v3"},
+		"github.com/speakeasy-api/openapi/values",
+		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
 	// reaches the schema walk for the positions it hoists, auth for the
@@ -444,6 +437,9 @@ var rules = map[string][]string{
 	// decorators a test of cancellation puts a cancel at a chosen check with,
 	// which tests across the module import.
 	"internal/ctxtest": {},
+	// Test infrastructure too: the one way a test starts a child process, which
+	// gives a covered child a coverage directory of its own.
+	"internal/exectest": {},
 	// Test infrastructure too: tests that hold a hand-written list to what a
 	// package declares read it type-checked, through go/packages. Two of its
 	// testdata packages are imported by others, which is how a test shows a

@@ -1004,7 +1004,7 @@ doc.Types[t/anon/components/schemas/Keyed/definitions/items].Name items
 doc.Types[t/anon/components/schemas/Keyed/dependencies/items].Name items
 doc.Types[t/anon/components/schemas/Keyed/dependentSchemas/items].Name items
 doc.Types[t/anon/components/schemas/Keyed/properties/items].Name items
-doc.Types[t/anon/components/schemas/Positions/properties/composed/allOf/1].Name variant_1
+doc.Types[t/anon/components/schemas/Positions/properties/composed/allOf/1].Name composed
 doc.Types[t/anon/components/schemas/Positions/properties/composed].Name composed
 doc.Types[t/anon/components/schemas/Positions/properties/decorated/oneOf/0].Name variant_0
 doc.Types[t/anon/components/schemas/Positions/properties/decorated].Name decorated
