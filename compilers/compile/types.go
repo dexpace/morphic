@@ -29,21 +29,22 @@ type Types struct {
 	// coordinates onto one ID is caught rather than silently overwriting.
 	byID map[ir.TypeID]string
 	// promised holds every coordinate Promise queued, and promises those not
-	// yet taken; fulfilled records that Finish has built them. See Promise.
+	// yet taken. See Promise.
 	promised map[string]bool
 	promises map[string]func() []ir.Diagnostic
-	// refused holds why each rejected entry was rejected, and reported how many
-	// of them Finish has reported.
+	// refused holds why each rejected entry was rejected.
 	refused []string
 	// completing and pending hold the settlements Complete and Defer queued
-	// for Finish, and settled records that Finish has taken them. See
-	// Settlement.
+	// for Finish. See Settlement.
 	completing []Settlement
 	pending    []Settlement
-	reported   int
+	// reported counts the entries of refused that Finish has reported.
+	reported int
 	// minted counts the nodes Register added, so settle can tell them from a
 	// node a settlement wrote past it.
-	minted    int
+	minted int
+	// fulfilled records that Finish has built the promises, and settled that
+	// it has taken the settlements.
 	fulfilled bool
 	settled   bool
 }

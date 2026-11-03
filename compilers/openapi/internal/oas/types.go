@@ -161,7 +161,8 @@ type Field struct {
 	// Values is the values admitted, if the field is enumerated.
 	Values []Value
 	// Alts are the other shapes the field admits.
-	Alts  []Alt
+	Alts []Alt
+	// Cites are the sentences of the specification the field comes from.
 	Cites []Cite
 	// Defined is the minors whose object defines the field. A construct
 	// written at an earlier minor is reported as added by a later one.
@@ -171,7 +172,8 @@ type Field struct {
 	Required Span
 	// NonEmpty is the minors whose grammar refuses the empty string.
 	NonEmpty Span
-	Shape    Shape
+	// Shape is the form the field's value takes in the source.
+	Shape Shape
 	// Of is the object kind an Object, Map or List holds.
 	Of Kind
 	// Format is the syntax of a string value; Keys that of a map's keys.
@@ -250,13 +252,18 @@ type Rule struct {
 	Owner string
 	// Fields is the fields an exclusion, alternative or ban names.
 	Fields []string
-	When   []Term
-	Cites  []Cite
+	// When is the terms a conditional rule applies under: it judges only where
+	// every one holds.
+	When []Term
+	// Cites are the sentences of the specification the rule comes from.
+	Cites []Cite
 	// Min and Max bound a Count rule.
 	Min, Max int
-	Span     Span
-	Kind     RuleKind
-	Level    Level
+	// Span is the minors the rule holds at, Kind what it demands, and Level how
+	// firmly the specification states it.
+	Span  Span
+	Kind  RuleKind
+	Level Level
 	// Format is the syntax a Syntax rule demands of Field.
 	Format Format
 }
@@ -279,8 +286,11 @@ type Object struct {
 	// such key is a later minor's construct; empty for an object whose $ref
 	// no minor gives siblings.
 	RefSiblings Span
-	Kind        Kind
-	Extensible  bool
+	// Kind is the object's kind.
+	Kind Kind
+	// Extensible reports whether the object admits extension keys, those
+	// starting "x-".
+	Extensible bool
 }
 
 // Spec is the table: every object of the specification.

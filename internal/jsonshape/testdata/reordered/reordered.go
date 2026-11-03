@@ -117,25 +117,27 @@ func (b Base) IsZero() bool { return false }
 
 // Root reaches every member, type and method form, in another order.
 type Root struct {
-	Choice  Sum                 `json:"sum"`
+	Size    Scale               `json:"scale"`
+	Flip    Toggle              `json:"toggle"`
 	Tiers   map[Level][]float64 `json:"levels"`
 	Table   Registry            `json:"reg"`
+	Nested  []Root              `json:"self"`
+	Choice  Sum                 `json:"sum"`
+	Where   jsontext.Pointer    `json:"pointer"`
+	Direct  Spread              `json:"aliased"`
 	ByColor map[Color]*Spread   `json:"index"`
-	*Extra
-	Opts   *int             `json:"options,omitzero,string"`
-	Where  jsontext.Pointer `json:"pointer"`
-	Tagged `json:"tagged"`
+	Matrix  [2][]uint8          `json:"grid"`
+
+	Different Spread `json:",embed"`
+	Tagged    `json:"tagged"`
 	inner
+	*Extra
 	Base
+
 	secret    string
-	Dropped   string     `json:"-"`
-	Label     string     `json:"named"`
-	Matrix    [2][]uint8 `json:"grid"`
-	Nested    []Root     `json:"self"`
-	Size      Scale      `json:"scale"`
-	Defaulted int        `json:",omitempty"`
-	Flip      Toggle     `json:"toggle"`
-	Direct    Spread     `json:"aliased"`
-	Different Spread     `json:",embed"`
+	Dropped   string `json:"-"`
+	Defaulted int    `json:",omitempty"`
 	Untagged  bool
+	Opts      *int   `json:"options,omitzero,string"`
+	Label     string `json:"named"`
 }

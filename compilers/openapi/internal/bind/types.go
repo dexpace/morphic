@@ -183,7 +183,7 @@ const (
 // Hop is where the $ref written at a position lands: the next position of its
 // chain, or why there is none.
 type Hop struct {
-	// Target is the position the hop lands on, and Role what it reads there.
+	// Target is the position the hop lands on.
 	Target Position
 	// Ref is the $ref as written.
 	Ref string
@@ -192,16 +192,18 @@ type Hop struct {
 	Detail string
 	// Use and Key are the path item $ref and the key written beside it, for
 	// BesideRef.
-	Use     jsontext.Pointer
-	Key     string
+	Use jsontext.Pointer
+	Key string
+	// Spelled is, when Named, the pointer the $ref spells from the source's
+	// root: where the lowering places what it names, though a reference object
+	// it passes may carry Target into another document.
 	Spelled jsontext.Pointer
-	Status  Status
-	Reason  Reason
-	Role    Role
-	// Named reports whether the $ref names the source, and Spelled is then the
-	// pointer it spells from the source's root: where the lowering places what
-	// it names, though a reference object it passes may carry Target into
-	// another document.
+	// Status is how the hop ended, and Reason why, when it is Unresolved.
+	Status Status
+	Reason Reason
+	// Role is what the hop reads at Target.
+	Role Role
+	// Named reports whether the $ref names the source.
 	Named bool
 }
 
@@ -210,8 +212,9 @@ type Hop struct {
 type Chain struct {
 	// End is the position the chain ends on, when Resolved; Hops counts the
 	// $refs read to reach it.
-	End    Position
-	Hops   int
+	End  Position
+	Hops int
+	// Status is how the chain ended.
 	Status Status
 	// Member reports, when Cyclic, whether the position itself lies on a loop
 	// rather than leading into one.

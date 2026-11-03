@@ -115,7 +115,9 @@ type passage struct {
 	// principal is a refinement's, nil for any other schema.
 	principal *allOfBranch
 	// lost marks a ref the position does not lower to, so no Base reaches it.
-	lost    bool
+	lost bool
+	// narrows reports that the schema admits less than ref admits, so admits
+	// is read.
 	narrows bool
 }
 

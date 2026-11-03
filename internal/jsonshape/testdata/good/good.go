@@ -6,27 +6,29 @@ import "encoding/json/jsontext"
 
 // Root reaches every member, type and method form.
 type Root struct {
-	Sum     Sum  `json:"sum"`
-	Options *int `json:"options,string,omitzero"`
+	Named     string `json:"named"`
+	Options   *int   `json:"options,string,omitzero"`
+	Untagged  bool
+	Defaulted int    `json:",omitempty"`
+	Ignored   string `json:"-"`
+	hidden    string
+
+	Base
 	*Extra
+	inner
+	Tagged   `json:"tagged"`
+	Explicit Spread `json:",embed"`
+
+	Grid    [2][]byte           `json:"grid"`
 	Index   map[Color]*Spread   `json:"index"`
+	Aliased Alias               `json:"aliased"`
+	Pointer jsontext.Pointer    `json:"pointer"`
+	Sum     Sum                 `json:"sum"`
+	Self    []Root              `json:"self"`
 	Reg     Registry            `json:"reg"`
 	Levels  map[Level][]float64 `json:"levels"`
-	Named   string              `json:"named"`
-	Ignored string              `json:"-"`
-	hidden  string
-	Base
-	inner
-	Tagged    `json:"tagged"`
-	Pointer   jsontext.Pointer `json:"pointer"`
-	Grid      [2][]byte        `json:"grid"`
-	Self      []Root           `json:"self"`
-	Defaulted int              `json:",omitempty"`
-	Scale     Scale            `json:"scale"`
-	Untagged  bool
-	Explicit  Spread `json:",embed"`
-	Aliased   Alias  `json:"aliased"`
-	Toggle    Toggle `json:"toggle"`
+	Toggle  Toggle              `json:"toggle"`
+	Scale   Scale               `json:"scale"`
 }
 
 // Base is embedded by value, and gives Root a promoted IsZero.
