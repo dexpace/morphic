@@ -240,7 +240,7 @@ and every diagnostic is true, located, and decided from what actually happened.
 - **Why.** One construct lowered two ways by position, and parameter, header and nested-object
   positions dropped keywords the property position kept (#149, #156).
 - **Probe.** Compile one fixture writing the construct, with a sibling keyword and an `x-` key, at
-  every position `grep -nE -B2 '(: |= )sSchema' compilers/openapi/internal/bind/grammar.go` lists,
+  every position `grep -nE -B3 '(: |= )sSchema' compilers/openapi/internal/bind/grammar.go` lists,
   and diff the IR and diagnostics per position.
 
 ## Decide and test the combination when keywords co-occur

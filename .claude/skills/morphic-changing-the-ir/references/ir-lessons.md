@@ -165,7 +165,9 @@ verifier and codecs must reach.
   document's requirement: builders could not reach a variant in another output unit, a second
   `json.WithUnmarshalers` replaced a caller's own, and Kotlin `@Contextual` fields threw under a
   caller's own `Json` (#1329).
-- **Probe.** `grep -rnwE 'must|never|only' docs/emitters/refine docs/emitters/contract docs/emitters/targets/<target>`
+- **Probe.** With `<layer>` the stage or domain the mechanism runs in (`plan`, `refine`, `emit`,
+  `operations`, `write-integrate.md`),
+  `grep -rnwE 'must|never|only' docs/emitters/README.md docs/emitters/contract docs/emitters/<layer> docs/emitters/targets/<target>`
   lists the candidate requirements; each that bears on the mechanism has a prototype run, or is
   unmet.
 
