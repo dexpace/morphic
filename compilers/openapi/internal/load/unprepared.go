@@ -500,7 +500,7 @@ func stillUnprepared(place func(refSite) ir.Provenance, missed []usedDocument) [
 		reported[m.key] = true
 		diags = append(diags, diag.Newf(ir.SeverityError, diag.InternalInvariant, place(m.site),
 			"internal: the second resolution read %s itself; "+
-				"anchored entries and mistagged scalars in it may be misread (GitHub #538)", m.key))
+				"anchored entries, dates and `<<` values in it may be misread (GitHub #538)", m.key))
 	}
 	return diags
 }
