@@ -489,7 +489,9 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 // against, its own $id counted: its document's, or the resource's an $id at or
 // above it names. Two schemas with one base read every reference they write
 // alike. It is false where a schema on the way may hide an $id past the merge
-// bound, and a nil table knows none.
+// bound, and a nil table knows none. Each call walks from the document's root,
+// so asking at every level of a deep schema costs the square of its depth
+// (GitHub #1431).
 func (t *Table) Base(p Position) (string, bool) {
 	if t == nil {
 		return "", false
