@@ -149,6 +149,7 @@ one of them is left out too.
   `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`,
   `openapi.TestCompile_ReferenceExpansionBindsOnlyPastTheLimit`,
   `openapi.TestCompile_EveryCopiedDeclarationIsCharged`,
+  `openapi.TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull`,
   `openapi.TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder`,
   `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
   `lowering.TestExpansion_ChargesEveryCopy`, `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,

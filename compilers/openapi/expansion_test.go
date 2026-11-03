@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi"
@@ -46,6 +47,35 @@ func requireRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, limit
 	t.Helper()
 	assert.Nil(t, doc)
 	assert.Equal(t, []ir.Diagnostic{refusal(limit)}, diags)
+}
+
+// weightAt weighs the declaration at pointer in src as MaxReferenceExpansion's
+// documentation says, apart from the compiler's own weigher: one for each YAML
+// node, an alias counting as a copy of what it names, and one for each byte of
+// a scalar's text.
+func weightAt(t *testing.T, src, pointer string) int {
+	t.Helper()
+	var root yaml.Node
+	require.NoError(t, yaml.Unmarshal([]byte(src), &root))
+	n := root.Content[0]
+	for _, token := range strings.Split(pointer, "/")[1:] {
+		key := strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
+		i := slices.IndexFunc(n.Content, func(k *yaml.Node) bool { return k.Value == key })
+		require.True(t, i >= 0 && i%2 == 0, "%s has no %q", pointer, key)
+		n = n.Content[i+1]
+	}
+	var weigh func(*yaml.Node) int
+	weigh = func(n *yaml.Node) int {
+		if n.Kind == yaml.AliasNode {
+			return weigh(n.Alias)
+		}
+		w := 1 + len(n.Value)
+		for _, c := range n.Content {
+			w += weigh(c)
+		}
+		return w
+	}
+	return weigh(n)
 }
 
 // pathsWith returns a 3.1 document of the paths given, or of none, then the
@@ -89,45 +119,47 @@ func TestCompile_ReferenceExpansionBindsOnlyPastTheLimit(t *testing.T) {
 }
 
 // TestCompile_EveryCopiedDeclarationIsCharged runs a $ref at each position
-// the lowering copies what one names, under a budget no declaration fits:
-// each is refused, and admitted with the budget off. A schema's $ref names one
-// registry entry, and a link's is kept as written, so neither is charged.
+// the lowering copies what one names: each is admitted at the weight of the
+// declaration at its target, as weightAt weighs it apart from the compiler,
+// and refused one below, so a position charged twice or not at all fails. A
+// schema's $ref names one registry entry, and a link's is kept as written, so
+// neither is charged, and each is admitted under a budget of one.
 func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name    string
-		src     string
-		charged bool
+		name   string
+		src    string
+		target string
 	}{
 		{"a parameter", pathsWith(getWith("/p", "      parameters: [{$ref: '#/components/parameters/P'}]\n"+okResponses),
-			paramP), true},
+			paramP), "/components/parameters/P"},
 		{"a header", pathsWith(getWith("/p", "      responses:\n        '200':\n          description: ok\n"+
 			"          headers: {H: {$ref: '#/components/headers/H'}}\n"),
-			"  headers:\n    H: {schema: {type: string}}\n"), true},
+			"  headers:\n    H: {schema: {type: string}}\n"), "/components/headers/H"},
 		{"a response", pathsWith(getWith("/p", "      responses: {'200': {$ref: '#/components/responses/R'}}\n"),
-			"  responses:\n    R: {description: ok}\n"), true},
+			"  responses:\n    R: {description: ok}\n"), "/components/responses/R"},
 		{"a default response", pathsWith(getWith("/p", "      responses: {default: {$ref: '#/components/responses/R'}}\n"),
-			"  responses:\n    R: {description: ok}\n"), true},
+			"  responses:\n    R: {description: ok}\n"), "/components/responses/R"},
 		{"a request body", pathsWith(getWith("/p", "      requestBody: {$ref: '#/components/requestBodies/B'}\n"+okResponses),
-			"  requestBodies:\n    B: {content: {application/json: {schema: {type: string}}}}\n"), true},
+			"  requestBodies:\n    B: {content: {application/json: {schema: {type: string}}}}\n"), "/components/requestBodies/B"},
 		{"an example", pathsWith(getWith("/p", "      parameters: [{name: q, in: query, schema: {type: string}, "+
 			"examples: {e: {$ref: '#/components/examples/E'}}}]\n"+okResponses),
-			"  examples:\n    E: {value: 1}\n"), true},
+			"  examples:\n    E: {value: 1}\n"), "/components/examples/E"},
 		{"a media type", strings.Replace(pathsWith(getWith("/p",
 			"      requestBody: {content: {application/json: {$ref: '#/components/mediaTypes/M'}}}\n"+okResponses),
-			"  mediaTypes:\n    M: {schema: {type: string}}\n"), "3.1.0", "3.2.0", 1), true},
+			"  mediaTypes:\n    M: {schema: {type: string}}\n"), "3.1.0", "3.2.0", 1), "/components/mediaTypes/M"},
 		{"a callback", pathsWith(getWith("/p", "      callbacks: {c: {$ref: '#/components/callbacks/C'}}\n"+okResponses),
-			"  callbacks:\n    C: {'{$request.body#/u}': {post: {responses: {'200': {description: ok}}}}}\n"), true},
+			"  callbacks:\n    C: {'{$request.body#/u}': {post: {responses: {'200': {description: ok}}}}}\n"), "/components/callbacks/C"},
 		{"a path item", pathsWith("  /p: {$ref: '#/components/pathItems/P'}\n",
-			"  pathItems:\n    P: {get: {responses: {'200': {description: ok}}}}\n"), true},
+			"  pathItems:\n    P: {get: {responses: {'200': {description: ok}}}}\n"), "/components/pathItems/P"},
 		{"a webhook", strings.Replace(pathsWith("", "  pathItems:\n    P: {post: {responses: {'200': {description: ok}}}}\n"),
-			"components:\n", "webhooks:\n  w: {$ref: '#/components/pathItems/P'}\ncomponents:\n", 1), true},
+			"components:\n", "webhooks:\n  w: {$ref: '#/components/pathItems/P'}\ncomponents:\n", 1), "/components/pathItems/P"},
 		{"a security scheme", pathsWith("", "  securitySchemes:\n    A: {$ref: '#/components/securitySchemes/B'}\n"+
-			"    B: {type: http, scheme: basic}\n"), true},
+			"    B: {type: http, scheme: basic}\n"), "/components/securitySchemes/B"},
 		{"a schema", pathsWith(getWith("/p", "      parameters: [{name: q, in: query, schema: {$ref: '#/components/schemas/S'}}]\n"+
-			okResponses), "  schemas:\n    S: {type: string}\n"), false},
+			okResponses), "  schemas:\n    S: {type: string}\n"), ""},
 		{"a link", pathsWith(getWith("/p", "      responses:\n        '200':\n          description: ok\n"+
-			"          links: {l: {$ref: '#/components/links/L'}}\n"), "  links:\n    L: {operationId: x}\n"), false},
+			"          links: {l: {$ref: '#/components/links/L'}}\n"), "  links:\n    L: {operationId: x}\n"), ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -136,15 +168,40 @@ func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 			require.NotNil(t, doc, "with the budget off: %+v", diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
 
-			doc, diags = compileExpanding(t, tc.src, 1)
-			if tc.charged {
-				requireRefused(t, doc, diags, 1)
+			if tc.target == "" {
+				doc, diags = compileExpanding(t, tc.src, 1)
+				require.NotNil(t, doc, "%+v", diags)
+				assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
 				return
 			}
-			require.NotNil(t, doc, "%+v", diags)
+			weight := weightAt(t, tc.src, tc.target)
+			doc, diags = compileExpanding(t, tc.src, weight)
+			require.NotNil(t, doc, "at the declaration's weight, %d: %+v", weight, diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
+			doc, diags = compileExpanding(t, tc.src, weight-1)
+			requireRefused(t, doc, diags, weight-1)
 		})
 	}
+}
+
+// TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull pins the charge
+// of a $ref naming a declaration nested in another one a $ref names: the IR
+// holds the inner one twice, once inside each copy, so each $ref is charged
+// its own declaration's weight, though the outer copy already weighed the inner.
+func TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull(t *testing.T) {
+	t.Parallel()
+	src := pathsWith(getWith("/a", "      responses: {'200': {$ref: '#/components/responses/R'}}\n")+
+		getWith("/b", "      responses:\n        '200':\n          description: ok\n"+
+			"          headers: {H: {$ref: '#/components/responses/R/headers/H'}}\n"),
+		"  responses:\n    R:\n      description: ok\n      headers: {H: {schema: {type: string}}}\n")
+	both := weightAt(t, src, "/components/responses/R") + weightAt(t, src, "/components/responses/R/headers/H")
+
+	doc, diags := compileExpanding(t, src, both)
+	require.NotNil(t, doc, "%+v", diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
+
+	doc, diags = compileExpanding(t, src, both-1)
+	requireRefused(t, doc, diags, both-1)
 }
 
 // TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder pins what a

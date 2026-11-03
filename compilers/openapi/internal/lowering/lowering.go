@@ -20,14 +20,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Ctx is everything a lowering may read and none may change: the parsed
-// document, the caller's policies, the identity of the source, and the indexes
-// derived from them once at entry.
+// Ctx is everything a lowering may read: the parsed document, the caller's
+// policies, the identity of the source, and the indexes derived from them once
+// at entry.
 //
-// It is a value, so a function that takes one takes a copy, and every lowering
-// takes it as a parameter (#177): there is no shared holder to write through.
-// The maps stay unexported because a copy shares a map, so an exported one
-// would let a callee write through it.
+// It is a value: a function taking one takes a copy, and every lowering takes
+// it as a parameter (#177). Of what copies share, only expansion changes an
+// answer: past its budget, no $ref resolves. The maps stay unexported because
+// a copy shares a map, which an exported one would let a callee write through.
 //
 // Call sites bind it to c, never ctx, which the styleguide reserves for the
 // context.Context a Compile takes.
@@ -175,7 +175,7 @@ type scopedPosition struct {
 	at      bind.Position
 }
 
-// New derives the immutable context for one loaded source.
+// New derives the context for one loaded source.
 //
 // The schema-name index is built here, not on first use, so every reader sees
 // the same set whatever the source order: a $ref resolved mid-lowering must see

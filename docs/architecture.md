@@ -85,8 +85,10 @@ type Compiler interface {
 
 A returned `Document`'s `Sources` begins with the table `SourceTable` gives, in order and filled
 in, and may go on to name each further document the compile read, such as one a reference names.
-`SourceTable` reads no input, so it names only what the caller supplies; a refusal reads no other
-document, so the table is what its diagnostics index.
+`SourceTable` reads no input, so it names only what the caller supplies, and a refusal's diagnostics
+index that table alone: a compile refused after reading another document leaves out what it found
+there, with the `Document` that would have listed it
+([`source-budgets`](compilers/openapi.md#source-budgets)).
 
 Internal phases every compiler follows (each format implements them its own way):
 
@@ -561,7 +563,7 @@ morphic/
 │   │       ├── detect/     #             a source recognized from its bytes, on load's parse
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── naming/     #             each node's name, from its coordinate alone
-│   │       ├── lowering/   #             the immutable context every lowering reads
+│   │       ├── lowering/   #             the context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
 │   │       ├── operation/  #             path items, webhooks, callbacks, params, content
