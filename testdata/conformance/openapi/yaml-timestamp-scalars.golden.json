@@ -38,7 +38,7 @@
     ]
   },
   "name": "YamlTimestampScalars",
-  "version": "1.0.0",
+  "version": "2021-01-01",
   "docs": {},
   "services": [
     {
@@ -62,7 +62,9 @@
                 "source": "getItem",
                 "canonical": "get_item"
               },
-              "docs": {},
+              "docs": {
+                "summary": "2021-01-01"
+              },
               "responses": [
                 {
                   "name": {
@@ -342,7 +344,7 @@
     {
       "format": "openapi@3.1",
       "path": "yaml-timestamp-scalars.yaml",
-      "hash": "b68b751a3b3278260b857b08d920d07d9e9ba0fe7c832e0db92b50ddb3db9bcf"
+      "hash": "132bd24ecee2773ee8cdd3d07b5b60ddd82bf059317a0e4228118b2b71cbcdc2"
     }
   ]
 }
