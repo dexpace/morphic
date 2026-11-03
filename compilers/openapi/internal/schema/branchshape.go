@@ -123,7 +123,9 @@ func shapeless(s *oas3.Schema, key string) bool {
 }
 
 // restatesProperties reports whether each property s, a union branch,
-// declares restates one of the body's declarations of it.
+// declares restates one of the body's declarations of it. Each declaration is
+// compared alone, so a property restating what two say together, a `type` in
+// one and a `format` in another, still declares shape (#1407).
 func (r *bodyReading) restatesProperties(s *oas3.Schema) bool {
 	for name, p := range s.GetProperties().All() {
 		restates := func(d *oas3.JSONSchema[oas3.Referenceable]) bool { return r.restatesDeclaration(d, p) }
@@ -140,7 +142,8 @@ func (r *bodyReading) restatesProperties(s *oas3.Schema) bool {
 // are written alike, or agree on a $ref first, since admission reads what
 // stands beside one as 3.1 does, and then d admits nothing, or every other key
 // p's raw node writes (docs/parser-library.md#unmodeled-keywords) is shapeless
-// or holds for every value d admits.
+// or holds for every value d admits. holds reads no `properties`, so one p
+// nests restates only written alike (#1407).
 func (r *bodyReading) restatesDeclaration(d, p *oas3.JSONSchema[oas3.Referenceable]) bool {
 	if p.IsBool() || r.w.sameText(d, p) {
 		return true
