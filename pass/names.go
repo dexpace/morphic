@@ -78,7 +78,9 @@ func (r *nameReader) services(doc *ir.Document) {
 
 // groups reads each service's top-level groups, and below them each group's
 // groups, its operations and each operation's parameters. Groups nested past
-// ir.MaxGroupDepth go unread, which validate reports as ir/walk-truncated.
+// ir.MaxGroupDepth go unread, which validate reports as ir/walk-truncated. An
+// operation overloading another (OverloadOf) is compared like any other, as no
+// compiler sets one yet.
 func (r *nameReader) groups(doc *ir.Document) {
 	for _, svc := range doc.Services {
 		r.groupList("service", string(svc.ID), svc.Groups)

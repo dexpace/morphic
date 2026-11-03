@@ -65,7 +65,9 @@ type scope struct {
 	// ids name the parties, in scope order: each by its ID, and a union's
 	// variant, which has none, by the ID of the type it holds. It is nil for a
 	// model's properties and an enum's members, named by index, as their IDs
-	// hold a source key or value verbatim, control characters included.
+	// hold a source key or value verbatim, control characters included. Any
+	// other ID can carry one from a name too, written raw where diagnostics
+	// render (GitHub #816).
 	ids []string
 }
 

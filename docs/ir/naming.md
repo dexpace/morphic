@@ -155,7 +155,9 @@ the neutral words answers for all of them, and the `names` pass reports it to th
   their IDs hold; a union's variants leave out a `null` branch, and a hint has no spelling. A
   property or an enum member is named by its index beside its quoted spelling instead, because its
   ID holds a source key or value verbatim, control characters included: a key is unique in its
-  mapping, and two members of one spelling are one value written twice.
+  mapping, and two members of one spelling are one value written twice. Any other ID can carry
+  one from a tag, path, parameter or component name, which is written raw where diagnostics
+  render (#816).
 - **An exact repeat is reported** like any other collision: two documents each declaring a
   component `Pet` give two types that render alike, which nothing else reports. A repeat may also
   draw a finding of the compiler's, such as `openapi/duplicate-enum-value`, which says what the
@@ -195,3 +197,8 @@ Left out, each for its reason:
   source declares responses in (#1418).
 - **A service's renames** (`Service.Renames`), which no compiler writes yet: a declared type is
   compared by its own name, though a rename presents it by another in its service (#1419).
+- **An operation overloading another** (`OverloadOf`), which no compiler sets yet, is compared like
+  any other operation, by its own name: no emitter design says yet how a target presents an
+  overload beside its base.
+- **Groups nested past `ir.MaxGroupDepth`**, which `ir.ForEachGroup` does not enter, and which
+  `validate` reports (`ir/walk-truncated`).
