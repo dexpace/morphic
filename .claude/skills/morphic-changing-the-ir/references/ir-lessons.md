@@ -143,15 +143,15 @@ verifier and codecs must reach.
 `design-rule-over-its-document`
 
 - **Rule.** When a change to the IR or emitter design states a general rule, a placement
-  argument or a step order, list its inputs from their definitions, not the rule's text: each
-  field of every IR type it reads and each sibling section of its document. Say whether each
+  argument or a step order, list its inputs from their definitions: each field of every IR type
+  it reads and each sibling section of its document. Say whether each
   changes the answer, compiling a minimal spec for a field the golden spec never sets. Check a step
   order against what each step reads that a later one changes.
 - **Why.** A placement covered one per-target table and not its twin, an import step preceded the
   steps renaming what it imports (#1019), and #1329's member rule named none of the fields that
-  later decided it.
-- **Probe.** `go doc ./ir <Type>` for each type the rule reads; a field it prints with no stated
-  effect is unchecked.
+  decided it.
+- **Probe.** `go doc ./ir <Type>` for each type the rule reads, and `grep -n '^#' <document>`; a
+  field or section with no stated effect is unchecked.
 
 ## Prototype a specified mechanism against every requirement on its layer
 `prototype-against-every-requirement`
