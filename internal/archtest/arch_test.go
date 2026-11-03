@@ -273,7 +273,7 @@ var rules = map[string][]string{
 	// the schema bindings the load phase built, which its scope reads. It reaches
 	// naming for what each position is called, and budget for the limits it
 	// holds. It reaches nodeview and yaml to weigh the declaration a $ref names,
-	// which every reference's lowering copies.
+	// which a reference's lowering copies.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",

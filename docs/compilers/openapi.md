@@ -151,7 +151,7 @@ one of them is left out too.
   `openapi.TestCompile_EveryCopiedDeclarationIsCharged`,
   `openapi.TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder`,
   `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
-  `lowering.TestExpansion_ChargesEveryCopy`, `lowering.TestWeigh_CostsTheBudgetNotTheDeclaration`,
+  `lowering.TestExpansion_ChargesEveryCopy`, `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
   `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`
 - Status: partly built: an external object reached after its contents is charged against the
   document budget twice (#571), and long keys nested a few hundred levels deep (#931), a 3.2 path

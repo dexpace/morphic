@@ -39,7 +39,7 @@ func doubling(levels int) *yaml.Node {
 	return n
 }
 
-func TestWeigh_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
+func TestWeightOf_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
 	t.Parallel()
 	pair := ynode.Map(ynode.Scalar("k"), ynode.Scalar("v"))
 	tests := []struct {
@@ -57,18 +57,18 @@ func TestWeigh_CountsEachNodeAndEachByteOfAScalar(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, lowering.Weigh(tc.root, budget.Unbounded()))
+			assert.Equal(t, tc.want, lowering.WeightOf(tc.root, budget.Unbounded()))
 		})
 	}
 }
 
-// TestWeigh_CostsTheBudgetNotTheDeclaration pins the bound: weighing a
+// TestWeightOf_CostsTheBudgetNotTheDeclaration pins the bound: weighing a
 // declaration the model builds as 2^22 nodes visits a node past what is left,
 // and says no more of it than that it weighs past it.
-func TestWeigh_CostsTheBudgetNotTheDeclaration(t *testing.T) {
+func TestWeightOf_CostsTheBudgetNotTheDeclaration(t *testing.T) {
 	t.Parallel()
 	const within = 1000
-	got := lowering.Weigh(doubling(22), budget.AtMost(within))
+	got := lowering.WeightOf(doubling(22), budget.AtMost(within))
 	assert.Greater(t, got, within, "a declaration past what is left weighs past it")
 	assert.LessOrEqual(t, got, 2*(within+1), "no more than one node past it is visited, each weighing 2 at most")
 }
@@ -130,10 +130,10 @@ func TestExpansion_RefusalNamesTheBudgetAndNoPosition(t *testing.T) {
 	assert.False(t, e.Admit(declaration()))
 	got, refused := e.Refusal(3)
 	assert.True(t, refused)
-	assert.Equal(t, ir.SeverityError, got.Severity)
-	assert.Equal(t, diag.BudgetExceeded, got.Code)
-	assert.Equal(t, ir.Provenance{Source: 3}, got.Provenance)
-	assert.Contains(t, got.Message, "the 5 budgeted")
+	assert.Equal(t, ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded,
+		Provenance: ir.Provenance{Source: 3},
+		Message: "the copies its $refs make weigh more than the 5 budgeted for them: each $ref to a " +
+			"declaration other than a schema or a link lowers its own copy of it"}, got)
 }
 
 // TestDeclared_ResolvesNoReferencePastTheExpansionBudget pins what bounds a

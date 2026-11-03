@@ -4,6 +4,7 @@
 package openapi_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -31,16 +32,20 @@ func compileExpanding(t *testing.T, src string, limit int) (*ir.Document, []ir.D
 	return doc, diags
 }
 
+// refusal is the error refusing a document whose $refs copied past limit: at
+// the source, and no position in it.
+func refusal(limit int) ir.Diagnostic {
+	return ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded, Provenance: ir.Provenance{Source: 0},
+		Message: fmt.Sprintf("the copies its $refs make weigh more than the %d budgeted for them: each $ref to "+
+			"a declaration other than a schema or a link lowers its own copy of it", limit)}
+}
+
 // requireRefused asserts a compile refused for its $refs' copies: no Document,
-// and the refusal alone, at the source and no position in it.
-func requireRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, limit string) {
+// and the refusal alone.
+func requireRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, limit int) {
 	t.Helper()
 	assert.Nil(t, doc)
-	require.Len(t, diags, 1, "the refusal alone: %+v", diags)
-	assert.Equal(t, ir.SeverityError, diags[0].Severity)
-	assert.Equal(t, diag.BudgetExceeded, diags[0].Code)
-	assert.Equal(t, ir.Provenance{Source: 0}, diags[0].Provenance)
-	assert.Contains(t, diags[0].Message, "the "+limit+" budgeted")
+	assert.Equal(t, []ir.Diagnostic{refusal(limit)}, diags)
 }
 
 // pathsWith returns a 3.1 document of the paths given, or of none, then the
@@ -80,7 +85,7 @@ func TestCompile_ReferenceExpansionBindsOnlyPastTheLimit(t *testing.T) {
 	assert.Len(t, openapitest.FindOp(t, doc, "b").Params, 1, "the second copy is lowered")
 
 	doc, diags = compileExpanding(t, src, 2*37-1)
-	requireRefused(t, doc, diags, "73")
+	requireRefused(t, doc, diags, 73)
 }
 
 // TestCompile_EveryCopiedDeclarationIsCharged runs a $ref at each position
@@ -133,7 +138,7 @@ func TestCompile_EveryCopiedDeclarationIsCharged(t *testing.T) {
 
 			doc, diags = compileExpanding(t, tc.src, 1)
 			if tc.charged {
-				requireRefused(t, doc, diags, "1")
+				requireRefused(t, doc, diags, 1)
 				return
 			}
 			require.NotNil(t, doc, "%+v", diags)
@@ -163,7 +168,7 @@ func TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder(t *testing.T) 
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := compileExpanding(t, pathsWith(paths, components), 90)
-			requireRefused(t, doc, diags, "90")
+			requireRefused(t, doc, diags, 90)
 		})
 	}
 }
@@ -201,5 +206,6 @@ func TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace(t *testing.
 	assert.False(t, outside, "every finding of a refusal indexes its table: %+v", diags)
 	require.Len(t, diags, 2, "%+v", diags)
 	assert.Equal(t, diag.UnresolvedRef, diags[0].Code, "the load phase's finding in the source comes first")
-	assert.Equal(t, diag.BudgetExceeded, diags[1].Code)
+	assert.Zero(t, diags[0].Provenance.Source)
+	assert.Equal(t, refusal(1), diags[1])
 }

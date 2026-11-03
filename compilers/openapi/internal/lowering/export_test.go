@@ -29,5 +29,5 @@ func (e *expansion) Spent() int { return e.spent.Spent() }
 // Weighed counts the declarations weighed so far.
 func (e *expansion) Weighed() int { return len(e.weights) }
 
-// Weigh exposes weigh.
-func Weigh(root *yaml.Node, within budget.Limit) int { return weigh(root, within) }
+// WeightOf exposes weightOf.
+func WeightOf(root *yaml.Node, within budget.Limit) int { return weightOf(root, within) }

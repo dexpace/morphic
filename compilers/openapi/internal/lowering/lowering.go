@@ -203,7 +203,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 }
 
 // ExpansionRefusal returns the error refusing the document when the copies its
-// $refs made weighed past Limits.MaxReferenceExpansion, and false when they did
+// $refs made weighed past [Limits.MaxReferenceExpansion], and false when they did
 // not. It is meant to be asked once every lowering has returned: a $ref past
 // the budget lowers nothing, so a crossing after the question goes unreported.
 func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
@@ -356,7 +356,8 @@ func Within[T, S any, R interface {
 // and the position the bindings' table places the end at (bind.Table.Through),
 // the source's included for a reference another document writes (GitHub
 // #751), or the use site where it places none. Past
-// Limits.MaxReferenceExpansion a $ref resolves to nothing (ExpansionRefusal).
+// [Limits.MaxReferenceExpansion] a $ref resolves to nothing
+// ([Ctx.ExpansionRefusal]).
 func Declared[T, S any, R interface {
 	*S
 	resolve.Referenced[T, S]
@@ -367,7 +368,7 @@ func Declared[T, S any, R interface {
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
 	// The caller lowers a copy of what a $ref names, so each is charged what
 	// that weighs. One past the budget resolves to nothing, as an unresolved
-	// $ref does, which every caller skips, so no later copy costs anything. An
+	// $ref does, so no caller lowers another copy and none costs anything. An
 	// inline entry is not charged, though a path item's own parameters reach
 	// each of its operations here, which 3.2 leaves unbounded (GitHub #1428).
 	if obj != nil && ref.GetReference() != "" && !c.expansion.admit(P(obj).GetRootNode()) {

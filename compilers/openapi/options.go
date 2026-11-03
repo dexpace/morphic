@@ -192,8 +192,9 @@ const (
 	// 16,777,216, a 5.1x margin over the 3,259,648 that the $refs of GitHub's
 	// REST API description copy, the most of the descriptions measured
 	// 2026-11-03: Cloudflare's copy 448,101, Stripe's nothing, and none of 1,840
-	// others more than 2,310,205. A document of extensions built to spend it
-	// peaks near 1.8 GB, about what compiling GitHub's costs.
+	// others more than 2,310,205. Of the documents built to spend it, the
+	// costliest measured, a response of inline headers, peaks near 2.9 GB, and
+	// one of extensions near 1.8 GB, about what compiling GitHub's costs.
 	DefaultMaxReferenceExpansion = 1 << 24
 )
 

@@ -16,9 +16,9 @@ import (
 
 // expansion counts what a run's $refs copy against Limits.MaxReferenceExpansion.
 // A declaration a $ref names, a schema or a link aside, lowers again at every
-// $ref naming it (GitHub #1240), so each such $ref is charged what it weighs,
-// and the sum bounds the product of references and size that the source budgets
-// leave free. A declaration is weighed once and its weight remembered: one
+// $ref naming it (GitHub #1240), so each such $ref is charged what the
+// declaration weighs, and the sum bounds the product of references and size
+// that the source budgets leave free. A declaration is weighed once and its weight remembered: one
 // weighed past what was left is remembered past it, which nothing reads again,
 // since the budget is then crossed.
 type expansion struct {
@@ -48,7 +48,7 @@ func (e *expansion) admit(root *yaml.Node) bool {
 	root = nodeview.Deref(root)
 	weight, known := e.weights[root]
 	if !known {
-		weight = weigh(root, e.spent.Remaining())
+		weight = weightOf(root, e.spent.Remaining())
 		e.weights[root] = weight
 	}
 	return e.spent.Spend(weight)
@@ -66,16 +66,16 @@ func (e *expansion) refusal(srcIndex int) (ir.Diagnostic, bool) {
 			"declaration other than a schema or a link lowers its own copy of it", e.spent.Limit().Cap()), true
 }
 
-// weigh returns what a copy of the declaration under root weighs: one for each
+// weightOf returns what a copy of the declaration under root weighs: one for each
 // node, an alias counting as a copy of what it names, as the model is built
 // (docs/parser-library.md#alias-expansion), and one for each byte of a scalar's
 // text. It visits no more than one node past within, and a declaration of more
 // nodes than that weighs past within anyway, so a weight past within is all
-// weigh says of it.
+// it says of one.
 //
 // No alias leads back up: an anchor naming its own ancestor was refused before
 // lowering. It takes no context, as nothing below a path item does.
-func weigh(root *yaml.Node, within budget.Limit) int {
+func weightOf(root *yaml.Node, within budget.Limit) int {
 	weight := 0
 	nodeview.Walk{Nodes: within.Past(), Aliases: nodeview.AliasTarget, Visit: func(n *yaml.Node, _ int) nodeview.Step {
 		weight++
