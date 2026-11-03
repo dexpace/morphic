@@ -151,9 +151,10 @@ them in a query string, and values separate one, so 38 the rules would separate 
 inclusive, such as `since: anyOf [string, integer]`, whose `-10` both variants read. The zone
 settings stay a closed sum in the `PATCH` body that reaches them, a list of them whose elements keep
 the `id` separating them. Of the 132 left, 72 have two variants that both admit an object, such as
-the 16 identity providers an Access listing returns. Each refines one base whose `type` enum lists
-all 16, and each `config` is open with no required member, so nothing separates them: one provider's
-value is admitted by every other whose `config` declares none of its members at another type.
+the 17 identity providers an account's Access listing returns. Each refines one base whose `type`
+enum lists all 17, and each `config` is open with no required member, so nothing separates them: one
+provider's value is admitted by every other whose `config` declares none of its members at another
+type.
 
 ## ModelShape — visibility projection
 
