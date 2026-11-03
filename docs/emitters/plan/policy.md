@@ -92,7 +92,12 @@ wherever `Facts.Usage` marks it `Output`, marked `Inferred`, and a value it does
 rather than refused ([enums](../refine/enums.md)). An enum the IR declares open, `Closed` false
 through a promoted `x-extensible-enum` among others, is `Open` wherever it is used, unmarked since
 the IR states it, so the SDK, the docs and a mock each read one field. A closed enum only ever
-written stays closed, and turning the policy off leaves every enum as the IR says.
+written stays closed, as does one declaring a `FallbackMember`, since the document already says what
+a value it does not list decodes to, and turning the policy off leaves every enum as the IR says.
+Admission and the rules proving variants disjoint read the declared `Closed`
+([TypePlan](types.md#variants-that-can-share-a-value)), so opening an enum changes no union's shape:
+inside a union, a value an enum variant does not list is not that variant's, and an open union keeps
+it as its own unknown.
 
 This does not override the declared `Enum.Closed`, which states that the members the document lists
 are all it admits. The SDK honours that in what it sends: its constants name the listed members
@@ -106,9 +111,15 @@ response carries would fail to decode the first time the API added a member.
 `OpPlan.Effects` ([OpPlan](operations.md)) says whether calling an operation is safe and whether it
 is idempotent. A declared `Operation.Idempotency` decides, its token kind counting as idempotent
 since a retry sends the token it first sent. Where the IR states none, `MethodSemantics` takes them
-from the binding's method as RFC 9110 §9.2 defines them, marked `Inferred`: `GET`, `HEAD`,
-`OPTIONS` and `TRACE` are safe, and those with `PUT` and `DELETE` are idempotent. `POST` and
-`PATCH` state neither, and an operation no HTTP binding carries takes neither.
+from the binding's method as RFC 9110 §9.2 defines them, marked `Inferred`: `GET`, `HEAD`, `OPTIONS`
+and `TRACE` are safe, and those with `PUT` and `DELETE` are idempotent, while `POST` and `PATCH`
+state neither. `QUERY`, which OpenAPI 3.2 names, is safe and idempotent, as the HTTP QUERY method's
+specification defines it. Any other method a document declares, as OpenAPI 3.2's
+`additionalOperations` can, takes what the IANA HTTP Method Registry (RFC 9110 §16.1) records for
+it, its name compared with case as HTTP compares a method (RFC 9110 §9.1); the plan package holds
+the registry as data, so a change to it ships in a new build. A method the registry does not list,
+and an operation no HTTP binding carries, take neither, and one several HTTP bindings carry takes
+only what every one of their methods states.
 
 A method says nothing of whether an operation destroys something: `DELETE` and `PUT` are
 idempotent and may be destructive, so nothing derives a confirmation from `Effects`. On the golden

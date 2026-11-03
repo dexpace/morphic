@@ -2,10 +2,11 @@
 
 A document often carries its SDK's configuration as vendor extensions: retries and timeouts at the
 document and on an operation, the statuses that count as failures, method and parameter names, the
-sub-client an operation belongs to, an operation exposed under a second name, a parameter every
-call sends. The compiler keeps each verbatim, an `Unmodeled` entry of reason `vendor_extension`
-([unmodeled](../../ir/unmodeled.md)), and left there every emitter would parse them its own way. So
-one reader, `emitters/embed`, turns them into the two inputs they configure, [runtime
+sub-client an operation belongs to, an operation exposed under a second name, a parameter every call
+sends. The compiler keeps each verbatim, an `Unmodeled` entry of reason `vendor_extension`, or
+`out_of_scope` where its format gives it a meaning the IR declines to model
+([unmodeled](../../ir/unmodeled.md#reasons)), and left there every emitter would parse them its own
+way. So one reader, `emitters/embed`, turns them into the two inputs they configure, [runtime
 policy](runtime-policy.md) and [shaping hints](shaping-hints.md), each a layer below the project's.
 
 ```go
@@ -41,9 +42,10 @@ A key configures the node holding it: a path item's, which each of its operation
 ([keys](../../ir/unmodeled.md#keys)), configures each of them. A `policy` key on the document
 configures every operation, and one on an operation configures that operation, `Layer.Policy.Ops`
 keyed by its `OpID` ([layers](runtime-policy.md#layers-and-operations)). A `hint` key configures the
-node's own ID, so a key on a parameter renames that parameter, on an operation that method, and on a
-service that client. A key a mapping names on any other node, such as a `policy` key on a property,
-configures nothing and is reported as a warning `emitters/embed/misplaced`.
+node's own ID, so a key mapped to `rename` on a parameter renames that parameter, on an operation
+that method, and on a service that client. A key a mapping names on any other node, such as a
+`policy` key on a property, configures nothing and is reported as a warning
+`emitters/embed/misplaced`.
 
 The value is decoded into the field `Path` names, as the tree's own JSON form reads it, refusing an
 unknown member. A value of the wrong shape is reported as a warning `emitters/embed/invalid-value`
@@ -73,7 +75,7 @@ document holds a key the mapping names under one, the key reads nothing and is r
 
 ## Precedence
 
-The embedded layer sits below the project's and the emitter's, for policy
+The embedded layer sits below the project's and the one the project sets for an emitter, for policy
 ([layers](runtime-policy.md#layers-and-operations)) and for hints alike: what a document's author
 embeds is a default the SDK's author can override, and the override is reported as an info
 diagnostic, so the document's author can see it was overruled. A declared IR fact still beats every
@@ -86,7 +88,7 @@ generator's own key: a method name and a sub-client on 3,761 of its 3,763 operat
 other sub-clients and method names on 44, and a name on 118 parameters and on 30 properties. It
 carries no retry or timeout key. A mapping reads the names into `Rename`, but no sub-client: each is
 a path of names, mostly dotted, such as `dns.domainconnect`, where `Remount` and `AlsoMount` take
-the ID of a group the IR has. Placing an operation by such a path is the compiler's grouping
-(#582), and the method names hold only beside it: read alone, 1,745 of the 3,761 share their name
-with another method of the group the IR places them in, which the collision resolver then renames
-([naming](../refine/naming.md)).
+the ID of a group the IR has. Placing an operation by such a path is left to a compiler grouping
+that reads it, which #582 proposes, and the method names hold only beside one: read alone, 1,745 of
+the 3,761 share their name with another method of the group the IR places them in, which the
+collision resolver then renames ([naming](../refine/naming.md)).

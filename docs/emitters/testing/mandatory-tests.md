@@ -63,8 +63,9 @@ throughout these documents.
     while an operation in another group moves to the shared unit exactly the types it makes a second
     group reach; under `SplitByGroup` the units' imports form no cycle, and groups whose names
     render alike, or as a name the units' scope reserves, get distinct units; a union with a variant
-    in another unit compiles; and every partition error and warning of [output
-    units](../refine/output-units.md) has a fixture that draws it.
+    in another unit compiles; two groups whose operations `AlsoMount` puts in each other's client
+    compile, the types those operations reach in the shared unit; and every partition error and
+    warning of [output units](../refine/output-units.md) has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
     members and the variants of a closed and of an inclusive union after every name each scope of
     [reserved names](../refine/reserved-names.md) reserves, after characters alone and after names
@@ -244,25 +245,29 @@ throughout these documents.
     reported; no parameter becomes a setting unless a hint names it, and the plan reports each
     candidate as an info ([client settings](../operations/client.md#client-settings)).
 35. **T-35 · Effects** — a declared `Idempotency` of each kind beats the method, a `GET` with none
-    is safe and idempotent, a `PUT` and a `DELETE` idempotent, a `POST` neither, each derived one
-    marked `Inferred`; turning `MethodSemantics` off leaves every undeclared operation neither; and
-    on every target a request that got no response is sent again for an idempotent operation and
-    never for a `POST`, under the default `Retry.WhenUncertain`
+    is safe and idempotent, a `PUT` and a `DELETE` idempotent, a `POST` neither, a `QUERY` safe and
+    idempotent, a method `additionalOperations` declares as the method registry records it and one
+    the registry does not list neither, each derived one marked `Inferred`; turning
+    `MethodSemantics` off leaves every undeclared operation neither; and on every target a request
+    that got no response is sent again for an idempotent operation and never for a `POST`, under the
+    default `Retry.WhenUncertain`
     ([effects](../plan/policy.md#an-operations-effects-come-from-its-method)).
 36. **T-36 · Open enums and overlapping oneOfs** — on every target, a closed enum a response carries
     decodes a value it does not list and re-encodes it as it came, its constants naming only the
     listed members, while one only ever sent stays strict and turning `OpenEnums` off restores
-    strict decoding; an enum declared open is `Open` wherever it is used, with no `Inferred` mark. A
-    `oneOf` of two string variants only their `pattern`s tell apart decodes each value into the
-    variant whose pattern it meets, in either declaration order; a value both admit and meet
-    decodes into the first, and under `StrictExclusive` is a coded error, as is one both admit and
-    neither meets ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open),
+    strict decoding, and one declaring a `FallbackMember` reads an unlisted value as that member; an
+    enum declared open is `Open` wherever it is used, with no `Inferred` mark. A `oneOf` of two
+    string variants only their `pattern`s tell apart decodes each value into the variant whose
+    pattern it meets, in either declaration order; a value both admit and meet decodes into the
+    first, and under `StrictExclusive` is a coded error, as is one both admit and neither meets
+    ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open),
     [unions](../refine/unions.md#variant-identity-and-recognition)).
-37. **T-37 · Retries and redirects** — on every target, under the default policy, a 429 and a 503
-    are sent again for a `POST`; a 500, a 502, a 504 and a request that got no response are sent
-    again for a `PUT` and never for a `POST`; a `Retry-After` is waited for up to `Backoff.Max`,
-    and one past it returns the response. A 307 sends the method and body again, a 303 a `GET`, a
-    301 to a `DELETE` the `DELETE`, while a 301 to a `POST`, and a 307 whose body was a stream, are
-    returned as the response, as is the redirect past `Redirects.Max`; a redirect to another origin
-    carries none of the client's credentials ([runtime
-    policy](../contract/runtime-policy.md#the-canonical-vocabulary)).
+37. **T-37 · Retries and redirects** — on every target, against the behavior server (T-14) and with
+    each wait timed as T-13 times one, under the default policy: a 429 and a 503 are sent again for
+    a `POST`; a 500, a 502, a 504 and a request that got no response are sent again for a `PUT` and
+    never for a `POST`; a request whose body was a stream is not sent again after a 503; a
+    `Retry-After` is waited for up to `Backoff.Max`, and one past it returns the response. A 307
+    sends the method and body again, a 303 a `GET`, a 301 to a `DELETE` the `DELETE`, while a 301 to
+    a `POST`, a 307 whose body was a stream, a redirect from `https` to `http` and the redirect past
+    `Redirects.Max` are returned as the response; a redirect to another origin carries none of the
+    client's credentials ([runtime policy](../contract/runtime-policy.md#the-canonical-vocabulary)).

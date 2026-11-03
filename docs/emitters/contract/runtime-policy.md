@@ -52,11 +52,12 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
 - **A request whose outcome is unknown** may have reached the server and acted: one that got no
   response, or a 500, 502 or 504, after which the server or one behind a gateway may have acted
   before failing (RFC 9110 §15.6). So by default it is sent again only where the operation is
-  idempotent, as `OpPlan.Effects` says ([OpPlan](../plan/operations.md)). A 408, 429 or 503 says
-  the server did not act (RFC 9110 §15.5.9 and §15.6.4, RFC 6585 §4), so `Statuses` apply whatever
-  the operation does. An idempotency key the runtime generates (`Idempotency`) makes an operation
-  idempotent only where the IR declares its token, since only then is the server known to honor
-  one.
+  idempotent, as `OpPlan.Effects` says ([OpPlan](../plan/operations.md)). A 408, 429 or 503 says the
+  server did not act (RFC 9110 §15.5.9 and §15.6.4, RFC 6585 §4), so `Statuses` apply whatever the
+  operation does. An idempotency key the runtime generates (`Idempotency`) makes an operation
+  idempotent only where the IR declares its token, since only then is the server known to honor one.
+  A request whose body the runtime cannot replay, such as a stream the caller gave it, is never sent
+  again, whatever came back: its failure is returned.
 - **`Retry-After`** is the server saying when to come back. Honoring it is the default, and it never
   waits past `Backoff.Max`, so a server cannot park a caller indefinitely; a value past it ends the
   retries and returns the response.
@@ -65,9 +66,9 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
   and 301 and 302 send the request again as it was. A 301 or 302 to a `POST` is returned as the
   response instead: the RFC lets a client turn the `POST` into a `GET`, which drops what it asked
   for, and a server may have acted on it before redirecting. So is a redirect that would send again
-  a body the runtime cannot replay, such as a stream the caller gave it. A redirect to another
-  origin never carries the client's credentials, which no setting changes, since a server cannot
-  vouch for one it is not.
+  a body the runtime cannot replay, and one from `https` to `http`, which would send the request in
+  the clear. A redirect to another origin never carries the client's credentials, which no setting
+  changes, since a server cannot vouch for one it is not.
 
 What a response may hold that the document does not list is not runtime policy, because it changes a
 type or a decoder rather than the boilerplate around them, and docs and mocks have to agree with it.
@@ -89,7 +90,11 @@ Policy is delivered resolved, per operation, in `EmitterInput.Policy`; refiners 
 `Ctx.Policy`, and it shapes only the generated *runtime binding* (the retry loop, transport config,
 user-agent string, telemetry headers, pagination pacing) behind the `Transport`/`Serializer`
 abstraction. It never enters the typed structural model ([runtime
-abstraction](../emit/templates.md#serialization-behind-a-runtime-abstraction)).
+abstraction](../emit/templates.md#serialization-behind-a-runtime-abstraction)). A template holds no
+branch ([structure and boilerplate](../emit/templates.md)), so what differs by operation reaches the
+runtime as values each call passes, which `BuildRequestShaping` builds
+([steps](../refine/steps.md)): the operation's own settings, and whether it retries an uncertain
+outcome, decided there from `WhenUncertain` and `OpPlan.Effects`.
 
 ## Layers and operations
 
@@ -128,7 +133,9 @@ policy may serve several documents. Where a higher layer replaces what the docum
 `emitters/policy/embedded-overridden` names the setting, both values and the operation, so the
 document's author can see it was overruled. A value outside a field's vocabulary, such as a
 `WhenUncertain` other than the three its comment names, is an error `emitters/policy/invalid`, and
-the field resolves as if that layer left it unset.
+the field resolves as if that layer left it unset. The engine resolves the layers once for each
+emitter, since each brings its own top layer, and reports a diagnostic the embedded and project
+layers alone draw once for the run, as the plan's are reported.
 
 ## Precedence — declared IR facts win (hard rule)
 

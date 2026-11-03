@@ -23,12 +23,13 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   and the IR `Examples` to synthesize canned responses, sending the whole `Envelope.Body` where a
   response is enveloped, `Others` to answer as each declared response does, the error taxonomy to
   simulate declared failures, `TypePlan.Open` to say whether a variant or an enum value the document
-  does not list may be sent, the `BindingView` to route requests, and the visibility projections to
-  honor the same wire shapes an SDK sends/receives. Refine lowers into a server-routing AST (routes
-  from `HTTPBinding.URITemplate`, handlers validating against constraints). Because the same plan
-  feeds SDK and mock, the two are **wire-consistent by construction** — the mock can *be* the
-  interception target the SDK's wire-conformance harness ([mandatory
-  tests](testing/mandatory-tests.md)) is diffed against.
+  does not list may be sent, `TypePlan.Strict` to refuse a `oneOf` value as the SDK does, the
+  `BindingView` to route requests, and the visibility projections to honor the same wire shapes an
+  SDK sends/receives. Refine lowers into a server-routing AST (routes from
+  `HTTPBinding.URITemplate`, handlers validating against constraints). Because the same plan feeds
+  SDK and mock, the two are **wire-consistent by construction** — the mock can *be* the interception
+  target the SDK's wire-conformance harness ([mandatory tests](testing/mandatory-tests.md)) is
+  diffed against.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
