@@ -69,14 +69,15 @@ it.
 `distinction-where-nothing-depends`
 
 - **Rule.** A check telling two things apart by a property (a base, scope or version) matters
-  only where something depends on it, as a base does only to a reference. Delete what depends on it
-  from one of its fixtures, keep the property, and compile that on `origin/main` and the branch:
-  documents and diagnostics match unless the change says why not. Passing on `main` by design, the
-  probe takes its control from a build whose check fires without the dependency, which must differ
-  (`references/differentials.md#planted-control`). A test row of that fixture keeps the match.
+  only where what it compares depends on that property, as text does on a base only through a
+  reference. Compile one of its fixtures with the dependent deleted, and moved outside what it
+  compares, on `origin/main` and the branch: documents and diagnostics match unless the change says
+  why not. The probe passes on `main` by design, so its control is a build whose check fires
+  without the dependency, which must differ (`references/differentials.md#planted-control`). Each
+  form's test row keeps the match.
 - **Why.** While #1406's `$id` base checks fired on any text under another `$id`, every spec testing
-  them wrote a `$ref`: a type lost the `minLength` of an `allOf` branch writing no `$ref` to
-  `Unmodeled`.
+  them wrote a `$ref`: types lost the `minLength` of an `allOf` branch writing none, and the
+  `description` of one whose `$ref` sat in `properties`.
 
 ## Assert diagnostics by code, severity and subject, and the whole list
 `assert-diagnostics-by-identity-and-completely`
