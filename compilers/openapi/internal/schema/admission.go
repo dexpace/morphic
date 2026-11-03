@@ -502,15 +502,11 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 // JSON. A $ref in a copy under another document, or under an $id naming
 // another URI, would resolve elsewhere, though it is spelled alike.
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	at, ok := w.c.Bindings().Site(a)
-	bt, okB := w.c.Bindings().Site(b)
-	if !ok || !okB {
-		return false
-	}
-	table := w.c.Bindings().Table()
-	base, known := table.Base(at)
-	other, knownB := table.Base(bt)
-	if !known || !knownB || base != other {
+	at, placed := w.c.Bindings().Site(a)
+	bt, placedB := w.c.Bindings().Site(b)
+	base, known := w.c.Bindings().Table().Base(at)
+	other, knownB := w.c.Bindings().Table().Base(bt)
+	if !placed || !placedB || !known || !knownB || base != other {
 		return false
 	}
 	text := w.text(a)
