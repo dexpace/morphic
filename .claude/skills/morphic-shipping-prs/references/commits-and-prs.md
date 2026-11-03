@@ -39,16 +39,16 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 ## Check commit subjects, PR titles and bodies against the message rules before first push
 `commit-and-pr-message-form`
 
-- **Rule.** Every commit subject and the PR title are Conventional Commits, imperative, at most 72
-  characters counted with the ` (#N)` the squash appends, as a branch's one commit lands under its
-  own subject. A breaking commit carries `!`
-  and explains the break in its own body. No text carries tool attribution or session artifacts.
-- **Why.** Over-length subjects and prose titles land on main via squash and cannot be fixed without
-  rewriting a pushed branch; a break marked only in the PR title is invisible in branch history
-  (#834, #157). A one-commit branch landed at 73 (#1232).
-- **Probe.** The push checklist in `.claude/skills/morphic-shipping-prs/SKILL.md` prints each
-  subject, and the title as it lands, off the form or over the cap, and each possible artifact; a
-  reviewer runs it on the PR's tree.
+- **Rule.** Every commit subject and the PR title are Conventional Commits, imperative, with no
+  final period and at most 72 characters, counting the ` (#N)` a squash appends to the title and to
+  a branch's one commit, which lands under its subject. A breaking commit carries `!` and explains
+  the break in its body. No text carries tool attribution or session artifacts.
+- **Why.** Over-length subjects and prose titles land via squash and cannot be fixed without
+  rewriting a pushed branch; a break marked only in the title is invisible in branch history
+  (#834, #157). A one-commit branch landed at 73 (#1232); counting the number on a subject a squash
+  replaces flagged one that never lands (#1345).
+- **Probe.** `python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py N "<title>"` and
+  the push checklist's artifact greps, on the PR's tree.
 
 ## Hold a commit body when it is pushed and the landing body at merge
 `body-lands-at-merge`
@@ -126,11 +126,10 @@ How to meet `CLAUDE.md`'s commit, PR and tracker rules, which no gate step reads
 - **Rule.** A check meant to stop a commit or push gates it by its exit status, in the same
   command: `check > log 2>&1 && git commit ...`. Never pipe a gating check into `tail` or `grep`,
   chain it with `;` or a newline, or print a length and commit on the same line: a pipeline's status
-  is its last stage's, and a printed number or finding gates nothing. A checklist with hits to
-  justify rather than fix, such as a pushed subject the squash replaces, is read in full instead,
-  and the push is its own command.
+  is its last stage's, and a printed number or finding gates nothing. A check with hits to justify
+  rather than fix, such as an artifact grep, is read in full, and the push runs behind the rest.
 - **Why.** Over-cap subjects and lint and archtest failures were committed past checks that printed
-  them (#1007, #1005, #1046, #1141, #1147, #1153).
+  them, one exiting 0 (#1007, #1005, #1046, #1141, #1147, #1153, #1402).
 - **Probe.** Plant a failure the check must catch and run `<check> && echo pushed`: nothing
   prints.
 

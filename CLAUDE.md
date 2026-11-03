@@ -524,7 +524,8 @@ context-switch between repos.
 
 - **Budget the appended number inside the 72-char cap.** GitHub appends ` (#N)` to the squashed
   subject automatically — never type it yourself, but do count it, at the number the PR will get,
-  on the title and on each commit subject, as a branch with one commit lands under its subject.
+  on the title and on a branch's one commit, which lands under its subject. A subject the squash
+  replaces never lands, so it holds to 72 without the number.
   Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with `N` one
   past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
   over-length subjects in this history were *within* the cap until the number was appended, which
