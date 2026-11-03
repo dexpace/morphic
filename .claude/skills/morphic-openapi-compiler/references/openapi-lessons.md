@@ -63,11 +63,11 @@ canary. A behaviour found that the page lacks is added there.
 ## Trust a comparison of text only as far as text decides
 `text-decides-under-one-base`
 
-- **Rule.** Text alike writing a `$ref` or `$dynamicRef` (`annotation.WritesReference`) names one
-  schema only under one base URI, which a relative one resolves against; text writing neither says
-  the same under any. Text apart can name one schema, as a `$ref` and its target do. So trust a
-  textual "equal" of text writing one only under one base, and an "unequal" only where a false one
-  errs safely.
+- **Rule.** Text alike writing a relative `$ref` or `$dynamicRef` (`annotation.WritesReference`)
+  names one schema only under one base URI; text writing none, or only absolute ones, says the same
+  under any. Text apart can name one schema, as a `$ref` and its target do. So trust an "equal" of
+  text writing a relative one only under one base, and an "unequal" only where a false one errs
+  safely.
 - **Why.** Inline `allOf` branches under different `$id` bases fold a keyword they spell alike
   (#1408), and checking the base of text writing no `$ref` kept a bound out of `Constraints`
   (#1406).

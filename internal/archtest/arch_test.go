@@ -170,6 +170,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/value",

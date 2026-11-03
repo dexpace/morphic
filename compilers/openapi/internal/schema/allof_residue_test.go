@@ -371,12 +371,13 @@ func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 	}
 }
 
-// TestAllOf_ABranchWritingNoReferenceFoldsUnderAnyBase pins that an $id naming
-// another URI keeps a branch whole only where what it folds writes a $ref: text
-// naming none reads the same at the position, so the bounds and the `not` of
-// branches under two other bases fold as they would with no $id, and so does
-// M's description beside a $ref its property resolves where it is written.
-func TestAllOf_ABranchWritingNoReferenceFoldsUnderAnyBase(t *testing.T) {
+// TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase pins that an $id
+// naming another URI keeps a branch whole only where what it folds writes a
+// relative $ref: text naming none reads the same at the position, so the bounds
+// and the `not` of branches under two other bases fold as they would with no
+// $id, and so do M's description beside a $ref its property resolves where it
+// is written, and N's beside an absolute $ref.
+func TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase(t *testing.T) {
 	t.Parallel()
 	doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedBranchTargets+`    S:
       type: string
@@ -389,11 +390,19 @@ func TestAllOf_ABranchWritingNoReferenceFoldsUnderAnyBase(t *testing.T) {
       allOf:
         - {$id: 'https://ex.test/a/x.json', type: object, properties: {a: {$ref: 'n.json'}}, description: d}
         - {type: object, properties: {b: {type: string}}}
+    N:
+      type: object
+      allOf:
+        - {$id: 'https://ex.test/a/x.json', description: d, not: {$ref: 'https://ex.test/b/n.json'}}
+        - {type: object, properties: {b: {type: string}}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	m, ok := typeByName(doc, "M").(*ir.Model)
 	require.True(t, ok)
 	assert.Equal(t, "d", m.Docs.Description)
+	n := typeByName(doc, "N").Common()
+	assert.Equal(t, "d", n.Docs.Description)
+	assert.JSONEq(t, `{"$ref":"https://ex.test/b/n.json"}`, string(n.Unmodeled["openapi:not"].Value))
 	assert.Equal(t, typeByName(doc, "A").Common().ID, openapitest.PropsByWire(m.Properties)["a"].Type.Target)
 	s, ok := typeByName(doc, "S").(*ir.Scalar)
 	require.True(t, ok)

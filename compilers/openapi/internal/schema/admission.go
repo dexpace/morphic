@@ -581,10 +581,10 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 }
 
 // sameText reports whether a and b, both written in one document, write the
-// same JSON, read against one base where it writes a $ref: under an $id naming
-// another URI, the same spelling resolves elsewhere. A copy in another document
-// is read apart: its $refs resolve against that document, and its dialect may
-// differ (GitHub #839).
+// same JSON, read against one base where it writes a relative $ref: under an
+// $id naming another URI, the same spelling resolves elsewhere. A copy in
+// another document is read apart: its $refs resolve against that document, and
+// its dialect may differ (GitHub #839).
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	at, placed := w.c.Bindings().Site(a)
 	bt, placedB := w.c.Bindings().Site(b)

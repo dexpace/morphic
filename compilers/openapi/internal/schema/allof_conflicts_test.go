@@ -1320,19 +1320,23 @@ func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
 	}
 }
 
-// TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase is the other side
-// of TestAllOf_RedeclarationsUnderAnotherBaseStayApart: two declarations
-// written alike that write no $ref say the same under any base, so they fold
-// to one field, or one hoisted enum, with nothing kept or reported.
-func TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase(t *testing.T) {
+// TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase is the
+// other side of TestAllOf_RedeclarationsUnderAnotherBaseStayApart: two
+// declarations written alike that write no $ref, or only an absolute one, say
+// the same under any base, so they fold to one field, or one hoisted enum, with
+// nothing kept or reported.
+func TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase(t *testing.T) {
 	t.Parallel()
 	for name, x := range map[string]string{
-		"OnTheField":     "{type: string, not: {const: q}}",
-		"OnAHoistedEnum": "{type: string, enum: [ab, abcdef], not: {const: q}}",
+		"OnTheField":             "{type: string, not: {const: q}}",
+		"OnAHoistedEnum":         "{type: string, enum: [ab, abcdef], not: {const: q}}",
+		"AbsoluteOnTheField":     "{type: string, not: {$ref: 'https://ex.test/b/n.json'}}",
+		"AbsoluteOnAHoistedEnum": "{type: string, enum: [ab, abcdef], not: {$ref: 'https://ex.test/b/n.json'}}",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    S:
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", `    B: {$id: 'https://ex.test/b/n.json', type: integer}
+    S:
       $id: 'https://ex.test/b/s.json'
       allOf:
         - {$id: 'https://ex.test/a/c.json', type: object, properties: {x: `+x+`}}

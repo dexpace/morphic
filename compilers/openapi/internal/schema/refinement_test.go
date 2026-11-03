@@ -1330,7 +1330,8 @@ components:
 // TestRefinement_RawTextIsComparedAgainstOneBase pins restated items within one
 // document: under an $id naming another URI, `item.json` names another schema,
 // so g's second branch says what h's spells out and is kept as h's is. Text
-// writing no $ref reads alike under any base, so k's restates its target's.
+// writing no $ref reads alike under any base, so k's restates its target's, and
+// so does text writing only an absolute $ref, m's.
 func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$id: 'https://ex.test/a/item.json', type: integer}
@@ -1343,13 +1344,17 @@ func TestRefinement_RawTextIsComparedAgainstOneBase(t *testing.T) {
         g: {allOf: [{$ref: 'https://ex.test/a/names.json'}, {type: array, items: {$ref: 'item.json'}}]}
         h: {allOf: [{$ref: 'https://ex.test/a/names.json'}, {type: array, items: {$ref: 'https://ex.test/b/item.json'}}]}
         k: {allOf: [{$ref: 'https://ex.test/a/words.json'}, {type: array, items: {type: string, minLength: 1}}]}
+        m: {allOf: [{$ref: 'https://ex.test/a/absolute.json'}, {type: array, items: {$ref: 'https://ex.test/a/item.json'}}]}
     Words: {$id: 'https://ex.test/a/words.json', type: array, items: {type: string, minLength: 1}}
+    Absolute: {$id: 'https://ex.test/a/absolute.json', type: array, items: {$ref: 'https://ex.test/a/item.json'}}
 `))
 	openapitest.RequireNoErrorDiags(t, diags)
 	for _, name := range []string{"g", "h"} {
 		assert.Contains(t, propertyOf(t, doc, "Holder", name).Unmodeled, "openapi:allOf/1", name)
 	}
-	assert.Empty(t, propertyOf(t, doc, "Holder", "k").Unmodeled)
+	for _, name := range []string{"k", "m"} {
+		assert.Empty(t, propertyOf(t, doc, "Holder", name).Unmodeled, name)
+	}
 }
 
 // TestRefinement_ADynamicRefIsNotRead pins that a $dynamicRef, on a branch or in

@@ -13,9 +13,10 @@ import (
 )
 
 // TestWritesReference_FindsAReferenceMemberAtAnyDepth pins what a base can
-// change: a `$ref` or `$dynamicRef` named as a member, however deep, and never
-// one spelled only as a string value. Text that does not decode counts, since
-// the comparison it guards errs towards the bases.
+// change: a `$ref` or `$dynamicRef` named as a member, however deep, whose value
+// is no absolute URI, and never one spelled only as a string value. A value
+// that is no string, and text that does not decode, count, since the comparison
+// it guards errs towards the bases.
 func TestWritesReference_FindsAReferenceMemberAtAnyDepth(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
@@ -32,6 +33,12 @@ func TestWritesReference_FindsAReferenceMemberAtAnyDepth(t *testing.T) {
 		{`{"$refs":1,"ref":2}`, false},
 		{``, false},
 		{`{"a":`, true},
+		{`{"$ref":`, true},
+		{`{"$ref":{"a":1}}`, true},
+		{`{"$ref":"https://ex.test/n.json"}`, false},
+		{`{"not":{"$dynamicRef":"https://ex.test/n.json#node"},"$ref":"n.json"}`, true},
+		{`{"$dynamicRef":"urn:x:n#node"}`, false},
+		{`{"$ref":"c:/n.json"}`, true},
 	} {
 		assert.Equal(t, tc.want, annotation.WritesReference(ir.RawValue(tc.raw)), tc.raw)
 	}

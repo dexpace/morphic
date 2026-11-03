@@ -714,11 +714,16 @@ func TestTypeJudge_CopiesUnderAnotherBaseOverlap(t *testing.T) {
 		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: not}
 	}
 	reg["t/lit-a-ref"] = &ir.Literal{ID: "t/lit-a-ref", Value: str("a"), Unmodeled: not}
+	absolute := ir.Unmodeled{"openapi:not": {Value: ir.RawValue(`{"$ref":"https://ex.test/n.json"}`)}}
+	for _, id := range []ir.TypeID{"t/lit-a-abs1", "t/lit-a-abs2"} {
+		reg[id] = &ir.Literal{ID: id, Anonymous: true, Value: str("a"), Unmodeled: absolute}
+	}
 	never := func(ir.Provenance, ir.Provenance) bool { return false }
 	j := typeJudge{Resolve: stubResolve(reg), sites: declarationSites{alike: never}}
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref1"), ref("t/lit-a-ref2")))
 	assert.Equal(t, relOverlap, j.relate(ref("t/lit-a-ref"), ref("t/lit-a-ref1")), "a node declared apart")
 	assert.Equal(t, relSame, j.relate(ref("t/lit-a-h1"), ref("t/lit-a-h2")), "copies keeping no reference")
+	assert.Equal(t, relSame, j.relate(ref("t/lit-a-abs1"), ref("t/lit-a-abs2")), "copies keeping an absolute one")
 	assert.Equal(t, relANarrower, j.relate(ref("t/enum-str"), ref("t/enum-str-h")),
 		"a node declared apart still wins over a hoisted copy")
 }

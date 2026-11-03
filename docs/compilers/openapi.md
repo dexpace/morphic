@@ -1224,8 +1224,9 @@ that says nothing beyond its `$ref` is that `$ref`, with no node and no diagnost
 keywords fold as [`allof-inline-residue`](#allof-inline-residue) says. A `type`, a `format`, an `enum`,
 a `const` or `items`, on a branch or beside the `allOf`, that the principal already says is consumed,
 so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. Two schemas written alike in one document
-say the same where every `$ref` in them reads against one base: under an `$id` naming another URI,
-the same spelling may name another schema. A copy in another document is read apart. One saying
+say the same where every relative `$ref` in them reads against one base: under an `$id` naming
+another URI, the same spelling may name another schema, while an absolute one names the same
+wherever it is read. A copy in another document is read apart. One saying
 more is kept: a branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the
 `allOf` under `openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the
 branch or at the position. A `$ref` a value set beats is kept the same way, and its target still
@@ -1321,11 +1322,11 @@ agree where they meet, as a redeclared field's do
 folds to `3`, and `multipleOf: 4` beside `multipleOf: 6` to `12`, whatever their order, a number
 written two ways keeping the first spelling. Two `pattern`s have no one value, and neither has a 3.0
 `exclusiveMinimum` with no bound beside it, which fills no field, so each disagrees with another
-written differently. A branch whose folding keywords write a `$ref` it reads against another base
-than the position does, an `$id` at or above it naming another URI, folds nothing either, since that
-`$ref` would name another schema read at the position; it stays whole, with its report, and is no
-conjunct the others are compared with. One writing no `$ref` there reads the same at the position,
-so an `$id` alone keeps nothing it writes from folding.
+written differently. A branch whose folding keywords write a relative `$ref` it reads against
+another base than the position does, an `$id` at or above it naming another URI, folds nothing
+either, since that `$ref` would name another schema read at the position; it stays whole, with its
+report, and is no conjunct the others are compared with. One writing none there, or only absolute
+ones, reads the same at the position, so an `$id` alone keeps nothing it writes from folding.
 
 A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
@@ -1370,7 +1371,7 @@ every entry reads that one twice.
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
   `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`,
   `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
-  `schema.TestAllOf_ABranchWritingNoReferenceFoldsUnderAnyBase`,
+  `schema.TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase`,
   `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`
 - Status: partly built: a collection bound on an inline branch of a refinement stays with its
   branch, which folds none, where one beside the `allOf` reaches `Constraints`, whatever the
@@ -1415,9 +1416,10 @@ one type where both were written inline at the field's own declarations, in thei
 same declaration written twice; a node declared elsewhere, a component or a schema a `$ref` reaches
 in this document or another, wins over an inline copy of itself in either order, and two such nodes
 are two types the source declared apart, which overlap. A copy is one type with the other node, or
-gives way to it, only where what the two keep under `Unmodeled` writes no `$ref`, or both read it
-against one base where each is written: under an `$id` naming another URI, or in another document,
-a `$ref` spelled alike names another schema, so the two were declared apart and overlap. Two lists,
+gives way to it, only where what the two keep under `Unmodeled` writes no relative `$ref`, or both
+read it against one base where each is written: under an `$id` naming another URI, or in another
+document, a `$ref` spelled alike names another schema, so the two were declared apart and overlap.
+Two lists,
 or two maps with one key, compare
 by element or value, nested up to a bound, and the narrower one wins only where it admits null no
 more widely than the other, its bounds say all the other's do, and the other holds nothing else the
@@ -1543,8 +1545,8 @@ to set one keeps it, as does `multipleOf` for two steps past 1,024 significant d
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
 hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
 declaration giving one differently is reported and kept. An entry two declarations write alike is
-one where it writes no `$ref`, or both read it against one base: under an `$id` naming another URI,
-a `$ref` spelled alike names another schema.
+one where it writes no relative `$ref`, or both read it against one base: under an `$id` naming
+another URI, a `$ref` spelled alike names another schema.
 
 A field keeping the first declaration's identity keeps that declaration's provenance, and either way
 it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
@@ -1731,7 +1733,7 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `merge.TestFold_UnmodeledAlikeUnderAnotherBaseIsKept`,
   `merge.TestTypeJudge_CopiesUnderAnotherBaseOverlap`,
   `schema.TestAllOf_RedeclarationsUnderAnotherBaseStayApart`,
-  `schema.TestAllOf_RedeclarationsWritingNoReferenceFoldUnderAnyBase`,
+  `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
   `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
   `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,

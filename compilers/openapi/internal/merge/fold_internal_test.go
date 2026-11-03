@@ -496,6 +496,7 @@ func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 	}{
 		{`{"$ref":"n.json"}`, []string{"openapi:not", losingDeclarationKey + "/allOf/1/properties/p"}, 1},
 		{`{"const":"n.json"}`, []string{"openapi:not"}, 0},
+		{`{"$ref":"https://ex.test/n.json"}`, []string{"openapi:not"}, 0},
 	} {
 		entry := ir.UnmodeledEntry{Value: ir.RawValue(tc.value)}
 		first, second := stringAt("/allOf/0/properties/p", `{"x":0}`), stringAt("/allOf/1/properties/p", `{"x":1}`)
