@@ -179,8 +179,9 @@ defect, keep a `main` control.
   artifact the plan feeds (SDK, docs, mock), lifecycles and directions, later documents and other
   formats. Every cell gets a result and the run behind it, or why it cannot change the answer.
   Claim nothing is left only on a full matrix.
-- **Why.** Each of #1329's review rounds two to eight found an input or a consumer's requirement
-  no earlier round had listed, after reports that checked a few cases per rule (#1402).
+- **Why.** Each round of #1329's review after the first found defects a rule should have caught in
+  the first, unlisted inputs and consumers' requirements among them, as reports checked a few
+  cases per rule and nothing asked for the rest (#1402).
 - **Probe.** Count the cells and those with a result; a cell short is a round still open.
 
 ## A fix the review makes is reviewed before it is pushed
