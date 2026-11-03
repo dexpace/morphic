@@ -149,13 +149,14 @@ throughout these documents.
     as. A value one set variant holds within its bounds validates though another's bound fails, and
     a member one variant marks `Secret` is redacted in the union's rendering though the other
     declares it plainly. A union of two models that both hold a list of the union decodes a value
-    nested 64 deep, each position once per type. An `anyOf` the plan proves disjoint, by JSON kind,
-    by enum values and by a member one model requires and the other cannot hold, lowers as a closed
-    sum and decodes each value into the one variant admitting it, by trying each where the ladder
-    tells none apart, while a closed model with a catch-all governing that member separates nothing,
-    and `Inclusive` is the same in either order the unions are planned. A `null` that two nullable
-    variants admit, a `null` literal variant does or a variant that is such a union does, is held by
-    the reference, as a nullable one's is. A value no variant admits takes the fallback on an open
-    union and is a coded error on a closed one
+    nested 64 deep, each position once per type, and does so under a caller's own json/v2 options or
+    `Json`, whose settings keep applying inside the variants. An `anyOf` the plan proves disjoint,
+    by JSON kind, by enum values and by a member one model requires and the other cannot hold,
+    lowers as a closed sum and decodes each value into the one variant admitting it, by trying each
+    where the ladder tells none apart, while a closed model with a catch-all governing that member
+    separates nothing, and `Inclusive` is the same in either order the unions are planned. A `null`
+    that two nullable variants admit, a `null` literal variant does or a variant that is such a
+    union does, is held by the reference, as a nullable one's is. A value no variant admits takes
+    the fallback on an open union and is a coded error on a closed one
     ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).

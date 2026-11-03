@@ -51,7 +51,8 @@ seam buys and the fused-pipeline generator cannot have.
 
 On an untagged union, `null` is the union's value, never a variant's. A variant admits `null` when
 `null` decodes into it: its reference is `Nullable`, or its type, read through decorators and alias
-scalars, is the `null` literal, `any`, or a union one of whose variants admits `null`. `null` holds
+scalars, is the `null` literal, an enum with a `null` member, `any`, or a union one of whose
+variants admits `null`. `null` holds
 nothing a variant could keep apart, so the union holds it itself: every reference to a union with
 such a variant lowers as a nullable reference does
 ([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never reaches a
@@ -117,12 +118,13 @@ Encoding writes one value that each set variant decodes back to what it holds. O
 by member, in the order the first set variant writes them, then each later variant's new members,
 and arrays element by element, of one length. Where the set variants write a position differently,
 the merge writes the first of their texts that each set variant holding the position reads back as
-its own value. A `datetime_offset` variant may write `2025-01-01T00:00:00Z` for a timestamp that
-arrived as `2025-01-01T00:00:00.000+00:00`, which a `string` variant beside it holds as it arrived:
-the string's text is the one both read back, so it is the one written. A position with no such text
-is an encode error, never a silent pick, as a member two variants hold at different values is. A
-union with no variant set refuses to encode and fails validation, and the fallback is never set
-beside a variant.
+its own value, which a variant decides with its own codec alone: the text, decoded at the position's
+type and encoded again, is what the variant itself writes there. A `datetime_offset` variant may
+write `2025-01-01T00:00:00Z` for a timestamp that arrived as `2025-01-01T00:00:00.000+00:00`, which
+a `string` variant beside it holds as it arrived: the string's text is the one both read back, so it
+is the one written. A position with no such text is an encode error, never a silent pick, as a
+member two variants hold at different values is. A union with no variant set refuses to encode and
+fails validation, and the fallback is never set beside a variant.
 
 An inclusive union is valid when one set variant is, which is all `anyOf` asks. A variant can admit
 a value it does not validate, since admitting leaves bounds to validation: the golden spec's API
