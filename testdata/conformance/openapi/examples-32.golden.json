@@ -223,7 +223,6 @@
                   {
                     "method": "GET",
                     "uriTemplate": "/a",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1a/get/parameters/limit/query",
@@ -235,6 +234,7 @@
                         "allowEmptyValue": false
                       }
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }

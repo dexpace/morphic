@@ -217,14 +217,16 @@ needless; a verified run catches one.
    document a run of it returned, which carries that run's findings, it returns an equal one,
    `Document.Diagnostics` aside. It asks its context as it goes, as `validate` does in its walk and
    between its rule families, and stops soon once it is done: the engine then fails the run, reading
-   nothing it returned. `ir.ForEachOperation` walks the operations, and the package's `diag` helper in
-   `pass/diag.go` builds a diagnostic on a node.
+   nothing it returned. `ir.ForEachOperation` walks the operations and `ir.ForEachGroup` the groups,
+   and the package's `diag` helper in `pass/diag.go` builds a diagnostic on a node.
    A code names the defect, as `pass/doc.go` says: `pass/<defect>` for a finding the pass owns,
    `ir/<defect>` for a structural one `irverify` reports too. A transform returns what `Finish`
    returns, its own findings appended.
    *Fails if missed:* the build, once step 3 lists the pass, for a method `pass.Pass` requires, and
    `make vet` for a registry or a slice of the service tree built, or written into, other than
-   through an `ir.Editor`.
+   through an `ir.Editor`. It refuses an element's address, and a generic instantiated with a
+   service, group or operation or a slice of one, even to read it, since it cannot see a write
+   through either: read the tree by value or by index.
    A run fails with an error wrapping `pass.ErrContract` for a pass that panics, returns no document
    or another IR version, moves a source or puts findings on the document, and under
    `morphic compile --verify` for one that changes its input or returns a document that breaks
@@ -311,8 +313,9 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    registered compiler takes it, with every oracle, so registering the compiler in step 4 is all
    it takes to be swept. Order-invariance permutes YAML and JSON mappings, so a source that is
    neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
-   the package's `TestMain`, and its package a line in `scripts/race-packages.txt`, which `make race`
-   runs under `-race`, or a `raceExempt` entry in `internal/archtest` with its reason.
+   the package's `TestMain`. `make race` already runs the compiler under `-race`, since
+   `scripts/race-packages.txt` lists `./compilers/...`, and a package under `compilers/` may not be
+   exempt from it.
    `morphic compile --verify <spec>` holds your compiler's document, and every pass's, to the same
    invariants while you write it. A compiler composing hints also writes a spec holding one position
    for each way it composes one, as `testdata/golden/openapi/hint_positions.yaml` does, and adds its
@@ -320,8 +323,7 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    renders ([ir-version](docs/ir/ir-version.md)); nothing fails if that is missed.
    *Fails if missed:* `TestHarness_InRepoCorpus`, which sweeps the corpus and requires every
    fixture in it to be listed, so one that no registered compiler recognizes fails there instead of
-   dropping out of the sweep, `TestGoroutineLeak_EveryGoStatementHasALeakCheck`, and
-   `TestRaceList_NamesEveryConcurrentPackage`.
+   dropping out of the sweep, and `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.
 6. **Write its lowering specification** at `docs/compilers/<format>.md`, and link it from
    `docs/compilers/planned-lowerings.md`: move the format's list there into the new document, or add
    a row for a format that page does not list. The `TestLoweringSpec` tests read

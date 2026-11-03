@@ -6,13 +6,18 @@ canary. A behaviour found that the page lacks is added there.
 ## Find every reader of a construct before changing how it is read
 `every-reader`
 
-- **Rule.** Before changing which `allOf` branches compose, how deep a walk goes, or how a keyword
-  is read, find every package that reads the same keyword through its own walk (`GetAllOf()` outside
-  `compilers/openapi/internal/schema`) and make each agree in predicate and in bound.
-- **Why.** The multipart part reader in `compilers/openapi/internal/operation` walks `allOf` with
-  its own bound and drifted from the schema lowering, dropping an `encoding` silently (#998).
-- **Probe.** A multipart body with an `encoding` entry for a part inside the changed shape, on
-  `main` and on the branch.
+- **Rule.** Before changing which `allOf` branches compose, a walk's depth, or how a keyword is
+  read, make each package outside the changed one reading it agree in predicate and in bound,
+  `<Getter>` as `oas3.Schema` names it (`GetRef`):
+  `git grep -nF -e '<Getter>()' -e '"<keyword>"' -- 'compilers/openapi/*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`.
+- **Why.** The multipart reader in `compilers/openapi/internal/operation` walked `allOf` with its own
+  bound and dropped an `encoding` silently (#998). #1278's `oneOf` change held in both spellings at
+  each position, and that key is read where its getter is not (#1397). As a regex, `"$ref"` matched
+  no reader (#1403).
+- **Probe.** Compile the old and new spelling at every position
+  (`references/lossless-and-diagnostics.md#same-construct-at-every-position`), on `main` and the
+  branch: each spelling takes one verdict across them. For `allOf`, one is a multipart body
+  encoding a part inside the changed shape.
 
 ## Enumerate a source object's fields against their readers
 `fields-vs-readers`
@@ -27,13 +32,45 @@ canary. A behaviour found that the page lacks is added there.
 `reuse-library-readings`
 
 - **Rule.** Call the library's functions for every reading it already implements (reference parsing,
-  anchors, URI resolution) and `nodeview.View` for tree reads. Key a per-node map by a set when an
-  alias can make one node several schemas. A guard that must agree with the resolver makes the call
-  the resolver makes.
+  anchors, URI resolution) and `nodeview.View` for tree reads, but compare two schemas as
+  `references/openapi-lessons.md#compare-raw-nodes` says. Call a `yml` function `nodeview` lacks
+  directly, under its own allowlist entry
+  (`.claude/skills/morphic-designing-code/references/design-rules.md#no-forwarding-layer`). Key a
+  per-node map by a set when an alias can make one node several schemas. A guard that must agree
+  with the resolver makes the call the resolver makes.
 - **Why.** Each miss of a reach check was a re-derived reading (#563). `View` and the resolver
-  disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`).
+  disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`). #1278 widened an
+  allowlist for `yml`, no rule saying whether a wrapper should stand instead.
 - **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`, `.`
   and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
+
+## Compare two schemas by rendering their raw nodes
+`compare-raw-nodes`
+
+- **Rule.** Compare two schemas by their `annotation.RawFromNode` renderings, which read merges as
+  the parser does and sort keys, a failed one unequal to all, as far as text decides
+  (`references/openapi-lessons.md#text-decides-under-one-base`), not by `Schema.IsEqual`, whose
+  model misses keywords (`docs/parser-library.md#unmodeled-keywords`), or `yml.EqualNodes`. In
+  `schema`, call `sameText` in `compilers/openapi/internal/schema/admission.go`, which renders each
+  schema once a run (#1408 tracks its base check); elsewhere, render each node once.
+- **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
+  restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the
+  body's property through `<<` or in another key order.
+- **Probe.** Compare `{x: {<<: {a: 1}}}` and `{<<: {description: d, type: string}}` with their
+  plain spellings, and two schemas differing only in `dependentRequired` or each writing a key
+  twice: the first two match or err safely, the others differ.
+
+## Trust a comparison of text only as far as text decides
+`text-decides-under-one-base`
+
+- **Rule.** Text alike names one schema only under one base URI, since a relative `$ref` resolves
+  against it, and text apart can name one schema, as a `$ref` and its target do. Trust a textual
+  "equal" only for two nodes read against one base, and its "unequal" only where a false one errs
+  safely.
+- **Why.** Inline `allOf` branches under different `$id` bases fold a keyword they spell alike
+  (#1408).
+- **Probe.** In #1408's spec, `S` spells a `$ref` alike under two bases where `T` spells one
+  absolutely: a comparison holding the rule lowers the two alike.
 
 ## Moving work out of the library moves its duties
 `library-duties`

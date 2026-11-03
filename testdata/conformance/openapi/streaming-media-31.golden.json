@@ -126,10 +126,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/ingest",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/x-ndjson"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -193,10 +193,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/upload",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/x-ndjson"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -529,10 +529,10 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/sequence-suffix",
-                    "sharedRoute": false,
                     "requestContentTypes": [
                       "application/geo+json-seq"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }

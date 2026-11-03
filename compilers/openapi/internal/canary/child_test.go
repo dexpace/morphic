@@ -13,12 +13,15 @@ import (
 	"runtime"
 	"runtime/debug"
 	"runtime/metrics"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/dexpace/morphic/internal/exectest"
 )
 
 // childEnv names the child a re-run of this test binary runs in place of its
@@ -54,7 +57,7 @@ const childStack = 64 << 20
 const memoryCeiling = 256 << 20
 
 // childTimeout bounds one child. Every input here ends within a second or
-// two at the pinned version, with room to spare for a developer's -race
+// two at the pinned version, with room to spare for the gate's race
 // run, so only a child that hangs waits it out. It is short so that a
 // canary whose every child hangs still fails with its own message inside
 // the gate's -timeout.
@@ -129,8 +132,7 @@ func probe(t *testing.T, name, input string, env ...string) result {
 
 	ctx, cancel := context.WithTimeout(t.Context(), childTimeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, os.Args[0])
-	cmd.Env = append(append(os.Environ(), env...), childEnv+"="+name, inputEnv+"="+path)
+	cmd := exectest.Command(ctx, t, append(slices.Clone(env), childEnv+"="+name, inputEnv+"="+path), os.Args[0])
 	out, err := cmd.CombinedOutput()
 
 	code := 0

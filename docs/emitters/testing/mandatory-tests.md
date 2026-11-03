@@ -61,10 +61,11 @@ throughout these documents.
     in another unit compiles; and every partition error and warning of [output
     units](../refine/output-units.md) has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
-    members and union variants after every name each scope of [reserved
-    names](../refine/reserved-names.md) reserves, after characters alone and after names that begin
-    with a digit, and its groups after the standard-library packages its files import, generates
-    code that compiles on every target, with every template's declared names held to what it binds.
+    members and the variants of a closed and of an inclusive union after every name each scope of
+    [reserved names](../refine/reserved-names.md) reserves, after characters alone and after names
+    that begin with a digit, and its groups after the standard-library packages its files import,
+    generates code that compiles on every target, with every template's declared names held to what
+    it binds.
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -122,8 +123,9 @@ throughout these documents.
     such method ([headers](../plan/responses.md#headers), [return
     shapes](../operations/returns.md)).
 27. **T-27 · Other responses** — on every target, an operation declaring a second response of the
-    primary's type returns it as the primary; one with no body, and a `304`, give the nullable
-    return and no error, with `WithResponse` stating the status, and a pager and a stream end at one
+    primary's type returns it as the primary, in the nullable form where only that response's type
+    is nullable; one with no body, and a `304`, give the nullable return and no error, with
+    `WithResponse` stating the status, and a pager and a stream end at one
     with no error; a header only such a response declares is a field of `WithResponse`'s `Headers`;
     one of another type, and a body beside a `void` primary, reach the caller as `OtherResponse`
     with its typed `Body`, `Headers` and raw bytes, a body that does not decode as `BodyErr` and one
@@ -142,3 +144,82 @@ throughout these documents.
     open. An option beside it is taken in priority order, an option ANDing it with a declared scheme
     needs both, and the service's credentials are never sent in its place
     ([auth](../operations/auth.md#unresolved-schemes)).
+29. **T-29 · Inclusive unions** — on every target, an `anyOf` over two open models that one value
+    fits decodes that value into both and re-encodes it as an equal JSON value; a member the two
+    write at different values is an encode error, as is a member a caller adds to the open variant
+    beside a closed one that cannot hold it, and a union with neither set refuses to encode. A
+    `string` variant beside a `datetime_offset` one re-encodes a timestamp as the text it arrived
+    as. A value one set variant holds within its bounds validates though another's bound fails, and
+    a member one variant marks `Secret` is redacted in the union's rendering though the other
+    declares it plainly. A union of two models that both hold a list of the union decodes a value
+    nested 64 deep, each position once per type, and does so under a caller's own json/v2 options or
+    `Json`, whose settings keep applying inside the variants. An `anyOf` the plan proves disjoint,
+    by JSON kind, by enum values and by a member one model requires and the other cannot hold,
+    lowers as a closed sum and decodes each value into the one variant admitting it, by trying each
+    where the ladder tells none apart or names one that does not admit it, while a closed model with
+    a catch-all governing that member separates nothing, nor does a `ClientOptional` member, a
+    member compared under any name but its JSON one, or, where the union is read, a `writeOnly`
+    member or one an open model declares at another type only `writeOnly`; an `any` primitive (`{}`)
+    shares a kind with every variant, and `Inclusive` is the same in either order the unions are
+    planned. An `anyOf` of `string` and `integer` that a query parameter carries is inclusive, and a
+    mock reads `since=-10` into both. A union of two models a required member separates, sent in a
+    `PATCH` body and read in a response, is inclusive in its patch shape and a closed sum where it
+    is read, and adding the `PATCH` operation changes no other declaration; sent as a `PATCH` body's
+    list, its elements keep the member and it stays closed. A required member no shape holds
+    (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
+    positions and one with one and no `Rest`, each admits only its own length. A `null` that two
+    nullable variants admit, a `null` literal variant does or a variant that is such a union does,
+    is held by the reference, as a nullable one's is. A value no variant admits takes the fallback
+    on an open union and is a coded error on a closed one
+    ([unions](../refine/unions.md#a-value-several-variants-admit),
+    [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
+30. **T-30 · Visibility projections** — on every target, a model holding a model, a union, a list
+    and a map of models with a `readOnly` and a `writeOnly` member each, sent in a `POST`, a `PUT`
+    and a `PATCH` body and read in a response, gets a declaration per shape for every type holding a
+    projected one: `readOnly` members absent from each request shape and `writeOnly` ones from the
+    response, a `PUT` body holding what `create` or `update` makes visible, and the `PATCH` body's
+    members optional at every depth but inside the list, whose elements keep their required members.
+    `ParameterVisibility` and `ReturnTypeVisibility` replace the default filter, a webhook's request
+    takes `read`, two shapes whose projections coincide take one answer, and a model no operation
+    reaches holds its required `readOnly` and `writeOnly` members and requires neither
+    ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)).
+31. **T-31 · Plan identity** — one document under one policy builds plans of one `Version` across
+    processes and runs, a plan golden holding it across builds, and the policy round-trips through
+    JSON unchanged; changing any policy field or the document outside `sources` and `diagnostics`
+    changes the `Version`, and changing only those, as reformatting the spec does, does not. A plan
+    one build cached answers no other build. A configuration that leaves a field out reads the
+    default of the version it states, and one stating no version, or none at all, is refused; a
+    primary rule outside the vocabulary or listed twice draws `emitters/plan/policy-invalid` and is
+    planned as if left out; and the zero `Policy` returns `void` from every operation
+    ([the plan's version](../plan/overview.md#the-plans-version),
+    [plan policy](../plan/policy.md#the-policy-is-data)).
+32. **T-32 · Envelopes** — on every target, under an envelope matched by `Members`, one matched by
+    `Bases`, a body whose type is a listed base among those it matches, and one with a nil `Value`:
+    a method returns the member at `Value`, at the end of a nested path too, in the target's
+    nullable form where a member on the path is optional or nullable, and the body whole under a nil
+    `Value`, its flag still read. Its `WithResponse` method returns the envelope whole and typed,
+    nullable where a `204` beside it has none and the target's top type where a `200` and a `202`
+    are wrapped in two envelope types, and an operation returning no enveloped response keeps
+    `Response`. Another 2xx whose member at `Value` differs from the primary's only in being
+    optional is returned as the primary is, in the nullable form, and one of another type reaches an
+    `OtherResponse` holding the member at `Value`. A flag of `0.0` succeeds where `Succeeds` lists
+    `0`. A success whose flag holds a value `Succeeds` does not list is a failure with no fault or
+    kind, retried by its response alone and holding that response's headers; its body decodes as
+    the first of `Failures` its flag admits, JSend's `error` beside a `fail` among them, as untyped
+    JSON where none does, and into `BodyErr` where it does not decode, and an error entry whose flag
+    admits only `true` is never tried. A flag absent or null is a success. A paginated operation's
+    page and a poller's monitor are read whole, their flag still read. A body naming only some of
+    the members, a failure body and a webhook's response are read as they would be with no envelope,
+    an operation one envelope's `Except` lists is read by the next envelope that matches it, and the
+    default policy unwraps nothing. An envelope with no `Name`, a shared one or one holding a comma,
+    neither `Bases` nor `Members`, neither `Value` nor `Flag`, or only one of `Flag` and `Succeeds`
+    draws `emitters/plan/policy-invalid` and matches nothing; a body whose flag admits no value
+    `Succeeds` lists, a string `success` under a boolean `Succeeds` among them, is read by the next
+    envelope that matches it, or as with none, drawing `emitters/plan/envelope-flag-mismatch` once
+    and only then; one no body matches, and an `Except` or `Bases` entry naming nothing, draw
+    `emitters/plan/envelope-unused`. Each field a match sets is marked `Inferred` as `envelope:` and
+    the envelope's `Name`; the docs emitter shows the member at `Value` of a response's example as
+    what the method returns, and the mock sends the envelope whole; and the surface differ reports a
+    body that gains the last name `Members` lists as a break
+    ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes),
+    [return shapes](../operations/returns.md)).
