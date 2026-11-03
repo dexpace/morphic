@@ -1615,3 +1615,24 @@ func TestRefinement_ABranchDisagreeingStaysWhole(t *testing.T) {
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/1")
 	assert.Contains(t, alias.Unmodeled, "openapi:allOf/2")
 }
+
+// TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing pins a refinement's
+// inline branch under an $id naming another URI: its `not` names A there, so it
+// is kept whole, with the reason, rather than folded onto the use.
+func TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, openapitest.ComponentSpecVer("3.1.0", `    A: {$id: 'https://ex.test/a/n.json', type: string}
+    Str: {type: string}
+    Holder:
+      type: object
+      properties:
+        f: {allOf: [{$ref: '#/components/schemas/Str'}, {$id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}}]}
+`))
+	openapitest.RequireNoErrorDiags(t, diags)
+	f := propertyOf(t, doc, "Holder", "f")
+	assert.Contains(t, f.Unmodeled, "openapi:allOf/1")
+	assert.NotContains(t, f.Unmodeled, "openapi:not")
+	assert.Contains(t,
+		openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Holder/properties/f/allOf/1"),
+		"reads its $refs against another base")
+}

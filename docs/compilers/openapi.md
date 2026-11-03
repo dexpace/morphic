@@ -1319,7 +1319,10 @@ agree where they meet, as a redeclared field's do
 folds to `3`, and `multipleOf: 4` beside `multipleOf: 6` to `12`, whatever their order, a number
 written two ways keeping the first spelling. Two `pattern`s have no one value, and neither has a 3.0
 `exclusiveMinimum` with no bound beside it, which fills no field, so each disagrees with another
-written differently.
+written differently. A branch reading its `$ref`s against another base than the position does, an
+`$id` at or above it naming another URI, folds nothing either, since a `$ref` it writes would name
+another schema read at the position; it stays whole, with its report, and is no conjunct the others
+are compared with.
 
 A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
@@ -1362,7 +1365,9 @@ every entry reads that one twice.
   `schema.TestVoices_BoundsMeetInEveryOrder`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
-  `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`
+  `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`,
+  `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
+  `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`
 - Status: partly built: a collection bound on an inline branch of a refinement stays with its
   branch, which folds none, where one beside the `allOf` reaches `Constraints`, whatever the
   principal: `{type: array, items: …, allOf: [{maxItems: 2}]}` keeps its branch beside a `List` that

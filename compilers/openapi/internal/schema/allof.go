@@ -42,7 +42,8 @@ func lowerAllOf(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, po
 		comp := readAllOf(c, s, pointer) // the one flattened list; the readers below take it, not s
 		diags = append(diags, diagDisjointConjuncts(c, comp)...)
 		if allOfDecides(s) {
-			comp.speaks = voicesAmong(c, s)
+			v := voicingOf(c, s)
+			comp.speaks, comp.rebased = v.speaks, v.rebased
 		}
 		idx := propIndex(c, ts, m)
 		diags = append(diags, fillAllOf(c, ts, depth, m, idx, comp)...)
@@ -164,10 +165,12 @@ type allOfComposition struct {
 	// warning docs/compilers/openapi.md#allof-disjoint-conjuncts describes, and
 	// is nil otherwise (readAllOf).
 	disjoint []string
-	// speaks marks each branch that folds at the position (voicesAmong). It is nil
-	// for a composition distributed across a union, whose variants each keep every
-	// branch.
-	speaks []bool
+	// speaks marks each branch that folds at the position (voicesAmong), and
+	// rebased each that reads its $refs against another base, so it does not. They
+	// are nil for a composition distributed across a union, whose variants each
+	// keep every branch.
+	speaks  []bool
+	rebased []bool
 }
 
 // branchSpeaks reports whether the branch at index i folds at the position.
@@ -389,8 +392,11 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 	if !kept {
 		return keptDiags
 	}
-	split := comp.speaks != nil && !speaks && disagreed(bs, residue)
-	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e, split, len(comp.disjoint) > 0))
+	unfolded := ""
+	if comp.speaks != nil {
+		unfolded = unfoldedWhy(speaks, comp.rebased[i], bs, residue)
+	}
+	return append(keptDiags, diagUnmergedBranch(c, bs, residue, e, unfolded, len(comp.disjoint) > 0))
 }
 
 // diagUnmergedBranch builds the diagnostic announcing one merged branch's
@@ -401,10 +407,10 @@ func preserveUnmergedBranch(c lowering.Ctx, m *ir.Model, comp allOfComposition, 
 // info: the composed ir.Model asserts the value *is* an object, which the branch
 // contradicts. Any other residue only narrows a model the IR describes correctly,
 // the under-constrained case (docs/compilers/openapi.md#allof-inline-residue).
-// split says the conjuncts disagreed on what the branch writes, so it did not
-// fold. disjoint says the schema reports its conjuncts share no value, so this
+// unfolded says why the branch did not fold (unfoldedWhy), if that is the
+// reason. disjoint says the schema reports its conjuncts share no value, so this
 // reports residue alone.
-func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch, split, disjoint bool) ir.Diagnostic {
+func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e allOfBranch, unfolded string, disjoint bool) ir.Diagnostic {
 	if branchExcludesObject(bs) && !disjoint {
 		msg := "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (" +
 			strings.Join(keptKeywords(residue, e), ", ") + ") is kept verbatim under Unmodeled"
@@ -413,8 +419,8 @@ func diagUnmergedBranch(c lowering.Ctx, bs *oas3.Schema, residue []string, e all
 		}
 		return c.DiagAt(ir.SeverityWarning, diag.DegradedConstruct, e.pointer, "%s", msg)
 	}
-	if split && !e.capped {
-		return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", disagreedWhy(residue))
+	if unfolded != "" && !e.capped {
+		return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", unfolded)
 	}
 	return c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, e.pointer, "%s", unmergedWhy(residue, e))
 }

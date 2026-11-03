@@ -320,3 +320,57 @@ func TestAllOf_ANullTypeExcludesNoObject(t *testing.T) {
 	}
 	assert.Equal(t, []ir.Severity{ir.SeverityInfo}, severities)
 }
+
+// rebasedBranchTargets declares the two schemas `n.json` names under the two
+// bases the rebased-branch cases write.
+const rebasedBranchTargets = `    A: {$id: 'https://ex.test/a/n.json', type: string}
+    B: {$id: 'https://ex.test/b/n.json', type: integer}
+`
+
+// TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing holds an inline branch
+// under an $id naming another URI to keeping what it writes, wherever the $id
+// is written: `n.json` names A there and B at the position, so folding its `not`
+// would read it as B's. Spelled shows the outer branch folding as it does when
+// its $ref names B outright, and Annotated that the rule holds for a keyword
+// with no $ref in it.
+func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct{ schema, kept, folded string }{
+		"Wrapped": {`      $id: 'https://ex.test/b/s.json'
+      allOf:
+        - $id: 'https://ex.test/a/w.json'
+          allOf: [{type: object, not: {$ref: 'n.json'}}]
+        - {type: object, not: {$ref: 'n.json'}}
+`, "openapi:allOf/0/allOf/0", `{"$ref":"n.json"}`},
+		"Spelled": {`      $id: 'https://ex.test/b/s.json'
+      allOf:
+        - $id: 'https://ex.test/a/w.json'
+          allOf: [{type: object, not: {$ref: 'n.json'}}]
+        - {type: object, not: {$ref: 'https://ex.test/b/n.json'}}
+`, "openapi:allOf/0/allOf/0", `{"$ref":"https://ex.test/b/n.json"}`},
+		"Annotated": {`      allOf:
+        - {type: object, properties: {a: {type: string}}}
+        - {$id: 'https://ex.test/a/x.json', not: {$ref: 'n.json'}, description: d}
+`, "openapi:allOf/1", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", rebasedBranchTargets+"    S:\n"+tc.schema))
+			openapitest.RequireNoErrorDiags(t, diags)
+			um := typeByName(doc, "S").Common().Unmodeled
+
+			kept, ok := um[tc.kept]
+			require.True(t, ok, "the branch is kept whole; got %+v", um)
+			assert.Contains(t, string(kept.Value), `"not":{"$ref":"n.json"}`)
+			assert.Contains(t,
+				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/"+tc.kept[len("openapi:"):]),
+				"reads its $refs against another base")
+			if tc.folded == "" {
+				assert.NotContains(t, um, "openapi:not")
+				assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing the branch writes folds")
+				return
+			}
+			assert.JSONEq(t, tc.folded, string(um["openapi:not"].Value), "the outer branch folds")
+		})
+	}
+}

@@ -13,6 +13,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/compile"
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/ir"
 )
@@ -109,11 +110,14 @@ func voicesAmong(c lowering.Ctx, s *oas3.Schema) []bool {
 }
 
 // voicing is what a schema's allOf says for the position holding it: whether
-// each branch of the flattened list folds, and whether it lends a use what s and
-// the folding branches before it do not, an entry none of them writes.
+// each branch of the flattened list folds, whether it lends a use what s and
+// the folding branches before it do not, an entry none of them writes, and
+// whether it reads its $refs against another base than the position does
+// (readsAtPosition), so nothing it writes folds.
 type voicing struct {
-	speaks []bool
-	lends  []bool
+	speaks  []bool
+	lends   []bool
+	rebased []bool
 }
 
 // voicingOf reads s's voicing once a run.
@@ -129,13 +133,16 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 		lent[entry] = true
 	}
 	comp := allOfBranches(s, "")
-	writes := make([][]string, len(comp.branches))
+	n := len(comp.branches)
+	out := voicing{speaks: make([]bool, n), lends: make([]bool, n), rebased: make([]bool, n)}
+	writes := make([][]string, n)
 	for i, e := range comp.branches {
 		if bs := e.schema.GetSchema(); bs != nil && isInlineBranch(e.schema) {
-			writes[i] = a.write(bs)
+			if out.rebased[i] = !readsAtPosition(c, e); !out.rebased[i] {
+				writes[i] = a.write(bs)
+			}
 		}
 	}
-	out := voicing{speaks: make([]bool, len(comp.branches)), lends: make([]bool, len(comp.branches))}
 	for i, entries := range writes {
 		out.speaks[i] = len(entries) > 0 && !slices.ContainsFunc(entries, a.apart)
 		if !out.speaks[i] {
@@ -147,6 +154,37 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 		}
 	}
 	return out
+}
+
+// readsAtPosition reports whether the inline allOf branch e reads its $refs
+// against the base the position holding the allOf does, so what it writes means
+// there what it means where it is written: an $id at or above it naming another
+// URI gives the same spelling another schema. The position is e's site less e's
+// path from it, as the allOf may be read where a $ref landed. A base the
+// bindings cannot tell is no match.
+func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
+	site, placed := c.Bindings().Site(e.schema)
+	at := bind.Position{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}
+	own, known := c.Bindings().Table().Base(site)
+	position, knownAt := c.Bindings().Table().Base(at)
+	return placed && known && knownAt && own == position
+}
+
+// unfoldedWhy words why a branch that writes what folds kept it, residue being
+// what it keeps, and is "" where the branch spoke or writes nothing folding
+// reads: it reads its $refs against another base than the position, or the
+// conjuncts disagree on an entry it writes.
+func unfoldedWhy(speaks, rebased bool, bs *oas3.Schema, residue []string) string {
+	switch {
+	case speaks || !disagreed(bs, residue):
+		return ""
+	case rebased:
+		return "this inline allOf branch reads its $refs against another base than the position does, as an $id " +
+			"at or above it names another URI, so nothing it writes folds; the branch (" +
+			strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
+	default:
+		return disagreedWhy(residue)
+	}
 }
 
 // disagreedWhy words why a branch that would have folded is kept: its keywords
