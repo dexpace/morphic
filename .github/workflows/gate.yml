@@ -103,11 +103,12 @@ jobs:
       # After every step above that runs git: make fmt lists the tracked
       # files, the scripts find the repository root, and go build and go list
       # run git status to stamp VCS information, which gives .git a new time.
-      # Go hashes every entry of a directory a test lists, the root among them.
-      # irtest and archtest, which the suite job's coverage runs, do, and a race
-      # package that did would miss the cache on every run if git ran after this
-      # step. Nothing may run git between this step and race, bar the rev-parse
-      # that race-reach.sh runs after the package tests have returned.
+      # Go hashes every entry of a directory a test lists, the root among them,
+      # and some race packages list it, ir/irtest among them: a git status after
+      # this step reruns them on every run. Nothing may run git status between
+      # this step and race. The git calls race makes itself, ir/irtest's
+      # ls-files and check-attr and race-reach.sh's rev-parse, leave .git's
+      # time alone.
       - &date-files
         name: date files by content
         run: make filetimes
@@ -119,8 +120,8 @@ jobs:
         name: clear restored test results
         if: github.event_name == 'push'
         run: go clean -testcache
-      # Here and not in suite to balance the two jobs, which coverage and race
-      # in one made unequal (#1386). No make build comes first: the race
+      # Here and not in suite, so that coverage and race no longer run one
+      # after the other (#1386). No make build comes first: the race
       # packages' tests that load packages run go list -export, which compiles
       # what make build does, and after make vet that compiles nothing.
       - name: race
