@@ -173,13 +173,13 @@ canary. A behaviour found that the page lacks is added there.
   and pointer, and whether a Document came back. A refusal also takes
   `references/openapi-lessons.md#refusal-findings-in-its-table`.
 
-## A refusal after the load phase keeps its findings in its source table
+## A refusal after a `$ref` has read a document keeps its findings in its source table
 `refusal-findings-in-its-table`
 
 - **Rule.** A compile returning no Document has its findings held to `SourceTable`, which names the
-  source and its overlay and no document a `$ref` read, so every finding of a refusal made after
-  the load phase must index that table. Compile such a refusal through the engine on a document
-  whose `$ref` reads another drawing a load finding, and have a test hold
+  source and its overlay and no document a `$ref` read, so every finding of a refusal made after a
+  `$ref` has read a document must index that table. Compile such a refusal through the engine on a
+  document whose `$ref` reads another drawing a load finding, and have a test hold
   `ir.FirstOutsideTable(diags, len(SourceTable(...)))` false on it.
 - **Why.** The contract check runs in `compilers.Detection.Compile`, which a test calling
   `openapi.New().Compile` never meets: an expansion refusal passed every compile-level test while
