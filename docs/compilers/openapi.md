@@ -2001,7 +2001,10 @@ the body's own `type`, so repeating the body never changes a verdict:
    conjunct admits: from the body's own keywords and its `allOf`, across each `$ref`, leaving out
    the unions the body itself writes. So `type: object` beside an object body declares none, nor
    does `type: [object, 'null']`, a `type` naming only `null` contributes the null and nothing else,
-   and `format: date` beside a bare `type: string` declares shape.
+   and `format: date` beside a bare `type: string` declares shape. `format: password` asks for
+   redaction and names no form ([`password`](#password)), so it declares none, as an `x-sensitive`
+   asking the same declares none by point 1: an SDK reads neither reason's entry, so a secret one
+   branch alone writes is lost to it either way.
 3. `properties` and `items` declare none where each property the branch writes, and its element,
    restates the body's declarations of it: those in the body's own `properties` or `items`, and in
    a schema its `allOf` composes, through any nesting and across `$ref`s, but not in a union's

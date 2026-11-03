@@ -563,6 +563,14 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
       properties: {a: {type: string, description: d, title: t}}
       oneOf: [{required: [a], properties: {a: {type: string}}}]
 `, "openapi:oneOf"},
+		"RedactionByFormat": {"3.1.0", `      type: object
+      properties: {a: {type: string}, b: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string, format: password}}}, {required: [b]}]
+`, "openapi:oneOf"},
+		"RedactionByExtension": {"3.1.0", `      type: object
+      properties: {a: {type: string}, b: {type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string, x-sensitive: true}}}, {required: [b]}]
+`, "openapi:oneOf"},
 		"BodyNarrowsTheProperty": {"3.1.0", `      type: object
       properties: {a: {type: string, format: uri, minLength: 1}}
       oneOf: [{required: [a], properties: {a: {type: string}}}]
