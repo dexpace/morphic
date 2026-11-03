@@ -71,8 +71,8 @@ answers](../plan/responses.md#which-entry-answers)):
   nil, with `RawBody` holding whatever arrived;
 - a body that does not decode never hides the failure: `Body` stays nil and `BodyErr` holds the
   decode error, since the status is what the caller must learn;
-- a failure an envelope reports in-band, a 2xx whose flag holds the failing value
-  ([envelopes](../plan/responses.md#envelopes)), takes no entry: it has no `Fault` and no kind,
+- a failure an envelope reports in-band, a 2xx whose flag holds a value its `Succeeds` does not
+  list ([envelopes](../plan/responses.md#envelopes)), takes no entry: it has no `Fault` and no kind,
   since its status states neither, its `Body` is what `EnvelopeRead.Failure` decodes, and it is
   retried only as its status would be, which no default retries.
 

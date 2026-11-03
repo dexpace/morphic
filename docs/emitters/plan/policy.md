@@ -31,11 +31,18 @@ Every field is a value from a closed vocabulary the plan package defines, and no
 So a policy encodes, compares and hashes as what it says, and `Plan.Version` hashes it
 ([the plan](overview.md#the-plans-version)). A function has no bytes to hash: its printed form is
 an address that changes every run, and skipping it gives two policies that pick different responses
-one version. A heuristic the vocabulary lacks is added to it, in this package and at a new
-`plan.Revision`, so a change of behaviour always changes the version. A strategy registered by name
-and version from outside was weighed and refused: changing its code without its version would be a
-silent cache hit, which is the failure this rule removes. So was a caller-supplied ID hashed in the
-policy's place, which fails the same way when the caller forgets it.
+one version. A heuristic the vocabulary lacks is added to it, in this package, so it ships in a new
+build, which the plan cache keys on ([the plan](overview.md#the-plans-version)). A strategy
+registered from outside by name and version was weighed and refused: a function may close over what
+a run sets, so neither its name and version nor the build fixes what it does, and two runs that pick
+differently would share a key. So was a caller-supplied ID hashed in the policy's place, which fails
+the same way when the caller forgets to change it.
+
+`DefaultPolicy()` returns the defaults the comments above name, and a configuration is read over it,
+so a field it leaves out keeps its default. The zero `Policy` is not the default: it turns every
+switch off and lists nothing, so no rule picks a primary response and every operation returns
+`void`. A rule outside the vocabulary or listed twice is reported as an error
+`emitters/plan/policy-invalid`, and the plan is built as if it were left out.
 
 ## The default response is classed here
 
@@ -75,26 +82,35 @@ so a configuration names its envelopes, and the default names none.
 
 ```go
 type Envelope struct {
-    Name    string      // recorded in each Inferred mark this envelope sets
-    Bases   []ir.TypeID // matches a body whose model reaches one of these through Base or Mixins
-    Members []string    // matches a body whose model declares every one of these wire names
-    Value   []string    // the wire-name path to what the reader gets in the body's place
-    Flag    []string    // the path to the member saying whether the call succeeded; nil = none
-    Fails   *ir.Value   // the Flag value meaning the call failed; set exactly when Flag is
-    Except  []ir.OpID   // operations whose bodies this envelope never matches
+    Name     string      // recorded in each Inferred mark this envelope sets
+    Bases    []ir.TypeID // matches a body whose model reaches one of these through Base or Mixins
+    Members  []string    // matches a body whose model declares every one of these wire names
+    Value    []string    // the wire-name path to what the reader gets in the body's place;
+                         // nil = the body itself
+    Flag     []string    // the path to the member saying whether the call succeeded; nil = none
+    Succeeds []ir.Value  // the Flag values meaning it succeeded; set exactly when Flag is
+    Except   []ir.OpID   // operations whose bodies this envelope never matches
 }
 ```
 
 A body matches an `Envelope` when its type, read through `TypePlan.Alias`, is a model that reaches
 one of `Bases` through `Base` or `Mixins`, or declares every name in `Members`, read through
 `Flattened`. Either way it must also declare the members `Value` and `Flag` name. A body takes the
-first envelope it matches, and none of them on an operation its `Except` lists.
-[Responses](responses.md#envelopes) says how a matched body is read. Each field the match sets is
-marked `Inferred` with the envelope's `Name`. An `Except` or `Bases` entry naming nothing in the
-document is reported, as is a `Flag` without `Fails`.
+first envelope that matches it, and an envelope never matches a body of an operation its `Except`
+lists, so the next one may. [Responses](responses.md#envelopes) says how a matched body is read.
+Each field the match sets is marked `Inferred` with the envelope's `Name`. An envelope with no
+`Name` or one another envelope shares, with neither `Bases` nor `Members`, or with only one of
+`Flag` and `Succeeds` is reported as an error `emitters/plan/policy-invalid` and matches nothing. An
+`Except` or `Bases` entry naming nothing in the document, and an envelope no body matches, are
+reported as a warning `emitters/plan/envelope-unused`, since one policy may serve several documents.
+
+`Succeeds` lists what success looks like, not failure, because a flag may fail in more than one way:
+JSend's `status` fails as `fail` and as `error`, and a numeric `code` succeeds at `0` alone. A nil
+`Value` serves an API that puts its data beside the flag, such as `{ok, channel}`: the body is
+returned whole, and the flag is still read.
 
 A body is matched by its members as well as by its composition, because composition alone misses
-real envelopes. On the golden spec (spec @319dc756, morphic @b206dc99), the primary bodies of 2,665
+real envelopes. On the golden spec (spec @5c37ac8c, morphic @fd8b0730), the primary bodies of 2,665
 of 3,763 operations declare `success`, `errors`, `messages` and `result`. 2,238 of them reach a
 named component declaring the `success` flag through `Base` or `Mixins`, 113 distinct components in
 all, since products declare their own; the other 427 declare it inline, and no `Bases` list reaches
@@ -103,11 +119,11 @@ a `result` is never unwrapped by accident:
 
 ```go
 plan.Envelope{
-    Name:    "result",
-    Members: []string{"success", "errors", "messages", "result"},
-    Value:   []string{"result"},
-    Flag:    []string{"success"},
-    Fails:   &ir.Value{Kind: ir.ValueBool, Bool: false},
+    Name:     "result",
+    Members:  []string{"success", "errors", "messages", "result"},
+    Value:    []string{"result"},
+    Flag:     []string{"success"},
+    Succeeds: []ir.Value{{Kind: ir.ValueBool, Bool: true}},
 }
 ```
 
