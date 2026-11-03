@@ -4,7 +4,7 @@ A document often carries its SDK's configuration as vendor extensions: retries a
 document and on an operation, the statuses that count as failures, method and parameter names, the
 sub-client an operation belongs to, an operation exposed under a second name, a parameter every call
 sends. The compiler keeps each verbatim, an `Unmodeled` entry of reason `vendor_extension`, or
-`out_of_scope` where its format gives it a meaning the IR declines to model
+`out_of_scope` where the IR declines to model it, as it does a key its format does not define
 ([unmodeled](../../ir/unmodeled.md#reasons)), and left there every emitter would parse them its own
 way. So one reader, `emitters/embed`, turns them into the two inputs they configure, [runtime
 policy](runtime-policy.md) and [shaping hints](shaping-hints.md), each a layer below the project's.
@@ -45,7 +45,12 @@ keyed by its `OpID` ([layers](runtime-policy.md#layers-and-operations)). A `hint
 node's own ID, so a key mapped to `rename` on a parameter renames that parameter, on an operation
 that method, and on a service that client. A key a mapping names on any other node, such as a
 `policy` key on a property, configures nothing and is reported as a warning
-`emitters/embed/misplaced`.
+`emitters/embed/misplaced`. So does a key the document holds for one of several objects, such as a
+tag's under `openapi:tags/<n>/`: it describes that object rather than the document, and configures
+nothing until the IR carries it where the object lowers (#1221). Where two keys set one field of one
+node, an operation's own key beats its path item's, and any other pair is an error
+`emitters/embed/conflict` that sets the field from neither, since which to take is no fact the
+document states.
 
 The value is decoded into the field `Path` names, as the tree's own JSON form reads it, refusing an
 unknown member. A value of the wrong shape is reported as a warning `emitters/embed/invalid-value`

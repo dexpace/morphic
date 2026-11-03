@@ -24,7 +24,7 @@ type Mount struct {
 }
 
 type ParamKey struct {         // a parameter as every operation names it, never by ID alone
-    In   string                // "path" | "query" | "header" | "cookie"
+    In   ir.HTTPLocation       // path, query, header, cookie or host; any other is reported
     Name string                // its wire name, a header's compared without case
 }
 ```
@@ -50,6 +50,6 @@ Each `Mount` gives the sub-client it names a method calling the operation, named
 where it has one, since an alias commonly carries a name of its own. The method is keyed in the
 manifest under the operation's ID with the group beside it, as a declaration derived from an entity
 is ([write / integrate](../write-integrate.md)), so the surface differ sees one operation reached
-two ways. A `Mount` naming the group the operation is already in, or a group another `Mount` of it
-names, is reported and read once. Under a split by group, an operation mounted in another group
-counts as that group's for placement ([output units](../refine/output-units.md)).
+two ways. A `Mount` naming the group the operation is placed in, after any `Remount`, or a group
+another `Mount` of it names, is reported and read once. Under a split by group, an operation mounted
+in another group counts as that group's for placement ([output units](../refine/output-units.md)).

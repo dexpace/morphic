@@ -66,9 +66,10 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
   and 301 and 302 send the request again as it was. A 301 or 302 to a `POST` is returned as the
   response instead: the RFC lets a client turn the `POST` into a `GET`, which drops what it asked
   for, and a server may have acted on it before redirecting. So is a redirect that would send again
-  a body the runtime cannot replay, and one from `https` to `http`, which would send the request in
-  the clear. A redirect to another origin never carries the client's credentials, which no setting
-  changes, since a server cannot vouch for one it is not.
+  a body the runtime cannot replay, one from `https` to `http`, which would send the request in the
+  clear, and a 3xx the operation declares, which the document says its caller gets. A redirect to
+  another origin never carries the client's credentials, which no setting changes, since a server
+  cannot vouch for one it is not.
 
 What a response may hold that the document does not list is not runtime policy, because it changes a
 type or a decoder rather than the boilerplate around them, and docs and mocks have to agree with it.
@@ -90,11 +91,13 @@ Policy is delivered resolved, per operation, in `EmitterInput.Policy`; refiners 
 `Ctx.Policy`, and it shapes only the generated *runtime binding* (the retry loop, transport config,
 user-agent string, telemetry headers, pagination pacing) behind the `Transport`/`Serializer`
 abstraction. It never enters the typed structural model ([runtime
-abstraction](../emit/templates.md#serialization-behind-a-runtime-abstraction)). A template holds no
-branch ([structure and boilerplate](../emit/templates.md)), so what differs by operation reaches the
-runtime as values each call passes, which `BuildRequestShaping` builds
-([steps](../refine/steps.md)): the operation's own settings, and whether it retries an uncertain
-outcome, decided there from `WhenUncertain` and `OpPlan.Effects`.
+abstraction](../emit/templates.md#serialization-behind-a-runtime-abstraction)). The methods hold no
+policy and a template holds no branch ([structure and boilerplate](../emit/templates.md)), so what
+differs by operation is a table in the runtime binding, a row per operation, which
+`BuildOperationSettings` fills ([steps](../refine/steps.md)): the operation's resolved settings,
+whether it retries an uncertain outcome, decided there from `WhenUncertain` and `OpPlan.Effects`,
+and the statuses it declares, none of which is followed as a redirect. A template renders the rows,
+and a method names only its own.
 
 ## Layers and operations
 

@@ -62,11 +62,15 @@ method's signature: a breaking SDK change caused by an additive spec change.
   and a call with neither for a required parameter is refused unsent, the error naming it. A
   parameter a setting fills is not positional but an optional field of the operation's request type
   ([request shaping](../refine/requests.md)), so a call can still name another account.
-- **Candidates.** The plan reports, as an info `emitters/plan/client-param-candidate`, each
-  `ParamKey` that every operation of some group with more than one operation takes in one wire
-  form, with the number of operations in the document taking it so, so an SDK's author can name
-  it. On the golden spec (spec @319dc756, morphic @b206dc99), `account_id` in the path is taken by
-  2,660 of 3,763 operations, each a string under one of 16 sets of constraints, and `zone_id` by
-  698. One shared component parameter was weighed as the test instead and finds a parameter every
+- **Candidates.** The plan reports, in one info `emitters/plan/client-param-candidates`, each
+  `ParamKey` that every operation of some group with more than one operation takes in one wire form,
+  with the number of operations in the document taking it so, most first, so an SDK's author can
+  name one. It lists one a hint already names too, since the plan reads no hints ([plan or
+  refine](../plan/plan-or-refine.md)). One info per candidate was weighed and drew 82 on the golden
+  spec (spec @319dc756, morphic @b206dc99), 56 of them shared by one group alone and 29 left
+  optional by some operation, such as `limit`. Ranked by use, the list leads with `account_id` in
+  the path, taken by 2,660 of 3,763 operations, each a string under one of 16 sets of constraints,
+  and `zone_id`, taken by 698, well ahead of the paging parameter after them, `per_page`, taken
+  by 186. One shared component parameter was weighed as the test instead and finds a parameter every
   operation of a group shares in 52 of the 515 groups with more than one operation, against 465 by
   location and name: the spec declares its parameters inline.
