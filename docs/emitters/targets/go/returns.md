@@ -15,7 +15,8 @@ How each [return shape](../../operations/returns.md) lowers in Go.
 - **An envelope.** `GetZone` returns `*Zone`, and `GetZoneWithResponse` returns
   `*EnvelopedResponse[*Zone, GetZoneHeaders, *GetZoneResponse]`. The runtime's
   `EnvelopedResponse[T, H, E]` embeds `Response[T, H]` and adds `Envelope E`, so the envelope's
-  `Messages` need no type assertion.
+  `Messages` need no type assertion. `E` is `any` where the responses a method returns are wrapped
+  in different envelope types.
 - **Another declared response.** With no body, `DeleteMethod` returns a nil `*Deleted` and a nil
   error, and a stream's `Recv` returns `io.EOF`.
 

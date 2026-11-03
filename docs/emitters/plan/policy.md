@@ -86,7 +86,7 @@ so a configuration names its envelopes, and the default names none.
 ```go
 type Envelope struct {
     Name     string      // recorded in each Inferred mark this envelope sets
-    Bases    []ir.TypeID // matches a body whose model reaches one of these through Base or Mixins
+    Bases    []ir.TypeID // matches a body whose model composes one of these, at any distance
     Members  []string    // matches a body whose model declares every one of these wire names
     Value    []string    // the wire-name path to what the reader gets in the body's place;
                          // nil = the body itself
@@ -96,18 +96,21 @@ type Envelope struct {
 }
 ```
 
-A body matches an `Envelope` when its type, read through `TypePlan.Alias`, is a model that reaches
-one of `Bases` through `Base` or `Mixins`, or declares every name in `Members`, read through
-`Flattened`. Either way it must also declare the members `Value` and `Flag` name. A body takes the
-first envelope that matches it, and an envelope never matches a body of an operation its `Except`
-lists, so the next one may. An operation opts out through `Except` rather than a hint, since the
-plan reads none ([plan or refine](plan-or-refine.md)). [Responses](responses.md#envelopes) says how
-a matched body is read.
-Each field the match sets is marked `Inferred` with the envelope's `Name`. An envelope with no
-`Name` or one another envelope shares, with neither `Bases` nor `Members`, or with only one of
-`Flag` and `Succeeds` is reported as an error `emitters/plan/policy-invalid` and matches nothing. An
-`Except` or `Bases` entry naming nothing in the document, and an envelope no body matches, are
-reported as a warning `emitters/plan/envelope-unused`, since one policy may serve several documents.
+A body matches an `Envelope` when its type, read through `TypePlan.Alias`, is a model that composes
+one of `Bases` through `Base`, `Implements` or `Mixins` at any distance, the models `Flattened`
+reads, or declares every name in `Members`, read through `Flattened`. Either way it must also
+declare the members `Value` and `Flag` name. A body takes the first envelope that matches it, and an
+envelope never matches a body of an operation its `Except` lists, so the next one may. An operation
+opts out through `Except` rather than a hint, since the plan reads none ([plan or
+refine](plan-or-refine.md)). [Responses](responses.md#envelopes) says how a matched body is read.
+Each field the match sets is marked `Inferred` with the envelope's `Name`.
+
+An envelope is reported as an error `emitters/plan/policy-invalid`, and matches nothing, when it has
+no `Name` or one another envelope shares, neither `Bases` nor `Members`, only one of `Flag` and
+`Succeeds`, or a `Succeeds` holding no value the flag of a body it matches admits, which would fail
+every call. An `Except` or `Bases` entry naming nothing in the document, and an envelope no body
+matches, are reported as a warning `emitters/plan/envelope-unused`, since one policy may serve
+several documents.
 
 `Succeeds` lists what success looks like, not failure, because a flag may fail in more than one way:
 JSend's `status` fails as `fail` and as `error`, and a numeric `code` succeeds at `0` alone. A nil
@@ -116,8 +119,8 @@ returned whole, and the flag is still read.
 
 A body is matched by its members as well as by its composition, because composition alone misses
 real envelopes. On the golden spec (spec @5c37ac8c, morphic @fd8b0730), the primary bodies of 2,665
-of 3,763 operations declare `success`, `errors`, `messages` and `result`. 2,238 of them reach a
-named component declaring the `success` flag through `Base` or `Mixins`, 113 distinct components in
+of 3,763 operations declare `success`, `errors`, `messages` and `result`. 2,238 of them compose a
+named component declaring the `success` flag, 113 distinct components in
 all, since products declare their own; the other 427 declare it inline, and no `Bases` list reaches
 them. One `Members` entry matches all 2,665, and since it names every member, a body that merely has
 a `result` is never unwrapped by accident:

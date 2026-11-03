@@ -191,13 +191,15 @@ throughout these documents.
     [plan policy](../plan/policy.md#the-policy-is-data)).
 32. **T-32 · Envelopes** — under an envelope matched by `Members` and one matched by `Bases`, on
     every target, a method returns the member at `Value`, in the target's nullable form where that
-    member is optional, and its `WithResponse` method returns the envelope whole and typed. A 2xx
-    whose flag holds a value `Succeeds` does not list is a failure with no fault or kind whose body
-    decodes as `Failure`, even where the success type admits only `true`, an error entry whose flag
-    admits only `true` passed over, and one with no flag is a success. A paginated operation's page
-    is read whole, its flag still read. A body naming only some of the members and a failure body
-    are read as they would be with no envelope, an operation one envelope's `Except` lists is read
-    by the next envelope that matches it, and the default policy unwraps nothing. An envelope with a
-    `Flag` and no `Succeeds` draws `emitters/plan/policy-invalid`, and one no body matches
-    `emitters/plan/envelope-unused`
+    member is optional, and its `WithResponse` method returns the envelope whole and typed, as the
+    target's top type where a `200` and a `202` are wrapped in two envelope types; another 2xx
+    reaching an `OtherResponse` holds the member at `Value`. A 2xx whose flag holds a value
+    `Succeeds` does not list is a failure with no fault or kind whose body decodes as `Failure`,
+    even where the success type admits only `true`, an error entry whose flag admits only `true`
+    passed over, and one with no flag is a success. A paginated operation's page is read whole, its
+    flag still read. A body naming only some of the members and a failure body are read as they
+    would be with no envelope, an operation one envelope's `Except` lists is read by the next
+    envelope that matches it, and the default policy unwraps nothing. An envelope with a `Flag` and
+    no `Succeeds`, or a `Succeeds` its flag cannot hold, draws `emitters/plan/policy-invalid`, and
+    one no body matches `emitters/plan/envelope-unused`
     ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes)).

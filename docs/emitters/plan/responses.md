@@ -108,23 +108,25 @@ read through it, and `Envelope` records how, marked `Inferred` with the envelope
   those come from on OpenAPI is #989's.
 - **A failure in-band.** Where `Flag` is set, the decoder reads that member before decoding the
   body, as a discriminator's tag is read ([unions](../refine/unions.md#discriminators)). A body
-  whose flag holds a value `Succeeds` does not list is a failure despite its 2xx status, and
-  decodes into `Failure`: the `Type` of the first entry of `Errors` whose body the same envelope
-  matches and whose flag's type admits such a value, or the target's untyped JSON where none does.
-  It is never decoded as a type whose flag admits only success, `Body` among them, since an API
-  whose success envelope declares `success: true` alone sends a failure no success type admits
+  whose flag holds a value `Succeeds` does not list is a failure despite its 2xx status, and decodes
+  into `Failure`: the `Type` of the first entry of `Errors` whose body the same envelope matches and
+  whose flag's type admits such a value, or the target's untyped JSON where none does. It is never
+  decoded as a type whose flag admits only success, `Body` among them, since an API whose success
+  envelope declares `success: true` alone sends a failure no success type admits
   ([failures](../operations/errors.md#every-failure-has-one-place)). On the golden spec, 2,321 of
-  the 2,665 enveloped operations declare an error case the envelope matches, 2,225 of them only
-  one such type; the other 96 take the first, and a body that does not decode as it is still a
-  failure. In 6 the first declares `success: true` alone, as a body reusing the success envelope
-  does, and 2 of those have a later entry that admits `false`.
+  the 2,665 enveloped operations declare an error case the envelope matches, 2,225 of them only one
+  such type; the other 96 take the first that admits a failing flag, and a body that does not decode
+  as it is still a failure. In 6 the first declares `success: true` alone, as a body reusing the
+  success envelope does, and 2 of those have a later entry that admits `false`.
 - **A flag that says nothing.** A flag absent or null leaves the status to decide, so a 2xx body
   without one is a success, as it would be with no envelope: the flag only overrides a status when
   it speaks. 62 of the golden spec's 2,665 enveloped bodies do not require `success`.
-- **Only a success.** A failure is read whole, so an entry of `Errors` has no `Envelope`, and a
-  body that does not match is read as it would be with no envelope configured.
+- **Only a success.** A failure is never unwrapped, so an entry of `Errors` has no `Envelope`, and
+  a body that does not match is read as it would be with no envelope configured.
 
-An entry of `Others` is read by the same rules, so `AsReturn` compares the types its reader gets.
+An entry of `Others` is read by the same rules as `Return`, so `AsReturn` compares the types its
+reader gets. One that reaches an `OtherResponse` holds the member at `Value` in `Body`, and
+`RawBody` holds the envelope as it arrived.
 
 ## Headers
 
@@ -142,9 +144,9 @@ so it is never a failure, whatever its status: it has no `Fault`, no kind and no
 by the rules above, and what a method does with it follows from how that reading compares with
 `Return` ([return shapes](../operations/returns.md)):
 
-1. **It reads as `Return` does**: the same `Shape`, the same `Type` through `Alias` for a `value`
-   and the same `Element` for a `stream`. `AsReturn` is set, and the method returns it as it returns
-   the primary.
+1. **It reads as `Return` does**: the same `Shape`, the same `Type` through `Alias`, its `Nullable`
+   aside, for a `value` and the same `Element` for a `stream`. `AsReturn` is set, and the method
+   returns it as it returns the primary, in the nullable form where either `Type` is nullable.
 2. **It has no body, beside a `Return` that has one**: a `204` or a `304` beside a `200`. The method
    has nothing to return, so the caller gets no value and no error: a return takes the target's
    nullable form ([optionality](../refine/models.md#optionality--nullability--presence-inv8)), and a
