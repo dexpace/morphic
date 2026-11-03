@@ -421,10 +421,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "webhookName": "onEvent",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "onEvent"
+                    "isWebhook": true
                   }
                 ]
               },
