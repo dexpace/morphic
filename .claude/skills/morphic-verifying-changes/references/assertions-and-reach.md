@@ -74,9 +74,9 @@ it.
   documents and diagnostics match unless the change says why not. Passing on `main` by design, the
   probe takes its control from a build whose check fires without the dependency, which must differ
   (`references/differentials.md#planted-control`). A test row of that fixture keeps the match.
-- **Why.** Every spec testing #1406's `$id` base checks wrote a `$ref`, while the checks fired on
-  any text under another `$id`: a type lost an `allOf` branch's `minLength` to `Unmodeled`, though
-  the branch wrote no `$ref`.
+- **Why.** While #1406's `$id` base checks fired on any text under another `$id`, every spec testing
+  them wrote a `$ref`: a type lost the `minLength` of an `allOf` branch writing no `$ref` to
+  `Unmodeled`.
 
 ## Assert diagnostics by code, severity and subject, and the whole list
 `assert-diagnostics-by-identity-and-completely`
