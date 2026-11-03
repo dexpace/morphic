@@ -6,7 +6,6 @@ package irtest_test
 import (
 	"errors"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -15,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/exectest"
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
@@ -184,12 +184,12 @@ func TestRequireOpensModuleFiles_RefusesThroughARealChild(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			cmd := exec.CommandContext(t.Context(), os.Args[0],
-				"-test.run=^"+self+"$", "-test.timeout=2m")
-			cmd.Env = append(os.Environ(), subjectEnv+"="+tc.subject)
+			env := []string{subjectEnv + "=" + tc.subject}
 			if tc.marked {
-				cmd.Env = append(cmd.Env, irtest.OpensChildEnv+"=1")
+				env = append(env, irtest.OpensChildEnv+"=1")
 			}
+			cmd := exectest.Command(t.Context(), t, env, os.Args[0],
+				"-test.run=^"+self+"$", "-test.timeout=2m")
 			out, err := cmd.CombinedOutput()
 			require.Error(t, err, "the call must fail its process:\n%.1500s", out)
 			assert.Contains(t, string(out), tc.want)
