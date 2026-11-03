@@ -17,13 +17,13 @@ import (
 type nameReader struct {
 	// parties are the names of the scope being read, in its order.
 	parties []party
-	// seen maps a neutral name to the parties so far that have it.
+	// seen maps a name the scope compares to the parties so far that have it.
 	seen reusedMap[string, chain]
 	// later holds, for each party, the next party sharing its neutral name, or
 	// -1 where none does.
 	later []int
-	// shared holds the first party of each neutral name two or more share, in
-	// the order their second parties were read.
+	// shared holds the first party of each name two or more share, in the
+	// order their second parties were read.
 	shared []int
 	// bare holds the parties whose name has no word character.
 	bare  []int
@@ -108,9 +108,11 @@ func (r *nameReader) readScope(n int, name func(i int) ir.Naming) bool {
 	return r.read()
 }
 
-// read finds, among r.parties, the neutral names two or more parties share and
-// the parties whose name has no word character, and reports whether it found
-// either. A party with neither words nor a source names nothing, which
+// read finds, among r.parties, the names two or more parties share and the
+// parties whose name has no word character, and reports whether it found
+// either. A name with no word character is compared by its spelling, which
+// every target names alike and no neutral name equals, as each holds a letter
+// or digit. A party with neither words nor a source names nothing, which
 // irverify reports as ir/naming-absent, so it is passed over here.
 func (r *nameReader) read() bool {
 	seen := r.seen.emptied()
@@ -118,28 +120,30 @@ func (r *nameReader) read() bool {
 	r.shared, r.bare = r.shared[:0], r.bare[:0]
 	for i, p := range r.parties {
 		r.later[i] = -1
-		if p.words == "" {
-			if p.source != "" {
-				r.bare = append(r.bare, i)
+		key := p.words
+		if key == "" {
+			if p.source == "" {
+				continue
 			}
-			continue
+			r.bare = append(r.bare, i)
+			key = p.source
 		}
-		c, ok := seen[p.words]
+		c, ok := seen[key]
 		if !ok {
-			seen[p.words] = chain{first: i, last: i}
+			seen[key] = chain{first: i, last: i}
 			continue
 		}
 		if c.first == c.last {
 			r.shared = append(r.shared, c.first)
 		}
 		r.later[c.last] = i
-		seen[p.words] = chain{first: c.first, last: i}
+		seen[key] = chain{first: c.first, last: i}
 	}
 	return len(r.shared) > 0 || len(r.bare) > 0
 }
 
 // report appends what read found in sc, at what holds it: for each shared
-// neutral name a pass/name-collision warning naming every party that has it,
+// name a pass/name-collision warning naming every party that has it,
 // and for each party with no word character a pass/name-without-words info
 // naming that party.
 func (r *nameReader) report(sc scope) {
@@ -155,8 +159,8 @@ func (r *nameReader) report(sc scope) {
 	}
 }
 
-// collision is the message for the parties sharing first's neutral name, in
-// scope order, each named with the spelling its source gave it.
+// collision is the message for the parties sharing first's name, in scope
+// order, each named with the spelling its source gave it.
 func (r *nameReader) collision(sc scope, first int) string {
 	var b strings.Builder
 	sc.lead(&b)
@@ -175,7 +179,11 @@ func (r *nameReader) collision(sc scope, first int) string {
 			fmt.Fprintf(&b, " (%q)", src)
 		}
 	}
-	fmt.Fprintf(&b, " share the neutral name %q, so a target can tell them apart only by ID",
-		r.parties[first].words)
+	if words := r.parties[first].words; words != "" {
+		fmt.Fprintf(&b, " share the neutral name %q", words)
+	} else {
+		fmt.Fprintf(&b, " share the spelling %q, which has no word character", r.parties[first].source)
+	}
+	b.WriteString(", so a target can tell them apart only by ID")
 	return b.String()
 }

@@ -114,6 +114,15 @@ func TestNames_ReportsEachScope(t *testing.T) {
 				wordless("t/ops", `in enum t/ops, member e/< ("<")`),
 				wordless("doc", `type t/*** ("***")`),
 			}},
+		{"a name with no word character, repeated", withTypes(&ir.Enum{ID: "t/ops", Name: named("Ops"), Members: []ir.EnumMember{
+			{ID: "e/>=", Name: named(">=")}, {ID: "e/=", Name: named("=")}, {ID: "e/>=/2", Name: named(">=")}}}),
+			[]ir.Diagnostic{
+				collision("t/ops", `in enum t/ops, members e/>= (">=") and e/>=/2 (">=") share the spelling ">=", `+
+					`which has no word character`),
+				wordless("t/ops", `in enum t/ops, member e/>= (">=")`),
+				wordless("t/ops", `in enum t/ops, member e/= ("=")`),
+				wordless("t/ops", `in enum t/ops, member e/>=/2 (">=")`),
+			}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()

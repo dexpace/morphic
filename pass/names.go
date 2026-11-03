@@ -17,8 +17,8 @@ var _ Pass = Names{}
 const NamesName = "names"
 
 // Names reports what a document's names leave to every target alike: entities
-// of one scope sharing a neutral name, which a target can tell apart only by
-// ID, and a name with no word character, which a target names from its
+// of one scope whose names every target renders alike, which it can tell apart
+// only by ID, and a name with no word character, which a target names from its
 // characters (docs/ir/naming.md#names-one-scope-shares). It is an analysis, so
 // Run hands back the document it was given.
 type Names struct{}

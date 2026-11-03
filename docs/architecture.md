@@ -352,10 +352,10 @@ Built, and in the default list:
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
 - **names** — what a document's names leave to every target alike, which no IR rule forbids: two
-  entities of one scope that share a neutral name, which a target can tell apart only by ID, as a
-  warning, and a name with no word character, which a target names from its characters, as an info
-  ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and it runs
-  after every transform, before `validate`, which stays last.
+  entities of one scope whose names every target renders alike, which a target can tell apart only
+  by ID, as a warning, and a name with no word character, which a target names from its characters,
+  as an info ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and
+  it runs after every transform, before `validate`, which stays last.
 
 Designed, not yet built:
 

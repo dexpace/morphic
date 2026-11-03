@@ -157,8 +157,9 @@ words answers for all of them, and the `names` pass reports it to the document's
 - **A name with no word character** has no neutral name at all, and a target names it from its
   characters
   ([naming](../emitters/refine/naming.md#a-name-with-no-words-takes-its-characters-names)), so the
-  pass reports each such entity as an info, `pass/name-without-words`, and compares it with no
-  other.
+  pass reports each such entity as an info, `pass/name-without-words`. It compares the name only
+  with the same spelling, which every target names alike: another, such as `==` beside `=`, meets
+  it only through the table of character names, which a target's options may replace.
 
 Left out, each for its reason:
 
