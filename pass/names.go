@@ -103,7 +103,8 @@ func (r *nameReader) groupList(in, id string, groups []ir.OperationGroup) {
 // params reads the parameters of the operation op as one scope.
 func (r *nameReader) params(op ir.OpID, params []ir.Parameter) {
 	if r.readScope(len(params), func(i int) ir.Naming { return params[i].Name }) {
-		r.report(scope{in: "operation", id: string(op), one: "parameter", many: "parameters"})
+		r.report(scope{in: "operation", id: string(op), one: "parameter", many: "parameters",
+			ids: idsOf(len(params), func(i int) string { return string(params[i].ID) })})
 	}
 }
 
@@ -152,15 +153,18 @@ func (r *nameReader) typeParts(id ir.TypeID, td ir.TypeDef) {
 	switch t := td.(type) {
 	case *ir.Model:
 		if r.readScope(len(t.Properties), func(i int) ir.Naming { return t.Properties[i].Name }) {
-			r.report(scope{in: "model", id: string(id), one: "property", many: "properties"})
+			r.report(scope{in: "model", id: string(id), one: "property", many: "properties",
+				ids: idsOf(len(t.Properties), func(i int) string { return string(t.Properties[i].ID) })})
 		}
 	case *ir.Enum:
 		if r.readScope(len(t.Members), func(i int) ir.Naming { return t.Members[i].Name }) {
-			r.report(scope{in: "enum", id: string(id), one: "member", many: "members"})
+			r.report(scope{in: "enum", id: string(id), one: "member", many: "members",
+				ids: idsOf(len(t.Members), func(i int) string { return string(t.Members[i].ID) })})
 		}
 	case *ir.Union:
 		if r.readScope(len(t.Variants), func(i int) ir.Naming { return t.Variants[i].Name }) {
-			r.report(scope{in: "union", id: string(id), one: "variant", many: "variants"})
+			r.report(scope{in: "union", id: string(id), one: "variant", many: "variants",
+				ids: idsOf(len(t.Variants), func(i int) string { return string(t.Variants[i].Type.Target) })})
 		}
 	default:
 		// No other kind names its parts.

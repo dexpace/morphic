@@ -85,7 +85,7 @@ func TestNames_ReportsEachScope(t *testing.T) {
 		{"an operation's parameters", inGroup(ir.OperationGroup{ID: "g", Operations: []ir.Operation{{ID: "op", Params: []ir.Parameter{
 			{ID: "param/a", Name: named("account_id")}, {ID: "param/b", Name: named("limit")}, {ID: "param/c", Name: named("accountId")}}}}}),
 			[]ir.Diagnostic{collision("op",
-				`in operation op, parameters 0 ("account_id") and 2 ("accountId") share the neutral name "account_id"`)}},
+				`in operation op, parameters param/a ("account_id") and param/c ("accountId") share the neutral name "account_id"`)}},
 		{"declared types", withTypes(
 			&ir.Model{ID: "t/b", Name: named("pet")},
 			&ir.Enum{ID: "t/a", Name: named("Pet")}),
@@ -93,13 +93,14 @@ func TestNames_ReportsEachScope(t *testing.T) {
 		{"a model's properties", withTypes(&ir.Model{ID: "t/m", Anonymous: true, Name: hinted("m"),
 			Properties: []ir.Property{{ID: "p/a", Name: named("userId")}, {ID: "p/b", Name: named("user_id")}}}),
 			[]ir.Diagnostic{collision("t/m",
-				`in model t/m, properties 0 ("userId") and 1 ("user_id") share the neutral name "user_id"`)}},
+				`in model t/m, properties p/a ("userId") and p/b ("user_id") share the neutral name "user_id"`)}},
 		{"an enum's members", withTypes(&ir.Enum{ID: "t/e", Name: named("Sign"),
 			Members: []ir.EnumMember{{ID: "e/-1", Name: named("-1")}, {ID: "e/1", Name: named("1")}}}),
-			[]ir.Diagnostic{collision("t/e", `in enum t/e, members 0 ("-1") and 1 ("1") share the neutral name "1"`)}},
+			[]ir.Diagnostic{collision("t/e", `in enum t/e, members e/-1 ("-1") and e/1 ("1") share the neutral name "1"`)}},
 		{"a union's variants", withTypes(&ir.Union{ID: "t/u", Name: named("U"),
-			Variants: []ir.Variant{{Name: hinted("a_model")}, {Name: hinted("a_model")}}}),
-			[]ir.Diagnostic{collision("t/u", `in union t/u, variants 0 and 1 share the neutral name "a_model"`)}},
+			Variants: []ir.Variant{{Name: hinted("a_model"), Type: ir.TypeRef{Target: "t/a"}},
+				{Name: hinted("a_model"), Type: ir.TypeRef{Target: "t/b"}}}}),
+			[]ir.Diagnostic{collision("t/u", `in union t/u, variants t/a and t/b share the neutral name "a_model"`)}},
 		{"auth schemes, in ID order", &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
 			"auth/b": {ID: "auth/b", Name: named("APIToken")}, "auth/a": {ID: "auth/a", Name: named("api_token")}}},
 			[]ir.Diagnostic{collision("doc",
@@ -109,8 +110,8 @@ func TestNames_ReportsEachScope(t *testing.T) {
 			&ir.Enum{ID: "t/ops", Name: named("Ops"),
 				Members: []ir.EnumMember{{ID: "e/a", Name: named("a")}, {ID: "e/<", Name: named("<")}, {ID: "e/A", Name: named("A")}}}),
 			[]ir.Diagnostic{
-				collision("t/ops", `in enum t/ops, members 0 ("a") and 2 ("A") share the neutral name "a"`),
-				wordless("t/ops", `in enum t/ops, member 1 ("<")`),
+				collision("t/ops", `in enum t/ops, members e/a ("a") and e/A ("A") share the neutral name "a"`),
+				wordless("t/ops", `in enum t/ops, member e/< ("<")`),
 				wordless("doc", `type t/*** ("***")`),
 			}},
 	} {
@@ -133,8 +134,8 @@ func TestNames_ReportsAScopesSharedNamesInTheOrderEachIsRepeated(t *testing.T) {
 	}})
 
 	assert.Empty(t, cmp.Diff([]ir.Diagnostic{
-		collision("t/e", `in enum t/e, members 1 ("b"), 2 ("B") and 4 ("b_") share the neutral name "b"`),
-		collision("t/e", `in enum t/e, members 0 ("a") and 3 ("A") share the neutral name "a"`),
+		collision("t/e", `in enum t/e, members e/1 ("b"), e/2 ("B") and e/4 ("b_") share the neutral name "b"`),
+		collision("t/e", `in enum t/e, members e/0 ("a") and e/3 ("A") share the neutral name "a"`),
 	}, namesOf(t, doc)))
 }
 

@@ -145,9 +145,11 @@ words answers for all of them, and the `names` pass reports it to the document's
   which a target resolves through its type table and never declares
   ([type table](../emitters/contract/type-table.md)).
 - **A finding is placed** at what holds its scope, the document for its own, and names every
-  party: a part the holder keeps in a list, such as a member, by its index, and anything else by
-  its ID. A party's place in its scope follows declaration order where a mapping declared it, so a
-  finding placed at a party would move with that order.
+  party by its ID, or a union's variant, which has none, by the type it holds. A party's place in
+  its scope follows declaration order where a mapping declared it, so a finding placed at a party
+  would move with that order. Nor is a party named by its index: the IR's list need not be the
+  source's, since an OpenAPI operation's parameters join those its path item declares, and a
+  union's variants leave out a `null` branch.
 - **An exact repeat is reported** like any other collision: two documents each declaring a
   component `Pet` give two types that render alike, which nothing else reports. A repeat may also
   draw a finding of the compiler's, such as `openapi/duplicate-enum-value`, which says what the

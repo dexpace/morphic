@@ -6,7 +6,6 @@ package pass
 import (
 	"fmt"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/dexpace/morphic/ir"
@@ -62,9 +61,9 @@ type scope struct {
 	// one names a party, and many several, such as "operation" and
 	// "operations".
 	one, many string
-	// ids are the parties' IDs, which name them. It is nil for parts the
-	// holder keeps in a list and the editor reaches through it, such as
-	// members, each named by its index.
+	// ids name the parties, in scope order: each by its own ID, and a union's
+	// variant, which has none, by the ID of the type it holds. An index would
+	// name a place in the IR's list, which need not be one the source wrote.
 	ids []string
 }
 
@@ -76,14 +75,6 @@ func (sc scope) at() string {
 		return ir.DocumentPath
 	}
 	return sc.id
-}
-
-// label names party i within sc.
-func (sc scope) label(i int) string {
-	if sc.ids == nil {
-		return strconv.Itoa(i)
-	}
-	return sc.ids[i]
 }
 
 // idsOf lists n IDs, the ith read through id, for a scope's report, and only
@@ -159,7 +150,7 @@ func (r *nameReader) report(sc scope) {
 		var b strings.Builder
 		sc.lead(&b)
 		fmt.Fprintf(&b, "%s %s (%q) has no word character, so it has no neutral name, and a target names it "+
-			"from its characters", sc.one, sc.label(i), r.parties[i].source)
+			"from its characters", sc.one, sc.ids[i], r.parties[i].source)
 		r.diags = append(r.diags, diag(ir.SeverityInfo, "pass/name-without-words", b.String(), sc.at()))
 	}
 }
@@ -179,7 +170,7 @@ func (r *nameReader) collision(sc scope, first int) string {
 		default:
 			b.WriteString(", ")
 		}
-		b.WriteString(sc.label(i))
+		b.WriteString(sc.ids[i])
 		if src := r.parties[i].source; src != "" {
 			fmt.Fprintf(&b, " (%q)", src)
 		}
