@@ -212,8 +212,9 @@ projects is projected with it, `Target` beside `TargetCreate` and `TargetPatch`,
 variants' projections in that shape and each decided apart. Shapes whose projections of a type
 coincide, every model it reaches holding and requiring the same members in both, may share one
 declaration ([models](../refine/models.md#visibility-projections--n-wire-shapes)), so they take one
-answer, inclusive where either is. A type no shape reaches is declared once, unprojected, and
-`TypePlan.Inclusive` decides it.
+answer, inclusive where either is. A type no shape reaches is declared once, unprojected: it holds
+every member but those `Visibility.None` hides, requires only the required members no filter can
+leave out, and `TypePlan.Inclusive` decides it.
 
 ## A model with lifecycle visibility
 

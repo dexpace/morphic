@@ -179,5 +179,6 @@ throughout these documents.
     response, a `PUT` body holding what `create` or `update` makes visible, and the `PATCH` body's
     members optional at every depth but inside the list, whose elements keep their required members.
     `ParameterVisibility` and `ReturnTypeVisibility` replace the default filter, a webhook's request
-    takes `read`, and two shapes whose projections coincide take one answer
+    takes `read`, two shapes whose projections coincide take one answer, and a model no operation
+    reaches holds its required `readOnly` and `writeOnly` members and requires neither
     ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)).

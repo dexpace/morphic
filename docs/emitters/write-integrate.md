@@ -8,7 +8,7 @@ seams; the `Origin`-tagged AST makes the manifest a byproduct of the emit walk.
   **sorted** file list (deterministic diffs), and an **entity → generated-symbol map keyed by
   `TypeID`/`OpID`/`PropID`** — assembled from the `Origin` on every emitted node. This is the
   biggest win of stable-ID keying: a spec rename is "same ID, new symbol" — a lookup, not oagen's
-  structural rename-inference machinery. A declaration derived from an entity keys under it, as
+  structural rename-inference machinery. A symbol derived from an entity keys under it, as
   `User.ID#create` does ([`User`](targets/go/models.md#user-in-go)), a union's wrappers, fallback
   and inclusive fields among them, so no two symbols share a key. Write/integrate and surface
   verification (architecture.md §2.3) both rest on it.
