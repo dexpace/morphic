@@ -57,8 +57,8 @@ yourself. These rules are the ways that reading still lies.
 
 - **Rule.** The race detector reports a planted race only when the two accesses overlap in that
   run, so one run of such a plant is no verdict. Run it at least 10 times with `-count=1`, which
-  skips the test cache, and report the rate. Below every run, move the plant to a path more tests
-  take, or give the rate as the result.
+  skips the test cache, and report the rate. A plant caught in fewer than every run moves to a path
+  more tests take, or its rate is the result.
 - **Why.** A race planted in `pass`' `checkPropIDRefs` was reported in 3 of 14 runs, one on a path
   many `pass` tests take in 5 of 5, so a single run read either way could be wrong (#1438).
 - **Probe.** `for i in $(seq 10); do go test -race -count=1 ./<pkg> 2>&1 | grep -c 'WARNING: DATA RACE'; done`,
