@@ -676,7 +676,9 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
 // anything the body does not to the degraded lowering, and pins each way of
 // doing so a looser comparison would read as a restatement. The rows ending
 // TheBodyAlsoWrites hold a property keyword outside typeKeywords there even
-// when written as the body writes it, since that list is closed.
+// when written as the body writes it, since that list is closed, and those
+// ending BesideTheBodysType an annotation outside restatingBranchKeywords
+// (#1394).
 func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct{ version, schema, keyword string }{
@@ -882,6 +884,10 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string, not: {const: x}}}}]
 `, "openapi:oneOf"},
+		"NotTheBodyAlsoWrites": {"3.1.0", `      type: object
+      properties: {a: {type: string, not: {const: x}, minLength: 1}}
+      oneOf: [{required: [a], properties: {a: {type: string, not: {const: x}}}}]
+`, "openapi:oneOf"},
 		"AliasedBranchWithNotSayingMore": {"3.1.0", `      type: object
       x-branch: &b {required: [a], properties: {a: {type: string}}, format: uri, not: {required: [b]}}
       properties: {a: {type: string}}
@@ -890,6 +896,18 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 		"MinPropertiesBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string}}, minProperties: 2}]
+`, "openapi:oneOf"},
+		"CommentBesideTheBodysType": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{type: object, required: [a], $comment: c}]
+`, "openapi:oneOf"},
+		"DeprecatedBesideTheBodysType": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{type: object, required: [a], deprecated: true}]
+`, "openapi:oneOf"},
+		"ExtensionBesideTheBodysType": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      oneOf: [{type: object, required: [a], x-note: c}]
 `, "openapi:oneOf"},
 		"DynamicRefBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
