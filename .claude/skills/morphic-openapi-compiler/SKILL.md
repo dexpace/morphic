@@ -29,7 +29,10 @@ drew it (`references/lossless-and-diagnostics.md`).
 
 - Compile the input and read the IR and every diagnostic:
   `go run ./cmd/morphic compile --verify <spec>` (the IR goes to stdout, diagnostics to stderr, and
-  `--verify` checks each stage's IR against its invariants).
+  `--verify` checks each stage's IR against its invariants). Keep the diagnostics beside the IR
+  with `2>"$file"`, or read them alone from `go run ./cmd/morphic validate --verify <spec>`, which
+  writes no IR. Never `2>&1 >/dev/null | grep`: zsh's `MULTIOS` sends the IR, which holds every
+  diagnostic, into the pipe too, doubling a count.
 - A new conformance case follows step 4 of `CONTRIBUTING.md`'s lowering-rule recipe and
   `references/openapi-lessons.md#conformance-case`, and passes
   `go test ./internal/harness ./compilers/openapi/...`.
@@ -42,7 +45,8 @@ Each is a rule in the references below, with its evidence and probe.
 - One construct has several readers: before changing how a keyword is read, find every reader of
   it (`references/openapi-lessons.md#every-reader`).
 - A reading the library already implements is called, not re-derived
-  (`references/openapi-lessons.md#reuse-library-readings`).
+  (`references/openapi-lessons.md#reuse-library-readings`), but two schemas are compared by their
+  raw nodes, as the model misses keywords (`references/openapi-lessons.md#compare-raw-nodes`).
 - A malformed construct is reported once, by load's rule table
   (`docs/compilers/openapi.md#validation`); a lowering adds no second report
   (`references/lossless-and-diagnostics.md#one-defect-one-finding`).

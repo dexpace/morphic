@@ -7,12 +7,17 @@ canary. A behaviour found that the page lacks is added there.
 `every-reader`
 
 - **Rule.** Before changing which `allOf` branches compose, how deep a walk goes, or how a keyword
-  is read, find every package that reads the same keyword through its own walk (`GetAllOf()` outside
-  `compilers/openapi/internal/schema`) and make each agree in predicate and in bound.
+  is read, find each package outside the changed one reading the keyword by getter or key, and make
+  each agree in predicate and in bound:
+  `git grep -nE 'Get<Keyword>\(\)|"<keyword>"' -- 'compilers/openapi/*.go' ':!*_test.go' ':!*/<package>/*'`.
 - **Why.** The multipart part reader in `compilers/openapi/internal/operation` walks `allOf` with
-  its own bound and drifted from the schema lowering, dropping an `encoding` silently (#998).
-- **Probe.** A multipart body with an `encoding` entry for a part inside the changed shape, on
-  `main` and on the branch.
+  its own bound and drifted from the schema lowering, dropping an `encoding` silently (#998). A
+  changed reading of a `oneOf` branch was shown to hold by compiling both spellings at each
+  position (#1278).
+- **Probe.** Compile the old and the new spelling at every position
+  (`references/lossless-and-diagnostics.md#same-construct-at-every-position`), on `main` and on the
+  branch: each spelling takes one verdict across them. For `allOf`, one is a multipart body
+  encoding a part inside the changed shape.
 
 ## Enumerate a source object's fields against their readers
 `fields-vs-readers`
@@ -34,6 +39,23 @@ canary. A behaviour found that the page lacks is added there.
   disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`).
 - **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`, `.`
   and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
+
+## Compare two schemas by their raw nodes
+`compare-raw-nodes`
+
+- **Rule.** `Schema.IsEqual` reads the model, which misses keywords
+  (`docs/parser-library.md#unmodeled-keywords`), so compare two schemas by their raw nodes. Call a
+  `yml` function `nodeview` lacks directly, adding `yml` to the package's `internal/archtest` entry
+  (`.claude/skills/morphic-designing-code/references/design-rules.md#no-forwarding-layer`).
+  `yml.EqualNodes` does not expand `<<` (`docs/parser-library.md#merge-keys`): trust its "unequal"
+  only where a false one errs safely, or compare each key through `nodeview.Pairs` and
+  `nodeview.Child`, which read merges as the parser does.
+- **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it, and #1278's
+  restated-branch check, comparing raw nodes, widened the schema package's allowlist with no rule
+  saying whether a `nodeview` wrapper should have stood instead.
+- **Probe.** Run the comparison on two schemas differing only in `dependentRequired`, and on
+  `{<<: {type: string}}` beside `{type: string}`: the first pair differs, and the second matches or
+  takes the answer that errs safely.
 
 ## Moving work out of the library moves its duties
 `library-duties`

@@ -502,7 +502,8 @@ pairs merged in come first, in the order their sources are written, an earlier s
 two share and none overriding a key the mapping writes itself; the mapping's own pairs follow. A
 source that writes a key twice gives its first copy, where the mapping itself gives its last
 ([`duplicate-key`](#duplicate-key)). A `<<` naming anything but a mapping or a list of mappings
-merges nothing, and nothing reports it.
+merges nothing, and nothing reports it. `yml.EqualNodes` compares nodes as they are written, a `<<`
+as a key like any other, so a mapping that merges a pair and one that writes it compare unequal.
 
 ```yaml
 x-base: &base {k: {type: string}, z: {type: string}}
@@ -604,7 +605,8 @@ components:
 
 The schema model has no field for `$dynamicRef`, `$dynamicAnchor`, `$comment`, `$vocabulary` or
 `dependentRequired`. It records each, like any key it does not know, by name alone, and leaves the
-value in the schema's raw node.
+value in the schema's raw node. `Schema.IsEqual` compares the model alone, so a schema writing such
+a key compares equal to one that does not.
 
 ```yaml
 components:

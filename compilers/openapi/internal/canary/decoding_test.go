@@ -22,6 +22,7 @@ import (
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	oas3core "github.com/speakeasy-api/openapi/jsonschema/oas3/core"
 	soa "github.com/speakeasy-api/openapi/openapi"
+	"github.com/speakeasy-api/openapi/yml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -510,13 +511,16 @@ func scalarAt(t *testing.T, source any, pointer string) string {
 // unmodeledKeywords pins unmodeled-keywords: the schema model has no field for
 // $dynamicRef, $dynamicAnchor, $comment, $vocabulary or dependentRequired, and
 // records each, like any key it does not know, by name alone; the value stays
-// in the raw node.
+// in the raw node, and Schema.IsEqual, comparing the model, does not see it.
 func unmodeledKeywords(t *testing.T) {
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(
 		"A: {$dynamicAnchor: n, $comment: c, $dynamicRef: '#n', $vocabulary: {}, dependentRequired: {}, "+
-			"unknownKeyword: u, type: object}")))
+			"unknownKeyword: u, type: object}",
+		"B: {type: object}")))
 	require.NoError(t, err)
 	a, ok := doc.Components.Schemas.Get("A")
+	require.True(t, ok)
+	b, ok := doc.Components.Schemas.Get("B")
 	require.True(t, ok)
 
 	unmodeled := []string{"DynamicRef", "DynamicAnchor", "Comment", "Vocabulary", "DependentRequired"}
@@ -527,6 +531,7 @@ func unmodeledKeywords(t *testing.T) {
 		[]string{"$dynamicAnchor", "$comment", "$dynamicRef", "$vocabulary", "dependentRequired", "unknownKeyword"},
 		a.GetSchema().GetCore().GetUnknownProperties(), revisit(t, result{}))
 	assert.Equal(t, "#n", scalarAt(t, a.GetSchema().GetRootNode(), "/$dynamicRef"), revisit(t, result{}))
+	assert.True(t, a.GetSchema().IsEqual(b.GetSchema()), "IsEqual reads the model alone: %s", revisit(t, result{}))
 }
 
 // nullSchemaIsFalse pins null-schema-is-false: a null written where a schema
@@ -576,8 +581,9 @@ func nullTypeIsEmpty(t *testing.T) {
 
 // mergeKeys pins merge-keys: a mapping's merged pairs come first, an earlier
 // source winning and none overriding the mapping's own key; a source writing a
-// key twice gives its first copy; and a `<<` naming no mapping merges nothing,
-// with no finding.
+// key twice gives its first copy; a `<<` naming no mapping merges nothing,
+// with no finding; and yml.EqualNodes, reading the nodes as written, tells a
+// merged pair from a written one.
 func mergeKeys(t *testing.T) {
 	doc, found, err := soa.Unmarshal(t.Context(), strings.NewReader(head+
 		"x-base: &base {k: {type: string}, z: {type: string}}\n"+
@@ -585,7 +591,9 @@ func mergeKeys(t *testing.T) {
 		"components:\n  schemas:\n"+
 		"    S: {properties: {a: {type: integer}, <<: [*base, *other], k: {type: boolean}}}\n"+
 		"    T: {properties: {<<: 5, q: {type: string}}}\n"+
-		"    D: {properties: {<<: {d: {type: string}, d: {type: integer}}}}\n"))
+		"    D: {properties: {<<: {d: {type: string}, d: {type: integer}}}}\n"+
+		"    M: {<<: {type: string}}\n"+
+		"    N: {type: string}\n"))
 	require.NoError(t, err)
 	assert.Empty(t, found, revisit(t, result{}))
 
@@ -607,6 +615,13 @@ func mergeKeys(t *testing.T) {
 	dd, _ := d.GetSchema().GetProperties().Get("d")
 	assert.Equal(t, []oas3.SchemaType{oas3.SchemaTypeString}, dd.GetSchema().GetType(),
 		"a source's repeated key gives its first copy: %s", revisit(t, result{}))
+	m, ok := doc.Components.Schemas.Get("M")
+	require.True(t, ok)
+	n, ok := doc.Components.Schemas.Get("N")
+	require.True(t, ok)
+	require.True(t, m.GetSchema().IsEqual(n.GetSchema()), "the model reads M as N")
+	assert.False(t, yml.EqualNodes(m.GetSchema().GetRootNode(), n.GetSchema().GetRootNode()),
+		"EqualNodes reads `<<` as a key: %s", revisit(t, result{}))
 }
 
 // scalarResolution pins scalar-resolution: a plain scalar's tag, and the number
