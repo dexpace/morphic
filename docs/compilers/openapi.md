@@ -1811,6 +1811,8 @@ past `MaxAllOfFlattenDepth`. An `allOf` that does not compose, one beside a `$re
   `schema.TestAllOf_DisjointConjunctsFollowTheNullableReading`,
   `schema.TestAllOf_DisjointConjunctsIgnoreDeclarationOrder`,
   `schema.TestAllOf_DisjointConjunctsReportOnModelsAndOperations`
+- Status: partly built: a keyword beside a `$ref` entry is not read from 3.1 on, where it applies
+  (#1390), and an `allOf` an `enum` or a `const` beside it passes over is not read (#1309).
 
 ### `union`
 

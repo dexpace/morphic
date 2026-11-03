@@ -107,7 +107,7 @@ func (r *conjunctTypes) schema(s *oas3.Schema) kindSet {
 
 // branch is what one allOf entry admits: an inline one's own schema, a $ref's
 // the schema it lands on. A keyword beside a $ref says nothing: 3.0 ignores it,
-// and reading it from 3.1 on, where it applies, is left open.
+// and reading it from 3.1 on, where it applies, is left open (GitHub #1390).
 // A boolean entry has no schema, so its `false` is applyFalseBranches' to report.
 func (r *conjunctTypes) branch(b *oas3.JSONSchema[oas3.Referenceable]) kindSet {
 	if isRefBranch(b) {
