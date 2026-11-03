@@ -87,17 +87,17 @@ func TestNames_ReportsEachScope(t *testing.T) {
 			[]ir.Diagnostic{collision("op",
 				`in operation op, parameters 0 ("account_id") and 2 ("accountId") share the neutral name "account_id"`)}},
 		{"declared types", withTypes(
-			&ir.Model{TypeCommon: ir.TypeCommon{ID: "t/b", Name: named("pet")}},
-			&ir.Enum{TypeCommon: ir.TypeCommon{ID: "t/a", Name: named("Pet")}}),
+			&ir.Model{ID: "t/b", Name: named("pet")},
+			&ir.Enum{ID: "t/a", Name: named("Pet")}),
 			[]ir.Diagnostic{collision("doc", `types t/a ("Pet") and t/b ("pet") share the neutral name "pet"`)}},
-		{"a model's properties", withTypes(&ir.Model{TypeCommon: ir.TypeCommon{ID: "t/m", Anonymous: true, Name: hinted("m")},
+		{"a model's properties", withTypes(&ir.Model{ID: "t/m", Anonymous: true, Name: hinted("m"),
 			Properties: []ir.Property{{ID: "p/a", Name: named("userId")}, {ID: "p/b", Name: named("user_id")}}}),
 			[]ir.Diagnostic{collision("t/m",
 				`in model t/m, properties 0 ("userId") and 1 ("user_id") share the neutral name "user_id"`)}},
-		{"an enum's members", withTypes(&ir.Enum{TypeCommon: ir.TypeCommon{ID: "t/e", Name: named("Sign")},
+		{"an enum's members", withTypes(&ir.Enum{ID: "t/e", Name: named("Sign"),
 			Members: []ir.EnumMember{{ID: "e/-1", Name: named("-1")}, {ID: "e/1", Name: named("1")}}}),
 			[]ir.Diagnostic{collision("t/e", `in enum t/e, members 0 ("-1") and 1 ("1") share the neutral name "1"`)}},
-		{"a union's variants", withTypes(&ir.Union{TypeCommon: ir.TypeCommon{ID: "t/u", Name: named("U")},
+		{"a union's variants", withTypes(&ir.Union{ID: "t/u", Name: named("U"),
 			Variants: []ir.Variant{{Name: hinted("a_model")}, {Name: hinted("a_model")}}}),
 			[]ir.Diagnostic{collision("t/u", `in union t/u, variants 0 and 1 share the neutral name "a_model"`)}},
 		{"auth schemes, in ID order", &ir.Document{Auth: map[ir.AuthID]ir.AuthScheme{
@@ -105,8 +105,8 @@ func TestNames_ReportsEachScope(t *testing.T) {
 			[]ir.Diagnostic{collision("doc",
 				`auth schemes auth/a ("api_token") and auth/b ("APIToken") share the neutral name "api_token"`)}},
 		{"a name with no word character", withTypes(
-			&ir.Model{TypeCommon: ir.TypeCommon{ID: "t/***", Name: named("***")}},
-			&ir.Enum{TypeCommon: ir.TypeCommon{ID: "t/ops", Name: named("Ops")},
+			&ir.Model{ID: "t/***", Name: named("***")},
+			&ir.Enum{ID: "t/ops", Name: named("Ops"),
 				Members: []ir.EnumMember{{ID: "e/a", Name: named("a")}, {ID: "e/<", Name: named("<")}, {ID: "e/A", Name: named("A")}}}),
 			[]ir.Diagnostic{
 				collision("t/ops", `in enum t/ops, members 0 ("a") and 2 ("A") share the neutral name "a"`),
@@ -127,7 +127,7 @@ func TestNames_ReportsEachScope(t *testing.T) {
 // first party would report first.
 func TestNames_ReportsAScopesSharedNamesInTheOrderEachIsRepeated(t *testing.T) {
 	t.Parallel()
-	doc := withTypes(&ir.Enum{TypeCommon: ir.TypeCommon{ID: "t/e", Name: named("E")}, Members: []ir.EnumMember{
+	doc := withTypes(&ir.Enum{ID: "t/e", Name: named("E"), Members: []ir.EnumMember{
 		{ID: "e/0", Name: named("a")}, {ID: "e/1", Name: named("b")}, {ID: "e/2", Name: named("B")},
 		{ID: "e/3", Name: named("A")}, {ID: "e/4", Name: named("b_")},
 	}})
@@ -154,18 +154,18 @@ func TestNames_LeavesWhatNoTargetRendersAlikeAlone(t *testing.T) {
 			{ID: "g/2", Operations: []ir.Operation{{ID: "op/2", Name: named("list")}},
 				Groups: []ir.OperationGroup{{ID: "g/2/1", Operations: []ir.Operation{{ID: "op/3", Name: named("list")}}}}},
 		}}}, Types: ir.TypeRegistry{
-			"t/a": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/a", Name: named("A")}, Properties: []ir.Property{{ID: "p/a", Name: named("id")}}},
-			"t/b": &ir.Model{TypeCommon: ir.TypeCommon{ID: "t/b", Name: named("B")}, Properties: []ir.Property{{ID: "p/b", Name: named("id")}}},
+			"t/a": &ir.Model{ID: "t/a", Name: named("A"), Properties: []ir.Property{{ID: "p/a", Name: named("id")}}},
+			"t/b": &ir.Model{ID: "t/b", Name: named("B"), Properties: []ir.Property{{ID: "p/b", Name: named("id")}}},
 		}}},
 		{"anonymous types sharing a hint, or a declared type's name", withTypes(
-			&ir.Model{TypeCommon: ir.TypeCommon{ID: "t/1", Anonymous: true, Name: hinted("direction")}},
-			&ir.Enum{TypeCommon: ir.TypeCommon{ID: "t/2", Anonymous: true, Name: hinted("direction")}},
-			&ir.Enum{TypeCommon: ir.TypeCommon{ID: "t/3", Name: named("Direction")}})},
+			&ir.Model{ID: "t/1", Anonymous: true, Name: hinted("direction")},
+			&ir.Enum{ID: "t/2", Anonymous: true, Name: hinted("direction")},
+			&ir.Enum{ID: "t/3", Name: named("Direction")})},
 		{"a type the type table resolves, named as a declared one is", withTypes(
-			&ir.Primitive{TypeCommon: ir.TypeCommon{ID: "t/prim/string", Name: named("string")}, Prim: ir.PrimString},
-			&ir.Any{TypeCommon: ir.TypeCommon{ID: "t/any", Name: named("String")}},
-			&ir.External{TypeCommon: ir.TypeCommon{ID: "t/external", Name: named("STRING")}, Identity: "x:string"},
-			&ir.Scalar{TypeCommon: ir.TypeCommon{ID: "t/string", Name: named("string_")}})},
+			&ir.Primitive{ID: "t/prim/string", Name: named("string"), Prim: ir.PrimString},
+			&ir.Any{ID: "t/any", Name: named("String")},
+			&ir.External{ID: "t/external", Name: named("STRING"), Identity: "x:string"},
+			&ir.Scalar{ID: "t/string", Name: named("string_")})},
 		{"names naming nothing, which irverify reports", inGroup(ir.OperationGroup{ID: "g",
 			Operations: []ir.Operation{{ID: "op/1"}, {ID: "op/2"}}})},
 		{"a nil entry of the registry", &ir.Document{Types: ir.TypeRegistry{"t/nil": (*ir.Model)(nil)}}},
@@ -221,11 +221,11 @@ func soundNames(n int) *ir.Document {
 				Operations: []ir.Operation{{ID: ir.OpID("op/" + word), Name: named(word),
 					Params: []ir.Parameter{{ID: ir.ParamID("param/" + word), Name: named(word)}}}}}}})
 		for _, td := range []ir.TypeDef{
-			&ir.Model{TypeCommon: ir.TypeCommon{ID: ir.TypeID("t/m/" + word), Name: named("m" + word)},
+			&ir.Model{ID: ir.TypeID("t/m/" + word), Name: named("m" + word),
 				Properties: []ir.Property{{ID: ir.PropID("p/" + word), Name: named(word)}}},
-			&ir.Enum{TypeCommon: ir.TypeCommon{ID: ir.TypeID("t/e/" + word), Name: named("e" + word)},
+			&ir.Enum{ID: ir.TypeID("t/e/" + word), Name: named("e" + word),
 				Members: []ir.EnumMember{{ID: ir.EnumMemberID("e/" + word), Name: named(word)}}},
-			&ir.Union{TypeCommon: ir.TypeCommon{ID: ir.TypeID("t/u/" + word), Name: named("u" + word)},
+			&ir.Union{ID: ir.TypeID("t/u/" + word), Name: named("u" + word),
 				Variants: []ir.Variant{{Name: hinted(word)}}},
 		} {
 			doc.Types[td.Common().ID] = td
