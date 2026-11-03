@@ -20,8 +20,8 @@ type nameReader struct {
 	parties []party
 	// seen maps a name the scope compares to the parties so far that have it.
 	seen reusedMap[string, chain]
-	// later holds, for each party, the next party sharing its neutral name, or
-	// -1 where none does.
+	// later holds, for each party, the next party sharing its name, or -1
+	// where none does.
 	later []int
 	// shared holds the first party of each name two or more share, in the
 	// order their second parties were read.
@@ -48,7 +48,7 @@ func partyOf(n ir.Naming) party {
 }
 
 // chain is the first and the last of the parties read so far that share a
-// neutral name.
+// name.
 type chain struct {
 	first, last int
 }

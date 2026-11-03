@@ -186,8 +186,10 @@ Left out, each for its reason:
   apart by its status; the OpenAPI compiler reports a name one servers list repeats
   (`openapi/duplicate-server-name`) and two keys of one status range
   (`openapi/duplicate-status-key`).
-- **Channels and messages**, which no compiler produces yet, and for which no emitter design says
-  what scope their names render into. They and servers join once a target names them (#1413).
+- **Channels and messages, a field's arguments and a resource's parts** (`Property.Args`,
+  `ResourceInfo.Identifiers` and `ResourceInfo.Properties`), which no compiler produces yet, and for
+  which no emitter design says what scope their names render into. They and servers join once a
+  target names them (#1413).
 - **A response's or an error case's headers**, which a target renders as the fields of one type.
   Neither has an ID to report at, and a path through its operation's list moves with the order the
   source declares responses in (#1418).
