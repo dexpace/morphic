@@ -80,6 +80,33 @@ func TestCommand_AppendsEnvToThisEnvironmentWithoutPWD(t *testing.T) {
 	assert.Equal(t, "A=1", env[len(env)-2])
 }
 
+// TestCommand_DiscardsTheChildsDirectory pins that the child's coverage
+// directory goes when the test that built the command ends.
+func TestCommand_DiscardsTheChildsDirectory(t *testing.T) {
+	t.Parallel()
+	var own string
+	t.Run("build", func(t *testing.T) {
+		got := values(exectest.Command(t.Context(), t, nil, "x").Env(), "GOCOVERDIR")
+		require.NotEmpty(t, got)
+		own = got[len(got)-1]
+		require.DirExists(t, own)
+	})
+	assert.NoDirExists(t, own)
+}
+
+// TestCmd_EnvReturnsACopy pins that writing to what Env returns leaves the
+// child's environment alone, so Env cannot point the child at another
+// coverage directory.
+func TestCmd_EnvReturnsACopy(t *testing.T) {
+	t.Parallel()
+	cmd := exectest.Command(t.Context(), t, nil, "x")
+
+	env := cmd.Env()
+	env[len(env)-1] = "GOCOVERDIR=/parent"
+
+	assert.NotContains(t, values(cmd.Env(), "GOCOVERDIR"), "/parent")
+}
+
 // TestCommand_BindsTheCommandLineAndTheContext pins that the command runs name
 // with args under ctx: Path and Args are what the caller passed, and with ctx
 // already cancelled, Run starts no child and returns its error.
