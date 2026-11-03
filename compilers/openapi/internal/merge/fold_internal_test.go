@@ -490,11 +490,12 @@ func TestKindOf_ReportsUnresolvableTargets(t *testing.T) {
 func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		value string
-		kept  bool
+		value    string
+		wantKeys []string
+		reports  int
 	}{
-		{`{"$ref":"n.json"}`, true},
-		{`{"const":"n.json"}`, false},
+		{`{"$ref":"n.json"}`, []string{"openapi:not", losingDeclarationKey + "/allOf/1/properties/p"}, 1},
+		{`{"const":"n.json"}`, []string{"openapi:not"}, 0},
 	} {
 		entry := ir.UnmodeledEntry{Value: ir.RawValue(tc.value)}
 		first, second := stringAt("/allOf/0/properties/p", `{"x":0}`), stringAt("/allOf/1/properties/p", `{"x":1}`)
@@ -505,13 +506,10 @@ func TestFold_UnmodeledAlikeUnderAnotherBaseIsKept(t *testing.T) {
 
 		got := g.fold([]declaration{first, second})
 
-		if !tc.kept {
-			assert.Equal(t, ir.Unmodeled{"openapi:not": entry}, got.Unmodeled, tc.value)
-			assert.Empty(t, *recorded, tc.value)
-			continue
+		assert.ElementsMatch(t, tc.wantKeys, slices.Collect(maps.Keys(got.Unmodeled)), tc.value)
+		assert.Len(t, *recorded, tc.reports, tc.value)
+		for _, d := range *recorded {
+			assert.Contains(t, d.Message, "give its openapi:not differently", tc.value)
 		}
-		assert.Contains(t, got.Unmodeled, losingDeclarationKey+string(second.prop.Provenance.Pointer), "the other is kept verbatim")
-		require.Len(t, *recorded, 1)
-		assert.Contains(t, (*recorded)[0].Message, "give its openapi:not differently")
 	}
 }

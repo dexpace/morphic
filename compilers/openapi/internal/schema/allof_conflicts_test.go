@@ -1277,10 +1277,7 @@ func TestAllOf_RedeclarationsUnderAnotherBaseStayApart(t *testing.T) {
 // is the field's type and nothing is kept.
 func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
 	t.Parallel()
-	const anchors = `    A: {$anchor: n, type: string, maxLength: 1}
-`
-	for name, tc := range map[string]struct{ named, schemas string }{
-		"CopyUnderAnID": {"E", `    E: %[1]s
+	const copyUnderAnID = `    E: %[1]s
     S:
       allOf:
         - {type: object, properties: {x: {$ref: '#/components/schemas/E'}}}
@@ -1288,32 +1285,38 @@ func TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart(t *testing.T) {
           $defs: {b: {$anchor: n, type: string, minLength: 5}}
           type: object
           properties: {x: %[1]s}
-`},
-		"NamedInAnotherResource": {"C", `    C:
+`
+	const namedInAnotherResource = `    C:
       $id: 'https://ex.test/b/c.json'
       $defs: {b: {$anchor: n, type: string, minLength: 5}, e: %[1]s}
     S:
       allOf:
         - {type: object, properties: {x: {$ref: 'https://ex.test/b/c.json#/$defs/e'}}}
         - {type: object, properties: {x: %[1]s}}
-`},
+`
+	for _, tc := range []struct {
+		name, schemas, not string
+		kept               bool
+	}{
+		{"CopyUnderAnID", copyUnderAnID, "{$ref: '#n'}", true},
+		{"CopyUnderAnID", copyUnderAnID, "{const: q}", false},
+		{"NamedInAnotherResource", namedInAnotherResource, "{$ref: '#n'}", true},
+		{"NamedInAnotherResource", namedInAnotherResource, "{const: q}", false},
 	} {
-		for _, not := range []string{"{$ref: '#n'}", "{const: q}"} {
-			x := "{type: string, enum: [ab, abcdef], not: " + not + "}"
-			doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0", anchors+fmt.Sprintf(tc.schemas, x)))
-			openapitest.RequireNoErrorDiags(t, diags)
-			m, ok := typeByName(doc, "S").(*ir.Model)
-			require.True(t, ok, name)
-			got, ok := openapitest.PropsByWire(m.Properties)["x"]
-			require.True(t, ok, name)
-			assert.NotContains(t, got.Type.Target, "/allOf/", "%s %s: the named schema is the type", name, not)
-			want := not != "{const: q}"
-			_, kept := got.Unmodeled["openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x"]
-			assert.Equal(t, want, kept, "%s %s", name, not)
-			assert.Equal(t, want,
-				openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
-				"%s %s", name, not)
-		}
+		x := "{type: string, enum: [ab, abcdef], not: " + tc.not + "}"
+		doc, diags := schema.LowerSpec(t, openapitest.ComponentSpecVer("3.1.0",
+			"    A: {$anchor: n, type: string, maxLength: 1}\n"+fmt.Sprintf(tc.schemas, x)))
+		openapitest.RequireNoErrorDiags(t, diags)
+		m, ok := typeByName(doc, "S").(*ir.Model)
+		require.True(t, ok, tc.name)
+		got, ok := openapitest.PropsByWire(m.Properties)["x"]
+		require.True(t, ok, tc.name)
+		assert.NotContains(t, got.Type.Target, "/allOf/", "%s %s: the named schema is the type", tc.name, tc.not)
+		_, kept := got.Unmodeled["openapi:conflicting-redeclaration/components/schemas/S/allOf/1/properties/x"]
+		assert.Equal(t, tc.kept, kept, "%s %s", tc.name, tc.not)
+		assert.Equal(t, tc.kept,
+			openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/S/allOf/1/properties/x"),
+			"%s %s", tc.name, tc.not)
 	}
 }
 

@@ -96,9 +96,13 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
 // unread.
 func branchDeclaresShape(body func() *bodyReading, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	s := b.GetSchema()
-	if s == nil || !slices.ContainsFunc(nodeview.Pairs(s.GetRootNode()), func(kv nodeview.Pair) bool {
+	if s == nil {
+		return false
+	}
+	writesJudged := slices.ContainsFunc(nodeview.Pairs(s.GetRootNode()), func(kv nodeview.Pair) bool {
 		return judged(s, kv.Key)
-	}) {
+	})
+	if !writesJudged {
 		return false
 	}
 	r := body()
@@ -248,8 +252,7 @@ func (r *bodyReading) lands(c claim) bool {
 // is validation logic where false closes the object
 // (docs/ir/boundaries.md#validation-only-constructs).
 func shapeless(s *oas3.Schema, key string) bool {
-	if annotation.WritesKeywordLeftOut(s, key) || strings.HasPrefix(key, "x-") ||
-		slices.Contains(shapelessKeywords, key) {
+	if annotation.WritesKeywordLeftOut(s, key) || strings.HasPrefix(key, "x-") || slices.Contains(shapelessKeywords, key) {
 		return true
 	}
 	return key == "unevaluatedProperties" && !annotation.IsFalseSchema(s.GetUnevaluatedProperties())

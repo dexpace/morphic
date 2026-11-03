@@ -421,8 +421,8 @@ func hoistedAt(td ir.TypeDef, at ir.Provenance) bool {
 // node declared elsewhere.
 func (d declarationSites) copies(a ir.TypeRef, at ir.TypeDef, b ir.TypeRef, bt ir.TypeDef) relation {
 	aHoisted, bHoisted := hoistedAt(at, d.written[0]), hoistedAt(bt, d.written[1])
-	if (aHoisted || bHoisted) && (keepsReference(at) || keepsReference(bt)) &&
-		!d.alike(at.Common().Provenance, bt.Common().Provenance) {
+	keeps := (aHoisted || bHoisted) && (keepsReference(at) || keepsReference(bt))
+	if keeps && !d.alike(at.Common().Provenance, bt.Common().Provenance) {
 		return relOverlap
 	}
 	return sameNodes(a, b, aHoisted, bHoisted)

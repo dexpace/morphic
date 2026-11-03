@@ -365,12 +365,8 @@ func TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing(t *testing.T) {
 			assert.Contains(t,
 				openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/S/"+tc.kept[len("openapi:"):]),
 				"reads its $refs against another base")
-			if tc.folded == "" {
-				assert.NotContains(t, um, "openapi:not")
-				assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing the branch writes folds")
-				return
-			}
-			assert.JSONEq(t, tc.folded, string(um["openapi:not"].Value), "the outer branch folds")
+			assert.Equal(t, tc.folded, string(um["openapi:not"].Value), "the outer branch folds its not, if it writes one")
+			assert.Empty(t, typeByName(doc, "S").Common().Docs.Description, "nothing the kept branch writes folds")
 		})
 	}
 }

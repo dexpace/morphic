@@ -1288,17 +1288,15 @@ func TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType(t *testing.T)
 		{keyword: "x-note", write: "x-note: n", schemas: objectSchema},
 		{keyword: "unknownKeyword", write: "unknownKeyword: 1", schemas: objectSchema},
 	}
-	for _, tc := range append(vocabularyCases(), cases...) {
-		if tc.keyword == "type" {
-			continue // what a branch repeats the body with
-		}
+	reasons := map[bool]ir.UnmodeledReason{false: ir.ReasonValidationOnly, true: ir.ReasonDegradedLowering}
+	keywords := slices.DeleteFunc(append(vocabularyCases(), cases...), func(tc vocabCase) bool {
+		return tc.keyword == "type" // what a branch repeats the body with
+	})
+	for _, tc := range keywords {
 		t.Run(tc.keyword, func(t *testing.T) {
 			t.Parallel()
 			_, others, _ := strings.Cut(tc.schemas, "\n")
-			want := ir.ReasonValidationOnly
-			if slices.Contains(declaresShape, tc.keyword) {
-				want = ir.ReasonDegradedLowering
-			}
+			want := reasons[slices.Contains(declaresShape, tc.keyword)]
 			for _, branch := range []string{"{" + tc.write + "}", "{type: object, " + tc.write + "}"} {
 				spec := openapitest.ComponentSpecVer("3.1.0", others+"    S:\n"+
 					"      type: object\n      properties: {p: {type: string}}\n"+
