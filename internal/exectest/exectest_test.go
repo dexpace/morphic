@@ -72,9 +72,9 @@ func TestCommand_WithoutCoverageTheChildIsGivenNoDirectory(t *testing.T) {
 	assert.Equal(t, "A=1", env[len(env)-1])
 }
 
-// TestCommand_RunsTheNamedCommandUnderTheContext runs a real child, which ends
-// with the context it was given.
-func TestCommand_RunsTheNamedCommandUnderTheContext(t *testing.T) {
+// TestCommand_BindsTheNameAndTheContext pins that the command runs name under
+// ctx: with ctx already cancelled, Run starts no child and returns its error.
+func TestCommand_BindsTheNameAndTheContext(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
