@@ -44,7 +44,7 @@ canary. A behaviour found that the page lacks is added there.
 - **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`, `.`
   and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
 
-## Compare two schemas by their raw nodes
+## Compare two schemas by rendering their raw nodes
 `compare-raw-nodes`
 
 - **Rule.** `Schema.IsEqual` reads the model, which misses keywords

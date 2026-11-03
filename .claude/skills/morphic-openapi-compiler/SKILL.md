@@ -45,8 +45,9 @@ Each is a rule in the references below, with its evidence and probe.
 - One construct has several readers: before changing how a keyword is read, find every reader of
   it (`references/openapi-lessons.md#every-reader`).
 - A reading the library already implements is called, not re-derived
-  (`references/openapi-lessons.md#reuse-library-readings`), but two schemas are compared by their
-  raw nodes, as the model misses keywords (`references/openapi-lessons.md#compare-raw-nodes`).
+  (`references/openapi-lessons.md#reuse-library-readings`), but two schemas are compared by
+  rendering their raw nodes, as the model misses keywords
+  (`references/openapi-lessons.md#compare-raw-nodes`).
 - A malformed construct is reported once, by load's rule table
   (`docs/compilers/openapi.md#validation`); a lowering adds no second report
   (`references/lossless-and-diagnostics.md#one-defect-one-finding`).
