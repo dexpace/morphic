@@ -535,6 +535,7 @@ func TestOneOf_CoDeclaredNotDistributedReasons(t *testing.T) {
 const restatingTargets = `    Target: {type: object, properties: {t: {type: string}}}
     Other: {type: object, properties: {o: {type: string}}}
     Mid: {allOf: [{$ref: '#/components/schemas/Target'}]}
+    Targets: {type: array, items: {$ref: '#/components/schemas/Target'}}
 `
 
 // TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape holds a branch that says
@@ -858,6 +859,48 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
       properties: {a: false, b: {type: string}}
       oneOf: [{required: [b], properties: {a: {type: string, format: uri}}}]
 `, "openapi:oneOf"},
+		"NestedPropertyNarrowedByAKeywordTheModelHasNoFieldFor": {"3.1.0", `      type: object
+      properties: {a: {type: object, properties: {x: {type: object}}}}
+      oneOf:
+        - required: [a]
+          properties: {a: {type: object, properties: {x: {type: object, dependentRequired: {p: [q]}}}}}
+`, "openapi:oneOf"},
+		"TypeTheBodysRefHolds": {"3.1.0", `      type: object
+      properties: {a: {$ref: '#/components/schemas/Target'}}
+      oneOf: [{required: [a], properties: {a: {type: object}}}]
+`, "openapi:oneOf"},
+		"TypeBesideARefWhoseSiblingsAdmitNothing": {"3.0.3", `      type: object
+      properties: {a: {$ref: '#/components/schemas/Target', type: string}}
+      oneOf: [{required: [a], properties: {a: {type: string}}}]
+`, "openapi:oneOf"},
+		"TypeAndFormatTwoDeclarationsSayTogether": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      allOf: [{properties: {a: {format: uri}}}]
+      oneOf: [{required: [a], properties: {a: {type: string, format: uri}}}]
+`, "openapi:oneOf"},
+		"NestedPropertyRestated": {"3.1.0", `      type: object
+      properties: {a: {type: object, properties: {x: {type: string, minLength: 1}}}}
+      oneOf: [{required: [a], properties: {a: {type: object, properties: {x: {type: string}}}}}]
+`, "openapi:oneOf"},
+		"NestedPropertyTheDeclarationComposes": {"3.1.0", `      type: object
+      properties: {a: {allOf: [{properties: {x: {type: string}}}]}}
+      oneOf: [{required: [a], properties: {a: {properties: {x: {type: string}}}}}]
+`, "openapi:oneOf"},
+		"NestedPropertyThroughTheDeclarationsRef": {"3.1.0", `      type: object
+      properties: {a: {$ref: '#/components/schemas/Target'}}
+      oneOf: [{required: [a], properties: {a: {properties: {t: {type: string, minLength: 1}}}}}]
+`, "openapi:oneOf"},
+		"ElementNarrowedInAProperty": {"3.1.0", `      type: object
+      properties: {a: {type: array, items: {type: string}}}
+      oneOf: [{required: [a], properties: {a: {type: array, items: {type: string, minLength: 1}}}}]
+`, "openapi:oneOf"},
+		"ElementNarrowedInTheBranch": {"3.1.0", `      type: array
+      items: {type: string}
+      oneOf: [{items: {type: string, minLength: 1}}, {minItems: 2}]
+`, "openapi:oneOf"},
+		"ElementTheBodyComposes": {"3.1.0", `      allOf: [{$ref: '#/components/schemas/Targets'}]
+      oneOf: [{items: {type: object, required: [t]}}]
+`, "openapi:oneOf"},
 		"ComposedInOpenAPI30": {"3.0.3", `      allOf: [{$ref: '#/components/schemas/Target'}]
       oneOf: [{required: [t], properties: {t: {type: string}}}, {required: [t], properties: {t: {type: string, nullable: true}}}]
 `, "openapi:oneOf"},
@@ -922,27 +965,13 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
       properties: {a: {type: string}}
       oneOf: [{required: [a], properties: {a: {type: string, enum: [x, y]}}}]
 `, "openapi:oneOf"},
-		"NestedKeywordTheModelHasNoFieldFor": {"3.1.0", `      type: object
-      properties: {a: {type: object, properties: {x: {type: object}}}}
-      oneOf:
-        - required: [a]
-          properties: {a: {type: object, properties: {x: {type: object, dependentRequired: {p: [q]}}}}}
-`, "openapi:oneOf"},
 		"KeywordReadingItsSiblings": {"3.1.0", `      type: object
       properties: {a: {type: object, properties: {x: {type: string}}, additionalProperties: false}}
       oneOf: [{required: [a], properties: {a: {additionalProperties: false}}}]
 `, "openapi:oneOf"},
-		"RefAgainstType": {"3.1.0", `      type: object
-      properties: {a: {$ref: '#/components/schemas/Target'}}
-      oneOf: [{required: [a], properties: {a: {type: object}}}]
-`, "openapi:oneOf"},
 		"OtherRef": {"3.1.0", `      type: object
       properties: {a: {$ref: '#/components/schemas/Target'}}
       oneOf: [{required: [a], properties: {a: {$ref: '#/components/schemas/Other'}}}]
-`, "openapi:oneOf"},
-		"RefTheBranchLeavesOut": {"3.0.3", `      type: object
-      properties: {a: {$ref: '#/components/schemas/Target', type: string}}
-      oneOf: [{required: [a], properties: {a: {type: string}}}]
 `, "openapi:oneOf"},
 		"BooleanInTheBody": {"3.1.0", `      type: object
       properties: {a: true}
@@ -1012,6 +1041,23 @@ func TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape(t *testing.T) {
 		"DynamicRefBesideRestatement": {"3.1.0", `      type: object
       properties: {a: {type: string}}
       oneOf: [{properties: {a: {type: string}}, $dynamicRef: '#node'}]
+`, "openapi:oneOf"},
+		"NestedPropertySaysMore": {"3.1.0", `      type: object
+      properties: {a: {type: object, properties: {x: {type: string}}}}
+      oneOf: [{required: [a], properties: {a: {type: object, properties: {x: {type: integer}}}}}]
+`, "openapi:oneOf"},
+		"NestedPropertyTheBodyLacks": {"3.1.0", `      type: object
+      properties: {a: {type: object, properties: {x: {type: string}}}}
+      oneOf: [{required: [a], properties: {a: {type: object, properties: {z: {type: string}}}}}]
+`, "openapi:oneOf"},
+		"ElementSaysMore": {"3.1.0", `      type: object
+      properties: {a: {type: array, items: {type: string}}}
+      oneOf: [{required: [a], properties: {a: {type: array, items: {type: string, format: uuid}}}}]
+`, "openapi:oneOf"},
+		"FormatNeitherDeclarationSays": {"3.1.0", `      type: object
+      properties: {a: {type: string}}
+      allOf: [{properties: {a: {format: uri}}}]
+      oneOf: [{required: [a], properties: {a: {type: string, format: date}}}]
 `, "openapi:oneOf"},
 		"ItemsInABareBranch": {"3.1.0", `      type: object
       properties: {a: {type: string}}

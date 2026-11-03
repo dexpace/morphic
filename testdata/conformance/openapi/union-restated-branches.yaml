@@ -84,3 +84,14 @@ components:
     RenderSizes:
       type: array
       oneOf: [{items: {type: string}}, {items: {type: integer}}]
+    # A property may repeat what two of the body's declarations say together,
+    # and a property it nests what the body declares of that.
+    RenderJoint:
+      type: object
+      properties:
+        kind: {type: string}
+        url: {type: object, properties: {href: {type: string, minLength: 1}}}
+      allOf: [{properties: {kind: {enum: [page, link]}}}]
+      oneOf:
+        - {required: [kind], properties: {kind: {type: string, enum: [page, link]}}}
+        - {required: [url], properties: {url: {type: object, properties: {href: {type: string}}}}}

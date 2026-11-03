@@ -57,6 +57,99 @@
     }
   ],
   "types": {
+    "t/anon/components/schemas/RenderJoint/allOf/0/properties/kind": {
+      "kind": "enum",
+      "id": "t/anon/components/schemas/RenderJoint/allOf/0/properties/kind",
+      "name": {
+        "hint": "kind"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderJoint/allOf/0/properties/kind"
+      },
+      "valueType": "string",
+      "members": [
+        {
+          "id": "e/anon/components/schemas/RenderJoint/allOf/0/properties/kind/s:page",
+          "name": {
+            "source": "page",
+            "canonical": "page"
+          },
+          "value": {
+            "kind": "string",
+            "str": "page"
+          },
+          "docs": {}
+        },
+        {
+          "id": "e/anon/components/schemas/RenderJoint/allOf/0/properties/kind/s:link",
+          "name": {
+            "source": "link",
+            "canonical": "link"
+          },
+          "value": {
+            "kind": "string",
+            "str": "link"
+          },
+          "docs": {}
+        }
+      ],
+      "closed": true,
+      "flags": false
+    },
+    "t/anon/components/schemas/RenderJoint/properties/url": {
+      "kind": "model",
+      "id": "t/anon/components/schemas/RenderJoint/properties/url",
+      "name": {
+        "hint": "url"
+      },
+      "anonymous": true,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderJoint/properties/url"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderJoint/properties/url/properties/href",
+          "name": {
+            "source": "href",
+            "canonical": "href"
+          },
+          "wireName": "href",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "minLength": 1,
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderJoint/properties/url/properties/href"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Render": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Render",
@@ -841,6 +934,120 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/RenderJoint": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderJoint",
+      "name": {
+        "source": "RenderJoint",
+        "canonical": "render_joint"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "page",
+                    "link"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            },
+            {
+              "properties": {
+                "url": {
+                  "properties": {
+                    "href": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderJoint/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderJoint"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderJoint/allOf/0/properties/kind",
+          "name": {
+            "source": "kind",
+            "canonical": "kind"
+          },
+          "wireName": "kind",
+          "type": {
+            "target": "t/anon/components/schemas/RenderJoint/allOf/0/properties/kind",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderJoint/allOf/0/properties/kind"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderJoint/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/anon/components/schemas/RenderJoint/properties/url",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderJoint/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/RenderSizes": {
       "kind": "list",
       "id": "t/openapi/components/schemas/RenderSizes",
@@ -1086,13 +1293,22 @@
         "source": 0,
         "pointer": "/components/schemas/RenderSizes"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderJoint"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "union-restated-branches.yaml",
-      "hash": "dbe1a094ca168a5b60f39cc6b1d15a2b0629afc9fd2c0947ddc72db738067676"
+      "hash": "c4c086eb79569df53a95b2c38b83138f09ded5f5cebc68337398adfe725be301"
     }
   ]
 }

@@ -12,7 +12,6 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
-	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 )
 
 // shapelessKeywords are the keywords a union branch, or a property one
@@ -33,13 +32,13 @@ var shapelessKeywords = slices.Concat(
 )
 
 // bodyReading is what a union's branches are judged against: what the body's
-// own keywords and its allOf admit, its unions apart, and every declaration of
-// each property it makes. One admission reads all of it, so a body's branches
-// share one budget.
+// own keywords and its allOf admit, its unions apart, and what it declares of
+// its properties and elements. One admission reads all of it, so a body's
+// branches share one budget.
 type bodyReading struct {
 	w     admission
 	held  admitted
-	decls map[string][]*oas3.JSONSchema[oas3.Referenceable]
+	decls declarationSet
 }
 
 // readBody reads s, the schema writing a union, for its branches to be judged
@@ -79,35 +78,121 @@ func unionBranchesDeclareShape(c lowering.Ctx, s *oas3.Schema) bool {
 // branchDeclaresShape reports whether the inline union branch b declares data
 // shape beside the body r read. A boolean never does, and any other does where
 // one keyword it writes does: bare or beside a repeated `type`, a keyword is
-// judged alike, so restating the body changes no verdict. The keys are read off
-// the raw node, which holds the keywords the model has no field for
-// (docs/parser-library.md#unmodeled-keywords).
+// judged alike, so restating the body changes no verdict.
 func branchDeclaresShape(r *bodyReading, b *oas3.JSONSchema[oas3.Referenceable]) bool {
-	s := b.GetSchema()
-	if s == nil {
+	if b.GetSchema() == nil {
 		return false
 	}
-	return slices.ContainsFunc(nodeview.Pairs(s.GetRootNode()), func(p nodeview.Pair) bool {
-		return r.keywordDeclaresShape(s, p.Key)
-	})
+	return !r.restates(claim{written: b, held: r.held, decls: r.decls})
 }
 
-// keywordDeclaresShape reports whether s, a union branch, declares shape by
-// writing key. A `type` naming only null contributes the null and nothing else,
-// and `properties` declares none where each property restates the body's; any
-// other keyword declares none where it is shapeless or every value the body
-// admits holds to it, so a oneOf or an allOf in a branch always declares some.
-func (r *bodyReading) keywordDeclaresShape(s *oas3.Schema, key string) bool {
-	switch {
-	case shapeless(s, key):
-		return false
-	case key == "properties":
-		return !r.restatesProperties(s)
-	case key == "type" && len(effectiveTypes(s)) == 0:
-		return false
-	default:
-		return !r.w.holds(r.held, s, key)
+// claim is a schema a branch writes, for itself or for a property or element,
+// with what the body admits there, what the body declares of its properties and
+// elements there, and the declarations a $ref it writes may land with.
+type claim struct {
+	written *oas3.JSONSchema[oas3.Referenceable]
+	held    admitted
+	decls   declarationSet
+	refs    []*oas3.JSONSchema[oas3.Referenceable]
+}
+
+// nested is a property or an element a claim writes, and the body's
+// declarations of it.
+type nested struct {
+	written *oas3.JSONSchema[oas3.Referenceable]
+	decls   []*oas3.JSONSchema[oas3.Referenceable]
+}
+
+// restates reports whether top, and each property and element it writes at any
+// depth, says nothing of shape the body does not. They are judged off a stack,
+// and each claim beyond top reads the declarations it restates, so admission's
+// budget bounds the walk, which adds no recursion cycle.
+func (r *bodyReading) restates(top claim) bool {
+	claims := []claim{top}
+	for len(claims) > 0 {
+		c := claims[len(claims)-1]
+		claims = claims[:len(claims)-1]
+		inner, ok := r.keysRestate(c)
+		if !ok {
+			return false
+		}
+		for _, n := range inner {
+			sub, open, ok := r.claimOf(n)
+			if !ok {
+				return false
+			}
+			if open {
+				claims = append(claims, sub)
+			}
+		}
 	}
+	return true
+}
+
+// keysRestate reports whether each key c writes says nothing of shape the body
+// does not, and returns the properties and element it writes for restates to
+// judge. A key declares none where it is shapeless, a `type` naming only null,
+// which contributes the null, a `$ref` landing where one of c's declarations
+// does, or a `type`, `format`, `enum` or `const` every value c.held admits holds
+// to. Keys are read off the raw node, which holds the keywords the model has no
+// field for (docs/parser-library.md#unmodeled-keywords).
+func (r *bodyReading) keysRestate(c claim) ([]nested, bool) {
+	s := c.written.GetSchema()
+	var inner []nested
+	for _, kv := range nodeview.Pairs(s.GetRootNode()) {
+		switch {
+		case shapeless(s, kv.Key), kv.Key == "type" && len(effectiveTypes(s)) == 0:
+		case kv.Key == "properties":
+			for name, p := range s.GetProperties().All() {
+				inner = append(inner, nested{written: p, decls: c.decls.properties[name]})
+			}
+		case kv.Key == "items":
+			inner = append(inner, nested{written: s.GetItems(), decls: c.decls.items})
+		case kv.Key == "$ref":
+			if !r.lands(c) {
+				return nil, false
+			}
+		case !r.w.holds(c.held, s, kv.Key):
+			return nil, false
+		}
+	}
+	return inner, true
+}
+
+// claimOf returns the claim n makes, and false for open where n says nothing
+// whatever its keys: a boolean says nothing or only forbids what it is written
+// for, a declaration written alike against one base says the same, and
+// declarations admitting nothing together leave nothing to say. ok is false
+// where the body declares nothing there, so n is new shape. What n restates is
+// what its declarations say together, each read as admission reads it, the
+// keywords beside a $ref conjoining with it at every version
+// (docs/compilers/openapi.md#ref-use-site).
+func (r *bodyReading) claimOf(n nested) (sub claim, open, ok bool) {
+	if len(n.decls) == 0 {
+		return claim{}, false, false
+	}
+	alike := func(d *oas3.JSONSchema[oas3.Referenceable]) bool { return r.w.sameText(d, n.written) }
+	if n.written.IsBool() || slices.ContainsFunc(n.decls, alike) {
+		return claim{}, false, true
+	}
+	held := r.w.whole(n.decls[0])
+	for _, d := range n.decls[1:] {
+		held = held.and(r.w.whole(d))
+	}
+	if !held.reachable() {
+		return claim{}, false, true
+	}
+	return claim{written: n.written, held: held, decls: r.w.declarationsOf(n.decls), refs: n.decls}, true, true
+}
+
+// lands reports whether the $ref c writes lands on a schema one of the
+// declarations it restates lands on, so it names what they already name. A
+// branch writes none here: unionBranchesDeclareShape settles a $ref branch.
+func (r *bodyReading) lands(c claim) bool {
+	at := r.w.c.Bindings().Declared(c.written)
+	return at != nil && slices.ContainsFunc(c.refs, func(d *oas3.JSONSchema[oas3.Referenceable]) bool {
+		return r.w.c.Bindings().Declared(d) == at
+	})
 }
 
 // shapeless reports whether s's keyword key declares no shape whatever it
@@ -121,60 +206,4 @@ func shapeless(s *oas3.Schema, key string) bool {
 		return true
 	}
 	return key == "unevaluatedProperties" && !annotation.IsFalseSchema(s.GetUnevaluatedProperties())
-}
-
-// restatesProperties reports whether each property s, a union branch,
-// declares restates one of the body's declarations of it. Each declaration is
-// compared alone, so a property restating what two say together, a `type` in
-// one and a `format` in another, still declares shape (#1407).
-func (r *bodyReading) restatesProperties(s *oas3.Schema) bool {
-	for name, p := range s.GetProperties().All() {
-		restates := func(d *oas3.JSONSchema[oas3.Referenceable]) bool { return r.restatesDeclaration(d, p) }
-		if !slices.ContainsFunc(r.decls[name], restates) {
-			return false
-		}
-	}
-	return true
-}
-
-// restatesDeclaration reports whether p, a union branch's declaration of a
-// property, says nothing of shape d, a declaration of it the body makes, does
-// not. A boolean p says nothing or only forbids the property. Otherwise the two
-// are written alike, or agree on a $ref first, since admission reads what
-// stands beside one as 3.1 does, and then d admits nothing, or every other key
-// p's raw node writes (docs/parser-library.md#unmodeled-keywords) is shapeless
-// or holds for every value d admits. holds reads no `properties`, so one p
-// nests restates only written alike (#1407).
-func (r *bodyReading) restatesDeclaration(d, p *oas3.JSONSchema[oas3.Referenceable]) bool {
-	if p.IsBool() || r.w.sameText(d, p) {
-		return true
-	}
-	if !r.sameReference(d, p) {
-		return false
-	}
-	held := r.w.whole(d)
-	if !held.reachable() {
-		return true
-	}
-	ps := p.GetSchema()
-	return !slices.ContainsFunc(nodeview.Pairs(ps.GetRootNode()), func(kv nodeview.Pair) bool {
-		return kv.Key != "$ref" && !shapeless(ps, kv.Key) && !r.w.holds(held, ps, kv.Key)
-	})
-}
-
-// sameReference reports whether d and p agree on a $ref: neither writes one,
-// or both land on one schema. OpenAPI 3.0 sets aside what stands beside a
-// $ref, so a branch leaving out the body's, or adding one, reads its other
-// keywords against another schema. Landings are compared, not spellings, since
-// a declaration the body composes may be written where a $ref reads elsewhere.
-func (r *bodyReading) sameReference(d, p *oas3.JSONSchema[oas3.Referenceable]) bool {
-	writes := func(js *oas3.JSONSchema[oas3.Referenceable]) bool { return resolve.IsRefSite(js, js.GetSchema()) }
-	if writes(d) != writes(p) {
-		return false
-	}
-	if !writes(p) {
-		return true
-	}
-	at := r.w.c.Bindings().Declared(p)
-	return at != nil && at == r.w.c.Bindings().Declared(d)
 }

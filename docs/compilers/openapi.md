@@ -1973,24 +1973,26 @@ the body's own `type`, so repeating the body never changes a verdict:
    [boundaries](../ir/boundaries.md#validation-only-constructs), an `unevaluatedProperties` other
    than `false` among them. A keyword written `null` is left out
    ([`null-keywords`](#null-keywords)).
-2. `type`, `format`, `enum`, `const` and `items` declare none where every value the body admits
-   holds to them, null aside for `type`, read as [`allof-refinement`](#allof-refinement) reads what
-   a conjunct admits: from the body's own keywords and its `allOf`, across each `$ref`, leaving out
+2. `type`, `format`, `enum` and `const` declare none where every value the body admits holds to
+   them, null aside for `type`, read as [`allof-refinement`](#allof-refinement) reads what a
+   conjunct admits: from the body's own keywords and its `allOf`, across each `$ref`, leaving out
    the unions the body itself writes. So `type: object` beside an object body declares none, nor
    does `type: [object, 'null']`, a `type` naming only `null` contributes the null and nothing else,
    and `format: date` beside a bare `type: string` declares shape.
-3. `properties` declares none where each property the branch writes restates a declaration of it
-   the body makes: in its own `properties`, or in a schema its `allOf` composes, through any
-   nesting and across `$ref`s, but not in a union's branch. A property restates a declaration where
-   it is a boolean, which says nothing or only forbids the property; where the two are written
-   alike against one base, as [`allof-refinement`](#allof-refinement) compares two schemas; or
-   where they agree on a `$ref`, neither writing one or both landing on one schema, since OpenAPI
-   3.0 sets aside what stands beside one, and then the declaration admits nothing, or each other
-   keyword the property writes declares none whatever it holds, or is a `type`, `format`, `enum`,
-   `const` or `items` every value the declaration admits holds to. So `{type: string}` restates
-   `{type: string, format: uri, minLength: 1}`, and `{type: string, minLength: 2}` restates
-   `{type: string}`, while `{type: string, format: uri}` does not, nor does a property writing
-   `properties` of its own unless the two are written alike.
+3. `properties` and `items` declare none where each property the branch writes, and its element,
+   restates the body's declarations of it: those in the body's own `properties` or `items`, and in
+   a schema its `allOf` composes, through any nesting and across `$ref`s, but not in a union's
+   branch. A schema restates its declarations where it is a boolean, which says nothing or only
+   forbids what it is written for; where one of them is written alike against one base, as
+   [`allof-refinement`](#allof-refinement) compares two schemas; where they admit nothing together;
+   or where each key it writes says nothing they do not say together, by points 1 and 2 read
+   against what they admit together, a `$ref` landing where one of theirs does, and its own
+   `properties` and `items` restating what they declare of those in turn. The keywords beside a
+   `$ref` conjoin with it at every version ([`ref-use-site`](#ref-use-site)). So `{type: string}`
+   restates `{type: string, format: uri, minLength: 1}`, `{type: string, minLength: 2}` restates
+   `{type: string}`, and `{type: string, format: uri}` restates `{type: string}` declared beside
+   `{format: uri}` but not `{type: string}` alone. A property or element none of the body's
+   declarations names is new shape.
 4. Every other keyword declares shape: `prefixItems`, `additionalProperties`, `patternProperties`,
    an `unevaluatedProperties` of `false`, `allOf`, a nested `oneOf` or `anyOf`, `$dynamicRef`,
    `discriminator`, `readOnly`, `writeOnly`, `default`, `xml`, the content vocabulary, `$id`,
@@ -2014,11 +2016,9 @@ is judged as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape`,
   `schema.TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase`,
   `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a
-  branch's property is compared with one declaration at a time, and a `properties` it nests only as
-  written alike (#1407). Open: keeping a discriminated `oneOf` a union when structural keywords sit
-  beside it (#594), and distributing a union's inline branches when properties sit beside it
-  (#661).
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853). Open:
+  keeping a discriminated `oneOf` a union when structural keywords sit beside it (#594), and
+  distributing a union's inline branches when properties sit beside it (#661).
 
 ### `union-beside-ref`
 

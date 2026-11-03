@@ -734,6 +734,9 @@ func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diag
 		assert.Len(t, m.Properties, 2, "%s", name)
 		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, m.Unmodeled, keyword).Reason, "%s", name)
 	}
+	joint, ok := doc.Types[componentID("RenderJoint")].(*ir.Model)
+	require.True(t, ok, "RenderJoint lowers to its body")
+	assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, joint.Unmodeled, "openapi:oneOf").Reason)
 	composed, ok := doc.Types[componentID("RenderComposed")].(*ir.Model)
 	require.True(t, ok, "RenderComposed lowers to its body")
 	require.NotNil(t, composed.Base)

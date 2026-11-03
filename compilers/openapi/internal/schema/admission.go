@@ -331,33 +331,58 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	return out.and(w.whole(next))
 }
 
-// declarations returns, by name, each declaration of a property s makes: in
-// its own properties, in each allOf conjunct and in what a $ref lands on, read
-// as whole reads them and within the same budget. A union's branches are left
-// out, since an instance need match only one. A declaration the walk does not
-// reach, past the budget or a $ref landing nowhere, is one fewer to restate,
-// which errs towards shape. The walk keeps its own stack, so it adds no
-// recursion cycle, and the order of each list is no answer.
-func (w *admission) declarations(s *oas3.Schema) map[string][]*oas3.JSONSchema[oas3.Referenceable] {
-	out := map[string][]*oas3.JSONSchema[oas3.Referenceable]{}
-	add := func(declarer *oas3.Schema) {
-		for name, p := range declarer.GetProperties().All() {
-			out[name] = append(out[name], p)
-		}
+// declarationSet is what a set of schemas declares together: each declaration of
+// a property they make, by name, and each `items`.
+type declarationSet struct {
+	properties map[string][]*oas3.JSONSchema[oas3.Referenceable]
+	items      []*oas3.JSONSchema[oas3.Referenceable]
+}
+
+// add records what s itself declares. A nil s, a boolean schema's, declares
+// nothing, and the getters read it as empty.
+func (d *declarationSet) add(s *oas3.Schema) {
+	for name, p := range s.GetProperties().All() {
+		d.properties[name] = append(d.properties[name], p)
 	}
-	add(s)
-	stack := slices.Clone(s.GetAllOf())
+	if items := s.GetItems(); annotation.Written(items) {
+		d.items = append(d.items, items)
+	}
+}
+
+// declarations returns what s declares: itself, each allOf conjunct and what
+// a $ref lands on, read as whole reads them and within the same budget.
+func (w *admission) declarations(s *oas3.Schema) declarationSet {
+	out := declarationSet{properties: map[string][]*oas3.JSONSchema[oas3.Referenceable]{}}
+	out.add(s)
+	w.declare(&out, slices.Clone(s.GetAllOf()))
+	return out
+}
+
+// declarationsOf returns what the schemas ds declare together, as declarations
+// reads one.
+func (w *admission) declarationsOf(ds []*oas3.JSONSchema[oas3.Referenceable]) declarationSet {
+	out := declarationSet{properties: map[string][]*oas3.JSONSchema[oas3.Referenceable]{}}
+	w.declare(&out, slices.Clone(ds))
+	return out
+}
+
+// declare adds to out what each schema on stack declares, its allOf conjuncts
+// and what its $ref lands on. A union's branches are left out, since an
+// instance need match only one. A declaration the walk does not reach, past the
+// budget or a $ref landing nowhere, is one fewer to restate, which errs towards
+// shape. The walk keeps its own stack, so it adds no recursion cycle, and the
+// order of each list is no answer.
+func (w *admission) declare(out *declarationSet, stack []*oas3.JSONSchema[oas3.Referenceable]) {
 	for len(stack) > 0 && w.reads.Spend(1) {
 		js := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		cs := js.GetSchema() // nil for a boolean conjunct, which the getters read as empty
-		add(cs)
+		cs := js.GetSchema()
+		out.add(cs)
 		stack = append(stack, cs.GetAllOf()...)
 		if next := w.c.Bindings().Declared(js); next != nil {
 			stack = append(stack, next)
 		}
 	}
-	return out
 }
 
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.
