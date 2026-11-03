@@ -36,8 +36,8 @@ The procedure decided every existing field:
 2. **Derivations several artifacts expose** stay: `Return`, `Others`, `Errors`, `Auth`, `Bindings`,
    `Stream` and `LRO`; and `Flattened`, `Required`, `Undeclared`, `Unflattened`, `Union`, `Discrim`,
    `Inclusive`, `Scalar`, `Shapes`, `Alias` and `Reach`. `Required`, `Undeclared` and `Unflattened`
-   are read along the flattening walk ([TypePlan](types.md)), `Inclusive` compares every pair of a
-   union's variants ([TypePlan](types.md#variants-that-can-share-a-value)), `Alias` classifies a
+   are read along the flattening walk ([TypePlan](types.md)), `Inclusive` closes over every pair of
+   unions' positions ([TypePlan](types.md#variants-that-can-share-a-value)), `Alias` classifies a
    decorator over several of its fields and resolves its chain
    ([decorators](../refine/decorators.md)), and `Reach` walks every operation ([output
    units](../refine/output-units.md)); SDKs and docs that disagreed on any of them would mark a
@@ -48,8 +48,8 @@ The procedure decided every existing field:
    type, flags and fallback member, a union's variant list, and the operation-group tree
    ([BindingView](bindings.md)). `Union` replaces a classification that copied the variant list and
    a second discriminator beside the tag mode it derived, and `Scalar` replaces a bare root that
-   left the constraints it merged nowhere. `NeedShapes` is gone too: it listed again the lifecycles
-   `Shapes` is keyed by ([ModelShape](types.md#modelshape--visibility-projection)). A client's
+   left the constraints it merged nowhere. `NeedShapes` is gone too: it listed again the shapes
+   `Shapes` holds ([ModelShape](types.md#modelshape--visibility-projection)). A client's
    servers are stated by the IR as well, so they get no field ([the
    client](../operations/client.md)).
 4. **The parameter-passing shape** fails the first test and moved to refine ([request

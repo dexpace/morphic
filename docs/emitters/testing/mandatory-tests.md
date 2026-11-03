@@ -61,10 +61,11 @@ throughout these documents.
     in another unit compiles; and every partition error and warning of [output
     units](../refine/output-units.md) has a fixture that draws it.
 19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
-    members and union variants after every name each scope of [reserved
-    names](../refine/reserved-names.md) reserves, after characters alone and after names that begin
-    with a digit, and its groups after the standard-library packages its files import, generates
-    code that compiles on every target, with every template's declared names held to what it binds.
+    members and the variants of a closed and of an inclusive union after every name each scope of
+    [reserved names](../refine/reserved-names.md) reserves, after characters alone and after names
+    that begin with a digit, and its groups after the standard-library packages its files import,
+    generates code that compiles on every target, with every template's declared names held to what
+    it binds.
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held
@@ -144,20 +145,49 @@ throughout these documents.
     ([auth](../operations/auth.md#unresolved-schemes)).
 29. **T-29 · Inclusive unions** — on every target, an `anyOf` over two open models that one value
     fits decodes that value into both and re-encodes it as an equal JSON value; a member the two
-    write at different values is an encode error, and a union with neither set refuses to encode.
-    An `anyOf` the plan proves disjoint, by JSON kind, by enum values and by a member one model
-    requires and the other cannot hold, lowers as a closed sum and decodes each value into the one
-    variant admitting it. A `null` that two nullable variants admit, or a `null` literal variant
-    does, is held by the reference, as a nullable one's is. A value no variant admits takes the
-    fallback on an open union and is a coded error on a closed one
+    write at different values is an encode error, as is a member a caller adds to the open variant
+    beside a closed one that cannot hold it, and a union with neither set refuses to encode. A
+    `string` variant beside a `datetime_offset` one re-encodes a timestamp as the text it arrived
+    as. A value one set variant holds within its bounds validates though another's bound fails, and
+    a member one variant marks `Secret` is redacted in the union's rendering though the other
+    declares it plainly. A union of two models that both hold a list of the union decodes a value
+    nested 64 deep, each position once per type, and does so under a caller's own json/v2 options or
+    `Json`, whose settings keep applying inside the variants. An `anyOf` the plan proves disjoint,
+    by JSON kind, by enum values and by a member one model requires and the other cannot hold,
+    lowers as a closed sum and decodes each value into the one variant admitting it, by trying each
+    where the ladder tells none apart or names one that does not admit it, while a closed model with
+    a catch-all governing that member separates nothing, nor does a `ClientOptional` member, a
+    member compared under any name but its JSON one, or, where the union is read, a `writeOnly`
+    member or one an open model declares at another type only `writeOnly`; an `any` primitive (`{}`)
+    shares a kind with every variant, and `Inclusive` is the same in either order the unions are
+    planned. An `anyOf` of `string` and `integer` that a query parameter carries is inclusive, and a
+    mock reads `since=-10` into both. A union of two models a required member separates, sent in a
+    `PATCH` body and read in a response, is inclusive in its patch shape and a closed sum where it
+    is read, and adding the `PATCH` operation changes no other declaration; sent as a `PATCH` body's
+    list, its elements keep the member and it stays closed. A required member no shape holds
+    (`Visibility.None`) is required of no value, and of two tuple variants, one with two required
+    positions and one with one and no `Rest`, each admits only its own length. A `null` that two
+    nullable variants admit, a `null` literal variant does or a variant that is such a union does,
+    is held by the reference, as a nullable one's is. A value no variant admits takes the fallback
+    on an open union and is a coded error on a closed one
     ([unions](../refine/unions.md#a-value-several-variants-admit),
     [TypePlan](../plan/types.md#variants-that-can-share-a-value)).
-30. **T-30 · Plan identity** — one document under one policy builds plans of one `Version` across
+30. **T-30 · Visibility projections** — on every target, a model holding a model, a union, a list
+    and a map of models with a `readOnly` and a `writeOnly` member each, sent in a `POST`, a `PUT`
+    and a `PATCH` body and read in a response, gets a declaration per shape for every type holding a
+    projected one: `readOnly` members absent from each request shape and `writeOnly` ones from the
+    response, a `PUT` body holding what `create` or `update` makes visible, and the `PATCH` body's
+    members optional at every depth but inside the list, whose elements keep their required members.
+    `ParameterVisibility` and `ReturnTypeVisibility` replace the default filter, a webhook's request
+    takes `read`, two shapes whose projections coincide take one answer, and a model no operation
+    reaches holds its required `readOnly` and `writeOnly` members and requires neither
+    ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)).
+31. **T-31 · Plan identity** — one document under one policy builds plans of one `Version` across
     processes and runs, and the policy round-trips through JSON unchanged; changing any policy
     field, the `Revision`, or the document outside `sources` changes the `Version`, and changing
     only `sources` does not. A plan golden that changes at an unmoved `Revision` fails
     ([the plan's version](../plan/overview.md#the-plans-version)).
-31. **T-31 · Envelopes** — under an envelope matched by `Members` and one matched by `Bases`, on
+32. **T-32 · Envelopes** — under an envelope matched by `Members` and one matched by `Bases`, on
     every target, a method returns the member at `Value`, its `WithResponse` method holds the
     envelope whole, and a 2xx whose flag holds `Fails` is a failure with no fault or kind whose body
     decodes as `Failure`, even where the success type admits only `true`. A paginated operation's

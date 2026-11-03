@@ -285,6 +285,54 @@ components:
 	assert.Equal(t, ir.TypeID("t/openapi/components/schemas/Blob"), content.Type.Target)
 }
 
+// TestContent_ARefinedBinaryBodyIsAFile pins that wrapping a binary body in an
+// allOf changes what a body is no more than a $ref does: a refinement is a use of
+// the schema it names, in either spelling, and one over no binary schema is a
+// plain body.
+func TestContent_ARefinedBinaryBodyIsAFile(t *testing.T) {
+	t.Parallel()
+	const alias ir.TypeID = "t/anon/paths/~1raw/post/requestBody/content/application~1octet-stream/schema"
+	for name, tc := range map[string]struct {
+		schema string
+		// want is what the body keeps as its Type, the position's own alias where
+		// it writes something, and empty for a body that is no file.
+		want ir.TypeID
+	}{
+		"beside":      {"{allOf: [{$ref: '#/components/schemas/Blob'}], description: the upload}", alias},
+		"a branch":    {"{allOf: [{$ref: '#/components/schemas/Blob'}, {description: the upload}]}", alias},
+		"bare":        {"{allOf: [{$ref: '#/components/schemas/Blob'}]}", "t/openapi/components/schemas/Blob"},
+		"a chain":     {"{$ref: '#/components/schemas/Wrapped'}", "t/openapi/components/schemas/Wrapped"},
+		"inline":      {"{allOf: [{type: string, format: binary}, {description: the upload}]}", alias},
+		"not binary":  {"{allOf: [{$ref: '#/components/schemas/Text'}, {description: the upload}]}", ""},
+		"a composite": {"{allOf: [{$ref: '#/components/schemas/Blob'}, {$ref: '#/components/schemas/Text'}]}", ""},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			spec := openapitest.PathsSpec(`  /raw:
+    post:
+      operationId: putRaw
+      requestBody:
+        content:
+          application/octet-stream:
+            schema: ` + tc.schema + `
+      responses: {"200": {description: ok}}
+components:
+  schemas:
+    Blob: {type: string, format: binary}
+    Text: {type: string}
+    Wrapped: {allOf: [{$ref: '#/components/schemas/Blob'}], description: wrapped}
+`)
+			_, svc, diags := compileService(t, spec)
+			openapitest.RequireNoErrorDiags(t, diags)
+			content := openapitest.FirstOp(t, svc).Request.Contents[0]
+			assert.Equal(t, tc.want != "", content.File != nil)
+			if tc.want != "" {
+				assert.Equal(t, tc.want, content.Type.Target)
+			}
+		})
+	}
+}
+
 const contentSpec = `openapi: 3.2.0
 info: {title: T, version: "1"}
 paths:
