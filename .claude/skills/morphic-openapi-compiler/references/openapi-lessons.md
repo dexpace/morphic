@@ -32,7 +32,8 @@ canary. A behaviour found that the page lacks is added there.
 `reuse-library-readings`
 
 - **Rule.** Call the library's functions for every reading it already implements (reference parsing,
-  anchors, URI resolution) and `nodeview.View` for tree reads. Key a per-node map by a set when an
+  anchors, URI resolution) and `nodeview.View` for tree reads, but compare two schemas as
+  `references/openapi-lessons.md#compare-raw-nodes` says. Key a per-node map by a set when an
   alias can make one node several schemas. A guard that must agree with the resolver makes the call
   the resolver makes.
 - **Why.** Each miss of a reach check was a re-derived reading (#563). `View` and the resolver
