@@ -32,17 +32,20 @@ type Retry struct {
                              // where the IR states nothing; default 408, 429, 503
     Uncertain     []int      // statuses leaving unknown whether it acted, retried as WhenUncertain
                              // says where the IR states nothing; default 500, 502, 504
-    MaxAttempts   int        // default 3, the first attempt included
+    MaxAttempts   int        // default 3, the first attempt included; below 1 is invalid
     Backoff       Backoff    // {Initial, Multiplier, Max, Jitter}
     Throttled     Backoff    // the backoff after a failure marked throttling
                              // (../operations/errors.md)
-    WhenUncertain string     // which operations send again a request that got no response or an
-                             // Uncertain status: "never" | "idempotent" (default) | "always"
+    WhenUncertain RetryWhen  // which operations send again a request that got no response or an
+                             // Uncertain status (below)
     RetryAfter    bool       // default on: wait what a Retry-After header asks, up to Backoff.Max
 }
 
+type RetryWhen string        // "never" | "idempotent" (default) | "always"
+
 type Redirects struct {
-    Max int                  // default 10; past it, or at 0, a 3xx is returned as the response
+    Max int                  // default 10; past it, or at 0, a 3xx is returned as the response;
+                             // below 0 is invalid
 }
 
 func Defaults(version int) Policy // the defaults of a configuration version (below)
@@ -137,11 +140,11 @@ A key naming no operation of the document is reported as a warning
 otherwise lose its settings in silence, and a warning rather than an error since one project's
 policy may serve several documents. Where a higher layer replaces what the document embeds, an info
 `emitters/policy/embedded-overridden` names the setting, both values and the operation, so the
-document's author can see it was overruled. A value outside a field's vocabulary, such as a
-`WhenUncertain` other than the three its comment names, is an error `emitters/policy/invalid`, and
-the field resolves as if that layer left it unset. The engine resolves the layers once for each
-emitter, since each brings its own top layer, and reports a diagnostic the embedded and project
-layers alone draw once for the run, as the plan's are reported.
+document's author can see it was overruled. A value outside a field's vocabulary or range, such as a
+`RetryWhen` other than the three its comment names or a `MaxAttempts` below 1, is an error
+`emitters/policy/invalid`, and the field resolves as if that layer left it unset. The engine
+resolves the layers once for each emitter, since each brings its own top layer, and reports a
+diagnostic the embedded and project layers alone draw once for the run, as the plan's are reported.
 
 ## Precedence — declared IR facts win (hard rule)
 

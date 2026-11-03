@@ -12,14 +12,11 @@ policy](runtime-policy.md) and [shaping hints](shaping-hints.md), each a layer b
 ```go
 package embed
 
-type Mapping struct {
-    Keys     map[string]Target // an extension's key as Unmodeled holds it, such as
+type Mapping map[string]Target // an extension's key as Unmodeled holds it, such as
                                // "openapi:x-sdk-retries", → what it configures
-    Disabled bool              // reads nothing
-}
 
 type Target struct {
-    Tree string                // "policy" | "hint"
+    Tree Tree                  // the input the key configures
     Path []string              // the member path inside that tree's JSON form
                                // (runtime-policy.md#delivery, shaping-hints.md),
                                // such as ["retry", "maxAttempts"] or ["rename"]
@@ -29,6 +26,8 @@ type Layer struct {
     Policy policy.Layer                              // the lowest layer of runtime policy
     Hints  map[emitters.EntityID]emitters.ShapeHint  // the lowest layer of hints
 }
+
+type Tree string               // "policy" | "hint"
 
 func Read(doc *ir.Document, m Mapping) (Layer, []ir.Diagnostic)
 ```
@@ -64,12 +63,13 @@ the entry instead.
 
 ## The mapping is a configuration
 
-The reader runs by default, and its default mapping is empty. The compiler's promotion policy ships
-keys whose reading is a convention independent of any generator, such as `x-deprecated-reason`
-([`extension-promotion`](../../compilers/openapi.md#extension-promotion)). No key for a retry, a
-timeout or an SDK method name has one: each is a generator's own spelling, and its value's shape is
-that generator's. So a configuration names the keys its documents use and what each one sets, and a
-key it does not name stays where it was.
+The reader runs by default, and its default mapping is empty, which is also how a configuration
+turns it off: no switch beside the mapping says the same thing a second way. The compiler's
+promotion policy ships keys whose reading is a convention independent of any generator, such as
+`x-deprecated-reason` ([`extension-promotion`](../../compilers/openapi.md#extension-promotion)). No
+key for a retry, a timeout or an SDK method name has one: each is a generator's own spelling, and
+its value's shape is that generator's. So a configuration names the keys its documents use and what
+each one sets, and a key it does not name stays where it was.
 
 A mapping reads a key as `Unmodeled` holds it, the format's prefix included, and only from entries
 of two reasons: `vendor_extension`, whose key is the source's own spelling, and `out_of_scope`,

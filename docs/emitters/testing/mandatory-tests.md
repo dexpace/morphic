@@ -25,8 +25,9 @@ throughout these documents.
 9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
    at a document-wide setting and at an operation's, in every layer. A project's document-wide
    setting beats a per-operation one the document embeds, an operation's own setting beats its
-   layer's document-wide one, an operation ID no operation has is reported, and an embedded value a
-   higher layer replaces draws an info naming both
+   layer's document-wide one, an operation ID no operation has is reported, an embedded value a
+   higher layer replaces draws an info naming both, and a value outside a field's vocabulary or
+   range, a `MaxAttempts` of 0 among them, is an error that leaves the field to the layers below
    ([layers](../contract/runtime-policy.md#layers-and-operations)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
@@ -237,8 +238,8 @@ throughout these documents.
     set it from neither; a key on a node it cannot configure, a tag's key the document holds, a
     value of the wrong shape, a group named by words rather than its ID, a conflict and a key the
     document holds under a reason the reader refuses are each reported under their codes, the entry
-    staying in `Unmodeled`; the default mapping reads nothing, and `Disabled` reads nothing however
-    the mapping is written ([embedded policy](../contract/embedded-policy.md)).
+    staying in `Unmodeled`; and the default mapping, which is empty, reads nothing ([embedded
+    policy](../contract/embedded-policy.md)).
 34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it a
     client setting, which every operation declaring it in that wire form sends unless the call gives
     its own; a call with neither is refused unsent; an operation declaring it at another wire form
