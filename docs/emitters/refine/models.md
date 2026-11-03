@@ -9,7 +9,8 @@ holding a projected model is projected with it, as a model holding one is
 ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)). `None` properties are excluded from
 every projection; PATCH shapes make properties optional unless the binding disables it. A model used
 as both input and output (`Facts.Usage` = Input|Output, `InputOnly` distinct identity for GraphQL
-inputs) may emit two shapes.
+inputs) may emit two shapes. How each shape's declaration is named, beyond `User`, `UserCreate` and
+`UserPatch`, is not stated yet (#1405).
 
 ## Optionality × Nullability × Presence (INV8)
 
