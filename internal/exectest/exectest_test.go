@@ -6,7 +6,8 @@ package exectest_test
 import (
 	"context"
 	"fmt"
-	"path/filepath"
+	"os"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,18 +17,17 @@ import (
 	"github.com/dexpace/morphic/internal/exectest"
 )
 
-// fatal is what a spyTB's Fatal panics with, standing in for the goroutine
+// fatal is what a fatalTB's Fatal panics with, standing in for the goroutine
 // exit a real Fatal makes.
 type fatal string
 
-// spyTB records what Command asks of a test. It embeds a real testing.TB for
-// the rest.
-type spyTB struct {
+// fatalTB is a test whose Fatal panics with a fatal, so a test can catch the
+// refusals of Command. It embeds a real testing.TB for the rest.
+type fatalTB struct {
 	testing.TB
 }
 
-func (s *spyTB) Helper()           {}
-func (s *spyTB) Fatal(args ...any) { panic(fatal(fmt.Sprint(args...))) }
+func (*fatalTB) Fatal(args ...any) { panic(fatal(fmt.Sprint(args...))) }
 
 // values returns the value of every entry env gives key, in order.
 func values(env []string, key string) []string {
@@ -70,14 +70,49 @@ func TestCommand_ACoveredChildWritesToADirectoryOfItsOwn(t *testing.T) {
 // this process's environment, which keeps every entry but PWD and GOCOVERDIR.
 func TestCommand_AppendsEnvToThisEnvironmentWithoutPWD(t *testing.T) {
 	t.Setenv("PWD", "/nowhere")
-	t.Setenv("EXECTEST_KEPT", "1")
+	t.Setenv("GOCOVERDIR", "/parent")
+	// Keys sharing a prefix or a suffix with those two, and an empty value,
+	// are entries like any other.
+	t.Setenv("OLDPWD", "/old")
+	t.Setenv("PWD_KEPT", "1")
+	t.Setenv("GOCOVERDIR_KEPT", "1")
+	t.Setenv("EXECTEST_EMPTY", "")
+	kept := slices.DeleteFunc(os.Environ(), func(kv string) bool {
+		key, _, _ := strings.Cut(kv, "=")
+		return key == "PWD" || key == "GOCOVERDIR"
+	})
 
 	env := exectest.Command(t.Context(), t, []string{"A=1"}, "x").Env()
 
-	assert.Empty(t, values(env, "PWD"))
-	assert.Equal(t, []string{"1"}, values(env, "EXECTEST_KEPT"))
-	require.GreaterOrEqual(t, len(env), 2)
-	assert.Equal(t, "A=1", env[len(env)-2])
+	require.NotEmpty(t, env)
+	assert.Equal(t, append(kept, "A=1"), env[:len(env)-1])
+}
+
+// TestCommand_DiscardsTheChildsDirectory pins that the child's coverage
+// directory goes when the test that built the command ends.
+func TestCommand_DiscardsTheChildsDirectory(t *testing.T) {
+	t.Parallel()
+	var own string
+	t.Run("build", func(t *testing.T) {
+		got := values(exectest.Command(t.Context(), t, nil, "x").Env(), "GOCOVERDIR")
+		require.NotEmpty(t, got)
+		own = got[len(got)-1]
+		require.DirExists(t, own)
+	})
+	assert.NoDirExists(t, own)
+}
+
+// TestCmd_EnvReturnsACopy pins that writing to what Env returns leaves the
+// child's environment alone, so Env cannot point the child at another
+// coverage directory.
+func TestCmd_EnvReturnsACopy(t *testing.T) {
+	t.Parallel()
+	cmd := exectest.Command(t.Context(), t, nil, "x")
+
+	env := cmd.Env()
+	env[len(env)-1] = "GOCOVERDIR=/parent"
+
+	assert.NotContains(t, values(cmd.Environ(), "GOCOVERDIR"), "/parent")
 }
 
 // TestCommand_BindsTheCommandLineAndTheContext pins that the command runs name
@@ -90,7 +125,7 @@ func TestCommand_BindsTheCommandLineAndTheContext(t *testing.T) {
 
 	cmd := exectest.Command(ctx, t, nil, "/bin/sh", "-c", "exit 0")
 
-	assert.Equal(t, filepath.Clean("/bin/sh"), cmd.Path)
+	assert.Equal(t, "/bin/sh", cmd.Path)
 	assert.Equal(t, []string{"/bin/sh", "-c", "exit 0"}, cmd.Args)
 	assert.ErrorIs(t, cmd.Run(), context.Canceled)
 }
@@ -100,7 +135,7 @@ func TestCommand_RefusesANilContext(t *testing.T) {
 	t.Parallel()
 	var none context.Context
 	assert.PanicsWithValue(t, fatal("exectest.Command: nil context"), func() {
-		exectest.Command(none, &spyTB{TB: t}, nil, "x")
+		exectest.Command(none, &fatalTB{TB: t}, nil, "x")
 	})
 }
 
@@ -108,6 +143,6 @@ func TestCommand_RefusesANilContext(t *testing.T) {
 func TestCommand_RefusesAnEmptyName(t *testing.T) {
 	t.Parallel()
 	assert.PanicsWithValue(t, fatal("exectest.Command: empty command name"), func() {
-		exectest.Command(t.Context(), &spyTB{TB: t}, nil, "")
+		exectest.Command(t.Context(), &fatalTB{TB: t}, nil, "")
 	})
 }
