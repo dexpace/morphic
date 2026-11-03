@@ -37,17 +37,29 @@ defect, keep a `main` control.
 `sweep-each-claim-class`
 
 - **Rule.** Before the first finding, list the change's claim classes and check every member: each
-  name against the tree, citation against the item it cites, no claim resting on an open PR's head
+  name against the tree, citation against the item it cites
+  (`references/review-probes.md#citation-per-case`), no claim resting on an open PR's head
   (`gh pr view <N> --json state,headRefOid`), statement about `main`'s code, library statement
   against its `docs/parser-library.md` entry, quoted command run from the root, script run in each
   context (a subdirectory, each platform branch), body sentence on the final tree, each construct a
   rule settles (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
-  (`references/review-probes.md#edited-rule-against-its-neighbours`). A class checked by sample is
-  reported unreviewed, never clean.
+  (`references/review-probes.md#edited-rule-against-its-neighbours`). A class sampled is reported
+  unreviewed, never clean.
 - **Why.** #1143's review took nine rounds, each sampling a class, as a misattribution sat
   unsampled. Whys pinned claims to moving open PRs (#1409, #1425).
 - **Probe.** The report gives each class and the members checked; fewer than all is a round still
   open.
+
+## Read a citation against every case the citing text sends to it
+`citation-per-case`
+
+- **Rule.** A rule that routes a set of cases to the entries it cites claims each case: check every
+  case its scope reaches against the entry it is sent to, not only that the entry exists and reads as
+  described. A widened or new scope is read case by case.
+- **Why.** A rule widened from load and binding to lowering kept citing two entries that hold no
+  lowering bound's kind; the citations resolved, so the claim sweep passed it (#1441).
+- **Probe.** For each case the scope reaches, `grep -n '<the case>' <cited file>` shows the entry
+  holding it is the one the citing text sends it to.
 
 ## Read an edited rule against those on its acts and constructs
 `edited-rule-against-its-neighbours`
