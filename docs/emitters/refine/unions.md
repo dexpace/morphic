@@ -59,8 +59,9 @@ reaches a variant, and a variant admitting nothing else lowers to no member. The
 unions: `Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
 nullable, and holds it, where a rule read only at `Outer`'s own variants would let a `null` reach
 them and match none. Both spellings the compiler can give a null member (#618) then lower alike. The
-golden spec's single-result envelope declares `result` as `anyOf: [{type: object, nullable: true},
-{type: string, nullable: true}]`: an object, a string or `null`, the last held by the reference.
+golden spec's single-result envelope declares `result` as
+`anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a string or
+`null`, the last held by the reference.
 
 Under a tag or a key, `null` is a variant's payload rather than the union's value, as in an
 envelope `{kind, value}` whose `value` is `null`: the tag names that variant, which keeps it.
@@ -111,10 +112,9 @@ bound.
 
 Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, or every
 variant where text carries the value, in declaration order, and sets every one that admits the
-value. If none admits it, the order
-[below](#a-value-no-variant-recognizes) applies: the fallback on an open union, a coded decode error
-on a closed one. Trying every variant is what `anyOf` asks: no step of the ladder above can tell
-whether a second variant admits a value too.
+value. If none admits it, the order [below](#a-value-no-variant-recognizes) applies: the fallback on
+an open union, a coded decode error on a closed one. Trying every variant is what `anyOf` asks: no
+step of the ladder above can tell whether a second variant admits a value too.
 
 Decoding never repeats beneath a position, however inclusive unions nest. Whether a type admits a
 position of the value is decided once per type and position, and what the position decodes to at

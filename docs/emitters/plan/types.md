@@ -191,16 +191,17 @@ the protocol default, which flips them), and never carries a property's default 
 
 ## A shape reaches what it holds
 
-An operation's response, its headers included, takes the filter `ReturnTypeVisibility` names, else
-`read`. Its request, parameters, headers and body, takes the filter `ParameterVisibility` names,
-else its HTTP method's: `query` for `GET` and `HEAD`, `create` for `POST`, `create` and `update` for
-`PUT`, `update` for `PATCH`, `delete` for `DELETE`, and `create` and `update` for any other method
-or protocol. A `PATCH` body's shape is a patch shape unless its binding sets
-`PatchImplicitOptionality` to `false`. So a `readOnly` member, visible in `read`, `delete` and
-`query`, reaches a `GET`'s parameters and a `DELETE`'s body, and never a `POST`'s or a `PUT`'s. A
-webhook (`IsWebhook`) arrives at the client, so its two sides swap: its request takes `read`, and
-its response its method's filter. A callback is not marked inbound yet (#625), so it takes an
-outbound operation's filters.
+Each root the [usage table](../../ir/derived-facts.md#usage) lists takes a shape. Its filter is the
+one the operation names for its view, `ParameterVisibility` for the request and
+`ReturnTypeVisibility` for the response, and otherwise follows the side the table puts the root on.
+What the client reads takes `read`. What it writes takes its HTTP method's lifecycles: `query` for
+`GET` and `HEAD`, `create` for `POST`, `create` and `update` for `PUT`, `update` for `PATCH`,
+`delete` for `DELETE`, and `create` and `update` for any other method or protocol. So the request of
+a webhook or a callback, which the API starts, takes `read`, and a message takes the side its
+binding's direction gives it. A `PATCH` body's shape is a patch shape unless its binding sets
+`PatchImplicitOptionality` to `false`. A `readOnly` member, visible in `read`, `delete` and `query`,
+thus reaches a `GET`'s parameters and a `DELETE`'s body, and never the body of a `POST` or a `PUT`
+the client sends.
 
 A shape reaches every type a position of it holds, in that same shape: each member the shape holds,
 a catch-all's values, a union's variants, a polymorphic base's subtypes, a map's values, and a

@@ -177,7 +177,7 @@ throughout these documents.
     and a `PATCH` body and read in a response, gets a declaration per shape for every type holding a
     projected one: `readOnly` members absent from each request shape and `writeOnly` ones from the
     response, a `PUT` body holding what `create` or `update` makes visible, and the `PATCH` body's
-    members optional at every depth but inside the list, whose elements keep their required
-    members. `ParameterVisibility` and `ReturnTypeVisibility` replace the method's filter, and two
-    shapes whose projections coincide take one answer
+    members optional at every depth but inside the list, whose elements keep their required members.
+    `ParameterVisibility` and `ReturnTypeVisibility` replace the default filter, a webhook's request
+    takes `read`, and two shapes whose projections coincide take one answer
     ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)).
