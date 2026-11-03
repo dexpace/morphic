@@ -228,27 +228,41 @@ throughout these documents.
     body that gains the last name `Members` lists as a break
     ([envelopes](../plan/responses.md#envelopes), [plan policy](../plan/policy.md#envelopes),
     [return shapes](../operations/returns.md)).
-33. **T-33 · Embedded policy and hints** — a mapping reading a key on the document, on an operation
-    and on a parameter configures the document, that operation and that parameter's hint; a key on
-    a node it cannot configure, a value of the wrong shape and a mapping naming a key of a reason
-    other than `vendor_extension` are each reported, the entry staying in `Unmodeled`; the default
+33. **T-33 · Embedded policy and hints** — a mapping reading a key on the document, on a path item,
+    on an operation and on a parameter configures the document, each of that path item's
+    operations, that operation and that parameter's hint, and one reading an `out_of_scope` entry
+    reads it as a `vendor_extension` one; a key on a node it cannot configure, a value of the wrong
+    shape, a group named by words rather than its ID and a key the document holds under any other
+    reason are each reported under their codes, the entry staying in `Unmodeled`; the default
     mapping reads nothing, and `Disabled` reads nothing however the mapping is written
     ([embedded policy](../contract/embedded-policy.md)).
 34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it
     a client setting, which every operation declaring it in that wire form sends unless the call
     gives its own; a call with neither is refused unsent; an operation declaring it at another
-    wire form keeps it as an input and is reported once; no parameter becomes a setting unless a
-    hint names it, and the plan reports each candidate as an info
-    ([client settings](../operations/client.md#client-settings)).
+    wire form keeps it as an input and is reported once; a header setting fills a header two
+    operations spell in different letter case; a hint naming a parameter no operation declares is
+    reported; no parameter becomes a setting unless a hint names it, and the plan reports each
+    candidate as an info ([client settings](../operations/client.md#client-settings)).
 35. **T-35 · Effects** — a declared `Idempotency` of each kind beats the method, a `GET` with none
     is safe and idempotent, a `PUT` and a `DELETE` idempotent, a `POST` neither, each derived one
     marked `Inferred`; turning `MethodSemantics` off leaves every undeclared operation neither; and
     on every target a request that got no response is sent again for an idempotent operation and
-    never for a `POST`, under the default `Retry.Connection`
+    never for a `POST`, under the default `Retry.WhenUncertain`
     ([effects](../plan/policy.md#an-operations-effects-come-from-its-method)).
 36. **T-36 · Open enums and overlapping oneOfs** — on every target, a closed enum a response carries
     decodes a value it does not list and re-encodes it as it came, its constants naming only the
     listed members, while one only ever sent stays strict and turning `OpenEnums` off restores
-    strict decoding; a `oneOf` value two variants admit decodes into the first under `first` and is
-    a coded error under `only` ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open),
+    strict decoding; an enum declared open is `Open` wherever it is used, with no `Inferred` mark. A
+    `oneOf` of two string variants only their `pattern`s tell apart decodes each value into the
+    variant whose pattern it meets, in either declaration order; a value both admit and meet
+    decodes into the first, and under `StrictExclusive` is a coded error, as is one both admit and
+    neither meets ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open),
     [unions](../refine/unions.md#variant-identity-and-recognition)).
+37. **T-37 · Retries and redirects** — on every target, under the default policy, a 429 and a 503
+    are sent again for a `POST`; a 500, a 502, a 504 and a request that got no response are sent
+    again for a `PUT` and never for a `POST`; a `Retry-After` is waited for up to `Backoff.Max`,
+    and one past it returns the response. A 307 sends the method and body again, a 303 a `GET`, a
+    301 to a `DELETE` the `DELETE`, while a 301 to a `POST`, and a 307 whose body was a stream, are
+    returned as the response, as is the redirect past `Redirects.Max`; a redirect to another origin
+    carries none of the client's credentials ([runtime
+    policy](../contract/runtime-policy.md#the-canonical-vocabulary)).

@@ -12,4 +12,3 @@ An enum `TypePlan.Open` marks ([plan policy](../plan/policy.md#an-enum-a-client-
 lowers to the target's open form whatever `Closed` says, so a response carrying a member a later
 version added decodes and keeps its value. Its constants still name only the members the document
 lists, which is all `Closed` asks of what the SDK sends.
-

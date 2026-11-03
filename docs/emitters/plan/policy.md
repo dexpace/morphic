@@ -20,8 +20,8 @@ type Policy struct {
                                        // variant it does not know (below)
     OpenEnums       bool               // default on: an enum a client reads keeps a value
                                        // it does not list (below)
-    ExclusiveMatch  string             // "first" (default) | "only": what a oneOf value two
-                                       // variants admit decodes to (../refine/unions.md)
+    StrictExclusive bool               // default off: every one_of union is TypePlan.Strict
+                                       // (../refine/unions.md)
     MethodSemantics bool               // default on: an operation stating no effects takes
                                        // its method's (below)
 }
@@ -87,19 +87,19 @@ mocks](../docs-and-mock.md)).
 ## An enum a client reads is open
 
 The reason unions are open holds for an enum: an API that adds a member must not break every SDK
-already deployed on the first response carrying it. So under `OpenEnums` an enum is `Open` wherever
-`Facts.Usage` marks it `Output`, marked `Inferred`, and a value it does not list is kept rather
-than refused ([enums](../refine/enums.md)). An enum only ever written stays as the IR says, and
-turning the policy off leaves every enum as the IR says.
+already deployed on the first response carrying it. So under `OpenEnums` a closed enum is `Open`
+wherever `Facts.Usage` marks it `Output`, marked `Inferred`, and a value it does not list is kept
+rather than refused ([enums](../refine/enums.md)). An enum the IR declares open, `Closed` false
+through a promoted `x-extensible-enum` among others, is `Open` wherever it is used, unmarked since
+the IR states it, so the SDK, the docs and a mock each read one field. A closed enum only ever
+written stays closed, and turning the policy off leaves every enum as the IR says.
 
-This does not override the declared `Enum.Closed`, which states that the members the document
-lists are all it admits. The SDK honours that in what it sends: its constants name the listed
-members alone. `Closed` says nothing of what a later version of the API will list, and that is what
-a client reading a response has to survive. A document declaring an enum open, through a promoted
-`x-extensible-enum` among others, makes it open in both directions. On the golden spec (spec
-@319dc756, morphic @b206dc99) all 8,314 enums are closed, since an OpenAPI `enum` is a closed value
-set, so without the policy each one a response carries would fail to decode the first time the API
-added a member.
+This does not override the declared `Enum.Closed`, which states that the members the document lists
+are all it admits. The SDK honours that in what it sends: its constants name the listed members
+alone. `Closed` says nothing of what a later version of the API will list, and that is what a client
+reading a response has to survive. On the golden spec (spec @319dc756, morphic @b206dc99) all 8,314
+enums are closed, since an OpenAPI `enum` is a closed value set, so without the policy each one a
+response carries would fail to decode the first time the API added a member.
 
 ## An operation's effects come from its method
 
@@ -114,7 +114,8 @@ A method says nothing of whether an operation destroys something: `DELETE` and `
 idempotent and may be destructive, so nothing derives a confirmation from `Effects`. On the golden
 spec no operation declares its idempotency, and of its 3,763 operations 1,841 use a safe method and
 2,693 an idempotent one. Without the policy no operation would be known idempotent, so no request
-that got no response would ever be sent again.
+whose outcome is unknown would ever be sent again
+([retries](../contract/runtime-policy.md#the-canonical-vocabulary)).
 
 ## Envelopes
 

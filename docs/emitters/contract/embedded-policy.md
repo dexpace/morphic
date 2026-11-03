@@ -19,7 +19,8 @@ type Mapping struct {
 
 type Target struct {
     Tree string                // "policy" | "hint"
-    Path []string              // the member path inside that tree's JSON form,
+    Path []string              // the member path inside that tree's JSON form
+                               // (runtime-policy.md#delivery, shaping-hints.md),
                                // such as ["retry", "maxAttempts"] or ["rename"]
 }
 
@@ -36,17 +37,19 @@ the resolved policy and hints and never an extension (INV1).
 
 ## What a key configures
 
-A key configures the node holding it. A `policy` key on the document configures every operation,
-and one on an operation configures that operation, `Layer.Policy.Ops` keyed by its `OpID`
-([layers](runtime-policy.md#layers-and-operations)). A `hint` key configures the node's own ID, so
-a key on a parameter renames that parameter, on an operation that method, and on a service that
-client. A key a mapping names on any other node, such as a `policy` key on a property, configures
-nothing and is reported.
+A key configures the node holding it: a path item's, which each of its operations holds
+([keys](../../ir/unmodeled.md#keys)), configures each of them. A `policy` key on the document
+configures every operation, and one on an operation configures that operation, `Layer.Policy.Ops`
+keyed by its `OpID` ([layers](runtime-policy.md#layers-and-operations)). A `hint` key configures the
+node's own ID, so a key on a parameter renames that parameter, on an operation that method, and on a
+service that client. A key a mapping names on any other node, such as a `policy` key on a property,
+configures nothing and is reported as a warning `emitters/embed/misplaced`.
 
 The value is decoded into the field `Path` names, as the tree's own JSON form reads it, refusing an
-unknown member. A value of the wrong shape is reported as a warning at the extension and never
-coerced, since the document means something by the key that the field does not hold. The entry
-stays in `Unmodeled` either way, as a promotion leaves it
+unknown member. A value of the wrong shape is reported as a warning `emitters/embed/invalid-value`
+at the extension and never coerced, since the document means something by the key that the field
+does not hold: a group is named by its ID, as `Remount` takes it, never by the words a document
+places it under. The entry stays in `Unmodeled` either way, as a promotion leaves it
 ([promotion](../../ir/unmodeled.md#promotion)), so a consumer that disagrees with the mapping reads
 the entry instead.
 
@@ -59,10 +62,14 @@ timeout or an SDK method name has one: each is a generator's own spelling, and i
 that generator's. So a configuration names the keys its documents use and what each one sets, and a
 key it does not name stays where it was.
 
-A mapping reads a key as `Unmodeled` holds it, the format's prefix included, and only entries of
-reason `vendor_extension`, whose key is the source's own spelling. That is the stability #429 asks
-the IR to state for such keys. A key under any other reason, such as `no_ir_home`, names a gap the
-IR may close, and a mapping naming one is refused.
+A mapping reads a key as `Unmodeled` holds it, the format's prefix included, and only from entries
+of two reasons: `vendor_extension`, whose key is the source's own spelling, and `out_of_scope`,
+which the IR keeps for an emitter's policy layer to read, such as a call timeout or a client-shaping
+decorator ([boundaries](../../ir/boundaries.md#deliberate-exclusions)). No promotion moves either,
+which is the stability #429 asks the IR to state for them. A key under any other reason, such as
+`no_ir_home`, names a gap the IR may close or a construct that configures nothing, so where a
+document holds a key the mapping names under one, the key reads nothing and is reported as an error
+`emitters/embed/key-refused`, as is a `Target` naming no tree or a path no field has.
 
 ## Precedence
 
@@ -74,7 +81,12 @@ layer ([precedence](runtime-policy.md#precedence--declared-ir-facts-win-hard-rul
 
 ## Measured on the golden spec
 
-The golden spec (spec @319dc756, morphic @b206dc99) carries hints nearly everywhere: a method name
-and a group name on 3,761 of its 3,763 operations, a name on 118 parameters and on 30 properties,
-each under a generator's own key. It carries no retry or timeout key. A mapping reading those keys
-gives each method the name its document chose, which an emitter would otherwise derive.
+The golden spec (spec @319dc756, morphic @b206dc99) carries hints nearly everywhere, each under a
+generator's own key: a method name and a sub-client on 3,761 of its 3,763 operations, aliases under
+other sub-clients and method names on 44, and a name on 118 parameters and on 30 properties. It
+carries no retry or timeout key. A mapping reads the names into `Rename`, but no sub-client: each is
+a path of names, mostly dotted, such as `dns.domainconnect`, where `Remount` and `AlsoMount` take
+the ID of a group the IR has. Placing an operation by such a path is the compiler's grouping
+(#582), and the method names hold only beside it: read alone, 1,745 of the 3,761 share their name
+with another method of the group the IR places them in, which the collision resolver then renames
+([naming](../refine/naming.md)).

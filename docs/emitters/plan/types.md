@@ -17,6 +17,8 @@ type TypePlan struct {
                                     // ../refine/unions.md, ../refine/enums.md)
     Inclusive  bool                 // an any_of union two of whose variants can admit one value in
                                     // the declaration no shape projects (below); false otherwise
+    Strict     bool                 // a one_of union refuses a value two variants admit unless its
+                                    // constraints single one out (policy.md, ../refine/unions.md)
     Scalar     *ScalarChain         // a scalar's Base chain, walked once; nil = not a scalar
     Shapes     []ModelShape         // the shapes the document exercises it in, sorted (below)
     Alias      ir.TypeID            // the type every reference to this one is emitted as, this
