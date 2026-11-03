@@ -233,8 +233,9 @@ and every diagnostic is true, located, and decided from what actually happened.
 `same-construct-at-every-position`
 
 - **Rule.** When a change lowers, keeps or reports a keyword at one schema position, enumerate each
-  position the spec allows (declaration, inline, property, parameter, header, `allOf` branch, beside
-  a `$ref`, nested object) and make each reach the same path or record what it cannot carry.
+  position the spec allows (declaration, inline, property, `items`, parameter, header, request and
+  response body, `allOf` branch, beside a `$ref`, nested object) and make each reach the same path
+  or record what it cannot carry.
 - **Why.** One construct lowered two ways by position, and parameter, header and nested-object
   positions dropped keywords the property position kept (#149, #156).
 - **Probe.** Compile one fixture writing the construct, with a sibling keyword and an `x-` key, at
