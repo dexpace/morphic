@@ -183,10 +183,13 @@ throughout these documents.
     reaches holds its required `readOnly` and `writeOnly` members and requires neither
     ([TypePlan](../plan/types.md#a-shape-reaches-what-it-holds)).
 31. **T-31 · Plan identity** — one document under one policy builds plans of one `Version` across
-    processes, runs and builds, and the policy round-trips through JSON unchanged; changing any
-    policy field or the document outside `sources` changes the `Version`, and changing only
-    `sources` does not. A plan one build cached answers no other build, and a configuration that
-    leaves a field out reads the default of the version it states
+    processes and runs, a plan golden holding it across builds, and the policy round-trips through
+    JSON unchanged; changing any policy field or the document outside `sources` and `diagnostics`
+    changes the `Version`, and changing only those, as reformatting the spec does, does not. A plan
+    one build cached answers no other build. A configuration that leaves a field out reads the
+    default of the version it states, and one stating no version, or none at all, is refused; a
+    primary rule outside the vocabulary or listed twice draws `emitters/plan/policy-invalid` and is
+    planned as if left out; and the zero `Policy` returns `void` from every operation
     ([the plan's version](../plan/overview.md#the-plans-version),
     [plan policy](../plan/policy.md#the-policy-is-data)).
 32. **T-32 · Envelopes** — under an envelope matched by `Members` and one matched by `Bases`, on

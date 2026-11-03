@@ -42,11 +42,12 @@ the same way when the caller forgets to change it.
 A configuration is read as a target's options are ([target options](../contract/options.md)):
 strictly, and over the defaults of the version it states, which `DefaultPolicy(version)` returns,
 so a default that changes is a new version and an existing configuration keeps planning what it did.
-The comments above name the current version's defaults. The zero `Policy` is not the default: it
-turns every switch off and lists nothing, so no rule picks a primary response and every operation
-returns `void`. A `Policy` built in Go meets no decoder, so `Build` reports a rule outside the
-vocabulary or listed twice as an error `emitters/plan/policy-invalid`, and plans as if it were left
-out.
+One that states no version is refused, and so is an absent one, as a target's are, since which
+defaults apply must not be guessed. The comments above name the current version's defaults. The
+zero `Policy` is not the default: it turns every switch off and lists nothing, so no rule picks a
+primary response and every operation returns `void`. A `Policy` built in Go meets no decoder, so
+`Build` reports a rule outside the vocabulary or listed twice as an error
+`emitters/plan/policy-invalid`, and plans as if it were left out.
 
 ## The default response is classed here
 
