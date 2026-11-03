@@ -11,7 +11,7 @@ NUMBER is the PR's number, or the one it will get. The subjects are those of the
 origin/main..HEAD holds, merges left out, so a branch stacked on another PR's also counts that PR's
 commits as its own (#1341). A squash lands the title, or a branch's one commit under its own
 subject, with " (#NUMBER)" appended, so both are measured with it; a subject the squash replaces
-never lands and is measured without. Each is held to the Conventional Commits form, no trailing
+never lands as the subject, and is measured without. Each is held to the Conventional Commits form, no trailing
 period and 72 characters. Prints a "what: problem: subject" line per finding, then a
 summary line. Exit 0 when every subject holds, 1 on a finding, 2 when it cannot run.
 """
