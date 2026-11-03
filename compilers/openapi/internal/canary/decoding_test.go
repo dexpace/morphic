@@ -619,7 +619,7 @@ func mergeKeys(t *testing.T) {
 	require.True(t, ok)
 	n, ok := doc.Components.Schemas.Get("N")
 	require.True(t, ok)
-	require.True(t, m.GetSchema().IsEqual(n.GetSchema()), "the model reads M as N")
+	assert.True(t, m.GetSchema().IsEqual(n.GetSchema()), "the model reads M as N: %s", revisit(t, result{}))
 	assert.False(t, yml.EqualNodes(m.GetSchema().GetRootNode(), n.GetSchema().GetRootNode()),
 		"EqualNodes reads `<<` as a key: %s", revisit(t, result{}))
 }
