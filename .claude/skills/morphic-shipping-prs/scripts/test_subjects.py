@@ -114,11 +114,15 @@ class ScriptTest(unittest.TestCase):
         self.assertEqual((r.returncode, r.stdout.splitlines()[-1]),
                          (1, "subjects: 1 finding(s) in the title and 1 commit subject(s)"))
 
+    def test_a_number_below_one_exits_two(self):
+        r = self.run_script("0", TITLE)
+        self.assertEqual((r.returncode, r.stderr.splitlines()[-1:]),
+                         (2, ["subjects.py: error: number must be positive, not 0"]))
+
     def test_cannot_run_exits_two(self):
+        self.assertEqual(self.run_script("x", TITLE).returncode, 2)
         self.git("update-ref", "-d", "refs/remotes/origin/main")
         self.assertEqual(self.run_script("1", TITLE).returncode, 2)
-        self.assertEqual(self.run_script("0", TITLE).returncode, 2)
-        self.assertEqual(self.run_script("x", TITLE).returncode, 2)
 
 
 if __name__ == "__main__":
