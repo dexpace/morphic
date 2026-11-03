@@ -13,17 +13,20 @@ plan once: docs and mocks agree with the SDK by construction, not by re-derivati
   renders as. Examples use the schema arm (`Value/Headers`) vs the operation arm
   (`Input/Output/Error`) correctly. A union `TypePlan.Open` marks is documented as one a response
   may extend, one inclusive in a shape as one whose value may be several variants at once, and every
-  `PlannedError` and `PlannedResponse` as the body and headers it declares. No runtime `Policy` is
-  consulted — proving the IR/policy split pays off.
+  `PlannedError` and `PlannedResponse` as the body and headers it declares. An enveloped response is
+  documented as the `Type` a method returns and the `Envelope.Body` the wire carries, and an example
+  of it as both: the member at `Value` of the response's example for the first, and that example
+  whole for the second. No runtime `Policy` is consulted — proving the IR/policy split pays off.
 - **Mock-server emitter (`emitters/mock`).** Reuses `PrimaryResponse`, the content `Return` elects
-  and the IR `Examples` to synthesize canned responses, `Others` to answer as each declared response
-  does, the error taxonomy to simulate declared failures, `TypePlan.Open` to say whether a variant
-  the document does not list may be sent, the `BindingView` to route requests, and the visibility
-  projections to honor the same wire shapes an SDK sends/receives. Refine lowers into a
-  server-routing AST (routes from `HTTPBinding.URITemplate`, handlers validating against
-  constraints). Because the same plan feeds SDK and mock, the two are **wire-consistent by
-  construction** — the mock can *be* the interception target the SDK's wire-conformance harness
-  ([mandatory tests](testing/mandatory-tests.md)) is diffed against.
+  and the IR `Examples` to synthesize canned responses, sending the whole `Envelope.Body` where a
+  response is enveloped, `Others` to answer as each declared response does, the error taxonomy to
+  simulate declared failures, `TypePlan.Open` to say whether a variant the document does not list
+  may be sent, the `BindingView` to route requests, and the visibility projections to honor the same
+  wire shapes an SDK sends/receives. Refine lowers into a server-routing AST (routes from
+  `HTTPBinding.URITemplate`, handlers validating against constraints). Because the same plan feeds
+  SDK and mock, the two are **wire-consistent by construction** — the mock can *be* the interception
+  target the SDK's wire-conformance harness ([mandatory tests](testing/mandatory-tests.md)) is
+  diffed against.
 - **Validation emitter (future).** Additionally consumes the validation-only constructs kept
   verbatim in `Unmodeled` (`not`/`if-then-else`/`dependentSchemas`, …) that SDK/docs emitters
   ignore. It selects them by `UnmodeledEntry.Reason == ir.ReasonValidationOnly` rather than by key
