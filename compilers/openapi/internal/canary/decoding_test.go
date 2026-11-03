@@ -510,13 +510,16 @@ func scalarAt(t *testing.T, source any, pointer string) string {
 // unmodeledKeywords pins unmodeled-keywords: the schema model has no field for
 // $dynamicRef, $dynamicAnchor, $comment, $vocabulary or dependentRequired, and
 // records each, like any key it does not know, by name alone; the value stays
-// in the raw node.
+// in the raw node, and Schema.IsEqual, comparing the model, does not see it.
 func unmodeledKeywords(t *testing.T) {
 	doc, _, err := soa.Unmarshal(t.Context(), strings.NewReader(schemas(
 		"A: {$dynamicAnchor: n, $comment: c, $dynamicRef: '#n', $vocabulary: {}, dependentRequired: {}, "+
-			"unknownKeyword: u, type: object}")))
+			"unknownKeyword: u, type: object}",
+		"B: {type: object}")))
 	require.NoError(t, err)
 	a, ok := doc.Components.Schemas.Get("A")
+	require.True(t, ok)
+	b, ok := doc.Components.Schemas.Get("B")
 	require.True(t, ok)
 
 	unmodeled := []string{"DynamicRef", "DynamicAnchor", "Comment", "Vocabulary", "DependentRequired"}
@@ -527,6 +530,7 @@ func unmodeledKeywords(t *testing.T) {
 		[]string{"$dynamicAnchor", "$comment", "$dynamicRef", "$vocabulary", "dependentRequired", "unknownKeyword"},
 		a.GetSchema().GetCore().GetUnknownProperties(), revisit(t, result{}))
 	assert.Equal(t, "#n", scalarAt(t, a.GetSchema().GetRootNode(), "/$dynamicRef"), revisit(t, result{}))
+	assert.True(t, a.GetSchema().IsEqual(b.GetSchema()), "IsEqual reads the model alone: %s", revisit(t, result{}))
 }
 
 // nullSchemaIsFalse pins null-schema-is-false: a null written where a schema
