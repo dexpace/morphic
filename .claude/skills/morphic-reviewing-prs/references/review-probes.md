@@ -116,7 +116,8 @@ defect, keep a `main` control.
   otherwise describe the fix.
 - **Why.** A suggested Probe said to delete a hit in a commit body, which a pushed branch cannot do,
   and a suggested regex missed a generic no test row held (#1169).
-- **Probe.** Apply each suggestion in a throwaway worktree and run the checks it touches.
+- **Probe.** Apply each suggestion in a throwaway worktree, run the checks it touches, and give it
+  `references/review-probes.md#review-own-fixes`.
 
 ## Review with no `origin`, or in a repository you must not write to
 `review-without-origin`
@@ -184,22 +185,23 @@ defect, keep a `main` control.
   cases per rule and nothing asked for the rest (#1402).
 - **Probe.** Count the cells and those with a result; a cell short is a round still open.
 
-## A fix the review makes is reviewed before it is pushed
+## A fix a review hands on is reviewed before it leaves
 `review-own-fixes`
 
-- **Rule.** When a review fixes what it finds, give each fix's own diff the passes, sweep its
-  mechanism, and reread what it adds as unreviewed
+- **Rule.** Give each fix a review pushes, posts as a patch or offers as a suggestion every pass
+  on its own diff, written rules included, sweep its mechanism, and reread what it adds as
+  unreviewed
   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
-  A fix adding or changing a mechanism a design document specifies first takes
+  A fix to a mechanism a design document specifies first takes
   `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#prototype-against-every-requirement`
   and its row of `references/review-probes.md#design-review-matrix`. Push a round's fixes once,
-  behind the push checklist, as `git push origin HEAD:<branch>`, since the setup's worktree is
-  detached, then rerun the setup.
-- **Why.** Later rounds of #1143's review kept finding defects its own fixes had added: a PR-body
-  example the scripts listed as a closing reference, a command that failed from the repository
-  root, and a sentence saying the lint ran on every branch.
-- **Probe.** Before the push, read `git diff <round's base>..HEAD` with the passes, and run the
-  push checklist on it.
+  behind the push checklist, as `git push origin HEAD:<branch>` from the detached setup, then rerun
+  the setup.
+- **Why.** Later rounds of #1143's review found defects its own fixes had added, such as a command
+  failing from the root. #1233's author applied a posted redesign verbatim, and a later round found
+  five nits in it (#1411).
+- **Probe.** Before pushing or posting, apply the fixes in a throwaway worktree and read
+  `git diff <round's base>..HEAD` with every pass.
 
 ## Review the tree as it will merge
 `recheck-against-final-tree`
