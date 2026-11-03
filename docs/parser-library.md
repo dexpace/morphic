@@ -604,7 +604,8 @@ components:
 
 The schema model has no field for `$dynamicRef`, `$dynamicAnchor`, `$comment`, `$vocabulary` or
 `dependentRequired`. It records each, like any key it does not know, by name alone, and leaves the
-value in the schema's raw node.
+value in the schema's raw node. `Schema.IsEqual` compares the model alone, so a schema writing such
+a key compares equal to one that does not.
 
 ```yaml
 components:
