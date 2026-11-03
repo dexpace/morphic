@@ -257,6 +257,342 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/RenderBase": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderBase",
+      "name": {
+        "source": "RenderBase",
+        "canonical": "render_base"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderBase"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderBase/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderBase/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderBase/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderBase/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RenderBounded": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderBounded",
+      "name": {
+        "source": "RenderBounded",
+        "canonical": "render_bounded"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "$comment": "the page",
+              "minProperties": 1,
+              "required": [
+                "html"
+              ],
+              "type": "object"
+            },
+            {
+              "deprecated": true,
+              "required": [
+                "url"
+              ],
+              "type": "object",
+              "x-note": "the address"
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderBounded/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderBounded"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderBounded/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderBounded/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderBounded/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderBounded/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RenderComposed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderComposed",
+      "name": {
+        "source": "RenderComposed",
+        "canonical": "render_composed"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "properties": {
+                "html": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "html"
+              ]
+            },
+            {
+              "properties": {
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderComposed/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderComposed"
+      },
+      "base": {
+        "target": "t/openapi/components/schemas/RenderBase",
+        "nullable": false
+      },
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
+    "t/openapi/components/schemas/RenderDescribed": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/RenderDescribed",
+      "name": {
+        "source": "RenderDescribed",
+        "canonical": "render_described"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "validation_only",
+          "value": [
+            {
+              "properties": {
+                "html": {
+                  "description": "The page to render.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "html"
+              ]
+            },
+            {
+              "properties": {
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url"
+              ]
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderDescribed/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderDescribed"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/RenderDescribed/properties/html",
+          "name": {
+            "source": "html",
+            "canonical": "html"
+          },
+          "wireName": "html",
+          "type": {
+            "target": "t/prim/url",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {
+            "description": "The page to render."
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderDescribed/properties/html"
+          }
+        },
+        {
+          "id": "p/openapi/components/schemas/RenderDescribed/properties/url",
+          "name": {
+            "source": "url",
+            "canonical": "url"
+          },
+          "wireName": "url",
+          "type": {
+            "target": "t/prim/string",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderDescribed/properties/url"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/RenderDocumented": {
       "kind": "model",
       "id": "t/openapi/components/schemas/RenderDocumented",
@@ -505,6 +841,46 @@
       "positional": false,
       "inputOnly": false
     },
+    "t/openapi/components/schemas/RenderSizes": {
+      "kind": "list",
+      "id": "t/openapi/components/schemas/RenderSizes",
+      "name": {
+        "source": "RenderSizes",
+        "canonical": "render_sizes"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "unmodeled": {
+        "openapi:oneOf": {
+          "reason": "degraded_lowering",
+          "value": [
+            {
+              "items": {
+                "type": "string"
+              }
+            },
+            {
+              "items": {
+                "type": "integer"
+              }
+            }
+          ],
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/RenderSizes/oneOf"
+          }
+        }
+      },
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderSizes"
+      },
+      "elem": {
+        "target": "t/prim/any",
+        "nullable": false
+      }
+    },
     "t/openapi/components/schemas/RenderTagged": {
       "kind": "model",
       "id": "t/openapi/components/schemas/RenderTagged",
@@ -578,6 +954,18 @@
       "abstract": false,
       "positional": false,
       "inputOnly": false
+    },
+    "t/prim/any": {
+      "kind": "primitive",
+      "id": "t/prim/any",
+      "name": {},
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": -1
+      },
+      "prim": "any"
     },
     "t/prim/string": {
       "kind": "primitive",
@@ -662,13 +1050,49 @@
         "source": 0,
         "pointer": "/components/schemas/RenderTagged"
       }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderBounded"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderDescribed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/validation-only-keyword",
+      "message": "validation-only keyword \"oneOf\" kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderComposed"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "oneOf/anyOf co-declared with structural keywords intersects with them, and the body is not a model, so it carries no composition to distribute into; union branches kept verbatim under Unmodeled",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/RenderSizes"
+      }
     }
   ],
   "sources": [
     {
       "format": "openapi@3.1",
       "path": "union-restated-branches.yaml",
-      "hash": "62a9d9776e006950835080a5cec8c0edf8da552d2e1bba6cc888fe815224913c"
+      "hash": "dbe1a094ca168a5b60f39cc6b1d15a2b0629afc9fd2c0947ddc72db738067676"
     }
   ]
 }

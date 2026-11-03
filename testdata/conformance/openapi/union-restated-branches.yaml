@@ -52,3 +52,35 @@ components:
       oneOf:
         - {properties: {kind: {type: string, const: html}}}
         - {properties: {kind: {type: string, const: url}}}
+    # Narrowing and documenting keywords declare no shape beside the body's
+    # type, as they declare none in a bare branch.
+    RenderBounded:
+      type: object
+      properties: {html: {type: string}, url: {type: string}}
+      oneOf:
+        - {type: object, required: [html], minProperties: 1, $comment: the page}
+        - {type: object, required: [url], deprecated: true, x-note: the address}
+    # A property may also repeat a description its declaration writes.
+    RenderDescribed:
+      type: object
+      properties:
+        html: {type: string, format: uri, description: The page to render.}
+        url: {type: string}
+      oneOf:
+        - {required: [html], properties: {html: {type: string, description: The page to render.}}}
+        - {required: [url], properties: {url: {type: string}}}
+    RenderBase:
+      type: object
+      properties: {html: {type: string}, url: {type: string}}
+    # A property the body composes through allOf is repeated as one it declares
+    # itself is, so this lowers as RenderBare does, with its Base.
+    RenderComposed:
+      allOf: [{$ref: '#/components/schemas/RenderBase'}]
+      oneOf:
+        - {required: [html], properties: {html: {type: string}}}
+        - {required: [url], properties: {url: {type: string}}}
+    # A branch writing items names an element type, which is shape, so the
+    # union degrades, here beside a body that is no model.
+    RenderSizes:
+      type: array
+      oneOf: [{items: {type: string}}, {items: {type: integer}}]

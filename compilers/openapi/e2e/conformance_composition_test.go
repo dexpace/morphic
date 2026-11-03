@@ -727,21 +727,29 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	for name, keyword := range map[string]string{
 		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
-		"RenderExclusive": "openapi:oneOf",
+		"RenderExclusive": "openapi:oneOf", "RenderBounded": "openapi:oneOf", "RenderDescribed": "openapi:oneOf",
 	} {
 		m, ok := doc.Types[componentID(name)].(*ir.Model)
 		require.True(t, ok, "%s lowers to its body", name)
 		assert.Len(t, m.Properties, 2, "%s", name)
 		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, m.Unmodeled, keyword).Reason, "%s", name)
 	}
-	tagged, ok := doc.Types[componentID("RenderTagged")].(*ir.Model)
-	require.True(t, ok)
-	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, tagged.Unmodeled, "openapi:oneOf").Reason)
+	composed, ok := doc.Types[componentID("RenderComposed")].(*ir.Model)
+	require.True(t, ok, "RenderComposed lowers to its body")
+	require.NotNil(t, composed.Base)
+	assert.Equal(t, componentID("RenderBase"), composed.Base.Target)
+	assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, composed.Unmodeled, "openapi:oneOf").Reason)
+	for _, name := range []string{"RenderTagged", "RenderSizes"} {
+		td, ok := doc.Types[componentID(name)]
+		require.True(t, ok, "%s lowers", name)
+		assert.Equal(t, ir.ReasonDegradedLowering,
+			unmodeledEntry(t, td.Common().Unmodeled, "openapi:oneOf").Reason, "%s", name)
+	}
 	var degraded []string
 	for _, d := range diags {
 		if d.Code == diag.DegradedConstruct {
 			degraded = append(degraded, string(d.Provenance.Pointer))
 		}
 	}
-	assert.Equal(t, []string{"/components/schemas/RenderTagged"}, degraded)
+	assert.ElementsMatch(t, []string{"/components/schemas/RenderTagged", "/components/schemas/RenderSizes"}, degraded)
 }

@@ -485,6 +485,20 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 	return res.id, known
 }
 
+// Base returns the URI a reference written in the schema at p resolves
+// against, its own $id counted: its document's, or the resource's an $id at or
+// above it names. Two schemas with one base read every reference they write
+// alike. It is false where a schema on the way may hide an $id past the merge
+// bound, and a nil table knows none.
+func (t *Table) Base(p Position) (string, bool) {
+	if t == nil {
+		return "", false
+	}
+	path, _ := t.res.docs.path(p)
+	res, known := t.res.holding(p, path, true /* schema */)
+	return res.uri, known
+}
+
 // Steps reports the work the table cost.
 func (t *Table) Steps() int { return t.steps }
 

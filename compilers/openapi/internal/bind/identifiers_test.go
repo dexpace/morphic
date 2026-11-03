@@ -544,12 +544,7 @@ func TestDynamicAnchors_SaysWhenTheCountProvesNothing(t *testing.T) {
 // read as a schema.
 func TestInOwnResource_ReadsTheResourceAPositionIsIn(t *testing.T) {
 	t.Parallel()
-	table := bound(t, head+"x-e: {$id: 'https://x.test/e', k: {type: string}}\ncomponents:\n  schemas:\n"+
-		"    P: {properties: {$id: {type: string}, q: {type: string}}}\n"+
-		"    I: {$id: 'https://x.test/i', properties: {q: {type: string}}}\n"+
-		"    Same: {$id: 'spec.yaml', properties: {q: {type: string}}}\n"+
-		"    O: {$ref: 'o.yaml#/S'}\n",
-		withDocuments(map[string]string{"o.yaml": "S: {$id: 'https://x.test/o', a: {b: {type: string}}}\nT: {type: string}\n"}))
+	table := resourcesTable(t)
 	doc := docNamed(t, table, "o.yaml")
 	for p, want := range map[bind.Position]bool{
 		{Pointer: "/components/schemas/P/properties/q"}:    false,
@@ -568,6 +563,46 @@ func TestInOwnResource_ReadsTheResourceAPositionIsIn(t *testing.T) {
 	own, known := (*bind.Table)(nil).InOwnResource(bind.Position{})
 	assert.False(t, own)
 	assert.True(t, known)
+}
+
+// resourcesTable binds the resource tests' fixture: schemas whose $id starts a
+// resource, names its document or is no schema's, and raw YAML holding one, in
+// the source and in a document of schemas.
+func resourcesTable(t *testing.T) *bind.Table {
+	t.Helper()
+	return bound(t, head+"x-e: {$id: 'https://x.test/e', k: {type: string}}\ncomponents:\n  schemas:\n"+
+		"    P: {properties: {$id: {type: string}, q: {type: string}}}\n"+
+		"    I: {$id: 'https://x.test/i', properties: {q: {type: string}}}\n"+
+		"    Same: {$id: 'spec.yaml', properties: {q: {type: string}}}\n"+
+		"    O: {$ref: 'o.yaml#/S'}\n",
+		withDocuments(map[string]string{"o.yaml": "S: {$id: 'https://x.test/o', a: {b: {type: string}}}\nT: {type: string}\n"}))
+}
+
+// TestBase_ReadsTheURIAReferenceResolvesAgainst pins, on the resource
+// fixture, the base each position's references read against: its document's
+// where no $id at or above it names another URI, and that $id's otherwise.
+func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
+	t.Parallel()
+	table := resourcesTable(t)
+	doc := docNamed(t, table, "o.yaml")
+	source, other := table.Document(bind.Source).Name, table.Document(doc).Name
+	for p, want := range map[bind.Position]string{
+		{Pointer: "/components/schemas/P/properties/q"}:    source,
+		{Pointer: "/components/schemas/I"}:                 "https://x.test/i",
+		{Pointer: "/components/schemas/I/properties/q"}:    "https://x.test/i",
+		{Pointer: "/components/schemas/Same/properties/q"}: source,
+		{Pointer: "/x-e/k"}:                                source,
+		{Pointer: "/x-e"}:                                  "https://x.test/e",
+		{Doc: doc, Pointer: "/S/a/b"}:                      "https://x.test/o",
+		{Doc: doc, Pointer: "/T"}:                          other,
+	} {
+		base, known := table.Base(p)
+		assert.True(t, known, p.Pointer)
+		assert.Equal(t, want, base, p.Pointer)
+	}
+	base, known := (*bind.Table)(nil).Base(bind.Position{})
+	assert.Empty(t, base)
+	assert.False(t, known)
 }
 
 // TestDynamicFragment_ReadsAPlainFragment pins what a $dynamicRef can spell.

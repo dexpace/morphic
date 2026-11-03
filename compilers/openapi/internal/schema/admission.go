@@ -331,6 +331,35 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	return out.and(w.whole(next))
 }
 
+// declarations returns, by name, each declaration of a property s makes: in
+// its own properties, in each allOf conjunct and in what a $ref lands on, read
+// as whole reads them and within the same budget. A union's branches are left
+// out, since an instance need match only one. A declaration the walk does not
+// reach, past the budget or a $ref landing nowhere, is one fewer to restate,
+// which errs towards shape. The walk keeps its own stack, so it adds no
+// recursion cycle, and the order of each list is no answer.
+func (w *admission) declarations(s *oas3.Schema) map[string][]*oas3.JSONSchema[oas3.Referenceable] {
+	out := map[string][]*oas3.JSONSchema[oas3.Referenceable]{}
+	add := func(declarer *oas3.Schema) {
+		for name, p := range declarer.GetProperties().All() {
+			out[name] = append(out[name], p)
+		}
+	}
+	add(s)
+	stack := slices.Clone(s.GetAllOf())
+	for len(stack) > 0 && w.reads.Spend(1) {
+		js := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		cs := js.GetSchema() // nil for a boolean conjunct, which the getters read as empty
+		add(cs)
+		stack = append(stack, cs.GetAllOf()...)
+		if next := w.c.Bindings().Declared(js); next != nil {
+			stack = append(stack, next)
+		}
+	}
+	return out
+}
+
 // union reads a oneOf's or anyOf's branches, any of which an instance may be.
 func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admitted {
 	out := w.whole(branches[0])
@@ -469,12 +498,19 @@ func (w *admission) restates(held admitted, from, js *oas3.JSONSchema[oas3.Refer
 	})
 }
 
-// sameText reports whether a and b, both written in one document, write the same
-// JSON. A $ref in another document's copy would resolve elsewhere.
+// sameText reports whether a and b, read against one base, write the same
+// JSON. A $ref in a copy under another document, or under an $id naming
+// another URI, would resolve elsewhere, though it is spelled alike.
 func (w *admission) sameText(a, b *oas3.JSONSchema[oas3.Referenceable]) bool {
 	at, ok := w.c.Bindings().Site(a)
 	bt, okB := w.c.Bindings().Site(b)
-	if !ok || !okB || at.Doc != bt.Doc {
+	if !ok || !okB {
+		return false
+	}
+	table := w.c.Bindings().Table()
+	base, known := table.Base(at)
+	other, knownB := table.Base(bt)
+	if !known || !knownB || base != other {
 		return false
 	}
 	text := w.text(a)
