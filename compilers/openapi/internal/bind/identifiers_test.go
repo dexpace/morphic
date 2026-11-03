@@ -580,7 +580,8 @@ func resourcesTable(t *testing.T) *bind.Table {
 
 // TestBase_ReadsTheURIAReferenceResolvesAgainst pins, on the resource
 // fixture, the base each position's references read against: its document's
-// where no $id at or above it names another URI, and that $id's otherwise.
+// where no $id at or above it names another URI, and that $id's otherwise. A
+// schema past the merge bound may hide an $id, so its base is not known.
 func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
 	t.Parallel()
 	table := resourcesTable(t)
@@ -603,6 +604,12 @@ func TestBase_ReadsTheURIAReferenceResolvesAgainst(t *testing.T) {
 	base, known := (*bind.Table)(nil).Base(bind.Position{})
 	assert.Empty(t, base)
 	assert.False(t, known)
+
+	deep := bound(t, deepMerge(), self)
+	_, known = deep.Base(at("/components/schemas/A"))
+	assert.False(t, known, "past the merge bound")
+	_, known = deep.Base(at("/components/schemas/B"))
+	assert.True(t, known, "within it")
 }
 
 // TestDynamicFragment_ReadsAPlainFragment pins what a $dynamicRef can spell.

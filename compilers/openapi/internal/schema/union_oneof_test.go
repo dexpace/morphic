@@ -936,6 +936,11 @@ func TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape(t *testing.T) {
       items: {type: string}
       oneOf: [{items: {type: string, minLength: 1}}, {minItems: 2}]
 `, "openapi:oneOf"},
+		"ElementTwoDeclarationsSayTogether": {"3.1.0", `      type: object
+      properties: {a: {type: array, items: {type: string}}}
+      allOf: [{properties: {a: {items: {format: uri}}}}]
+      oneOf: [{required: [a], properties: {a: {items: {type: string, format: uri}}}}]
+`, "openapi:oneOf"},
 		"ElementTheBodyComposes": {"3.1.0", `      allOf: [{$ref: '#/components/schemas/Targets'}]
       oneOf: [{items: {type: object, required: [t]}}]
 `, "openapi:oneOf"},
