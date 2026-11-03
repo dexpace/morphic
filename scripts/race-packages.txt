@@ -1,18 +1,22 @@
 # The packages `make race` runs under the race detector, one `go test`
 # pattern per line. A `#` starts a comment only as a line's first non-blank
-# character. A package belongs here when its code runs on more than one goroutine.
-# The Makefile reads this file, so it is the only list.
-# internal/archtest TestRaceList_NamesEveryConcurrentPackage holds it to the
-# packages that run concurrently.
+# character. The Makefile reads this file, so it is the only list.
 #
-# Two exceptions to that rule, as #1271 decided: internal/harness and
-# internal/census are tooling outside the pipeline, yet their tests call
-# harness.Check and (*Census).Add on parallel goroutines. Neither is listed,
-# so a race in either goes undetected.
+# The rule, which internal/archtest TestRaceList_NamesEveryConcurrentPackage
+# holds this file to:
+#   - every package under ir/, pass and compilers/ is covered, since their
+#     tests run them on parallel goroutines;
+#   - elsewhere, a package belongs when its production code imports sync or
+#     sync/atomic, any file starts a goroutine, or its tests run in parallel;
+#   - a package left off is a raceExempt entry in
+#     internal/archtest/racelist_test.go with its reason, and no package under
+#     ir/, pass or compilers/ may be one.
+# A race on a path that only an exempt package's own tests take goes unreported.
 ./barrier
 ./cmd/morphic
-./compilers/openapi/internal/load
+./compilers/...
 ./engine/...
 ./internal/ctxtest
 ./internal/leakcheck
-./ir/irfacts
+./ir/...
+./pass
