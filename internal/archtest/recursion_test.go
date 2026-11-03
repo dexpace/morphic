@@ -68,6 +68,11 @@ var loweringRecursions = [][]string{
 	// a $ref lands on, are schemas read the same way, and one may name its own
 	// schema. Bounded by the budget maxAdmissionReads, which a cycle exhausts.
 	{"admission.union", "admission.whole"},
+	// The instance types a schema states. Like nullability it is a predicate over
+	// allOf conjuncts and what a $ref lands on, not a lowering, and it is bounded
+	// the same way, by a budget of its own (maxConjunctTypeReads), which is what
+	// stops a self-referential allOf.
+	{"conjunctTypes.branch", "conjunctTypes.schema"},
 	// Multipart body parts. A body may compose with allOf instead of declaring
 	// properties, and each branch is a schema whose parts are read the same way.
 	// Bounded by maxPartRefHops.
