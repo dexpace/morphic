@@ -43,15 +43,6 @@ const (
 // a file.
 func (r fileReading) open() bool { return r == readsString || r == readsUntyped }
 
-// openKeywords are the keywords a schema may write and still say nothing of
-// how its value travels: annotations, and the length bounds OpenAPI applies to
-// a binary payload's octets. contentMediaType is one, since a media type set by
-// the content's key or an encoding entry wins over it.
-var openKeywords = []string{
-	"$comment", "contentMediaType", "default", "deprecated", "description", "example", "examples",
-	"externalDocs", "maxLength", "minLength", "nullable", "readOnly", "title", "writeOnly", "xml",
-}
-
 // readFile reads js, a body's or a part's schema, as a file: through a $ref to
 // the schema its chain ends on, and through the branches of a union it writes
 // (readUnion). Raw bytes are read through a refinement to the schema deciding
@@ -65,7 +56,7 @@ func readFile(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReadi
 	if !besideRefsOpen(c.Bindings(), js) {
 		return readsOther
 	}
-	own := readOpen(s, true)
+	own := readOpen(s, true /* unions */)
 	union := slices.Concat(s.GetAnyOf(), s.GetOneOf())
 	if !own.open() || len(union) == 0 {
 		return own
@@ -88,7 +79,7 @@ func readBranch(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileRea
 	if !besideRefsOpen(c.Bindings(), js) {
 		return readsOther
 	}
-	return readOpen(s, false)
+	return readOpen(s, false /* unions */)
 }
 
 // maxFileRefHops bounds the $refs besideRefsOpen follows (styleguide
@@ -106,7 +97,7 @@ func besideRefsOpen(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable
 			return true
 		}
 		if !writesOnly(js.GetSchema(), func(key string) bool {
-			return key == "$ref" || key != "type" && openKeyword(key, false)
+			return key == "$ref" || key != "type" && openKeyword(key, false /* unions */)
 		}) {
 			return false
 		}
@@ -160,7 +151,7 @@ func declaresBinary(s *oas3.Schema) bool {
 }
 
 // readOpen reads s, a schema declaring no raw bytes, as a string, untyped or
-// other: other where it writes a keyword no file leaves open (openKeywords), or
+// other: other where it writes a keyword no file leaves open (openKeyword), or
 // a type other than string, alone or with null.
 func readOpen(s *oas3.Schema, unions bool) fileReading {
 	if !writesOnlyOpenKeywords(s, unions) {
@@ -195,14 +186,19 @@ func writesOnly(s *oas3.Schema, allowed func(string) bool) bool {
 }
 
 // openKeyword reports whether a schema writing key can still leave its media
-// type to say how its value travels: one of openKeywords, its own extensions,
-// type, which readOpen reads, and a union, where unions says it is read.
+// type to say how its value travels: an annotation, a length bound, which
+// OpenAPI applies to a binary payload's octets, contentMediaType, which a media
+// type set by the content's key or an encoding entry overrides, its own
+// extensions, type, which readOpen reads, and a union, where unions says so.
 func openKeyword(key string, unions bool) bool {
-	switch {
-	case key == "type", slices.Contains(openKeywords, key), strings.HasPrefix(key, "x-"):
+	switch key {
+	case "type", "$comment", "contentMediaType", "default", "deprecated", "description", "example", "examples",
+		"externalDocs", "maxLength", "minLength", "nullable", "readOnly", "title", "writeOnly", "xml":
 		return true
+	case "anyOf", "oneOf":
+		return unions
 	default:
-		return unions && (key == "anyOf" || key == "oneOf")
+		return strings.HasPrefix(key, "x-")
 	}
 }
 
@@ -227,7 +223,8 @@ func readUnion(c lowering.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable]) 
 // admitsOnlyNull reports whether s is a type null and nothing else a reader of
 // a file looks at.
 func admitsOnlyNull(s *oas3.Schema) bool {
-	return slices.Equal(s.GetType(), []oas3.SchemaType{oas3.SchemaTypeNull}) && writesOnlyOpenKeywords(s, false)
+	return slices.Equal(s.GetType(), []oas3.SchemaType{oas3.SchemaTypeNull}) &&
+		writesOnlyOpenKeywords(s, false /* unions */)
 }
 
 // withoutNull returns types with null removed, a copy so the schema's own

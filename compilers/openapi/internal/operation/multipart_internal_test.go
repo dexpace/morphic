@@ -233,7 +233,7 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 		{l.types.PrimID(ir.PrimString), false, true},
 	}
 	for _, tc := range cases {
-		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target}, true)
+		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target}, true /* multipart */)
 		assert.Equal(t, tc.multi, multi, "%s multi", tc.target)
 		assert.False(t, file, "%s is not bytes", tc.target)
 		assert.Equal(t, tc.decided, decided, "%s decided", tc.target)
@@ -274,7 +274,7 @@ func TestPartTypeFlags_AListOfRawBytesIsFiles(t *testing.T) {
 		assert.Equal(t, tc.file, file, "%s file", tc.list.ID)
 	}
 	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{bytes}})
-	_, file, _ := partTypeFlags(l.types.Node, ir.TypeRef{Target: "t/tuple"}, true)
+	_, file, _ := partTypeFlags(l.types.Node, ir.TypeRef{Target: "t/tuple"}, true /* multipart */)
 	assert.False(t, file, "a tuple's elements are not read")
 }
 

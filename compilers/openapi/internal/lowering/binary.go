@@ -55,9 +55,6 @@ func DefaultBinaryMediaTypes() []string {
 // is a predicate rather than a getter for the reason MediaTypeStreams is.
 func (c Ctx) MediaTypeBinary(mediaType string) bool {
 	normalized := NormalizeMediaType(mediaType)
-	if normalized == "" {
-		return false
-	}
 	if c.binary[normalized] {
 		return true
 	}

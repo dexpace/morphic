@@ -45,6 +45,8 @@ func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 			openapi.Options{}, marker, true, ""},
 		{"a png bounded in octets", "image/png", "{schema: {type: string, maxLength: 9}}",
 			openapi.Options{}, marker, true, ""},
+		{"a png carrying an extension", "image/png", "{schema: {type: string, x-acme-kind: screenshot}}",
+			openapi.Options{}, marker, true, ""},
 		{"a wildcard image", "image/*", "{}", openapi.Options{}, marker, true, "t/prim/any"},
 		{"a spelling of a binary type", "Image/PNG; q=1", "{}", openapi.Options{}, marker, true, "t/prim/any"},
 		{"a format binary with no type", "image/png", "{schema: {format: binary}}", openapi.Options{}, "", true, ""},

@@ -34,7 +34,9 @@ A reference has no `Provenance`, so a heuristic that sets a reference's `Nullabl
 the reference's own `TypeRef.Inferred` ([type-graph](./type-graph.md#type-references)). `ErrorCase`
 and `OAuthFlow` have none either, and record a promotion in an `Inferred` of their own
 ([promotion](./unmodeled.md#promotion)), as `FileInfo` and `PartEncoding` record the heuristic that
-read a body or a part as a file ([payloads](./payloads.md)).
+read a body or a part as a file ([payloads](./payloads.md)): a marker on the operation's own
+`Provenance`, as a guessed stream takes, could not say which of its contents or parts the guess made
+a file.
 
 The one exception is what `NoSource` exists for. A pass reporting on the document it was handed has
 no input file to name, and every real index — `0` included — names a file the document loaded, so
