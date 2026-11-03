@@ -91,16 +91,21 @@ admitting no value in common, by these rules, and a pair none of them separates 
   variants, compared by their texts.
 - **Values.** Each admits finitely many values, as a closed enum, a literal or a union of them does,
   and no value is in both, compared as JSON Schema compares instances: `1` and `1.0` are one.
-- **Members.** Both are models laid out by name, read through `Flattened`, and one requires a member
-  the other cannot hold: one it does not declare while it is closed and no model in its flattening
-  has a catch-all (`AdditionalProps`), or one it declares at a position disjoint from the first's by
-  these rules. A member is required as `Required` and `Undeclared` say, an overridden declaration
-  counting, so a base requiring `id` separates subtypes that redeclare `id` as different one-value
-  enums. A member separates only if every read, create and update shape requires it, so a `readOnly`
-  or `writeOnly` one separates nothing, whichever way the union travels, and a union a PATCH body
-  reaches, whose patch shape requires none, is separated by kinds and values alone. A catch-all
-  beside a closure holds the members it governs, as `patternProperties` beside
-  `additionalProperties: false` does (#987), so the closure alone separates nothing.
+- **Members.** Both are models laid out by name, read through `Flattened` as the JSON wire lays them
+  out: each member under its JSON name (`WireNameByFormat`'s entry for JSON, else `WireName`), a
+  `Flatten` property's members at its model's own level, and a position's kinds read from the
+  property's own `Encoding` before its type's. One requires a member the other cannot hold: one it
+  does not declare while it is closed and no model in its flattening has a catch-all
+  (`AdditionalProps`), or one it declares at a position disjoint from the first's by these rules. A
+  member is required as `Required` and `Undeclared` say, an overridden declaration counting, so a
+  base requiring `id` separates subtypes that redeclare `id` as different one-value enums. A member
+  separates only if every read, create and update shape requires it, so a `readOnly` or `writeOnly`
+  one separates nothing, whichever way the union travels, nor does one `ClientOptional` marks, which
+  a client treats as optional, and a union a PATCH body reaches, whose patch shape requires none, is
+  separated by kinds and values alone. A catch-all beside a closure holds the members it governs, as
+  `patternProperties` beside `additionalProperties: false` does (#987), so the closure alone
+  separates nothing, and a polymorphic base, which holds its subtypes' values and the members they
+  add, counts as open.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through
 a finite chain of separated members, and a cycle of models separates nothing by itself. The plan

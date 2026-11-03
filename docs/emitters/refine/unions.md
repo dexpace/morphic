@@ -90,16 +90,18 @@ An `anyOf` lets one value satisfy several variants, and what the union holds the
 A tag picks one variant, so a discriminated or key-tagged union is never inclusive, whatever
 `Exclusive` says.
 
-A variant admits a value when the value fits it at every position it reaches: its JSON kind is one
-the position's type admits, `null` only where the position admits `null`; each closed model, closed
-enum and literal holds it; each scalar's codec reads its text; and every model it reaches carries
-each member its `TypePlan.Required` and `Undeclared` list, as the shape it travels in requires: a
-`readOnly` member only of a read shape, a `writeOnly` one only of a create or update shape, and none
-of a patch shape. Bar what each scalar's codec reads, that is a fact of the value and the IR, so
-targets set the same variants wherever their codecs read the same texts, and a target's check
-decides it from the IR rather than from what its JSON library accepts: json/v2 decodes `null` into a
-Go `string` as `""` without an error. `Constraints` take no part, since they are validation's on
-every decoded value. So whether a variant admits a value never depends on a bound.
+A variant admits a value when the value fits it at every position it reaches, read as the JSON wire
+lays it out ([TypePlan](../plan/types.md#variants-that-can-share-a-value)), a polymorphic base's
+value fitting the subtype its tag names: its JSON kind is one the position's type admits, `null`
+only where the position admits `null`; each closed model, closed enum and literal holds it; each
+scalar's codec reads its text; and every model it reaches carries each member its
+`TypePlan.Required` and `Undeclared` list, as the shape it travels in requires: a `readOnly` member
+only of a read shape, a `writeOnly` one only of a create or update shape, and none of a patch shape,
+nor one `ClientOptional` marks. Bar what each scalar's codec reads, that is a fact of the value and
+the IR, so targets set the same variants wherever their codecs read the same texts, and a target's
+check decides it from the IR rather than from what its JSON library accepts: json/v2 decodes `null`
+into a Go `string` as `""` without an error. `Constraints` take no part, since they are validation's
+on every decoded value. So whether a variant admits a value never depends on a bound.
 
 Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, in
 declaration order, and sets every one that admits the value. If none admits it, the order
