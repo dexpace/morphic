@@ -144,7 +144,8 @@ throughout these documents.
     ([auth](../operations/auth.md#unresolved-schemes)).
 29. **T-29 · Inclusive unions** — on every target, an `anyOf` over two open models that one value
     fits decodes that value into both and re-encodes it as an equal JSON value; a member the two
-    write at different values is an encode error, and a union with neither set refuses to encode. A
+    write at different values is an encode error, as is a member a caller adds to the open variant
+    beside a closed one that cannot hold it, and a union with neither set refuses to encode. A
     `string` variant beside a `datetime_offset` one re-encodes a timestamp as the text it arrived
     as. A value one set variant holds within its bounds validates though another's bound fails, and
     a member one variant marks `Secret` is redacted in the union's rendering though the other

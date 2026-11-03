@@ -92,9 +92,9 @@ admitting no value in common, by these rules, and a pair none of them separates 
 - **Members.** Both are models laid out by name, read through `Flattened`, and one requires a member
   the other cannot hold: one it does not declare while it is closed and no model in its flattening
   has a catch-all (`AdditionalProps`), or one it declares at a position disjoint from the first's by
-  these rules. A member is required as `Required` says, where an overridden declaration counts, so
-  a base requiring `id` separates subtypes that redeclare `id` as different one-value enums. A
-  catch-all beside a closure holds the members it governs, as `patternProperties` beside
+  these rules. A member is required as `Required` and `Undeclared` say, an overridden declaration
+  counting, so a base requiring `id` separates subtypes that redeclare `id` as different one-value
+  enums. A catch-all beside a closure holds the members it governs, as `patternProperties` beside
   `additionalProperties: false` does (#987), so the closure alone separates nothing.
 
 Disjointness is the least relation these rules close over, so two models are disjoint only through

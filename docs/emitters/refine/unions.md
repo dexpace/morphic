@@ -52,15 +52,14 @@ seam buys and the fused-pipeline generator cannot have.
 On an untagged union, `null` is the union's value, never a variant's. A variant admits `null` when
 `null` decodes into it: its reference is `Nullable`, or its type, read through decorators and alias
 scalars, is the `null` literal, an enum with a `null` member, `any`, or a union one of whose
-variants admits `null`. `null` holds
-nothing a variant could keep apart, so the union holds it itself: every reference to a union with
-such a variant lowers as a nullable reference does
+variants admits `null`. `null` holds nothing a variant could keep apart, so the union holds it
+itself: every reference to a union with such a variant lowers as a nullable reference does
 ([optionality](models.md#optionality--nullability--presence-inv8)), a `null` never reaches a
 variant, and a variant admitting nothing else lowers to no member. The rule reads through unions:
 `Outer: {anyOf: [{$ref: Inner}, {type: integer}]}` admits `null` when `Inner`'s variants are
 nullable, and holds it, where a rule read only at `Outer`'s own variants would let a `null` reach
-them and match none. Both spellings the compiler can give a null member (#618) then lower alike.
-The golden spec's single-result envelope declares `result` as
+them and match none. Both spellings the compiler can give a null member (#618) then lower alike. The
+golden spec's single-result envelope declares `result` as
 `anyOf: [{type: object, nullable: true}, {type: string, nullable: true}]`: an object, a string or
 `null`, the last held by the reference.
 
@@ -91,12 +90,12 @@ A tag picks one variant, so a discriminated or key-tagged union is never inclusi
 A variant admits a value when the value fits it at every position it reaches: its JSON kind is one
 the position's type admits, `null` only where the position admits `null`; each closed model, closed
 enum and literal holds it; each scalar's codec reads its text; and every model it reaches carries
-each member its `TypePlan.Required` lists. Bar what each scalar's codec reads, that is a fact of the
-value and the IR, so targets set the same variants wherever their codecs read the same texts, and a
-target's check decides it from the IR rather than from what its JSON library accepts: json/v2
-decodes `null` into a Go `string` as `""` without an error. `Constraints` take no part, since they
-are validation's on every decoded value. So whether a variant admits a value never depends on a
-bound.
+each member its `TypePlan.Required` and `Undeclared` list. Bar what each scalar's codec reads, that
+is a fact of the value and the IR, so targets set the same variants wherever their codecs read the
+same texts, and a target's check decides it from the IR rather than from what its JSON library
+accepts: json/v2 decodes `null` into a Go `string` as `""` without an error. `Constraints` take no
+part, since they are validation's on every decoded value. So whether a variant admits a value never
+depends on a bound.
 
 Decoding an inclusive union tries each variant whose kinds include the value's JSON kind, in
 declaration order, and sets every one that admits the value. If none admits it, the order
@@ -113,7 +112,6 @@ Decoded once per type, a value costs time in proportion to its size where a targ
 parsed tree, and to its size times the variants tried along its deepest path of inclusive unions
 where a target reads the bytes once per variant.
 
-
 Encoding writes one value that each set variant decodes back to what it holds. Objects merge member
 by member, in the order the first set variant writes them, then each later variant's new members,
 and arrays element by element, of one length. Where the set variants write a position differently,
@@ -123,7 +121,10 @@ type and encoded again, is what the variant itself writes there. A `datetime_off
 write `2025-01-01T00:00:00Z` for a timestamp that arrived as `2025-01-01T00:00:00.000+00:00`, which
 a `string` variant beside it holds as it arrived: the string's text is the one both read back, so it
 is the one written. A position with no such text is an encode error, never a silent pick, as a
-member two variants hold at different values is. A union with no variant set refuses to encode and
+member two variants hold at different values is. The merged value is then checked against each set
+variant's admission, as a decoded one is: a member one variant writes that a closed one beside it
+cannot hold, as after a caller adds it to the open one, is an encode error too, since the closed
+variant would no longer read the value back. A union with no variant set refuses to encode and
 fails validation, and the fallback is never set beside a variant.
 
 An inclusive union is valid when one set variant is, which is all `anyOf` asks. A variant can admit

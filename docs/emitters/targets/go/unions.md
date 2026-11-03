@@ -70,7 +70,8 @@ type Target struct {        // anyOf: [Zone, Account], which one value can fit
   `json.GetOption(dec.Options(), json.WithUnmarshalers)`), which keep their precedence: a second
   `WithUnmarshalers` would replace them, and a caller's unmarshaler would stop applying inside the
   variants. Every type keeps its one codec, which reaches a variant in another unit with no exported
-  helper, and each variant still reads the bytes beneath it. `MarshalJSONTo` writes the merge.
+  helper, and each variant still reads the bytes beneath it. `MarshalJSONTo` writes the merge and
+  runs each set field's admission check over it.
 - **`Validate` passes when a set field's `Validate` passes**, reports every set field's failures
   when none does, and reports a struct with no field set. With no sum to close, it has no marker, no
   wrapper and no switch-completeness test.
