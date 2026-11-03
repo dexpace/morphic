@@ -200,7 +200,7 @@ cmd/morphic-filetimes/
 cmd/morphic-vet/
              Layer 4 — runs internal/lintrules under go vet; imports it + x/tools unitchecker.
 internal/    Test/tooling infrastructure, outside the pipeline (harness, archtest, census,
-             conformance, ctxtest, decls, jsonshape, keydoc, leakcheck, lintrules, testspec).
+             conformance, ctxtest, decls, exectest, jsonshape, keydoc, leakcheck, lintrules, testspec).
 ```
 
 The layering is enforced by `internal/archtest`, and **its `rules` map is the source of truth** —
@@ -312,10 +312,11 @@ These all exist already — extend them rather than building a parallel mechanis
   blocked on an unreachable primitive — not a running one, nor one a global still holds; whether
   `goleak` should cover those too is #568. Beside it, `make race` runs the packages on
   `scripts/race-packages.txt` under `-race`, and `TestRaceList_NamesEveryConcurrentPackage` requires
-  every package with a non-test file importing `sync` or `sync/atomic`, or any file starting a
-  goroutine (a `go` statement or a single-argument `.Go(...)` call), to be on that list or exempt
-  with its reason. Parallel tests alone do not count, so `internal/harness` and `internal/census`
-  are off the list; `scripts/race-packages.txt` says why.
+  every package under `ir/`, `pass` and `compilers/` to be on that list. Elsewhere it requires every
+  package with a non-test file importing `sync` or `sync/atomic`, any file starting a goroutine (a
+  `go` statement or a single-argument `.Go(...)` call), or a test calling `t.Parallel()`, to be on
+  the list or in the test's `raceExempt` with its reason, which no package under those roots
+  may be. A race on a path only an exempt package's own tests take goes unreported.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
 assertion shapes:
@@ -533,12 +534,16 @@ context-switch between repos.
 
 - **Budget the appended number inside the 72-char cap.** GitHub appends ` (#N)` to the squashed
   subject automatically — never type it yourself, but do count it, at the number the PR will get,
-  on the title and on each commit subject, as a branch with one commit lands under its subject.
-  Measure before opening, don't eyeball — `printf '%s (#%s)' "<title>" "$N" | wc -c`, with `N` one
-  past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. Most
+  on the title and on a branch's one commit, which lands under its subject. A subject the squash
+  replaces lands, if at all, in the body, where nothing is appended, so it holds to 72 without the
+  number. Measure before opening, don't eyeball: run
+  `python3.14 .claude/skills/morphic-shipping-prs/scripts/subjects.py "$N" "<title>"`, with `N` one
+  past `gh api 'repos/{owner}/{repo}/issues?state=all&per_page=1' --jq '.[0].number'`. It counts
+  characters, where `wc -c` and macOS's `awk` count bytes and call a subject with a `→` long. Most
   over-length subjects in this history were *within* the cap until the number was appended, which
   is the whole failure mode; to see that split rather than trust it, pipe the log above through
-  `awk 'length($0) > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the same `awk`.
+  `perl -CS -nle 'print if length > 72'` and then through `sed -E 's/ \(#[0-9]+\)$//'` before the
+  same `perl`.
 - **Never rewrite a pushed PR branch.** Every change to an open PR, whether a review round's fixes
   or `main` merged in, goes on as new commits pushed as a fast-forward. Never amend, squash, rebase
   or force-push it, not even to keep it at one commit. A force-push deletes the per-round diffs a

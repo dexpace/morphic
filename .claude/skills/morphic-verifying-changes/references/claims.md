@@ -68,8 +68,8 @@ to read — and to execute outside the case its author measured.
   that logs and refuses every request, check it logs a `curl -x` request, run the test with
   `-count=1`, and read the log. A request to a loopback address, and a client whose `Transport` sets
   no `Proxy`, skip it, so an empty log covers neither: test that transport itself.
-- **Why.** Passing offline shows nothing, as a refused request can be what a test expects. The proxy
-  logged two `CONNECT`s on `main` and none on the head of the PR that fixed them (#1235).
+- **Why.** Passing offline shows nothing, as a refused request can be what a test expects: a test
+  passing on `main` sent the proxy two `CONNECT`s (#1146), which #1235 removes.
 - **Probe.** A planted `http.Get` logs a `CONNECT`; a planted client with a `Transport` of its own
   logs nothing and still dials out.
 

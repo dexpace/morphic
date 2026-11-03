@@ -51,10 +51,11 @@ The IR and the plan are in [TypePlan](../../plan/types.md#a-model-with-lifecycle
 
 Go holds a struct field by value, so a cycle of struct fields is an invalid recursive type. A slice,
 a map, a pointer and an interface each break a cycle, so a list, a map, a union and a polymorphic
-base — the last two a struct holding a sealed interface ([unions](unions.md)) — already do; a model,
-a tuple's positional struct and the boxes above hold their contents by value, and do not. So a
-reference is held through a pointer when it lies on a cycle of references Go holds by value, read
-after `Base` and `Mixins` are flattened into the declarations they land in. The [shared refine
+base — the last two a struct holding a sealed interface, or a pointer per variant where the union is
+inclusive ([unions](unions.md)) — already do; a model, a tuple's positional struct and the boxes
+above hold their contents by value, and do not. So a reference is held through a pointer when it
+lies on a cycle of references Go holds by value, read after `Base` and `Mixins` are flattened into
+the declarations they land in. The [shared refine
 helper](../../refine/models.md#recursive-references) finds those cycles. The pointer stands for a
 box's state where it can: a required reference is `*T`, which `Validate` reports when nil; an
 optional or a nullable one is `*T`, nil meaning absent or null; and an optional nullable one is

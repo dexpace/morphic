@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"maps"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/dexpace/morphic/internal/exectest"
 	"github.com/dexpace/morphic/ir/irtest"
 )
 
@@ -68,7 +68,7 @@ func TestGitAttributes_ResolveToLF(t *testing.T) {
 	}
 
 	args := append([]string{"check-attr", "eol", "--"}, eolProbes...)
-	cmd := exec.Command("git", args...)
+	cmd := exectest.Command(t.Context(), t, nil, "git", args...)
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {
@@ -96,7 +96,7 @@ func TestGitAttributes_ResolveToLF(t *testing.T) {
 func TestTrackedFiles_HoldNoCarriageReturn(t *testing.T) {
 	t.Parallel()
 	root := irtest.RepoRoot(t)
-	cmd := exec.Command("git", "ls-files", "-z")
+	cmd := exectest.Command(t.Context(), t, nil, "git", "ls-files", "-z")
 	cmd.Dir = root
 	out, err := cmd.Output()
 	if err != nil {

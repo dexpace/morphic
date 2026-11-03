@@ -115,7 +115,7 @@ func TestUnhomedKeywords_ElectedLoweringKeepsWhatItCannotRead(t *testing.T) {
 		kind       ir.TypeKind
 		kept       []string
 	}{
-		{"non-object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: string}",
+		{"non-object type beside allOf", "{allOf: [{required: [a]}], type: string}",
 			ir.KindModel, []string{"openapi:type"}},
 		{"object type beside allOf", "{allOf: [{$ref: '#/components/schemas/BaseObj'}], type: object}",
 			ir.KindModel, nil},

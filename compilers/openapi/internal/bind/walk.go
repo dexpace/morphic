@@ -28,8 +28,8 @@ type root struct {
 type frame struct {
 	node  *yaml.Node
 	at    Position
-	state state
 	res   int32
+	state state
 	inert bool
 }
 

@@ -168,9 +168,10 @@ coverage:
 filetimes:
 	$(GO) run ./cmd/morphic-filetimes
 
-# The race detector runs alone, over the packages whose code runs on more than
-# one goroutine (scripts/race-packages.txt says when a package belongs). go test
-# refuses -race with -covermode=set, and #1271 measured -race with atomic
+# The race detector runs alone, over every package under ir/, pass and
+# compilers/ and the other packages that run concurrently
+# (scripts/race-packages.txt says which, and what a package left off must say).
+# go test refuses -race with -covermode=set, and #1271 measured -race with atomic
 # coverage missing a planted race that -race alone caught, so coverage and the
 # detector do not share a run.
 #
