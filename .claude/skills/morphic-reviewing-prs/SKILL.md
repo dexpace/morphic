@@ -56,10 +56,11 @@ Run all, fanning out if asked (`references/review-probes.md#fan-out-a-pass-to-a-
 
 ## Findings
 
-Rank each finding `issue:`, `nit:` (a defect breaking nothing), `suggestion:` (no
-defect) or `question:` (`references/review-probes.md#rank-by-what-was-shown`). The rank orders the work, not what ships: every `issue:` and `nit:` is
-fixed or justified in writing before merge. Each names the rule it breaks, file and line, the run
-and its output, and the smallest fix removing the class, not the instance.
+Rank each finding `issue:`, `nit:` (a defect breaking nothing), `suggestion:` (no defect) or
+`question:` (`references/review-probes.md#rank-by-what-was-shown`). The rank orders the work, not
+what ships: every `issue:` and `nit:` is fixed or justified in writing before merge. Each names the
+rule it breaks, file and line, the run and its output, and the smallest fix removing the class, not
+the instance.
 
 - A defect the change introduces, exposes or makes reachable is in scope even when its root is
   older, and a stated limitation is an `issue:` when a valid input shows head worse than base.
