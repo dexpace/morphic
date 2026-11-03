@@ -3,6 +3,7 @@
 Run: python3.14 -m unittest discover -s .claude/skills/morphic-shipping-prs/scripts
 """
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -12,6 +13,7 @@ from pathlib import Path
 import subjects
 
 SCRIPT = Path(__file__).resolve().parent / "subjects.py"
+CONVENTIONS = Path(__file__).resolve().parents[4] / "CLAUDE.md"
 TITLE = "chore(skills): hold each subject as it lands"
 # 66 characters alone and 74 with " (#1311)": over the cap only where it lands.
 SIXTY_SIX = "build: read the vet plant's file by its path below the module root"
@@ -51,6 +53,16 @@ class CheckTest(unittest.TestCase):
             with self.subTest(subject):
                 got = subjects.check(1, TITLE, [subject, "test: add a case"])
                 self.assertEqual(got, [f"commit: {want}: {subject}"] if want else [])
+
+    def test_the_types_are_those_the_repository_lists(self):
+        listed = re.search(r"Common types: ((?:`[a-z]+`[,.]?\s*)+)", CONVENTIONS.read_text())
+        self.assertIsNotNone(listed, "CLAUDE.md no longer lists the commit types")
+        types = re.findall(r"`([a-z]+)`", listed.group(1))
+        accepted = re.match(r"\(([a-z|]+)\)", subjects.FORM.pattern).group(1).split("|")
+        self.assertEqual(sorted(types), sorted(accepted))
+        for t in types:
+            with self.subTest(t):
+                self.assertEqual(subjects.check(1, TITLE, [f"{t}: things", "test: add a case"]), [])
 
 
 class ScriptTest(unittest.TestCase):
