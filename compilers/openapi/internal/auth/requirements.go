@@ -24,7 +24,7 @@ import (
 // choice".
 //
 // A security written as no list arrives nil, beside the loader's report, and so
-// does one under a local tag, with none (#1280). A list of entries that are no
+// does one under a local tag, with none (#1368). A list of entries that are no
 // object yields no option, beside the loader's report, and collapses to nil, since
 // [] would read as public.
 func (r *Registry) Requirements(c lowering.Ctx, reqs []*soa.SecurityRequirement, base jsontext.Pointer) ([]ir.AuthRequirement, []ir.Diagnostic) {
