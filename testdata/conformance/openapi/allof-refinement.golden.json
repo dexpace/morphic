@@ -172,7 +172,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/zones/{zone_id}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1zones~1{zone_id}/post/parameters/zone_id/path",
@@ -187,6 +186,7 @@
                     "requestContentTypes": [
                       "application/octet-stream"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
