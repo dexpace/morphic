@@ -1,7 +1,9 @@
-# Names that collide once canonicalized, in each scope pass/names reads whose
-# order follows a mapping. Each collision is declared off-centre, so reversing
-# the mappings, as the harness's order oracle does, moves which party comes
-# second, while what holds the scope stays put.
+# Names that collide once canonicalized, in several scopes pass.Names reads,
+# beside a member with no word character. Where a scope's order follows a
+# mapping (the groups the paths' tags make, a group's operations, a model's
+# properties), the collision is declared off-centre, so reversing the mappings,
+# as the harness's order oracle does, moves which party comes second, while
+# what holds the scope stays put.
 openapi: 3.1.0
 info: {title: Name collisions, version: "1"}
 tags: [{name: Billing}, {name: billing}]
