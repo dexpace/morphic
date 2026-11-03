@@ -264,6 +264,44 @@ func assertInlineBranchHint(t *testing.T, doc *ir.Document) {
 		"the outside reference resolves to that same node rather than hoisting a second")
 }
 
+// assertAllOfDisjointConjuncts pins docs/compilers/openapi.md#allof-disjoint-conjuncts:
+// an allOf whose conjuncts share no value draws one warning at the schema
+// however the contradiction is spelled, a `type` beside the allOf against a
+// $ref, two $refs, or an inline branch against a $ref. The inline branch keeps
+// its residue as an info, so one contradiction is one warning; a pair that
+// shares a null draws nothing; and no lowering changes, since the report is all
+// the case adds.
+func assertAllOfDisjointConjuncts(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for _, name := range []string{"OwnType", "TwoRefs", "Inline"} {
+		assert.Equal(t, []ir.Severity{ir.SeverityWarning},
+			diagsAt(diags, diag.DegradedConstruct, "/components/schemas/"+name),
+			"%s: conjuncts sharing no value are reported once, at the schema", name)
+	}
+	assert.Equal(t, []ir.Severity{ir.SeverityInfo},
+		diagsAt(diags, diag.DegradedConstruct, "/components/schemas/Inline/allOf/1"),
+		"the inline branch's residue is an info, since the schema carries the warning")
+	assert.Empty(t, diagsAt(diags, diag.DegradedConstruct, "/components/schemas/SharedNull"),
+		"a null both conjuncts admit is a value they share")
+
+	ownType, ok := doc.Types[componentID("OwnType")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, ownType.Base, "the lowering is unchanged: the sole $ref is the Base")
+	assert.Equal(t, componentID("List"), ownType.Base.Target)
+
+	twoRefs, ok := doc.Types[componentID("TwoRefs")].(*ir.Model)
+	require.True(t, ok)
+	assert.Nil(t, twoRefs.Base)
+	require.Len(t, twoRefs.Mixins, 2, "both conjuncts still compose")
+	assert.Equal(t, componentID("Str"), twoRefs.Mixins[0].Target)
+	assert.Equal(t, componentID("Obj"), twoRefs.Mixins[1].Target)
+
+	inline, ok := doc.Types[componentID("Inline")].(*ir.Model)
+	require.True(t, ok)
+	require.NotNil(t, inline.Base, "the sole $ref is the Base")
+	assert.Equal(t, componentID("Obj"), inline.Base.Target)
+	assert.Contains(t, inline.Unmodeled, "openapi:allOf/1", "and the inline branch is still kept")
+}
+
 // assertAllOfPositionConstraints pins GitHub #407: a value constraint written
 // beside an allOf composing position reaches the same ir.Model.Constraints
 // field a plain object's does, rather than falling to Unmodeled under a
@@ -335,10 +373,9 @@ func assertAllOfRefinement(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 
 	assertRefinedOperation(t, doc)
 	assertRefinedNodes(t, doc)
-	assert.Equal(t, 2, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
-		"only Disjoint's branches are contradicted")
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint/allOf/0", "/components/schemas/Disjoint/allOf/1"},
-		warningPointers(diags))
+	assert.Equal(t, 1, openapitest.CountDiagsAt(diags, diag.DegradedConstruct, ir.SeverityWarning),
+		"only Disjoint is contradicted, and its conjuncts are reported once")
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/Disjoint"}, warningPointers(diags))
 }
 
 // assertRefinedOperation covers the positions an operation holds.
@@ -680,4 +717,31 @@ func assertNegationNot(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 		}
 	}
 	assert.True(t, found, "expected a validation-only-keyword info diagnostic")
+}
+
+// assertUnionRestatedBranches holds a union whose branches repeat the body to
+// the one that writes only `required`: one Model with the union kept under
+// validation_only, reported as that and not as a degradation. A branch saying
+// more than the body stays degraded
+// (docs/compilers/openapi.md#union-beside-structure).
+func assertUnionRestatedBranches(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	for name, keyword := range map[string]string{
+		"RenderBare": "openapi:oneOf", "Render": "openapi:oneOf", "RenderDocumented": "openapi:anyOf",
+		"RenderExclusive": "openapi:oneOf",
+	} {
+		m, ok := doc.Types[componentID(name)].(*ir.Model)
+		require.True(t, ok, "%s lowers to its body", name)
+		assert.Len(t, m.Properties, 2, "%s", name)
+		assert.Equal(t, ir.ReasonValidationOnly, unmodeledEntry(t, m.Unmodeled, keyword).Reason, "%s", name)
+	}
+	tagged, ok := doc.Types[componentID("RenderTagged")].(*ir.Model)
+	require.True(t, ok)
+	assert.Equal(t, ir.ReasonDegradedLowering, unmodeledEntry(t, tagged.Unmodeled, "openapi:oneOf").Reason)
+	var degraded []string
+	for _, d := range diags {
+		if d.Code == diag.DegradedConstruct {
+			degraded = append(degraded, string(d.Provenance.Pointer))
+		}
+	}
+	assert.Equal(t, []string{"/components/schemas/RenderTagged"}, degraded)
 }

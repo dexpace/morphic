@@ -23,7 +23,7 @@ IR bug (INV9), not a compiler change.
 | anonymous decorator: a `Model` with only a `Base`, or a `Scalar` with neither `Constraints` nor `Encoding`, beside annotations ([decorators](decorators.md)) | — |
 | `Model` whose `Base` is no model, not a decorator | — |
 | `AdditionalProps` / `Additional` | pattern channel |
-| `Union` (four wire shapes, [unions](unions.md)) | `WireName`/`WireID` per variant; an unknown variant's value |
+| `Union` (four wire shapes, [unions](unions.md)) | `WireName`/`WireID` per variant; an unknown variant's value; every variant an inclusive union's value admits |
 | `Enum` open/closed/flags | member `WireName` |
 | `List`/`MapT`/`Tuple` | packed/expanded |
 | `Literal` | — |

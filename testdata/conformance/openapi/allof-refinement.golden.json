@@ -172,7 +172,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/zones/{zone_id}",
-                    "sharedRoute": false,
                     "paramBindings": [
                       {
                         "param": "param/openapi/paths/~1zones~1{zone_id}/post/parameters/zone_id/path",
@@ -187,6 +186,7 @@
                     "requestContentTypes": [
                       "application/octet-stream"
                     ],
+                    "sharedRoute": false,
                     "checksumRequired": false,
                     "isWebhook": false
                   }
@@ -1061,16 +1061,25 @@
     {
       "severity": "warning",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type) is kept verbatim under Unmodeled",
+      "message": "the conjuncts of this allOf share no value (allOf/0: integer, allOf/1: string), so no instance satisfies this schema, which a composition cannot state",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Disjoint"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/0"
       }
     },
     {
-      "severity": "warning",
+      "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "inline allOf branch declares a type that is not an object, which the composed model asserts it is; the branch (type) is kept verbatim under Unmodeled",
+      "message": "inline allOf branch is merged in place, and nothing reads the rest of it; the branch (type) is kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Disjoint/allOf/1"
@@ -1090,7 +1099,7 @@
     {
       "format": "openapi@3.0",
       "path": "allof-refinement.yaml",
-      "hash": "9c2fd77afd9ac4271709aa52c3151944fc315f930b69be6e5dd9fa89762b1608"
+      "hash": "5516a198d627a7c98d336834ca0d6722aeeb9a2e415a1998b82078b59f620a2c"
     }
   ]
 }

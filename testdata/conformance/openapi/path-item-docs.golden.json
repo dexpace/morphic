@@ -152,9 +152,6 @@
                   {
                     "method": "POST",
                     "uriTemplate": "/pets",
-                    "sharedRoute": false,
-                    "checksumRequired": false,
-                    "isWebhook": false,
                     "callbacks": [
                       {
                         "expression": "{$request.body#/callbackUrl}",
@@ -162,7 +159,10 @@
                           "op/openapi/paths/~1pets/post/callbacks/onCreated/{$request.body#~1callbackUrl}/post"
                         ]
                       }
-                    ]
+                    ],
+                    "sharedRoute": false,
+                    "checksumRequired": false,
+                    "isWebhook": false
                   }
                 ]
               },
@@ -290,10 +290,10 @@
                 "http": [
                   {
                     "method": "POST",
+                    "webhookName": "petDeleted",
                     "sharedRoute": false,
                     "checksumRequired": false,
-                    "isWebhook": true,
-                    "webhookName": "petDeleted"
+                    "isWebhook": true
                   }
                 ]
               },

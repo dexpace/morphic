@@ -1,0 +1,54 @@
+openapi: 3.1.0
+info: {title: UnionRestatedBranches, version: "1.0.0"}
+paths: {}
+components:
+  schemas:
+    # Branches that write only `required` declare no shape, so the union is
+    # validation logic beside one Model.
+    RenderBare:
+      type: object
+      properties: {html: {type: string}, url: {type: string}}
+      oneOf: [{required: [html]}, {required: [url]}]
+    # Branches that repeat the type their property already has declare no shape
+    # either, so this lowers exactly as RenderBare does.
+    Render:
+      type: object
+      properties: {html: {type: string}, url: {type: string}}
+      oneOf:
+        - {required: [html], properties: {html: {type: string}}}
+        - {required: [url], properties: {url: {type: string}}}
+    # A branch may also repeat the body's own type and write less of a property
+    # than the body does, so anyOf lowers like the bare form too.
+    RenderDocumented:
+      type: object
+      properties:
+        html: {type: string, description: The page to render.}
+        url: {type: string, format: uri}
+      anyOf:
+        - {type: object, required: [html], properties: {html: {type: string}}}
+        - {type: object, required: [url], properties: {url: {type: string}}}
+    # A `not` narrows as `required` does and declares no shape, so branches that
+    # also repeat the body and rule each other's property out lower like the
+    # bare form too.
+    RenderExclusive:
+      type: object
+      properties:
+        html: {type: string, description: The page to render.}
+        url: {type: string, description: The address to fetch.}
+      oneOf:
+        - required: [url]
+          type: object
+          properties: {html: {type: string}, url: {type: string}}
+          not: {required: [html], type: object, properties: {html: {type: string}}}
+        - required: [html]
+          type: object
+          properties: {html: {type: string}, url: {type: string}}
+          not: {required: [url], type: object, properties: {url: {type: string}}}
+    # A const says more than the type beside it, so these branches pick
+    # variants and the union degrades as any inline branch does.
+    RenderTagged:
+      type: object
+      properties: {kind: {type: string}}
+      oneOf:
+        - {properties: {kind: {type: string, const: html}}}
+        - {properties: {kind: {type: string, const: url}}}

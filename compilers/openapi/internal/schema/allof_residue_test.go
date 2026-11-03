@@ -72,7 +72,7 @@ func TestAllOf_InlineBranchResidueKeptVerbatim(t *testing.T) {
 // something wrong rather than merely incomplete.
 func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    O: {type: object, properties: {a: {type: string}}}
+	spec := openapitest.ComponentSpec(`    O: {properties: {a: {type: string}}}
     T:
       allOf:
         - {$ref: '#/components/schemas/O'}
@@ -104,7 +104,7 @@ func TestAllOf_InlineBranchNonObjectTypeWarns(t *testing.T) {
 // or a residue named `<<`, which names nothing a reader can act on.
 func TestAllOf_BranchWrittenByReferenceStillDerivesResidue(t *testing.T) {
 	t.Parallel()
-	spec := openapitest.ComponentSpec(`    O: {type: object}
+	spec := openapitest.ComponentSpec(`    O: {properties: {o: {type: string}}}
     Shared: &br {additionalProperties: false, type: string, maxLength: 3}
     Aliased: {allOf: [{$ref: '#/components/schemas/O'}, *br]}
     Merged: {allOf: [{$ref: '#/components/schemas/O'}, {<<: *br}]}
