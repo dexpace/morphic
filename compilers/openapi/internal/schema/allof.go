@@ -166,9 +166,9 @@ type allOfComposition struct {
 	// is nil otherwise (readAllOf).
 	disjoint []string
 	// speaks marks each branch that folds at the position (voicesAmong), and
-	// rebased each that reads its $refs against another base, so it does not. They
-	// are nil for a composition distributed across a union, whose variants each
-	// keep every branch.
+	// rebased each whose folding keywords write a relative $ref it reads against
+	// another base, so it does not. They are nil for a composition distributed
+	// across a union, whose variants each keep every branch.
 	speaks  []bool
 	rebased []bool
 }

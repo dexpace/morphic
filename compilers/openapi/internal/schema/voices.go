@@ -212,8 +212,8 @@ func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 
 // unfoldedWhy words why a branch that writes what folds kept it, residue being
 // what it keeps, and is "" where the branch spoke or writes nothing folding
-// reads: it reads its $refs against another base than the position, or the
-// conjuncts disagree on an entry it writes.
+// reads: what it folds writes a relative $ref it reads against another base
+// than the position, or the conjuncts disagree on an entry it writes.
 func unfoldedWhy(speaks, rebased bool, bs *oas3.Schema, residue []string) string {
 	switch {
 	case speaks || !disagreed(bs, residue):

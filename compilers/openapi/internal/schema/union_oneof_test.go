@@ -1425,11 +1425,11 @@ func TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape(t *testing.T) {
 }
 
 // TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition holds
-// a union whose branches declare no shape to one verdict wherever a schema is
-// written, on a model and on an operation, and one whose branch declares shape
-// to the other: a branch ruling out the other's property, one narrowing and
-// documenting beside the body's type, one repeating what the body composes, and
-// one typing elements.
+// a union whose branches declare no shape to one verdict at a property, an
+// element, a parameter, a request body and a response body, and one whose
+// branch declares shape to the other: a branch ruling out the other's property,
+// one narrowing and documenting beside the body's type, one repeating what the
+// body composes, and one typing elements.
 func TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition(t *testing.T) {
 	t.Parallel()
 	const body = `type: object, properties: {a: {type: string}, b: {type: string}}, `
