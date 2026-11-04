@@ -4,13 +4,11 @@
 
 What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
 
-- **The units**: `build`, `buildsrc` in any letter case, `gradle` and `src`, the names Gradle gives
-  a meaning at a build's root, where a group's module sits ([output
-  units](overview.md#output-units)). `build` is the root project's output, so a `clean` of the root
-  deletes a module there, sources and all. `buildSrc` is Gradle's build-logic build, found without
-  regard to case on a case-insensitive file system such as macOS's, so a module named `buildsrc`
-  fails the build there. `gradle` holds the wrapper and the version catalog, and `src` the root
-  project's sources, so a module named either would share their directory.
+- **The units**: `buildSrc`, which Gradle refuses as a project's name wherever its directory is,
+  and the root project's name: a module of that name, published under the root's Maven `group`, has
+  the root's coordinates, so Gradle resolves the root's dependency on it to the root itself and
+  fails the build on a cycle. The names Gradle and its plugins keep at a build's root meet no unit,
+  as no module sits there ([output units](overview.md#output-units)).
 - **A unit**: `Client` and, in a group's unit, its sub-client; and in the root unit every runtime
   name the target declares there, which each runtime template declares beside it, as a function's
   names are ([reserved names](../../refine/reserved-names.md)): `ApiFailure`, `ApiException`,
