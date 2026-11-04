@@ -16,7 +16,8 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
   `Authenticator` and `Transport` among them, and on Multiplatform `Decimal` and `OffsetDateTime`.
   On Multiplatform, where every unit's declarations share one Objective-C namespace
-  ([Swift](swift.md)), each of these is reserved in every unit, whichever unit declares it.
+  ([Swift](swift.md)), each of these is reserved in every unit, whichever unit declares it. Which
+  unit the runtime renders into is #1489's to decide.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
 None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
