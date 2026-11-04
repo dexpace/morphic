@@ -9,13 +9,14 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   the root's coordinates, so Gradle resolves the root's dependency on it to the root itself and
   fails the build on a cycle. The names Gradle and its plugins keep at a build's root meet no unit,
   as no module sits there ([output units](overview.md#output-units)).
-- **A unit**: `Client` and, in a group's unit, its sub-client; and in the root unit every runtime
-  name the target declares there, which each runtime template declares beside it, as a function's
-  names are ([reserved names](../../refine/reserved-names.md)): `ApiFailure`, `ApiException`,
-  `ClientException`, `ServerException`, the exception of each kind the error taxonomy names
-  (`NotFoundException`), `Fault`, `OtherResponse`, `OtherResponseException`, `Response`, `RawBody`,
-  `Optional`, `Duration`, `Authenticator` and `Transport`, and on Multiplatform `Decimal` and
-  `OffsetDateTime`.
+- **A unit**: `Client` and each sub-client, in the unit holding it, and what a runtime template
+  declares, in a unit it renders into beside the spec's names ([template
+  guards](../../emit/templates.md#two-guards-on-the-boilerplate-templates)): `ApiFailure`,
+  `ApiException` and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
+  `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
+  `Authenticator` and `Transport` among them, and on Multiplatform `Decimal` and `OffsetDateTime`.
+  On Multiplatform, where every unit's declarations share one Objective-C namespace
+  ([Swift](swift.md)), each of these is reserved in every unit, whichever unit declares it.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
 Neither a hard keyword nor `kotlin` is a units name. A hard keyword as a package segment takes the
