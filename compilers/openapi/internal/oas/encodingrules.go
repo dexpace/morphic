@@ -49,6 +49,6 @@ func (r EncodingRules) UntypedContentType() (string, bool) {
 	if r.rows == nil {
 		return "", false
 	}
-	v, ok := r.rows.defaults[defaultOf{field: "contentType", k: Untyped}]
+	v, ok := r.rows.defaults[defaultOf{field: "contentType", k: DefaultUntyped}]
 	return v, ok
 }

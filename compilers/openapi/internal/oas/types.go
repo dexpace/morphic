@@ -167,8 +167,8 @@ type DefaultCase int
 
 // The cases a Default holds in.
 const (
-	// Untyped is a value whose schema writes no type.
-	Untyped DefaultCase = 1 + iota
+	// DefaultUntyped is a value whose schema writes no type.
+	DefaultUntyped DefaultCase = 1 + iota
 )
 
 // Field is one field of an object.

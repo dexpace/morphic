@@ -221,7 +221,7 @@ func encodingObject() Object {
 		// warning.
 		Rules: softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
 		// 3.0's table of defaults has no row for a schema writing no type.
-		Defaults: []Default{fieldDefault("contentType", Untyped, "application/octet-stream", From(V31),
+		Defaults: []Default{fieldDefault("contentType", DefaultUntyped, "application/octet-stream", From(V31),
 			c(V31, "The default values for `contentType` are as follows"))},
 	}
 }
