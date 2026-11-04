@@ -114,13 +114,17 @@ reference into it is unresolved ([`references`](#references)), and the compile r
 `openapi/budget-exceeded` once. The rule table ([`validation`](#validation)) reads no more objects
 than the node and alias budgets admit together, without bound where either has none, and nests no
 deeper than the scan's depth bound, so it stops on no document they admit; a check it does stop is
-an `openapi/budget-exceeded` error at the object it stopped on. Three bounds hold whatever the
-caller sets, since past them no answer the pre-parse scan gives is whole: a document nested past the
-scan's depth bound, its aliases expanded, is refused as an `openapi/source-too-deep` error at the
-least pointer where its nesting passes the bound; one with more nodes than the scan indexes, as an
-`openapi/source-too-large` error; and one whose aliases expand it past a fixed multiple of its own
-size, with a floor for a small document, as an `openapi/alias-amplification` error at the least
-pointer of the smallest structures past the ratio. An overlay is held to the same refusals before it
+an `openapi/budget-exceeded` error at the object it stopped on. Four bounds hold whatever the caller
+sets, since past them no answer the pre-parse scan gives is whole, or what the compile spends is
+out of proportion to the document: a document nested past the scan's depth bound, its aliases
+expanded, is refused as an `openapi/source-too-deep` error at the least pointer where its nesting
+passes the bound; one with more nodes than the scan indexes, as an `openapi/source-too-large`
+error; one whose aliases expand it past a fixed multiple of its own size, with a floor for a small
+document, as an `openapi/alias-amplification` error at the least pointer of the smallest structures
+past the ratio; and one neither of those two refuses whose nodes' JSON pointers, its aliases
+expanded, total past a fixed multiple of the bytes it writes, with a floor for a small document, as
+an `openapi/pointer-amplification` error at the document, since the compile spells a pointer for
+each node it reads and the IR's IDs embed them. An overlay is held to the same refusals before it
 is applied, and so is a document an external reference names, which fails the reference instead;
 each is read no further than the byte budget. The member budget of an enum is
 [`enum-const`](#enum-const)'s.
@@ -145,12 +149,14 @@ budget, and so what lowered before it, follows the walk's order. With no Documen
 documents `$ref`s read, what the load phase found in one of them is left out too.
 
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
-  `openapi/alias-amplification`
+  `openapi/alias-amplification`, `openapi/pointer-amplification`
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
   `openapi.TestCompiler_SourceLimitReadsTheCallersOptions`,
   `load.TestLoad_ANamedOverlayPastTheBudgetIsRefused`,
   `openapi.TestCompile_AnUnboundedAliasBudgetStillRefusesABomb`,
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
+  `load.TestLoad_RefusesLongKeysNestedDeepBeforeBuildingTheModel`,
+  `load.TestLoad_ReportsAShapeOnceItsNestingRefuses`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
   `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`,
   `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`,
@@ -166,9 +172,8 @@ documents `$ref`s read, what the load phase found in one of them is left out too
   `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
   `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`
 - Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), and long keys nested a few hundred levels deep (#931), a 3.2 path
-  item's own fields copied into each of its operations (#1428) and aliases of a long scalar (#1429)
-  cost gigabytes within every bound.
+  document budget twice (#571), and a 3.2 path item's own fields copied into each of its operations
+  (#1428) and aliases of a long scalar (#1429) cost gigabytes within every bound.
 
 ### `overlays`
 

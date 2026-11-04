@@ -145,9 +145,5 @@ func overlayRefusals(ctx context.Context, opts Options) []ir.Diagnostic {
 			"overlay document exceeds the %d-node bound the pre-parse scan indexes",
 			sourceindex.MaxIndexedNodes)}
 	}
-	var diags []ir.Diagnostic
-	if d, deep := scan.Nesting(ctx, locate, idx); deep {
-		diags = append(diags, d)
-	}
-	return append(diags, scan.Aliases(ctx, locate, idx, opts.MaxAliasSurplus)...)
+	return shapeRefusals(ctx, locate, idx, opts)
 }
