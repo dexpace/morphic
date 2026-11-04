@@ -607,21 +607,20 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `load.TestResolve_EveryKindOfObjectIsValidated`,
   `e2e.TestCompile_AMediaTypeReferenceLowersAlikeAfterARebuild`,
   `operation.TestMediaTypeRef_ACarrierReadsTheDeclarationInItsDocument`
-- Status: partly built: an `encoding` entry naming no part of its body is dropped with no record
-  (#604). An absolute-path `$ref` in a remote document is read as a local path (#936); a remote
-  document can make the compiler request a private address (#937); and a remote document reaching a
-  local file is refused naming only its last such `$ref` (#940). A reference object's pointer
-  holding a character above U+FFFF is refused as malformed (#516), and an unresolved reference
-  object's message ends in the resolver's own wording, unless its chain ends on a position holding
-  no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file a
-  relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040), and a
+- Status: partly built: an absolute-path `$ref` in a remote document is read as a local path (#936);
+  a remote document can make the compiler request a private address (#937); and a remote document
+  reaching a local file is refused naming only its last such `$ref` (#940). A reference object's
+  pointer holding a character above U+FFFF is refused as malformed (#516), and an unresolved
+  reference object's message ends in the resolver's own wording, unless its chain ends on a position
+  holding no object of its kind (#809). Whether an `$id` spelled as an absolute path names the file
+  a relative `$ref` reaches turns on whether the spec was named by an absolute path (#1040), and a
   chain of documents each declaring the URI the one before it asked for costs a binding pass per
   link (#1372). A reference object reaching raw YAML of the source leaves the references inside what
   it reaches unresolved (#1320), and one whose pointer ends in `/` declares what it reaches at a
   second pointer (#1330). A reference object whose `$ref` is a scalar under a tag outside YAML's
   JSON schema ruleset, which the model decodes no string from, lowers nothing, and nothing reports
-  it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what
-  it reaches a second time, at the pointer it spells (#1359).
+  it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what it
+  reaches a second time, at the pointer it spells (#1359).
 
 ### `reference-cycles`
 
@@ -3284,7 +3283,17 @@ conjunct's, so `allOf: [{$ref: A}, {$ref: B}]` keys `B`'s. The `allOf` is read a
 [`allof-classification`](#allof-classification) flattens it, with the same cap, and a `$ref` entry
 is followed up to a bound of its own, and entered again only by a shorter path. A bound that cuts a
 target no path enters is reported as a warning `openapi/degraded-construct` at the body schema,
-since a part reached only past it has no entry. `contentType` lowers to `ContentTypes`, split on `,`
+since a part reached only past it has no entry. A part is a property the schema the body's `$ref`
+chain ends on declares, or one an `allOf` branch the walk reaches does, and an entry whose key names
+none keys nothing in `Content.Encoding`: the key of a map's or a catch-all's entry, a property only
+a `oneOf` or `anyOf` branch declares, a part past a bound, and any entry of a body declaring no
+property, a file body ([`file-bodies`](#file-bodies)) among them. Each such entry is kept whole, as
+written, under the content's `Unmodeled` at `openapi:encoding/<key>` (the key escaped as a JSON
+Pointer token) with reason `no_ir_home`, located at the entry, and reported there as an info
+`openapi/degraded-construct`. Nothing it declares is lowered: its header schemas register no type,
+and its `x-*`, unknown keys and nested encodings have no record of their own. An entry that is no
+object is kept nowhere and draws only the `openapi/validation` error that load reports for it.
+`contentType` lowers to `ContentTypes`, split on `,`
 and trimmed with empty items dropped, and one naming no media type is an `openapi/validation` error
 ([`validation`](#validation)); `headers` to `Headers`, lowered as a response's are; and `style` and
 `explode` to `Style` and `Explode` as declared, nothing defaulted. `Multi` and `Filename` come from
@@ -3325,7 +3334,7 @@ form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `pre
 `itemEncoding` under one that is not multipart. A media type is read without its parameters and in
 any case.
 
-- Cases: `multipart-encoding`, `file-media`
+- Cases: `multipart-encoding`, `file-media`, `encoding-unkeyed`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
@@ -3346,12 +3355,21 @@ any case.
   `operation.TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles`,
   `operation.TestPartTypeFlags_AUnionReadsThroughItsMembers`,
   `operation.TestPartEncoding_AMergedUnionReadsThroughItsVariants`,
-  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`
-- Status: partly built: an `encoding` key that names no property, or one declared only inside a
-  `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
-  is keyed by a property no node holds, which validation then refuses (#744); a part's own
-  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); and an
-  encoding under a media type it does not apply to is kept in no form (#1047).
+  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`,
+  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWhole`,
+  `operation.TestPartEncodings_AnUnkeyedEntryLowersNothingItDeclares`,
+  `operation.TestPartEncodings_AnUnkeyedEntryThatIsNoObjectAddsNothingToLoadsError`,
+  `operation.TestPartEncodings_AnEntryThatCannotBeKeptIsReportedNotAnnounced`,
+  `operation.TestPartEncodings_KeptEntriesDoNotDependOnDeclarationOrder`,
+  `operation.TestPartEncodings_AKeptEntryNeverTakesAPartsRecord`,
+  `operation.TestPartEncodings_AnEntryNamingNoPartIsKeptWholeInCallbacksAndWebhooks`,
+  `operation.TestPartEncodings_AFileBodyOutsideAFormKeepsNoEncodingEntry`
+- Status: partly built: an entry naming a property only a `oneOf` or `anyOf` branch holds is kept
+  whole and not keyed to it, and on a multi-typed body the entry is keyed by a property no node
+  holds, which validation then refuses (#744); an entry naming one a catch-all governs has no typed
+  home (#NEW-CATCHALL); a part's own `format: byte`, and a part of a url-encoded body, is marked as
+  carrying a filename (#1214); and an encoding under a media type it does not apply to is kept in no
+  form (#1047).
 
 ### `encoding-allow-reserved`
 

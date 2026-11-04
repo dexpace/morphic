@@ -23,23 +23,22 @@ import (
 )
 
 // partEncodings builds a form body's per-part wire config, keyed by each
-// body-model property's PropID. A part is included when it carries an explicit
-// encoding entry or is itself a repeated or file part. body is the TypeID the
-// content's schema, under mt, lowered to.
+// body-model property's PropID. A part is included when it carries an encoding
+// entry or is a repeated or file part; keepUnkeyedEncodings keeps whole an
+// entry naming none. body is the TypeID the content's schema lowered to.
 //
 // It returns the map with no keys yet: keys and structural flags read the model
-// behind body, which may be a node a $ref promised and nothing has built yet
+// behind body, which a $ref may have promised and nothing built yet
 // (compile.Types.Promise), so partKeys settles both once every node exists. It
 // is nil where the body declares no part; one left with no key reads alike.
 func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mt string, mediaPtr jsontext.Pointer, body ir.TypeID) (map[ir.PropID]ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
 	walk := walkBodyParts(c.Bindings(), media.GetSchema())
 	parts := walk.parts
-	cutDiags := diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema"))
+	unmodeled, keptDiags := keepUnkeyedEncodings(c, media, mediaPtr, parts)
+	diags := append(diagPartWalkCut(c, walk, mediaPtr+ids.Ptr("schema")), keptDiags...)
 	if len(parts) == 0 {
-		return nil, nil, cutDiags
+		return nil, unmodeled, diags
 	}
-	diags := cutDiags
-	var unmodeled ir.Unmodeled
 	encMap := media.GetEncoding()
 	fallbackDoc, fallback := bodySchemaPointer(c, media.GetSchema(), mediaPtr+ids.Ptr("schema"))
 	multipart := isMultipart(mt)
@@ -57,6 +56,41 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mt s
 	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
 	ts.Defer(keys)
 	return keys.out, unmodeled, diags
+}
+
+// keepUnkeyedEncodings keeps whole each entry of media's encoding map whose key
+// names none of parts, under Unmodeled at annotation.EntryKey("encoding", key),
+// with one info each (docs/compilers/openapi.md#multipart-encoding). Nothing it
+// declares is lowered. An entry that is no object is skipped, since load
+// reports it. A key naming a property only a union body's variant holds is not
+// keyed to it (#744), and one naming an entry a catch-all governs has no typed
+// home (#NEW-CATCHALL).
+func keepUnkeyedEncodings(c lowering.Ctx, media *soa.MediaType, mediaPtr jsontext.Pointer, parts []bodyPart) (ir.Unmodeled, []ir.Diagnostic) {
+	walked := make(map[string]struct{}, len(parts))
+	for _, part := range parts {
+		walked[part.name] = struct{}{}
+	}
+	var kept ir.Unmodeled
+	var diags []ir.Diagnostic
+	for name, enc := range media.GetEncoding().All() {
+		if _, isPart := walked[name]; isPart {
+			continue
+		}
+		at := mediaPtr + ids.Ptr("encoding", name)
+		// The model reads an entry that is no mapping as one with no node, so
+		// PreserveNodeInto keeps nothing for it and load's error is its one finding.
+		written, keepDiags := annotation.PreserveNodeInto(&kept, annotation.EntryKey("encoding", name),
+			enc.GetRootNode(), ir.ReasonNoIRHome, c.ProvenanceAt(at))
+		diags = append(diags, keepDiags...)
+		if !written {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DegradedConstruct, at,
+			"encoding entry %q names no part the form body declares on the schema its $ref chain ends on "+
+				"or on an allOf branch the part walk reaches, so Content.Encoding keys nothing for it; "+
+				"kept verbatim under Unmodeled", name))
+	}
+	return kept, diags
 }
 
 // partKeys keys a form body's part encodings by the PropID of the property each
@@ -231,8 +265,10 @@ func propertyParts(s *oas3.Schema) []bodyPart {
 	return out
 }
 
-// diagPartWalkCut reports the bounds that cut a body's part walk short, so an
-// encoding entry for a part past one is not dropped without a word.
+// diagPartWalkCut reports the bounds that cut a body's part walk short, so a
+// part past one, which gets no Content.Encoding key and no structural flags,
+// is not lost without a word; an entry written for it is kept whole
+// (keepUnkeyedEncodings).
 func diagPartWalkCut(c lowering.Ctx, w partWalk, at jsontext.Pointer) []ir.Diagnostic {
 	var out []ir.Diagnostic
 	if w.capped {
