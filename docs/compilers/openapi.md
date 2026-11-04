@@ -2683,20 +2683,23 @@ kept on the Document the same way.
 `$schema` and `jsonSchemaDialect` are read besides for the dialect a schema is read in, as OpenAPI
 3.1 has them choose it. A schema of a 3.1 or 3.2 document is read in the dialect the `$schema` of
 the schema no other holds that holds it names, itself included: a Schema Object no other Schema
-Object holds, or the root of a document that is no OpenAPI document, which holds every schema in
-it. Else it is read in its document's `jsonSchemaDialect`, and else in its minor's own, the OAS
-dialect. A `$schema` below such a root chooses nothing, since JSON Schema writes one at a resource's
-root. A 3.0 document defines neither keyword, so its schemas are read in 3.0's dialect whatever
-either names. The rule table has rows for three dialects, each named by the id its meta-schema
-declares, with or without a trailing empty fragment: the OAS dialect,
+Object holds, or the root of a document that is no OpenAPI document, which holds every schema in it.
+Else it is read in its document's `jsonSchemaDialect`, and else in its minor's own, the OAS dialect.
+A `$schema` below such a root chooses nothing, since JSON Schema writes one at a resource's root. A
+3.0 document defines neither keyword, so its schemas are read in 3.0's dialect whatever either
+names. The rule table has rows for three dialects, each named by the id its meta-schema declares,
+with or without a trailing empty fragment: the OAS dialect,
 `https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema 2020-12,
 `https://json-schema.org/draft/2020-12/schema`, whose keywords are the minor's own, and JSON Schema
 draft 4, `http://json-schema.org/draft-04/schema#`. A dialect changes the keywords alone: the fields
 OpenAPI adds to a Schema Object, `nullable` among them, and the rules it states of one stay the
 minor's. A reading the rows decide follows the schema's: draft 4 spells an exclusive bound as a
 boolean modifying the bound beside it ([`constraints`](#constraints)). A schema naming any other
-dialect, a later draft or one of the author's, is read in its minor's own, with an
-`openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect` naming it.
+dialect by an absolute URI, a later draft or one of the author's, is read in its minor's own, with
+an `openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect` naming it; a value
+no absolute URI names is the rule table's finding alone ([`validation`](#validation)), and reads the
+same. A node an alias places at several positions is read in one dialect at all of them: that of the
+first root whose tree holds it at any, as the documents and their positions sort.
 
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
@@ -2717,8 +2720,9 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
 - Status: partly built: a keyword a draft before 2020-12 spells otherwise, such as `items` written as
   a list, `additionalItems`, `dependencies`, `id`, or the keywords beside a `$ref`, is read as
-  2020-12 reads it, and the table has no rows for drafts 6, 7 and 2019-09 (#1457); a `$schema` at the
-  root of a resource an `$id` embeds below a root chooses nothing (#1458).
+  2020-12 reads it, and the table has no rows for drafts 6, 7 and 2019-09, which reading them would
+  also have an aliased node read per position (#1457); a `$schema` at the root of a resource an
+  `$id` embeds below a root chooses nothing (#1458).
 
 ### `vocabulary-coverage`
 

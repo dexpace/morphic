@@ -34,11 +34,11 @@ type dialectKey struct {
 	minor, dialect string
 }
 
-// dialectRows is a dialect's rows at a minor, and whether the table has rows
-// for that dialect (oas.Spec.SchemaRules).
+// dialectRows is a dialect's rows at a minor, and whether it is one the table
+// has no rows for (oas.Spec.SchemaRules).
 type dialectRows struct {
-	rules oas.SchemaRules
-	read  bool
+	rules  oas.SchemaRules
+	unread bool
 }
 
 // of returns the version a document declaring declared is held to, its minor,
@@ -62,8 +62,8 @@ func (d *dialects) at(version, dialect string) dialectRows {
 	if d.rules == nil {
 		d.rules = map[dialectKey]dialectRows{}
 	}
-	rules, read := d.spec.SchemaRules(version, dialect)
-	d.rules[k] = dialectRows{rules: rules, read: read}
+	rules, unread := d.spec.SchemaRules(version, dialect)
+	d.rules[k] = dialectRows{rules: rules, unread: unread}
 	return d.rules[k]
 }
 
@@ -76,8 +76,9 @@ type Dialects struct {
 
 // Of returns the rows the schema whose node is n is read with where a schema
 // holding it, itself included, names its dialect, and false where none does.
-// A node an alias places under two such schemas reads the first's, as the
-// documents and their positions sort.
+// A node an alias places at several positions reads the first such schema's
+// at all of them, as the documents and their positions sort. No reading today
+// tells one valid node's two dialects apart (GitHub #1457).
 func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
 	r, ok := d.byNode[nodeview.Deref(n)]
 	return r, ok
@@ -103,11 +104,12 @@ func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
 }
 
 // readDialects returns the rows of each dialect a schema of the documents
-// table read names, and an openapi/unread-dialect warning for each dialect the
-// table has no rows for, whose schemas read their minor's own: at each such
-// `$schema`, placed by place, and at each document's jsonSchemaDialect, the
-// source's, sourceDialect, among them. A document two names read is warned of
-// once.
+// table read names, and an openapi/unread-dialect warning for each absolute URI
+// naming one the table has no rows for, whose schemas read their minor's own:
+// at each such `$schema`, placed by place, and at each document's
+// jsonSchemaDialect, the source's, sourceDialect, among them. Validation
+// reports a value no absolute URI names. A document two names read is warned
+// of once.
 func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect string,
 	place func(bind.Position) ir.Provenance,
 ) (Dialects, []ir.Diagnostic) {
@@ -127,11 +129,11 @@ func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect s
 				"read in the dialect their OpenAPI version names", keyword, dialect))
 	}
 	at := ids.Ptr("jsonSchemaDialect")
-	if sourceDialect != "" && !d.at(d.version, sourceDialect).read {
+	if d.at(d.version, sourceDialect).unread {
 		unread(place(bind.Position{Doc: bind.Source, Pointer: at}), "jsonSchemaDialect", sourceDialect)
 	}
 	for _, o := range others.List() {
-		if o.dialect != "" && !d.at(o.version, o.dialect).read {
+		if d.at(o.version, o.dialect).unread {
 			unread(ir.Provenance{Source: o.Index, Pointer: at}, "jsonSchemaDialect", o.dialect)
 		}
 	}
@@ -143,7 +145,7 @@ func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect s
 		}
 		for _, root := range table.Document(id).Dialects {
 			r := d.at(version, root.URI)
-			if !r.read {
+			if r.unread {
 				unread(place(bind.Position{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema", root.URI)
 			}
 			out.govern(root.Node, r.rules)

@@ -172,3 +172,16 @@ func TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn(t *testing.T) {
 	assert.Equal(t, map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}, "/components/schemas/U": {"", "6"}},
 		lowerBounds(doc))
 }
+
+// TestDocumentDialect_AMalformedDialectIsValidationsFinding pins that a
+// `$schema` or jsonSchemaDialect no absolute URI names is reported once, by the
+// rule table's validation, and draws no openapi/unread-dialect besides: it
+// names no dialect, and its schemas read their minor's own.
+func TestDocumentDialect_AMalformedDialectIsValidationsFinding(t *testing.T) {
+	t.Parallel()
+	_, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: 'rel/dialect'\n"+
+		"paths: {}\ncomponents:\n  schemas:\n    N: {$schema: 4, type: integer}\n    R: {$schema: '/rel/1.0.1', type: integer}\n")
+	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/N/$schema", "/components/schemas/R/$schema", "/jsonSchemaDialect"},
+		openapitest.PointersOf(diags, diag.Validation+"/validation-invalid-format"))
+}

@@ -27,20 +27,21 @@ type schemaRows struct {
 
 // SchemaRules returns the Schema Object's rows at the minor version names, in
 // the dialect a `$schema` or a jsonSchemaDialect names by its URI, and whether
-// the table has rows for that dialect. An empty dialect, and any at 3.0, which
-// defines neither keyword, is the minor's own. A dialect the table has no rows
-// for reads as the minor's own too, and answers false. A version the table does
-// not cover, or a Spec holding no Schema Object, has the zero rows.
-func (s Spec) SchemaRules(version, dialect string) (SchemaRules, bool) {
+// that is an absolute URI naming a dialect the table has no rows for, which
+// reads as the minor's own. An empty dialect, any at 3.0, which defines neither
+// keyword, and one no absolute URI names, which validation reports, are the
+// minor's own too. A version the table does not cover, or a Spec holding no
+// Schema Object, has the zero rows.
+func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bool) {
 	minor, ok := ParseMinor(version)
 	if !ok {
-		return SchemaRules{}, true
+		return SchemaRules{}, false
 	}
 	obj, ok := s.Object(Schema)
 	if !ok {
-		return SchemaRules{}, true
+		return SchemaRules{}, false
 	}
-	keywords, read := s.keywordsOf(minor, dialect)
+	keywords, unread := s.keywordsOf(minor, dialect)
 	rows := &schemaRows{fields: map[string]Field{}, minor: minor}
 	for _, f := range obj.Fields {
 		if f.Defined.Holds(minor) && (keywords == nil || !f.Keyword) {
@@ -55,24 +56,24 @@ func (s Spec) SchemaRules(version, dialect string) (SchemaRules, bool) {
 			rows.required = append(rows.required, r)
 		}
 	}
-	return SchemaRules{rows: rows}, read
+	return SchemaRules{rows: rows}, unread
 }
 
 // keywordsOf returns the keywords dialect reads in place of minor's own, nil
-// where it reads minor's, and whether the table has rows for it. A dialect is
-// compared without a trailing empty fragment, which draft 4's id writes and
-// 2020-12's does not, as `$schema` values spell both.
+// where it reads minor's, and whether it is an absolute URI the table has no
+// rows for. A dialect is compared without a trailing empty fragment, which
+// draft 4's id writes and 2020-12's does not, as `$schema` values spell both.
 func (s Spec) keywordsOf(minor Minor, dialect string) ([]Field, bool) {
 	if dialect == "" || minor == V30 {
-		return nil, true
+		return nil, false
 	}
 	id := strings.TrimSuffix(dialect, "#")
 	for _, d := range s.dialects {
 		if strings.TrimSuffix(d.id, "#") == id {
-			return d.keywords, true
+			return d.keywords, false
 		}
 	}
-	return nil, false
+	return nil, validFormat(AbsoluteURI, dialect)
 }
 
 // Defines reports whether the Schema Object defines the field name: a keyword

@@ -50,8 +50,8 @@ func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 	assert.True(t, r04.Takes("exclusiveMinimum", oas.Boolean), "a jsonSchemaDialect chooses the rows")
 	_, _, r04 = d.of("", draft04)
 	assert.True(t, r04.Takes("exclusiveMinimum", oas.Boolean), "at the source's minor")
-	assert.False(t, d.at("3.1.0", "https://example.com/custom").read)
-	assert.True(t, d.at("3.0.3", "https://example.com/custom").read, "3.0 names no dialect")
+	assert.True(t, d.at("3.1.0", "https://example.com/custom").unread)
+	assert.False(t, d.at("3.0.3", "https://example.com/custom").unread, "3.0 names no dialect")
 }
 
 // TestDeclaredDialect_ReadsAnOpenAPIDocumentsOwn pins whose jsonSchemaDialect
