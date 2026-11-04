@@ -463,6 +463,12 @@ const (
 	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
 	// evident intent, and the mark keeps the declared one.
 	InferredNullable = "openapi/inferred-nullable"
+	// UnreadDialect reports a `$schema` on a schema no other holds, or a
+	// jsonSchemaDialect, naming a JSON Schema dialect the rule table has no
+	// rows for, at it: the schemas it governs are read in the dialect their
+	// OpenAPI version names (docs/compilers/openapi.md#dialect-keywords).
+	// Warning: a keyword written in that dialect may read otherwise there.
+	UnreadDialect = "openapi/unread-dialect"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

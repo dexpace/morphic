@@ -32,12 +32,14 @@ type Other struct {
 	Label string
 	// Info is its Document.Sources entry, whose Format names the minor.
 	Info ir.SourceInfo
-	// Rules is the Schema Object's rows at the minor, which its schemas are
-	// read with.
+	// Rules is the Schema Object's rows at the minor in the dialect its
+	// jsonSchemaDialect names, which its schemas are read with where none
+	// names its own (Dialects).
 	Rules oas.SchemaRules
 	// version is the minor's version as the document, or the source, writes
-	// it, which an object a reference reaches in it is held to (reached.check).
-	version string
+	// it, which an object a reference reaches in it is held to (reached.check),
+	// and dialect its jsonSchemaDialect.
+	version, dialect string
 }
 
 // Others is every document a reference reached beside the source, in the order
@@ -117,8 +119,9 @@ func unreachedKeys(table *bind.Table, resolved map[string]bool) map[string]bool 
 // ordered by label, not as they were read, so the order no declaration order
 // changes; two names one label reaches, a file spelled two ways, are one
 // document, as RFC 3986 reads a path. Each is read at the minor it declares,
-// one declaring none the table covers at the source's (dialects).
-func newOthers(ctx context.Context, read *externalReads, first int, source dialects, unused map[string]bool) Others {
+// one declaring none the table covers at the source's (dialects), and in the
+// dialect its jsonSchemaDialect names.
+func newOthers(ctx context.Context, read *externalReads, first int, source *dialects, unused map[string]bool) Others {
 	read.mu.Lock()
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}
@@ -135,10 +138,11 @@ func newOthers(ctx context.Context, read *externalReads, first int, source diale
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
-		version, minor, rules := source.of(declaredVersion(read.trees[keys[0]]))
+		declared, dialect := declaredVersion(read.trees[keys[0]]), declaredDialect(read.trees[keys[0]])
+		version, minor, rules := source.of(declared, dialect)
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: "openapi@" + minor, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
-		}, Rules: rules, version: version})
+		}, Rules: rules, version: version, dialect: dialect})
 		o.pointers = append(o.pointers, pointersIn(ctx, read.trees, keys))
 		for _, key := range keys {
 			o.byName[key] = i

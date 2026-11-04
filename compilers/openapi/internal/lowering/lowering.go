@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -155,8 +156,10 @@ type loadResult struct {
 	// names names the nodes built at the positions of the documents the
 	// bindings read, remembering each name (NameAt).
 	names *naming.Namer
-	// others is every document a reference read beside the source.
-	others load.Others
+	// others is every document a reference read beside the source, and
+	// dialects the rows each schema naming its dialect governs.
+	others   load.Others
+	dialects load.Dialects
 	// reads holds those readings in the scope fields they fill: Holds over the
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
@@ -248,7 +251,7 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others,
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, dialects: doc.Dialects,
 		names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}, readings: map[any]any{}}
@@ -424,6 +427,18 @@ func (c Ctx) SchemaRules() oas.SchemaRules {
 		}
 	}
 	return c.rules
+}
+
+// SchemaRulesOf returns the rows the schema whose node is n is read with: those
+// of the dialect the schema no other holds that holds it names, where one does
+// (load.Dialects), and c's otherwise (SchemaRules).
+func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
+	if c.loaded != nil {
+		if r, ok := c.loaded.dialects.Of(n); ok {
+			return r
+		}
+	}
+	return c.SchemaRules()
 }
 
 // SchemaRulesIn returns the rows the schemas document id of the bindings'

@@ -99,6 +99,8 @@ type loading struct {
 	pass      *resolution
 	missed    []usedDocument
 	bound     bound
+	// dialects is the rows each schema naming its dialect governs.
+	dialects Dialects
 	// placeSite places a finding at a reference site, in whichever document
 	// writes it.
 	placeSite func(refSite) ir.Provenance
@@ -221,17 +223,20 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 		resolved = l.reader.read.keys()
 	}
 	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.media, l.self, l.reader, l.pass.ends())
+	source := &dialects{spec: l.judged.checker.Spec(), version: l.doc.OpenAPI, minor: l.minor}
 	if l.reader != nil {
 		first := l.srcIndex + 1
 		if l.origin.Applied() {
 			first = l.opts.OverlaySrcIndex + 1
 		}
 		unused := unreachedKeys(l.bound.bindings.Table(), resolved)
-		source := dialects{spec: l.judged.checker.Spec(), version: l.doc.OpenAPI, minor: l.minor}
 		l.bound.others = newOthers(ctx, l.reader.read, first, source, unused)
 	}
+	var unread []ir.Diagnostic
+	l.dialects, unread = readDialects(l.bound.bindings.Table(), l.bound.others, source, l.doc.GetJSONSchemaDialect(),
+		l.bound.placer(l.at))
 	l.placeSite = sitePlacer(l.at, l.bound.others)
-	l.resolved = append(l.pass.diags(l.placeSite), stillUnprepared(l.placeSite, l.missed)...)
+	l.resolved = slices.Concat(l.pass.diags(l.placeSite), stillUnprepared(l.placeSite, l.missed), unread)
 	return false, nil
 }
 
@@ -290,5 +295,6 @@ func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 		Siblings:   l.sibs,
 		MediaTypes: l.media,
 		Others:     l.bound.others,
+		Dialects:   l.dialects,
 	}, l.esc.asWritten(diags)
 }

@@ -1,0 +1,23 @@
+openapi: 3.1.0
+info: {title: SchemaDialects, version: "1.0.0"}
+jsonSchemaDialect: 'http://json-schema.org/draft-04/schema#'
+paths: {}
+components:
+  schemas:
+    Positive:
+      type: integer
+      minimum: 0
+      exclusiveMinimum: true
+    Bounded:
+      $schema: 'https://json-schema.org/draft/2020-12/schema'
+      type: integer
+      exclusiveMaximum: 10
+    Legacy:
+      $schema: 'http://json-schema.org/draft-04/schema'
+      type: object
+      properties:
+        count: {type: integer, maximum: 100, exclusiveMaximum: true}
+    Custom:
+      $schema: 'https://example.com/dialects/custom'
+      type: integer
+      exclusiveMinimum: 1

@@ -83,6 +83,9 @@ type identifiers struct {
 	// than the view expands, so an identifier past the bound may be missing.
 	truncated map[DocID]bool
 	read      map[DocID]bool
+	// dialects is each schema no other schema holds that writes a `$schema`,
+	// by where it is (heldBySchema).
+	dialects map[Position]DialectRoot
 }
 
 // anchorKey is a plain name and the root of the resource declaring it.
@@ -104,7 +107,8 @@ func newIdentifiers(source resource) *identifiers {
 		declared: map[string][]Position{}, uris: map[string][]Position{}, counted: map[DocID]bool{Source: true},
 		byDoc: map[DocID][]string{},
 		asked: map[string]bool{}, readings: map[string]bool{}, anchors: map[anchorKey][]Position{},
-		dynamic: map[dynamicKey][]Position{}, truncated: map[DocID]bool{}, read: map[DocID]bool{}}
+		dynamic: map[dynamicKey][]Position{}, truncated: map[DocID]bool{}, read: map[DocID]bool{},
+		dialects: map[Position]DialectRoot{}}
 }
 
 // document adds r, doc's own resource, and returns its index.
@@ -116,8 +120,9 @@ func (ix *identifiers) document(doc DocID, r resource) int32 {
 }
 
 // declare notes what the schema n, read at at in the resource indexed in,
-// declares, and returns the index of the resource its content is in: its own
-// where it writes an $id naming another URI (resources.enter).
+// declares, the dialect its `$schema` names among it, and returns the index of
+// the resource its content is in: its own where it writes an $id naming
+// another URI (resources.enter).
 func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node) int32 {
 	held := ix.resources[in]
 	res, rooted, known := r.enter(held, n)
@@ -133,6 +138,10 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node)
 		in = ix.own[at.Doc]
 	}
 	view := r.docs.list[at.Doc].view
+	if uri, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), "$schema")); ok &&
+		!heldBySchema(r.docs.identityState(at.Doc), slices.Collect(at.Pointer.Tokens())) {
+		ix.dialects[at] = DialectRoot{At: at, URI: uri, Node: nodeview.Deref(n)}
+	}
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor"} {
 		name, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), keyword))
 		if !ok || !isAnchorName(name) {

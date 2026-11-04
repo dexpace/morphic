@@ -271,9 +271,9 @@ var rules = map[string][]string{
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the schema bindings the load phase built, which its
 	// scope reads, and for the rows a document's schemas are read with, which oas
-	// states: the dialect question is asked of the table, never of the version.
-	// It reaches naming for what each position is called, and budget for the
-	// limits it holds.
+	// states: the dialect question is asked of the table, never of the version,
+	// and yaml for the node a schema's rows are found by. It reaches naming for
+	// what each position is called, and budget for the limits it holds.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -285,7 +285,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
-		"github.com/speakeasy-api/openapi/openapi"},
+		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
 	// The security schemes a document declares and the requirements that name
 	// them. It is its own package because both sides of the compiler reach it:
 	// the compiler's run lowers the schemes, and the service and operation walks

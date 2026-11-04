@@ -3,52 +3,80 @@
 
 package oas
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
-// SchemaRules is the Schema Object's rows at one minor: how a schema written
-// at that minor reads, asked of the table rather than of the version, so each
-// such fact is stated once, in a row citing its sentence. It has no accessor
-// for its minor, so a holder cannot branch on one. The zero SchemaRules, a
-// version the table does not cover, answers false to every question.
+// SchemaRules is the Schema Object's rows at one minor in one dialect: how a
+// schema written so reads, asked of the table rather than of the version, so
+// each such fact is stated once, in a row citing its sentence. It has no
+// accessor for its minor or dialect, so a holder cannot branch on either. The
+// zero SchemaRules, a version the table does not cover, answers false to
+// every question.
 type SchemaRules struct{ rows *schemaRows }
 
-// schemaRows is the Schema Object's fields defined at minor, by name, and the
-// RuleRequiredWhen rules holding there. It is built once and never written.
+// schemaRows is the Schema Object's fields defined at minor in a dialect, by
+// name, and the RuleRequiredWhen rules holding there. It is built once and
+// never written.
 type schemaRows struct {
 	fields   map[string]Field
 	required []Rule
 	minor    Minor
 }
 
-// SchemaRules returns the Schema Object's rows at the minor version names, and
-// the zero SchemaRules for a version the table does not cover or a Spec
-// holding no Schema Object. The minor alone chooses them: a schema's `$schema`
-// and a document's jsonSchemaDialect choose nothing yet (GitHub #1449).
-func (s Spec) SchemaRules(version string) SchemaRules {
+// SchemaRules returns the Schema Object's rows at the minor version names, in
+// the dialect a `$schema` or a jsonSchemaDialect names by its URI, and whether
+// the table has rows for that dialect. An empty dialect, and any at 3.0, which
+// defines neither keyword, is the minor's own. A dialect the table has no rows
+// for reads as the minor's own too, and answers false. A version the table does
+// not cover, or a Spec holding no Schema Object, has the zero rows.
+func (s Spec) SchemaRules(version, dialect string) (SchemaRules, bool) {
 	minor, ok := ParseMinor(version)
 	if !ok {
-		return SchemaRules{}
+		return SchemaRules{}, true
 	}
 	obj, ok := s.Object(Schema)
 	if !ok {
-		return SchemaRules{}
+		return SchemaRules{}, true
 	}
-	rows := &schemaRows{fields: make(map[string]Field, len(obj.Fields)), minor: minor}
+	keywords, read := s.keywordsOf(minor, dialect)
+	rows := &schemaRows{fields: map[string]Field{}, minor: minor}
 	for _, f := range obj.Fields {
-		if f.Defined.Holds(minor) {
+		if f.Defined.Holds(minor) && (keywords == nil || !f.Keyword) {
 			rows.fields[f.Name] = f
 		}
+	}
+	for _, f := range keywords {
+		rows.fields[f.Name] = f
 	}
 	for _, r := range obj.Rules {
 		if r.Kind == RuleRequiredWhen && r.Span.Holds(minor) {
 			rows.required = append(rows.required, r)
 		}
 	}
-	return SchemaRules{rows: rows}
+	return SchemaRules{rows: rows}, read
 }
 
-// Defines reports whether the Schema Object defines the field name at the
-// minor: a keyword of its dialect, or a field OpenAPI adds to it.
+// keywordsOf returns the keywords dialect reads in place of minor's own, nil
+// where it reads minor's, and whether the table has rows for it. A dialect is
+// compared without a trailing empty fragment, which draft 4's id writes and
+// 2020-12's does not, as `$schema` values spell both.
+func (s Spec) keywordsOf(minor Minor, dialect string) ([]Field, bool) {
+	if dialect == "" || minor == V30 {
+		return nil, true
+	}
+	id := strings.TrimSuffix(dialect, "#")
+	for _, d := range s.dialects {
+		if strings.TrimSuffix(d.id, "#") == id {
+			return d.keywords, true
+		}
+	}
+	return nil, false
+}
+
+// Defines reports whether the Schema Object defines the field name: a keyword
+// of its dialect, or a field OpenAPI adds to it at the minor.
 func (r SchemaRules) Defines(name string) bool {
 	_, ok := r.field(name)
 	return ok
@@ -80,7 +108,7 @@ func (r SchemaRules) RequiredWhen(name, beside, value string) bool {
 	})
 }
 
-// field returns the field name the Schema Object defines at the minor.
+// field returns the field name the Schema Object defines in the rows.
 func (r SchemaRules) field(name string) (Field, bool) {
 	if r.rows == nil {
 		return Field{}, false

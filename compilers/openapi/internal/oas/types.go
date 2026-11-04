@@ -122,11 +122,14 @@ const (
 )
 
 // Cite is the sentence of a specification text a row comes from. Sentence is
-// a verbatim fragment of the text of Minor, under the heading Section.
+// a verbatim fragment of that text under the heading Section: OpenAPI's at
+// Minor, or, where Text names it, another specification's, such as a JSON
+// Schema draft whose dialect a Schema Object can declare.
 type Cite struct {
-	Minor    Minor
 	Section  string
 	Sentence string
+	Text     string
+	Minor    Minor
 }
 
 // Term is one condition on the object a rule judges: the sibling field Field
@@ -293,10 +296,12 @@ type Object struct {
 	Extensible bool
 }
 
-// Spec is the table: every object of the specification.
+// Spec is the table: every object of the specification, and the JSON Schema
+// dialects a Schema Object can be read in.
 type Spec struct {
-	objects []Object
-	index   map[Kind]int
+	objects  []Object
+	index    map[Kind]int
+	dialects []dialect
 }
 
 // Object returns the object of kind k.
@@ -319,5 +324,5 @@ func Table() Spec {
 	for i, o := range objs {
 		index[o.Kind] = i
 	}
-	return Spec{objects: objs, index: index}
+	return Spec{objects: objs, index: index, dialects: schemaDialects()}
 }

@@ -17,6 +17,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/sourceindex"
@@ -160,13 +161,16 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 }
 
 // TestSchemaRules_ReadsTheVersionTheDocumentDeclares pins the rows load hands
-// the lowering for a document: those of the minor it declares, and none for a
-// nil document or one declaring a version the table does not cover.
+// the lowering for a document: those of the minor it declares, in the dialect
+// its jsonSchemaDialect names, and none for a nil document or one declaring a
+// version the table does not cover.
 func TestSchemaRules_ReadsTheVersionTheDocumentDeclares(t *testing.T) {
 	t.Parallel()
+	d := draft04
 	assert.True(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.0.3"}).Defines("nullable"))
 	assert.False(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.1.0"}).Defines("nullable"))
 	assert.True(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.1.0"}).Defines("prefixItems"))
+	assert.True(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.1.0", JSONSchemaDialect: &d}).Takes("exclusiveMinimum", oas.Boolean))
 	assert.False(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.3.0"}).Defines("type"))
 	assert.False(t, SchemaRules(nil).Defines("type"))
 }

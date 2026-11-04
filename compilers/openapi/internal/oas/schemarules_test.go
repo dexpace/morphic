@@ -11,25 +11,43 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 )
 
+// The ids the dialects the table has rows for are named by.
+const (
+	oasDialect = "https://spec.openapis.org/oas/3.1/dialect/base"
+	draft2020  = "https://json-schema.org/draft/2020-12/schema"
+	draft04    = "http://json-schema.org/draft-04/schema#"
+)
+
+// rulesOf returns the table's rows at version in dialect.
+func rulesOf(version, dialect string) oas.SchemaRules {
+	r, _ := oas.Table().SchemaRules(version, dialect)
+	return r
+}
+
 // TestSchemaRules_AnswerAsTheTableDoes pins each question the schema lowering
-// asks at every minor the table covers, and at versions it does not, where
-// every answer is false. The two exclusive bounds share one row's answer, as
-// the lowering reads them through one.
+// asks at every minor the table covers, in each dialect it has rows for, and at
+// versions it does not, where every answer is false. The two exclusive bounds
+// share one row's answer, as the lowering reads them through one.
 func TestSchemaRules_AnswerAsTheTableDoes(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
-		version                                        string
+		version, dialect                               string
 		nullable, boolBound, numberBound, items, tuple bool
 	}{
-		{"3.0.3", true, true, false, true, false},
-		{"3.1.0", false, false, true, false, true},
-		{"3.2.0", false, false, true, false, true},
-		{"", false, false, false, false, false},
-		{"3.3.0", false, false, false, false, false},
+		{"3.0.3", "", true, true, false, true, false},
+		{"3.1.0", "", false, false, true, false, true},
+		{"3.2.0", "", false, false, true, false, true},
+		{"3.1.0", oasDialect, false, false, true, false, true},
+		{"3.2.0", draft2020, false, false, true, false, true},
+		{"3.1.0", draft04, false, true, false, false, false},
+		{"3.2.0", draft04, false, true, false, false, false},
+		{"3.0.3", draft2020, true, true, false, true, false},
+		{"", "", false, false, false, false, false},
+		{"3.3.0", draft04, false, false, false, false, false},
 	} {
-		t.Run(tc.version, func(t *testing.T) {
+		t.Run(tc.version+" "+tc.dialect, func(t *testing.T) {
 			t.Parallel()
-			r := oas.Table().SchemaRules(tc.version)
+			r := rulesOf(tc.version, tc.dialect)
 			assert.Equal(t, tc.nullable, r.Defines("nullable"))
 			assert.Equal(t, tc.tuple, r.Defines("prefixItems"))
 			for _, bound := range []string{"exclusiveMinimum", "exclusiveMaximum"} {
@@ -41,12 +59,58 @@ func TestSchemaRules_AnswerAsTheTableDoes(t *testing.T) {
 	}
 }
 
+// TestSchemaRules_ADialectNamesItsKeywordsAlone pins what a dialect changes: the
+// keywords, never a field OpenAPI adds to the Schema Object or a rule it
+// states, which stay the minor's, so a reading of `nullable` or of a required
+// `items` asks the document, not the schema. A dialect's id matches with or
+// without its trailing empty fragment, and one the table has no rows for reads
+// as the minor's own.
+func TestSchemaRules_ADialectNamesItsKeywordsAlone(t *testing.T) {
+	t.Parallel()
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		own := rulesOf(version, "")
+		for _, dialect := range []string{oasDialect, draft2020, draft04, "https://example.com/custom"} {
+			r := rulesOf(version, dialect)
+			for _, field := range []string{"nullable", "discriminator", "xml", "externalDocs", "example"} {
+				assert.Equal(t, own.Defines(field), r.Defines(field), "%s %s %s", version, dialect, field)
+			}
+			assert.Equal(t, own.RequiredWhen("items", "type", "array"), r.RequiredWhen("items", "type", "array"))
+		}
+	}
+	d04 := rulesOf("3.1.0", draft04)
+	assert.True(t, d04.Defines("definitions"))
+	assert.True(t, d04.Defines("dependencies"))
+	assert.True(t, d04.Takes("items", oas.List), "draft 4 writes a tuple as a list of items")
+	assert.True(t, d04.Takes("type", oas.StringList))
+	assert.False(t, d04.Defines("$id"), "draft 4 spells it id")
+	assert.False(t, d04.Defines("const"))
+	assert.True(t, rulesOf("3.1.0", "http://json-schema.org/draft-04/schema").Takes("exclusiveMinimum", oas.Boolean),
+		"the empty fragment names the same dialect")
+	assert.True(t, rulesOf("3.1.0", draft2020+"#").Takes("exclusiveMinimum", oas.Number))
+	for _, tc := range []struct {
+		version, dialect string
+		read             bool
+	}{
+		{"3.1.0", "", true}, {"3.1.0", draft04, true}, {"3.1.0", draft2020, true}, {"3.2.0", oasDialect, true},
+		{"3.1.0", "https://example.com/custom", false}, {"3.2.0", "http://json-schema.org/draft-07/schema#", false},
+		{"3.1.0", "https://json-schema.org/draft-04/schema#", false},
+		{"3.0.3", "https://example.com/custom", true}, {"3.3.0", "https://example.com/custom", true},
+	} {
+		r, read := oas.Table().SchemaRules(tc.version, tc.dialect)
+		assert.Equal(t, tc.read, read, "%s %s", tc.version, tc.dialect)
+		if !read {
+			assert.Equal(t, rulesOf(tc.version, "").Defines("prefixItems"), r.Defines("prefixItems"),
+				"an unread dialect reads as the minor's own")
+		}
+	}
+}
+
 // TestSchemaRules_ReadEachRowAtItsMinor pins what the rows say beyond a field's
 // own shape: a second shape counts only from the minor that admits it, and a
 // required field only where the value beside it decides the rule.
 func TestSchemaRules_ReadEachRowAtItsMinor(t *testing.T) {
 	t.Parallel()
-	r30, r31 := oas.Table().SchemaRules("3.0.3"), oas.Table().SchemaRules("3.1.0")
+	r30, r31 := rulesOf("3.0.3", ""), rulesOf("3.1.0", "")
 	assert.True(t, r30.Takes("additionalProperties", oas.Boolean), "3.0 admits a boolean beside the schema")
 	assert.False(t, r30.Takes("type", oas.StringList), "3.0 types one name")
 	assert.True(t, r31.Takes("type", oas.StringList))
@@ -54,6 +118,9 @@ func TestSchemaRules_ReadEachRowAtItsMinor(t *testing.T) {
 	assert.False(t, r30.RequiredWhen("items", "type", "object"), "an object needs no items")
 	assert.False(t, r30.RequiredWhen("items", "format", "array"), "another field decides nothing")
 	assert.False(t, r30.RequiredWhen("properties", "type", "array"))
-	assert.False(t, oas.Spec{}.SchemaRules("3.0.3").Defines("nullable"), "a table with no Schema Object defines nothing")
-	assert.True(t, oas.NewChecker().Spec().SchemaRules("3.0.3").Defines("nullable"), "a checker's table is the table")
+	empty, read := oas.Spec{}.SchemaRules("3.0.3", "")
+	assert.False(t, empty.Defines("nullable"), "a table with no Schema Object defines nothing")
+	assert.True(t, read)
+	checked, _ := oas.NewChecker().Spec().SchemaRules("3.0.3", "")
+	assert.True(t, checked.Defines("nullable"), "a checker's table is the table")
 }

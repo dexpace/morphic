@@ -165,8 +165,10 @@ type Document struct {
 	Siblings   Siblings
 	MediaTypes MediaTypes
 	// Others is every document a reference read beside the source, in the
-	// order Document.Sources lists them after the source and its overlay.
-	Others Others
+	// order Document.Sources lists them after the source and its overlay, and
+	// Dialects the rows each schema naming its dialect governs.
+	Others   Others
+	Dialects Dialects
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -381,13 +383,15 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
-// SchemaRules returns the Schema Object's rows at the minor doc declares
-// (oas.Spec.SchemaRules), which the lowering reads doc's schemas with, and the
-// zero rows for a nil doc or one declaring a version the table does not cover.
-// It is where the lowering's dialect question meets the version, so no lowering
-// reads the version itself.
+// SchemaRules returns the Schema Object's rows at the minor doc declares, in
+// the dialect its jsonSchemaDialect names (oas.Spec.SchemaRules), which the
+// lowering reads doc's schemas with where none names its own (Dialects), and
+// the zero rows for a nil doc or one declaring a version the table does not
+// cover. It is where the lowering's dialect question meets the version, so no
+// lowering reads the version itself.
 func SchemaRules(doc *soa.OpenAPI) oas.SchemaRules {
-	return oas.Table().SchemaRules(doc.GetOpenAPI())
+	rules, _ := oas.Table().SchemaRules(doc.GetOpenAPI(), doc.GetJSONSchemaDialect())
+	return rules
 }
 
 // SupportedMinor returns the normalized major.minor prefix of an OpenAPI version

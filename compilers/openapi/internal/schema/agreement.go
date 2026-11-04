@@ -26,8 +26,8 @@ type agreement struct {
 	bounds map[string]*boundReading
 }
 
-// newAgreement returns an agreement no conjunct has written to, reading value
-// bounds in the dialect c's document declares.
+// newAgreement returns an agreement no conjunct has written to, reading each
+// conjunct's value bounds in its dialect (exclusiveIsBoolean).
 func newAgreement(c lowering.Ctx) *agreement {
 	return &agreement{c: c, first: map[string]foldRendering{}, split: map[string]bool{},
 		bounds: map[string]*boundReading{}}
@@ -56,7 +56,7 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 		}
 		if !read {
 			// What it reports and keeps, the lowering reports and keeps where it reads it.
-			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c), "", unlocated)
+			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c, conjunct), "", unlocated)
 			read = true
 		}
 		a.bound(entry).add(boundOf(entry, cons))
