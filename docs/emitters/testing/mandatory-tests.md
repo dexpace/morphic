@@ -238,14 +238,14 @@ throughout these documents.
     on an operation and on a parameter configures the document, each of that path item's operations,
     that operation and that parameter's hint, a `hint` key at an OpenAPI document's root configures
     its one service, and one reading an `out_of_scope` entry reads it as a `vendor_extension` one;
-    an operation's own key beats its path item's for one field, and two other keys setting one field
-    set it from neither; a key on a node it cannot configure, a tag's key the document holds, a
-    value of the wrong shape or outside its field's vocabulary or range, a group named by words
-    rather than its ID, a conflict and a key the document holds under a reason the reader refuses
-    are each reported under their codes, the entry staying in `Unmodeled` and an operation's key
-    whose value is invalid, or which the reader refuses, leaving its path item's to set the field;
-    and the default mapping, which is empty, reads nothing ([embedded
-    policy](../contract/embedded-policy.md)).
+    an operation's own key beats its path item's for one field, and for a status their retry lists
+    both name, and two other keys setting one field set it from neither; a key on a node it cannot
+    configure, a tag's key the document holds, a value of the wrong shape or outside its field's
+    vocabulary or range, a group named by words rather than its ID, a conflict and a key the
+    document holds under a reason the reader refuses are each reported under their codes, the entry
+    staying in `Unmodeled` and an operation's key whose value is invalid, or which the reader
+    refuses, leaving its path item's to set the field; and the default mapping, which is empty,
+    reads nothing ([embedded policy](../contract/embedded-policy.md)).
 34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it a
     client setting, which every operation declaring it in that wire form sends unless the call gives
     its own; a call with neither is refused unsent; an operation declaring it at another wire form

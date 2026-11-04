@@ -51,7 +51,10 @@ tag's under `openapi:tags/<n>/`: it describes that object rather than the docume
 nothing until the IR carries it where the object lowers (#1221). Where two keys set one field of one
 node, an operation's own key beats its path item's, and any other pair is an error
 `emitters/embed/conflict` that sets the field from neither, since which to take is no fact the
-document states.
+document states. An operation's own key and its path item's both set the operation's entry, so a
+status one names in a retry list and the other in the other list would be one scope's status named
+twice; it stays only in the operation's list instead, as it would in a list set higher
+([retries](runtime-policy.md#the-canonical-vocabulary)).
 
 The value is decoded into the field `Path` names, as the tree's own JSON form reads it, refusing an
 unknown member. A value of the wrong shape, or one outside the field's vocabulary or range
