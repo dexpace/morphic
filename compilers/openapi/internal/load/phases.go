@@ -89,8 +89,11 @@ type loading struct {
 	esc   *escapes
 	doc   *soa.OpenAPI
 	minor string
-	sibs  Siblings
-	media MediaTypes
+	// dialects reads the source and each document a reference reaches at its
+	// minor, off the table judged gives, so a compile builds that table once.
+	dialects *dialects
+	sibs     Siblings
+	media    MediaTypes
 	// sibFaults is what modelling the fields beside a path item $ref, or a
 	// components/mediaTypes entry, faulted on.
 	sibFaults []ir.Diagnostic
@@ -172,7 +175,7 @@ func (l *loading) buildModel(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("openapi: unmarshal source %d: %w", l.srcIndex, err)
 	}
-	minor, ok := SupportedMinor(doc.OpenAPI)
+	minor, ok := supportedMinor(doc.OpenAPI)
 	if !ok {
 		l.early = append(l.early, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
 			ir.Provenance{Source: l.srcIndex},
@@ -180,6 +183,7 @@ func (l *loading) buildModel(ctx context.Context) (bool, error) {
 		return true, nil
 	}
 	l.doc, l.minor = doc, minor
+	l.dialects = &dialects{spec: l.judged.checker.Spec(), version: doc.OpenAPI, minor: minor}
 	return false, nil
 }
 
@@ -227,7 +231,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 			first = l.opts.OverlaySrcIndex + 1
 		}
 		unused := unreachedKeys(l.bound.bindings.Table(), resolved)
-		l.bound.others = newOthers(ctx, l.reader.read, first, "openapi@"+l.minor, unused)
+		l.bound.others = newOthers(ctx, l.reader.read, first, l.dialects, unused)
 	}
 	l.placeSite = sitePlacer(l.at, l.bound.others)
 	l.resolved = append(l.pass.diags(l.placeSite), stillUnprepared(l.placeSite, l.missed)...)
@@ -289,5 +293,6 @@ func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 		Siblings:   l.sibs,
 		MediaTypes: l.media,
 		Others:     l.bound.others,
+		Rows:       l.dialects.own(),
 	}, l.esc.asWritten(diags)
 }

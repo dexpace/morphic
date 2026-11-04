@@ -13,6 +13,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
 	"github.com/dexpace/morphic/compilers/openapi/internal/merge"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -36,12 +37,21 @@ func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []ann
 	return cons, diags
 }
 
+// exclusiveIsBoolean reports whether c's schemas spell an exclusive bound as a
+// boolean modifying the bound beside it, the shape 3.0's rows give
+// exclusiveMinimum, rather than as the bound itself. The exclusiveMaximum row
+// agrees at every minor (oas.TestSchemaRules_AnswerAsTheTableDoes), so one
+// answer reads both.
+func exclusiveIsBoolean(c lowering.Ctx) bool {
+	return c.SchemaRules().Takes("exclusiveMinimum", oas.Boolean)
+}
+
 // constraintsAt reads what s, written at pointer, bounds.
 func constraintsAt(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) (*ir.Constraints, []ir.Diagnostic) {
 	if s == nil {
 		return nil, nil
 	}
-	cons, kept, diags := annotation.Constraints(s, c.Is30(), pointer, c.ProvenanceAt)
+	cons, kept, diags := annotation.Constraints(s, exclusiveIsBoolean(c), pointer, c.ProvenanceAt)
 	*p = annotation.MergeUnmodeled(*p, kept)
 	return cons, stampConstraintDiags(c, diags, pointer)
 }

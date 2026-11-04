@@ -48,7 +48,7 @@ type bodyReading struct {
 // against.
 func readBody(c lowering.Ctx, s *oas3.Schema) *bodyReading {
 	r := &bodyReading{w: newAdmission(c), body: s}
-	r.held = r.w.written(s)
+	r.held = r.w.written(s, r.w.nullable)
 	for _, b := range s.GetAllOf() {
 		r.held = r.held.and(r.w.whole(b))
 	}
