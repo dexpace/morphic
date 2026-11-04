@@ -551,7 +551,9 @@ func resolutionTrail(model any) trail {
 type chain struct {
 	records []record
 	// end is the root node of the object the chain ends on, read once off the
-	// object its last hop reached; nil where the chain is cut or stopped.
+	// object its last hop reached, since asking a hop walks the rest of the
+	// chain (docs/parser-library.md#reference-chain-walk); nil where the chain
+	// is cut or stopped.
 	end       *yaml.Node
 	stopped   references.Reference
 	stoppedAt any
@@ -669,9 +671,9 @@ func recordsOf[S any, R interface {
 	if hop != nil {
 		c.stopped, c.stoppedAt = hop.GetReference(), hop // empty for the object a resolution ends on
 	}
-	// Read off the end alone, which answers at once: asked at a hop, the library
-	// walks the rest of the chain, with a linear check for a loop at each step.
-	// A reference the chain stopped at answers nil, having reached nothing.
+	// Read off the end alone, which answers at once
+	// (docs/parser-library.md#reference-chain-walk). A reference the chain
+	// stopped at answers nil, having reached nothing.
 	if len(c.records) > 0 {
 		c.end = hop.GetRootNode()
 	}

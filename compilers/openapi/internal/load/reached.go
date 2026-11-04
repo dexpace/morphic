@@ -346,8 +346,8 @@ func (v *reached) spansOf(doc string) *budget.Budget {
 // chainEnds finds the node the object each reference names was built from, as
 // reachedNode reads it, but along the records a resolution keeps
 // (resolutionChain), remembering the end of every reference a chain the
-// records cut passes on to. Asking a reference walks the whole chain behind it,
-// with a linear check for a loop at each step, so asking each reference of a
+// records cut passes on to. Asking a reference walks the whole chain behind it
+// (docs/parser-library.md#reference-chain-walk), so asking each reference of a
 // long chain cost the cube of its length (GitHub #925). links bounds the cut
 // chains one answer follows, past which the reference is asked after all, and
 // chain reads a reference's records, resolutionChain but where a test counts.
@@ -408,7 +408,8 @@ func (e chainEnds) of(r resolvable, c chain) (*yaml.Node, bool) {
 
 // reachedNode returns the node the object a reference names was built from, or
 // false for one with none to check, asking the reference, which walks its whole
-// chain. Asked of a missing object, a model's own GetRootNode faults.
+// chain (docs/parser-library.md#reference-chain-walk). Asked of a missing
+// object, a model's own GetRootNode faults.
 func reachedNode(r resolvable) (*yaml.Node, bool) {
 	holder, ok := r.(interface{ GetRootNode() *yaml.Node })
 	if !ok {
