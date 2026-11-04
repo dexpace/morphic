@@ -54,10 +54,12 @@ node, an operation's own key beats its path item's, and any other pair is an err
 document states.
 
 The value is decoded into the field `Path` names, as the tree's own JSON form reads it, refusing an
-unknown member. A value of the wrong shape is reported as a warning `emitters/embed/invalid-value`
-at the extension and never coerced, since the document means something by the key that the field
-does not hold: a group is named by its ID, as `Remount` takes it, never by the words a document
-places it under. The entry stays in `Unmodeled` either way, as a promotion leaves it
+unknown member. A value of the wrong shape, or one outside the field's vocabulary or range
+([layers](runtime-policy.md#layers-and-operations)), is reported as a warning
+`emitters/embed/invalid-value` at the extension and never coerced, since the document means
+something by the key that the field does not hold: a group is named by its ID, as `Remount` takes
+it, never by the words a document places it under, and an attempt count of 0 may be another
+generator's count of retries. The entry stays in `Unmodeled` either way, as a promotion leaves it
 ([promotion](../../ir/unmodeled.md#promotion)), so a consumer that disagrees with the mapping reads
 the entry instead.
 

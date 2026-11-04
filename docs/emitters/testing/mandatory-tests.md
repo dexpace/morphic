@@ -26,8 +26,9 @@ throughout these documents.
    at a document-wide setting and at an operation's, in every layer. A project's document-wide
    setting beats a per-operation one the document embeds, an operation's own setting beats its
    layer's document-wide one, an operation ID no operation has is reported, an embedded value a
-   higher layer replaces draws an info naming both, and a value outside a field's vocabulary or
-   range, a `MaxAttempts` of 0 among them, is an error that leaves the field to the layers below
+   higher layer replaces draws an info naming both, and a value a configuration writes outside a
+   field's vocabulary or range, a `MaxAttempts` of 0 and a status both retry lists name among them,
+   is an error, an operation's giving way to its layer's document-wide value
    ([layers](../contract/runtime-policy.md#layers-and-operations)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
@@ -236,10 +237,10 @@ throughout these documents.
     its one service, and one reading an `out_of_scope` entry reads it as a `vendor_extension` one;
     an operation's own key beats its path item's for one field, and two other keys setting one field
     set it from neither; a key on a node it cannot configure, a tag's key the document holds, a
-    value of the wrong shape, a group named by words rather than its ID, a conflict and a key the
-    document holds under a reason the reader refuses are each reported under their codes, the entry
-    staying in `Unmodeled`; and the default mapping, which is empty, reads nothing ([embedded
-    policy](../contract/embedded-policy.md)).
+    value of the wrong shape or outside its field's vocabulary or range, a group named by words
+    rather than its ID, a conflict and a key the document holds under a reason the reader refuses
+    are each reported under their codes, the entry staying in `Unmodeled`; and the default mapping,
+    which is empty, reads nothing ([embedded policy](../contract/embedded-policy.md)).
 34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it a
     client setting, which every operation declaring it in that wire form sends unless the call gives
     its own; a call with neither is refused unsent; an operation declaring it at another wire form

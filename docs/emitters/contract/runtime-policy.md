@@ -63,7 +63,10 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
   again, whatever came back: its failure is returned. The lists name HTTP statuses; a protocol with
   statuses of its own takes lists of its own, each status placed by whether it says the server did
   not act, as `Policy.Errors` gives such a protocol rows of its own
-  ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)).
+  ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)). An entry outside 100 to 599,
+  which no status has (RFC 9110 §15), or a 2xx, which says the request succeeded, is invalid, and
+  so is a status both lists name, which would say at once that the server did not act and that
+  whether it acted is unknown.
 - **`Retry-After`** is the server saying when to come back. Honoring it is the default, and it never
   waits past `Backoff.Max`, so a server cannot park a caller indefinitely; a value past it ends the
   retries and returns the response.
@@ -140,11 +143,16 @@ A key naming no operation of the document is reported as a warning
 otherwise lose its settings in silence, and a warning rather than an error since one project's
 policy may serve several documents. Where a higher layer replaces what the document embeds, an info
 `emitters/policy/embedded-overridden` names the setting, both values and the operation, so the
-document's author can see it was overruled. A value outside a field's vocabulary or range, such as a
-`RetryScope` other than the three its comment names or a `MaxAttempts` below 1, is an error
-`emitters/policy/invalid`, and the field resolves as if that layer left it unset. The engine
-resolves the layers once for each emitter, since each brings its own top layer, and reports a
-diagnostic the embedded and project layers alone draw once for the run, as the plan's are reported.
+document's author can see it was overruled. A value a configuration writes outside a field's
+vocabulary or range, such as a `RetryScope` other than the three its comment names, a `MaxAttempts`
+below 1 or a retry list naming a 2xx, is an error `emitters/policy/invalid`, and resolves as if its
+layer had not written it there: an operation's gives way to that layer's document-wide value where
+it has one, and to the layers below where it has none. One a document embeds is the reader's
+warning instead, as a value of the wrong shape there is ([embedded
+policy](embedded-policy.md#what-a-key-configures)), since its author meant something the field does
+not hold. The engine resolves the layers once for each emitter, since each brings its own top
+layer, and reports a diagnostic the embedded and project layers alone draw once for the run, as the
+plan's are reported.
 
 ## Precedence — declared IR facts win (hard rule)
 
