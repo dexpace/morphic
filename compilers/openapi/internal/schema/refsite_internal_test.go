@@ -61,7 +61,7 @@ func TestRefTypeRef_SaysWhyAnUnboundRefIsUnresolved(t *testing.T) {
 	bd := typed.NewBuilder(bind.Bind(t.Context(), unheld.Ctx.Doc.GetRootNode(), bind.Config{Self: "spec.yaml"}))
 	bd.Unplaced(a, "/paths/~1a/get/parameters/0")
 	unplaced := LowererOver(lowering.New(0, unheld.Ctx.Doc, ir.SourceInfo{}, "", lowering.Limits{},
-		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(
+		lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(
 		&load.Document{Doc: unheld.Ctx.Doc, Bindings: bd.Bindings()}))
 	assert.Equal(t, `unresolved $ref "#/components/schemas/H/properties/p": it is in what the reference at `+
 		"/paths/~1a/get/parameters/0 resolved to, which the compiler cannot read where the parser placed it",
@@ -133,7 +133,7 @@ func unheldLowerer(t *testing.T) *Lowerer {
 	a, ok := doc.Components.GetSchemas().Get("A")
 	require.True(t, ok)
 	bd.Schema(a, bind.Position{Pointer: "/components/schemas/A"})
-	ctx := lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{},
+	ctx := lowering.New(0, doc, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&load.Document{Doc: doc, Bindings: bd.Bindings()})
 	return LowererOver(ctx)
 }

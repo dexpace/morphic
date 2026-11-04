@@ -5,6 +5,7 @@ package operation
 
 import (
 	"encoding/json/jsontext"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -201,10 +202,10 @@ func TestBodyParts_RefHopBound(t *testing.T) {
 }
 
 // TestPartTypeFlags_DecidesOnlyTheKindsItReads holds the type walk to what it
-// decides at each end: a tuple repeats; a string primitive, an opaque scalar
-// and an alias cycle that exhausts the bound decide neither flag; an ID
-// nothing declares, a model and a union are left to the caller's schema
-// reading.
+// decides at each end: a tuple repeats; a string primitive, an opaque scalar,
+// an alias cycle that exhausts the bound and a union of no variant decide
+// neither flag; an ID nothing declares and a model are left to the caller's
+// schema reading.
 func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -227,17 +228,148 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 		{"t/absent", false, false},
 		{"t/opaque", false, true},
 		{"t/model", false, false},
-		{"t/union", false, false},
+		{"t/union", false, true},
 		{"t/tuple", true, true},
 		{"t/cycle/a", false, true},
 		{l.types.PrimID(ir.PrimString), false, true},
 	}
 	for _, tc := range cases {
-		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target})
+		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target}, true /* multipart */)
 		assert.Equal(t, tc.multi, multi, "%s multi", tc.target)
 		assert.False(t, file, "%s is not bytes", tc.target)
 		assert.Equal(t, tc.decided, decided, "%s decided", tc.target)
 	}
+}
+
+// TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles holds a repeated part's
+// Filename to its elements: bytes, through the aliases a hoisted position puts
+// over them, one naming only a media type among them, are files in a multipart
+// body, a tuple's only where every element it admits is, and neither a form
+// body's nor a base64 element, nor a model, nor an element that names no node,
+// is read as one.
+func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	bytes := l.types.PrimRef(ir.PrimBytes)
+	str := l.types.PrimRef(ir.PrimString)
+	l.types.Register("t/alias", &ir.Scalar{ID: "t/alias", Base: &bytes})
+	l.types.Register("t/base64", &ir.Scalar{ID: "t/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
+	l.types.Register("t/png", &ir.Scalar{ID: "t/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
+	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
+	l.types.Register("t/cycle", &ir.Scalar{ID: "t/cycle", Base: &ir.TypeRef{Target: "t/cycle"}})
+	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+	for _, tc := range []struct {
+		node      ir.TypeDef
+		multipart bool
+		file      bool
+	}{
+		{&ir.List{ID: "t/bytes", Elem: bytes}, true, true},
+		{&ir.List{ID: "t/aliases", Elem: ir.TypeRef{Target: "t/alias"}}, true, true},
+		{&ir.List{ID: "t/form", Elem: bytes}, false, false},
+		{&ir.List{ID: "t/encoded", Elem: ir.TypeRef{Target: "t/base64"}}, true, false},
+		{&ir.List{ID: "t/pngs", Elem: ir.TypeRef{Target: "t/png"}}, true, true},
+		{&ir.List{ID: "t/opaques", Elem: ir.TypeRef{Target: "t/opaque"}}, true, false},
+		{&ir.List{ID: "t/cycles", Elem: ir.TypeRef{Target: "t/cycle"}}, true, false},
+		{&ir.List{ID: "t/strings", Elem: str}, true, false},
+		{&ir.List{ID: "t/absent", Elem: ir.TypeRef{Target: "t/nothing"}}, true, false},
+		{&ir.List{ID: "t/models", Elem: ir.TypeRef{Target: "t/model"}}, true, false},
+		{&ir.Tuple{ID: "t/closed", Elems: []ir.TypeRef{bytes, {Target: "t/alias"}}}, true, true},
+		{&ir.Tuple{ID: "t/rest", Elems: []ir.TypeRef{bytes}, Rest: &bytes}, true, true},
+		{&ir.Tuple{ID: "t/restonly", Rest: &bytes}, true, true},
+		{&ir.Tuple{ID: "t/stringrest", Elems: []ir.TypeRef{bytes}, Rest: &str}, true, false},
+		{&ir.Tuple{ID: "t/mixed", Elems: []ir.TypeRef{bytes, str}}, true, false},
+		{&ir.Tuple{ID: "t/empty"}, true, false},
+		{&ir.Tuple{ID: "t/formtuple", Elems: []ir.TypeRef{bytes}}, false, false},
+	} {
+		id := tc.node.Common().ID
+		l.types.Register(id, tc.node)
+		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: id}, tc.multipart)
+		assert.True(t, multi && decided, "%s repeats", id)
+		assert.Equal(t, tc.file, file, "%s file", id)
+	}
+}
+
+// TestPartTypeFlags_AUnionReadsThroughItsMembers holds a union part's flags to
+// its members, through the unions nested in it: it repeats where any member is
+// a list or tuple, file or not, and is a file where every member is raw bytes
+// or a list of them in a multipart body, a model, a base64 value and a form's
+// bytes being none. A union naming itself ends; one naming no node, or reaching
+// more unions than the bound, is left to the caller's schema reading.
+func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
+	t.Parallel()
+	l := newRawLowerer(&soa.OpenAPI{})
+	bytes := l.types.PrimRef(ir.PrimBytes)
+	str := l.types.PrimRef(ir.PrimString)
+	files, strs := ir.TypeRef{Target: "t/files"}, ir.TypeRef{Target: "t/strings"}
+	l.types.Register("t/files", &ir.List{ID: "t/files", Elem: bytes})
+	l.types.Register("t/strings", &ir.List{ID: "t/strings", Elem: str})
+	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{bytes}})
+	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+	l.types.Register("t/base64", &ir.Scalar{ID: "t/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
+	l.types.Register("t/png", &ir.Scalar{ID: "t/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
+	l.types.Register("t/inner", unionOf("t/inner", bytes, files))
+	l.types.Register("t/self", unionOf("t/self", bytes, ir.TypeRef{Target: "t/self"}))
+	l.types.Register("t/diamond", unionOf("t/diamond", ir.TypeRef{Target: "t/inner"}, ir.TypeRef{Target: "t/inner"}))
+	chain := func(id string, n int) ir.TypeID {
+		for i := n - 1; i >= 0; i-- {
+			variants := []ir.TypeRef{bytes}
+			if i < n-1 {
+				variants = append(variants, ir.TypeRef{Target: ir.TypeID(fmt.Sprintf("%s/%d", id, i+1))})
+			}
+			at := ir.TypeID(fmt.Sprintf("%s/%d", id, i))
+			l.types.Register(at, unionOf(at, variants...))
+		}
+		return ir.TypeID(id + "/0")
+	}
+	for _, tc := range []struct {
+		name                 string
+		target               ir.TypeID
+		multipart            bool
+		multi, file, decided bool
+	}{
+		{"a file or a list of files", "t/inner", true, true, true, true},
+		{"a form's file or list of files", "t/inner", false, true, false, true},
+		{"a string or a list of strings", registered(l, unionOf("t/texts", str, strs)), true, true, false, true},
+		{"a file or a list of strings", registered(l, unionOf("t/filetexts", bytes, strs)), true, true, false, true},
+		{"a model or a list", registered(l, unionOf("t/modellist", ir.TypeRef{Target: "t/model"}, files)), true, true, false, true},
+		{"files alone", registered(l, unionOf("t/bytes", bytes, bytes)), true, false, true, true},
+		{"a form's files alone", "t/bytes", false, false, false, true},
+		{"base64 values", registered(l, unionOf("t/base64s", ir.TypeRef{Target: "t/base64"}, bytes)), true, false, false, true},
+		{"files naming their media type", registered(l, unionOf("t/pngs", ir.TypeRef{Target: "t/png"}, bytes)),
+			true, false, true, true},
+		{"a nested union and a file", registered(l, unionOf("t/nested", ir.TypeRef{Target: "t/inner"}, bytes)),
+			true, true, true, true},
+		{"a file or a tuple of files", registered(l, unionOf("t/filetuple", bytes, ir.TypeRef{Target: "t/tuple"})),
+			true, true, true, true},
+		{"a union naming itself", "t/self", true, false, true, true},
+		{"a union nesting one naming itself", registered(l, unionOf("t/outer", ir.TypeRef{Target: "t/self"}, files)),
+			true, true, true, true},
+		{"a union reached twice", "t/diamond", true, true, true, true},
+		{"a variant naming no node", registered(l, unionOf("t/absent", bytes, ir.TypeRef{Target: "t/nothing"})), true, false, false, false},
+		{"unions up to the bound", chain("t/chain", maxPartUnions), true, false, true, true},
+		{"unions past the bound", chain("t/long", maxPartUnions+1), true, false, false, false},
+	} {
+		multi, file, decided := partTypeFlags(l.types.Node, ir.TypeRef{Target: tc.target}, tc.multipart)
+		assert.Equal(t, tc.multi, multi, "%s: multi", tc.name)
+		assert.Equal(t, tc.file, file, "%s: file", tc.name)
+		assert.Equal(t, tc.decided, decided, "%s: decided", tc.name)
+	}
+}
+
+// unionOf returns the union id of variants.
+func unionOf(id ir.TypeID, variants ...ir.TypeRef) *ir.Union {
+	u := &ir.Union{ID: id}
+	for _, v := range variants {
+		u.Variants = append(u.Variants, ir.Variant{Type: v})
+	}
+	return u
+}
+
+// registered registers node with l and returns its ID.
+func registered(l *lowerer, node ir.TypeDef) ir.TypeID {
+	id := node.Common().ID
+	l.types.Register(id, node)
+	return id
 }
 
 // refSite loads a source declaring a component Ref whose $ref spells ref, and

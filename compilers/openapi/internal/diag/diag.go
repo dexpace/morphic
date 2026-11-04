@@ -255,9 +255,10 @@ const (
 	AliasAmplification = "openapi/alias-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
 	// most: a document's bytes or nodes (an overlay's included), alias nodes, an
-	// enum's members (GitHub #75), external documents. Fixed bounds cover load's
-	// schema $refs, chains through other documents and rule checks, detection's
-	// merges, and the declarations of one field the allOf merge judges.
+	// enum's members (GitHub #75), external documents, what $refs copy. Fixed
+	// bounds cover load's schema $refs, chains through other documents and rule
+	// checks, detection's merges, and the declarations of one field the allOf
+	// merge judges.
 	//
 	// None is the input's fault, unlike AliasAmplification's bomb. Each is an
 	// error: the document is refused, validation stops, an enum loses its members
