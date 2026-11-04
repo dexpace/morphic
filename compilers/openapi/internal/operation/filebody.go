@@ -151,9 +151,10 @@ func refEnd(refs *typed.Bindings, js *oas3.JSONSchema[oas3.Referenceable]) *oas3
 }
 
 // declaresBinary reports whether s declares raw bytes: format binary on a
-// schema whose type includes string or is unwritten.
+// schema whose type includes string or is unwritten, and that names no
+// contentEncoding, which makes the bytes text as the type lowering reads it.
 func declaresBinary(s *oas3.Schema) bool {
-	if s == nil || s.GetFormat() != "binary" {
+	if s == nil || s.GetFormat() != "binary" || s.GetContentEncoding() != "" {
 		return false
 	}
 	types := s.GetType()

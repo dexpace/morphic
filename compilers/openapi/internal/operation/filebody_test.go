@@ -52,6 +52,8 @@ func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 		{"a format binary with no type", "image/png", "{schema: {format: binary}}", openapi.Options{}, "", true, ""},
 		{"a binary string on JSON", "application/json", "{schema: {type: string, format: binary}}",
 			openapi.Options{}, "", true, "t/prim/bytes"},
+		{"base64 bytes on JSON", "application/json", "{schema: {type: string, format: binary, contentEncoding: base64}}",
+			openapi.Options{}, "", false, ""},
 		{"a false schema on octet-stream", "application/octet-stream", "{schema: false}", openapi.Options{}, "", false, ""},
 		{"an svg", "image/svg+xml", "{}", openapi.Options{}, "", false, "t/prim/any"},
 		{"a schemaless JSON body", "application/json", "{}", openapi.Options{}, "", false, "t/prim/any"},

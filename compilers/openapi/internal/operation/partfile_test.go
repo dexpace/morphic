@@ -86,6 +86,8 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 			"{contentType: image/png}", openapi.Options{}, true, true, marker},
 		{"an array of base64", "3.1.0", multipart, "{type: array, items: {type: string, format: byte}}", "",
 			openapi.Options{}, false, true, ""},
+		{"an array of base64 bytes", "3.1.0", multipart,
+			"{type: array, items: {type: string, format: binary, contentEncoding: base64}}", "", openapi.Options{}, false, true, ""},
 		{"an array of a union of binary", "3.1.0", multipart,
 			"{type: array, items: {oneOf: [" + binary + ", {type: string, format: binary, maxLength: 9}]}}", "",
 			openapi.Options{}, true, true, ""},

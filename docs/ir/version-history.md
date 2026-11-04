@@ -293,5 +293,5 @@ it sees. Changes made together in one bump are listed together under it.
   `binary-media-type`: such a body, or such a part or item through its encoding's `contentType`, on
   a media type the compiler's binary policy names
   ([`binary-media`](../compilers/openapi.md#binary-media)). A `false` schema on
-  `application/octet-stream` is no longer a file. A consumer pinned to 0.31.0 refuses the document
-  as another generation's.
+  `application/octet-stream` is no longer a file, nor is `format: binary` beside a
+  `contentEncoding`. A consumer pinned to 0.31.0 refuses the document as another generation's.
