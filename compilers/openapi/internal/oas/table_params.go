@@ -206,10 +206,7 @@ func encodingObject() Object {
 		Fields: []Field{
 			field("contentType", String, c(V30, "The `Content-Type` for encoding a specific property."),
 				c(V30, "The value is a comma-separated list, each element of which is either a specific media type")).
-				formatted(MediaRanges).nonEmpty(Always()).
-				// 3.0's table of defaults has no row for a schema writing no type.
-				defaultsTo(Untyped, "application/octet-stream", From(V31),
-					c(V31, "The default values for `contentType` are as follows")),
+				formatted(MediaRanges).nonEmpty(Always()),
 			mapOf("headers", Header, c(V30, "A map allowing additional information to be provided as headers.")),
 			mapOf("encoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),
 			listOf("prefixEncoding", Encoding, c(V32, "Applies nested Encoding Objects in the same manner as the")).during(From(V32)),
@@ -223,5 +220,8 @@ func encodingObject() Object {
 		// whose text bars writing them together: a reading by analogy, so a
 		// warning.
 		Rules: softened(encodingExclusions(c, V32, "Applies nested Encoding Objects in the same manner as the")),
+		// 3.0's table of defaults has no row for a schema writing no type.
+		Defaults: []Default{fieldDefault("contentType", Untyped, "application/octet-stream", From(V31),
+			c(V31, "The default values for `contentType` are as follows"))},
 	}
 }

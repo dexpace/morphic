@@ -151,9 +151,10 @@ type Alt struct {
 	Span  Span
 }
 
-// Default is a value a field takes where its object leaves it unwritten, at
-// the minors Span holds, for a value of the case Case names.
+// Default is a value the field Field takes where its object leaves it
+// unwritten, at the minors Span holds, for a value of the case Case names.
 type Default struct {
+	Field string
 	Value string
 	Cites []Cite
 	Span  Span
@@ -183,9 +184,6 @@ type Field struct {
 	Alts []Alt
 	// Cites are the sentences of the specification the field comes from.
 	Cites []Cite
-	// Defaults are the values the field takes where its object leaves it
-	// unwritten, each in its case and at its minors.
-	Defaults []Default
 	// Defined is the minors whose object defines the field. A construct
 	// written at an earlier minor is reported as added by a later one.
 	Defined Span
@@ -290,13 +288,15 @@ type Rule struct {
 	Format Format
 }
 
-// Object is one OpenAPI object: its fields, its pattern fields and its rules.
+// Object is one OpenAPI object: its fields, its pattern fields, its rules and
+// the defaults of its fields.
 type Object struct {
 	// Name is the specification's title for the object: "Info Object".
 	Name      string
 	Fields    []Field
 	Patterned []Pattern
 	Rules     []Rule
+	Defaults  []Default
 	// Referenceable is the minors at which a Reference Object may stand in
 	// the object's place.
 	Referenceable Span

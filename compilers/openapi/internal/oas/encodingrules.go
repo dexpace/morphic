@@ -34,11 +34,9 @@ func (s Spec) EncodingRules(version string) EncodingRules {
 		return EncodingRules{}
 	}
 	rows := &encodingRows{defaults: map[defaultOf]string{}}
-	for _, f := range obj.Fields {
-		for _, d := range f.Defaults {
-			if d.Span.Holds(minor) {
-				rows.defaults[defaultOf{field: f.Name, k: d.Case}] = d.Value
-			}
+	for _, d := range obj.Defaults {
+		if d.Span.Holds(minor) {
+			rows.defaults[defaultOf{field: d.Field, k: d.Case}] = d.Value
 		}
 	}
 	return EncodingRules{rows: rows}
