@@ -39,6 +39,20 @@ type column []int
 
 func (c column) Set() { c[0] = 1 }
 
+// Named kinds of every underlying type, each with a value receiver that only
+// reads.
+type (
+	pair  [2]int
+	level int
+	pipe  chan int
+	step  func()
+)
+
+func (p pair) First() int { return p[0] }
+func (l level) Next() int { return int(l) + 1 }
+func (p pipe) Len() int   { return len(p) }
+func (s step) Run()       { s() }
+
 // Encoding shares its name with a receiver the rule lists, from another package.
 type Encoding struct{ n int }
 
@@ -84,6 +98,10 @@ var (
 	matcher                  = regexp.MustCompile(`x`)
 	errNone                  = errors.New("none")
 	encoded                  Encoding
+	couple                   pair
+	depth                    level
+	piped                    pipe
+	stepper                  step
 )
 
 var viaCall = ledger.Self().n // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
@@ -252,12 +270,14 @@ func Aliases(k string) {
 	}
 }
 
-// Chain writes through an alias that is bound before its source is.
+// Chain writes through an alias that is bound before its source is, three
+// hops from the variable and in the reverse of the order the passes walk.
 func Chain(k int) {
-	var first, second []int
+	var first, second, third []int
+	third = second
 	second = first
 	first = items
-	second[k] = 1 // want "globalwrites: writes an element or field of the package-level variable items through its alias second; keep the state in a local or an argument"
+	third[k] = 1 // want "globalwrites: writes an element or field of the package-level variable items through its alias third; keep the state in a local or an argument"
 
 	var m1 map[string]int
 	(m1) = names
@@ -287,11 +307,15 @@ func Reads(k string) error {
 	for part := range feed {
 		part[0] = 1
 	}
+	for part := range queue {
+		part[0] = 1
+	}
 	_ = len(items) + cap(items) - counter
 	_ = -counter
 	_ = slices.Contains(items, 1)
 	_ = ledger.n
 	_, _, _ = v, ok, k
+	_ = errNone.Error()
 	if errors.Is(errNone, errNone) {
 		return errNone
 	}
@@ -307,8 +331,14 @@ func Copies() {
 	arr[0] = 1
 	f := hook
 	f()
+	_ = &f
+	q := queue
+	_ = &q
+	e := errNone
+	_ = &e
 	n := counter
 	n++
+	_ = &n
 	s := fmt.Sprint(names)
 	_ = s
 	m := names
@@ -317,6 +347,13 @@ func Copies() {
 	_ = m
 	b := <-queue
 	b[0] = 1
+}
+
+// ReadsNamedKinds calls methods that only read, on variables of every named
+// kind whose method takes a value receiver.
+func ReadsNamedKinds() int {
+	stepper.Run()
+	return couple.First() + depth.Next() + piped.Len()
 }
 
 // ShadowedBuiltin calls a parameter named like a builtin, which writes nothing.
