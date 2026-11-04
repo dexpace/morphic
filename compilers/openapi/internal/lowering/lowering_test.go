@@ -24,6 +24,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
@@ -129,38 +130,43 @@ func TestNew_KeepsTheDocumentItWasGiven(t *testing.T) {
 	assert.Equal(t, 7, c.SrcIndex)
 }
 
-// TestIs30_TheZeroContextReadsAs2020 pins that a context with no document
-// answers false rather than panicking: the accessor reaches through the
-// document pointer, and half this file drives the type as a Ctx literal.
-func TestIs30_TheZeroContextReadsAs2020(t *testing.T) {
+// TestSchemaRules_TheZeroContextReadsWithTheZeroRows pins that a context with
+// no document answers with rows that define nothing rather than panicking:
+// half this file drives the type as a Ctx literal.
+func TestSchemaRules_TheZeroContextReadsWithTheZeroRows(t *testing.T) {
 	t.Parallel()
 	var c lowering.Ctx
-	assert.False(t, c.Is30(),
-		"no document names no dialect, which falls back to 2020-12")
+	assert.False(t, c.SchemaRules().Defines("nullable"), "no document names no dialect")
+	assert.False(t, c.SchemaRules().Takes("exclusiveMinimum", oas.Number))
 }
 
-// TestIs30_FollowsTheDeclaredVersion pins which documents read as OpenAPI 3.0.
-// A reading keyed on this answer goes wrong with it: reading 3.0 as 2020-12
-// turns a boolean exclusiveMinimum into a numeric bound and silences a missing
-// `items`, and the reverse warns on every 3.1 array that omits `items`.
-func TestIs30_FollowsTheDeclaredVersion(t *testing.T) {
+// TestSchemaRules_FollowsTheDeclaredVersion pins which rows a document's
+// schemas are read with. A reading keyed on them goes wrong with them: reading
+// 3.0 as 2020-12 turns a boolean exclusiveMinimum into a numeric bound and
+// silences a missing `items`, and the reverse warns on every 3.1 array that
+// omits `items`.
+func TestSchemaRules_FollowsTheDeclaredVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		version string
-		want    bool
+		version      string
+		v30, covered bool
 	}{
-		{version: "3.0.0", want: true},
-		{version: "3.0.3", want: true},
-		{version: "3.1.0", want: false},
-		{version: "3.2.0", want: false},
-		{version: "4.0.0", want: false},
-		{version: "", want: false},
+		{version: "3.0.0", v30: true, covered: true},
+		{version: "3.0.3", v30: true, covered: true},
+		{version: "3.1.0", covered: true},
+		{version: "3.2.0", covered: true},
+		{version: "4.0.0"},
+		{version: ""},
 	}
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
 			c := lowering.New(0, &soa.OpenAPI{OpenAPI: tc.version}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
-			assert.Equal(t, tc.want, c.Is30())
+			rules := c.SchemaRules()
+			assert.Equal(t, tc.v30, rules.Defines("nullable"))
+			assert.Equal(t, tc.v30, rules.Takes("exclusiveMinimum", oas.Boolean))
+			assert.Equal(t, tc.v30, rules.RequiredWhen("items", "type", "array"))
+			assert.Equal(t, tc.covered && !tc.v30, rules.Takes("exclusiveMinimum", oas.Number))
 		})
 	}
 }

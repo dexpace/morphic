@@ -68,11 +68,19 @@ func (b *Bindings) Entry(js *schemaRef) (bind.Entry, bool) {
 // Declared returns the schema written where js's $ref lands, or nil where it
 // does not land on one.
 func (b *Bindings) Declared(js *schemaRef) *schemaRef {
+	s, _ := b.DeclaredAt(js)
+	return s
+}
+
+// DeclaredAt returns what Declared does and the position its $ref lands at,
+// which names the document holding it; the zero position where it lands on
+// none.
+func (b *Bindings) DeclaredAt(js *schemaRef) (*schemaRef, bind.Position) {
 	e, ok := b.Entry(js)
 	if !ok || e.Hop.Status != bind.Resolved {
-		return nil
+		return nil, bind.Position{}
 	}
-	return b.held[e.Hop.Target]
+	return b.held[e.Hop.Target], e.Hop.Target
 }
 
 // End returns the schema the chain of $refs from js ends on, in whichever

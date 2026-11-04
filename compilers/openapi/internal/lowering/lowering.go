@@ -15,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/naming"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
@@ -162,8 +163,13 @@ type loadResult struct {
 	// purpose: a name reads only those documents, which no lowering changes,
 	// so what one copy remembers is what another would read.
 	names *naming.Namer
-	// others is every document a reference read beside the source.
+	// others is every document a reference read beside the source, and rows
+	// what the table says at the source's minor (load.Document.Rows): the load
+	// phase read both off the one table it built, so no context builds another.
+	// Copies share them on purpose: nothing writes either after the load, so
+	// no lowering changes what another reads.
 	others load.Others
+	rows   load.Rows
 	// reads holds those readings in the scope fields they fill: Holds over the
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
@@ -265,7 +271,7 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others,
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
 		names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}, readings: map[any]any{}}
@@ -436,16 +442,52 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
-// Is30 reports whether this document's dialect is OpenAPI 3.0 rather than the
-// 2020-12 dialect of 3.1 and 3.2. A reading that differs between the two, such
-// as a boolean exclusiveMinimum, a required `items` or the effect `nullable`
-// has, asks this rather than parsing the version itself. An unrecognized
-// version, and a context with no document, answer false. It reads the entry
-// document's version, whichever document holds the schema, so a 3.1 file
-// reached by $ref from a 3.0 root is read as 3.0 (GitHub #839).
-func (c Ctx) Is30() bool {
-	minor, _ := load.SupportedMinor(c.Doc.GetOpenAPI())
-	return minor == "3.0"
+// SchemaRules returns the Schema Object's rows a schema c lowers is read with
+// (rowsOf). A reading that differs between minors, such as a boolean
+// exclusiveMinimum, a required `items` or the effect `nullable` has, asks these
+// rather than the version. A version the table does not cover, and a context
+// with no document, answer with the zero rows.
+func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
+
+// EncodingRules returns the Encoding Object's rows an encoding c lowers is read
+// with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
+// where its encoding leaves a field unwritten.
+func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
+
+// rowsOf returns what the table says at the minor of the document whose
+// content c reads, which its scope names (load.Other.Rows), the source's for
+// its own (sourceRows).
+//
+// The scope, not home, names that document: Declared can read one document's
+// content at another's positions.
+func rowsOf(c Ctx) load.Rows {
+	if c.foreign && c.loaded != nil {
+		if o, ok := c.loaded.others.Named(c.holder); ok {
+			return o.Rows
+		}
+	}
+	return sourceRows(c)
+}
+
+// sourceRows returns what the table says at the source's minor: what the load
+// phase read, or, in a context given no load phase, what it says at the
+// version c.Doc declares, which builds the table on each call.
+func sourceRows(c Ctx) load.Rows {
+	if c.loaded == nil {
+		return load.RowsOf(c.Doc)
+	}
+	return c.loaded.rows
+}
+
+// SchemaRulesIn returns the rows the schemas document id of the bindings'
+// table declares are read with, for a reading that crosses a $ref without a
+// context of that document: the source's own for the source, and for one the
+// compile did not read beside it.
+func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
+	if _, o, ok := otherIn(c, id); ok {
+		return o.Rows.Schema
+	}
+	return sourceRows(c).Schema
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
@@ -560,16 +602,25 @@ func InDocument(c Ctx, id bind.DocID) (Ctx, bool) {
 	if id == bind.Source {
 		return c.InScope(c.RefScope().InSource()), true
 	}
-	if c.loaded == nil {
-		return c, false
-	}
-	name := c.Bindings().Table().Document(id).Name
-	o, ok := c.loaded.others.Named(name)
+	name, o, ok := otherIn(c, id)
 	if !ok {
 		return c, false
 	}
 	c.foreign, c.holder, c.home, c.homeDoc = true, name, o.Index, id
 	return c, true
+}
+
+// otherIn returns the name document id of the bindings' table is read by, and
+// the document the compile read beside the source under it, and false for the
+// source, for a context given no load phase, and for a document the compile
+// did not read beside the source.
+func otherIn(c Ctx, id bind.DocID) (string, load.Other, bool) {
+	if id == bind.Source || c.loaded == nil {
+		return "", load.Other{}, false
+	}
+	name := c.Bindings().Table().Document(id).Name
+	o, ok := c.loaded.others.Named(name)
+	return name, o, ok
 }
 
 // ProvenanceAt is where a Provenance is built, and the only place this compiler

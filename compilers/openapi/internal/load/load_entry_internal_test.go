@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
@@ -151,19 +152,32 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.version, func(t *testing.T) {
 			t.Parallel()
-			got, ok := SupportedMinor(tc.version)
+			got, ok := supportedMinor(tc.version)
 			assert.Equal(t, tc.want != "", ok)
 			assert.Equal(t, tc.want, got)
 		})
 	}
 }
 
-// TestSupportedMinor_AllocatesNothing pins what the lowering's dialect check
-// costs: it asks this of every schema whose null it reads, so the minor is
-// read off the version (oas.ParseMinor) and named by a constant. It is not run
-// in parallel: AllocsPerRun refuses to be.
-func TestSupportedMinor_AllocatesNothing(t *testing.T) {
-	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = SupportedMinor("3.1.0") }))
+// TestRowsOf_ReadsTheVersionTheDocumentDeclares pins the rows load hands a
+// lowering given no load phase for a document: those of the minor it declares,
+// the Schema Object's and the Encoding Object's alike, and none for a nil
+// document or one declaring a version the table does not cover.
+func TestRowsOf_ReadsTheVersionTheDocumentDeclares(t *testing.T) {
+	t.Parallel()
+	r30, r31 := RowsOf(&soa.OpenAPI{OpenAPI: "3.0.3"}), RowsOf(&soa.OpenAPI{OpenAPI: "3.1.0"})
+	assert.True(t, r30.Schema.Defines("nullable"))
+	assert.False(t, r31.Schema.Defines("nullable"))
+	assert.True(t, r31.Schema.Defines("prefixItems"))
+	_, untyped30 := r30.Encoding.UntypedContentType()
+	_, untyped31 := r31.Encoding.UntypedContentType()
+	assert.False(t, untyped30)
+	assert.True(t, untyped31)
+	for _, doc := range []*soa.OpenAPI{{OpenAPI: "3.3.0"}, nil} {
+		if RowsOf(doc) != (Rows{}) {
+			t.Errorf("%+v: a version the table does not cover reads with rows", doc)
+		}
+	}
 }
 
 // overlayHeader is the preamble every overlay document below needs.

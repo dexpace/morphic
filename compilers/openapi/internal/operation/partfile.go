@@ -45,8 +45,8 @@ func readPartFile(c lowering.Ctx, part bodyPart, contentTypes []string, multipar
 // fileFor judges a multipart part or item whose schemas read as least, with
 // contentTypes its encoding entry's: a file where it declares raw bytes; where
 // it leaves its media type to say, one where the entry names only binary media
-// types (partContentFile), or, from OpenAPI 3.1 and naming none, where it
-// writes no type, whose default media type is application/octet-stream.
+// types (partContentFile), or, naming none, as the media type its encoding
+// defaults to (untypedPartFile).
 func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile {
 	switch {
 	case least == readsBinary:
@@ -56,8 +56,20 @@ func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile 
 	case len(contentTypes) > 0:
 		return partContentFile(c, contentTypes)
 	default:
-		return partFile{file: least == readsUntyped && !c.Is30()}
+		return untypedPartFile(c, least)
 	}
+}
+
+// untypedPartFile judges a part read as least whose encoding names no media
+// type: one writing no type is judged as naming the contentType the Encoding
+// Object's rows default that case to (lowering.EncodingRules), which from
+// OpenAPI 3.1 is application/octet-stream, and any other is no file.
+func untypedPartFile(c lowering.Ctx, least fileReading) partFile {
+	contentType, ok := lowering.EncodingRules(c).UntypedContentType()
+	if least != readsUntyped || !ok {
+		return partFile{}
+	}
+	return partContentFile(c, []string{contentType})
 }
 
 // readDeclaration reads js, one declaration of a part, as a file: an array
