@@ -12,7 +12,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The gate runs as two jobs side by side. Every check is a Makefile target, and
-# `make gate` runs them all.
+# `make gate` runs them all, bar the step only a push to main runs: `make
+# race-pipeline`, after the cache save.
 #
 # Only the suite job reads a cached test result: the checks job runs go test
 # only with -fuzz and -bench, which go help test does not list as cacheable. So
@@ -141,3 +142,7 @@ jobs:
       - name: race
         run: make race
       - *save
+      # After the save, so a race found here costs no pull request its cache.
+      - name: race, the whole pipeline
+        if: github.event_name == 'push'
+        run: make race-pipeline

@@ -170,6 +170,7 @@ var rules = map[string][]string{
 	"compilers/openapi/internal/annotation": {module + "/ir",
 		module + "/compilers/openapi/internal/budget",
 		module + "/compilers/openapi/internal/diag",
+		module + "/compilers/openapi/internal/fragment",
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/value",
@@ -326,8 +327,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/spelling",
 		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
-		"github.com/speakeasy-api/openapi/values",
-		"github.com/speakeasy-api/openapi/yml", "go.yaml.in/yaml/v3"},
+		"github.com/speakeasy-api/openapi/values", "go.yaml.in/yaml/v3"},
 	// The operation walk: path items, webhooks and callbacks, the parameters
 	// merged onto them, and the content of every body, response and header. It
 	// reaches the schema walk for the positions it hoists, auth for the

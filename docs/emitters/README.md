@@ -42,7 +42,8 @@ its own, and answers every construct of the [lowering table](refine/lowering-tab
 - [Target options](contract/options.md): strict, versioned, each default belonging to a version.
 - [The type table](contract/type-table.md): which target type each IR leaf type becomes.
 - [Runtime policy](contract/runtime-policy.md) and [shaping hints](contract/shaping-hints.md): the
-  two inputs that are not the IR.
+  two inputs that are not the IR, and [the policy a document embeds](contract/embedded-policy.md),
+  read into each as its lowest layer.
 
 **The plan: language-neutral decisions, computed once**
 
@@ -241,4 +242,4 @@ The Kotlin targets read the same plan and lower the same facts as Go.
 | 7 Serializable/deterministic | `Plan` + manifest are JSON-serializable, and `Facts` is rebuilt from the document; maps walked sorted, slices source order; identical input ⇒ identical bytes ([who computes the plan](contract/emitter.md#who-computes-the-plan), [the plan](plan/overview.md), [determinism](emit/printing.md#determinism-and-the-velocity-answer), [mandatory tests](testing/mandatory-tests.md)) |
 | 8 Optionality ≠ nullability | `LowerOptionality` renders all four states plus protobuf `Presence` as a third axis; collapses are diagnosed ([optionality](refine/models.md#optionality--nullability--presence-inv8)) |
 | 9 Capability surface designed against every format | every `ir.TypeKind` and every operation facet (pagination/streaming/LRO/one-way/messaging) has a lowering path or diagnosed degrade ([step list](refine/steps.md), [lowering table](refine/lowering-table.md)); docs/mock/validation are registry entries over the same `Doc + Plan`; a new language forces no IR or plan change ([docs and mocks](docs-and-mock.md), [M5](milestones.md)) |
-| 10 Runtime policy separate | `policy.Policy` tree in `EmitterInput.Policy`, never on `ir.Document`; it parameterises only boilerplate; declared IR facts win over its defaults ([runtime policy](contract/runtime-policy.md)) |
+| 10 Runtime policy separate | `policy.Policy` trees, resolved per operation, in `EmitterInput.Policy`, never on `ir.Document`; it parameterises only boilerplate; declared IR facts win over its defaults ([runtime policy](contract/runtime-policy.md)) |

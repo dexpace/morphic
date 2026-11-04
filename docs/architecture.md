@@ -404,7 +404,7 @@ converged on independently:
    no policy. This list is the decision set oagen's emitters demonstrably needed, computed once and
    shared across all languages, less two kinds of entry ([plan fact or refine
    fact](./emitters/plan/plan-or-refine.md)): what the IR already states, such as body presence and
-   idempotency, which a refiner reads there; and what varies by language, such as oagen's
+   the idempotency token, which a refiner reads there; and what varies by language, such as oagen's
    parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
    (native union vs sealed interface vs wrapper class), enum strategy for open enums, interface
@@ -447,10 +447,13 @@ logical exception-kind and fault, doc-URL template), **telemetry** (request-
 ID and client-telemetry headers), **logging** (a closed lifecycle-event list), **user-agent**
 construction (identifier template, app-info enrichment), **idempotency injection** (header name,
 auto-generate rules), **pagination pacing** (auto-page delay), and **request guards** (option
-keys that must not appear as params — misuse detection). Delivery model: canonical defaults +
-deep-partial per-emitters/per-project overrides. Precedence rule: *declared IR facts win over
-policy defaults* — `ErrorCase.Retryable/Fault` and `Operation.Idempotency` come from the spec;
-policy fills in where the spec is silent, never the reverse.
+keys that must not appear as params — misuse detection), widened by retries after an uncertain
+outcome, `Retry-After` and **redirects**. Delivery model: versioned defaults + deep-partial layers,
+the policy a document embeds below the project's and the project's below the one it sets for each
+emitter, each with per-operation overrides (`docs/emitters/contract/runtime-policy.md`). Precedence
+rule: *declared IR facts win over policy defaults* — `ErrorCase.Retryable/Fault` and
+`Operation.Idempotency` come from the spec; policy fills in where the spec is silent, never the
+reverse.
 
 ### 2.5 Changing the IR
 
@@ -709,11 +712,17 @@ something a caller asks for with `none`, never a default.
   above, plus the rules the graph cannot express — which lowerings are mutually recursive (so a
   set that grows is noticed rather than measured), the method-per-type cap, and that no function is
   reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
-  come, and that every package under `ir/`, `pass` and `compilers/` is on
-  `scripts/race-packages.txt`, which `make race` runs under `-race`. So is every other package with
-  a non-test file importing `sync` or `sync/atomic`, any file starting a goroutine (a `go` statement
-  or a single-argument `.Go(...)` call), or a test calling `t.Parallel()`, unless the test's
-  `raceExempt` gives its reason, which no package under those roots may have.
+  come, and that the two race runs match the tree. `make race` runs the packages on
+  `scripts/race-packages.txt` under `-race`, and `make race-pipeline`, outside `make gate`, adds every
+  package under the roots of `scripts/race-pipeline-roots.txt` (`ir/`, `pass` and `compilers/`).
+  Outside the roots, a package is on the list when a non-test file imports `sync` or `sync/atomic`,
+  any file starts a goroutine (a `go` statement or a single-argument `.Go(...)` call), or a test
+  calls `t.Parallel()`. Under a root only the first two count, and a package showing one is on the
+  list or is a `racePipelineOnly` entry of the test with its reason. A package off the list
+  elsewhere is a `raceExempt` entry with its reason, which no package under a root may have. A race
+  that only a pipeline package's own tests reach is found after merge, by the `make race-pipeline`
+  each push to `main` runs, and not on the pull request; one that only an exempt package's own
+  tests reach is found by neither run.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule

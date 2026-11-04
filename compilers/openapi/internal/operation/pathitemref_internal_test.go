@@ -81,7 +81,7 @@ paths:
 // a sibling layer keeps takes its closure over a copy of the context with it,
 // so building one for every mount cost each that much more. The item is inline,
 // since Within's walk through a $ref allocates a varying count under the
-// gate's race run.
+// race run of make race-pipeline.
 func TestPathItemLayers_AOneLayerMountCostsItsLayerAlone(t *testing.T) {
 	l, diags := loweredFor(t, `openapi: 3.1.0
 info: {title: T, version: "1"}

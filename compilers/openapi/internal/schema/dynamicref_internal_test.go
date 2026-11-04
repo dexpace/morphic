@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 	soa "github.com/speakeasy-api/openapi/openapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/openapitest"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
+	"github.com/dexpace/morphic/ir"
 )
 
 // deepMergeSpec holds a schema in its document's resource, one under an $id, and
@@ -142,4 +144,48 @@ func TestAnchorHolds_NeedsASchemaInAnotherDocument(t *testing.T) {
 	why, ok := anchorHolds(l.Ctx, "n", bind.Position{Doc: 1, Pointer: "/T"})
 	assert.False(t, ok)
 	assert.Contains(t, why, "no schema could be built")
+}
+
+// TestBases_AnUnknownBaseIsNoMatch pins the three readers comparing bases where
+// a $ref is written alike: past the merge bound a schema on the way may hide an
+// $id, so a base the bindings cannot tell matches none, though both would read
+// as the document's. Twin, written as Plain is in the document's resource,
+// matches it at each. Deep's own $refs are reported unresolved, for the same
+// reason, and nothing else is.
+func TestBases_AnUnknownBaseIsNoMatch(t *testing.T) {
+	t.Parallel()
+	const body = "\n      type: object\n      properties: {p: {type: array, items: {$ref: '#/components/schemas/Item'}}}\n" +
+		"      allOf: [{not: {$ref: '#/components/schemas/Item'}}]\n"
+	src := strings.Replace(deepMergeSpec, "    Deep: {<<: *c70}\n",
+		"    Item: {type: string}\n    Plain:"+body+"    Twin:"+body+"    Deep:\n      <<: *c70"+body, 1)
+	l, diags := LoweredFor(t, src)
+	var unresolved []jsontext.Pointer
+	for _, d := range diags {
+		if d.Severity == ir.SeverityError {
+			unresolved = append(unresolved, d.Provenance.Pointer)
+		}
+	}
+	assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/Deep/properties/p/items",
+		"/components/schemas/Deep/allOf/0/not"}, unresolved, "%+v", diags)
+	at := func(name string) *oas3.JSONSchema[oas3.Referenceable] {
+		js := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name + "/properties/p")})
+		require.NotNil(t, js, name)
+		return js
+	}
+	branch := func(name string) allOfBranch {
+		s := l.Ctx.Bindings().At(bind.Position{Pointer: jsontext.Pointer("/components/schemas/" + name)}).GetSchema()
+		return allOfBranches(s, "").branches[0]
+	}
+	prov := func(name string) ir.Provenance {
+		return l.Ctx.ProvenanceAt(jsontext.Pointer("/components/schemas/" + name + "/properties/p"))
+	}
+	w := newAdmission(l.Ctx)
+	merge := settledMerge{c: l.Ctx}
+
+	assert.True(t, w.sameText(at("Plain"), at("Twin")))
+	assert.False(t, w.sameText(at("Plain"), at("Deep")))
+	assert.True(t, readsAtPosition(l.Ctx, branch("Plain")))
+	assert.False(t, readsAtPosition(l.Ctx, branch("Deep")))
+	assert.True(t, merge.alike(prov("Plain"), prov("Twin")))
+	assert.False(t, merge.alike(prov("Plain"), prov("Deep")))
 }
