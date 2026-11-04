@@ -1073,8 +1073,8 @@ such null is reported once as an info `openapi/inferred-nullable`, at the `nulla
 keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
 whatever references its schema. The policy is the Go option `Options.NullableWidening`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
-`nullable-widening`, which `false` turns off. A
-`nullable` in a 3.1 or 3.2 schema is then a keyword its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
+`nullable-widening`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
+its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
 model does not name.
 
