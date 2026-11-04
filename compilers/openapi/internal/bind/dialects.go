@@ -56,9 +56,11 @@ func dialectsByDocument(roots map[Position]DialectRoot) map[DocID][]DialectRoot 
 // child a walk reads asks it, so the other tokens take step without a call
 // more.
 func stepIn(d *docs, id DocID, n *yaml.Node, s state, token, dialect string) state {
-	if (s == sSchema || s == sLoose) && (token == "items" || token == "additionalItems" ||
-		token == "definitions" || token == "dependencies") {
-		return dialectStep(d, id, n, s, token, dialect)
+	if s == sSchema || s == sLoose {
+		switch token {
+		case "items", "additionalItems", "definitions", "dependencies":
+			return dialectStep(d, id, n, s, token, dialect)
+		}
 	}
 	return step(s, token)
 }

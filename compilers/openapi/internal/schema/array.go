@@ -165,9 +165,11 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 // list. missingArrayItemsBesideRef holds a $ref site's keywords to it; a
 // subschema kept verbatim, such as one under `not`, never reaches it.
 func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if _, listed := listedItems(s); listed || annotation.Written(s.GetItems()) ||
-		!slices.Contains(s.GetType(), oas3.SchemaTypeArray) ||
-		!c.SchemaRules().RequiredWhen("items", "type", string(oas3.SchemaTypeArray)) {
+	_, listed := listedItems(s)
+	if listed || annotation.Written(s.GetItems()) || !slices.Contains(s.GetType(), oas3.SchemaTypeArray) {
+		return nil
+	}
+	if !c.SchemaRules().RequiredWhen("items", "type", string(oas3.SchemaTypeArray)) {
 		return nil
 	}
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,

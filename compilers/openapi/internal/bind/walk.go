@@ -184,8 +184,8 @@ func (w *finder) visit(n *yaml.Node, f frame) {
 // `additionalItems` beside it, its rest. The table builds a schema for each,
 // as for a landing, held by the schema writing it.
 func (w *finder) tupleOf(n *yaml.Node, f frame) {
-	if f.state != sSchema && f.state != sLoose || !dialectRule(w.docs, f.at.Doc, f.dialect).Tuples ||
-		!listsItems(w.docs, f.at.Doc, n) {
+	schema := f.state == sSchema || f.state == sLoose
+	if !schema || !dialectRule(w.docs, f.at.Doc, f.dialect).Tuples || !listsItems(w.docs, f.at.Doc, n) {
 		return
 	}
 	view := w.docs.list[f.at.Doc].view
