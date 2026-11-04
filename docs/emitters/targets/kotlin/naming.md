@@ -21,12 +21,12 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   Each Windows device name above is reserved too, in any letter case, as the JVM writes a top-level
   class to a file of its name, `Aux.class`, which Windows refuses whatever the extension. On
   Multiplatform, where every unit's declarations share one Objective-C namespace and a nested one's
-  name is joined to its outer's ([Swift](swift.md)), each of these is reserved in that namespace
-  too, in every unit, and so is the joined name of each public class the target nests in a type,
-  such as `UserBuilder` and `UserCompanion` beside a model `User` and `PaymentUnknown` beside a
-  union `Payment`. A declaration that meets one only there keeps its Kotlin name and takes an
-  explicit Objective-C and Swift name, so no JVM name moves for Swift's sake. Which unit the runtime
-  renders into is #1489's to decide.
+  name is joined to its outer's ([Swift](swift.md)), each name above that the target declares is
+  reserved in that namespace too, in every unit, and so is the joined name of each public class the
+  target nests in a type, such as `UserBuilder` and `UserCompanion` beside a model `User` and
+  `PaymentUnknown` beside a union `Payment`. A declaration that meets one only there keeps its
+  Kotlin name and takes an explicit Objective-C and Swift name, so no JVM name moves for Swift's
+  sake. Which unit the runtime renders into is #1489's to decide.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
 None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
