@@ -40,6 +40,8 @@ func TestRun_SingleDashLongFlagsAreRefused(t *testing.T) {
 			`write "--opt=a=1", not "-opt=a=1"`, "morphic compile"},
 		{"the output file", []string{"compile", spec, "-output=ir.json"},
 			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
+		{"after a flag and its separate value", []string{"compile", spec, "--fail-on", "error", "-output=ir.json"},
+			`write "--output=ir.json", not "-output=ir.json"`, "morphic compile"},
 		{"a command's help flag, which cobra defines late", []string{"compile", spec, "-help"},
 			`write "--help", not "-help"`, "morphic compile"},
 		{"the version flag", []string{"-version"}, `write "--version", not "-version"`, "morphic"},
