@@ -32,17 +32,20 @@ type Retry struct {
                              // where the IR states nothing; default 408, 429, 503
     Uncertain     []int      // statuses leaving unknown whether it acted, retried as WhenUncertain
                              // says where the IR states nothing; default 500, 502, 504
-    MaxAttempts   int        // default 3, the first attempt included
+    MaxAttempts   int        // default 3, the first attempt included; below 1 is invalid
     Backoff       Backoff    // {Initial, Multiplier, Max, Jitter}
     Throttled     Backoff    // the backoff after a failure marked throttling
                              // (../operations/errors.md)
-    WhenUncertain string     // which operations send again a request that got no response or an
-                             // Uncertain status: "never" | "idempotent" (default) | "always"
+    WhenUncertain RetryScope // which operations send again a request that got no response or an
+                             // Uncertain status (below)
     RetryAfter    bool       // default on: wait what a Retry-After header asks, up to Backoff.Max
 }
 
+type RetryScope string       // "never" | "idempotent" (default) | "always"
+
 type Redirects struct {
-    Max int                  // default 10; past it, or at 0, a 3xx is returned as the response
+    Max int                  // default 10; past it, or at 0, a 3xx is returned as the response;
+                             // below 0 is invalid
 }
 
 func Defaults(version int) Policy // the defaults of a configuration version (below)
@@ -60,7 +63,13 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
   again, whatever came back: its failure is returned. The lists name HTTP statuses; a protocol with
   statuses of its own takes lists of its own, each status placed by whether it says the server did
   not act, as `Policy.Errors` gives such a protocol rows of its own
-  ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)).
+  ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)). An entry below 300, which no
+  failure has, or past 599, which no status has (RFC 9110 §15), is invalid, and so is one the other
+  list names for the same layer and scope, which would say at once that the server did not act and
+  that whether it acted is unknown. Where the two lists resolve from different layers, or from an
+  operation's setting and its layer's document-wide one ([layers](#layers-and-operations)), a
+  status both name stays only in the list set higher, so a configuration moves a status between
+  them by writing the list it joins alone.
 - **`Retry-After`** is the server saying when to come back. Honoring it is the default, and it never
   waits past `Backoff.Max`, so a server cannot park a caller indefinitely; a value past it ends the
   retries and returns the response.
@@ -86,7 +95,10 @@ writes ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open)).
 ## Delivery
 
 Canonical `Defaults(version)` + deep-partial overrides. Arrays replace entirely (not concat) — an
-explicit, documented rule. A layer a configuration writes is read as a target's options are ([target
+explicit, documented rule — so each retry list resolves on its own, and only then does `Resolve`
+keep a status both name in the one set higher ([retries](#the-canonical-vocabulary)). Placing it at
+each merge instead would lose one a layer moves into a list a higher layer then replaces, leaving it
+in neither. A layer a configuration writes is read as a target's options are ([target
 options](options.md)): strictly, as JSON naming each field in lower camel case
 (`retry.maxAttempts`), and over the defaults of the version the project's configuration states, so a
 default that changes is a new version and an existing configuration keeps generating what it did.
@@ -119,7 +131,8 @@ type Resolved struct {
     Ops      map[ir.OpID]Policy         // each operation some layer names, resolved whole
 }
 
-// Resolve merges the layers, lowest first, over Defaults(version).
+// Resolve merges the layers, lowest first, over Defaults(version), and then keeps a status
+// both retry lists name only in the one set higher (above).
 func Resolve(doc *ir.Document, version int,
     embedded, project, emitter Layer) (Resolved, []ir.Diagnostic)
 ```
@@ -135,13 +148,19 @@ settings outvote a project-wide choice, which then could not be made without nam
 A key naming no operation of the document is reported as a warning
 `emitters/policy/unknown-operation`, never ignored, since an operation whose ID changed would
 otherwise lose its settings in silence, and a warning rather than an error since one project's
-policy may serve several documents. Where a higher layer replaces what the document embeds, an info
+policy may serve several documents. Where a higher layer replaces what the document embeds, or its
+retry list takes a status from the other list the document embeds (above), an info
 `emitters/policy/embedded-overridden` names the setting, both values and the operation, so the
-document's author can see it was overruled. A value outside a field's vocabulary, such as a
-`WhenUncertain` other than the three its comment names, is an error `emitters/policy/invalid`, and
-the field resolves as if that layer left it unset. The engine resolves the layers once for each
-emitter, since each brings its own top layer, and reports a diagnostic the embedded and project
-layers alone draw once for the run, as the plan's are reported.
+document's author can see it was overruled. A value a configuration writes outside a field's
+vocabulary or range, such as a `RetryScope` other than the three its comment names, a `MaxAttempts`
+below 1, or a retry list naming a 2xx or a status its layer's other list names at that scope, is an
+error `emitters/policy/invalid`, and resolves as if its layer had not written it there: an
+operation's gives way to that layer's document-wide value where it has one, and to the layers below
+where it has none. One a document embeds is the reader's warning instead, as a value of the wrong
+shape there is ([embedded policy](embedded-policy.md#what-a-key-configures)), since its author meant
+something the field does not hold. The engine resolves the layers once for each emitter, since each
+brings its own top layer, and reports a diagnostic the embedded and project layers alone draw once
+for the run, as the plan's are reported.
 
 ## Precedence — declared IR facts win (hard rule)
 
