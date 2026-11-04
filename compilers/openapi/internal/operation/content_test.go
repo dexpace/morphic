@@ -181,7 +181,17 @@ func TestContent_AFileBodyKeepsTheSchemaItWrites(t *testing.T) {
 			"a nullable binary string", `schema: {type: [string, "null"], format: binary}`,
 			ir.TypeRef{Target: "t/prim/bytes", Nullable: true}, "",
 		},
-		{"a false schema", "schema: false", ir.TypeRef{}, ""},
+		{"an empty schema", "schema: {}", ir.TypeRef{Target: "t/prim/bytes"}, ""},
+		{"annotations alone", "schema: {description: raw}", ir.TypeRef{}, "raw"},
+		{"a plain string", "schema: {type: string}", ir.TypeRef{Target: "t/prim/string"}, ""},
+		{
+			"a $ref to an empty schema", `schema: {$ref: "#/components/schemas/Opaque"}`,
+			ir.TypeRef{Target: "t/openapi/components/schemas/Opaque"}, "Says nothing",
+		},
+		{
+			"a nullable empty schema", "schema: {nullable: true}",
+			ir.TypeRef{Target: "t/prim/bytes", Nullable: true, Inferred: "nullable-widening"}, "",
+		},
 		{"a type array", "schema: {type: [string, object], format: binary}", ir.TypeRef{}, ""},
 	}
 	for _, tc := range tests {
@@ -202,6 +212,7 @@ components:
   schemas:
     Blob: {type: string, format: binary, maxLength: 99, description: Raw bytes}
     Chain: {$ref: "#/components/schemas/Blob"}
+    Opaque: {description: Says nothing}
 `, tc.schema)))
 			openapitest.RequireNoErrorDiags(t, diags)
 			op := openapitest.FirstOp(t, svc)

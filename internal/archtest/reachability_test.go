@@ -42,6 +42,7 @@ const (
 // an entry here says why one is not.
 var apiRoots = map[string]string{
 	"compilers/openapi.DefaultStreamingMediaTypes": compilerAPI,
+	"compilers/openapi.DefaultBinaryMediaTypes":    compilerAPI,
 	"compilers/openapi.DefaultExtensionPromotions": compilerAPI,
 	"engine.Engine.RunSources":                     embedderAPI,
 	"ir.NewEditor":                                 transformAPI,

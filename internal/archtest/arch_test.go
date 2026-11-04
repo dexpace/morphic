@@ -273,7 +273,8 @@ var rules = map[string][]string{
 	// scope reads, and for the rows a document's schemas are read with, which oas
 	// states: the dialect question is asked of the table, never of the version.
 	// It reaches naming for what each position is called, and budget for the
-	// limits it holds.
+	// limits it holds. It reaches nodeview and yaml to weigh the declaration a
+	// $ref names, which a reference's lowering copies.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -282,10 +283,11 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/naming",
+		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
-		"github.com/speakeasy-api/openapi/openapi"},
+		"github.com/speakeasy-api/openapi/openapi", "go.yaml.in/yaml/v3"},
 	// The security schemes a document declares and the requirements that name
 	// them. It is its own package because both sides of the compiler reach it:
 	// the compiler's run lowers the schemes, and the service and operation walks

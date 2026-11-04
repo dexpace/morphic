@@ -7,6 +7,7 @@ import (
 	"encoding/json/jsontext"
 
 	soa "github.com/speakeasy-api/openapi/openapi"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind/typed"
@@ -20,14 +21,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Ctx is everything a lowering may read and none may change: the parsed
-// document, the caller's policies, the identity of the source, and the indexes
-// derived from them once at entry.
+// Ctx is everything a lowering may read: the parsed document, the caller's
+// policies, the identity of the source, and the indexes derived from them once
+// at entry.
 //
-// It is a value, so a function that takes one takes a copy, and every lowering
-// takes it as a parameter (#177): there is no shared holder to write through.
-// The maps stay unexported because a copy shares a map, so an exported one
-// would let a callee write through it.
+// It is a value: a function taking one takes a copy, and every lowering takes
+// it as a parameter (#177). Of what copies share, only expansion changes an
+// answer: past its budget, no $ref resolves. The maps stay unexported because
+// a copy shares a map, which an exported one would let a callee write through.
 //
 // Call sites bind it to c, never ctx, which the styleguide reserves for the
 // context.Context a Compile takes.
@@ -42,8 +43,8 @@ type Ctx struct {
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
 	// of the caller policies the context carries, beside the budgets, the
-	// streaming media list, the promotion mapping and NullableWidening; everything
-	// else here is a fact about the document.
+	// streaming and binary media lists, the promotion mapping and
+	// NullableWidening; everything else here is a fact about the document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -63,6 +64,11 @@ type Ctx struct {
 	// Unlike Grouping it is unexported, because it holds a map, which a struct
 	// copy would share, as with the other maps here.
 	streaming map[string]bool
+
+	// binary is the binary media-type policy, normalized into the set
+	// MediaTypeBinary answers from, and nil when the caller disabled it. It is
+	// unexported for the reason streaming is.
+	binary map[string]bool
 
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
@@ -140,6 +146,12 @@ type Ctx struct {
 	// private, so a lowering writes it only through Once. Nil in a zero context,
 	// which keeps nothing.
 	Kept *KeptOnce
+
+	// expansion charges each $ref Declared resolves what the declarations its
+	// chain names weigh. Copies share it on purpose: the budget is the run's, so
+	// once it is crossed no copy lowers a $ref, and the run is refused
+	// (ExpansionRefusal). Nil in a zero context, which bounds nothing.
+	expansion *expansion
 }
 
 // loadResult holds what a context reads of the load phase (see WithLoaded): the
@@ -175,14 +187,14 @@ type scopedPosition struct {
 	at      bind.Position
 }
 
-// New derives the immutable context for one loaded source.
+// New derives the context for one loaded source.
 //
 // The schema-name index is built here, not on first use, so every reader sees
 // the same set whatever the source order: a $ref resolved mid-lowering must see
-// a component declared later. The streaming policy is normalized here so
-// readers cannot disagree about a media type, and the promotion policy is
-// copied so no lowering can write through the context into the caller's map.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
+// a component declared later. The streaming and binary policies are normalized
+// here so readers cannot disagree about a media type, and the promotion policy
+// is copied so no lowering can write through the context into the caller's map.
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, binary BinaryMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
 	return Ctx{
 		Doc:              doc,
 		Source:           src,
@@ -192,6 +204,7 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		schemas:          declaredSchemaNames(doc),
 		rules:            load.SchemaRules(doc),
 		streaming:        streamingSet(streaming),
+		binary:           binarySet(binary),
 		promoter:         newPromoter(promotions),
 		NullableWidening: nullable,
 		overlay:          origin,
@@ -199,7 +212,17 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		typePositions: map[scopedPosition]bind.Position{},
 		reached:       resolve.NewReached(),
 		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
+		expansion:     newExpansion(limits.MaxReferenceExpansion),
 	}
+}
+
+// ExpansionRefusal returns the error refusing the document when the copies its
+// $refs made weighed past [Limits.MaxReferenceExpansion], and false when they
+// did not. It is meant to be asked once every lowering has returned: a $ref
+// past the budget lowers nothing, so a crossing after the question goes
+// unreported.
+func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
+	return c.expansion.refusal(c.SrcIndex)
 }
 
 // Promoter returns the vendor-extension promotion policy this context carries,
@@ -347,12 +370,23 @@ func Within[T, S any, R interface {
 // Otherwise it is the context of the document the chain ends in (InDocument)
 // and the position the bindings' table places the end at (bind.Table.Through),
 // the source's included for a reference another document writes (GitHub
-// #751). A chain the table places no end for keeps the use site.
-func Declared[T, S any, R interface {
-	*S
-	resolve.Referenced[T, S]
+// #751), or the use site where it places none. Past
+// [Limits.MaxReferenceExpansion] a $ref resolves to nothing
+// ([Ctx.ExpansionRefusal]).
+func Declared[T, S any, R chainable[T, S], P interface {
+	*T
+	GetRootNode() *yaml.Node
 }](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
+	// The caller lowers a copy of what a $ref's chain names, so each is charged
+	// what that weighs. One past the budget resolves to nothing, as an unresolved
+	// $ref does, so no caller lowers another copy and none costs anything. An
+	// inline entry is not charged, though a path item's own parameters reach
+	// each of its operations here, which 3.2 leaves unbounded (GitHub #1428).
+	if obj != nil && ref.GetReference() != "" &&
+		!c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
+		return nil, c, usePtr
+	}
 	in := Within[T, S](c, ref)
 	if there, at, ok := declaredElsewhere(c, obj != nil && (in.foreign || c.home != 0), usePtr); ok {
 		return obj, there, at

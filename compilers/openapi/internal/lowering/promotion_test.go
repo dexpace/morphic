@@ -25,7 +25,7 @@ import (
 
 // promoter builds the promoter a context carrying nothing but policy hands out.
 func promoter(policy lowering.ExtensionPromotions) lowering.Promoter {
-	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, policy, lowering.NullableWidening{}, overlay.Origin{}).Promoter()
+	return lowering.New(0, &soa.OpenAPI{}, ir.SourceInfo{}, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, policy, lowering.NullableWidening{}, overlay.Origin{}).Promoter()
 }
 
 // mapping is a policy reading target from sources, in the order given.

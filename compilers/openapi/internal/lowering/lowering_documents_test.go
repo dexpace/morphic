@@ -47,7 +47,7 @@ func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.Document) {
 		Data: []byte(splitRoot)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc), doc
 }
 
@@ -101,7 +101,7 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.False(t, ok, "a context given no load holds no documents")
 	none := *doc
 	none.Others = load.Others{}
-	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
 	same, ok := lowering.InDocument(unread, id)
 	assert.False(t, ok, "a document the compile did not list")
@@ -134,7 +134,7 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 
 	none := *doc
 	none.Others = load.Others{}
-	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
 	assert.False(t, lowering.SchemaRulesIn(unread, id).Defines("nullable"), "a document the compile did not list")
 	assert.False(t, unread.InScope(there.RefScope()).SchemaRules().Defines("nullable"))
