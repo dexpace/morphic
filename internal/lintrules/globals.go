@@ -20,7 +20,8 @@ import (
 // or append on it, directly or through a local alias. Reads stay legal.
 //
 // The rule reads one package's syntax, so what it cannot see is listed on the
-// function that owns each limit: rooted, aliasable, pointerMethod and builtin.
+// function that owns each limit: check, rooted, aliasable, addressOf,
+// pointerMethod and builtin.
 func (l layout) globalWrites() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "globalwrites",
@@ -34,7 +35,7 @@ func (l layout) runGlobalWrites(pass *analysis.Pass) (any, error) {
 	pipeline := slices.ContainsFunc([]string{"ir", "pass", "compilers", "emitters"}, func(dir string) bool {
 		return l.within(path, dir)
 	})
-	if !pipeline {
+	if !pipeline { // a package outside the roots is out of reach
 		return nil, nil
 	}
 	for _, f := range productionFiles(pass) {
@@ -106,7 +107,9 @@ func (s globalScope) check(root ast.Node) {
 		case *ast.SelectorExpr:
 			s.pointerMethod(n)
 		default:
-			// Nothing else writes, or one that does is out of reach.
+			// Nothing else writes, or the write is out of reach: a channel send or
+			// close is synchronized, and a value returned, or passed to a call or a
+			// goroutine, is written by a callee this rule does not read.
 		}
 	}
 }
@@ -123,8 +126,9 @@ func (s globalScope) assign(n *ast.AssignStmt) {
 
 // target reports a write to e with verb, when e is rooted at a package-level
 // variable. Beneath the variable it is a write to an element or field of it,
-// whatever the verb. A bare alias is the local itself, so rebinding it writes
-// nothing the variable holds.
+// whatever the verb. Assigning to a bare alias rebinds the local and writes
+// nothing the variable holds, unlike taking its address or calling a pointer
+// method on it, which hand out a value that is the variable's.
 func (s globalScope) target(e ast.Expr, verb string) {
 	r, ok := s.rooted(e)
 	if !ok || r.rebinding() {
@@ -137,13 +141,14 @@ func (s globalScope) target(e ast.Expr, verb string) {
 }
 
 // addressOf reports &x where x is rooted at a package-level variable. The
-// pointer reaches whatever the variable holds, and what is written through it
-// afterwards, by a call, reflect or unsafe, is out of sight.
+// pointer reaches whatever the variable holds, a bare alias included, and what
+// is written through it afterwards, by a call, reflect or unsafe, is out of
+// sight.
 func (s globalScope) addressOf(n *ast.UnaryExpr) {
 	if n.Op != token.AND {
 		return
 	}
-	if r, ok := s.rooted(n.X); ok && !r.rebinding() {
+	if r, ok := s.rooted(n.X); ok {
 		s.report(n.Pos(), "takes the address of", r)
 	}
 }
@@ -151,10 +156,11 @@ func (s globalScope) addressOf(n *ast.UnaryExpr) {
 // pointerMethod reports a method call or method value that makes Go take the
 // address of an operand rooted at a package-level variable: a pointer-receiver
 // method on a value, whether the method is promoted or not, and whether the
-// path to the value crosses a pointer or not. A receiver that already is a
-// pointer is not one, so a variable holding a pointer is out of reach: its
-// value is the receiver, and the method's own contract decides whether the call
-// is safe, as for (*regexp.Regexp).MatchString.
+// path to the value crosses a pointer or not. A variable holding a pointer is
+// out of reach, as is a value-receiver method on a named map or slice: the
+// receiver is the variable's value, and the method's own contract decides
+// whether the call is safe, as for (*regexp.Regexp).MatchString. Such a method
+// can write: a counter behind new(atomic.Int64) passes.
 func (s globalScope) pointerMethod(n *ast.SelectorExpr) {
 	sel, ok := s.pass.TypesInfo.Selections[n]
 	if !ok {
@@ -167,7 +173,7 @@ func (s globalScope) pointerMethod(n *ast.SelectorExpr) {
 	if _, ptr := types.Unalias(fn.Signature().Recv().Type()).(*types.Pointer); !ptr || !receiverIsValue(sel) {
 		return
 	}
-	if r, ok := s.rooted(n.X); ok && !r.rebinding() {
+	if r, ok := s.rooted(n.X); ok {
 		s.report(n.Sel.Pos(), "calls a pointer method on", r)
 	}
 }
@@ -221,9 +227,8 @@ type reach struct {
 	bare   bool
 }
 
-// rebinding reports whether the operand is a local alias itself: the local's own
-// storage, which holds nothing of the variable until something is written
-// through it.
+// rebinding reports whether the operand is a local alias itself, which an
+// assignment replaces without writing what the variable holds. Only target asks.
 func (r reach) rebinding() bool { return r.alias != nil && r.bare }
 
 // rooted returns where e is rooted: the variable left when parentheses, field
@@ -244,6 +249,8 @@ func (s globalScope) rooted(e ast.Expr) (reach, bool) {
 			if s.qualifier(x.X) {
 				return s.reachOf(x.Sel, bare) // pkg.Name is the variable itself
 			}
+		default:
+			// Any other form is stripped below, or is rooted nowhere.
 		}
 		inner, ok := operandOf(e)
 		if !ok {
@@ -347,7 +354,7 @@ func (s globalScope) bindingsIn(root ast.Node) []binding {
 	var out []binding
 	for n := range ast.Preorder(root) {
 		for _, b := range s.bindingsOf(n) {
-			id, ok := b.target.(*ast.Ident)
+			id, ok := ast.Unparen(b.target).(*ast.Ident)
 			if !ok {
 				continue
 			}

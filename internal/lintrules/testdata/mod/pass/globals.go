@@ -16,6 +16,21 @@ func (t *tally) Add()    { t.n++ }
 func (t tally) Get() int { return t.n }
 func (t *tally) init()   { counter = 3 } // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
 
+// ptrAlias spells *tally, and a method declared on it takes the pointer.
+type ptrAlias = *tally
+
+func (t ptrAlias) Peek() int { return t.n }
+
+// registry is a named map, and stack a named slice, whose methods write
+// through the receiver.
+type (
+	registry map[string]int
+	stack    []int
+)
+
+func (r registry) Set(k string) { r[k] = 1 }
+func (s *stack) Push(v int)     { *s = append(*s, v) }
+
 type holder struct{ tally }
 
 type holderPtr struct{ *tally }
@@ -38,6 +53,10 @@ var (
 	cursor                   = &tally{}
 	shelf                    = &holder{}
 	tallies                  []tally
+	byPtr                    map[*tally]int
+	queue                    chan []int
+	store                    = registry{}
+	slab                     stack
 	grid                     *[2][]int
 	feed                     func(yield func([]int) bool)
 	matcher                  = regexp.MustCompile(`x`)
@@ -120,8 +139,14 @@ func Methods() {
 	shelf.tally.Add() // want "globalwrites: calls a pointer method on the package-level variable shelf; keep the state in a local or an argument"
 	tallies[0].Add()  // want "globalwrites: calls a pointer method on the package-level variable tallies; keep the state in a local or an argument"
 	_ = add
+	ledger.Peek() // want "globalwrites: calls a pointer method on the package-level variable ledger; keep the state in a local or an argument"
 	boxedPtr.Add()
+	// A stated limit, not a read: a pointer variable's method can write, and
+	// the rule leaves it to the method's own contract.
 	cursor.Add()
+	// The same limit for a value-receiver method on a named map, whose receiver
+	// is the variable's value.
+	store.Set("a")
 	_ = ledger.Get()
 	_ = tally.Get(ledger)
 	_ = (*tally).Add
@@ -145,6 +170,7 @@ func Builtins() {
 // Aliases writes a variable through the locals that hold it.
 func Aliases(k string) {
 	m := names
+	_ = &m         // want "globalwrites: takes the address of the package-level variable names through its alias m; keep the state in a local or an argument"
 	m["a"] = 1     // want "globalwrites: writes an element or field of the package-level variable names through its alias m; keep the state in a local or an argument"
 	delete(m, "a") // want "globalwrites: writes through delete to the package-level variable names through its alias m; keep the state in a local or an argument"
 	n := m
@@ -167,7 +193,15 @@ func Aliases(k string) {
 		row[0] = 1 // want "globalwrites: writes an element or field of the package-level variable grid through its alias row; keep the state in a local or an argument"
 	}
 	m = nil
+	l := slab
+	l.Push(1) // want "globalwrites: calls a pointer method on the package-level variable slab through its alias l; keep the state in a local or an argument"
+	for p := range byPtr {
+		p.n = 1 // want "globalwrites: writes an element or field of the package-level variable byPtr through its alias p; keep the state in a local or an argument"
+	}
+	x, y := names, items
+	y[0] = 2 // want "globalwrites: writes an element or field of the package-level variable items through its alias y; keep the state in a local or an argument"
 	_, _ = ok, k
+	_ = x
 }
 
 // Chain writes through an alias that is bound before its source is.
@@ -176,6 +210,10 @@ func Chain(k int) {
 	second = first
 	first = items
 	second[k] = 1 // want "globalwrites: writes an element or field of the package-level variable items through its alias second; keep the state in a local or an argument"
+
+	var m1 map[string]int
+	(m1) = names
+	m1["a"] = 1 // want "globalwrites: writes an element or field of the package-level variable names through its alias m1; keep the state in a local or an argument"
 }
 
 // Literal writes from a function literal.
@@ -225,6 +263,8 @@ func Copies() {
 	m = map[string]int{}
 	m = nil
 	_ = m
+	b := <-queue
+	b[0] = 1
 }
 
 // Shadows writes locals named like variables.
