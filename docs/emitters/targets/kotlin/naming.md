@@ -19,14 +19,16 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   ([Swift](swift.md)), each of these is reserved in every unit, whichever unit declares it.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
-Neither a hard keyword nor `kotlin` is a units name. A hard keyword as a package segment takes the
-escape below, which kotlinc accepts in a `package` and an `import` alike: `fun`, `object`, `when`,
-`is`, `in` and `typealias`, backticked, compile for the JVM, JS and macOS Native and link into a
-framework, and those with `class`, `val`, `interface`, `as`, `true`, `null`, `this`, `super`,
-`package`, `return`, `throw` and `try` on the JVM. kotlinc refuses `kotlin` only as a package's
-first segment ("Only the Kotlin standard library is allowed to use the 'kotlin' package"), which is
-the root's and so the options' to name. Each of these was measured with Kotlin 2.4.0 and Gradle
-9.8.2 on darwin/arm64.
+None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
+takes the escape below, which kotlinc accepts in a `package` and an `import` alike: `fun`, `object`,
+`when`, `is`, `in` and `typealias`, backticked, compile for the JVM, JS and macOS Native and link
+into a framework, and those with `class`, `val`, `interface`, `as`, `true`, `null`, `this`, `super`,
+`package`, `return`, `throw` and `try` on the JVM. kotlinc refuses `kotlin` as a package's first
+segment ("Only the Kotlin standard library is allowed to use the 'kotlin' package"), and the JVM
+refuses to load a class whose package begins with `java` (`SecurityException: Prohibited package
+name`). Only a name the options give a unit can begin a package, the root's above all, so one that
+begins with either is an options error ([target options](../../contract/options.md)). Each behaviour
+this section states was measured with Kotlin 2.4.0, Gradle 9.8.2 and Corretto 25 on darwin/arm64.
 
 ## The escape
 
