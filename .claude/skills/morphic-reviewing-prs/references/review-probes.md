@@ -54,12 +54,13 @@ defect, keep a `main` control.
 `citation-per-case`
 
 - **Rule.** A rule that routes a set of cases to the entries it cites claims each case: check every
-  case its scope reaches against the entry it is sent to, not only that the entry exists and reads as
-  described. A widened or new scope is read case by case.
+  case its scope reaches against the entry it is sent to, not only that the entry exists and reads
+  as described. A widened or new scope is read case by case.
 - **Why.** A rule widened from load and binding to lowering kept citing two entries that hold no
   lowering bound's kind; the citations resolved, so the claim sweep passed it (#1441).
-- **Probe.** For each case the scope reaches, `grep -n '<the case>' <cited file>` shows the entry
-  holding it is the one the citing text sends it to.
+- **Probe.** For each case the scope reaches,
+  `awk -v pat='<the case>' '/^#+ /{h=$0} $0 ~ pat {print FNR": "h}' <cited file>` prints the
+  entry holding it, which must be the one the citing text sends it to.
 
 ## Read an edited rule against those on its acts and constructs
 `edited-rule-against-its-neighbours`
