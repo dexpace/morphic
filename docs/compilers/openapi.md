@@ -3242,14 +3242,13 @@ they are read from every declaration of the part's name: `Multi` where any is an
 no `type` and a union with an array among its branches, `Filename` where any is a `string` with
 `format` `binary` or `byte`. In a multipart body a part is a file too where every declaration of
 it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an array through each of its
-elements, its `prefixItems` and the `items` after them, `items: false` admitting none, and a union
-writing no `type` beside it with an array among its branches through each branch as a body's union
-branch is read, an array branch through its elements: one declaring raw bytes; one leaving its
-media type to say, where its encoding entry's `contentType` names only `application/octet-stream`
-or media types the binary policy names ([`binary-media`](#binary-media)),
-`PartEncoding.Inferred` being `binary-media-type` where it names one of the latter; and, from
-OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose default content type OpenAPI
-makes `application/octet-stream`. A `string` part with
+elements, its `prefixItems` and the `items` after them, `items: false` admitting none, as is an
+array branch of a union it writes, whose other branches are read as a body's union branches are: one
+declaring raw bytes; one leaving its media type to say, where its encoding entry's `contentType`
+names only `application/octet-stream` or media types the binary policy names
+([`binary-media`](#binary-media)), `PartEncoding.Inferred` being `binary-media-type` where it names
+one of the latter; and, from OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose
+default content type OpenAPI makes `application/octet-stream`. A `string` part with
 neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
 default disagrees, and an array writing no `items` says nothing of its elements past its prefix, so
 neither is a file. A part is entered only when its `PartEncoding` holds something, so a body that

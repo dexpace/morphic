@@ -45,13 +45,13 @@ func partEncodings(c lowering.Ctx, ts *compile.Types, media *soa.MediaType, mt s
 	multipart := isMultipart(mt)
 	keys := partKeys{c: c, body: body, fallbackDoc: fallbackDoc, fallback: fallback, multipart: multipart}
 	for _, part := range parts {
-		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, part, encMap, mediaPtr)
+		pe, partUnmodeled, partDiags := buildPartEncoding(c, ts, part.name, encMap, mediaPtr)
 		diags = append(diags, partDiags...)
 		// Kept whether or not the part's encoding ends up empty: an entry declaring
 		// only x-* lowers to an empty PartEncoding that is left out of the map, and
 		// what it did declare would go with it.
 		unmodeled = annotation.MergeUnmodeled(unmodeled, partUnmodeled)
-		keys.parts = append(keys.parts, keyedPart{name: part.name, encoding: pe,
+		keys.parts = append(keys.parts, keyedPart{part: part, encoding: pe,
 			file: readPartFile(c, part, pe.ContentTypes, multipart)})
 	}
 	keys.out = make(map[ir.PropID]ir.PartEncoding, len(keys.parts))
@@ -79,12 +79,11 @@ type partKeys struct {
 	multipart bool
 }
 
-// keyedPart is one part's name, the encoding it carries, its flags read off the
-// schemas declaring it, and what those schemas and its encoding entry say of it
-// being a file (readPartFile).
+// keyedPart is one part, the encoding its entry declares, and what its
+// declarations and that entry say of it being a file (readPartFile).
 type keyedPart struct {
 	file     partFile
-	name     string
+	part     bodyPart
 	encoding ir.PartEncoding
 }
 
@@ -102,12 +101,12 @@ func (k partKeys) Settle(reg ir.TypeRegistry) []ir.Diagnostic {
 	}
 	members := partMembers(reg, k.body)
 	for _, p := range k.parts {
-		prop := members[p.name]
-		pe := p.file.apply(partFlags(node, prop, p.encoding, k.multipart))
+		prop := members[p.part.name]
+		pe := p.file.apply(partFlags(node, k.c.Bindings(), prop, p, k.multipart))
 		if partEncodingEmpty(pe) {
 			continue
 		}
-		k.out[partPropID(prop, doc, p.name, schemaPtr)] = pe
+		k.out[partPropID(prop, doc, p.part.name, schemaPtr)] = pe
 	}
 	return nil
 }
@@ -299,18 +298,21 @@ func partMembers(reg ir.TypeRegistry, body ir.TypeID) map[string]*ir.Property {
 	return members
 }
 
-// partFlags returns pe with the structural flags of the part prop holds, read
-// off the type the allOf merge settled on (partTypeFlags), multipart saying
-// whether the body is multipart. Where the body model has no such property, or
-// its type is a kind partTypeFlags cannot decide, pe keeps the flags read off
-// every schema declaring the part.
-func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), prop *ir.Property, pe ir.PartEncoding, multipart bool) ir.PartEncoding {
-	if prop == nil {
-		return pe
+// partFlags returns p's encoding with the structural flags of the part prop
+// holds, read off the type the allOf merge settled on (partTypeFlags),
+// multipart saying whether the body is multipart. Where the body model has no
+// such property, or its type is a kind partTypeFlags cannot decide, they are
+// read off every schema declaring the part, as refs resolves them
+// (declaredFlags), a reading left until then since it walks a union's branches.
+func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), refs *typed.Bindings, prop *ir.Property, p keyedPart, multipart bool) ir.PartEncoding {
+	pe := p.encoding
+	if prop != nil {
+		if multi, file, decided := partTypeFlags(node, prop.Type, multipart); decided {
+			pe.Multi, pe.Filename = multi, file
+			return pe
+		}
 	}
-	if multi, file, decided := partTypeFlags(node, prop.Type, multipart); decided {
-		pe.Multi, pe.Filename = multi, file
-	}
+	pe.Multi, pe.Filename = declaredFlags(refs, p.part.schemas)
 	return pe
 }
 
@@ -415,28 +417,31 @@ func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multip
 	return false, false, true
 }
 
-// buildPartEncoding assembles one part's PartEncoding: explicit encoding config
-// (content types, headers, style, explode) merged with the structural flags Multi
-// (array part) and Filename (binary/file part), read off every schema declaring
-// the part. partKeys reads them off the part's merged type instead where it can
-// (partFlags).
-func buildPartEncoding(c lowering.Ctx, ts *compile.Types, part bodyPart, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
-	pe := ir.PartEncoding{}
-	var unmodeled ir.Unmodeled
-	var diags []ir.Diagnostic
-	if encMap != nil {
-		if enc, ok := encMap.Get(part.name); ok {
-			pe, unmodeled, diags = encodingConfig(c, ts, enc,
-				mediaPtr+ids.Ptr("encoding", part.name), ids.Scope("encoding", part.name))
+// buildPartEncoding assembles the explicit encoding config of the part named
+// name: content types, headers, style and explode. Its structural flags, Multi
+// and Filename, are partKeys' to read once every type has lowered (partFlags).
+func buildPartEncoding(c lowering.Ctx, ts *compile.Types, name string, encMap *sequencedmap.Map[string, *soa.Encoding], mediaPtr jsontext.Pointer) (ir.PartEncoding, ir.Unmodeled, []ir.Diagnostic) {
+	if encMap == nil {
+		return ir.PartEncoding{}, nil, nil
+	}
+	enc, ok := encMap.Get(name)
+	if !ok {
+		return ir.PartEncoding{}, nil, nil
+	}
+	return encodingConfig(c, ts, enc, mediaPtr+ids.Ptr("encoding", name), ids.Scope("encoding", name))
+}
+
+// declaredFlags reads a part's structural flags off every schema declaring it,
+// as refs resolves them: multi where any declares an array (declaresArray),
+// file where any is a string with format binary or byte (schemaIsFilePart).
+func declaredFlags(refs *typed.Bindings, schemas []*oas3.JSONSchema[oas3.Referenceable]) (multi, file bool) {
+	for _, js := range schemas {
+		if s := schemaOf(refs, js); s != nil {
+			multi = multi || declaresArray(refs, s)
+			file = file || schemaIsFilePart(s)
 		}
 	}
-	for _, js := range part.schemas {
-		if ps := schemaOf(c.Bindings(), js); ps != nil {
-			pe.Multi = pe.Multi || declaresArray(c.Bindings(), ps)
-			pe.Filename = pe.Filename || schemaIsFilePart(ps)
-		}
-	}
-	return pe, unmodeled, diags
+	return multi, file
 }
 
 // schemaIsFilePart reports whether a multipart part schema is a file

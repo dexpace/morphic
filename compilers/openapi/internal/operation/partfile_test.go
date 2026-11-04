@@ -151,6 +151,8 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 			"{anyOf: [{type: 'null'}, {type: array, items: {}}]}", "", openapi.Options{}, true, true, ""},
 		{"a union with a true branch and an array", "3.1.0", multipart, "{oneOf: [true, {type: array, items: {}}]}", "",
 			openapi.Options{}, true, true, ""},
+		{"a string of one file or a list of them", "3.1.0", multipart,
+			"{type: string, oneOf: [" + binary + ", {type: array, items: " + binary + "}]}", "", openapi.Options{}, true, false, ""},
 		{"a union of null alone", "3.1.0", multipart, "{anyOf: [{type: 'null'}]}", "", openapi.Options{}, false, false, ""},
 		{"a union with an array and a nested union", "3.1.0", multipart,
 			"{oneOf: [{anyOf: [{}, {}]}, {type: array, items: {}}]}", "", openapi.Options{}, false, true, ""},

@@ -45,10 +45,16 @@ func (r fileReading) open() bool { return r == readsString || r == readsUntyped 
 
 // readFile reads js, a body's or a part's schema, as a file: through a $ref to
 // the schema its chain ends on, and through the branches of a union it writes
-// (readUnion). Raw bytes are read through a refinement to the schema deciding
-// it (schema.DecidingSchema). An absent schema, and a null written for one, is
-// untyped.
+// (readUnion), each as readBranch reads it. Raw bytes are read through a
+// refinement to the schema deciding it (schema.DecidingSchema). An absent
+// schema, and a null written for one, is untyped.
 func readFile(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+	return readSchema(c, js, readBranch)
+}
+
+// readSchema reads js as readFile does, with branch reading each branch of a
+// union js writes.
+func readSchema(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], branch branchReader) fileReading {
 	s, head, decided := readHead(c, js)
 	if decided {
 		return head
@@ -63,11 +69,14 @@ func readFile(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReadi
 	}
 	// The union holds beside what s says itself, so a string s keeps its
 	// branches to strings.
-	if read := readUnion(c, union); own != readsString || read != readsUntyped {
+	if read := readUnion(c, union, branch); own != readsString || read != readsUntyped {
 		return read
 	}
 	return readsString
 }
+
+// branchReader reads one branch of a union as a file.
+type branchReader func(lowering.Ctx, *oas3.JSONSchema[oas3.Referenceable]) fileReading
 
 // readBranch reads js, a union's branch, as readFile does, but a branch that
 // is itself a union reads as other, so no reading descends past one union.
@@ -203,28 +212,43 @@ func openKeyword(key string, unions bool) bool {
 	}
 }
 
-// readUnion reads the branches of an anyOf or oneOf (readBranch) as one: the
-// least of them, since a file must be every value any branch admits. A branch
-// admitting only null says nothing of the bytes, so it is passed over; a union
-// of nothing else is other.
-func readUnion(c lowering.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable]) fileReading {
-	least, read := readsBinary, false
-	for _, branch := range branches {
-		if s := schemaOf(c.Bindings(), branch); s != nil && admitsOnlyNull(s) {
-			continue
-		}
-		least, read = min(least, readBranch(c, branch)), true
-	}
-	if !read {
+// readUnion reads the branches of an anyOf or oneOf as one, each as read reads
+// it: the least of them, since a file must be every value any branch admits. A
+// branch admitting only null says nothing of the bytes, so it is passed over;
+// a union of nothing else is other.
+func readUnion(c lowering.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable], read branchReader) fileReading {
+	refs := c.Bindings()
+	if !slices.ContainsFunc(branches, func(branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+		return !admitsOnlyNull(refs, branch)
+	}) {
 		return readsOther
+	}
+	return leastOf(c, branches, func(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
+		if admitsOnlyNull(c.Bindings(), branch) {
+			return readsBinary // the top, which leaves the least of the others
+		}
+		return read(c, branch)
+	})
+}
+
+// leastOf returns the least reading read gives any of items, readsBinary for
+// none. It stops at readsOther, which no item read later can lower, so a wide
+// union that one branch decides costs each use that branch alone.
+func leastOf[T any](c lowering.Ctx, items []T, read func(lowering.Ctx, T) fileReading) fileReading {
+	least := readsBinary
+	for _, item := range items {
+		if least = min(least, read(c, item)); least == readsOther {
+			return readsOther
+		}
 	}
 	return least
 }
 
-// admitsOnlyNull reports whether s is a type null and nothing else a reader of
-// a file looks at.
-func admitsOnlyNull(s *oas3.Schema) bool {
-	return slices.Equal(s.GetType(), []oas3.SchemaType{oas3.SchemaTypeNull}) &&
+// admitsOnlyNull reports whether branch, one of a union's, read through the
+// $refs it starts, is a type null and nothing else a reader of a file looks at.
+func admitsOnlyNull(refs *typed.Bindings, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+	s := schemaOf(refs, branch)
+	return s != nil && slices.Equal(s.GetType(), []oas3.SchemaType{oas3.SchemaTypeNull}) &&
 		writesOnlyOpenKeywords(s, false /* unions */)
 }
 
