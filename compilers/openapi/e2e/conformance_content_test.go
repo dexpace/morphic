@@ -4,6 +4,8 @@
 package e2e_test
 
 import (
+	"encoding/json/jsontext"
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -375,4 +377,49 @@ func assertNestedEncoding32(t *testing.T, doc *ir.Document, diags []ir.Diagnosti
 	}
 	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey),
 		"3.2 defines these keys, so the census must leave them alone")
+}
+
+// assertUnkeyedEncoding pins an encoding entry whose key names no part the body
+// declares: a catch-all's entry, a property only a union's branch holds, and a
+// key naming nothing, in a multipart and in a url-encoded body. Each is kept
+// whole, as written, under the content's own Unmodeled with one info at the
+// entry, and keys nothing in Content.Encoding, where the part beside it stays
+// keyed.
+func assertUnkeyedEncoding(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
+	const (
+		multipartPtr = "/paths/~1%s/post/requestBody/content/multipart~1form-data/encoding/"
+		formPtr      = "/paths/~1form/post/requestBody/content/application~1x-www-form-urlencoded/encoding/"
+	)
+	cases := []struct {
+		op, key, pointer, value string
+		keyedParts              int
+	}{
+		{"assets", "*", fmt.Sprintf(multipartPtr, "assets") + "*", `{"contentType":"*/*"}`, 0},
+		{"union", "file", fmt.Sprintf(multipartPtr, "union") + "file", `{"contentType":"image/png"}`, 0},
+		{"ghost", "ghost", fmt.Sprintf(multipartPtr, "ghost") + "ghost",
+			`{"contentType":"image/png","headers":{"X-Part-Id":{"schema":{"type":"integer"}}}}`, 1},
+		{"file", "file", fmt.Sprintf(multipartPtr, "file") + "file", `{"contentType":"image/png"}`, 0},
+		{"form", "ghost", formPtr + "ghost", `{"explode":false,"style":"form"}`, 0},
+	}
+	for _, tc := range cases {
+		op, ok := opByName(doc, tc.op)
+		require.True(t, ok, tc.op)
+		require.NotNil(t, op.Request, tc.op)
+		content := op.Request.Contents[0]
+
+		assert.Equal(t, tc.op == "file", content.File != nil, "%s: whether the body is a file body", tc.op)
+		assert.Len(t, content.Encoding, tc.keyedParts, "%s: an entry for no part keys nothing", tc.op)
+		for _, pe := range content.Encoding {
+			assert.Empty(t, pe.Headers, "%s: the part beside the entry is its own", tc.op)
+		}
+		assert.Equal(t, []string{"openapi:encoding/" + tc.key}, slices.Sorted(maps.Keys(content.Unmodeled)),
+			"%s: one record and nothing for what the entry declares", tc.op)
+		entry := content.Unmodeled["openapi:encoding/"+tc.key]
+		assert.Equal(t, ir.ReasonNoIRHome, entry.Reason, tc.op)
+		assert.JSONEq(t, tc.value, string(entry.Value), "%s: kept as written", tc.op)
+		assert.Equal(t, jsontext.Pointer(tc.pointer), entry.Provenance.Pointer, "%s: located at the entry", tc.op)
+		assert.Equal(t, []ir.Severity{ir.SeverityInfo}, diagsAt(diags, diag.DegradedConstruct, tc.pointer),
+			"%s: one info at the entry", tc.op)
+	}
+	assert.False(t, openapitest.HasDiag(diags, diag.UnknownObjectKey), "the entries' own keys are not judged")
 }
