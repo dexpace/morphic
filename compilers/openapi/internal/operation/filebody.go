@@ -233,7 +233,8 @@ func readUnion(c lowering.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable], 
 
 // leastOf returns the least reading read gives any of items, readsBinary for
 // none. It stops at readsOther, which no item read later can lower, so a wide
-// union that one branch decides costs each use that branch alone.
+// union that one branch decides costs each use that branch alone; one no
+// branch decides is read whole at each use (GitHub #1460).
 func leastOf[T any](c lowering.Ctx, items []T, read func(lowering.Ctx, T) fileReading) fileReading {
 	least := readsBinary
 	for _, item := range items {

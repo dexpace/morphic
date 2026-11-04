@@ -352,7 +352,8 @@ const maxPartUnions = 64
 
 // unionMembers returns the variants of union through the unions nested in it,
 // each read once, so a union naming itself ends. ok is false where a variant
-// names no node or more than maxPartUnions unions are read.
+// names no node or more than maxPartUnions unions are read. Each part naming a
+// union reads it again (GitHub #1460).
 func unionMembers(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) (members []ir.TypeRef, ok bool) {
 	pending := []*ir.Union{union}
 	seen := map[ir.TypeID]bool{}
