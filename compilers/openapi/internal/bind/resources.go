@@ -341,6 +341,24 @@ func (r resources) identify(id, base string) (uri, part string, ok bool) {
 	return uri, part, ok
 }
 
+// IdentifierURI returns the URI the identifier id names, written where the base
+// is base, an absolute URI such as a fetched document's, as the binder reads one
+// (resources.identify): its part before the '#', trimmed, resolved by RFC 3986.
+// local reports that a reference under it may name a location on disk: a
+// file: URI, or one whose scheme is a single letter, as a Windows drive's is,
+// which resolveURI does not resolve as a URL. It is false where id names none,
+// or base is no absolute URI.
+func IdentifierURI(id, base string) (uri string, local, ok bool) {
+	if b, err := url.Parse(base); err != nil || len(b.Scheme) < 2 {
+		return "", false, false
+	}
+	if uri, _, ok = (resources{}).identify(id, base); !ok {
+		return "", false, false
+	}
+	u, err := url.Parse(uri)
+	return uri, err != nil || len(u.Scheme) < 2 || strings.EqualFold(u.Scheme, "file"), true
+}
+
 // resolveURI is the URI ref names, written where the base is base: resolved by
 // RFC 3986 §5.2 where base is an absolute URI, as an $id gives one, and placed
 // as a $ref's document part is (docs.locate) where base is a document's

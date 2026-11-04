@@ -132,3 +132,33 @@ func TestDialectAt_ReadsTheInnermostRootAtOrAboveAPosition(t *testing.T) {
 	_, ok := bind.DialectAt(map[bind.Position]string{}, bind.Position{Pointer: "/a"})
 	assert.False(t, ok, "no roots hold anything")
 }
+
+// TestIdentifierURI_ReadsAnIdentifierAsTheBinderDoes pins the URI an
+// identifier names against an absolute base, as a fetched document's: its part
+// before the '#', trimmed, resolved by RFC 3986, the base itself for none, and
+// nothing for a fragment that is not empty, a space among them, or a base that
+// is no absolute URI; and whether a reference under it may name a location on
+// disk, as under a file: URI or a drive letter.
+func TestIdentifierURI_ReadsAnIdentifierAsTheBinderDoes(t *testing.T) {
+	t.Parallel()
+	const base = "https://host/dir/a.yaml"
+	for _, tc := range []struct {
+		id, want  string
+		local, ok bool
+	}{
+		{"b/", "https://host/dir/b/", false, true},
+		{" FILE:///x/#", "file:///x/", true, true},
+		{"c:/x/", "c:///x/", true, true},
+		{"/users/1", "https://host/users/1", false, true},
+		{"#", base, false, true},
+		{"#frag", "", false, false},
+		{"file:///x/# ", "", false, false},
+	} {
+		got, local, ok := bind.IdentifierURI(tc.id, base)
+		assert.Equal(t, tc.ok, ok, "%q", tc.id)
+		assert.Equal(t, tc.want, got, "%q", tc.id)
+		assert.Equal(t, tc.local, local, "%q", tc.id)
+	}
+	_, _, ok := bind.IdentifierURI("b/", "/dir/a.yaml")
+	assert.False(t, ok, "a base that is no absolute URI")
+}

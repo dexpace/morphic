@@ -463,9 +463,8 @@ func declaresShape(s *oas3.Schema) bool {
 // what to *build*. Wherever the question is instead whether a lowering can carry
 // what the position wrote, the distinction does not apply: an ir.Union has no
 // element type, so `{oneOf: [...], items: {...}}` loses the `items` as surely as
-// it would lose a co-declared property set. An `items` written as a list, a
-// tuple in a draft, narrows as one schema does, read off the raw node, as no
-// documented reading of the parser's says what its model holds for one.
+// it would lose a co-declared property set. An `items` list narrows too, read
+// off the raw node, since nothing documents what the parser's model holds there.
 func narrowsInstance(s *oas3.Schema) bool {
 	_, listed := listedItems(s)
 	return len(s.GetRequired()) > 0 || listed || annotation.Written(s.GetItems()) || len(s.GetPrefixItems()) > 0
