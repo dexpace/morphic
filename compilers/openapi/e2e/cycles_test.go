@@ -276,6 +276,59 @@ func TestCompile_CycleIsReportedAtItsLeastMemberInEitherOrder(t *testing.T) {
 	}
 }
 
+// TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop pins the gates that keep an
+// allOf branch and a union branch on a loop of $refs from being reported twice.
+// Load reports the loop once as cyclic-ref, so the lowering reports no
+// unresolved-ref for a branch on it: removing the gate in fillRefBranch or the
+// one in diagUnresolvedBranches adds that error. Each case reaches one gate.
+func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
+	t.Parallel()
+	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n"
+	type report struct {
+		code     string
+		severity ir.Severity
+		pointer  string
+	}
+	tests := []struct {
+		name  string
+		body  string
+		diags []report
+	}{
+		{"allOf branches", `    Y:
+      allOf:
+        - $ref: '#/components/schemas/Y/allOf/1'
+        - $ref: '#/components/schemas/Y/allOf/0'
+`, []report{{diag.CyclicRef, ir.SeverityError, "/components/schemas/Y/allOf/0"}}},
+		{"union branches beside structural keywords", `    Z:
+      type: object
+      properties:
+        id: {type: string}
+      oneOf:
+        - $ref: '#/components/schemas/Z/oneOf/1'
+        - $ref: '#/components/schemas/Z/oneOf/0'
+`, []report{
+			{diag.CyclicRef, ir.SeverityError, "/components/schemas/Z/oneOf/0"},
+			{diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/Z"},
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags, err := openapi.New().Compile(t.Context(),
+				[]compilers.Source{{Path: "branches.yaml", Data: []byte(head + tc.body)}}, compilers.Options{})
+			require.NoError(t, err, "a loop is a spec problem, not a Go error")
+			require.NotNil(t, doc, "a loop of schema $refs does not refuse the document")
+
+			got := make([]report, 0, len(diags))
+			for _, d := range diags {
+				got = append(got, report{d.Code, d.Severity, string(d.Provenance.Pointer)})
+			}
+			assert.Equal(t, tc.diags, got, "the loop is the whole report; got %+v", diags)
+			assert.False(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "the loop is not also unresolved: %+v", diags)
+		})
+	}
+}
+
 // TestCompile_ALoopThroughAnotherDocumentIsReportedOnce pins a loop of schema
 // $refs that another document's content closes, with external references on:
 // one wholly in that document (GitHub #547), one closing through it and back
