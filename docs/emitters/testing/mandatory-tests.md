@@ -279,10 +279,11 @@ throughout these documents.
 38. **T-38 · Enums over every value type** — on every target, an enum of each primitive a
     `ValueType` can name, `bool`, `integer`, `number`, `decimal`, `date`, `uuid` and `bytes` among
     them, closed and open, encodes each member with no `WireName` as its value type's JSON kind and
-    decodes it back to the same constant, a number spelled with trailing zeros included, while two
-    `uuid` members differing only in case decode to two. Where the target's constants cannot hold
-    the type, or an `integer` member past the default row's range, the enum compiles and the
-    member's value is reachable as the row's type; a `datetime_offset` member the row's codec
-    refuses, such as a leap second, fails only where its value is read; and every member is written
-    as a value JSON compares equal to its wire form
-    ([a member on the wire](../refine/enums.md#a-member-on-the-wire)).
+    decodes it back to the constant of the first member holding its value, a number spelled with
+    trailing zeros included and a `string` enum repeating a value among them, while two `uuid`
+    members differing only in case decode to two. Where the target's constants cannot hold the type,
+    the member's value is reachable as the row's type, and a `datetime_offset` member the row's
+    codec refuses, such as a leap second, fails only where its value is read. An `integer` member
+    past the default row's range draws `emitters/<target>/unrepresentable-member` and leaves the
+    enum's form as it would be without it, and every member is written as a value JSON compares
+    equal to its wire form ([a member on the wire](../refine/enums.md#a-member-on-the-wire)).

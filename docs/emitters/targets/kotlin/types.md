@@ -29,19 +29,24 @@ takes the member's name alone (`ACTIVE`, as the naming policy cases it).
 
 `kotlinx.serialization` writes an `enum class` as a string, its entry's `@SerialName`, which is a
 member's wire form only for a `string` enum ([a member on the
-wire](../../refine/enums.md#a-member-on-the-wire)), and refuses `1.0` as a `Long`, which an
-`integer` admits. So every other enum but a flags one, closed or open, codes through a generated
-`KSerializer` that writes each member's wire form, the value type's JSON kind where it has no
-`WireName`, and decodes by comparing as JSON does. A closed one is an `enum class` whose entry holds
-the member as the row's type, `val value: LocalDate`, decoded through the row's codec when first
-read wherever Kotlin can write no `const val` of the member, as of a `LocalDate` or of a `Long` past
-its range. A member the codec refuses, such as a leap second `java.time` cannot hold, then fails
-where it is read, as Go's `Value` returns its error, and not wherever the class loads.
+wire](../../refine/enums.md#a-member-on-the-wire)). Of two entries sharing a `@SerialName` it
+decodes the last, where the first is canonical, and refuses `1.0` as a `Long`, which an `integer`
+admits. So a closed enum keeps `@SerialName` only where it is a `string` one holding each value
+once, and every other one but a flags one and an open `string` one, a value class over `String`,
+codes through a generated `KSerializer`. It writes each member's wire form, the value type's JSON
+kind where it has no `WireName`, and decodes by comparing as JSON does, a value two members hold as
+the first. A closed one is an `enum class` whose entry holds the member as the row's type,
+`val value: LocalDate`, decoded through the row's codec when first read wherever Kotlin can write no
+`const val` of the type, as of a `LocalDate`. A member the codec refuses, such as a leap second
+`java.time` cannot hold, then fails where it is read, as Go's `Value` returns its error, and not
+wherever the class loads. A member a row's width cannot hold has no entry ([a member on the
+wire](../../refine/enums.md#a-member-on-the-wire)), as a `Long` literal past its range does not
+compile.
 
 An open one is a value class, which equals as its underlying value does, so its underlying value is
-the member's wire text wherever the row's type is no `Boolean`, primitive number or `String`, or
-cannot hold a member, as a `Long` holds none past its range, and its `value` is decoded through the
-row's codec when read, as a closed entry's is. A value class over the row's type would tell members
-apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and `0.10` would be two, a
-`ByteArray` equals only itself, and a `Uuid` or a time type reads two texts as one value, a `uuid`
-in either case or `10:00:00` and `10:00:00.000`, and writes back a spelling of its own.
+the member's wire text wherever the row's type is no `Boolean`, primitive number or `String`, and
+its `value` is decoded through the row's codec when read, as a closed entry's is. A value class over
+the row's type would tell members apart or merge them unlike JSON: a `BigDecimal` keeps its scale,
+so `0.1` and `0.10` would be two, a `ByteArray` equals only itself, and a `Uuid` or a time type
+reads two texts as one value, a `uuid` in either case or `10:00:00` and `10:00:00.000`, and writes
+back a spelling of its own.

@@ -31,25 +31,24 @@ for one.
 ## Enums
 
 An enum is a named type with a typed constant per member, over its `ValueType`'s Go row or, where
-that row has no constant of every member, over the members' wire text (below). A `Flags` enum lowers
-to a bitset, open or closed, an open one keeping a bit no member names. Go cannot express other open
+that row's type has no constants, over the members' wire text (below). A `Flags` enum lowers to a
+bitset, open or closed, an open one keeping a bit no member names. Go cannot express other open
 enums, so any other enum `TypePlan.Open` marks, every one `Closed=false` declares among them
 ([enums](../../refine/enums.md)), lowers to that type + its consts + a passthrough that preserves
 unknown values and honors `FallbackMember` on decode, and any other lowers to that type + its consts
 with strict decode.
 
-Go declares constants of boolean, numeric and string types alone, and only of values those types
-hold, so an enum lowers over its members' wire forms ([a member on the
-wire](../../refine/enums.md#a-member-on-the-wire)) where its `ValueType`'s row is none of them or
-cannot hold one of its members. Under the built-in rows that is a `bytes`, `date`, `time`,
-`datetime`, `datetime_offset`, `duration`, `uuid`, `decimal`, `decimal128` or `any` enum, an
-`integer`, `float` or `number` one where a row maps them exactly, and one with a member past `int64`
-or `float64` where a row maps them so; a type only a user's row names is taken to have no constant.
-Such an enum is a named type over `string`, each constant the member's wire text, whose codec writes
-that text as the value type's JSON kind, a number for a numeric kind, and decodes by comparing as
-JSON does, so the constant of a decimal `0.1` is the value a `0.10` decodes to. A method returns
-the value as the row's type, decoding the text through the row's codec, as [the type
-table](../../contract/type-table.md) builds any literal of a mapped type:
+Go declares constants of boolean, numeric and string types alone, so an enum lowers over its
+members' wire forms ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)) where its
+`ValueType`'s row is none of them: under the built-in rows a `bytes`, `date`, `time`, `datetime`,
+`datetime_offset`, `duration`, `uuid`, `decimal`, `decimal128` or `any` enum, and an `integer`,
+`float` or `number` one where a row maps them exactly. A type only a user's row names is taken to
+have no constants. Such an enum is a named type over `string`, each constant the wire text of the
+first member holding its value, whose codec writes that text as the value type's JSON kind, a
+number for a numeric kind, and decodes by comparing as JSON does, so the constant of a decimal
+`0.1` is the value a `0.10` decodes to. A method returns the value as the row's type, decoding the
+text through the row's codec, as [the type table](../../contract/type-table.md) builds any literal
+of a mapped type:
 
 ```go
 type Day string                          // date, enum: ["2020-01-01"]
@@ -66,4 +65,7 @@ over the row's type has no constant to give a caller at all.
 
 A Go constant is declared at package level, where every enum's constants meet, so Go names a
 member's constant by its enum's identifier, as rendered, followed by the member's name
-(`StatusActive`).
+(`StatusActive`). Members holding one value get constants of that one value, so generated code
+names each value once: a `switch` refuses two cases of one constant. A member a row's width cannot
+hold has no constant ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)), since Go
+refuses a constant past its type's range.
