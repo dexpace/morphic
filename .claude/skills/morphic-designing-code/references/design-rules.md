@@ -6,9 +6,9 @@ and stays simple. Each rule is a cost a later refactor or performance change had
 ## Write a function of what it reads, not a method on a growing struct
 `functional-core`
 
-- **Rule.** A lowering, check, pass or helper is a function of its inputs (an immutable context, the
-  document, its options) returning its value and diagnostics (in `irverify`, its violations). A
-  run's accumulators are locals of the function owning it, bar
+- **Rule.** A lowering, check, pass or helper is a function of its inputs (a context, the document,
+  its options) returning its value and diagnostics (in `irverify`, its violations). A run's
+  accumulators are locals of the function owning it, bar
   `references/design-rules.md#shared-run-state`. A method belongs on a type only when it reads or
   guards that type's own state, and a type nearing the method cap is split by the state its methods
   read.
@@ -29,8 +29,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   says which answer, and the context's documentation stops calling it immutable.
 - **Why.** The rule named none of the holders `lowering.Ctx` already shared, and a context
   documented as immutable gained one that changed an answer (#1436).
-- **Probe.** `git grep -n -i -E '[Cc]opies$|copies share|share it on purpose' -- compilers/openapi/internal/lowering/ ':!*_test.go'`,
-  each hit read for both statements.
+- **Probe.** `awk '/^type (Ctx|loadResult|Promoter) struct/,/^}/' compilers/openapi/internal/lowering/*.go | grep -E '^[[:space:]]+[[:alnum:]_]+ +(\*|map\[)'`,
+  each holder among them read for both statements.
 
 ## Read a document once per run, through a shared walk or index
 `read-once-per-run`
