@@ -13,6 +13,7 @@ import (
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/fragment"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
@@ -292,7 +293,7 @@ func (r resources) enter(in resource, n *yaml.Node) (res resource, rooted, known
 	case r.names(in.root.Doc, uri):
 		return r.document(in.root.Doc), false, true
 	default:
-		detached := in.detached || absolute(part) || strings.HasPrefix(part, "/")
+		detached := in.detached || fragment.Absolute(part) || strings.HasPrefix(part, "/")
 		return resource{uri: uri, id: true, detached: detached}, true, true
 	}
 }
@@ -323,13 +324,6 @@ func (r resources) identify(id, base string) (uri, part string, ok bool) {
 	}
 	uri, ok = r.resolveURI(part, base)
 	return uri, part, ok
-}
-
-// absolute reports whether uri is an absolute URI, which no base moves: one
-// with a scheme of more than one letter, as a drive's is a path's.
-func absolute(uri string) bool {
-	u, err := url.Parse(uri)
-	return err == nil && len(u.Scheme) > 1
 }
 
 // resolveURI is the URI ref names, written where the base is base: resolved by

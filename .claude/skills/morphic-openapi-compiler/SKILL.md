@@ -55,6 +55,8 @@ Each is a rule in the references below, with its evidence and probe.
   (`references/openapi-lessons.md#spec-text`).
 - A new bound's outcome, refusal or warning, comes from the rule entry for its kind
   (`references/openapi-lessons.md#bound-outcome-from-the-rules`).
+- A refusal made after a `$ref` has read a document keeps each finding in its source table
+  (`references/openapi-lessons.md#refusal-findings-in-its-table`).
 - A new entry in `ids.Namespaces` rewrites every golden document
   (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#new-id-namespace`).
 - A value an IR field never held goes false in documents no test reads
