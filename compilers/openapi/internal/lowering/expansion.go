@@ -4,39 +4,49 @@
 package lowering
 
 import (
-	"context"
+	"encoding/json/jsontext"
+	"strconv"
 
 	yaml "go.yaml.in/yaml/v3"
 
+	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
+	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
 
 // expansion counts what a run's $refs copy against
 // Limits.MaxReferenceExpansion. A declaration a $ref names, a schema or a link
 // aside, lowers again at every $ref naming it (GitHub #1240), so each such $ref
-// is charged what the declaration weighs, and the sum bounds the product of
-// references and size that the source budgets leave free. A declaration is
-// weighed once and its weight remembered: one weighed past what was left is
-// remembered past it, which nothing reads again, since the budget is then
-// crossed.
+// is charged what the declarations its chain names weigh, and the sum bounds
+// the product of references and size that the source budgets leave free. A
+// declaration is weighed once for each reading and remembered: one weighed past
+// what was left is remembered past it, which nothing reads again, since the
+// budget is then crossed.
 type expansion struct {
 	spent   budget.Budget
-	weights map[*yaml.Node]int
+	weights map[weighed]int
+}
+
+// weighed is a declaration as weightOf weighs it: its node, and how the
+// grammar reads it, which decides what in it is a schema.
+type weighed struct {
+	node *yaml.Node
+	at   bind.Reading
 }
 
 // newExpansion returns an expansion charging against l.
 func newExpansion(l budget.Limit) *expansion {
-	return &expansion{spent: budget.New(l), weights: map[*yaml.Node]int{}}
+	return &expansion{spent: budget.New(l), weights: map[weighed]int{}}
 }
 
-// admit charges one copy of the declaration whose node is root, and reports
-// whether the copies so far are within the budget. Once they are not it admits
-// nothing, so no later $ref lowers. A nil expansion, a zero context's, and an
-// unbounded one admit every copy without weighing it.
-func (e *expansion) admit(root *yaml.Node) bool {
+// admit charges one copy of the declarations whose nodes are roots, each read
+// as at, and reports whether the copies so far are within the budget. Once they
+// are not it admits nothing, so no later $ref lowers. A nil expansion, a zero
+// context's, and an unbounded one admit every copy without weighing it.
+func (e *expansion) admit(at bind.Reading, roots ...*yaml.Node) bool {
 	if e == nil {
 		return true
 	}
@@ -46,13 +56,61 @@ func (e *expansion) admit(root *yaml.Node) bool {
 	if e.spent.Exhausted() {
 		return false
 	}
-	root = nodeview.Deref(root)
-	weight, known := e.weights[root]
-	if !known {
-		weight = weightOf(root, e.spent.Remaining())
-		e.weights[root] = weight
+	for _, root := range roots {
+		key := weighed{node: nodeview.Deref(root), at: at}
+		weight, known := e.weights[key]
+		if !known {
+			weight = weightOf(key.node, at, e.spent.Remaining())
+			e.weights[key] = weight
+		}
+		if !e.spent.Spend(weight) {
+			return false
+		}
 	}
-	return e.spent.Spend(weight)
+	return true
+}
+
+// chainable is a reference-or-inline entry whose chain Declared reads: the
+// component aliases it passes through (resolve.Hops), each written as a node
+// of its own (marshaller.Model.GetCoreAny).
+type chainable[T, S any] interface {
+	*S
+	resolve.Referenced[T, S]
+	IsReference() bool
+	GetCoreAny() any
+}
+
+// readingOf returns how the grammar reads what a $ref written at usePtr in c's
+// document names: as the object it reads there, or as raw YAML, weighed whole,
+// where c places no such position, holds no table, or reads there no object a
+// $ref can name.
+func readingOf(c Ctx, usePtr jsontext.Pointer) bind.Reading {
+	p, placed := c.Position(usePtr)
+	if !placed {
+		return bind.Reading{}
+	}
+	if at := c.Bindings().Table().ReadingAt(p); at.Referable() {
+		return at
+	}
+	return bind.Reading{}
+}
+
+// copied returns the nodes a copy of what ref names is lowered from: end, the
+// declaration its chain ends at, then each component alias it passes through,
+// whose fields beside its own $ref lower at every use too (resolve.UseDocs,
+// and a path item's every field). A hop whose core holds no node, as the
+// library's own GetRootNode reads one, adds none.
+func copied[T, S any, R chainable[T, S]](c Ctx, ref R, end *yaml.Node) []*yaml.Node {
+	nodes := []*yaml.Node{end}
+	if !resolve.Chained[T, S](ref) {
+		return nodes
+	}
+	for _, hop := range resolve.Hops[T, S](c.RefScope(), ref) {
+		if core, ok := hop.Ref.GetCoreAny().(interface{ GetRootNode() *yaml.Node }); ok {
+			nodes = append(nodes, core.GetRootNode())
+		}
+	}
+	return nodes
 }
 
 // refusal returns the error refusing a document whose $refs copied past the
@@ -67,23 +125,71 @@ func (e *expansion) refusal(srcIndex int) (ir.Diagnostic, bool) {
 			"declaration other than a schema or a link lowers its own copy of it", e.spent.Limit().Cap()), true
 }
 
-// weightOf returns what a copy of the declaration under root weighs: one for
-// each node, an alias counting as a copy of what it names, as the model is
-// built (docs/parser-library.md#alias-expansion), and one for each byte of a
-// scalar's text. It visits no more than one node past within, and a
-// declaration of more nodes than that weighs past within anyway, so a weight
-// past within is all it says of one.
-//
-// No alias leads back up: an anchor naming its own ancestor was refused before
-// lowering. It takes no context, as nothing below a path item does.
-func weightOf(root *yaml.Node, within budget.Limit) int {
-	weight := 0
-	nodeview.Walk{Nodes: within.Past(), Aliases: nodeview.AliasTarget, Visit: func(n *yaml.Node, _ int) nodeview.Step {
-		weight++
-		if n.Kind == yaml.ScalarNode {
-			weight += len(n.Value)
+// frame is a node weightOf has yet to weigh, and how the grammar reads it.
+type frame struct {
+	node *yaml.Node
+	at   bind.Reading
+}
+
+// weightOf returns what a copy of the declaration under root, read as at,
+// weighs: one for each node, an alias as a copy of its target, as the model is
+// built (docs/parser-library.md#alias-expansion), one for each byte of a
+// scalar, and one for a schema, which lowers once, to a type every copy shares.
+// A schema beneath a merge key weighs in full. It visits at most one node past
+// within, so a weight past within is all it says. No alias leads back up:
+// lowering never sees an anchor naming its own ancestor.
+func weightOf(root *yaml.Node, at bind.Reading, within budget.Limit) int {
+	weight, left := 0, within.Past()
+	stack := []frame{{node: root, at: at}}
+	for len(stack) > 0 && left > 0 {
+		f := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		n := expanded(f.node)
+		if n == nil {
+			continue
 		}
-		return nodeview.Descend
-	}}.Run(context.Background(), root)
+		left--
+		weight++
+		switch {
+		case f.at.Schema():
+			// What it holds lowers once, to the type, not at each copy.
+		case n.Kind == yaml.ScalarNode:
+			weight += len(n.Value)
+		default:
+			stack = beneath(stack, n, f.at)
+		}
+	}
 	return weight
+}
+
+// expanded returns what weightOf visits for n: what an alias names, in its
+// place, or n itself, as nodeview.AliasTarget reads it.
+func expanded(n *yaml.Node) *yaml.Node {
+	if t := nodeview.Deref(n); t != nil {
+		return t
+	}
+	return n
+}
+
+// beneath returns stack with a frame pushed onto it for each position directly
+// below n, read as at: a key as raw YAML, and its value as the grammar reads
+// the key's position.
+func beneath(stack []frame, n *yaml.Node, at bind.Reading) []frame {
+	switch n.Kind {
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(n.Content); i += 2 {
+			key := n.Content[i]
+			token := ""
+			if k := expanded(key); k != nil {
+				token = k.Value
+			}
+			stack = append(stack, frame{node: key}, frame{node: n.Content[i+1], at: at.Below(token)})
+		}
+	case yaml.SequenceNode:
+		for i, item := range n.Content {
+			stack = append(stack, frame{node: item, at: at.Below(strconv.Itoa(i))})
+		}
+	default:
+	}
+	return stack
 }

@@ -135,10 +135,10 @@ type Ctx struct {
 	// which keeps nothing.
 	Kept *KeptOnce
 
-	// expansion charges each $ref Declared resolves what its declaration
-	// weighs. Copies share it on purpose: the budget is the run's, so once it is
-	// crossed no copy lowers a $ref, and the run is refused (ExpansionRefusal).
-	// Nil in a zero context, which bounds nothing.
+	// expansion charges each $ref Declared resolves what the declarations its
+	// chain names weigh. Copies share it on purpose: the budget is the run's, so
+	// once it is crossed no copy lowers a $ref, and the run is refused
+	// (ExpansionRefusal). Nil in a zero context, which bounds nothing.
 	expansion *expansion
 }
 
@@ -359,20 +359,18 @@ func Within[T, S any, R interface {
 // #751), or the use site where it places none. Past
 // [Limits.MaxReferenceExpansion] a $ref resolves to nothing
 // ([Ctx.ExpansionRefusal]).
-func Declared[T, S any, R interface {
-	*S
-	resolve.Referenced[T, S]
-}, P interface {
+func Declared[T, S any, R chainable[T, S], P interface {
 	*T
 	GetRootNode() *yaml.Node
 }](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
-	// The caller lowers a copy of what a $ref names, so each is charged what
-	// that weighs. One past the budget resolves to nothing, as an unresolved
+	// The caller lowers a copy of what a $ref's chain names, so each is charged
+	// what that weighs. One past the budget resolves to nothing, as an unresolved
 	// $ref does, so no caller lowers another copy and none costs anything. An
 	// inline entry is not charged, though a path item's own parameters reach
 	// each of its operations here, which 3.2 leaves unbounded (GitHub #1428).
-	if obj != nil && ref.GetReference() != "" && !c.expansion.admit(P(obj).GetRootNode()) {
+	if obj != nil && ref.GetReference() != "" &&
+		!c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
 		return nil, c, usePtr
 	}
 	in := Within[T, S](c, ref)

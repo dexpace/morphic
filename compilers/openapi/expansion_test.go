@@ -51,8 +51,9 @@ func assertRefused(t *testing.T, doc *ir.Document, diags []ir.Diagnostic, limit 
 
 // weightAt weighs the declaration at pointer in src as MaxReferenceExpansion's
 // documentation says, apart from the compiler's own weigher: one for each YAML
-// node, an alias counting as a copy of what it names, and one for each byte of
-// a scalar's text.
+// node, an alias counting as a copy of what it names, one for each byte of a
+// scalar's text, and one for a schema whatever it holds. A schema is the value
+// of a schema or itemSchema key, which no document here writes elsewhere.
 func weightAt(t *testing.T, src, pointer string) int {
 	t.Helper()
 	var root yaml.Node
@@ -70,7 +71,13 @@ func weightAt(t *testing.T, src, pointer string) int {
 			return weigh(n.Alias)
 		}
 		w := 1 + len(n.Value)
-		for _, c := range n.Content {
+		for i, c := range n.Content {
+			schema := n.Kind == yaml.MappingNode && i%2 == 1 &&
+				(n.Content[i-1].Value == "schema" || n.Content[i-1].Value == "itemSchema")
+			if schema {
+				w++
+				continue
+			}
 			w += weigh(c)
 		}
 		return w
@@ -96,9 +103,8 @@ func getWith(path, body string) string {
 
 const okResponses = "      responses: {'200': {description: ok}}\n"
 
-// paramP is a component parameter weighing 37: a mapping (1), the keys name (5),
-// in (3) and schema (7), their values q (2), query (6) and a mapping (1)
-// holding type (5) and string (7).
+// paramP is a component parameter weighing 25: a mapping (1), the keys name (5),
+// in (3) and schema (7), and their values q (2), query (6) and a schema (1).
 const paramP = "  parameters:\n    P: {name: q, in: query, schema: {type: string}}\n"
 
 // TestCompile_ReferenceExpansionBindsOnlyPastTheLimit pins the charge at its
@@ -109,13 +115,13 @@ func TestCompile_ReferenceExpansionBindsOnlyPastTheLimit(t *testing.T) {
 	use := "      parameters: [{$ref: '#/components/parameters/P'}]\n" + okResponses
 	src := pathsWith(getWith("/a", "      operationId: a\n"+use)+getWith("/b", "      operationId: b\n"+use), paramP)
 
-	doc, diags := compileExpanding(t, src, 2*37)
+	doc, diags := compileExpanding(t, src, 2*25)
 	require.NotNil(t, doc, "copies weighing the budget are within it")
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Len(t, openapitest.FindOp(t, doc, "b").Params, 1, "the second copy is lowered")
 
-	doc, diags = compileExpanding(t, src, 2*37-1)
-	assertRefused(t, doc, diags, 73)
+	doc, diags = compileExpanding(t, src, 2*25-1)
+	assertRefused(t, doc, diags, 49)
 }
 
 // TestCompile_EveryCopiedDeclarationIsCharged runs a $ref at each position
@@ -204,6 +210,74 @@ func TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull(t *testing.T) {
 	assertRefused(t, doc, diags, both-1)
 }
 
+// TestCompile_ASchemaIsChargedAsOneNode pins the charge of a declaration
+// holding a schema: one node whatever the schema holds, since it lowers once, to
+// a type every copy refers to. Charged in full, the schema's twenty properties
+// would cross this budget at the first $ref.
+func TestCompile_ASchemaIsChargedAsOneNode(t *testing.T) {
+	t.Parallel()
+	props := make([]string, 20)
+	for j := range props {
+		props[j] = fmt.Sprintf("p%d: {type: string}", j)
+	}
+	use := "      responses: {'200': {$ref: '#/components/responses/R'}}\n"
+	src := pathsWith(getWith("/a", "      operationId: a\n"+use)+getWith("/b", "      operationId: b\n"+use),
+		"  responses:\n    R: {description: ok, content: {application/json: {schema: {type: object, properties: {"+
+			strings.Join(props, ", ")+"}}}}}\n")
+	weight := weightAt(t, src, "/components/responses/R")
+
+	doc, diags := compileExpanding(t, src, 2*weight)
+	require.NotNil(t, doc, "%+v", diags)
+	assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
+	bodyType := func(op string) ir.TypeRef {
+		resps := openapitest.FindOp(t, doc, op).Responses
+		require.Len(t, resps, 1)
+		require.NotNil(t, resps[0].Payload)
+		require.Len(t, resps[0].Payload.Contents, 1)
+		return resps[0].Payload.Contents[0].Type
+	}
+	assert.Equal(t, bodyType("a"), bodyType("b"), "both copies refer to one type")
+
+	doc, diags = compileExpanding(t, src, 2*weight-1)
+	assertRefused(t, doc, diags, 2*weight-1)
+}
+
+// TestCompile_AnAliasIsChargedBesideItsEnd pins the charge of a $ref whose
+// chain passes through an alias: what the alias writes beside its own $ref
+// lowers at every use, a parameter's description and a path item's every
+// field, so the alias is charged its weight beside its end's.
+func TestCompile_AnAliasIsChargedBesideItsEnd(t *testing.T) {
+	t.Parallel()
+	param := pathsWith(getWith("/p", "      parameters: [{$ref: '#/components/parameters/A'}]\n"+okResponses),
+		"  parameters:\n"+
+			"    A: {$ref: '#/components/parameters/B', description: "+strings.Repeat("d", 40)+"}\n"+
+			"    B: {name: q, in: query, schema: {type: string}}\n")
+	item := pathsWith("  /p: {$ref: '#/components/pathItems/A'}\n", "  pathItems:\n"+
+		"    A: {$ref: '#/components/pathItems/B', post: {responses: {'200': {description: ok}}}}\n"+
+		"    B: {get: {responses: {'200': {description: ok}}}}\n")
+	tests := []struct {
+		name, src, alias, end string
+	}{
+		{"a parameter's description", param, "/components/parameters/A", "/components/parameters/B"},
+		{"a path item's operation", item, "/components/pathItems/A", "/components/pathItems/B"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileExpanding(t, tc.src, -1)
+			require.NotNil(t, doc, "with the budget off: %+v", diags)
+			openapitest.RequireNoErrorDiags(t, diags)
+
+			weight := weightAt(t, tc.src, tc.alias) + weightAt(t, tc.src, tc.end)
+			doc, diags = compileExpanding(t, tc.src, weight)
+			require.NotNil(t, doc, "at the chain's weight, %d: %+v", weight, diags)
+			assert.False(t, openapitest.HasDiag(diags, diag.BudgetExceeded))
+			doc, diags = compileExpanding(t, tc.src, weight-1)
+			assertRefused(t, doc, diags, weight-1)
+		})
+	}
+}
+
 // TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder pins what a
 // refusal reports: nothing the lowering found. Either parameter fits the budget
 // alone, so the one lowered first is copied and the other crosses; reporting
@@ -212,8 +286,8 @@ func TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder(t *testing.T) 
 	t.Parallel()
 	reserved := getWith("/a", "      parameters: [{$ref: '#/components/parameters/Accept'}]\n"+okResponses)
 	long := getWith("/b", "      parameters: [{$ref: '#/components/parameters/P'}]\n"+okResponses)
-	// Accept weighs 43, as paramP does with Accept and header for q and query.
-	// P weighs 90: paramP's 37, a description key (12) and a 40-byte value (41).
+	// Accept weighs 31, as paramP does with Accept and header for q and query.
+	// P weighs 78: paramP's 25, a description key (12) and a 40-byte value (41).
 	components := "  parameters:\n    Accept: {name: Accept, in: header, schema: {type: string}}\n" +
 		"    P: {name: q, in: query, schema: {type: string}, description: " + strings.Repeat("x", 40) + "}\n"
 
@@ -224,8 +298,8 @@ func TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder(t *testing.T) 
 	for name, paths := range map[string]string{"reserved first": reserved + long, "reserved last": long + reserved} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileExpanding(t, pathsWith(paths, components), 90)
-			assertRefused(t, doc, diags, 90)
+			doc, diags := compileExpanding(t, pathsWith(paths, components), 78)
+			assertRefused(t, doc, diags, 78)
 		})
 	}
 }

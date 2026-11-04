@@ -189,12 +189,13 @@ const (
 	// schema is what reading external documents is for.
 	DefaultMaxExternalDocuments = 1 << 14
 	// DefaultMaxReferenceExpansion is the reference-expansion budget:
-	// 16,777,216, a 5.1x margin over the 3,259,648 that the $refs of GitHub's
-	// REST API description copy, the most of the descriptions measured
-	// 2026-11-03: Cloudflare's copy 448,101, Stripe's nothing, and none of 1,840
-	// others more than 2,310,205. Of the documents built to spend it, the
-	// costliest measured, a response of inline headers, peaks near 2.9 GB, and
-	// one of extensions near 1.8 GB, about what compiling GitHub's costs.
+	// 16,777,216, a 4.3x margin over the 3,919,648 that the $refs of Microsoft
+	// Graph's v1.0 description copy, the most of the descriptions measured
+	// 2026-11-04: GitHub's REST API description copies 3,121,777, Cloudflare's
+	// 270,530, Stripe's nothing, and none of 1,840 others more than 2,216,018.
+	// Of the documents built to spend it, the costliest measured, a response of
+	// inline headers, peaks near 5.6 GB writing its IR to standard output, about
+	// what Microsoft Graph's description costs there (5.8 GB).
 	DefaultMaxReferenceExpansion = 1 << 24
 )
 
@@ -250,11 +251,12 @@ type Limits struct {
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
 	// MaxReferenceExpansion bounds what lowering copies through $refs. A
 	// declaration a $ref names, a schema or a link aside, lowers again at every
-	// $ref naming it, so each such $ref is charged what the declaration weighs:
-	// one for each YAML node, each alias as a copy of what it names, and one for
-	// each byte of scalar text. A document whose $refs copy past it is refused
-	// as openapi/budget-exceeded, compiling to no Document. The other budgets
-	// bound the references and the declarations apart, not their product.
+	// $ref naming it, so each such $ref is charged what its chain's declarations
+	// weigh, each component alias included: one for each YAML node, a YAML alias
+	// as a copy of what it names, and one for each byte of scalar text, but one
+	// for a schema, which lowers once. A document whose $refs copy past it is
+	// refused as openapi/budget-exceeded, compiling to no Document. The other
+	// budgets bound references and declarations apart, not their product.
 	MaxReferenceExpansion int `json:"maxReferenceExpansion,omitzero"`
 }
 
