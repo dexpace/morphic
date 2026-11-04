@@ -86,11 +86,11 @@ func TestAdmission_ReadsAValueSetOnce(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := declared(t, l, "E")
 	first := newAdmission(l.Ctx)
-	require.Contains(t, first.written(s).values, "s:a")
+	require.Contains(t, first.written(s, first.nullable).values, "s:a")
 
 	s.GetEnum()[0].Value = "z"
 	second := newAdmission(l.Ctx)
-	read := second.written(s)
+	read := second.written(s, second.nullable)
 	assert.Contains(t, read.values, "s:a", "the second read takes what the first remembered")
 	assert.NotContains(t, read.values, "s:z")
 }
@@ -285,7 +285,7 @@ func TestAdmission_AnEnumAndAConstAreTwoSets(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpecVer("3.1.0", "    E: {type: string, enum: [a, b], const: a}\n"))
 	w := newAdmission(l.Ctx)
-	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(declared(t, l, "E")).values)
+	assert.Equal(t, map[string]kindSet{"s:a": kindString}, w.written(declared(t, l, "E"), w.nullable).values)
 }
 
 // TestAdmission_ANullableBesideARefIsReadInItsDialect pins a $ref's siblings:
@@ -299,7 +299,7 @@ func TestAdmission_ANullableBesideARefIsReadInItsDialect(t *testing.T) {
     T: {$ref: '#/components/schemas/S', type: string, nullable: true}
 `))
 		w := newAdmission(l.Ctx)
-		assert.Equal(t, want, w.written(declared(t, l, "T")).kinds, version)
+		assert.Equal(t, want, w.written(declared(t, l, "T"), w.nullable).kinds, version)
 	}
 }
 
@@ -310,7 +310,7 @@ func TestAdmission_ASchemaIsWithinItself(t *testing.T) {
 	t.Parallel()
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: array, items: {type: string, x-t: .nan}}\n"))
 	w := newAdmission(l.Ctx)
-	read := w.written(declared(t, l, "E"))
+	read := w.written(declared(t, l, "E"), w.nullable)
 	assert.True(t, w.within(read, read))
 }
 
@@ -323,12 +323,12 @@ func TestAdmission_ARememberedSetStillSpends(t *testing.T) {
 	l, _ := LoweredFor(t, openapitest.ComponentSpec("    E: {type: string, enum: [a, b]}\n"))
 	s := declared(t, l, "E")
 	first := newAdmission(l.Ctx)
-	first.written(s)
+	first.written(s, first.nullable)
 	require.False(t, first.incomplete())
 
 	short := newAdmission(l.Ctx)
 	short.members = budget.New(budget.AtMost(1))
-	assert.Empty(t, short.written(s).values, "a set past the budget is not read at all")
+	assert.Empty(t, short.written(s, short.nullable).values, "a set past the budget is not read at all")
 	assert.True(t, short.incomplete())
 }
 
@@ -341,7 +341,7 @@ func TestAdmission_AnUnreadableSetIsRememberedAsUnread(t *testing.T) {
 	s.GetEnum()[0].Kind = 0
 	for range 2 {
 		w := newAdmission(l.Ctx)
-		w.written(s)
+		w.written(s, w.nullable)
 		assert.True(t, w.incomplete())
 	}
 }

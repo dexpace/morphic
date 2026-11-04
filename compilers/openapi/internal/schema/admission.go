@@ -275,7 +275,7 @@ type admission struct {
 	c lowering.Ctx
 	// nullable reports whether the dialect c reads its schemas in defines the
 	// nullable keyword (oas.SchemaRules.Defines). A schema the read reaches
-	// elsewhere is read in its own document's (nullableOf).
+	// elsewhere is read in its own document's (definesNullableAt).
 	nullable bool
 	reads    budget.Budget
 	members  budget.Budget
@@ -314,7 +314,7 @@ func (w *admission) whole(js *oas3.JSONSchema[oas3.Referenceable]) admitted {
 	if declaresDynamicRef(s) {
 		w.reads.Exhaust()
 	}
-	out := w.writtenIn(s, w.nullableOf(js))
+	out := w.written(s, definesNullableAt(w.c, js))
 	for _, b := range s.GetAllOf() {
 		out = out.and(w.whole(b))
 	}
@@ -455,25 +455,23 @@ func (w *admission) union(branches []*oas3.JSONSchema[oas3.Referenceable]) admit
 	return out
 }
 
-// written reads the keywords s, a schema in c's document, itself writes that
-// say what a value is (writtenIn).
-func (w *admission) written(s *oas3.Schema) admitted { return w.writtenIn(s, w.nullable) }
-
-// nullableOf reports whether the dialect of the document holding js defines
-// nullable, where the bindings place js; one they do not is read in c's.
-func (w *admission) nullableOf(js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	at, ok := w.c.Bindings().Site(js)
+// definesNullableAt reports whether the dialect of the document holding js
+// defines nullable: where c's bindings place js, that document's, and c's own
+// for a schema they do not place.
+func definesNullableAt(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	at, ok := c.Bindings().Site(js)
 	if !ok {
-		return w.nullable
+		return c.SchemaRules().Defines("nullable")
 	}
-	return definesNullableIn(w.c, at.Doc)
+	return definesNullableIn(c, at.Doc)
 }
 
-// writtenIn reads the keywords s itself writes that say what a value is:
-// `type`, which a `nullable` adds null to where nullable says the dialect
-// defines it, `format`, `enum`, `const` and `items`. A `properties` with no
-// type beside it claims an object, as lowerUntyped reads one.
-func (w *admission) writtenIn(s *oas3.Schema, nullable bool) admitted {
+// written reads the keywords s itself writes that say what a value is, in a
+// dialect defining nullable where nullable says: `type`, which a `nullable`
+// adds null to there, `format`, `enum`, `const` and `items`. A `properties`
+// with no type beside it claims an object, as lowerUntyped reads one. A schema
+// in c's document is read in w.nullable's dialect.
+func (w *admission) written(s *oas3.Schema, nullable bool) admitted {
 	out := admitted{kinds: writtenKinds(s, nullable)}
 	// `items: true` admits what no `items` does, so it holds an element to nothing.
 	if items := s.GetItems(); annotation.Written(items) && (!items.IsBool() || annotation.IsFalseSchema(items)) {
@@ -646,11 +644,11 @@ func (w *admission) holds(held admitted, s *oas3.Schema, key string) bool {
 	case "type":
 		return held.kindsWithin(admitted{kinds: writtenKinds(s, w.nullable)})
 	case "format":
-		return held.formsWithin(w.written(s))
+		return held.formsWithin(w.written(s, w.nullable))
 	case "enum", "const":
-		return held.valuesWithin(w.written(s))
+		return held.valuesWithin(w.written(s, w.nullable))
 	case "items":
-		return w.itemsWithin(held, w.written(s))
+		return w.itemsWithin(held, w.written(s, w.nullable))
 	default:
 		return false
 	}
