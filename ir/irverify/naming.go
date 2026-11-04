@@ -319,11 +319,32 @@ func isBlankName(s string) bool {
 	return true
 }
 
-// isInvisible reports whether Unicode classifies r as carrying no visible mark.
+// isInvisible reports whether Unicode classifies r as carrying no visible mark:
+// white space, a control, or Default_Ignorable_Code_Point. The package unicode
+// has no table for that property, so it is built from its terms as
+// DerivedCoreProperties.txt defines it, Other_Default_Ignorable_Code_Point,
+// Cf and Variation_Selector less Prepended_Concatenation_Mark and the two
+// ranges unicode lacks a table for, the interlinear annotation characters and
+// the Egyptian hieroglyph format controls, which are Cf and render.
 func isInvisible(r rune) bool {
-	return unicode.IsSpace(r) || unicode.IsControl(r) || unicode.Is(unicode.Cf, r) ||
-		unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r)
+	switch {
+	case unicode.IsSpace(r), unicode.IsControl(r):
+		return true
+	case r >= interlinearFirst && r <= interlinearLast,
+		r >= egyptianFormatFirst && r <= egyptianFormatLast,
+		unicode.Is(unicode.Prepended_Concatenation_Mark, r):
+		return false
+	}
+	return unicode.Is(unicode.Cf, r) || unicode.Is(unicode.Other_Default_Ignorable_Code_Point, r) ||
+		unicode.Is(unicode.Variation_Selector, r)
 }
+
+// The Cf ranges Unicode takes out of Default_Ignorable_Code_Point that package
+// unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F.
+const (
+	interlinearFirst, interlinearLast       = '\uFFF9', '\uFFFB'
+	egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'
+)
 
 // isCased reports whether s still carries casing an emitter should own. The test
 // is lowercase-idempotence, not unicode.IsUpper: a compiler neutralizes names

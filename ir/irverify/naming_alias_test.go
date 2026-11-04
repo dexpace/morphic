@@ -70,7 +70,12 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		"nul":           "\x00",
 		"hangul filler": "\u3164",
 		"jamo filler":   "\u115f",
-		"invisible mix": "\u200b\t\ufeff\u3164",
+		// Variation_Selector: Mn, so neither Cf nor Other_Default_Ignorable.
+		"variation selector":            "\ufe0f",
+		"variation selector supplement": "\U000e0100",
+		"mongolian selector":            "\u180b",
+		"mongolian selector four":       "\u180f",
+		"invisible mix":                 "\u200b\t\ufeff\u3164",
 	}
 	for name, alias := range blanks {
 		t.Run(name, func(t *testing.T) {
@@ -95,10 +100,31 @@ func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 // TestVerify_BlankLookingGraphicAliasIsNotBlank holds the other side. U+2800
 // BRAILLE PATTERN BLANK renders as whitespace but is a graphic character
 // Unicode does not classify as invisible, so the rule leaves it alone rather
-// than deciding on its own account what looks empty.
+// than deciding on its own account what looks empty. So are the format
+// characters Unicode takes out of Default_Ignorable_Code_Point because they
+// render: a prepended concatenation mark, an interlinear annotation character
+// and an Egyptian hieroglyph format control.
 func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
 	t.Parallel()
-	assert.Empty(t, aliasViolations(t, "\u2800"))
+	graphics := map[string]string{
+		"braille blank":       "\u2800",
+		"arabic number sign":  "\u0600",
+		"arabic end of ayah":  "\u06dd",
+		"syriac abbreviation": "\u070f",
+		"arabic pound mark":   "\u0890",
+		"arabic disputed end": "\u08e2",
+		"kaithi number sign":  "\U000110bd",
+		"annotation anchor":   "\ufff9",
+		"annotation end":      "\ufffb",
+		"egyptian format":     "\U00013430",
+		"egyptian last":       "\U0001343f",
+	}
+	for name, alias := range graphics {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			assert.Empty(t, aliasViolations(t, alias))
+		})
+	}
 }
 
 // TestVerify_IllFormedAliasIsAViolation covers the rule every channel shares,

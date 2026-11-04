@@ -114,10 +114,10 @@ func TestVerify_BlankListEntryIsAViolation(t *testing.T) {
 				code, message = "ir/set-entry-blank", "set entry is blank, so it names nothing"
 			}
 			doc := heldListDoc()
-			list.set(doc, []string{"", " ", "\u3164", "acme"})
+			list.set(doc, []string{"", " ", "\u3164", "\ufe0f", "acme", "\u0600", "\ufff9", "\U00013430"})
 
 			got := verifyDeclared(doc)
-			require.Len(t, got, 3, "one violation per blank entry")
+			require.Len(t, got, 4, "one violation per blank entry, none for a visible format character")
 			for i, v := range got {
 				assert.Equal(t, code, v.Code)
 				assert.Equal(t, fmt.Sprintf("%s[%d]", list.path, i), v.Path)
