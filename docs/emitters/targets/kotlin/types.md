@@ -29,8 +29,19 @@ takes the member's name alone (`ACTIVE`, as the naming policy cases it).
 
 `kotlinx.serialization` writes an `enum class` as a string, its entry's `@SerialName`, which is a
 member's wire form only for a `string` enum ([a member on the
-wire](../../refine/enums.md#a-member-on-the-wire)). Any other closed enum is an `enum class` whose
-`KSerializer` is generated: it writes each entry's wire form as the value type's JSON kind, a
-boolean for `bool`, a number for `integer`, `number` and `decimal`, and decodes by comparing as JSON
-does. An entry of a value type a row maps, such as a `date`, holds the member as that row's type,
-`val value: LocalDate`, built through the row's codec when the class loads.
+wire](../../refine/enums.md#a-member-on-the-wire)), and refuses `1.0` as a `Long`, which an
+`integer` admits. So every other enum but a flags one, closed or open, codes through a generated
+`KSerializer` that writes each member's wire form, the value type's JSON kind where it has no
+`WireName`, and decodes by comparing as JSON does. A closed one is an `enum class` whose entry holds
+the member as the row's type, `val value: LocalDate`, decoded through the row's codec when first
+read wherever Kotlin can write no `const val` of the member, as of a `LocalDate` or of a `Long` past
+its range. A member the codec refuses, such as a leap second `java.time` cannot hold, then fails
+where it is read, as Go's `Value` returns its error, and not wherever the class loads.
+
+An open one is a value class, which equals as its underlying value does, so its underlying value is
+the member's wire text wherever the row's type is no `Boolean`, primitive number or `String`, or
+cannot hold a member, as a `Long` holds none past its range, and its `value` is decoded through the
+row's codec when read, as a closed entry's is. A value class over the row's type would tell members
+apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and `0.10` would be two, a
+`ByteArray` equals only itself, and a `Uuid`, a time or a `Duration` reads two texts as one value,
+a `uuid` in either case or `PT1H` and `PT60M`, and writes back a spelling of its own.

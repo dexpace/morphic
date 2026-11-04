@@ -19,12 +19,16 @@ way, its value a set of bits, and an open one keeps a bit no member names.
 ## A member on the wire
 
 A member's wire form is its `WireName` where it has one, else its `Value` as the JSON kind its
-enum's `ValueType` has: a string for a `string`, `date` or `uuid` enum, a number for an `integer`,
-`number` or `decimal` one, a boolean for a `bool` one. Every target writes that form and decodes by
-comparing a value with the members as JSON compares values, which is what an `enum` keyword
-compares, whatever `format` says: numbers by value, so `0.1` and `0.10` are one member, and
-everything else by its text. A target whose enum form holds only some value types lowers the others
-over the wire form ([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)),
-never over a form that would change the JSON kind, as a `bool` enum written as the string `"true"`
-would. On the golden spec (spec @319dc756, morphic @b206dc99) 1,069 enums are `bool`, 35 `integer`
-and 348 `number`, beside 6,862 `string` ones.
+enum's `ValueType` has, as [TypePlan](../plan/types.md#variants-that-can-share-a-value) gives each
+primitive's: a boolean for `bool`, a number for a numeric kind and a string for any other but
+`any`, under which a member keeps its own value's kind, a `bytes` value in the base64 its row's
+codec writes. Every emitter writes that form, and an SDK and a mock compare a value with the
+members as JSON compares values, which is what an `enum` keyword compares, whatever `format` says:
+numbers by value, so `0.1` and `0.10` are one member, and everything else by its text, so two
+`uuid` members differing only in case are two. A target whose enum form holds only some value
+types, or only some values of one, as a 64-bit integer holds none past its range, lowers the
+others over the wire form ([Go](../targets/go/types.md#enums),
+[Kotlin](../targets/kotlin/types.md#enums)), never over a form that changes what JSON compares: a
+`bool` enum written as the string `"true"`, or a `uuid` enum over a type that reads one in either
+case as one value. On the golden spec (spec @319dc756, morphic @d3ce8e8f) 1,070 enums are `bool`,
+35 `integer` and 348 `number`, beside 6,881 `string` ones.
