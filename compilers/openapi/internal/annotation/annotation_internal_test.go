@@ -188,6 +188,26 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 		"and the hoist gate agrees a node is needed to hold them")
 }
 
+// TestDialectAt_SaysWhatEachKeywordIsReadFor pins what the info at each kept
+// dialect keyword says it is read for: `$id` for reference resolution alone,
+// `$schema` for the dialect of the schema it roots alone, and `$vocabulary`
+// for nothing (docs/compilers/openapi.md#dialect-keywords).
+func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\n"+
+		"$vocabulary: {'https://example.com/v': true}\ntype: string\n")
+	_, diags := dialectAt(s, "/components/schemas/S", sourced(0))
+	require.Len(t, diags, 3)
+	said := map[jsontext.Pointer]string{}
+	for _, d := range diags {
+		said[d.Provenance.Pointer] = d.Message
+	}
+	assert.Contains(t, said["/components/schemas/S/$id"], "is read only for reference resolution")
+	assert.Contains(t, said["/components/schemas/S/$schema"],
+		"is read only to choose the dialect of a 3.1 or 3.2 schema no other schema holds")
+	assert.Contains(t, said["/components/schemas/S/$vocabulary"], "is not honoured for reference resolution")
+}
+
 // TestDialectAt_AttributesTheKeywordRatherThanTheSchema pins GitHub #522: an
 // overlay that rewrites `$id` names the overlay as the source of both the kept
 // entry and the diagnostic announcing it, since dialectAt locates each keyword

@@ -229,12 +229,18 @@ func TestDialects_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	d.govern(a, first)
 	d.govern(b, second)
 	shared := a.Content[1]
+	// Identity, not equality: two rows of one dialect are equal, and the claim
+	// is whose rows the node holds.
 	got, ok := d.Of(shared)
 	require.True(t, ok)
-	assert.True(t, got == first, "the first root's rows")
+	if got != first {
+		t.Error("the shared node holds the second root's rows, not the first's")
+	}
 	got, ok = d.Of(b)
 	require.True(t, ok)
-	assert.True(t, got == second)
+	if got != second {
+		t.Error("B holds another root's rows than its own")
+	}
 	assert.Len(t, d.byNode, 8, "A, its keys x and y, the shared node and its two scalars; B and its key z")
 	d.govern(nil, first)
 	assert.Len(t, d.byNode, 8, "no tree governs nothing")

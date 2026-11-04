@@ -27,7 +27,7 @@ func rootsOf(table *bind.Table) map[bind.Position]string {
 
 // dialectRoots returns the dialect roots of every document table read.
 func dialectRoots(table *bind.Table) []bind.DialectRoot {
-	var out []bind.DialectRoot
+	out := make([]bind.DialectRoot, 0, table.Documents())
 	for id := range bind.DocID(table.Documents()) {
 		out = append(out, table.Document(id).Dialects...)
 	}
@@ -72,18 +72,18 @@ func TestDialectRoots_ADocumentOfSchemasNamesItAtItsRoot(t *testing.T) {
 		want  []jsontext.Pointer
 	}{
 		"at its root": {"{$schema: " + d4 + ", definitions: {E: {type: integer}}}\n", []jsontext.Pointer{""}},
-		"below it":    {"E: {$schema: " + d4 + ", type: integer}\n", nil},
+		"below it":    {"E: {$schema: " + d4 + ", type: integer}\n", []jsontext.Pointer{}},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ref := "o.yaml#/definitions/E"
-			if tc.want == nil {
+			if len(tc.want) == 0 {
 				ref = "o.yaml#/E"
 			}
 			table := bound(t, head+"components:\n  schemas:\n    S: {$ref: '"+ref+"'}\n",
 				withDocuments(map[string]string{"o.yaml": tc.other}))
 			doc := docNamed(t, table, "o.yaml")
-			var got []jsontext.Pointer
+			got := make([]jsontext.Pointer, 0, len(table.Document(doc).Dialects))
 			for _, r := range table.Document(doc).Dialects {
 				got = append(got, r.At.Pointer)
 			}

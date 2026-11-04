@@ -63,7 +63,6 @@ func lowerBounds(doc *ir.Document) map[jsontext.Pointer][2]ir.BigVal {
 func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 	t.Parallel()
 	const boolean = "{type: integer, minimum: 5, exclusiveMinimum: true}"
-	const number = "{type: integer, exclusiveMinimum: 5}"
 	for _, tc := range []struct {
 		name, src string
 		bounds    map[jsontext.Pointer][2]ir.BigVal
