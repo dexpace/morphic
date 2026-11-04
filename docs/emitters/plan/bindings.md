@@ -15,7 +15,7 @@ type BindingView struct {
     All      []ProtoBinding  // every binding, primary first (transcoding, dual HTTP+RPC)
 }
 type ProtoBinding struct {
-    Protocol Protocol        // the protocol the binding below is for
+    Protocol Protocol        // this binding's protocol
     Params   []ParamBind     // neutralized param placement (one per bound param, per location)
     ResponseBodyPath *ir.PropPath // HTTPBinding.ResponseBodyPath: the response body is this
                                   // sub-field of the payload; nil = the whole payload
