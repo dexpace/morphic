@@ -39,6 +39,11 @@ type column []int
 
 func (c column) Set() { c[0] = 1 }
 
+// Encoding shares its name with a receiver the rule lists, from another package.
+type Encoding struct{ n int }
+
+func (e *Encoding) Set() { e.n++ }
+
 type holder struct{ tally }
 
 type holderPtr struct{ *tally }
@@ -78,6 +83,7 @@ var (
 	feed                     func(yield func([]int) bool)
 	matcher                  = regexp.MustCompile(`x`)
 	errNone                  = errors.New("none")
+	encoded                  Encoding
 )
 
 var viaCall = ledger.Self().n // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
@@ -113,7 +119,9 @@ func init() {
 	storedInit = ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	ledger.Add()
 	(ledger.Add)()
-	go ledger.Add()        // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	go ledger.Add()                       // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	go func(f func()) { f() }(ledger.Add) // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	defer ledger.Add()
 	func() { counter-- }() // want "globalwrites: decrements the package-level variable counter; keep the state in a local or an argument"
 	hook = func() {
 		counter++ // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
@@ -309,6 +317,23 @@ func Copies() {
 	_ = m
 	b := <-queue
 	b[0] = 1
+}
+
+// ShadowedBuiltin calls a parameter named like a builtin, which writes nothing.
+func ShadowedBuiltin(clear func([]int)) {
+	clear(items)
+}
+
+// Named calls a pointer method of a type named like a listed receiver, which
+// draws as the listed one is another package's.
+func Named() {
+	encoded.Set() // want "globalwrites: calls a method that can write the package-level variable encoded; keep the state in a local or an argument"
+}
+
+// ShadowedImport writes through a local named like an import.
+func ShadowedImport() {
+	shared := cursor
+	shared.n = 1 // want "globalwrites: writes an element or field of the package-level variable cursor through its alias shared; keep the state in a local or an argument"
 }
 
 // Shadows writes locals named like variables.

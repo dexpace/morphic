@@ -12,17 +12,18 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// globalWrites refuses writing a package-level variable, outside init, in a
-// package under ir, pass, compilers or emitters (invariant 5): an assignment,
-// ++ or --, an element or field, the address taken, a method that can write, or
-// delete, clear, copy or append, directly or through a local alias.
+// globalWrites refuses writing a package-level variable, outside init, under
+// ir, pass, compilers or emitters (invariant 5, which engine.Engine's concurrent
+// use rests on): an assignment, ++ or --, an element or field, the address, a
+// writing method, or delete, clear, copy or append, directly or through a local
+// alias.
 //
 // # Out of reach
 //
 // The rule reports writes it sees, and code init stores or starts. Any other
 // way code bound at initialization can run later and write is out of reach: a
 // callback handed to another package, a value kept in a struct field and
-// called elsewhere, reflection. Each owner states its limit.
+// called elsewhere, reflection. Functions below state the rest.
 func (l layout) globalWrites() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "globalwrites",
