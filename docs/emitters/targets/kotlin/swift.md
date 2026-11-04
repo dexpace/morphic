@@ -43,6 +43,17 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   among them, took the same Objective-C name, and the framework failed to link (`Linking globals
   named 'OBJC_METACLASS_$_ProbeNumber': symbol multiply defined!`). With an explicit `@ObjCName` it
   linked, so each of these names is reserved ([naming](naming.md#reserved-names)).
+- The export's own classes take `Kotlin` before their names in Swift (`KotlinBase`, `KotlinInt`),
+  and each standard-library class the framework reaches takes it in both languages
+  (`ProbeKotlinThrowable`, `KotlinThrowable` in Swift). Measured with Kotlin 2.4.0 and Swift 6.2.3,
+  a spec class `KotlinInt` linked, and a caller's `let b: KotlinInt? = Client().boxed()`, of a
+  function returning `Int?`, failed (`'KotlinInt' is ambiguous for type lookup in this context`).
+  With a spec class `KotlinThrowable` the export named the standard library's class
+  `KotlinThrowable_`, so a caller's `e.kotlinException as? KotlinThrowable` was `nil` for an
+  exception the SDK threw. A spec class `KotlinEnum` kept its name until the SDK declared an enum,
+  which brought the standard library's in and renamed the spec's `KotlinEnum_`. So every name whose
+  first word is `Kotlin` is reserved, not only the names the framework reaches, which a declaration
+  the spec adds can grow ([naming](naming.md#reserved-names)).
 - Default arguments do not reach Swift, which is one reason models and request types are built
   through a builder rather than a constructor with defaults.
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
