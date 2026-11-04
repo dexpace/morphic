@@ -5,7 +5,6 @@ package schema
 
 import (
 	"encoding/json/jsontext"
-	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/ir"
 )
@@ -51,19 +51,19 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 	return ref, diags
 }
 
-// ignoredRefFields warns of each keyword s writes beside its $ref where the
+// ignoredRefFields warns of each field s writes beside its $ref where the
 // dialect s is read in ignores them, as the JSON Schema drafts before 2019-09
 // do: each is applied as 2020-12 applies it, the reading that loses least, as a
-// 3.0 schema's are (docs/compilers/openapi.md#later-version-construct). Its
-// `$schema`, which names that dialect, and an extension, which is OpenAPI's,
-// draw none.
+// 3.0 schema's are (docs/compilers/openapi.md#later-version-construct). One
+// whose reading applying it leaves alike draws none (readsBesideRef).
 func ignoredRefFields(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	if !lowering.SchemaRulesAt(c, pointer).IgnoresRefFields() {
+	rules := lowering.SchemaRulesAt(c, pointer)
+	if !rules.IgnoresRefFields() {
 		return nil
 	}
 	var diags []ir.Diagnostic
 	for _, key := range rawMappingKeys(s.GetRootNode()) {
-		if key == "$ref" || key == "$schema" || strings.HasPrefix(key, "x-") {
+		if !readsBesideRef(rules, key) {
 			continue
 		}
 		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.LaterVersionConstruct, pointer+ids.Ptr(key),
@@ -71,6 +71,21 @@ func ignoredRefFields(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) 
 				"from 2019-09; it is applied as in 2020-12", key))
 	}
 	return diags
+}
+
+// readsBesideRef reports whether applying key, written beside a $ref in a
+// schema read with rules, reads otherwise than ignoring it: a field the rows
+// define, OpenAPI's own among them, bar the $ref, the `$schema` naming the
+// dialect, `definitions`, whose schemas only a $ref reads, and `$comment`,
+// which nothing reads. A key they define none for, an extension or an unknown
+// keyword, is kept as written either way.
+func readsBesideRef(rules oas.SchemaRules, key string) bool {
+	switch key {
+	case "$ref", "$schema", "definitions", "$comment":
+		return false
+	default:
+		return rules.Defines(key)
+	}
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a

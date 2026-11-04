@@ -85,16 +85,21 @@ func TestPreserveUnknownKeywords_ReadsWhatADraftSpellsOtherwise(t *testing.T) {
 	assert.True(t, openapitest.HasDiagCodeAt(diags, diag.DegradedConstruct, "/components/schemas/D/id"))
 }
 
-// TestRefSite_AKeywordBesideADraftsRefIsWarnedOf pins the keywords beside the
-// $ref of a schema read in a draft that ignores them: each draws a
-// later-version warning at its key, bar `$schema` and an extension, and is
-// applied as 2020-12 applies it.
+// TestRefSite_AKeywordBesideADraftsRefIsWarnedOf pins the fields beside the
+// $ref of a schema read in a draft that ignores them: each the rows define,
+// OpenAPI's `example` among them, draws a later-version warning at its key and
+// is applied as 2020-12 applies it. Those whose reading applying them leaves
+// alike draw none: `$schema`, `definitions`, `$comment`, and what the rows
+// define nothing for, `$defs` in draft 7, an unknown keyword and an extension.
 func TestRefSite_AKeywordBesideADraftsRefIsWarnedOf(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, openapitest.ComponentSpec("    B: {type: string}\n"+
-		"    V: {"+d4+", $ref: '#/components/schemas/B', description: d, x-note: n}\n"))
+		"    V: {"+d4+", $ref: '#/components/schemas/B', description: d, x-note: n}\n"+
+		"    W: {$schema: 'http://json-schema.org/draft-07/schema#', $ref: '#/components/schemas/W/definitions/C', example: e,\n"+
+		"      definitions: {C: {type: string}}, $comment: c, $defs: {}, markdownDescription: m, x-note: n}\n"))
 	openapitest.RequireNoErrorDiags(t, diags)
-	assert.Equal(t, []jsontext.Pointer{"/components/schemas/V/description"}, openapitest.PointersOf(diags, diag.LaterVersionConstruct))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/V/description", "/components/schemas/W/example"},
+		openapitest.PointersOf(diags, diag.LaterVersionConstruct))
 	assert.Equal(t, "d", doc.Types[componentID("V")].Common().Docs.Description)
 }
 

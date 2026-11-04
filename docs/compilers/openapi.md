@@ -380,8 +380,11 @@ a 3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ign
 warned of as a later minor's construct as well, whatever it is, so no row of the table names them.
 JSON Schema drafts 4, 6 and 7 ignore a schema's keywords beside its `$ref` too, and 2019-09 applies
 them, so in a schema read in one of those drafts ([`dialect-keywords`](#dialect-keywords)) the
-schema lowering applies each as 2020-12 does and warns of it at its key, bar the `$schema` naming
-the draft and an extension, which is OpenAPI's.
+schema lowering applies each as 2020-12 does and warns of each field the draft's rows define at its
+key, OpenAPI's own among them, bar those whose reading applying them leaves alike: the `$schema`
+naming the draft, `definitions`, whose schemas only a `$ref` reads, and `$comment`. A key the rows
+define nothing for, an extension or an unknown keyword, is kept as written either way, and draws
+none.
 An object a `$ref` reaches is judged as the source's own are, wherever it is written, and reported
 where [`validation`](#validation) places a finding about it. A
 Path Item's `additionalOperations` before 3.2, and a field 3.2 added to a Discriminator or XML
