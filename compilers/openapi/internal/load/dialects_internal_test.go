@@ -21,11 +21,11 @@ func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 	d := dialects{spec: oas.Table(), version: "3.1.0", minor: "3.1"}
 	version, minor, r30 := d.of("3.0.3")
 	assert.Equal(t, []string{"3.0.3", "3.0"}, []string{version, minor})
-	assert.True(t, r30.Defines("nullable"))
+	assert.True(t, r30.Schema.Defines("nullable"))
 	for _, declared := range []string{"", "3.3.0", "2.0"} {
 		version, minor, r := d.of(declared)
 		assert.Equal(t, []string{"3.1.0", "3.1"}, []string{version, minor}, "%q", declared)
-		assert.False(t, r.Defines("nullable"), "%q", declared)
+		assert.False(t, r.Schema.Defines("nullable"), "%q", declared)
 	}
 	// Identity, not equality: rows built twice would be equal, and the claim is
 	// that a minor's rows are built once.
@@ -49,14 +49,14 @@ func TestLoad_TheSourceSharesItsRowsWithADocumentOfItsMinor(t *testing.T) {
 	doc, _ := loadExternal(t, dir, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n"+
 		"  schemas:\n    A: {$ref: 'same.yaml#/components/schemas/S'}\n    B: {$ref: 'other.yaml#/components/schemas/S'}\n",
 		Options{})
-	rules := map[string]oas.SchemaRules{}
+	rows := map[string]Rows{}
 	for _, o := range doc.Others.List() {
-		rules[o.Label] = o.Rules
+		rows[o.Label] = o.Rows
 	}
-	require.Len(t, rules, 2, "both documents are read")
-	if rules["same.yaml"] != doc.Rules {
+	require.Len(t, rows, 2, "both documents are read")
+	if rows["same.yaml"] != doc.Rows {
 		t.Error("the source's rows were built apart from those of a document of its minor")
 	}
-	assert.True(t, rules["other.yaml"].Defines("nullable"))
-	assert.False(t, doc.Rules.Defines("nullable"))
+	assert.True(t, rows["other.yaml"].Schema.Defines("nullable"))
+	assert.False(t, doc.Rows.Schema.Defines("nullable"))
 }

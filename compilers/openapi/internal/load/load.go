@@ -167,10 +167,18 @@ type Document struct {
 	// Others is every document a reference read beside the source, in the
 	// order Document.Sources lists them after the source and its overlay.
 	Others Others
-	// Rules is the Schema Object's rows at the minor the source declares, which
-	// its schemas are read with, from the table the load judged it against: a
-	// document of Others read at that minor shares them.
-	Rules oas.SchemaRules
+	// Rows is what the table says at the minor the source declares, which its
+	// schemas and Encoding Objects are read with, from the table the load
+	// judged it against: a document of Others read at that minor shares them.
+	Rows Rows
+}
+
+// Rows is what the rule table says at the minor a document is read at: how
+// its schemas read (oas.SchemaRules), and what its Encoding Objects leave
+// unwritten (oas.EncodingRules).
+type Rows struct {
+	Schema   oas.SchemaRules
+	Encoding oas.EncodingRules
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -385,14 +393,18 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
-// SchemaRules returns the Schema Object's rows at the minor doc declares
-// (oas.Spec.SchemaRules), and the zero rows for a nil doc or one declaring a
-// version the table does not cover. It builds the table, so it serves a
-// lowering given no load phase, which has no Document.Rules to read: it is
-// where that lowering's dialect question meets the version, so no lowering
-// reads the version itself.
-func SchemaRules(doc *soa.OpenAPI) oas.SchemaRules {
-	return oas.Table().SchemaRules(doc.GetOpenAPI())
+// RowsOf returns what the table says at the minor doc declares (rowsAt), and
+// the zero rows for a nil doc or one declaring a version the table does not
+// cover. It builds the table, so it serves a lowering given no load phase,
+// which has no Document.Rows to read: it is where that lowering's questions
+// meet the version, so no lowering reads the version itself.
+func RowsOf(doc *soa.OpenAPI) Rows {
+	return rowsAt(oas.Table(), doc.GetOpenAPI())
+}
+
+// rowsAt returns what spec says at the minor version names.
+func rowsAt(spec oas.Spec, version string) Rows {
+	return Rows{Schema: spec.SchemaRules(version), Encoding: spec.EncodingRules(version)}
 }
 
 // SupportedMinor returns the normalized major.minor prefix of an OpenAPI version

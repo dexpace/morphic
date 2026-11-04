@@ -159,16 +159,25 @@ func TestSupportedMinor_AcceptsOnlyTheThreeMinors(t *testing.T) {
 	}
 }
 
-// TestSchemaRules_ReadsTheVersionTheDocumentDeclares pins the rows load hands
-// the lowering for a document: those of the minor it declares, and none for a
-// nil document or one declaring a version the table does not cover.
-func TestSchemaRules_ReadsTheVersionTheDocumentDeclares(t *testing.T) {
+// TestRowsOf_ReadsTheVersionTheDocumentDeclares pins the rows load hands a
+// lowering given no load phase for a document: those of the minor it declares,
+// the Schema Object's and the Encoding Object's alike, and none for a nil
+// document or one declaring a version the table does not cover.
+func TestRowsOf_ReadsTheVersionTheDocumentDeclares(t *testing.T) {
 	t.Parallel()
-	assert.True(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.0.3"}).Defines("nullable"))
-	assert.False(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.1.0"}).Defines("nullable"))
-	assert.True(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.1.0"}).Defines("prefixItems"))
-	assert.False(t, SchemaRules(&soa.OpenAPI{OpenAPI: "3.3.0"}).Defines("type"))
-	assert.False(t, SchemaRules(nil).Defines("type"))
+	r30, r31 := RowsOf(&soa.OpenAPI{OpenAPI: "3.0.3"}), RowsOf(&soa.OpenAPI{OpenAPI: "3.1.0"})
+	assert.True(t, r30.Schema.Defines("nullable"))
+	assert.False(t, r31.Schema.Defines("nullable"))
+	assert.True(t, r31.Schema.Defines("prefixItems"))
+	_, untyped30 := r30.Encoding.UntypedContentType()
+	_, untyped31 := r31.Encoding.UntypedContentType()
+	assert.False(t, untyped30)
+	assert.True(t, untyped31)
+	for _, doc := range []*soa.OpenAPI{{OpenAPI: "3.3.0"}, nil} {
+		if RowsOf(doc) != (Rows{}) {
+			t.Errorf("%+v: a version the table does not cover reads with rows", doc)
+		}
+	}
 }
 
 // TestSupportedMinor_AllocatesNothing pins what the lowering's dialect check

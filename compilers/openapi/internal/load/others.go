@@ -14,7 +14,6 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
@@ -32,9 +31,9 @@ type Other struct {
 	Label string
 	// Info is its Document.Sources entry, whose Format names the minor.
 	Info ir.SourceInfo
-	// Rules is the Schema Object's rows at the minor, which its schemas are
-	// read with.
-	Rules oas.SchemaRules
+	// Rows is what the table says at the minor, which its schemas and its
+	// Encoding Objects are read with.
+	Rows Rows
 	// version is the minor's version as the document, or the source, writes
 	// it, which an object a reference reaches in it is held to (reached.check).
 	version string
@@ -135,10 +134,10 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 	for i, label := range slices.Sorted(maps.Keys(byLabel)) {
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
-		version, minor, rules := source.of(declaredVersion(read.trees[keys[0]]))
+		version, minor, rows := source.of(declaredVersion(read.trees[keys[0]]))
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: "openapi@" + minor, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
-		}, Rules: rules, version: version})
+		}, Rows: rows, version: version})
 		o.pointers = append(o.pointers, pointersIn(ctx, read.trees, keys))
 		for _, key := range keys {
 			o.byName[key] = i

@@ -293,6 +293,6 @@ func (l *loading) document(hash string) (*Document, []ir.Diagnostic) {
 		Siblings:   l.sibs,
 		MediaTypes: l.media,
 		Others:     l.bound.others,
-		Rules:      l.dialects.own(),
+		Rows:       l.dialects.own(),
 	}, l.esc.asWritten(diags)
 }

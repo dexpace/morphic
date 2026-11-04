@@ -56,6 +56,7 @@ Document.
   `e2e.TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument`,
   `e2e.TestDocumentMinor_AdmissionReadsEachSchemaInItsDialect`,
   `e2e.TestDocumentMinor_DocumentsOfTwoMinorsAreEachReadAtTheirOwn`,
+  `e2e.TestDocumentMinor_AnEncodingDefaultsAtItsDocumentsMinor`,
   `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
   `detect.TestRecognize_AVersionThatIsNotServedIsStillADeclaration`
 
@@ -358,7 +359,9 @@ holds a document to, which gives the minor each field and value was added in; no
 so no field's treatment can depend on whether the parser happens to model it. How a schema keyword
 reads at its document's minor is asked of the same table, the Schema Object's rows at that minor:
 whether it defines `nullable`, the shape `exclusiveMinimum` takes, and whether `items` is required
-beside `type: array`. No lowering asks the version: nothing outside the load phase and the table
+beside `type: array`; and what an Encoding Object leaves unwritten defaults to is asked of the
+Encoding Object's rows, the `contentType` of a part writing no `type`
+([`multipart-encoding`](#multipart-encoding)). No lowering asks the version: nothing outside the load phase and the table
 reads the version a document declares, and `make vet` refuses a reading anywhere else (the
 `versionreadings` analyzer). The construct's value
 is held to the shape its table row gives it, and any object inside it to the table like any other.
@@ -3316,7 +3319,7 @@ any case.
 - Cases: `multipart-encoding`, `file-media`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
-  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
   `operation.TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes`,

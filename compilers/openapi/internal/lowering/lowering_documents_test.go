@@ -156,12 +156,12 @@ func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 
 // TestWithLoaded_ReadsTheSourcesRowsFromTheLoad pins where a context over a
 // loaded document gets the source's rows: the load phase's own
-// (load.Document.Rules), held by identity, so building the context builds no
+// (load.Document.Rows), held by identity, so building the context builds no
 // rule table, which alone allocates more than the whole context does. It runs
 // alone, since the allocation counts are the process's.
 func TestWithLoaded_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
 	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
-	if c.SchemaRules() != doc.Rules {
+	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding {
 		t.Error("the context read rows of its own, not the load phase's")
 	}
 	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })

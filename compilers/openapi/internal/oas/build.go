@@ -96,6 +96,13 @@ func (f Field) shapeOwnedBy(pkg string) Field {
 	return f
 }
 
+// defaultsTo adds the value the field takes where its object leaves it
+// unwritten, for a value of case k, at the minors s holds.
+func (f Field) defaultsTo(k DefaultCase, value string, s Span, cites ...Cite) Field {
+	f.Defaults = append(f.Defaults, Default{Value: value, Cites: cites, Span: s, Case: k})
+	return f
+}
+
 // keyword marks the field a JSON Schema keyword.
 func (f Field) keyword() Field {
 	f.Keyword = true

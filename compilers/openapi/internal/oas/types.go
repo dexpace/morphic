@@ -151,6 +151,25 @@ type Alt struct {
 	Span  Span
 }
 
+// Default is a value a field takes where its object leaves it unwritten, at
+// the minors Span holds, for a value of the case Case names.
+type Default struct {
+	Value string
+	Cites []Cite
+	Span  Span
+	Case  DefaultCase
+}
+
+// DefaultCase is the case a Default holds in: what the value the object
+// applies to is, as the specification's table of defaults keys it.
+type DefaultCase int
+
+// The cases a Default holds in.
+const (
+	// Untyped is a value whose schema writes no type.
+	Untyped DefaultCase = 1 + iota
+)
+
 // Field is one field of an object.
 type Field struct {
 	Name string
@@ -164,6 +183,9 @@ type Field struct {
 	Alts []Alt
 	// Cites are the sentences of the specification the field comes from.
 	Cites []Cite
+	// Defaults are the values the field takes where its object leaves it
+	// unwritten, each in its case and at its minors.
+	Defaults []Default
 	// Defined is the minors whose object defines the field. A construct
 	// written at an earlier minor is reported as added by a later one.
 	Defined Span

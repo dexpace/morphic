@@ -161,12 +161,11 @@ type loadResult struct {
 	// names names the nodes built at the positions of the documents the
 	// bindings read, remembering each name (NameAt).
 	names *naming.Namer
-	// others is every document a reference read beside the source, and rules
-	// the Schema Object's rows the source's schemas are read with
-	// (load.Document.Rules): the load phase read both off the one table it
-	// built, so no context builds another.
+	// others is every document a reference read beside the source, and rows
+	// what the table says at the source's minor (load.Document.Rows): the load
+	// phase read both off the one table it built, so no context builds another.
 	others load.Others
-	rules  oas.SchemaRules
+	rows   load.Rows
 	// reads holds those readings in the scope fields they fill: Holds over the
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
@@ -268,7 +267,7 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rules: doc.Rules,
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
 		names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}, readings: map[any]any{}}
@@ -439,33 +438,41 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
-// SchemaRules returns the Schema Object's rows a schema c lowers is read with:
-// those of the document whose content c reads, which its scope names
-// (load.Other.Rules), the source's for its own (sourceRules). A reading that
-// differs between minors, such as a boolean exclusiveMinimum, a required
-// `items` or the effect `nullable` has, asks these rather than the version. A
-// version the table does not cover, and a context with no document, answer
-// with the zero rows.
+// SchemaRules returns the Schema Object's rows a schema c lowers is read with
+// (rowsOf). A reading that differs between minors, such as a boolean
+// exclusiveMinimum, a required `items` or the effect `nullable` has, asks these
+// rather than the version. A version the table does not cover, and a context
+// with no document, answer with the zero rows.
+func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
+
+// EncodingRules returns the Encoding Object's rows an encoding c lowers is read
+// with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
+// where its encoding leaves a field unwritten.
+func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
+
+// rowsOf returns what the table says at the minor of the document whose
+// content c reads, which its scope names (load.Other.Rows), the source's for
+// its own (sourceRows).
 //
 // The scope, not home, names that document: Declared can read one document's
 // content at another's positions.
-func (c Ctx) SchemaRules() oas.SchemaRules {
+func rowsOf(c Ctx) load.Rows {
 	if c.foreign && c.loaded != nil {
 		if o, ok := c.loaded.others.Named(c.holder); ok {
-			return o.Rules
+			return o.Rows
 		}
 	}
-	return sourceRules(c)
+	return sourceRows(c)
 }
 
-// sourceRules returns the rows the source's schemas are read with: those the
-// load phase read, or, in a context given no load phase, those of the version
-// c.Doc declares, which builds the table on each call.
-func sourceRules(c Ctx) oas.SchemaRules {
+// sourceRows returns what the table says at the source's minor: what the load
+// phase read, or, in a context given no load phase, what it says at the
+// version c.Doc declares, which builds the table on each call.
+func sourceRows(c Ctx) load.Rows {
 	if c.loaded == nil {
-		return load.SchemaRules(c.Doc)
+		return load.RowsOf(c.Doc)
 	}
-	return c.loaded.rules
+	return c.loaded.rows
 }
 
 // SchemaRulesIn returns the rows the schemas document id of the bindings'
@@ -474,9 +481,9 @@ func sourceRules(c Ctx) oas.SchemaRules {
 // compile did not read beside it.
 func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 	if _, o, ok := otherIn(c, id); ok {
-		return o.Rules
+		return o.Rows.Schema
 	}
-	return sourceRules(c)
+	return sourceRows(c).Schema
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's
