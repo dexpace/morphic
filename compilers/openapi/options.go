@@ -191,12 +191,12 @@ const (
 	// DefaultMaxReferenceExpansion is the reference-expansion budget:
 	// 16,777,216, a 4.3x margin over the 3,919,648 that the $refs of Microsoft
 	// Graph's description of its generally available API copy, the most of the
-	// descriptions measured 2026-11-04: GitHub's REST API description copies
-	// 3,121,777, Cloudflare's 270,530, Stripe's nothing, and none of 1,840
-	// others more than 2,216,018. Of the documents built to spend it, the
-	// costliest measured, a response of inline headers, peaks near 5.6 GB
-	// writing its IR to standard output, about what Microsoft Graph's
-	// description costs there (5.8 GB).
+	// descriptions the source budgets admit, measured 2026-11-04. Its beta
+	// API's, past those budgets, copies 6,614,806, GitHub's REST API
+	// description 3,121,777, Cloudflare's 270,530, and none of 1,840 others
+	// more than 2,216,018. The costliest document built to spend it, a response
+	// of inline headers, peaks near 5.6 GB writing its IR to standard output,
+	// about what Microsoft Graph's description costs there (5.8 GB).
 	DefaultMaxReferenceExpansion = 1 << 24
 )
 
