@@ -157,7 +157,8 @@ func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 		"    C: {$id: './v2/', $ref: '#/components/schemas/A'}\n" +
 		"    D: {$id: 'urn:example:d', $ref: './d.yaml#/x'}\n" +
 		"    E: {description: '/etc/passwd', default: 'file:///etc/passwd'}\n" +
-		"    F: {example: {id: '/etc/passwd'}, id: 'urn:example:f'}\n"
+		"    F: {example: {id: '/etc/passwd'}, id: 'urn:example:f'}\n" +
+		"    G: {$schema: 'http://json-schema.org/draft-04/schema#', id: './v3/', properties: {p: {$ref: 'q.yaml'}}}\n"
 	_, refuse = reachesLocal(t.Context(), openapitest.YAMLDocument(t, onHost), "http://host/dir/a.yaml", readsDraft4ID)
 	assert.False(t, refuse, "a network document staying on the host reaches no local file")
 
