@@ -285,9 +285,9 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 	t.Parallel()
 	const head = "openapi: 3.1.0\ninfo: {title: t, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n"
 	type report struct {
-		code     string
-		severity ir.Severity
-		pointer  string
+		Code     string
+		Severity ir.Severity
+		Pointer  string
 	}
 	tests := []struct {
 		name  string
@@ -323,7 +323,7 @@ func TestCompile_ABranchOnALoopIsReportedOnlyAsTheLoop(t *testing.T) {
 			for _, d := range diags {
 				got = append(got, report{d.Code, d.Severity, string(d.Provenance.Pointer)})
 			}
-			assert.Equal(t, tc.diags, got, "the loop is the whole report; got %+v", diags)
+			assert.Equal(t, tc.diags, got, "the whole report, in order; got %+v", diags)
 			assert.False(t, openapitest.HasDiag(diags, diag.UnresolvedRef), "the loop is not also unresolved: %+v", diags)
 		})
 	}
