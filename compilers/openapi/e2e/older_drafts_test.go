@@ -160,6 +160,29 @@ func TestOlderDrafts_AnIDNamesAResource(t *testing.T) {
 		"draft 7's $id names a fragment alone, which 2020-12's may not")
 }
 
+// TestOlderDrafts_AValueNamingNoDialectLeavesItsDocumentsDraft pins a
+// `$schema` no absolute URI names, in a document defaulting to draft 4: its
+// schema reads draft 4 as though it wrote none, for the identifier the binder
+// declares and the tuple it binds as for the lowering, so a $ref naming its
+// `id` resolves and an entry of its list of items is bound.
+func TestOlderDrafts_AValueNamingNoDialectLeavesItsDocumentsDraft(t *testing.T) {
+	t.Parallel()
+	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: "+draft04+
+		"\npaths: {}\ncomponents:\n  schemas:\n"+
+		"    I: {$schema: 'rel/x', id: 'https://example.com/i', type: object}\n"+
+		"    R: {$ref: 'https://example.com/i'}\n"+
+		"    E: {$schema: 4, type: array, items: [{$ref: '#/components/schemas/S'}], additionalItems: false}\n"+
+		"    S: {type: string}\n")
+	assert.False(t, hasErrorRef(diags), "R resolves against I's id")
+	r, ok := doc.Types[componentID("R")].(*ir.Scalar)
+	require.True(t, ok)
+	assert.Equal(t, componentID("I"), r.Base.Target)
+	e, ok := doc.Types[componentID("E")].(*ir.Tuple)
+	require.True(t, ok, "a list of items is a draft 4 tuple")
+	require.Len(t, e.Elems, 1)
+	assert.Equal(t, componentID("S"), e.Elems[0].Target)
+}
+
 // TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition pins a node an
 // alias places under a draft 4 root and under a 2020-12 schema: each position
 // reads its own dialect, so the keyword beside its $ref is warned of under the

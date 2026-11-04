@@ -111,6 +111,38 @@ func TestDialectRule_ReadsWhatADialectSpellsOtherwise(t *testing.T) {
 	assert.False(t, ok, "a definitions entry is no schema 2020-12 reads")
 }
 
+// TestDialectRule_AValueNamingNoDialectChoosesNone pins a `$schema` whose
+// value the configuration says names no dialect (DialectRule.NamesNone): it
+// roots no dialect, and its schema reads its document's, here draft 4's, so
+// its `id` declares the URI a $ref names. Read as naming a dialect of 2020-12's
+// keywords instead, the `id` declares nothing.
+func TestDialectRule_AValueNamingNoDialectChoosesNone(t *testing.T) {
+	t.Parallel()
+	src := "openapi: 3.1.0\ninfo: {title: t, version: '1'}\njsonSchemaDialect: 'http://json-schema.org/draft-04/schema#'\n" +
+		"paths: {}\ncomponents:\n  schemas:\n    I: {$schema: 'rel/x', id: 'https://example.com/i'}\n" +
+		"    R: {$ref: 'https://example.com/i'}\n"
+	answer := func(none bool) bind.Config {
+		cfg := draftRule(self)
+		draft := cfg.Dialect
+		cfg.Dialect = func(name, dialect string) bind.DialectRule {
+			if dialect == "rel/x" {
+				return bind.DialectRule{NamesNone: none}
+			}
+			return draft(name, dialect)
+		}
+		return cfg
+	}
+	table := bound(t, src, answer(true))
+	assert.Empty(t, table.Document(bind.Source).Dialects, "the value roots no dialect")
+	e := entryAt(t, table, "/components/schemas/R")
+	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+	assert.Equal(t, at("/components/schemas/I"), e.Hop.Target)
+
+	named := bound(t, src, answer(false))
+	assert.Len(t, named.Document(bind.Source).Dialects, 1)
+	assert.NotEqual(t, bind.Resolved, entryAt(t, named, "/components/schemas/R").Hop.Status)
+}
+
 // TestDialectRule_AWalkStartsInTheDialectAboveIt pins the dialect a walk from
 // a landing of another document starts in: the one the schemas on the way to
 // it name, so a draft 4 document's nested definitions hold schemas whose $ref

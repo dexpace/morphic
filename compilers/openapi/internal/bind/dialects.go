@@ -11,11 +11,11 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// DialectRoot is a schema resource root writing a `$schema`: a schema no other
-// holds, or one whose $id roots a resource of its own; where it is, its node,
-// and the value its `$schema` writes, which names its dialect where it is an
-// absolute URI. OAS 3.1 has a `$schema` choose the dialect of the resource it
-// roots (docs/compilers/openapi.md#dialect-keywords).
+// DialectRoot is a schema resource root whose `$schema` names its dialect: a
+// schema no other holds, or one whose identifier roots a resource of its own
+// (enterIn); where it is, its node, and the URI its `$schema` names. OAS 3.1
+// has a `$schema` choose the dialect of the resource it roots
+// (docs/compilers/openapi.md#dialect-keywords).
 type DialectRoot struct {
 	Node *yaml.Node
 	URI  string
@@ -112,10 +112,12 @@ type entering struct {
 // names, and spells its identifier as that dialect does. One a schema holds
 // roots a resource where it writes an identifier as its embedder spells one,
 // as JSON Schema 2020-12 has an embedded resource do (§9.3.1), or as the
-// dialect its `$schema` names does, and only then is read in that dialect.
+// dialect its `$schema` names does, and only then is read in that dialect. A
+// `$schema` naming no dialect (DialectRule.NamesNone) chooses none.
 func (r resources) enterIn(in resource, at Position, n *yaml.Node, enclosing string, schemaHeld func() bool) entering {
 	doc := at.Doc
-	uri, named := scalarOf(r.docs.list[doc].view.ChildByToken(nodeview.Deref(n), "$schema"))
+	uri, written := scalarOf(r.docs.list[doc].view.ChildByToken(nodeview.Deref(n), "$schema"))
+	named := written && !dialectRule(r.docs, doc, uri).NamesNone
 	held := named && schemaHeld()
 	own := dialectRule(r.docs, doc, enclosing).Keyword
 	if named && !held {
