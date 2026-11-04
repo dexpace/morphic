@@ -285,7 +285,7 @@ func loweringCtx(doc *load.Document, o Options) lowering.Ctx {
 		MaxReferenceExpansion: budget.FromOption(o.Limits.MaxReferenceExpansion, DefaultMaxReferenceExpansion),
 	}
 	return lowering.New(rootSrcIndex, doc.Doc, doc.Source, o.Grouping, limits,
-		o.StreamingMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
+		o.StreamingMedia, o.BinaryMedia, o.Promotions, o.NullableWidening, doc.Overlay).WithLoaded(doc)
 }
 
 // undecodable reports a source this compiler recognized and could not read.

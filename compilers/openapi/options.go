@@ -43,6 +43,17 @@ type StreamingMedia = lowering.StreamingMedia
 // extending the list can start from it rather than transcribe it.
 func DefaultStreamingMediaTypes() []string { return lowering.DefaultStreamingMediaTypes() }
 
+// BinaryMedia is the binary media-type policy: which media types mean a body or
+// part is a file when its schema says nothing more than that it is a string. It
+// is another injectable-policy seam (architecture principle 6), named here for
+// the reason GroupingStrategy is.
+type BinaryMedia = lowering.BinaryMedia
+
+// DefaultBinaryMediaTypes returns the media types BinaryMedia classifies as
+// binary when the caller names none, for the reason DefaultStreamingMediaTypes
+// is exported.
+func DefaultBinaryMediaTypes() []string { return lowering.DefaultBinaryMediaTypes() }
+
 // ExtensionPromotions is the vendor-extension promotion policy: which x-* keys
 // are read into which typed IR field. It is another injectable-policy seam
 // (architecture principle 6), and is named here rather than restated for the
@@ -108,6 +119,11 @@ type Options struct {
 	// the default list, on; a caller who wants only what a document declares
 	// disables it.
 	StreamingMedia StreamingMedia `json:"streamingMedia"`
+	// BinaryMedia selects which media types make a file of a body or part whose
+	// schema says no more than that it is a string. The zero value is the
+	// default list, on; a caller who wants only what a document declares
+	// disables it.
+	BinaryMedia BinaryMedia `json:"binaryMedia"`
 
 	// Promotions selects which vendor extensions are read into typed IR fields.
 	// The zero value is the default mapping, on; a caller who wants extensions
@@ -311,6 +327,8 @@ const (
 	optNullableWidening   = "nullable-widening"
 	optStreamingMedia     = "streaming-media"
 	optStreamingInference = "streaming-inference"
+	optBinaryMedia        = "binary-media"
+	optBinaryInference    = "binary-inference"
 )
 
 // limitOptions maps the name of each budget in l to the field it sets, so a
@@ -332,7 +350,7 @@ func limitOptions(l *Limits) map[string]*int {
 func optionNames() []string {
 	names := []string{
 		optGrouping, optAllowExternalRefs, optOverlay, optOverlayLax, optNullableWidening,
-		optStreamingMedia, optStreamingInference,
+		optStreamingMedia, optStreamingInference, optBinaryMedia, optBinaryInference,
 	}
 	names = slices.AppendSeq(names, maps.Keys(limitOptions(&Limits{})))
 	slices.Sort(names)
@@ -395,11 +413,18 @@ func (d *optionDecode) set(key, value string) error {
 		d.opts.NullableWidening.Disabled = !on
 		return err
 	case optStreamingMedia:
-		return decodeStreamingMedia(&d.opts.StreamingMedia.MediaTypes, value)
+		return decodeMediaList(&d.opts.StreamingMedia.MediaTypes, key, value)
 	case optStreamingInference:
 		on := true
 		err := decodeBool(&on, key, value)
 		d.opts.StreamingMedia.Disabled = !on
+		return err
+	case optBinaryMedia:
+		return decodeMediaList(&d.opts.BinaryMedia.MediaTypes, key, value)
+	case optBinaryInference:
+		on := true
+		err := decodeBool(&on, key, value)
+		d.opts.BinaryMedia.Disabled = !on
 		return err
 	}
 	if budget, ok := limitOptions(&d.opts.Limits)[key]; ok {
@@ -436,18 +461,18 @@ func decodeGrouping(out *GroupingStrategy, value string) error {
 	}
 }
 
-// decodeStreamingMedia reads the streaming media list: entries separated by
-// commas, which no media type holds outside a parameter's quotes. An entry that
-// is neither a media type nor a suffix is refused rather than kept: it could
-// match nothing, and the list it sits in replaces the default. The promotion
-// mapping has no setting yet (GitHub #658).
-func decodeStreamingMedia(out *[]string, value string) error {
+// decodeMediaList reads the media list of the setting key, streaming's or
+// binary's: entries separated by commas, which no media type holds outside a
+// parameter's quotes. An entry that is neither a media type nor a suffix is
+// refused rather than kept: it could match nothing, and the list it sits in
+// replaces the default. The promotion mapping has no setting yet (GitHub #658).
+func decodeMediaList(out *[]string, key, value string) error {
 	entries := strings.Split(value, ",")
 	for i, entry := range entries {
 		entries[i] = strings.TrimSpace(entry)
 		if !namesMedia(entries[i]) {
 			return fmt.Errorf("openapi: option %q: want media types or +suffixes separated by commas, got %q",
-				optStreamingMedia, value)
+				key, value)
 		}
 	}
 	*out = entries

@@ -51,6 +51,8 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 			"nullable-widening":       "false",
 			"streaming-media":         "application/vnd.acme.frames; charset=utf-8, +frames",
 			"streaming-inference":     "false",
+			"binary-media":            "image/*, application/vnd.acme.blob, +zip",
+			"binary-inference":        "false",
 			"max-source-bytes":        "11",
 			"max-source-nodes":        "-1",
 			"max-enum-members":        "0",
@@ -74,6 +76,10 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 		Disabled:   true,
 		MediaTypes: []string{"application/vnd.acme.frames; charset=utf-8", "+frames"},
 	}, opts.StreamingMedia, "the list as the Go field reads it, one entry each, and streaming-inference=false turns it off")
+	assert.Equal(t, openapi.BinaryMedia{
+		Disabled:   true,
+		MediaTypes: []string{"image/*", "application/vnd.acme.blob", "+zip"},
+	}, opts.BinaryMedia, "the list as the Go field reads it, and binary-inference=false turns it off")
 	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14,
 		MaxReferenceExpansion: 15}, opts.Limits, "each budget as the Go field reads it, 0 left for the default")
 }
@@ -115,10 +121,10 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 		wantErr  string
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"},
-			`unknown option "gruoping" (known: allow-external-refs, grouping, max-alias-surplus, ` +
-				`max-enum-members, max-external-documents, max-reference-expansion, max-source-bytes, max-source-nodes, ` +
-				`nullable-widening, overlay, ` +
-				`overlay-lax, streaming-inference, streaming-media)`},
+			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, grouping, ` +
+				`max-alias-surplus, max-enum-members, max-external-documents, max-reference-expansion, ` +
+				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, streaming-inference, ` +
+				`streaming-media)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
@@ -162,6 +168,12 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 			`option "nullable-widening": want a boolean, got "maybe"`},
 		{"non-boolean inference", map[string]string{"streaming-inference": "maybe"},
 			`option "streaming-inference": want a boolean, got "maybe"`},
+		{"entry naming no binary media type", map[string]string{"binary-media": "image/png,pdf"},
+			`"binary-media": want media types or +suffixes separated by commas, got "image/png,pdf"`},
+		{"empty binary list", map[string]string{"binary-media": ""},
+			`"binary-media": want media types or +suffixes separated by commas, got ""`},
+		{"non-boolean binary inference", map[string]string{"binary-inference": "maybe"},
+			`option "binary-inference": want a boolean, got "maybe"`},
 		{"non-boolean", map[string]string{"allow-external-refs": "yes please"},
 			`want a boolean, got "yes please"`},
 		{"non-boolean laxness", map[string]string{"overlay": "p.yaml", "overlay-lax": "sort of"},
@@ -232,6 +244,13 @@ func TestDecodeOptions_FeedsCompile(t *testing.T) {
 func TestDefaultStreamingMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, lowering.DefaultStreamingMediaTypes(), openapi.DefaultStreamingMediaTypes())
+}
+
+// TestDefaultBinaryMediaTypes_IsWhatTheLoweringApplies pins the exported list
+// to the one a compile classifies by when Options names none.
+func TestDefaultBinaryMediaTypes_IsWhatTheLoweringApplies(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, lowering.DefaultBinaryMediaTypes(), openapi.DefaultBinaryMediaTypes())
 }
 
 // TestDefaultExtensionPromotions_IsWhatTheLoweringApplies pins the exported

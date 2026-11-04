@@ -3101,26 +3101,69 @@ all three and its `x-*`, reported as an `openapi/empty-request-content` warning 
 
 ### `file-bodies`
 
-A content entry whose schema is `type: string` with `format: binary`, read through a `$ref` or a
-refinement ([`allof-refinement`](#allof-refinement)) and whatever its media type, or whose schema is
-absent or boolean on `application/octet-stream`, matched
-on the normalized key ([`media-types`](#media-types)), lowers to `Content.File` with `IsText` false
-and `ContentTypes` the key as written, so that a body to stream is not read as a model.
-`Content.Type` stays what the schema lowered to, which keeps its docs, bounds and examples
-reachable, and is the non-nullable `bytes` primitive only where the schema is absent or `true` and
-states nothing. No other `FileInfo` field is set. The same holds for a response and an error case.
-An `octet-stream` entry with a schema that is not `string` with `binary`, a `format: byte` or
-`contentMediaType` string, and a schema-less entry on any other media type are ordinary Contents.
+A content entry is a file body, `Content.File` with `IsText` false and `ContentTypes` the key as
+written, where its schema declares raw bytes or leaves its media type to say, so that a body to
+stream is not read as a model. The schema is read through a `$ref`, and through the branches of an
+`anyOf` or `oneOf` it writes, as the least any of them admits: a branch admitting no value but
+`null`, or none as `false` does, is passed over, and one that is itself such a union says the body
+is something else. A schema declares
+raw bytes with `format: binary` on a `type` that includes `string` or on none, and no
+`contentEncoding`, which makes them encoded text as the type lowering reads it, read through a
+refinement ([`allof-refinement`](#allof-refinement)) to the schema deciding it, whatever the media
+type. It leaves the media type to say where it is absent, `true`, or writes no keyword but `type` as
+`string`, alone or with `null`, the annotations `title`, `description`, `$comment`, `example`,
+`examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
+the identifiers `$id`, `$anchor` and `$dynamicAnchor` and the store `$defs`, which say nothing of
+the value, the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary
+payload's octets,
+`contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
+where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
+keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering reads one
+([`later-version-construct`](#later-version-construct)); a chain is followed up to a bound of its
+own, and one longer says the body is something else. Such a body is a declared file on
+`application/octet-stream`, matched on the normalized key ([`media-types`](#media-types)), since RFC
+2046 defines that type as arbitrary octets, and a file the binary policy reads on a media type it
+names ([`binary-media`](#binary-media)), where `FileInfo.Inferred` is `binary-media-type`. Any other
+keyword, such as a `format` naming a text form, `contentEncoding`, `enum`, `allOf` or an object's,
+or a `false` schema, makes the content an ordinary Content whatever its media type, as is a body
+leaving its media type to say under one neither names. `Content.Type` stays what the schema lowered
+to, which keeps its docs, bounds and examples reachable. Where a declared file's schema states
+nothing at all it is `bytes` instead, with what the reference says of null, since the media type
+alone says the body is bytes; a file the policy read keeps the top type, so a consumer setting the
+guess aside finds what the schema said. No other `FileInfo` field is set. The same holds for a
+response and an error case.
 
-- Cases: `file-body`
+- Cases: `file-body`, `file-media`
 - Tests: `operation.TestContent_BinaryOctetStreamBody`,
   `operation.TestContent_MixedCaseOctetStreamBodyIsFile`,
   `operation.TestContent_BinaryRefBodyDetectedAsFile`,
   `operation.TestContent_ARefinedBinaryBodyIsAFile`,
-  `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`
-- Status: partly built: the 3.1 idioms for a file, `contentMediaType` without `contentEncoding` and
-  a schema-less entry on a media type other than `application/octet-stream`, are not recognized
-  (#605).
+  `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`,
+  `operation.TestBodyFile_ReadsTheSchemaAndTheMediaType`,
+  `operation.TestBodyFile_ReadsAChainOfRefsUpToItsBound`,
+  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`
+
+### `binary-media`
+
+The binary policy names the media types under which a body or a multipart part whose schema leaves
+its media type to say is a file ([`file-bodies`](#file-bodies),
+[`multipart-encoding`](#multipart-encoding)): by default `application/gzip`, `application/pdf`,
+`application/vnd.tcpdump.pcap`, `application/wasm`, `application/zip`, `audio/*`, `font/*`,
+`image/*` and `video/*`, matched on the normalized key ([`media-types`](#media-types)) at every
+minor. OpenAPI says any binary media type marks binary content, but no registry says which media
+types are binary, so the reading is a guess and each file it makes carries `binary-media-type` in
+its `Inferred`. An entry `type/*` matches each media type of that type whose subtype has no
+structured suffix, since a suffix names the syntax a body is written in: `image/*` matches
+`image/png`, not `image/svg+xml`. An entry starting with `+` names a structured suffix.
+`application/octet-stream` is no entry: a file it carries is declared, whatever the policy says. The
+policy is the Go option `Options.BinaryMedia`: `Disabled` turns the reading off, and `MediaTypes`
+replaces the default list instead of extending it. The `binary-media` setting sets `MediaTypes`, its
+entries separated by commas, and refuses one that is neither a media type nor a suffix, and
+`binary-inference=false` sets `Disabled`.
+
+- Cases: `file-media`
+- Tests: `lowering.TestMediaTypeBinary_AnswersFromThePolicy`,
+  `openapi.TestDecodeOptions_TextReachesEveryField`
 
 ### `example-values`
 
@@ -3138,21 +3181,27 @@ as an info `openapi/degraded-construct` at it. A schema's examples are
 ### `item-schema`
 
 3.2's `itemSchema` lowers to `Content.Item`, the type of each item of a sequential body, and
-`itemEncoding` to `Content.ItemEncoding`. Beside a positional `prefixEncoding`, a single every-item
-encoding cannot state ordinals, so `itemEncoding` and `prefixEncoding` are both kept verbatim in the
-content's `Unmodeled`, under `openapi:itemEncoding` and `openapi:prefixEncoding` (`no_ir_home`),
-reported as one info `openapi/degraded-construct` at the content, while `itemSchema` still lowers to
-`Content.Item`. On a media type whose body is one document, JSON's or XML's by name or `+json` or
-`+xml` suffix, and which the streaming policy ([`streaming-media`](#streaming-media)) does not name,
-`itemSchema` has no sequence to describe: it lowers all the same, with a warning
-`openapi/item-schema-on-document` at it. Which other media types repeat a structure is no closed
-set, so nothing else draws one.
+`itemEncoding` to `Content.ItemEncoding`, with `Multi` set. In a multipart body its `Filename`, and
+the `Inferred` beside it, are read off `itemSchema` and the `itemEncoding`'s `contentType` as a
+multipart part's declaration is read ([`multipart-encoding`](#multipart-encoding)), an item being
+one value where an array part is many, so an array item is no file; an item no `itemSchema`
+describes is none either. A multipart body whose items read as files gets an `ItemEncoding` saying
+so where it writes no `itemEncoding`, as a file part gets an entry. Beside a positional
+`prefixEncoding`, a single every-item encoding cannot state ordinals, so `itemEncoding` and
+`prefixEncoding` are both kept verbatim in the content's `Unmodeled`, under `openapi:itemEncoding`
+and `openapi:prefixEncoding` (`no_ir_home`), reported as one info `openapi/degraded-construct` at
+the content, while `itemSchema` still lowers to `Content.Item`. On a media type whose body is one
+document, JSON's or XML's by name or `+json` or `+xml` suffix, and which the streaming policy
+([`streaming-media`](#streaming-media)) does not name, `itemSchema` has no sequence to describe: it
+lowers all the same, with a warning `openapi/item-schema-on-document` at it. Which other media types
+repeat a structure is no closed set, so nothing else draws one.
 
-- Cases: `sequential-media`
+- Cases: `sequential-media`, `file-items-32`
 - Codes: `openapi/degraded-construct`, `openapi/item-schema-on-document`
 - Tests: `operation.TestStreaming_AnItemSchemaOnOneDocumentIsReported`,
   `operation.TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds`,
-  `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`
+  `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`,
+  `operation.TestItemFile_ReadsTheItemAsAPartDeclarationIs`
 
 ### `streaming-media`
 
@@ -3213,14 +3262,34 @@ since a part reached only past it has no entry. `contentType` lowers to `Content
 and trimmed with empty items dropped, and one naming no media type is an `openapi/validation` error
 ([`validation`](#validation)); `headers` to `Headers`, lowered as a response's are; and `style` and
 `explode` to `Style` and `Explode` as declared, nothing defaulted. `Multi` and `Filename` come from
-the part and never from the `encoding` map, read once every type has lowered. Where the body model
-has the property and its type is a list, a tuple, a primitive, or a scalar whose bases end in one of
-those or in no base, they are read off that type, the one the `allOf` merge settled on, of the
-declaration the key names: `Multi` where it ends in a list or tuple, `Filename` where it ends in
-`bytes` (`format` `binary` or `byte`). For a property of any other kind, such as a union, enum,
-literal, model or map, and for a body with no model, they are read from every declaration of the
-part's name: `Multi` where any is an array, `Filename` where any is a `string` with `format`
-`binary` or `byte`. A part is entered only when its `PartEncoding` holds something, so a body that
+the part, read once every type has lowered, and `Filename` also from the media types its encoding
+entry names. Where the body model has the property and its type is a list, a tuple, a primitive, or
+a scalar whose bases end in one of those or in no base, they are read off that type, the one the
+`allOf` merge settled on, of the declaration the key names: `Multi` where it ends in a list or
+tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`) or, in a multipart body, in
+a list or tuple every element of which ends in `bytes` no encoding such as `format: byte`
+re-encodes, a tuple's rest included where elements may follow its prefix. A union is read off its
+variants, through the unions nested in them, each as such a type is and one of another kind as
+neither: `Multi` where any is, since a part that may repeat travels as repeated parts, and, in a
+multipart body, `Filename` where every one is `bytes` no encoding re-encodes or a list or tuple of
+them. For a property of any other kind, such as an enum, literal, model or
+map, for a union reaching more nested unions than a bound of its own, and for a body with no model,
+they are read from every declaration of the part's name: `Multi` where any is an array, or writes
+no `type` and a union with an array among its branches, `Filename` where any is a `string` with
+`format` `binary` or `byte`. In a multipart body a part is a file too where every declaration of
+it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an array through each of its
+elements, its `prefixItems` and the `items` after them, `items: false` admitting none, as is an
+array branch of a union it writes, whose other branches are read as a body's union branches are: one
+declaring raw bytes; one leaving its media type to say, where its encoding entry's `contentType`
+names only `application/octet-stream` or media types the binary policy names
+([`binary-media`](#binary-media)), `PartEncoding.Inferred` being `binary-media-type` where it names
+one of the latter; and, from OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose
+default content type OpenAPI makes `application/octet-stream`, a union being read so only where
+each of its branches, an array's through its elements, writes no `type` or declares raw bytes, so
+that `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with
+neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
+default disagrees, and an array writing no `items` says nothing of its elements past its prefix, so
+neither is a file. A part is entered only when its `PartEncoding` holds something, so a body that
 declares no encoding still gets entries for its array and file parts, and an entry declaring nothing
 leaves none. What an Encoding Object writes beyond those fields is
 [`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where OpenAPI gives it no
@@ -3230,7 +3299,7 @@ form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `pre
 `itemEncoding` under one that is not multipart. A media type is read without its parameters and in
 any case.
 
-- Cases: `multipart-encoding`
+- Cases: `multipart-encoding`, `file-media`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
   `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
@@ -3247,12 +3316,16 @@ any case.
   `operation.TestPartEncodings_RefHopBoundIsReported`,
   `operation.TestPartEncodings_ShorterPathReentersTarget`,
   `operation.TestPartEncodings_CappedEntryReachedByAnotherPath`,
-  `operation.TestPartEncodings_CutPastReachedPart`
+  `operation.TestPartEncodings_CutPastReachedPart`,
+  `operation.TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles`,
+  `operation.TestPartTypeFlags_AUnionReadsThroughItsMembers`,
+  `operation.TestPartEncoding_AMergedUnionReadsThroughItsVariants`,
+  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
-  is keyed by a property no node holds, which validation then refuses (#744); an array of files is
-  not marked as files (#605); and an encoding under a media type it does not apply to is kept in no
-  form (#1047).
+  is keyed by a property no node holds, which validation then refuses (#744); a part's own
+  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); and an
+  encoding under a media type it does not apply to is kept in no form (#1047).
 
 ### `encoding-allow-reserved`
 

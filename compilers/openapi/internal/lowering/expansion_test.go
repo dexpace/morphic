@@ -232,7 +232,7 @@ func loaded(t *testing.T, src string, limit budget.Limit) lowering.Ctx {
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{MaxReferenceExpansion: limit},
-		lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{},
+		lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{},
 		overlay.Origin{}).WithLoaded(doc)
 }
 
