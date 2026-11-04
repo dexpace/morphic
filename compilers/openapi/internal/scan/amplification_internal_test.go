@@ -504,6 +504,8 @@ func TestAliasWeigher_PopsRepeatedFrame(t *testing.T) {
 
 	assert.Equal(t, len(w.weight), w.computations,
 		"the anchor, on the stack twice, is computed once")
+	assert.Empty(t, w.inFlight,
+		"the second frame pops unexpanded, so nothing is left in flight")
 	// Distinct nodes: root, its key "a", the sequence, the alias node, base,
 	// and base's own key and value: 7.
 	assert.Equal(t, 7, w.computations)
