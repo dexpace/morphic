@@ -12,21 +12,30 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   name, so that neither the module nor the directory kotlinc writes the package's classes to could
   be made on Windows. The names Gradle and its plugins keep at a build's root meet no unit, as no
   module sits there ([output units](overview.md#output-units)).
-- **A unit**: `Client` and each sub-client, in the unit holding it, and what a runtime template
-  declares, in a unit it renders into beside the spec's names ([template
-  guards](../../emit/templates.md#two-guards-on-the-boilerplate-templates)): `ApiFailure`,
-  `ApiException` and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
-  `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
-  `Authenticator` and `Transport` among them, and on Multiplatform `Decimal` and `OffsetDateTime`.
-  Each Windows device name above is reserved too, in any letter case, as the JVM writes a top-level
-  class to a file of its name, `Aux.class`, which Windows refuses whatever the extension. On
-  Multiplatform, where every unit's declarations share one Objective-C namespace and a nested one's
-  name is joined to its outer's ([Swift](swift.md)), each name above that the target declares is
-  reserved in that namespace too, in every unit, and so is the joined name of each public class the
-  target nests in a type, such as `UserBuilder` and `UserCompanion` beside a model `User` and
-  `PaymentUnknown` beside a union `Payment`. A declaration that meets one only there keeps its
-  Kotlin name and takes an explicit Objective-C and Swift name, so no JVM name moves for Swift's
-  sake. Which unit the runtime renders into is #1489's to decide.
+- **A unit**: what the target declares there and what a top-level declaration cannot take:
+  - `Client` and each sub-client, in the unit holding it, and what a runtime template declares, in a
+    unit it renders into beside the spec's names ([template
+    guards](../../emit/templates.md#two-guards-on-the-boilerplate-templates)): `ApiFailure`,
+    `ApiException` and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
+    `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
+    `Authenticator` and `Transport` among them, and on Multiplatform `Decimal` and `OffsetDateTime`.
+    Which unit the runtime renders into is #1489's to decide.
+  - Each name Kotlin's default imports give that any refine step or template can write, such as
+    `List`, `Map`, `String`, `Long`, `Unit`, `Exception` and `Result`, since a top-level declaration
+    shadows a default import for its whole package: with a model `List` in a package, `List<String>`
+    there failed ("No type arguments expected for 'class List : Any'"), and with a model
+    `Exception`, a class extending `Exception` did. Each step and template declares those it writes
+    as it declares what it binds, and the set is their union for the target's version, never what
+    one unit's code happens to write, so adding an operation renames no model.
+  - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
+    file of its name, `Aux.class`, which Windows refuses whatever the extension.
+  - On Multiplatform, the Objective-C names. Every unit's declarations share one Objective-C
+    namespace, a nested one's name joined to its outer's ([Swift](swift.md)), so each name above
+    that the target declares is reserved there in every unit, and so is the joined name of each
+    public class the target nests in a type, such as `UserBuilder` and `UserCompanion` beside a
+    model `User` and `PaymentUnknown` beside a union `Payment`. A declaration that meets one only
+    there keeps its Kotlin name and takes an explicit Objective-C and Swift name, so no JVM name
+    moves for Swift's sake.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
 A unit's package segment is its words in lowercase, joined with no separator (`useraccounts`), as

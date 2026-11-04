@@ -9,7 +9,8 @@ scope and a unit's what a unit or a top-level declaration cannot be named:
   the shared unit's, and the names a target's toolchain, or a file system it writes to, treats
   apart.
 - **A unit**: the names the target declares at its top level beside the spec's, and those a
-  top-level declaration cannot take, as a file system can refuse the file it is written to.
+  top-level declaration cannot take, as when a file system refuses the file it is written to or the
+  declaration would shadow a name the language imports by default.
 - **A type**: the members the target gives every model.
 - **A union's variants**: `Unknown`, the fallback's name ([unions](unions.md)), which a variant the
   spec names so yields to.
