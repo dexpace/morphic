@@ -565,6 +565,8 @@ func TestAliasWeigher_InFlightCycleSaturates(t *testing.T) {
 	require.NotEmpty(t, culprits, "a cyclic alias graph expands without bound and must be refused")
 	culprit := culprits[0]
 	assert.Equal(t, w.allowance.Past(), w.weight[culprit], "the cycle saturates rather than looping")
+	assert.Equal(t, len(w.weight)-1, w.computations,
+		"the node the cycle cut holds a weight, and its frame pops uncomputed")
 }
 
 // TestYAMLUnmarshal_IntoANodeSpendsNoAliasBudget pins the yaml.v3 fact the alias
