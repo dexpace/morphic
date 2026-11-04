@@ -116,17 +116,19 @@ func schemaRefHomed(c lowering.Ctx, ts *compile.Types, depth int, js *oas3.JSONS
 	// recursive descent re-enters. Incrementing on entry and passing the result
 	// down is the parameter form of a counter that used to live on a shared
 	// struct, back when one held the whole compile.
-	depth++
-	if depth > maxSchemaDepth {
-		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
-			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
-	}
 	if !annotation.Written(js) {
 		// None, or a null, which states nothing: an entry written so — a
 		// property, a branch, a component, items — lowers as the empty schema.
 		// A keyword whose absence differs from the empty schema reads a null as
 		// left out before it gets here (docs/compilers/openapi.md#null-schema).
+		// It nests nothing, so the depth bound reports none at its pointer, as
+		// a tuple's absent rest would otherwise draw.
 		return ts.PrimRef(ir.PrimAny), nil
+	}
+	depth++
+	if depth > maxSchemaDepth {
+		return ts.PrimRef(ir.PrimAny), []ir.Diagnostic{c.DiagAt(ir.SeverityError, diag.DegradedConstruct, pointer,
+			"schema nesting exceeds %d; lowered as any", maxSchemaDepth)}
 	}
 	if js.IsBool() {
 		// The parser reads a body as false too when a keyword beneath it fails to
