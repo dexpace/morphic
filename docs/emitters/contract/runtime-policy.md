@@ -63,10 +63,10 @@ func Merge(base Policy, over DeepPartial) Policy // scalars override; ARRAYS REP
   again, whatever came back: its failure is returned. The lists name HTTP statuses; a protocol with
   statuses of its own takes lists of its own, each status placed by whether it says the server did
   not act, as `Policy.Errors` gives such a protocol rows of its own
-  ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)). An entry outside 100 to 599,
-  which no status has (RFC 9110 §15), or a 2xx, which says the request succeeded, is invalid, and
-  so is a status both lists name, which would say at once that the server did not act and that
-  whether it acted is unknown.
+  ([failures](../operations/errors.md#the-kinds-are-the-taxonomys)). An entry below 300, which no
+  failure has, or past 599, which no status has (RFC 9110 §15), is invalid, and so is a status both
+  lists name, which would say at once that the server did not act and that whether it acted is
+  unknown.
 - **`Retry-After`** is the server saying when to come back. Honoring it is the default, and it never
   waits past `Backoff.Max`, so a server cannot park a caller indefinitely; a value past it ends the
   retries and returns the response.
