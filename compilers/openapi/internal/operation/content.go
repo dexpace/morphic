@@ -70,7 +70,7 @@ type mediaDecl struct {
 // resolving to nothing, which lowers nothing, as any reference object does
 // (docs/compilers/openapi.md#references). The load phase or the rule table
 // reported why, but for a $ref inside an object reached in raw YAML
-// (GitHub #1320) or one the model decodes no string from (GitHub #1280). Keys
+// (GitHub #1320) or one the model decodes no string from (GitHub #1368). Keys
 // beside the $ref but summary and description are not read (GitHub #1321).
 //
 // One declaration lowers at its own pointer however many entries name it, so
@@ -125,7 +125,7 @@ func lowerContent(d mediaDecl, ts *compile.Types, mt string) (ir.Content, []ir.D
 		content.Examples = ex
 	}
 	switch {
-	case isBinaryBody(c.Bindings(), mt, media.GetSchema()):
+	case isBinaryBody(c, mt, media.GetSchema()):
 		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
 		content.Type = fileBodyType(ts, content.Type)
 	case isFormContent(mt):
@@ -167,14 +167,14 @@ func isFormContent(mt string) bool {
 }
 
 // isBinaryBody reports whether a content entry is a binary file body: a
-// string+binary schema, or an absent or boolean schema on
-// application/octet-stream.
-func isBinaryBody(refs *typed.Bindings, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	s := schemaOf(refs, js)
+// string+binary schema, the schema a refinement is a use of included, or an
+// absent or boolean schema on application/octet-stream.
+func isBinaryBody(c lowering.Ctx, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
+	s := schemaOf(c.Bindings(), js)
 	if s == nil {
 		return lowering.NormalizeMediaType(mt) == "application/octet-stream"
 	}
-	return schemaIsBinary(s)
+	return schemaIsBinary(schema.DecidingSchema(c, s))
 }
 
 // schemaIsBinary reports whether a schema is a string+binary body.

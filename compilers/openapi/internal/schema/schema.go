@@ -69,7 +69,7 @@ func lowerComponentSchema(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema
 	// This alias is the first node the pointer owns, so the annotations
 	// schemaBody had nowhere to put now have a home.
 	if s.Node != nil {
-		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer)...)
+		diags = append(diags, attachDeclaredAnnotations(c, ts, s.Node, pointer, ref)...)
 	}
 	return diags
 }
@@ -194,37 +194,41 @@ func schemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schem
 	// A body's census ran where its node was built, the only thing that can
 	// answer it. One lowering to a reference built none, so it takes a $ref
 	// site's census, and its verdict homes an alias.
-	unhomed, shape := referenceOutcomeKeywords(c, schema, pointer)
-	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, len(unhomed) > 0)
+	keeps := keepsAtOutcome(c, ts, schema, target, pointer)
+	ref, homeDiags := homeDeclaration(c, ts, schema, target, pointer, home, keeps.holdsAny())
 	diags = append(diags, homeDiags...)
-	if home != annotation.HomeOwnNode {
+	diags = append(diags, recordPrincipalResidue(c, ts, schema, pointer, home)...)
+	if !keeps.holdsAny() || (home != annotation.HomeOwnNode && !LoweredToOwnNode(c, ts, pointer, ref)) {
 		return ref, diags // the carrier keeps them (PreserveRefSiteKeywords)
 	}
-	return ref, append(diags, recordUnhomedKeywords(c, ts, ref.Target, schema, unhomed, shape, pointer)...)
+	return ref, append(diags, keeps.recordOn(c, ts, ref.Target, schema, pointer)...)
 }
 
 // lowerSchemaBody lowers the body itself, handling the $dynamicRef expansion and
 // the oneOf/anyOf dispatch that precede structural lowering.
 func lowerSchemaBody(c lowering.Ctx, ts *compile.Types, depth int, schema *oas3.Schema, pointer jsontext.Pointer) (ir.TypeRef, []ir.Diagnostic) {
-	target, _, expanded, diags := dynamicExpansion(c, schema, pointer)
-	if expanded {
-		diags = append(diags, c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded, pointer+ids.Ptr("$dynamicRef"),
-			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target))
+	if at, _, expanded := dynamicExpansion(c, schema, pointer); expanded {
+		// anchorHolds settled that the anchor resolves, by what resolveAt reads
+		// in c's own document, so nothing falls through: that would drop the
+		// $dynamicRef unrecorded, as recordUnexpandedDynamicRef keeps only one
+		// that does not expand, where an empty target fails irverify.
+		target, _ := resolveAt(c, ts, at, c.Bindings().At(at))
 		ref, nullDiags := schemaNullRef(c, target, schema, siteAt(pointer))
-		return ref, append(diags, nullDiags...)
+		return ref, append([]ir.Diagnostic{c.DiagAt(ir.SeverityInfo, diag.DynamicRefExpanded,
+			pointer+ids.Ptr("$dynamicRef"),
+			"$dynamicRef expanded to %q, the one matching $dynamicAnchor in this document", target)}, nullDiags...)
 	}
 	if len(schema.GetOneOf()) > 0 || len(schema.GetAnyOf()) > 0 {
 		if hasUnionSiblings(schema) {
 			id, unionDiags := lowerCoDeclaredUnion(c, ts, depth, schema, pointer)
 			ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
-			return ref, slices.Concat(diags, unionDiags, nullDiags)
+			return ref, append(unionDiags, nullDiags...)
 		}
-		ref, unionDiags := lowerOneOfAnyOf(c, ts, depth, schema, pointer)
-		return ref, append(diags, unionDiags...)
+		return lowerOneOfAnyOf(c, ts, depth, schema, pointer)
 	}
 	id, bodyDiags := lower(c, ts, depth, schema, pointer)
 	ref, nullDiags := schemaNullRef(c, id, schema, siteAt(pointer))
-	return ref, slices.Concat(diags, bodyDiags, nullDiags)
+	return ref, append(bodyDiags, nullDiags...)
 }
 
 // lower interns the inline schema at pointer and returns its TypeID. const,
@@ -249,9 +253,16 @@ func lower(c lowering.Ctx, ts *compile.Types, depth int, s *oas3.Schema, pointer
 	case "enum":
 		return unhomed(lowerEnum(c, ts, s, pointer))
 	case "allOf":
-		return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		r, refines := refinementOf(c, s, pointer)
+		if !refines {
+			return unhomed(lowerAllOf(c, ts, depth, s, pointer))
+		}
+		if r.principal != nil {
+			return lowerPrincipal(c, ts, depth, r)
+		}
 	}
-	// won is "" — the schema declares no family, so the type set decides.
+	// won is "" — the schema declares no family, so the type set decides — or
+	// an allOf no branch of which decides what the position is.
 	types := effectiveTypes(s)
 	switch {
 	case len(types) > 1:

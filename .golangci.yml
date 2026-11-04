@@ -12,7 +12,7 @@ linters:
     - errorlint # %w discipline: errors.Is/As over == and type assertions
     - exhaustive # a switch over an IR enum names every member
     - fatcontext # no context wrapped again on each turn of a loop
-    - forbidigo # no stdout, stderr or logging from a pipeline stage
+    - forbidigo # no stage output or logs, no recover outside barrier or tests, no hand-built child
     - forcetypeassert # comma-ok on every type assertion outside tests
     - funlen # the styleguide's 70-line cap, enforced rather than declared
     - gocheckcompilerdirectives # a //go: directive the compiler knows, not one it silently ignores
@@ -93,6 +93,19 @@ linters:
           pkg: ^log/slog$
         - pattern: ^syslog\.(New|Dial|NewLogger)$
           pkg: ^log/syslog$
+        # A test starts a child through exectest.Command, which gives a covered
+        # child a coverage directory of its own and alone sets its environment.
+        # Naming exec.Cmd is refused too, so no command is built by hand.
+        # Production code that starts a process takes an exclusion of its own.
+        - pattern: ^exec\.(Command(Context)?|Cmd)$
+          pkg: ^os/exec$
+          msg: start a child through exectest.Command
+        - pattern: ^os\.StartProcess$
+          pkg: ^os$
+          msg: start a child through exectest.Command
+        - pattern: ^syscall\.(ForkExec|StartProcess|Exec)$
+          pkg: ^syscall$
+          msg: start a child through exectest.Command
         # Outside tests, a panic is recovered through barrier.Catch alone, in
         # every package. A hand-written recover quotes what it caught with no
         # bound on its length or its lines, and under GODEBUG=panicnil=1 takes
@@ -223,8 +236,17 @@ linters:
       - path: _test\.go
         linters:
           - forbidigo
+        text: forbidden by pattern|use of `recover`
+      - path: _test\.go
+        linters:
           - forcetypeassert
           - reassign
+      # exectest.Command is the one place a child is built. Only the two names it
+      # uses are excused, so another starter written there is still refused.
+      - path: ^internal/exectest/exectest\.go$
+        linters:
+          - forbidigo
+        text: use of `exec\.(CommandContext|Cmd)`
       # Countdown and recorder are each a context.Context: each embeds the one
       # it wraps to answer Err on a schedule or to record each call, which is
       # how a context decorator is written, not a context held for later.

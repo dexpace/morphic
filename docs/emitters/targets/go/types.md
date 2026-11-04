@@ -30,11 +30,12 @@ for one.
 
 ## Enums
 
-An enum is a named type over its `ValueType`'s Go row, with a typed constant per member. Go cannot
-express open enums, so `Closed=false` lowers to that type + its consts + a passthrough that
-preserves unknown values and honors `FallbackMember` on decode, as does an enum `TypePlan.Open`
-marks ([enums](../../refine/enums.md)); `Closed=true` lowers to that type + its consts with strict
-decode; `Flags=true` → bitset.
+An enum is a named type over its `ValueType`'s Go row, with a typed constant per member. A
+`Flags` enum lowers to a bitset, open or closed, an open one keeping a bit no member names. Go
+cannot express other open enums, so any other enum `TypePlan.Open` marks, every one `Closed=false`
+declares among them ([enums](../../refine/enums.md)), lowers to that type + its consts + a
+passthrough that preserves unknown values and honors `FallbackMember` on decode, and any other
+lowers to that type + its consts with strict decode.
 
 Go declares constants of boolean, numeric and string types alone, so a `ValueType` whose row is none
 of them — `date`, `time`, `datetime`, `datetime_offset`, `duration`, `uuid`, `bytes`, `decimal`, and
