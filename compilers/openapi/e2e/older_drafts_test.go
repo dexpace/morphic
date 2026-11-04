@@ -140,6 +140,11 @@ func TestOlderDrafts_AnIDNamesAResource(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, ir.TypeID("t/anon/components/schemas/T/definitions/Leaf"), leaf.Type.Target)
 	assert.Equal(t, ir.ReasonOutOfScope, unmodeledEntry(t, tm.Unmodeled, "openapi:id").Reason)
+	_, diags = parseFull(t, openapitest.ComponentSpec("    W: {$schema: "+draft04+", $id: 'https://example.com/w', type: string}\n"+
+		"    V: {$ref: 'https://example.com/w'}\n"))
+	assert.Contains(t, openapitest.DiagMessageAt(t, diags, diag.DegradedConstruct, ir.SeverityInfo, "/components/schemas/W/$id"),
+		"is read for nothing", "draft 4 reads no $id")
+	assert.True(t, hasErrorRef(diags), "so nothing names W by its $id")
 
 	_, diags = parseFull(t, src(draft2020))
 	assert.True(t, hasErrorRef(diags), "2020-12 reads no identifier in id")

@@ -42,10 +42,6 @@ func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, po
 		diags = annotation.PreserveValidationOnlyKeyword(p, s, "dependencies", pointer, c.ProvenanceAt)
 	}
 	taken := tupleRest(c, s, pointer, td)
-	if rules.Defines("id") && !rules.Defines("$id") {
-		// Draft 4's spelling of $id, kept as $id is.
-		diags = append(diags, annotation.PreserveDialectKeyword(p, s, "id", pointer, c.ProvenanceAt)...)
-	}
 	if rules.Takes("definitions", oas.Map) {
 		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
 		taken = append(taken, "definitions")

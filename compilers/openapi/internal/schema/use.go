@@ -49,6 +49,14 @@ func (u Use) Site(s *oas3.Schema) annotation.Site {
 	return annotation.Site{Kind: annotation.Reference, Node: s, Voices: u.Voices, Referents: u.Referents}
 }
 
+// SiteAt is Site for s written at pointer, naming the keyword the dialect s is
+// read in names its identifier by, as annotation.Read keeps it.
+func (u Use) SiteAt(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) annotation.Site {
+	site := u.Site(s)
+	site.Identifier = lowering.SchemaRulesAt(c, pointer).Identifier()
+	return site
+}
+
 // DefaultChain is u.Site(s)'s chain less each referent past the narrowing whose
 // default the position does not admit: a default is a value, so unlike a
 // description it binds only where the narrowed type takes it. An example never

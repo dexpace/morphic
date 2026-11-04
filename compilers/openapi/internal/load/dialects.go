@@ -203,17 +203,12 @@ func versionOf(table *bind.Table, others Others, d *dialects, id bind.DocID) (st
 // draft 4's `id` where the rows define it alone; an identifier naming a
 // fragment alone as an anchor where they define no `$anchor`, as the drafts
 // before 2019-09 have it; the drafts' plain-name grammar there, or where
-// `$anchor` takes it; `definitions` as schemas where they define it; and an
-// `items` list as a tuple where they take one. Rows defining no identifier, as
+// `$anchor` takes it; `definitions`, and schemas in `dependencies`, where they
+// define them; and an `items` list as a tuple where they take one. Rows defining no identifier, as
 // 3.0's, say nothing of it, and `$id` is read.
 func dialectRuleOf(rules oas.SchemaRules) bind.DialectRule {
-	rule := bind.DialectRule{Definitions: rules.Takes("definitions", oas.Map), Tuples: rules.Takes("items", oas.List)}
-	switch {
-	case rules.Defines("$id"):
-		rule.Keyword = "$id"
-	case rules.Defines("id"):
-		rule.Keyword = "id"
-	}
+	rule := bind.DialectRule{Keyword: rules.Identifier(), Definitions: rules.Takes("definitions", oas.Map),
+		Dependencies: rules.Defines("dependencies"), Tuples: rules.Takes("items", oas.List)}
 	rule.Fragments = rule.Keyword != "" && !rules.Defines("$anchor")
 	rule.PlainNames = rule.Fragments || rules.Formatted("$anchor", oas.PlainName)
 	return rule

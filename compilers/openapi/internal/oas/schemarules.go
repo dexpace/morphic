@@ -89,6 +89,20 @@ func (s Spec) dialectOf(minor Minor, id string) (dialect, bool) {
 // the JSON Schema drafts before 2019-09 do.
 func (r SchemaRules) IgnoresRefFields() bool { return r.rows != nil && r.rows.ignoresRefFields }
 
+// Identifier returns the keyword the rows name a schema's identifier by: `$id`,
+// or `id` where they define it alone, as JSON Schema draft 4 does, and "" where
+// they define neither, as 3.0's do.
+func (r SchemaRules) Identifier() string {
+	switch {
+	case r.Defines("$id"):
+		return "$id"
+	case r.Defines("id"):
+		return "id"
+	default:
+		return ""
+	}
+}
+
 // Formatted reports whether the rows give the field name the format f.
 func (r SchemaRules) Formatted(name string, f Format) bool {
 	fld, ok := r.field(name)

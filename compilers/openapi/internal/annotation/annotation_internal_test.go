@@ -175,7 +175,7 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", sourced(0))
+	got, diags := dialectAt(s, "/components/schemas/S", sourced(0), "")
 
 	require.Len(t, got, 2, "one entry per keyword written")
 	for _, keyword := range []string{"$id", "$schema"} {
@@ -196,7 +196,7 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\n"+
 		"$vocabulary: {'https://example.com/v': true}\ntype: string\n")
-	_, diags := dialectAt(s, "/components/schemas/S", sourced(0))
+	_, diags := dialectAt(s, "/components/schemas/S", sourced(0), "")
 	require.Len(t, diags, 3)
 	said := map[jsontext.Pointer]string{}
 	for _, d := range diags {
@@ -208,6 +208,27 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	assert.Contains(t, said["/components/schemas/S/$vocabulary"], "is not honoured for reference resolution")
 }
 
+// TestDialectAt_ReadsTheIdentifierTheDialectSpells pins a schema read in a
+// dialect spelling its identifier `id`, as draft 4 does: `id` is kept and read
+// for reference resolution, and an `$id` beside it is kept and read for
+// nothing, which no message may say otherwise of.
+func TestDialectAt_ReadsTheIdentifierTheDialectSpells(t *testing.T) {
+	t.Parallel()
+	s := schemaFromYAML(t, "id: 'urn:example:a'\n$id: 'urn:example:b'\ntype: string\n")
+	got, diags := dialectAt(s, "/components/schemas/S", sourced(0), "id")
+	for _, keyword := range []string{"id", "$id"} {
+		assert.Equal(t, ir.ReasonOutOfScope, got["openapi:"+keyword].Reason, keyword)
+	}
+	said := map[jsontext.Pointer]string{}
+	for _, d := range diags {
+		said[d.Provenance.Pointer] = d.Message
+	}
+	assert.Contains(t, said["/components/schemas/S/id"], "is read only for reference resolution")
+	assert.Contains(t, said["/components/schemas/S/$id"], "is read for nothing")
+	plain, _ := dialectAt(s, "/components/schemas/S", sourced(0), "")
+	assert.NotContains(t, plain, "openapi:id", "where `$id` is the identifier, `id` is an unknown keyword's to keep")
+}
+
 // TestDialectAt_AttributesTheKeywordRatherThanTheSchema pins GitHub #522: an
 // overlay that rewrites `$id` names the overlay as the source of both the kept
 // entry and the diagnostic announcing it, since dialectAt locates each keyword
@@ -216,7 +237,7 @@ func TestDialectAt_AttributesTheKeywordRatherThanTheSchema(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", overlaid("/components/schemas/S/$id"))
+	got, diags := dialectAt(s, "/components/schemas/S", overlaid("/components/schemas/S/$id"), "")
 
 	entry, ok := got["openapi:$id"]
 	require.True(t, ok)

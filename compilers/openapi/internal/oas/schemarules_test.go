@@ -176,3 +176,14 @@ func TestSchemaRules_FormattedNamesTheFormatARowGives(t *testing.T) {
 	assert.True(t, rulesOf("3.1.0", "").Formatted("$anchor", oas.AnchorName))
 	assert.False(t, d2019.Formatted("nonesuch", oas.PlainName), "a field the rows do not define")
 }
+
+// TestSchemaRules_IdentifierNamesTheKeywordADialectSpellsIt pins the keyword
+// the rows name a schema's identifier by: `$id` from draft 6 on, draft 4's
+// `id`, and none in 3.0's own rows.
+func TestSchemaRules_IdentifierNamesTheKeywordADialectSpellsIt(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, "$id", rulesOf("3.1.0", "").Identifier())
+	assert.Equal(t, "$id", rulesOf("3.1.0", "http://json-schema.org/draft-06/schema#").Identifier())
+	assert.Equal(t, "id", rulesOf("3.1.0", draft04).Identifier())
+	assert.Empty(t, rulesOf("3.0.3", "").Identifier())
+}

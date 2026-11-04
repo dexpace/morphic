@@ -206,6 +206,9 @@ type Site struct {
 	// Referents is empty when Kind is Reference but the $ref's chain ends on no
 	// schema; refTypeRef is what diagnoses that, not this.
 	Referents []*oas3.Schema
+	// Identifier is the keyword the dialect Node is read in names its
+	// identifier by (oas.SchemaRules.Identifier), "" for `$id`.
+	Identifier string
 }
 
 // Voice is an inline allOf branch and where it is written, so what it declares
@@ -335,9 +338,9 @@ func DeclaresRedaction(s *oas3.Schema) bool {
 // at each position that attaches annotations: three attachment points used to
 // make it separately and disagreed.
 func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnostic) {
-	out, diags := readLocal(st.Node, pointer, locate, true)
+	out, diags := readLocal(st.Node, pointer, locate, true, st.Identifier)
 	for _, v := range st.Voices {
-		voice, voiceDiags := readLocal(v.Node, v.At, locate, false)
+		voice, voiceDiags := readLocal(v.Node, v.At, locate, false, "")
 		diags = append(diags, voiceDiags...)
 		if out.XML == nil {
 			out.XML = voice.XML
@@ -357,8 +360,9 @@ func Read(st Site, pointer jsontext.Pointer, locate Locator) (Set, []ir.Diagnost
 // readLocal reads what s, written at pointer, says of the position alone: the
 // annotations no use inherits. own says s is the schema written at the position,
 // rather than a voice, whose dialect keywords and discriminator no fold reads
-// and whose residue keeps them.
-func readLocal(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, own bool) (Set, []ir.Diagnostic) {
+// and whose residue keeps them, and identifier is the keyword it names its
+// identifier by (Site.Identifier).
+func readLocal(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, own bool, identifier string) (Set, []ir.Diagnostic) {
 	var out Set
 	out.XML = XMLHints(s.GetXML())
 
@@ -367,7 +371,7 @@ func readLocal(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, own boo
 
 	ext, extDiags := ExtensionsFrom(s.GetExtensions(), locate, pointer)
 	sub, subDiags := subObjectKeys(s, out.XML, pointer, locate, own)
-	kept, keptDiags := unmodeledAt(s, pointer, locate, own)
+	kept, keptDiags := unmodeledAt(s, pointer, locate, own, identifier)
 
 	diags := make([]ir.Diagnostic, 0, len(exDiags)+len(extDiags)+len(subDiags)+len(keptDiags))
 	diags = append(diags, exDiags...)
@@ -464,12 +468,13 @@ func definedNodeType(v string) bool {
 // ir.Encoding depends on what the position lowered to, which only the schema
 // package can answer — schema.recordUnplacedContent asks the node that was
 // built rather than the keyword that was written.
-func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, withDialect bool) (ir.Unmodeled, []ir.Diagnostic) {
+func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, withDialect bool, identifier string,
+) (ir.Unmodeled, []ir.Diagnostic) {
 	vOnly, diags := validationOnlyAt(s, pointer, locate)
 	if !withDialect {
 		return vOnly, diags
 	}
-	dialect, dDiags := dialectAt(s, pointer, locate)
+	dialect, dDiags := dialectAt(s, pointer, locate, identifier)
 	return MergeUnmodeled(vOnly, dialect), append(diags, dDiags...)
 }
 
@@ -486,14 +491,17 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, withD
 var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
 
 // dialectRead is what keyword, one of DialectKeywords or draft 4's `id`, is
-// read for beyond being kept: an identifier for reference resolution alone,
-// $schema for the dialect a schema it roots is read in
+// read for beyond being kept, its schema naming its identifier by identifier:
+// an identifier for reference resolution alone, `$id` for nothing where the
+// dialect spells it `id`, $schema for the dialect a schema it roots is read in
 // (docs/compilers/openapi.md#dialect-keywords), and $vocabulary for nothing.
-func dialectRead(keyword string) string {
-	switch keyword {
-	case "$id", "id":
+func dialectRead(keyword, identifier string) string {
+	switch {
+	case keyword == "$id" && identifier == "id":
+		return "is read for nothing, as this schema's dialect spells an identifier id"
+	case keyword == "$id", keyword == "id":
 		return "is read only for reference resolution"
-	case "$schema":
+	case keyword == "$schema":
 		return "is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, " +
 			"never for reference resolution"
 	default:
@@ -502,27 +510,28 @@ func dialectRead(keyword string) string {
 }
 
 // dialectAt keeps each dialect keyword s declares verbatim and announces it, so
-// the exclusion is visible in the output rather than only in this comment.
-func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator) (ir.Unmodeled, []ir.Diagnostic) {
+// the exclusion is visible in the output rather than only in this comment:
+// those DialectKeywords names, and draft 4's `id` where identifier says s is
+// read in a dialect spelling its identifier so.
+func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, identifier string) (ir.Unmodeled, []ir.Diagnostic) {
+	keywords := DialectKeywords
+	if identifier == "id" {
+		keywords = append([]string{"id"}, DialectKeywords...)
+	}
 	var p ir.Unmodeled
-	diags := make([]ir.Diagnostic, 0, len(DialectKeywords))
-	for _, keyword := range DialectKeywords {
-		diags = append(diags, PreserveDialectKeyword(&p, s, keyword, pointer, locate)...)
+	diags := make([]ir.Diagnostic, 0, len(keywords))
+	for _, keyword := range keywords {
+		kept, keptDiags := PreserveSchemaKeyword(&p, s, keyword, ir.ReasonOutOfScope, pointer, locate)
+		diags = append(diags, keptDiags...)
+		if !kept {
+			continue
+		}
+		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, locate(pointer+ids.Ptr(keyword)),
+			"%s identifies or configures a JSON Schema resource rather than describing data; "+
+				"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
+			dialectRead(keyword, identifier)))
 	}
 	return p, diags
-}
-
-// PreserveDialectKeyword keeps keyword, one dialectRead names, on p where s
-// writes it, as a dialect keyword is kept (dialectAt): JSON Schema draft 4's
-// `id`, which its caller alone knows s is read in.
-func PreserveDialectKeyword(p *ir.Unmodeled, s *oas3.Schema, keyword string, pointer jsontext.Pointer, locate Locator) []ir.Diagnostic {
-	kept, diags := PreserveSchemaKeyword(p, s, keyword, ir.ReasonOutOfScope, pointer, locate)
-	if !kept {
-		return diags
-	}
-	return append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, locate(pointer+ids.Ptr(keyword)),
-		"%s identifies or configures a JSON Schema resource rather than describing data; "+
-			"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword, dialectRead(keyword)))
 }
 
 // schemaExamplesAt reads a schema's example and examples keywords.

@@ -570,12 +570,21 @@ func reachesLocal(ctx context.Context, root *yaml.Node, base string) (reason str
 
 // localReach returns why the mapping n, in a document read from base, takes
 // the resolver to the local file system, and whether it does: through the
-// first $ref or $id it writes itself that names a local location.
+// first $ref or $id it writes itself that names a local location, or through
+// an `id`, JSON Schema draft 4's identifier, naming a file: URI. The binder
+// alone reads an `id`, against the document's URL as RFC 3986 resolves one,
+// so a relative one stays on the network, as an example's `id` does.
 func localReach(n *yaml.Node, base string) (reason string, refuse bool) {
 	for i := 0; n.Kind == yaml.MappingNode && i+1 < len(n.Content); i += 2 {
 		key, own := nodeview.KeyOf(n.Content[i])
 		value := nodeview.Deref(n.Content[i+1])
-		if !own || value == nil || value.Kind != yaml.ScalarNode || (key != "$ref" && key != "$id") {
+		if !own || value == nil || value.Kind != yaml.ScalarNode || (key != "$ref" && key != "$id" && key != "id") {
+			continue
+		}
+		if key == "id" {
+			if isFileURI(value.Value) {
+				return fmt.Sprintf("its id %q rebases references onto the local %s", value.Value, value.Value), true
+			}
 			continue
 		}
 		t, local := localTarget(value.Value, base)

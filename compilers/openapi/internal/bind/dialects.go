@@ -51,11 +51,13 @@ func dialectsByDocument(roots map[Position]DialectRoot) map[DocID][]DialectRoot 
 
 // stepIn is step for a token of the mapping n of document id, read at s in
 // dialect, which a dialect the drafts before 2020-12 spell reads otherwise
-// (dialectStep). Every child a walk reads asks it, so the other tokens take
-// step without a call more.
+// (dialectStep), at a schema or at a document of schemas' root alike. Every
+// child a walk reads asks it, so the other tokens take step without a call
+// more.
 func stepIn(d *docs, id DocID, n *yaml.Node, s state, token, dialect string) state {
-	if s == sSchema && (token == "items" || token == "additionalItems" || token == "definitions") {
-		return dialectStep(d, id, n, token, dialect)
+	if (s == sSchema || s == sLoose) && (token == "items" || token == "additionalItems" ||
+		token == "definitions" || token == "dependencies") {
+		return dialectStep(d, id, n, s, token, dialect)
 	}
 	return step(s, token)
 }
@@ -63,11 +65,16 @@ func stepIn(d *docs, id DocID, n *yaml.Node, s state, token, dialect string) sta
 // dialectStep is stepIn for a schema's token a dialect reads otherwise
 // (DialectRule): where it has `items` written as a list be a tuple, that list
 // holds schemas and the `additionalItems` beside it holds its rest, and where
-// it has `definitions` hold schemas, it does.
-func dialectStep(d *docs, id DocID, n *yaml.Node, token, dialect string) state {
+// it has `definitions`, or `dependencies`, hold schemas, they do, a property's
+// list of names among the latter's entries holding none.
+func dialectStep(d *docs, id DocID, n *yaml.Node, s state, token, dialect string) state {
 	switch token {
 	case "definitions":
 		if dialectRule(d, id, dialect).Definitions {
+			return sSchemaMap
+		}
+	case "dependencies":
+		if dialectRule(d, id, dialect).Dependencies {
 			return sSchemaMap
 		}
 	case "items":
@@ -79,7 +86,7 @@ func dialectStep(d *docs, id DocID, n *yaml.Node, token, dialect string) state {
 			return sSchema
 		}
 	}
-	return step(sSchema, token)
+	return step(s, token)
 }
 
 // listsItems reports whether the schema mapping n writes `items` as a list, a

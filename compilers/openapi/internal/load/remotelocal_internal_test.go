@@ -87,6 +87,8 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 		"a //host $ref":           {remoteDoc("//evil/etc/passwd"), `its $ref "//evil/etc/passwd" reaches the local file //evil/etc/passwd`},
 		"a file: $ref":            {remoteDoc("file:///etc/passwd"), `its $ref "file:///etc/passwd" reaches the local file file:///etc/passwd`},
 		"a file: $id above a ref": {"components:\n  schemas:\n    S:\n      $id: 'file:///x/'\n      $ref: './secret.yaml#/x'\n", `its $id "file:///x/" rebases references onto the local file:///x/`},
+		"a draft 4 file: id above a ref": {"components:\n  schemas:\n    S:\n      $schema: 'http://json-schema.org/draft-04/schema#'\n" +
+			"      id: 'file:///x/'\n      properties: {p: {$ref: 'secret.yaml'}}\n", `its id "file:///x/" rebases references onto the local file:///x/`},
 	}
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -114,8 +116,9 @@ func TestExternal_DoRefusesANetworkDocumentReachingALocalFile(t *testing.T) {
 // leaves alone: a local document (its base is not a network one) is never
 // scanned, however its $refs spell a file, and a network document whose $refs
 // and $ids name no local location reaches no local file, a urn: $id above a
-// relative $ref included, and another key's value spelling a path is not read
-// as a reference.
+// relative $ref included, another key's value spelling a path is not read as a
+// reference, and an `id` naming no file: URI, an example's among them, stays on
+// the host.
 func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 	t.Parallel()
 	local := openapitest.YAMLDocument(t, remoteDoc("/etc/passwd"))
@@ -127,7 +130,8 @@ func TestReachesLocal_PassesALocalDocumentAndANetworkOne(t *testing.T) {
 		"    B: {$ref: 'https://other/c.yaml#/x'}\n" +
 		"    C: {$id: './v2/', $ref: '#/components/schemas/A'}\n" +
 		"    D: {$id: 'urn:example:d', $ref: './d.yaml#/x'}\n" +
-		"    E: {description: '/etc/passwd', default: 'file:///etc/passwd'}\n"
+		"    E: {description: '/etc/passwd', default: 'file:///etc/passwd'}\n" +
+		"    F: {example: {id: '/etc/passwd'}, id: 'urn:example:f'}\n"
 	_, refuse = reachesLocal(t.Context(), openapitest.YAMLDocument(t, onHost), "http://host/dir/a.yaml")
 	assert.False(t, refuse, "a network document staying on the host reaches no local file")
 }

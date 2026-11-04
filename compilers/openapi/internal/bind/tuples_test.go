@@ -63,7 +63,8 @@ func TestTuples_AListOfItemsHoldsSchemas(t *testing.T) {
 }
 
 // d4Rule is how a draft 4 schema names its resource and holds its subschemas.
-var d4Rule = bind.DialectRule{Keyword: "id", Fragments: true, Definitions: true, PlainNames: true, Tuples: true}
+var d4Rule = bind.DialectRule{Keyword: "id", Fragments: true, Definitions: true, Dependencies: true, PlainNames: true,
+	Tuples: true}
 
 // draftRule answers with d4Rule for a schema naming draft 4, and the zero rule
 // for any other.
@@ -217,4 +218,23 @@ func TestDialectRule_AnAnchorTakesItsDialectsGrammar(t *testing.T) {
 	assert.Equal(t, at("/components/schemas/T/definitions/L"), e.Hop.Target)
 	assert.Equal(t, bind.NoAnchor, entryAt(t, table, "/components/schemas/U/properties/a").Hop.Reason,
 		"2020-12 declares no anchor its grammar refuses, and a $ref naming one finds none")
+}
+
+// TestDialectRule_ADocumentOfSchemasReadsItsDraftAtItsRoot pins a document of
+// schemas naming draft 4 at its root, which the binder reads loose: its
+// root's tuple holds schemas, so an identifier in an entry declares its name,
+// and its `dependencies` holds schemas, whose $ref the table binds.
+func TestDialectRule_ADocumentOfSchemasReadsItsDraftAtItsRoot(t *testing.T) {
+	t.Parallel()
+	other := "{$schema: 'http://json-schema.org/draft-04/schema#', type: array, items: [{id: '#x', type: string}],\n" +
+		"  dependencies: {a: {$ref: '#/definitions/C'}, b: [c]}, definitions: {C: {type: string}}}\n"
+	table := bound(t, head+"components:\n  schemas:\n    S: {$ref: 'o.yaml#x'}\n    T: {$ref: 'o.yaml'}\n",
+		draftRule(withDocuments(map[string]string{"o.yaml": other})))
+	doc := docNamed(t, table, "o.yaml")
+	e := entryAt(t, table, "/components/schemas/S")
+	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+	assert.Equal(t, bind.Position{Doc: doc, Pointer: "/items/0"}, e.Hop.Target)
+	dep, ok := table.Entry(bind.Position{Doc: doc, Pointer: "/dependencies/a"})
+	require.True(t, ok, "a schema in dependencies is one the table reads")
+	assert.Equal(t, bind.Resolved, dep.Hop.Status, dep.Hop.Why())
 }

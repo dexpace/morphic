@@ -69,15 +69,17 @@ type Config struct {
 // Keyword holds a schema's identifier, `$id`, or `id` in JSON Schema draft 4,
 // where empty reads `$id`. With Fragments an identifier naming a fragment
 // alone declares that plain name, with Definitions a schema's `definitions`
-// holds schemas, as the drafts before 2019-09 have them, with PlainNames an
-// anchor takes the drafts' plain-name grammar (isPlainName), and with Tuples
-// an `items` written as a list is a tuple, as those before 2020-12 have it.
+// holds schemas, and with Dependencies a schema in its `dependencies` is one,
+// as the drafts before 2019-09 have them, with PlainNames an anchor takes the
+// drafts' plain-name grammar (isPlainName), and with Tuples an `items` written
+// as a list is a tuple, as those before 2020-12 have it.
 type DialectRule struct {
-	Keyword     string
-	Fragments   bool
-	Definitions bool
-	PlainNames  bool
-	Tuples      bool
+	Keyword      string
+	Fragments    bool
+	Definitions  bool
+	Dependencies bool
+	PlainNames   bool
+	Tuples       bool
 }
 
 // ErrEmptyDocument is the failure of Config.Open, or of the tree it returns,

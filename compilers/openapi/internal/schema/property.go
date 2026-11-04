@@ -91,7 +91,7 @@ func fillPropertyAnnotations(c lowering.Ctx, ts *compile.Types, p *ir.Property, 
 	if LoweredToOwnNode(c, ts, pointer, p.Type) {
 		return nil
 	}
-	a, diags := annotation.Read(use.Site(ref), pointer, c.ProvenanceAt)
+	a, diags := annotation.Read(use.SiteAt(c, ref, pointer), pointer, c.ProvenanceAt)
 
 	p.Docs = a.Docs
 	if a.Deprecated {

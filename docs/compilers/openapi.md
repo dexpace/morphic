@@ -428,9 +428,11 @@ key of no schema vocabulary hold schemas, and within one a keyword reads as it d
 so one in a literal, a value or an extension declares none, and the document's root may be a schema
 or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
 it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-keywords)) spells
-it `id`, and in drafts 4, 6 and 7 one naming a fragment alone, `#name`, declares that plain name as
-an `$anchor` does, which is why the load phase holds an `$id`'s format to the schema's dialect
-rather than to the rule table's 2020-12 row; and `definitions` holds schemas as `$defs` does. A
+it `id`, its `$id` then naming nothing, and a document fetched over the network is refused for an
+`id` naming a `file:` URI, as for an `$id` reaching a local file. In drafts 4, 6 and 7 one naming a
+fragment alone, `#name`, declares that plain name as an `$anchor` does, which is why the load phase
+holds an `$id`'s format to the schema's dialect rather than to the rule table's 2020-12 row;
+`definitions` holds schemas as `$defs` does, and so does `dependencies` where a value is one. A
 schema another holds roots a resource where it writes an identifier as the dialect embedding it
 spells one, as 2020-12 has an embedded resource do (§9.3.1), or as the dialect its own `$schema`
 names does. An `$id` names the URI its part before the `#` resolves to against the base above it, by
@@ -2776,7 +2778,8 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   dialect, bar the shapes it leaves to the load phase ([`constraints`](#constraints),
   [`tuples`](#tuples)), and holds a `definitions` entry no `$ref` reaches to none (#1466); and a
   keyword 2020-12 added, such as `prefixItems`, is read as 2020-12 reads it in a draft's schema too
-  (#820).
+  (#820); and 2019-09's `$recursiveRef` is kept verbatim, never expanded as its `$dynamicRef` is
+  (#1475).
 
 ### `vocabulary-coverage`
 
