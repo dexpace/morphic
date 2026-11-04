@@ -23,6 +23,9 @@ type schemaRows struct {
 	fields   map[string]Field
 	required []Rule
 	minor    Minor
+	// ignoresRefFields reports that the dialect, not the minor, ignores the
+	// keywords beside a `$ref`.
+	ignoresRefFields bool
 }
 
 // SchemaRules returns the Schema Object's rows at the minor version names, in
@@ -41,8 +44,9 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	if !ok {
 		return SchemaRules{}, false
 	}
-	keywords, unread := s.keywordsOf(minor, dialect)
-	rows := &schemaRows{fields: map[string]Field{}, minor: minor}
+	d, unread := s.dialectOf(minor, dialect)
+	keywords := d.keywords
+	rows := &schemaRows{fields: map[string]Field{}, minor: minor, ignoresRefFields: d.ignoresRefFields}
 	for _, f := range obj.Fields {
 		if f.Defined.Holds(minor) && (keywords == nil || !f.Keyword) {
 			rows.fields[f.Name] = f
@@ -59,22 +63,28 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	return SchemaRules{rows: rows}, unread
 }
 
-// keywordsOf returns the keywords dialect reads in place of minor's own, nil
-// where it reads minor's, and whether it is an absolute URI the table has no
-// rows for. A dialect is compared without a trailing empty fragment, which
-// draft 4's id writes and 2020-12's does not, as `$schema` values spell both.
-func (s Spec) keywordsOf(minor Minor, dialect string) ([]Field, bool) {
-	if dialect == "" || minor == V30 {
-		return nil, false
+// dialectOf returns the dialect a schema written at minor and naming id is
+// read in, the zero dialect, the minor's own, where it names none the table
+// has rows for, and whether id is an absolute URI the table has no rows for. A
+// dialect is compared without a trailing empty fragment, which draft 4's id
+// writes and 2020-12's does not, as `$schema` values spell both.
+func (s Spec) dialectOf(minor Minor, id string) (dialect, bool) {
+	if id == "" || minor == V30 {
+		return dialect{}, false
 	}
-	id := strings.TrimSuffix(dialect, "#")
+	trimmed := strings.TrimSuffix(id, "#")
 	for _, d := range s.dialects {
-		if strings.TrimSuffix(d.id, "#") == id {
-			return d.keywords, false
+		if strings.TrimSuffix(d.id, "#") == trimmed {
+			return d, false
 		}
 	}
-	return nil, validFormat(AbsoluteURI, dialect)
+	return dialect{}, validFormat(AbsoluteURI, id)
 }
+
+// IgnoresRefFields reports whether the dialect the rows are read in, rather
+// than their minor, ignores the keywords a schema writes beside its `$ref`, as
+// the JSON Schema drafts before 2019-09 do.
+func (r SchemaRules) IgnoresRefFields() bool { return r.rows != nil && r.rows.ignoresRefFields }
 
 // Defines reports whether the Schema Object defines the field name: a keyword
 // of its dialect, or a field OpenAPI adds to it at the minor.

@@ -165,14 +165,14 @@ func TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot(t *testing.T
 }
 
 // TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn pins what a
-// dialect the table has no rows for, a later draft or one of the author's,
+// dialect the table has no rows for, an earlier draft or one of the author's,
 // reads as: the minor's own, with an openapi/unread-dialect warning at the
 // `$schema` or jsonSchemaDialect naming it, and no error.
 func TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn(t *testing.T) {
 	t.Parallel()
 	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\n"+
 		"jsonSchemaDialect: 'https://example.com/dialect'\npaths: {}\ncomponents:\n  schemas:\n"+
-		"    T: {$schema: 'http://json-schema.org/draft-07/schema#', type: integer, exclusiveMinimum: 5}\n"+
+		"    T: {$schema: 'http://json-schema.org/draft-03/schema#', type: integer, exclusiveMinimum: 5}\n"+
 		"    U: {type: integer, exclusiveMinimum: 6}\n")
 	openapitest.RequireNoErrorDiags(t, diags)
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/T/$schema", "/jsonSchemaDialect"},

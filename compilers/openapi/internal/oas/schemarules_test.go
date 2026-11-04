@@ -15,6 +15,9 @@ import (
 const (
 	oasDialect = "https://spec.openapis.org/oas/3.1/dialect/base"
 	draft2020  = "https://json-schema.org/draft/2020-12/schema"
+	draft2019  = "https://json-schema.org/draft/2019-09/schema"
+	draft07    = "http://json-schema.org/draft-07/schema#"
+	draft06    = "http://json-schema.org/draft-06/schema#"
 	draft04    = "http://json-schema.org/draft-04/schema#"
 )
 
@@ -70,7 +73,7 @@ func TestSchemaRules_ADialectNamesItsKeywordsAlone(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.1.0", "3.2.0"} {
 		own := rulesOf(version, "")
-		for _, dialect := range []string{oasDialect, draft2020, draft04, "https://example.com/custom"} {
+		for _, dialect := range []string{oasDialect, draft2020, draft2019, draft07, draft06, draft04, "https://example.com/custom"} {
 			r := rulesOf(version, dialect)
 			for _, field := range []string{"nullable", "discriminator", "xml", "externalDocs", "example"} {
 				assert.Equal(t, own.Defines(field), r.Defines(field), "%s %s %s", version, dialect, field)
@@ -93,14 +96,14 @@ func TestSchemaRules_ADialectNamesItsKeywordsAlone(t *testing.T) {
 		unread           bool
 	}{
 		{"3.1.0", "", false}, {"3.1.0", draft04, false}, {"3.1.0", draft2020, false}, {"3.2.0", oasDialect, false},
-		{"3.1.0", "https://example.com/custom", true}, {"3.2.0", "http://json-schema.org/draft-07/schema#", true},
+		{"3.1.0", "https://example.com/custom", true}, {"3.2.0", "http://json-schema.org/draft-03/schema#", true},
 		{"3.1.0", "https://json-schema.org/draft-04/schema#", true},
 		{"3.1.0", "rel/dialect", false}, {"3.1.0", "4", false},
 		{"3.0.3", "https://example.com/custom", false}, {"3.3.0", "https://example.com/custom", false},
 	} {
 		r, unread := oas.Table().SchemaRules(tc.version, tc.dialect)
 		assert.Equal(t, tc.unread, unread, "%s %s", tc.version, tc.dialect)
-		if tc.dialect != draft04 {
+		if unread {
 			assert.Equal(t, rulesOf(tc.version, "").Defines("prefixItems"), r.Defines("prefixItems"),
 				"%s %s reads as the minor's own", tc.version, tc.dialect)
 		}
@@ -125,4 +128,39 @@ func TestSchemaRules_ReadEachRowAtItsMinor(t *testing.T) {
 	assert.False(t, unread)
 	checked, _ := oas.NewChecker().Spec().SchemaRules("3.0.3", "")
 	assert.True(t, checked.Defines("nullable"), "a checker's table is the table")
+}
+
+// TestSchemaRules_EachDraftReadsItsOwnKeywords pins what tells the drafts
+// before 2020-12 apart: which writes a tuple as a list of items with a rest in
+// additionalItems, which has dependencies, which names a resource by id or by
+// $id, which spells an exclusive bound as a boolean, and which ignores the
+// keywords beside a $ref, which a minor's own rows never report it does.
+func TestSchemaRules_EachDraftReadsItsOwnKeywords(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		dialect                                      string
+		list, rest, dependencies, id, boolean, inert bool
+		recursive, defs, constant                    bool
+	}{
+		{draft04, true, true, true, true, true, true, false, false, false},
+		{draft06, true, true, true, false, false, true, false, false, true},
+		{draft07, true, true, true, false, false, true, false, false, true},
+		{draft2019, true, true, false, false, false, false, true, true, true},
+		{draft2020, false, false, false, false, false, false, false, true, true},
+		{oasDialect, false, false, false, false, false, false, false, true, true},
+		{"", false, false, false, false, false, false, false, true, true},
+	} {
+		r := rulesOf("3.1.0", tc.dialect)
+		assert.Equal(t, tc.list, r.Takes("items", oas.List), "%s items list", tc.dialect)
+		assert.Equal(t, tc.rest, r.Defines("additionalItems"), "%s additionalItems", tc.dialect)
+		assert.Equal(t, tc.dependencies, r.Defines("dependencies"), "%s dependencies", tc.dialect)
+		assert.Equal(t, tc.id, r.Defines("id") && !r.Defines("$id"), "%s id", tc.dialect)
+		assert.Equal(t, tc.boolean, r.Takes("exclusiveMinimum", oas.Boolean), "%s bound", tc.dialect)
+		assert.Equal(t, tc.inert, r.IgnoresRefFields(), "%s $ref siblings", tc.dialect)
+		assert.Equal(t, tc.recursive, r.Defines("$recursiveRef"), "%s $recursiveRef", tc.dialect)
+		assert.Equal(t, tc.defs, r.Defines("$defs"), "%s $defs", tc.dialect)
+		assert.Equal(t, tc.constant, r.Defines("const"), "%s const", tc.dialect)
+	}
+	assert.False(t, rulesOf("3.0.3", "").IgnoresRefFields(), "3.0's own rows: the minor, not a dialect, ignores them")
+	assert.False(t, oas.SchemaRules{}.IgnoresRefFields())
 }
