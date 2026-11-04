@@ -72,12 +72,20 @@ throughout these documents.
     in another unit compiles; two groups whose operations `AlsoMount` puts in each other's client
     compile, the types those operations reach in the shared unit; and every partition error and
     warning of [output units](../refine/output-units.md) has a fixture that draws it.
-19. **T-19 · Reserved scopes** — a fixture naming its properties, parameters, path parameters, enum
-    members and the variants of a closed and of an inclusive union after every name each scope of
-    [reserved names](../refine/reserved-names.md) reserves, after characters alone and after names
-    that begin with a digit, and its groups after the standard-library packages its files import,
+19. **T-19 · Reserved scopes** — a fixture naming its types, in the root and in a group's unit, and
+    its properties, parameters, path parameters, enum members and the variants of a closed and of an
+    inclusive union after every name each scope of [reserved names](../refine/reserved-names.md)
+    reserves, after characters alone and after names that begin with a digit, and its groups after
+    the standard-library packages its files import, after every units name and after each name a
+    Kotlin build keeps at its root ([output units](../targets/kotlin/overview.md#output-units)),
     generates code that compiles on every target, with every template's declared names held to what
-    it binds.
+    it binds, and on Kotlin to the default-imported names it writes. On Kotlin a `clean` and a
+    `wrapper` at the build's root leave every module's sources, no path the build writes, an
+    artifact's or a class file's, has a Windows device name for a segment, and the Multiplatform
+    framework links, its header giving each declaration the Swift name the naming policy chose, none
+    of them a type Swift's standard library or Foundation declares or a module's name, so a Swift
+    file that imports the framework and Foundation compiles its uses of both and qualifies a name by
+    either module ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held

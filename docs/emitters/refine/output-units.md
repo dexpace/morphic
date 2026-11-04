@@ -22,6 +22,8 @@ applies decides.
    whichever file declared them: an operation is a method of its group's client type, and Go
    declares a method in its receiver's package. What the document cannot honour is reported:
    - a key with a `#fragment` is an options error, since a partition is a whole document;
+   - a key mapping to a name the units' scope reserves, such as `shared`, is an options error, since
+     a name the options give a unit never yields ([reserved names](reserved-names.md));
    - a key naming the entry document, `Sources[0]`, or an overlay is an error diagnostic: the root
      unit is the options' to name already, and an overlay's declarations are its document's;
    - a key naming no source of the document is a warning, since it partitions nothing;
@@ -57,9 +59,11 @@ derives from another lands in that one's unit — a visibility shape
 ([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a union's interface,
 wrappers and fallback in the union's, an operation's request and headers types in the operation's —
 and a unit is a namespace of its own, so two declarations collide only within one ([reserved
-names](reserved-names.md)). A wrapper, or an inclusive union's field, imports a variant another unit
-holds, which is how a union reaches into the shared unit. A service-wide error's headers type lands
-where a type all its groups reach does. T-18 holds placement to these rules.
+names](reserved-names.md)), save in the Objective-C names a Kotlin Multiplatform framework gives
+them, which every unit shares ([Swift](../targets/kotlin/swift.md)). A wrapper, or an inclusive
+union's field, imports a variant another unit holds, which is how a union reaches into the shared
+unit. A service-wide error's headers type lands where a type all its groups reach does. T-18 holds
+placement to these rules.
 
 ## The size check
 
