@@ -54,8 +54,7 @@ components:
 // binary types are files, and a part saying it is text is none, as a
 // url-encoded one never is beyond what its own bytes say (GitHub #1214). A
 // union with an array among its branches repeats, and is files where each of
-// its values reads so, an array branch's through its elements, a branch
-// admitting no bytes passed over.
+// its values reads so, an array branch's through its elements.
 func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 	t.Parallel()
 	const (
