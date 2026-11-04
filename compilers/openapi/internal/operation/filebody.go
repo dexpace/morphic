@@ -214,17 +214,17 @@ func openKeyword(key string, unions bool) bool {
 
 // readUnion reads the branches of an anyOf or oneOf as one, each as read reads
 // it: the least of them, since a file must be every value any branch admits. A
-// branch admitting only null says nothing of the bytes, so it is passed over;
-// a union of nothing else is other.
+// branch admitting no value but null, or none at all, says nothing of the
+// bytes, so it is passed over; a union of nothing else is other.
 func readUnion(c lowering.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable], read branchReader) fileReading {
 	refs := c.Bindings()
 	if !slices.ContainsFunc(branches, func(branch *oas3.JSONSchema[oas3.Referenceable]) bool {
-		return !admitsOnlyNull(refs, branch)
+		return !admitsNoBytes(refs, branch)
 	}) {
 		return readsOther
 	}
 	return leastOf(c, branches, func(c lowering.Ctx, branch *oas3.JSONSchema[oas3.Referenceable]) fileReading {
-		if admitsOnlyNull(c.Bindings(), branch) {
+		if admitsNoBytes(c.Bindings(), branch) {
 			return readsBinary // the top, which leaves the least of the others
 		}
 		return read(c, branch)
@@ -244,9 +244,13 @@ func leastOf[T any](c lowering.Ctx, items []T, read func(lowering.Ctx, T) fileRe
 	return least
 }
 
-// admitsOnlyNull reports whether branch, one of a union's, read through the
-// $refs it starts, is a type null and nothing else a reader of a file looks at.
-func admitsOnlyNull(refs *typed.Bindings, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+// admitsNoBytes reports whether branch, one of a union's, admits no value but
+// null, or none at all, read through the $refs it starts: a false schema, or a
+// type null writing nothing else a reader of a file looks at.
+func admitsNoBytes(refs *typed.Bindings, branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+	if annotation.IsFalseSchema(refEnd(refs, branch)) {
+		return true
+	}
 	s := schemaOf(refs, branch)
 	return s != nil && slices.Equal(s.GetType(), []oas3.SchemaType{oas3.SchemaTypeNull}) &&
 		writesOnlyOpenKeywords(s, false /* unions */)

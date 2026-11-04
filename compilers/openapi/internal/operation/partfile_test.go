@@ -54,7 +54,8 @@ components:
 // binary types are files, and a part saying it is text is none, as a
 // url-encoded one never is beyond what its own bytes say (GitHub #1214). A
 // union with an array among its branches repeats, and is files where each of
-// its values reads so, an array branch's through its elements.
+// its values reads so, an array branch's through its elements, a branch
+// admitting no bytes passed over.
 func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 	t.Parallel()
 	const (
@@ -150,6 +151,8 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 		{"a union of null and an array of untyped values", "3.1.0", multipart,
 			"{anyOf: [{type: 'null'}, {type: array, items: {}}]}", "", openapi.Options{}, true, true, ""},
 		{"a union with a true branch and an array", "3.1.0", multipart, "{oneOf: [true, {type: array, items: {}}]}", "",
+			openapi.Options{}, true, true, ""},
+		{"a union with a false branch and an array", "3.1.0", multipart, "{anyOf: [false, {type: array, items: {}}]}", "",
 			openapi.Options{}, true, true, ""},
 		{"a string of one file or a list of them", "3.1.0", multipart,
 			"{type: string, oneOf: [" + binary + ", {type: array, items: " + binary + "}]}", "", openapi.Options{}, true, false, ""},

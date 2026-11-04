@@ -3072,8 +3072,9 @@ all three and its `x-*`, reported as an `openapi/empty-request-content` warning 
 A content entry is a file body, `Content.File` with `IsText` false and `ContentTypes` the key as
 written, where its schema declares raw bytes or leaves its media type to say, so that a body to
 stream is not read as a model. The schema is read through a `$ref`, and through the branches of an
-`anyOf` or `oneOf` it writes, as the least any of them admits: a branch admitting only `null` is
-passed over, and one that is itself such a union says the body is something else. A schema declares
+`anyOf` or `oneOf` it writes, as the least any of them admits: a branch admitting no value but
+`null`, or none as `false` does, is passed over, and one that is itself such a union says the body
+is something else. A schema declares
 raw bytes with `format: binary` on a `type` that includes `string` or on none, read through a
 refinement ([`allof-refinement`](#allof-refinement)) to the schema deciding it, whatever the media
 type. It leaves the media type to say where it is absent, `true`, or writes no keyword but `type` as

@@ -21,9 +21,9 @@ import (
 // TestBodyFile_ReadsTheSchemaAndTheMediaType holds a body's FileInfo to the
 // reading of its schema and its media type, on both sides of an operation: a
 // declared file is unmarked, a file the binary policy reads is marked and keeps
-// the type its schema lowered to, a union is what all its branches admit, and a
-// schema saying the body is anything but raw bytes is no file whatever its
-// media type.
+// the type its schema lowered to, a union is what all its branches admit, a
+// branch admitting no bytes passed over, and a schema saying the body is
+// anything but raw bytes is no file whatever its media type.
 func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 	t.Parallel()
 	const marker = "binary-media-type"
@@ -79,6 +79,11 @@ func TestBodyFile_ReadsTheSchemaAndTheMediaType(t *testing.T) {
 		{"a union nested in a union", "image/png", "{schema: {anyOf: [{anyOf: [{format: binary}]}]}}",
 			openapi.Options{}, "", false, ""},
 		{"a union of null alone", "image/png", "{schema: {oneOf: [{type: 'null'}]}}", openapi.Options{}, "", false, ""},
+		{"raw bytes or nothing", "application/json", "{schema: {anyOf: [false, {format: binary}]}}",
+			openapi.Options{}, "", true, ""},
+		{"raw bytes or a $ref to nothing", "application/json",
+			`{schema: {anyOf: [{$ref: "#/components/schemas/Nothing"}, {format: binary}]}}`, openapi.Options{}, "", true, ""},
+		{"a union of nothing", "image/png", "{schema: {anyOf: [false]}}", openapi.Options{}, "", false, ""},
 		{"a $ref to a true schema", "application/octet-stream", `{schema: {$ref: "#/components/schemas/Anything"}}`,
 			openapi.Options{}, "", true, ""},
 		{"a $ref to a false schema", "application/octet-stream", `{schema: {$ref: "#/components/schemas/Nothing"}}`,
