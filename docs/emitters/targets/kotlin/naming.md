@@ -15,9 +15,11 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   `ApiException` and the exceptions under it ([failures](errors.md)), `Fault`, `OtherResponse`,
   `OtherResponseException`, `Response`, `EnvelopedResponse`, `RawBody`, `Optional`, `Duration`,
   `Authenticator` and `Transport` among them, and on Multiplatform `Decimal` and `OffsetDateTime`.
-  On Multiplatform, where every unit's declarations share one Objective-C namespace
-  ([Swift](swift.md)), each of these is reserved in every unit, whichever unit declares it. Which
-  unit the runtime renders into is #1489's to decide.
+  On Multiplatform, where every unit's declarations share one Objective-C namespace and a nested
+  one's name is joined to its outer's ([Swift](swift.md)), each of these is reserved in every unit,
+  whichever unit declares it, and so is the joined name of each public class the target nests in a
+  type, such as `UserBuilder` and `UserCompanion` beside a model `User` and `PaymentUnknown` beside
+  a union `Payment`. Which unit the runtime renders into is #1489's to decide.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
 None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
