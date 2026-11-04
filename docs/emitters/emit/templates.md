@@ -26,7 +26,9 @@ Grafted from the template-first stance, applied only to the narrow boilerplate s
   where spec names live also declares the names it binds there ([reserved
   names](../refine/reserved-names.md)), and the lint renders it and holds that declaration to what
   the rendering binds, so a local added to a template cannot shadow a parameter the declaration left
-  out.
+  out. A Kotlin template declares as well the names it writes from Kotlin's default imports, held
+  the same way, since a spec type of such a name would shadow them in its package ([Kotlin
+  naming](../targets/kotlin/naming.md#reserved-names)).
 - **A mandatory format pass** (`Formatter.Format(path, src)`), run on *all* emitted files. Any
   syntactic slip a template produces is caught here as a located, hard `Diagnostic` (file + the
   formatter's message), never shipped. Because typed-AST structure is already syntactically valid by
