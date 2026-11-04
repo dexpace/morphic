@@ -2715,6 +2715,10 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
+- Status: partly built: a keyword a draft before 2020-12 spells otherwise, such as `items` written as
+  a list, `additionalItems`, `dependencies`, `id`, or the keywords beside a `$ref`, is read as
+  2020-12 reads it, and the table has no rows for drafts 6, 7 and 2019-09 (#1457); a `$schema` at the
+  root of a resource an `$id` embeds below a root chooses nothing (#1458).
 
 ### `vocabulary-coverage`
 

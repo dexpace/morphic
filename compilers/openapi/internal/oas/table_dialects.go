@@ -38,7 +38,8 @@ func draft04(text string) func(section, sentence string) Cite {
 
 // draft04Keywords are the keywords of JSON Schema draft 4: its core text's and
 // its validation text's. Each is defined at every minor that lets a schema
-// declare a dialect.
+// declare a dialect. A reading follows them only where it asks the rows; one
+// that reads a keyword by name reads it as 2020-12 does (GitHub #1457).
 func draft04Keywords() []Field {
 	core := draft04("draft-zyp-json-schema-04")
 	ref := draft04("draft-pbryan-zyp-json-ref-03")("3. Syntax", "A JSON Reference is a JSON object, which contains a member named")

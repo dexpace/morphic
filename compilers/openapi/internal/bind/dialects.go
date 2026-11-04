@@ -22,7 +22,8 @@ type DialectRoot struct {
 // heldBySchema reports whether a schema holds the position tokens reach from
 // a document's root read at s, the state the document is identified by: a
 // position below a Schema Object, or below the root of a document that is no
-// OpenAPI document, which holds every schema in it.
+// OpenAPI document, which holds every schema in it. The root of a resource an
+// $id embeds is held so, and names no dialect yet (GitHub #1458).
 func heldBySchema(s state, tokens []string) bool {
 	for _, token := range tokens {
 		if s == sSchema || s == sLoose {
