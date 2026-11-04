@@ -7,8 +7,9 @@ is one an `Unmodeled` [reason](./unmodeled.md#reasons) names.
 
 JSON Schema's `not`, `if`/`then`/`else`, `dependentSchemas`, `dependentRequired`,
 `contains`/`minContains`/`maxContains`, `propertyNames`, `unevaluatedItems`, and
-`unevaluatedProperties` express *validation logic*, not data shape; no target language's type
-system represents them, and none of the other source formats has an equivalent. The IR
+`unevaluatedProperties`, and the earlier drafts' `dependencies`, which 2019-09 split into
+`dependentSchemas` and `dependentRequired`, express *validation logic*, not data shape; no target
+language's type system represents them, and none of the other source formats has an equivalent. The IR
 deliberately does not model them structurally. Compilers keep them verbatim in `Unmodeled`
 (`openapi:not`, `openapi:if-then-else`, `openapi:contains`, …) under `ReasonValidationOnly` and
 emit an `info` diagnostic, so the information is never silently lost and a future
