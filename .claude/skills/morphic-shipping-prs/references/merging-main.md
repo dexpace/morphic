@@ -16,8 +16,8 @@ merge says nothing about it. These rules are the ways a merge loses one side.
 - **Why.** After a base PR's final round stopped handing over cached bytes, a stacked PR's dedup
   test stayed green with the dedup deleted (#565, #562); a conflict-free merge failed the doc
   comment cap `main` had adopted meanwhile (#562).
-- **Probe.** `git merge --no-commit --no-ff origin/main`, then `go build ./...`, `go vet ./...`,
-  `go test ./...`, and the plants that rule leaves to rerun.
+- **Probe.** `git merge --no-commit --no-ff origin/main`, then `go build ./...`,
+  `make vet lint lint-planted`, `go test ./...`, and the plants that rule leaves to rerun.
 
 ## Hold a merge to the lint before a stacked branch takes it
 `lint-the-merge`
@@ -26,8 +26,8 @@ merge says nothing about it. These rules are the ways a merge loses one side.
   added. Run `make vet lint lint-planted` on the merge, or read CI's `vet` and `lint` on the pushed
   merge, before any branch stacked on it merges it in.
 - **Why.** A merge left six failing sites. `go vet` saw one, and with it fixed, build, vet and test
-  passed while the lint refused the rest, four under a rule `main` had adopted, and the four branches
-  stacked on it failed CI (#1437).
+  passed while the lint refused the rest, four under a rule `main` had adopted, and the four
+  branches stacked on it failed CI (#1437).
 - **Probe.** `git merge --no-commit --no-ff origin/main`, then `make vet lint lint-planted`, reading
   each finding beside `go vet ./...`'s.
 
