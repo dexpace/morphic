@@ -84,23 +84,25 @@ for the declaration no shape projects, as `TypePlan.Inclusive`. What admitting a
 admitting no value in common, by these rules, and a pair none of them separates can share one:
 
 - **Kinds.** Their JSON kinds have none in common. A variant's kinds are its type's: object for a
-  model or a map, array for a list, a tuple or a `Positional` model, its values' for a closed enum
-  or a literal, its `ValueType`'s for an open enum, its variants' for a union, its base's for a
-  model that only stands over one, and every kind for the `Any` type, the `any` primitive, which
-  `{}` compiles to, and an `External`, whose wire form is its library type's. Each other primitive's
-  is boolean for `bool`, a number for a numeric kind and a string for the rest. A scalar's are those
-  of the `WireType` its encoding names (`ScalarChain.Encoding`), the type its values travel as, and
-  its root's where none does. A position admitting `null`
+  model or a map, array for a list, a tuple or a `Positional` model, its members' wire forms' for a
+  closed enum ([enums](../refine/enums.md#a-member-on-the-wire)), its values' for a literal, its
+  `ValueType`'s and its members' wire forms' for an open enum, its variants' for a union, its base's
+  for a model that only stands over one, and every kind for the `Any` type, the `any` primitive,
+  which `{}` compiles to, and an `External`, whose wire form is its library type's. Each other
+  primitive's is boolean for `bool`, a number for a numeric kind and a string for the rest. A
+  scalar's are those of the `WireType` its encoding names (`ScalarChain.Encoding`), the type its
+  values travel as, and its root's where none does. A position admitting `null`
   ([unions](../refine/unions.md#a-null-a-variant-admits)) adds `null`, but a variant's own `null` is
   its union's, so the rules leave it out, and a variant admitting only `null` takes no part. Kinds
   are JSON's, so they separate nothing in a union that text carries, at any depth: a parameter's, a
   header's, a form field's or a decoded body's, unless its content is JSON. `since=-10` is the text
   of an integer and of a string alike, so there only values separate variants, compared by their
   texts, with every spelling of a number its one value: `1.0` is also the text of `1`.
-- **Values.** Each admits finitely many values, as a closed enum, a literal or a union of them does,
-  and no value is in both, compared as JSON Schema compares instances: `1` and `1.0` are one. A
-  `Flags` enum's values are its members' combinations, and one with a `FallbackMember` takes every
-  value of its `ValueType`, substituting that member for one it does not list.
+- **Values.** Each admits finitely many values, as a closed enum (its members' wire forms), a
+  literal or a union of them does, and no value is in both, compared as JSON Schema compares
+  instances: `1` and `1.0` are one. A `Flags` enum's values are its members' combinations, and one
+  with a `FallbackMember` takes every value of its `ValueType`, substituting that member for one it
+  does not list.
 - **Members.** Both are models laid out by name, read through `Flattened` as the JSON wire lays them
   out: each member under its JSON name (`WireNameByFormat`'s entry for JSON, else `WireName`), a
   `Flatten` property's members at its model's own level, and a position's kinds read from the
