@@ -3234,8 +3234,9 @@ tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`) or, in 
 a list or tuple every element of which ends in `bytes` no encoding such as `format: byte`
 re-encodes, a tuple's rest included where elements may follow its prefix. A union is read off its
 variants, through the unions nested in them, each as such a type is and one of another kind as
-neither: `Multi` where any is, since a part that may repeat travels as repeated parts, and
-`Filename` where every one is. For a property of any other kind, such as an enum, literal, model or
+neither: `Multi` where any is, since a part that may repeat travels as repeated parts, and, in a
+multipart body, `Filename` where every one is `bytes` no encoding re-encodes or a list or tuple of
+them. For a property of any other kind, such as an enum, literal, model or
 map, for a union reaching more nested unions than a bound of its own, and for a body with no model,
 they are read from every declaration of the part's name: `Multi` where any is an array, or writes
 no `type` and a union with an array among its branches, `Filename` where any is a `string` with

@@ -288,8 +288,9 @@ func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 
 // TestPartTypeFlags_AUnionReadsThroughItsMembers holds a union part's flags to
 // its members, through the unions nested in it: it repeats where any member is
-// a list or tuple, file or not, and is a file where every member is, a model
-// being neither. A union naming itself ends; one naming no node, or reaching
+// a list or tuple, file or not, and is a file where every member is raw bytes
+// or a list of them in a multipart body, a model, a base64 value and a form's
+// bytes being none. A union naming itself ends; one naming no node, or reaching
 // more unions than the bound, is left to the caller's schema reading.
 func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 	t.Parallel()
@@ -301,6 +302,7 @@ func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 	l.types.Register("t/strings", &ir.List{ID: "t/strings", Elem: str})
 	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{bytes}})
 	l.types.Register("t/model", &ir.Model{ID: "t/model"})
+	l.types.Register("t/base64", &ir.Scalar{ID: "t/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
 	l.types.Register("t/inner", unionOf("t/inner", bytes, files))
 	l.types.Register("t/self", unionOf("t/self", bytes, ir.TypeRef{Target: "t/self"}))
 	l.types.Register("t/diamond", unionOf("t/diamond", ir.TypeRef{Target: "t/inner"}, ir.TypeRef{Target: "t/inner"}))
@@ -324,8 +326,11 @@ func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 		{"a file or a list of files", "t/inner", true, true, true, true},
 		{"a form's file or list of files", "t/inner", false, true, false, true},
 		{"a string or a list of strings", registered(l, unionOf("t/texts", str, strs)), true, true, false, true},
+		{"a file or a list of strings", registered(l, unionOf("t/filetexts", bytes, strs)), true, true, false, true},
 		{"a model or a list", registered(l, unionOf("t/modellist", ir.TypeRef{Target: "t/model"}, files)), true, true, false, true},
 		{"files alone", registered(l, unionOf("t/bytes", bytes, bytes)), true, false, true, true},
+		{"a form's files alone", "t/bytes", false, false, false, true},
+		{"base64 values", registered(l, unionOf("t/base64s", ir.TypeRef{Target: "t/base64"}, bytes)), true, false, false, true},
 		{"a nested union and a file", registered(l, unionOf("t/nested", ir.TypeRef{Target: "t/inner"}, bytes)),
 			true, true, true, true},
 		{"a file or a tuple of files", registered(l, unionOf("t/filetuple", bytes, ir.TypeRef{Target: "t/tuple"})),

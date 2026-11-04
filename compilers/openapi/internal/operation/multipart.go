@@ -317,9 +317,10 @@ func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), prop *ir.Property, pe ir
 // partTypeFlags reads the structural flags of a part from its type, as
 // memberFlags does, or, for a union, from each of its members (unionMembers):
 // multi where any is, since a part that may repeat travels as repeated parts,
-// and file where every one is, a member memberFlags cannot answer for being
-// neither. decided is false where memberFlags cannot answer, or the union's
-// members are not read.
+// and, in a multipart body, file where every one is raw bytes (rawBytes) or a
+// list or tuple of them, so a union adds no case of GitHub #1214. A member
+// memberFlags cannot answer for is neither. decided is false where memberFlags
+// cannot answer, or the union's members are not read.
 func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
 	td, found := node(ref.Target)
 	union, isUnion := td.(*ir.Union)
@@ -330,9 +331,13 @@ func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, mult
 	if !ok {
 		return false, false, false
 	}
-	file = len(members) > 0
+	file = multipart && len(members) > 0
 	for _, member := range members {
 		memberMulti, memberFile, _ := memberFlags(node, member, multipart)
+		if !memberMulti {
+			// A list or tuple's file already reads its elements raw.
+			memberFile = rawBytes(node, member)
+		}
 		multi, file = multi || memberMulti, file && memberFile
 	}
 	return multi, file, true
