@@ -86,8 +86,9 @@ type Dialects struct {
 // Of returns the rows the schema whose node is n is read with where a root
 // holding it, itself included, names its dialect, the innermost such root's,
 // and false where none does. A node an alias places at several positions reads
-// one root's at all of them. No reading today tells one valid node's two
-// dialects apart (GitHub #1457).
+// at all of them the rows of the root last in pointer order among those whose
+// trees hold it, as readDialects governs them. No reading today tells one
+// valid node's two dialects apart (GitHub #1457).
 func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
 	r, ok := d.byNode[nodeview.Deref(n)]
 	return r, ok

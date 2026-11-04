@@ -2749,8 +2749,9 @@ an absolute URI, a later draft or one of the author's, is read in its minor's ow
 absolute URI names chooses nothing, as though it were not written, and draws no such warning: the
 rule table reports it where it judges it ([`validation`](#validation)), which in a document a
 reference reaches is only what the reference reaches ([`openapi-versions`](#openapi-versions)). A
-node an alias places at several positions is read in one dialect at all of them: that of one root
-whose tree holds it.
+node an alias places at several positions is read in one dialect at all of them: that of the root
+last in pointer order among those whose trees hold it, which for a node no alias places is the
+innermost.
 
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
@@ -2771,9 +2772,10 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
 - Status: partly built: a keyword a draft before 2020-12 spells otherwise, such as `items` written as
-  a list, `additionalItems`, `dependencies`, `id`, or the keywords beside a `$ref`, is read as
-  2020-12 reads it, and the table has no rows for drafts 6, 7 and 2019-09, which reading them would
-  also have an aliased node read per position (#1457).
+  a list, `additionalItems`, `dependencies`, `definitions`, `id`, or the keywords beside a `$ref`, is
+  read as 2020-12 reads it, and the table has no rows for drafts 6, 7 and 2019-09, which reading them
+  would also have an aliased node read per position (#1457); and the rule table's check holds a
+  schema read in a draft to its minor's keyword rows (#1466).
 
 ### `vocabulary-coverage`
 
