@@ -373,8 +373,8 @@ func Declared[T, S any, R chainable[T, S], P interface {
 	// The caller lowers a copy of what a $ref's chain names, so each is charged
 	// what that weighs. One past the budget resolves to nothing, as an unresolved
 	// $ref does, so no caller lowers another copy and none costs anything. An
-	// inline entry is not charged, though a path item's own parameters reach
-	// each of its operations here, which 3.2 leaves unbounded (GitHub #1428).
+	// inline entry is not charged here: a path item's own inline parameters are
+	// charged where its operations past the first take them (RecopiedAt).
 	if obj != nil && ref.GetReference() != "" &&
 		!c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
 		return nil, c, usePtr

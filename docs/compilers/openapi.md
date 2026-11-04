@@ -142,11 +142,17 @@ schema is weighed whole beneath a merge key, which the grammar reads as raw YAML
 grammar cannot place the `$ref`'s position or reads no object a `$ref` names there. Every `$ref` is
 charged, the first to a declaration and one nested in another's among them, since each lowers a
 copy. A schema's `$ref` names one registry entry ([`schema-registry`](#schema-registry)) and a
-link's is kept as written, so neither is charged. Past the budget no `$ref` lowers, and the compile
-is refused as one `openapi/budget-exceeded` error at the source and no position in it, compiling to
-no Document, beside what the load phase found and nothing the lowering did: which `$ref` crossed the
-budget, and so what lowered before it, follows the walk's order. With no Document to list the
-documents `$ref`s read, what the load phase found in one of them is left out too.
+link's is kept as written, so neither is charged. A path item's operations copy what the item
+declares itself, which OpenAPI 3.2's `additionalOperations` leaves unbounded, so each operation past
+its item's first is charged too: an inline parameter of the item that it takes, weighed as a
+`$ref`'s declaration is, the entries it keeps of the item ([`path-item-docs`](#path-item-docs)), a
+byte for each byte of their keywords and raw values and one between, and the IDs of the item's
+servers where it names none of its own ([`path-item-servers`](#path-item-servers)). Past the budget
+no `$ref` lowers, nor an operation past its item's first, and the compile is refused as one
+`openapi/budget-exceeded` error at the source and no position in it, compiling to no Document,
+beside what the load phase found and nothing the lowering did: which copy crossed the budget, and so
+what lowered before it, follows the walk's order. With no Document to list the documents `$ref`s
+read, what the load phase found in one of them is left out too.
 
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
   `openapi/alias-amplification`, `openapi/pointer-amplification`
@@ -170,10 +176,11 @@ documents `$ref`s read, what the load phase found in one of them is left out too
   `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
   `lowering.TestWeightOf_CountsASchemaAsOneNode`,
   `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
-  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`
+  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`,
+  `openapi.TestCompile_APathItemsCopiesAreChargedPastItsFirstOperation`
 - Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), and a 3.2 path item's own fields copied into each of its operations
-  (#1428) and aliases of a long scalar (#1429) cost gigabytes within every bound.
+  document budget twice (#571), and aliases of a long scalar (#1429) cost gigabytes within every
+  bound.
 
 ### `overlays`
 

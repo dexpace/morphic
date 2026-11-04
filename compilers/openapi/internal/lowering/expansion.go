@@ -21,7 +21,8 @@ import (
 // Limits.MaxReferenceExpansion. A declaration a $ref names, a schema or a link
 // aside, lowers again at every $ref naming it (GitHub #1240), so each such $ref
 // is charged what the declarations its chain names weigh, and the sum bounds
-// the product of references and size that the source budgets leave free. A
+// the product of references and size that the source budgets leave free, as
+// it bounds what a path item copies onto its operations (Recopied). A
 // declaration is weighed once for each reading and remembered: one weighed past
 // what was left is remembered past it, which nothing reads again, since the
 // budget is then crossed.
@@ -70,6 +71,29 @@ func (e *expansion) admit(at bind.Reading, roots ...*yaml.Node) bool {
 	return true
 }
 
+// spend charges raw, what a copy holds as raw values, and reports whether the
+// copies so far are within the budget. A nil expansion admits every copy.
+func (e *expansion) spend(raw int) bool {
+	return e == nil || e.spent.Spend(raw)
+}
+
+// RecopiedAt charges the expansion one more copy of the declaration at node,
+// written at at in c's document, that a lowering makes with no $ref naming it:
+// an inline parameter of a path item, at each of the item's operations past its
+// first (GitHub #1428). It weighs the copy as Declared weighs a $ref's, and
+// reports whether the copies so far are within the budget.
+func RecopiedAt(c Ctx, at jsontext.Pointer, node *yaml.Node) bool {
+	return c.expansion.admit(readingOf(c, at), node)
+}
+
+// Recopied charges the expansion raw more bytes that a lowering copies as raw
+// values with no $ref naming them: what a path item keeps onto each of its
+// operations past its first, and the servers it names on them. It reports
+// whether the copies so far are within the budget.
+func Recopied(c Ctx, raw int) bool {
+	return c.expansion.spend(raw)
+}
+
 // chainable is a reference-or-inline entry whose chain Declared reads: the
 // component aliases it passes through (resolve.Hops), each written as a node
 // of its own (marshaller.Model.GetCoreAny).
@@ -113,16 +137,17 @@ func copied[T, S any, R chainable[T, S]](c Ctx, ref R, end *yaml.Node) []*yaml.N
 	return nodes
 }
 
-// refusal returns the error refusing a document whose $refs copied past the
-// budget, at source srcIndex, and false while they have not. It names no
-// position: which $ref crossed the budget follows the walk's order.
+// refusal returns the error refusing a document whose $refs and path items
+// copied past the budget, at source srcIndex, and false while they have not.
+// It names no position: which copy crossed the budget follows the walk's order.
 func (e *expansion) refusal(srcIndex int) (ir.Diagnostic, bool) {
 	if e == nil || !e.spent.Exhausted() {
 		return ir.Diagnostic{}, false
 	}
 	return diag.Newf(ir.SeverityError, diag.BudgetExceeded, ir.Provenance{Source: srcIndex},
-		"the copies its $refs make weigh more than the %d budgeted for them: each $ref to a "+
-			"declaration other than a schema or a link lowers its own copy of it", e.spent.Limit().Cap()), true
+		"the copies its $refs and path items make weigh more than the %d budgeted for them: each $ref "+
+			"to a declaration other than a schema or a link lowers its own copy of it, and each operation "+
+			"past a path item's first its own copy of what the item declares", e.spent.Limit().Cap()), true
 }
 
 // frame is a node weightOf has yet to weigh, and how the grammar reads it.

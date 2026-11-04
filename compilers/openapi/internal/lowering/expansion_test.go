@@ -220,8 +220,9 @@ func TestExpansion_RefusalNamesTheBudgetAndNoPosition(t *testing.T) {
 	assert.True(t, refused)
 	assert.Equal(t, ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded,
 		Provenance: ir.Provenance{Source: 3},
-		Message: "the copies its $refs make weigh more than the 5 budgeted for them: each $ref to a " +
-			"declaration other than a schema or a link lowers its own copy of it"}, got)
+		Message: "the copies its $refs and path items make weigh more than the 5 budgeted for them: each $ref " +
+			"to a declaration other than a schema or a link lowers its own copy of it, and each operation past " +
+			"a path item's first its own copy of what the item declares"}, got)
 }
 
 // loaded returns the context of src, loaded as a source, with its $refs'
