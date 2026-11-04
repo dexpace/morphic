@@ -82,8 +82,9 @@ throughout these documents.
     it binds, and on Kotlin to the default-imported names it writes. On Kotlin a `clean` and a
     `wrapper` at the build's root leave every module's sources, no path the build writes, an
     artifact's or a class file's, has a Windows device name for a segment, and the Multiplatform
-    framework's header gives each declaration the Swift name the naming policy chose, the target's
-    own names unchanged ([Swift](../targets/kotlin/swift.md)).
+    framework's header gives each declaration the Swift name the naming policy chose, none of them a
+    type Swift's standard library or Foundation declares, so a Swift file that imports the framework
+    and Foundation compiles its uses of both ([Swift](../targets/kotlin/swift.md)).
 20. **T-20 · Recursive types** — a model that holds itself directly, through a base, through a tuple
     and through another model, and one whose cycle passes through a list or a union, generate code
     that compiles on every target, and exactly the references on a cycle Go holds by value are held

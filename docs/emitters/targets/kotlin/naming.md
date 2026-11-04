@@ -29,11 +29,15 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     one unit's code happens to write, so adding an operation renames no model.
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
-  - On Multiplatform, the Objective-C names. Every unit's declarations share one Objective-C
-    namespace, a nested one's name joined to its outer's ([Swift](swift.md)), so each name above
-    that the target declares is reserved there in every unit, and so is the joined name of each
-    public class the target nests in a type, such as `UserBuilder` and `UserCompanion` beside a
-    model `User` and `PaymentUnknown` beside a union `Payment`. A declaration that meets one only
+  - On Multiplatform, what the Swift names a caller sees must avoid. Every unit's declarations share
+    one Objective-C namespace, a nested one's name joined to its outer's ([Swift](swift.md)), so
+    each name above that the target declares is reserved there in every unit, and so is the joined
+    name of each public class the target nests in a type, such as `UserBuilder` and `UserCompanion`
+    beside a model `User` and `PaymentUnknown` beside a union `Payment`. A Swift caller also has
+    Swift's standard library and Foundation in scope, so every type name those declare is reserved
+    there too, the target's own names included: the runtime's `Optional`, `Duration` and `Decimal`
+    take Swift names of their own. Those type names are a table of the options version, as the
+    naming tables are ([naming policy](../../refine/naming.md)). A declaration that meets one only
     there keeps its Kotlin name and takes an explicit Objective-C and Swift name, so no JVM name
     moves for Swift's sake.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.

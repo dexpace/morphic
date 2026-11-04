@@ -21,6 +21,14 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   in Objective-C beside `User.Builder`, whose Swift name keeps its nesting. Two declarations collide
   there when their exported names do, whichever units and types hold them, and a name the target
   declares is reserved there in every unit ([naming](naming.md#reserved-names)).
+- A Swift caller has Swift's standard library and Foundation in scope beside the framework, and the
+  export renames neither side. Measured with Kotlin 2.4.0 and Swift 6.2.3, a framework class named
+  `Optional`, `Result` or `Duration` shadowed Swift's own in a caller's file (`cannot specialize
+  non-generic type 'Optional'`, `type 'Duration' has no member 'seconds'`), and one named `Decimal`,
+  `Date`, `Data` or `URL` made the name ambiguous with Foundation's (`'Decimal' is ambiguous for
+  type lookup in this context`), so importing the SDK broke code that never touched it. A
+  declaration whose Swift name would be one of theirs takes an explicit one, the runtime's
+  `Optional`, `Duration` and `Decimal` among them ([naming](naming.md#reserved-names)).
 - Default arguments do not reach Swift, which is one reason models and request types are built
   through a builder rather than a constructor with defaults.
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a
