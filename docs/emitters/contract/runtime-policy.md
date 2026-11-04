@@ -148,7 +148,8 @@ settings outvote a project-wide choice, which then could not be made without nam
 A key naming no operation of the document is reported as a warning
 `emitters/policy/unknown-operation`, never ignored, since an operation whose ID changed would
 otherwise lose its settings in silence, and a warning rather than an error since one project's
-policy may serve several documents. Where a higher layer replaces what the document embeds, an info
+policy may serve several documents. Where a higher layer replaces what the document embeds, or its
+retry list takes a status from the other list the document embeds (above), an info
 `emitters/policy/embedded-overridden` names the setting, both values and the operation, so the
 document's author can see it was overruled. A value a configuration writes outside a field's
 vocabulary or range, such as a `RetryScope` other than the three its comment names, a `MaxAttempts`
