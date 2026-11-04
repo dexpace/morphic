@@ -167,9 +167,9 @@ canary. A behaviour found that the page lacks is added there.
 
 - **Rule.** A new bound of a kind `docs/compilers/openapi.md#source-budgets` or
   `docs/compilers/openapi.md#references` holds, in whichever phase, takes the outcome, refusal or
-  warning, the entry gives that kind, and joins the entry in the same change. Such a bound that stops
-  a walk is reported, as a cut result never reads as a clean one; a bound of another kind takes
-  `references/openapi-lessons.md#bound-of-another-kind`.
+  warning, the entry gives that kind, and joins the entry in the same change. Such a bound that
+  stops a walk is reported, since its cut result must not read as a clean one; a bound of another
+  kind takes `references/openapi-lessons.md#bound-of-another-kind`.
 - **Why.** Outcomes moved with the code: the reference-chain bounds that warned and let the compile
   go on are gone (#1016), nesting past the scan's bound is refused (#905), and changing one bound
   against its siblings broke a test two packages away (#563).
@@ -185,8 +185,9 @@ canary. A behaviour found that the page lacks is added there.
   one that can drop or invent a declared fact is reported, as
   `docs/compilers/openapi.md#allof-redeclared-property` reports the declarations past its 64. One
   that only takes a reading away, leaving what the compiler gave before the reading existed, reports
-  nothing, as `docs/compilers/openapi.md#allof-disjoint-conjuncts`' undecided null does. A test pins
-  each at the bound and one past it.
+  nothing, as `docs/compilers/openapi.md#allof-disjoint-conjuncts`' undecided null does. Each is
+  tested at its bound
+  (`.claude/skills/morphic-verifying-changes/references/tests-that-bite.md#boundary-cases-at-the-boundary`).
 - **Why.** A lowering bound narrowing a guess had no rule, and "reported" did not fit a cut that
   leaves the output only less guessed (#1440).
 - **Probe.** Compile a document at the bound and one past it, read every diagnostic, and diff the IR
