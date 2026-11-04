@@ -63,9 +63,10 @@ func TestSchemaRules_AnswerAsTheTableDoes(t *testing.T) {
 // keywords, never a field OpenAPI adds to the Schema Object or a rule it
 // states, which stay the minor's, so a reading of `nullable` or of a required
 // `items` asks the document, not the schema. A dialect's id matches with or
-// without its trailing empty fragment, and an absolute URI the table has no
-// rows for reads as the minor's own and is unread; one no absolute URI names
-// is validation's to report.
+// without its trailing empty fragment, the OAS dialect's each id its
+// meta-schema is published under, and an absolute URI the table has no rows
+// for reads as the minor's own and is unread; one no absolute URI names is
+// validation's to report.
 func TestSchemaRules_ADialectNamesItsKeywordsAlone(t *testing.T) {
 	t.Parallel()
 	for _, version := range []string{"3.1.0", "3.2.0"} {
@@ -95,6 +96,10 @@ func TestSchemaRules_ADialectNamesItsKeywordsAlone(t *testing.T) {
 		{"3.1.0", "", false}, {"3.1.0", draft04, false}, {"3.1.0", draft2020, false}, {"3.2.0", oasDialect, false},
 		{"3.1.0", "https://example.com/custom", true}, {"3.2.0", "http://json-schema.org/draft-07/schema#", true},
 		{"3.1.0", "https://json-schema.org/draft-04/schema#", true},
+		{"3.1.0", "https://spec.openapis.org/oas/3.1/dialect/2024-11-10", false},
+		{"3.2.0", "https://spec.openapis.org/oas/3.2/dialect/2025-09-17", false},
+		{"3.1.0", "https://spec.openapis.org/oas/3.2/dialect/2026-02-26", false},
+		{"3.1.0", "https://spec.openapis.org/oas/3.1/dialect/2024-10-25", false},
 		{"3.1.0", "rel/dialect", false}, {"3.1.0", "4", false},
 		{"3.0.3", "https://example.com/custom", false}, {"3.3.0", "https://example.com/custom", false},
 	} {

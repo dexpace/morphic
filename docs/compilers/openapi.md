@@ -2734,11 +2734,14 @@ own, the OAS dialect. A `$schema` on any other schema chooses nothing, since JSO
 at a resource's root, and an `$id` naming its own document roots no resource. A 3.0 document defines
 neither keyword, so its schemas are read in 3.0's dialect whatever either names. The rule table has
 rows for three dialects, each named by the id its meta-schema declares, with or without a trailing
-empty fragment: the OAS dialect, `https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema
-2020-12, `https://json-schema.org/draft/2020-12/schema`, whose keywords are the minor's own, and
-JSON Schema draft 4, `http://json-schema.org/draft-04/schema#`. A dialect changes the keywords
-alone: the fields OpenAPI adds to a Schema Object, such as `discriminator` and `xml`, and the rules
-it states of one stay the minor's. A reading the rows decide follows the schema's: draft 4 spells an
+empty fragment. The OAS dialect, `https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema
+2020-12, `https://json-schema.org/draft/2020-12/schema`, read as the minor's own keywords, and the
+OAS dialect is also named by each dated id its meta-schema is published under:
+`https://spec.openapis.org/oas/3.1/dialect/2024-10-25` and `2024-11-10`, and
+`https://spec.openapis.org/oas/3.2/dialect/2025-09-17` and `2026-02-26`, as OpenAPI lets tooling
+support values of `$schema` besides. JSON Schema draft 4, `http://json-schema.org/draft-04/schema#`,
+has keyword rows of its own. A dialect changes the keywords alone: the fields OpenAPI adds to a
+Schema Object, such as `discriminator` and `xml`, and the rules it states of one stay the minor's. A reading the rows decide follows the schema's: draft 4 spells an
 exclusive bound as a boolean modifying the bound beside it ([`constraints`](#constraints)). A schema
 naming any other dialect by an absolute URI, a later draft or one of the author's, is read in its
 minor's own, with an `openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect`

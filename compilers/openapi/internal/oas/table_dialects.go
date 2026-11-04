@@ -16,14 +16,21 @@ type dialect struct {
 
 // schemaDialects are the dialects the table has rows for: the OAS dialect and
 // JSON Schema 2020-12, whose keywords are the minor's, and JSON Schema draft
-// 4. Each is named by the id its meta-schema declares.
+// 4. Each is named by the id its meta-schema declares: the OAS dialect's by
+// the one OpenAPI names, and by each dated one its meta-schema is published
+// under for 3.1 and 3.2, as tooling may support values of `$schema` besides.
 func schemaDialects() []dialect {
 	c := sectioned("Schema Object")
 	defined := c(V31, "in addition to the vocabularies as specified in the JSON Schema Specification Draft 2020-12")
 	others := c(V31, "This allows use of Schema Objects which comply with other drafts of JSON Schema than the default Draft 2020-12 support.")
+	published := []Cite{c(V31, "and MAY support additional values of `$schema`.")}
 	return []dialect{
 		{id: "https://spec.openapis.org/oas/3.1/dialect/base", cites: []Cite{c(V31, "The OpenAPI Schema Object dialect for this "+
 			"version of the specification is identified by the URI `https://spec.openapis.org/oas/3.1/dialect/base`")}},
+		{id: "https://spec.openapis.org/oas/3.1/dialect/2024-10-25", cites: published},
+		{id: "https://spec.openapis.org/oas/3.1/dialect/2024-11-10", cites: published},
+		{id: "https://spec.openapis.org/oas/3.2/dialect/2025-09-17", cites: published},
+		{id: "https://spec.openapis.org/oas/3.2/dialect/2026-02-26", cites: published},
 		{id: "https://json-schema.org/draft/2020-12/schema", cites: []Cite{defined}},
 		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords, cites: []Cite{others}},
 	}
