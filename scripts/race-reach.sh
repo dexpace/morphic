@@ -2,10 +2,11 @@
 #
 # race-reach.sh runs the go test command it is given over the one race planted
 # in internal/archtest/testdata/racereach, and requires the run to fail with a
-# data race whose stack names the plant's file. The Makefile passes the command
-# `make race` runs, so that shows the command runs the race detector at all, and
-# alone: a run without -race, or with coverage merged in, which hides the plant,
-# would leave the listed packages just as green. The coverage half rests on how
+# data race whose stack names the plant's file. `make race` and
+# `make race-pipeline` each pass the command they run, so each shows that its
+# command runs the race detector at all, and alone: a run without -race, or
+# with coverage merged in, which hides the plant, would leave the listed
+# packages just as green. The coverage half rests on how
 # the toolchain lays out instrumented code (GitHub #1271), so a later toolchain
 # may stop hiding the plant; that weakens the check and never fails a correct
 # recipe.

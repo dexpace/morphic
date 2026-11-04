@@ -17,8 +17,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The gate runs as two jobs side by side. Every check is a Makefile target, and
-# `make gate` runs them all. The fuzz search is the third job, which runs only on
-# a schedule or by hand and which `make gate` leaves out.
+# `make gate` runs them all, bar the step only a push to main runs: `make
+# race-pipeline`, after the cache save. The fuzz search is the third job, which
+# runs only on a schedule or by hand and which `make gate` leaves out.
 #
 # Only the suite job reads a cached test result: the checks job runs go test
 # only with -bench, and the fuzz search job only with -fuzz, neither of which go
@@ -142,6 +143,10 @@ jobs:
       - name: race
         run: make race
       - *save
+      # After the save, so a race found here costs no pull request its cache.
+      - name: race, the whole pipeline
+        if: github.event_name == 'push'
+        run: make race-pipeline
 
   # The search keeps what it finds between nights: Go holds a found input in
   # $GOCACHE/fuzz, and this job restores and saves that directory alone, under a

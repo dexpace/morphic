@@ -52,7 +52,7 @@ canary. A behaviour found that the page lacks is added there.
   (`references/openapi-lessons.md#text-decides-under-one-base`), not by `Schema.IsEqual`, whose
   model misses keywords (`docs/parser-library.md#unmodeled-keywords`), or `yml.EqualNodes`. In
   `schema`, call `sameText` in `compilers/openapi/internal/schema/admission.go`, which renders each
-  schema once a run (#1408 tracks its base check); elsewhere, render each node once.
+  schema once a run; elsewhere, render each node once.
 - **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
   restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the
   body's property through `<<` or in another key order.
@@ -63,14 +63,17 @@ canary. A behaviour found that the page lacks is added there.
 ## Trust a comparison of text only as far as text decides
 `text-decides-under-one-base`
 
-- **Rule.** Text alike names one schema only under one base URI, since a relative `$ref` resolves
-  against it, and text apart can name one schema, as a `$ref` and its target do. Trust a textual
-  "equal" only for two nodes read against one base, and its "unequal" only where a false one errs
+- **Rule.** Text alike writing a relative `$ref` or `$dynamicRef` (`annotation.WritesReference`)
+  names one schema only under one base URI; text writing none, or only absolute ones, says the same
+  under any. Text apart can name one schema, as a `$ref` and its target do. So trust an "equal" of
+  text writing a relative one only under one base, and an "unequal" only where a false one errs
   safely.
 - **Why.** Inline `allOf` branches under different `$id` bases fold a keyword they spell alike
-  (#1408).
+  (#1408), and checking the base of text writing no `$ref` kept a bound out of `Constraints`
+  (#1406).
 - **Probe.** In #1408's spec, `S` spells a `$ref` alike under two bases where `T` spells one
-  absolutely: a comparison holding the rule lowers the two alike.
+  absolutely: a comparison holding the rule lowers the two alike, and each as `main` does with the
+  `$ref` deleted.
 
 ## Moving work out of the library moves its duties
 `library-duties`
@@ -162,15 +165,30 @@ canary. A behaviour found that the page lacks is added there.
 ## Take a new bound's outcome from the rule entry for its kind
 `bound-outcome-from-the-rules`
 
-- **Rule.** A new bound in load or binding takes the outcome, refusal or warning, that
-  `docs/compilers/openapi.md#source-budgets` or `docs/compilers/openapi.md#references` gives a
-  bound of its kind, and joins that entry in the same change. A bound that stops a walk is
-  reported; a cut result never reads as a clean one.
+- **Rule.** A new bound of a kind `docs/compilers/openapi.md#source-budgets` or
+  `docs/compilers/openapi.md#references` holds, in whichever phase, takes the outcome, refusal or
+  warning, the entry gives that kind, and joins the entry in the same change. A bound that stops a
+  walk is reported; a cut result never reads as a clean one.
 - **Why.** Outcomes moved with the code: the reference-chain bounds that warned and let the compile
   go on are gone (#1016), nesting past the scan's bound is refused (#905), and changing one bound
   against its siblings broke a test two packages away (#563).
 - **Probe.** Compile a document at the bound and one past it; read each diagnostic's code, severity
-  and pointer, and whether a Document came back.
+  and pointer, and whether a Document came back. A refusal also takes
+  `references/openapi-lessons.md#refusal-findings-in-its-table`.
+
+## A refusal after a `$ref` has read a document keeps its findings in its source table
+`refusal-findings-in-its-table`
+
+- **Rule.** A compile returning no Document has its findings held to `SourceTable`, which names the
+  source and its overlay and no document a `$ref` read, so every finding of a refusal made after a
+  `$ref` has read a document must index that table. Compile such a refusal through the engine on a
+  document whose `$ref` reads another drawing a load finding, and have a test hold
+  `ir.FirstOutsideTable(diags, len(SourceTable(...)))` false on it.
+- **Why.** The contract check runs in `compilers.Detection.Compile`, which a test calling
+  `openapi.New().Compile` never meets: an expansion refusal passed every compile-level test while
+  the engine failed on a load finding in the document a `$ref` read (#1432).
+- **Probe.** `morphic validate` past the refusal's trigger on such a document exits 1 with the
+  refusal, not 2 with a broken contract.
 
 ## A conformance case must survive every reader of the corpus
 `conformance-case`

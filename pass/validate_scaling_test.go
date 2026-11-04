@@ -136,9 +136,9 @@ func exposureShapes() map[string]func(n int) *ir.Document {
 // validateCost returns the fewest allocations and bytes a Validate of doc made
 // in three runs after one that warms it up, on one processor as
 // testing.AllocsPerRun counts. The fewest, because a build with -race, as the
-// gate's race run is, has sync.Pool drop a share of what it is handed, so the
-// fmt calls Validate makes allocate a random amount more than they must, and
-// never less.
+// race run of make race-pipeline is, has sync.Pool drop a share of what
+// it is handed, so the fmt calls Validate makes allocate a random amount more
+// than they must, and never less.
 func validateCost(t *testing.T, doc *ir.Document) (allocs, bytes float64) {
 	t.Helper()
 	ctx := t.Context()

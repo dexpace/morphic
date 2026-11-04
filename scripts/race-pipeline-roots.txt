@@ -1,0 +1,11 @@
+# The trees `make race-pipeline` adds to the packages of
+# scripts/race-packages.txt, one `go test` pattern per line. A `#` starts a
+# comment only as a line's first non-blank character. The Makefile reads this
+# file, so it is the only list of roots.
+#
+# Every line is a subtree pattern, "./x/...". internal/archtest reads this file
+# too: it holds each root to a Go package directory, and no package under a
+# root may be in raceExempt. A new pipeline tree, such as emitters, joins it.
+./compilers/...
+./ir/...
+./pass/...
