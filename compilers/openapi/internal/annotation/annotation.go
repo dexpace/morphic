@@ -486,16 +486,18 @@ func unmodeledAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, withD
 var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
 
 // dialectRead is what keyword, one of DialectKeywords, is read for beyond
-// being kept: $id for reference resolution alone, $schema for the dialect a
-// schema it roots is read in (docs/compilers/openapi.md#dialect-keywords), and
-// $vocabulary for nothing.
+// being kept: $id for reference resolution alone, $schema for the dialect of a
+// schema resource it roots (docs/compilers/openapi.md#dialect-keywords), and
+// $vocabulary for nothing. The words hold at every site, as the reader cannot
+// tell a root: a $schema rooting no resource, or in a 3.0 document, chooses
+// nothing.
 func dialectRead(keyword string) string {
 	switch keyword {
 	case "$id":
 		return "is read only for reference resolution"
 	case "$schema":
-		return "is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, " +
-			"never for reference resolution"
+		return "is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose " +
+			"that resource's dialect, never for reference resolution"
 	default:
 		return "is not honoured for reference resolution"
 	}
