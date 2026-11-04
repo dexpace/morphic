@@ -41,8 +41,8 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	if !ok {
 		return SchemaRules{}, false
 	}
-	keywords, unread := s.keywordsOf(minor, dialect)
-	rows := &schemaRows{fields: map[string]Field{}, minor: minor}
+	keywords, unread := dialectKeywords(minor, dialect)
+	rows := &schemaRows{fields: make(map[string]Field, len(obj.Fields)), minor: minor}
 	for _, f := range obj.Fields {
 		if f.Defined.Holds(minor) && (keywords == nil || !f.Keyword) {
 			rows.fields[f.Name] = f
@@ -59,19 +59,23 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	return SchemaRules{rows: rows}, unread
 }
 
-// keywordsOf returns the keywords dialect reads in place of minor's own, nil
-// where it reads minor's, and whether it is an absolute URI the table has no
-// rows for. A dialect is compared without a trailing empty fragment, which
+// dialectKeywords returns the keywords dialect reads in place of minor's own,
+// nil where it reads minor's, and whether it is an absolute URI the table has
+// no rows for. A dialect is compared without a trailing empty fragment, which
 // draft 4's id writes and 2020-12's does not, as `$schema` values spell both.
-func (s Spec) keywordsOf(minor Minor, dialect string) ([]Field, bool) {
+func dialectKeywords(minor Minor, dialect string) ([]Field, bool) {
 	if dialect == "" || minor == V30 {
 		return nil, false
 	}
 	id := strings.TrimSuffix(dialect, "#")
-	for _, d := range s.dialects {
-		if strings.TrimSuffix(d.id, "#") == id {
-			return d.keywords, false
+	for _, d := range schemaDialects() {
+		if strings.TrimSuffix(d.id, "#") != id {
+			continue
 		}
+		if d.keywords == nil {
+			return nil, false
+		}
+		return d.keywords(), false
 	}
 	return nil, validFormat(AbsoluteURI, dialect)
 }

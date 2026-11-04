@@ -128,9 +128,28 @@ const (
 type Cite struct {
 	Section  string
 	Sentence string
-	Text     string
 	Minor    Minor
+	Text     Text
 }
+
+// Text is a specification text other than OpenAPI's that a Cite quotes. The
+// zero Text is OpenAPI's own. It is one byte, beside Minor, so a Cite, which
+// every row of the table holds, grows by nothing for naming one.
+type Text uint8
+
+// The texts beside OpenAPI's: the Internet-Drafts JSON Schema draft 4's
+// keywords come from, the dialect a Schema Object can be read in beside its
+// minor's own.
+const (
+	// TextDraft04Core is draft-zyp-json-schema-04, its core text.
+	TextDraft04Core Text = 1 + iota
+	// TextDraft04Validation is draft-fge-json-schema-validation-00, its
+	// validation text.
+	TextDraft04Validation
+	// TextJSONReference03 is draft-pbryan-zyp-json-ref-03, the JSON Reference
+	// text its $ref comes from.
+	TextJSONReference03
+)
 
 // Term is one condition on the object a rule judges: the sibling field Field
 // holds one of In. The field "$key" is the key the parent holds the object
@@ -318,12 +337,12 @@ type Object struct {
 	Extensible bool
 }
 
-// Spec is the table: every object of the specification, and the JSON Schema
-// dialects a Schema Object can be read in.
+// Spec is the table: every object of the specification. The JSON Schema
+// dialects a Schema Object can be read in are schemaDialects', read only for a
+// schema naming one (Spec.SchemaRules).
 type Spec struct {
-	objects  []Object
-	index    map[Kind]int
-	dialects []dialect
+	objects []Object
+	index   map[Kind]int
 }
 
 // Object returns the object of kind k.
@@ -346,5 +365,5 @@ func Table() Spec {
 	for i, o := range objs {
 		index[o.Kind] = i
 	}
-	return Spec{objects: objs, index: index, dialects: schemaDialects()}
+	return Spec{objects: objs, index: index}
 }

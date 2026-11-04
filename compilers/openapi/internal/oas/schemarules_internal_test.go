@@ -42,13 +42,16 @@ func TestDialects_EveryRowCitesItsText(t *testing.T) {
 			assert.Equal(t, V31, c.Minor, d.id)
 			assert.NotEmpty(t, c.Sentence, d.id)
 		}
-		for _, f := range d.keywords {
+		if d.keywords == nil {
+			continue
+		}
+		for _, f := range d.keywords() {
 			assert.True(t, f.Keyword, "%s %s", d.id, f.Name)
 			assert.Equal(t, From(V31), f.Defined, "%s %s", d.id, f.Name)
 			assert.NotEmpty(t, f.Cites, "%s %s", d.id, f.Name)
 			for _, c := range f.Cites {
 				assert.Zero(t, c.Minor, "%s %s cites no OpenAPI minor", d.id, f.Name)
-				assert.NotEmpty(t, c.Text, "%s %s", d.id, f.Name)
+				assert.NotZero(t, c.Text, "%s %s", d.id, f.Name)
 				assert.NotEmpty(t, c.Section, "%s %s", d.id, f.Name)
 				assert.NotEmpty(t, c.Sentence, "%s %s", d.id, f.Name)
 			}

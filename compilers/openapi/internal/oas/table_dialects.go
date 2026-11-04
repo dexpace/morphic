@@ -5,11 +5,12 @@ package oas
 
 // dialect is a JSON Schema dialect a 3.1 or 3.2 Schema Object can declare,
 // through its `$schema` or its document's jsonSchemaDialect: the URI naming
-// it, and the keywords it reads in place of the minor's, or none where they
-// are the minor's own.
+// it, and what builds the keywords it reads in place of the minor's, nil where
+// they are the minor's own. The keywords are built only for a dialect a schema
+// names, so a compile naming none pays for no row of one.
 type dialect struct {
 	id       string
-	keywords []Field
+	keywords func() []Field
 	cites    []Cite
 }
 
@@ -24,13 +25,13 @@ func schemaDialects() []dialect {
 		{id: "https://spec.openapis.org/oas/3.1/dialect/base", cites: []Cite{c(V31, "The OpenAPI Schema Object dialect for this "+
 			"version of the specification is identified by the URI `https://spec.openapis.org/oas/3.1/dialect/base`")}},
 		{id: "https://json-schema.org/draft/2020-12/schema", cites: []Cite{defined}},
-		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords(), cites: []Cite{others}},
+		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords, cites: []Cite{others}},
 	}
 }
 
 // draft04 returns a constructor of citations of the JSON Schema draft 4 text
 // named, under one of its headings.
-func draft04(text string) func(section, sentence string) Cite {
+func draft04(text Text) func(section, sentence string) Cite {
 	return func(section, sentence string) Cite {
 		return Cite{Text: text, Section: section, Sentence: sentence}
 	}
@@ -41,9 +42,9 @@ func draft04(text string) func(section, sentence string) Cite {
 // declare a dialect. A reading follows them only where it asks the rows; one
 // that reads a keyword by name reads it as 2020-12 does (GitHub #1457).
 func draft04Keywords() []Field {
-	core := draft04("draft-zyp-json-schema-04")
-	ref := draft04("draft-pbryan-zyp-json-ref-03")("3. Syntax", "A JSON Reference is a JSON object, which contains a member named")
-	v := draft04("draft-fge-json-schema-validation-00")
+	core := draft04(TextDraft04Core)
+	ref := draft04(TextJSONReference03)("3. Syntax", "A JSON Reference is a JSON object, which contains a member named")
+	v := draft04(TextDraft04Validation)
 	s := From(V31)
 	integer := "The value of this keyword MUST be an integer."
 	return []Field{
