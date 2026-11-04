@@ -82,8 +82,9 @@ type FileInfo struct {
     FilenameLocation string       // "content-disposition" (default) | "path" | "header"
     FilenameWireName string       // wire name when FilenameLocation is path/header
     Inferred Inferred             // "" = the source declares the body a file; else the heuristics
-                                  // that read it as one, as an OpenAPI schemaless body on a binary
-                                  // media type is read. Type then stays what the schema says, so a
-                                  // consumer setting the guess aside reads the body as declared
+                                  // that read it as one, as an OpenAPI body whose schema says no
+                                  // more than "a string" is read on a binary media type. Type then
+                                  // stays what the schema says, so a consumer setting the guess
+                                  // aside reads the body as declared
 }
 ```
