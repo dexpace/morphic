@@ -39,7 +39,7 @@ func refusal(limit int) ir.Diagnostic {
 	return ir.Diagnostic{Severity: ir.SeverityError, Code: diag.BudgetExceeded, Provenance: ir.Provenance{Source: 0},
 		Message: fmt.Sprintf("the copies its $refs and path items make weigh more than the %d budgeted for them: "+
 			"each $ref to a declaration other than a schema or a link lowers its own copy of it, and each "+
-			"operation past a path item's first its own copy of what the item declares", limit)}
+			"additionalOperations entry its own copy of what its path item declares", limit)}
 }
 
 // assertRefused asserts a compile refused for its $refs' copies: no Document,
@@ -356,14 +356,15 @@ func itemWith(item string, ops [3]string, components string) string {
 	return src + "components:\n" + components
 }
 
-// TestCompile_APathItemsCopiesAreChargedPastItsFirstOperation pins what the
-// operations of a path item past its first are charged for what the item
-// declares itself, each copying it (GitHub #1428): its inline parameter, which
-// weighs 25 as paramP does, unless the operation writes its own; its kept
-// summary and extension, the keyword and its raw value with a byte between,
-// 7+1+3 and 3+1+3; and its server's ID, unless the operation names its own. A
-// $ref'd parameter is charged at every operation, the first among them.
-func TestCompile_APathItemsCopiesAreChargedPastItsFirstOperation(t *testing.T) {
+// TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy pins what the
+// additionalOperations entries past a path item's first operation, here LINK
+// and UNLINK beside a get, are charged for what the item declares itself, each
+// copying it (GitHub #1428): its inline parameter, which weighs 25 as paramP
+// does, unless the entry writes its own; its kept summary and extension, the
+// keyword and its raw value with a byte between, 7+1+3 and 3+1+3; and its
+// server's ID, unless the entry names its own. A $ref'd parameter is charged at
+// every operation, the first among them.
+func TestCompile_APathItemsAdditionalOperationsAreChargedWhatTheyCopy(t *testing.T) {
 	t.Parallel()
 	const kept = 7 + 1 + 3 + 3 + 1 + 3
 	own := ", parameters: [{name: q, in: query, schema: {type: integer}}], servers: [{url: 'https://b.test'}]"
@@ -394,4 +395,60 @@ func TestCompile_APathItemsCopiesAreChargedPastItsFirstOperation(t *testing.T) {
 			assertRefused(t, doc, diags, want-1)
 		})
 	}
+}
+
+// TestCompile_APathItemsFixedMethodsAreNotCharged pins that the fixed methods of
+// a path item copy what it declares unchanged: their number bounds the copies,
+// so neither a 3.1 item nor a 3.2 one mounting five of them, beside an inline
+// parameter, a kept extension and a server, spends the budget at all.
+func TestCompile_APathItemsFixedMethodsAreNotCharged(t *testing.T) {
+	t.Parallel()
+	var ops strings.Builder
+	for _, method := range []string{"get", "put", "post", "delete", "patch"} {
+		fmt.Fprintf(&ops, "    %s: {operationId: %s, responses: {'200': {description: ok}}}\n", method, method)
+	}
+	for _, version := range []string{"3.1.0", "3.2.0"} {
+		t.Run(version, func(t *testing.T) {
+			t.Parallel()
+			src := "openapi: " + version + "\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n" +
+				"    x-k: v\n    servers: [{url: 'https://a.test'}]\n" +
+				"    parameters: [{name: q, in: query, schema: {type: string}}]\n" + ops.String()
+			doc, diags := compileExpanding(t, src, 1)
+			require.NotNil(t, doc, "%v", diags)
+			openapitest.RequireNoErrorDiags(t, diags)
+			assert.NotEmpty(t, openapitest.FindOp(t, doc, "patch").Servers)
+		})
+	}
+}
+
+// TestCompile_AnItemsParameterIsWeighedInItsOwnDocument pins that a parameter
+// written beside a path item $ref is weighed where it is written when an
+// operation of the item it names, in another document, takes it: as the
+// source's grammar reads it, its schema one node, 25 as paramP weighs. The $ref
+// is charged what the item weighs, and LINK, past the item's first operation,
+// the parameter.
+func TestCompile_AnItemsParameterIsWeighedInItsOwnDocument(t *testing.T) {
+	t.Parallel()
+	const item = "I:\n  get: {operationId: g, responses: {'200': {description: ok}}}\n" +
+		"  additionalOperations:\n    LINK: {operationId: link, responses: {'200': {description: ok}}}\n"
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "other.yaml"), []byte(item), 0o600))
+	src := "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n    $ref: './other.yaml#/I'\n" +
+		"    parameters: [{name: q, in: query, schema: {type: object, properties: {a: {type: string}}}}]\n"
+	sources := []compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(src)}}
+	compile := func(limit int) (*ir.Document, []ir.Diagnostic) {
+		opts := compilers.Options{Reader: reader.Disk{},
+			FormatOptions: openapi.Options{Limits: openapi.Limits{MaxReferenceExpansion: limit}}}
+		doc, diags, err := openapi.New().Compile(t.Context(), sources, opts)
+		require.NoError(t, err)
+		return doc, diags
+	}
+	want := weightAt(t, item, "/I") + 25
+
+	doc, diags := compile(want)
+	require.NotNil(t, doc, "copies weighing the budget are within it: %v", diags)
+	openapitest.RequireNoErrorDiags(t, diags)
+	require.Len(t, openapitest.FindOp(t, doc, "link").Params, 1, "LINK takes the parameter")
+	doc, diags = compile(want - 1)
+	assertRefused(t, doc, diags, want-1)
 }

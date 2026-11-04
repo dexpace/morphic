@@ -268,12 +268,12 @@ type Limits struct {
 	MaxExternalDocuments int `json:"maxExternalDocuments,omitzero"`
 	// MaxReferenceExpansion bounds what lowering copies through $refs and path
 	// items. A declaration a $ref names, a schema or a link aside, lowers again
-	// at every $ref naming it, so each such $ref is charged what its chain's
-	// declarations weigh, each component alias included: one for each YAML node,
-	// a YAML alias as a copy of what it names, and one for each byte of scalar
-	// text, but one for a schema, which lowers once. Each operation past a path
-	// item's first is charged its copy of the item. A document past it is refused
-	// as openapi/budget-exceeded, compiling to no Document.
+	// at every $ref naming it, so each is charged what its chain's declarations
+	// weigh, each component alias included: one for each YAML node, a YAML alias
+	// as a copy of what it names, and one for each byte of scalar text, but one
+	// for a schema, which lowers once. Each additionalOperations entry past a
+	// path item's first operation is charged its copy of the item. A document
+	// past it is refused as openapi/budget-exceeded, compiling to no Document.
 	MaxReferenceExpansion int `json:"maxReferenceExpansion,omitzero"`
 }
 

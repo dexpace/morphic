@@ -230,7 +230,7 @@ OpenAPI compiler accepts:
 | `max-enum-members` | an integer | The budget on the members of one enum. |
 | `max-alias-surplus` | an integer | The budget on the nodes YAML aliases may add to a document. |
 | `max-external-documents` | an integer | The budget on how many documents external references read in one compile. |
-| `max-reference-expansion` | an integer | The budget on what `$ref`s copy: each `$ref` to a declaration other than a schema or a link lowers its own copy of it, and of each component alias on the way, weighed as a node for each YAML node, a YAML alias as a copy of what it names, a byte for each byte of scalar text, and a node for a schema it holds, which lowers once; and on what each operation past a path item's first copies of what the item declares. |
+| `max-reference-expansion` | an integer | The budget on what `$ref`s copy: each `$ref` to a declaration other than a schema or a link lowers its own copy of it, and of each component alias on the way, weighed as a node for each YAML node, a YAML alias as a copy of what it names, a byte for each byte of scalar text, and a node for a schema it holds, which lowers once; and on what each operation a path item's `additionalOperations` declares, past the item's first, copies of what the item declares. |
 
 Each `max-*` option sets the `openapi.Limits` budget it names, whose default is documented there:
 `0` takes the default, and a negative value turns the budget off.

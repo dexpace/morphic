@@ -11,14 +11,15 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// recopied charges the run's expansion budget what an operation past its
-// mount's first copies of what the mount's item declares itself: kept, the
-// bytes of the entries kept onto it; servers, those of the servers it takes;
-// and the item's inline parameters among taken, those the merge left it.
-// Declared charges an item's $ref'd parameters at every operation. OpenAPI
-// 3.2's additionalOperations admits any number of operations, so these grow as
-// operations times what the item declares (GitHub #1428). It reports whether
-// the copies so far are within the budget, read in c, the mount's context.
+// recopied charges the run's expansion budget what an additionalOperations
+// entry past its mount's first copies of what the mount's item declares itself:
+// kept, the bytes of the entries kept onto it; servers, those of the servers it
+// takes; and the item's inline parameters among taken, those the merge left it.
+// Declared charges an item's $ref'd parameters at every operation. 3.2's
+// additionalOperations admits any number of operations, so these grow as
+// operations times what the item declares (GitHub #1428), as no fixed
+// method's do. It reports whether the copies so far are within the budget,
+// read in c, the mount's context.
 func recopied(c lowering.Ctx, kept, servers int, taken []sourcedParam) bool {
 	if !lowering.Recopied(c, kept+servers) {
 		return false

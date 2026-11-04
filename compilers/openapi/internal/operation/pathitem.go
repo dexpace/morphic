@@ -177,6 +177,13 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 	mounted := make([]mountedOp, 0, len(ops))
 	for i, lo := range ops {
 		l, po := layers[lo.layer], lo.op
+		// An additionalOperations entry past the mount's first is charged what it
+		// copies (recopied), as the fixed methods, which bound their own copies,
+		// are not; and none lowers once the budget is crossed.
+		charged := i > 0 && po.additional
+		if _, past := l.in.ExpansionRefusal(); charged && past {
+			break // the document is refused, so no copy past the budget lowers
+		}
 		opCtx := route
 		opCtx.method = po.method
 		opCtx.ptrs = opPointers{mount: mount + po.seg, decl: l.decl + po.seg}
@@ -191,7 +198,7 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		mounted = append(mounted, mountedOp{src: po.src, op: op, extra: extra})
 		// mergeParameters puts the operation's own parameters first, so what
 		// follows them is what it takes of its item's.
-		if i > 0 && !recopied(l.in, keptBytes, chosen(takes, serverBytes), opCtx.params[len(po.src.GetParameters()):]) {
+		if charged && !recopied(l.in, keptBytes, chosen(takes, serverBytes), opCtx.params[len(po.src.GetParameters()):]) {
 			break // past the budget the document is refused, so nothing more need copy
 		}
 	}

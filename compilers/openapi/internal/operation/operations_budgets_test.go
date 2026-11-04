@@ -132,3 +132,78 @@ func TestLowerService_APathItemsCopiesStopAtTheBudget(t *testing.T) {
 	_, refused = lowerUnder(t, copyingItem(own), budget.AtMost(kept+param+kept+server+param-1))
 	assert.True(t, refused)
 }
+
+// TestLowerService_NoAdditionalOperationLowersPastTheBudget pins that once what
+// path items copy crosses the budget, at /p's LINK, a later item's fixed methods
+// still lower, as they cost nothing, while its additional operation, which
+// would copy past the budget, does not.
+func TestLowerService_NoAdditionalOperationLowersPastTheBudget(t *testing.T) {
+	t.Parallel()
+	const spec = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /p:
+    x-k: v
+    get: {operationId: g, responses: {"200": {description: ok}}}
+    additionalOperations:
+      LINK: {operationId: link, responses: {"200": {description: ok}}}
+  /q:
+    x-k: v
+    get: {operationId: g2, responses: {"200": {description: ok}}}
+    put: {operationId: p2, responses: {"200": {description: ok}}}
+    additionalOperations:
+      LINK: {operationId: link2, responses: {"200": {description: ok}}}
+`
+	ops, refused := lowerUnder(t, spec, budget.AtMost(1))
+	assert.Equal(t, []string{"g", "link", "g2", "p2"}, names(ops))
+	assert.True(t, refused)
+}
+
+// leastBudget is the least budget within which lowerUnder admits spec, which
+// 4,096 must admit.
+func leastBudget(t *testing.T, spec string) int {
+	t.Helper()
+	const most = 1 << 12
+	_, refused := lowerUnder(t, spec, budget.AtMost(most))
+	require.False(t, refused, "admitted within %d")
+	lo, hi := -1, most
+	for hi-lo > 1 {
+		mid := lo + (hi-lo)/2
+		if _, refused := lowerUnder(t, spec, budget.AtMost(mid)); refused {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	return hi
+}
+
+// TestLowerService_AnItemsParametersAreChargedOnceACopy pins what an item's
+// parameters add to the least budget it lowers within, beside a get and a
+// LINK: a $ref'd one is charged at each operation, by Declared, and not again,
+// and one written beside the item's $ref, a layer of its own, is charged at
+// LINK alone, as it weighs: 25, as a parameter of this shape does.
+func TestLowerService_AnItemsParametersAreChargedOnceACopy(t *testing.T) {
+	t.Parallel()
+	const param = 25
+	const head = "openapi: 3.2.0\ninfo: {title: T, version: \"1\"}\npaths:\n  /p:\n"
+	const ops = `    get: {operationId: g, responses: {"200": {description: ok}}}
+    additionalOperations:
+      LINK: {operationId: link, responses: {"200": {description: ok}}}
+`
+	const components = "components:\n  parameters:\n    P: {name: q, in: query, schema: {type: string}}\n"
+	plain := leastBudget(t, head+ops+components)
+	referenced := leastBudget(t, head+"    parameters: [{$ref: '#/components/parameters/P'}]\n"+ops+components)
+	assert.Equal(t, plain+2*param, referenced, "a $ref'd parameter is charged at each operation, once")
+
+	layered := func(params string) string {
+		return head + "    $ref: '#/components/pathItems/I'\n" + params + components + "  pathItems:\n    I:\n" +
+			`      get: {operationId: g, responses: {"200": {description: ok}}}
+      additionalOperations:
+        LINK: {operationId: link, responses: {"200": {description: ok}}}
+`
+	}
+	without := leastBudget(t, layered(""))
+	with := leastBudget(t, layered("    parameters: [{name: q, in: query, schema: {type: string}}]\n"))
+	assert.Equal(t, without+param, with, "a parameter beside the item's $ref is charged at LINK alone")
+}
