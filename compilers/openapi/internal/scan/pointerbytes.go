@@ -24,8 +24,8 @@ import (
 const maxPointerAmplification = 128
 
 // minPointerBytes is the pointer bytes granted whatever a document's size, so
-// a small one nesting deep is never refused on its ratio: a document of short
-// keys nested to MaxNesting spells about 16 MiB.
+// a small one nesting deep is never refused on its ratio: a schema nested
+// through items to MaxNesting spells 12 MiB.
 const minPointerBytes = 1 << 26 // 64 MiB
 
 // PointerAmplification refuses a document whose nodes' pointers total past what its size
