@@ -236,4 +236,6 @@ func TestDialects_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, got == second)
 	assert.Len(t, d.byNode, 8, "A, its keys x and y, the shared node and its two scalars; B and its key z")
+	d.govern(nil, first)
+	assert.Len(t, d.byNode, 8, "no tree governs nothing")
 }
