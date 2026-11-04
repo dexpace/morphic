@@ -149,6 +149,17 @@ defect, keep a `main` control.
   (#1403).
 - **Probe.** In a new `git init`, run both fetches, then `git for-each-ref`.
 
+## Build the review from a ref only your session writes
+`review-head-in-own-ref`
+
+- **Rule.** Fetch the PR's head into a ref only your session names and add the worktree from it,
+  never from `FETCH_HEAD`, which every session in a checkout shares and another's fetch replaces.
+  The worktree's `HEAD` is the PR's `headRefOid` before any merge.
+- **Why.** A worktree added at `FETCH_HEAD` after the PR's fetch held `main`'s head, and the merge
+  of `main` printed "Already up to date" (#1464).
+- **Probe.** `git rev-parse HEAD` in the worktree, beside
+  `gh pr view <N> --json headRefOid --jq .headRefOid`.
+
 ## Search the tracker for each construct a rule settles
 `tracker-on-what-a-rule-settles`
 
