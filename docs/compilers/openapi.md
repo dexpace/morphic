@@ -613,7 +613,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   second pointer (#1330). A reference object whose `$ref` is a scalar under a tag outside YAML's
   JSON schema ruleset, which the model decodes no string from, lowers nothing, and nothing reports
   it (#1368). A schema `$ref` whose pointer passes through a reference object's alias lowers what
-  it reaches a second time, at the pointer it spells (#1359).
+  it reaches a second time, at the pointer it spells (#1359). The parser's resolver takes time cubic
+  in the length of a chain of reference objects, each naming the next (#1468).
 
 ### `reference-cycles`
 
