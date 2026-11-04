@@ -151,8 +151,9 @@ whether the answer means anything.
 
 - **Rule.** A build rerun over one spec, such as `main`'s side of repeated sweeps, takes
   `--cache-dir <dir>`, after `--` for `scripts/sweep.py`; a build of changed code misses, so only
-  an unchanged side gains. The key holds the spec's path and the working directory, so keep both
-  fixed. A cost measurement never takes the flag, as it would time the hit.
+  an unchanged side gains, and a `--verify` run takes no part. The key holds the spec's path and
+  the working directory, so keep both fixed. A cost measurement never takes the flag, as it would
+  time the hit.
 - **Why.** Golden `validate` on one thread, the collector on, took 103.7G instructions (101.1 to
   104.5) uncached and 9.47G (9.46 to 9.58) on a hit (#1304), diagnostics identical (spec
   @d04a1ddd, morphic @c1d984a06).
