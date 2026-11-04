@@ -122,12 +122,34 @@ const (
 )
 
 // Cite is the sentence of a specification text a row comes from. Sentence is
-// a verbatim fragment of the text of Minor, under the heading Section.
+// a verbatim fragment of that text under the heading Section: OpenAPI's at
+// Minor, or, where Text names it, another specification's, such as a JSON
+// Schema draft whose dialect a Schema Object can declare.
 type Cite struct {
-	Minor    Minor
 	Section  string
 	Sentence string
+	Minor    Minor
+	Text     Text
 }
+
+// Text is a specification text other than OpenAPI's that a Cite quotes. The
+// zero Text is OpenAPI's own. It is one byte, beside Minor, so a Cite, which
+// every row of the table holds, grows by nothing for naming one.
+type Text uint8
+
+// The texts beside OpenAPI's: the Internet-Drafts JSON Schema draft 4's
+// keywords come from, the dialect a Schema Object can be read in beside its
+// minor's own.
+const (
+	// TextDraft04Core is draft-zyp-json-schema-04, its core text.
+	TextDraft04Core Text = 1 + iota
+	// TextDraft04Validation is draft-fge-json-schema-validation-00, its
+	// validation text.
+	TextDraft04Validation
+	// TextJSONReference03 is draft-pbryan-zyp-json-ref-03, the JSON Reference
+	// text its $ref comes from.
+	TextJSONReference03
+)
 
 // Term is one condition on the object a rule judges: the sibling field Field
 // holds one of In. The field "$key" is the key the parent holds the object
@@ -315,7 +337,9 @@ type Object struct {
 	Extensible bool
 }
 
-// Spec is the table: every object of the specification.
+// Spec is the table: every object of the specification. The JSON Schema
+// dialects a Schema Object can be read in are schemaDialects', read only for a
+// schema naming one (Spec.SchemaRules).
 type Spec struct {
 	objects []Object
 	index   map[Kind]int

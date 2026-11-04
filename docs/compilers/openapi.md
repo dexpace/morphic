@@ -36,13 +36,14 @@ gives the reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) 
 
 A document declaring `openapi: 3.0.x`, `3.1.x` or `3.2.x` is read as the minor its first two parts
 name, and every rule below that differs by minor follows that one. So is a document a reference
-reaches beside the source: its schemas are read in that minor's dialect, its Encoding Objects take
-that minor's defaults, its objects are held to that minor's table, and its `Document.Sources` entry
-names that minor. One declaring no version, such as a bare schema file, or a version the compiler
-does not read, such as `3.3.0` or a Swagger 2.0 file, is read at the source's minor, and the compile
-stands. A source declaring a version that is not three runs of digits, major, minor and patch, such
-as `3.0` or `3.1.0-rc1`, is reported as an `openapi/validation` error, of the class
-`validation-invalid-format` ([`validation`](#validation)), and still lowers under the minor it
+reaches beside the source: its schemas are read in that minor's dialect, where neither its
+`jsonSchemaDialect` nor a schema's `$schema` names another ([`dialect-keywords`](#dialect-keywords)),
+its Encoding Objects take that minor's defaults, its objects are held to that minor's table, and its
+`Document.Sources` entry names that minor. One declaring no version, such as a bare schema file, or
+a version the compiler does not read, such as `3.3.0` or a Swagger 2.0 file, is read at the source's
+minor, and the compile stands. A source declaring a version that is not three runs of digits, major,
+minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an `openapi/validation` error, of the
+class `validation-invalid-format` ([`validation`](#validation)), and still lowers under the minor it
 names; a document a reference reaches is read at the minor such a version names too, with no
 finding, since only what a reference reaches is judged. Any other version is not this compiler's.
 The engine refuses a document declaring one before any compiler runs, as it refuses a Swagger 2.0
@@ -324,6 +325,9 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
+- Status: partly built: a schema read in a JSON Schema draft ([`dialect-keywords`](#dialect-keywords))
+  is held to its minor's keyword rows, so a keyword the draft constrains otherwise passes as 2020-12
+  admits it (#1466).
 
 ### `minor-required-fields`
 
@@ -2604,16 +2608,18 @@ the target is; and
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
 literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the schema
-that wrote it. Exclusive bounds follow the declared dialect. In 3.0 the boolean modifies the bound
-beside it: `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears `Min` or `Max`, so
-a 3.0 document and its 3.1 translation lower alike, `false` states nothing, and `true` with no bound
-beside it bounds nothing and is kept verbatim under `openapi:exclusiveMinimum` or
-`openapi:exclusiveMaximum` (`degraded_lowering`) with an `openapi/degraded-construct` warning. In
-3.1 and 3.2 the keyword is a bound of its own, kept beside `Min`/`Max` when both are declared, a
-field apiece and no `Unmodeled` entry ([constraints](../ir/constraints.md)). The other
-dialect's form (a boolean in 3.1 or 3.2, a number in 3.0) is dropped with an
-`openapi/invalid-exclusive-bound` error. A bound beside a node with no `Constraints` field to take
-it (an `Enum`, a `Literal`, a `List` for a value bound) is kept verbatim under `openapi:<keyword>`
+that wrote it. Exclusive bounds follow the schema's dialect
+([`dialect-keywords`](#dialect-keywords)). In 3.0's, and in JSON Schema draft 4's, the boolean
+modifies the bound beside it: `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears
+`Min` or `Max`, so a 3.0 document and its 3.1 translation lower alike, `false` states nothing, and
+`true` with no bound beside it bounds nothing and is kept verbatim under `openapi:exclusiveMinimum`
+or `openapi:exclusiveMaximum` (`degraded_lowering`) with an `openapi/degraded-construct` warning. In
+2020-12's, the dialect 3.1 and 3.2 name, the keyword is a bound of its own, kept beside `Min`/`Max`
+when both are declared, a field apiece and no `Unmodeled` entry
+([constraints](../ir/constraints.md)). The other dialect's form (a boolean in 2020-12's, a number in
+3.0's or draft 4's) is dropped with an `openapi/invalid-exclusive-bound` error. A bound beside a
+node with no `Constraints` field to take it (an `Enum`, a `Literal`, a `List` for a value bound) is
+kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
 [`shape-applicator`](#shape-applicator) keeps a collection bound on an object. A collection bound
 beside a reference that `Constraints` cannot state is kept the same way: a `uniqueItems` of `false`,
@@ -2737,18 +2743,61 @@ identifier and base URI a `$ref` resolves against where [`references`](#referenc
 it stops a `$dynamicRef` expanding across it ([`dynamic-ref`](#dynamic-ref)); a reference to it
 lowers to the schema's type, whose ID its pointer gives, so nothing of the identifier reaches the IR
 beyond the verbatim copy. A document's `jsonSchemaDialect`, the default `$schema` of its schemas, is
-kept on the Document the same way, every schema read in the OpenAPI dialect whatever it names.
+kept on the Document the same way.
+
+`$schema` and `jsonSchemaDialect` are read besides for the dialect a schema is read in, as OpenAPI
+3.1 has them choose it. A schema of a 3.1 or 3.2 document is read in the dialect the `$schema` of
+the innermost schema resource root holding it names, itself included: a Schema Object no other
+Schema Object holds, the root of a document that is no OpenAPI document, which holds every schema in
+it, or a schema whose `$id` roots a resource of its own, as JSON Schema lets an embedded resource
+name its dialect. Else it is read in its document's `jsonSchemaDialect`, and else in its minor's
+own, the OAS dialect. A `$schema` on any other schema chooses nothing, since JSON Schema writes one
+at a resource's root, and an `$id` naming its own document roots no resource. A 3.0 document defines
+neither keyword, so its schemas are read in 3.0's dialect whatever either names. The rule table has
+rows for three dialects, each named by the id its meta-schema declares, with or without a trailing
+empty fragment. The OAS dialect, `https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema
+2020-12, `https://json-schema.org/draft/2020-12/schema`, read as the minor's own keywords, and the
+OAS dialect is also named by each dated id its meta-schema is published under:
+`https://spec.openapis.org/oas/3.1/dialect/2024-10-25` and `2024-11-10`, and
+`https://spec.openapis.org/oas/3.2/dialect/2025-09-17` and `2026-02-26`, as OpenAPI lets tooling
+support values of `$schema` besides. JSON Schema draft 4, `http://json-schema.org/draft-04/schema#`,
+has keyword rows of its own. A dialect changes the keywords alone: the fields OpenAPI adds to a
+Schema Object, such as `discriminator` and `xml`, and the rules it states of one stay the minor's. A
+reading the rows decide follows the schema's: draft 4 spells an exclusive bound as a boolean
+modifying the bound beside it ([`constraints`](#constraints)). A schema naming any other dialect by
+an absolute URI, a later draft or one of the author's, is read in its minor's own, with an
+`openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect` naming it. A value no
+absolute URI names chooses nothing, as though it were not written, and draws no such warning: the
+rule table reports it where it judges it ([`validation`](#validation)), which in a document a
+reference reaches is only what the reference reaches ([`openapi-versions`](#openapi-versions)). A
+node an alias places at several positions is read in one dialect at all of them: that of the root
+last in pointer order among those whose trees hold it, which for a node no alias places is the
+innermost.
+
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
 what lets a `$dynamicRef` expand ([`dynamic-ref`](#dynamic-ref)), and a `$ref` naming it reads it as
 an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
 [`references`](#references) reads resolves to the schema declaring it.
 
-- Cases: `dialect-keywords`
-- Codes: `openapi/degraded-construct`
-- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `document.TestMeta_JSONSchemaDialectIsKept`
-- Status: open: a `$schema` naming another dialect, which OpenAPI 3.1 requires to choose the one a
-  schema is read in, and a `jsonSchemaDialect`, choose nothing (#1449).
+- Cases: `dialect-keywords`, `schema-dialects`
+- Codes: `openapi/degraded-construct`, `openapi/unread-dialect`
+- Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `document.TestMeta_JSONSchemaDialectIsKept`,
+  `e2e.TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames`,
+  `e2e.TestDocumentDialect_AParameterReadsItsSchemasDialect`,
+  `e2e.TestDocumentDialect_AReferenceReadsWhatItNamesInItsRootsDialect`,
+  `e2e.TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot`,
+  `e2e.TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn`,
+  `e2e.TestDocumentDialect_AValueNamingNoDialectChoosesNothing`,
+  `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
+  `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
+  `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
+- Status: partly built: a keyword a draft before 2020-12 spells otherwise, such as `items` written as
+  a list, `additionalItems`, `dependencies`, `definitions`, `id`, or the keywords beside a `$ref`, is
+  read as 2020-12 reads it, and the table has no rows for drafts 6, 7 and 2019-09, which reading them
+  would also have an aliased node read per position (#1457); the rule table's check holds a schema
+  read in a draft to its minor's keyword rows (#1466); and an `$id` naming its document by the 3.2
+  `$self` roots a resource of its own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 

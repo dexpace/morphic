@@ -165,13 +165,15 @@ type loadResult struct {
 	// purpose: a name reads only those documents, which no lowering changes,
 	// so what one copy remembers is what another would read.
 	names *naming.Namer
-	// others is every document a reference read beside the source, and rows
-	// what the table says at the source's minor (load.Document.Rows): the load
-	// phase read both off the one table it built, so no context builds another.
-	// Copies share them on purpose: nothing writes either after the load, so
-	// no lowering changes what another reads.
-	others load.Others
-	rows   load.Rows
+	// others is every document a reference read beside the source, rows what
+	// the table says at the source's minor in its dialect (load.Document.Rows),
+	// and dialects the rows each schema resource root naming its dialect
+	// governs: the load phase read them all off the one table it built, so no
+	// context builds another. Copies share them on purpose: nothing writes any
+	// after the load, so no lowering changes what another reads.
+	others   load.Others
+	rows     load.Rows
+	dialects load.Dialects
 	// reads holds those readings in the scope fields they fill: Holds over the
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
@@ -274,7 +276,7 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
 	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
-		names: naming.New(doc.Bindings.Table()),
+		dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}, readings: map[any]any{}}
 	c.typePositions = map[scopedPosition]bind.Position{}
@@ -444,11 +446,12 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
-// SchemaRules returns the Schema Object's rows a schema c lowers is read with
-// (rowsOf). A reading that differs between minors, such as a boolean
-// exclusiveMinimum, a required `items` or the effect `nullable` has, asks these
-// rather than the version. A version the table does not cover, and a context
-// with no document, answer with the zero rows.
+// SchemaRules returns the Schema Object's rows of the document whose content c
+// reads (rowsOf). A reading only a minor decides, such as a required `items` or
+// the effect `nullable` has, asks these rather than the version; a keyword's
+// shape, which a schema's dialect decides, asks SchemaRulesOf. A version the
+// table does not cover, and a context with no document, answer with the zero
+// rows.
 func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 
 // EncodingRules returns the Encoding Object's rows an encoding c lowers is read
@@ -457,8 +460,8 @@ func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
 func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
 
 // rowsOf returns what the table says at the minor of the document whose
-// content c reads, which its scope names (load.Other.Rows), the source's for
-// its own (sourceRows).
+// content c reads, in the dialect its jsonSchemaDialect names, which its scope
+// names (load.Other.Rows), the source's for its own (sourceRows).
 //
 // The scope, not home, names that document: Declared can read one document's
 // content at another's positions.
@@ -471,14 +474,27 @@ func rowsOf(c Ctx) load.Rows {
 	return sourceRows(c)
 }
 
-// sourceRows returns what the table says at the source's minor: what the load
-// phase read, or, in a context given no load phase, what it says at the
-// version c.Doc declares, which builds the table on each call.
+// sourceRows returns what the table says at the source's minor, in its
+// dialect: what the load phase read, or, in a context given no load phase,
+// what it says at the version and the jsonSchemaDialect c.Doc declares, which
+// builds the table on each call.
 func sourceRows(c Ctx) load.Rows {
 	if c.loaded == nil {
 		return load.RowsOf(c.Doc)
 	}
 	return c.loaded.rows
+}
+
+// SchemaRulesOf returns the rows the schema whose node is n is read with: those
+// of the dialect the innermost schema resource root holding it names, where one
+// does (load.Dialects), and c's otherwise (SchemaRules).
+func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
+	if c.loaded != nil {
+		if r, ok := c.loaded.dialects.Of(n); ok {
+			return r
+		}
+	}
+	return c.SchemaRules()
 }
 
 // SchemaRulesIn returns the rows the schemas document id of the bindings'
