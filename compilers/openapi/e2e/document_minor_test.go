@@ -100,9 +100,10 @@ func extBounds(doc *ir.Document) map[jsontext.Pointer]ir.BigVal {
 // TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares pins GitHub #839:
 // a document a reference reaches is read at the minor it declares, its schemas
 // in that minor's dialect, its objects held to that minor's table and its
-// Document.Sources entry naming it, in either direction between two minors. A
-// document declaring no version, or one the compiler does not read, is read
-// at the source's, and the compile still stands.
+// Document.Sources entry naming it, in either direction between two minors, a
+// version of two parts drawing no finding. A document declaring no version, or
+// one the compiler does not read, is read at the source's, and the compile
+// still stands.
 func TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares(t *testing.T) {
 	t.Parallel()
 	const exclusive30 = "    S: {type: integer, minimum: 5, exclusiveMinimum: true}\n"
@@ -138,6 +139,8 @@ func TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares(t *testing.T) {
 			onS, nil},
 		{"a version the table does not cover", minorRoot("3.1.0"), minorExt(declaring("3.3.0"), exclusive31, minorResponse),
 			"openapi@3.1", onS, nil},
+		{"a version of two parts, which is judged only in the source", minorRoot("3.0.3"),
+			minorExt(declaring(`"3.1"`), exclusive31, minorResponse), "openapi@3.1", onS, nil},
 		{"a Swagger 2.0 file", minorRoot("3.1.0"),
 			minorExt("swagger: \"2.0\"\ninfo: {title: Ext, version: \"1\"}\npaths: {}\n", exclusive31, minorResponse),
 			"openapi@3.1", onS, nil},
@@ -292,4 +295,45 @@ components:
 		}
 	}
 	assert.Equal(t, map[string]ir.BigVal{filepath.Join(dir, "a.yaml"): "5", filepath.Join(dir, "b.yaml"): "6"}, bounds)
+}
+
+// TestDocumentMinor_AnEncodingDefaultsAtItsDocumentsMinor pins that a multipart
+// part's default media type is read at the minor of the document writing its
+// request body, whichever minor the root declares: a part writing no type is a
+// file where 3.1 defaults its contentType to application/octet-stream, and no
+// file in a 3.0 document, whose defaults state none for it.
+func TestDocumentMinor_AnEncodingDefaultsAtItsDocumentsMinor(t *testing.T) {
+	t.Parallel()
+	for root, ext := range map[string]string{"3.0.3": "3.1.0", "3.1.0": "3.0.3"} {
+		t.Run(ext+" from "+root, func(t *testing.T) {
+			t.Parallel()
+			doc, diags := compileMinors(t, "openapi: "+root+`
+info: {title: Root, version: "1"}
+paths:
+  /u:
+    post:
+      operationId: upload
+      requestBody: {$ref: 'ext.yaml#/components/requestBodies/B'}
+      responses: {"204": {description: ok}}
+`, declaring(ext)+`components:
+  requestBodies:
+    B:
+      content:
+        multipart/form-data:
+          schema: {type: object, properties: {blob: {}}}
+`, openapi.NullableWidening{})
+			openapitest.RequireNoErrorDiags(t, diags)
+			upload, ok := opByName(doc, "upload")
+			require.True(t, ok)
+			var files []bool
+			for _, pe := range requestContent(t, upload).Encoding {
+				files = append(files, pe.Filename)
+			}
+			if ext == "3.1.0" {
+				assert.Equal(t, []bool{true}, files, "the 3.1 document's untyped part is a file")
+			} else {
+				assert.Empty(t, files, "the 3.0 document's untyped part is none")
+			}
+		})
+	}
 }

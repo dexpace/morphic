@@ -85,8 +85,10 @@ type Compiler interface {
 
 A returned `Document`'s `Sources` begins with the table `SourceTable` gives, in order and filled
 in, and may go on to name each further document the compile read, such as one a reference names.
-`SourceTable` reads no input, so it names only what the caller supplies; a refusal reads no other
-document, so the table is what its diagnostics index.
+`SourceTable` reads no input, so it names only what the caller supplies, and a refusal's diagnostics
+index that table alone: a compile refused after reading another document leaves out what it found
+there, with the `Document` that would have listed it
+([`source-budgets`](compilers/openapi.md#source-budgets)).
 
 Internal phases every compiler follows (each format implements them its own way):
 
@@ -135,8 +137,9 @@ they bound (schema nesting depth, how deeply a document nests, how many times it
 document's aliases expand it to, reference-chain length), because nothing about them is a caller's
 to choose. The bounds on the *input* are, so they are options: `openapi.Options.Limits` carries a
 byte budget, a parsed-node budget and an alias budget for one source document, a member budget for
-one enum, and a budget on how many documents external references read in one compile, each with a
-documented default and each settable — zero takes the default, negative turns the budget off.
+one enum, a budget on how many documents external references read in one compile, and a budget on
+what the lowering copies of the declarations `$ref`s name, each with a documented default and each
+settable — zero takes the default, negative turns the budget off.
 Crossing one is a spec problem like any other, so it is an `openapi/budget-exceeded` diagnostic
 rather than a Go error. Inside the OpenAPI compiler these budgets, and every other count held to a
 limit, count through one type, `compilers/openapi/internal/budget`, so "unbounded" has one spelling
@@ -565,7 +568,7 @@ morphic/
 │   │       ├── detect/     #             a source recognized from its bytes, on load's parse
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── naming/     #             each node's name, from its coordinate alone
-│   │       ├── lowering/   #             the immutable context every lowering reads
+│   │       ├── lowering/   #             the context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
 │   │       ├── operation/  #             path items, webhooks, callbacks, params, content

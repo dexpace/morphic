@@ -255,9 +255,10 @@ const (
 	AliasAmplification = "openapi/alias-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
 	// most: a document's bytes or nodes (an overlay's included), alias nodes, an
-	// enum's members (GitHub #75), external documents. Fixed bounds cover load's
-	// schema $refs, chains through other documents and rule checks, detection's
-	// merges, and the declarations of one field the allOf merge judges.
+	// enum's members (GitHub #75), external documents, what $refs copy. Fixed
+	// bounds cover load's schema $refs, chains through other documents and rule
+	// checks, detection's merges, and the declarations of one field the allOf
+	// merge judges.
 	//
 	// None is the input's fault, unlike AliasAmplification's bomb. Each is an
 	// error: the document is refused, validation stops, an enum loses its members
@@ -426,9 +427,9 @@ const (
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
-	// on, or a keyword beside a 3.0 schema's $ref, applied as in 3.1 and read as
-	// 3.0 defines it. It is lowered as in a document declaring that minor, the
-	// reading that loses least: with this diagnostic a consumer can set it aside,
+	// on, lowered as in a document declaring that minor, or a keyword beside a 3.0
+	// schema's $ref, applied as in 3.1 and read as 3.0 defines it. Either reading
+	// loses least: with this diagnostic a consumer can set the construct aside,
 	// and from a verbatim copy could not recover the lowering
 	// (docs/compilers/openapi.md#later-version-construct).
 	//

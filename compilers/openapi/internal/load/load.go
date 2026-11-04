@@ -169,6 +169,20 @@ type Document struct {
 	// Dialects the rows each schema naming its dialect governs.
 	Others   Others
 	Dialects Dialects
+	// Rows is what the table says at the minor the source declares, in the
+	// dialect its jsonSchemaDialect names, which its Encoding Objects and its
+	// schemas where none names its own (Dialects) are read with, from the table
+	// the load judged it against: a document of Others read at that minor in
+	// that dialect shares them.
+	Rows Rows
+}
+
+// Rows is what the rule table says at the minor a document is read at, in a
+// dialect: how its schemas read (oas.SchemaRules), and what its Encoding
+// Objects leave unwritten (oas.EncodingRules).
+type Rows struct {
+	Schema   oas.SchemaRules
+	Encoding oas.EncodingRules
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -383,21 +397,29 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 	return doc, err
 }
 
-// SchemaRules returns the Schema Object's rows at the minor doc declares, in
-// the dialect its jsonSchemaDialect names (oas.Spec.SchemaRules), which the
-// lowering reads doc's schemas with where none names its own (Dialects), and
-// the zero rows for a nil doc or one declaring a version the table does not
-// cover. It is where the lowering's dialect question meets the version, so no
-// lowering reads the version itself.
-func SchemaRules(doc *soa.OpenAPI) oas.SchemaRules {
-	rules, _ := oas.Table().SchemaRules(doc.GetOpenAPI(), doc.GetJSONSchemaDialect())
-	return rules
+// RowsOf returns what the table says at the minor doc declares, in the dialect
+// its jsonSchemaDialect names (rowsAt), and the zero rows for a nil doc or one
+// declaring a version the table does not cover. It builds the table, so it
+// serves a lowering given no load phase, which has no Document.Rows to read: it
+// is where that lowering's questions meet the version, so no lowering reads the
+// version itself.
+func RowsOf(doc *soa.OpenAPI) Rows {
+	rows, _ := rowsAt(oas.Table(), doc.GetOpenAPI(), doc.GetJSONSchemaDialect())
+	return rows
 }
 
-// SupportedMinor returns the normalized major.minor prefix of an OpenAPI version
+// rowsAt returns what spec says at the minor version names, in dialect, and
+// whether dialect is one spec has no Schema Object rows for
+// (oas.Spec.SchemaRules).
+func rowsAt(spec oas.Spec, version, dialect string) (Rows, bool) {
+	schema, unread := spec.SchemaRules(version, dialect)
+	return Rows{Schema: schema, Encoding: spec.EncodingRules(version)}, unread
+}
+
+// supportedMinor returns the normalized major.minor prefix of an OpenAPI version
 // string and whether the compiler supports it: a minor the rule table covers
 // (oas.ParseMinor), so no document is compiled that the table holds to nothing.
-func SupportedMinor(version string) (string, bool) {
+func supportedMinor(version string) (string, bool) {
 	m, ok := oas.ParseMinor(version)
 	if !ok {
 		return "", false

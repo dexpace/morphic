@@ -14,7 +14,6 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
-	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	refscope "github.com/dexpace/morphic/compilers/openapi/internal/resolve"
 	"github.com/dexpace/morphic/compilers/openapi/internal/scan"
 	"github.com/dexpace/morphic/ir"
@@ -32,10 +31,10 @@ type Other struct {
 	Label string
 	// Info is its Document.Sources entry, whose Format names the minor.
 	Info ir.SourceInfo
-	// Rules is the Schema Object's rows at the minor in the dialect its
-	// jsonSchemaDialect names, which its schemas are read with where none
-	// names its own (Dialects).
-	Rules oas.SchemaRules
+	// Rows is what the table says at the minor in the dialect its
+	// jsonSchemaDialect names, which its Encoding Objects and its schemas where
+	// none names its own (Dialects) are read with.
+	Rows Rows
 	// version is the minor's version as the document, or the source, writes
 	// it, which an object a reference reaches in it is held to (reached.check),
 	// and dialect its jsonSchemaDialect.
@@ -139,10 +138,10 @@ func newOthers(ctx context.Context, read *externalReads, first int, source *dial
 		keys := slices.Sorted(slices.Values(byLabel[label]))
 		data := read.data[keys[0]]
 		declared, dialect := declaredVersion(read.trees[keys[0]]), declaredDialect(read.trees[keys[0]])
-		version, minor, rules := source.of(declared, dialect)
+		version, minor, rows := source.of(declared, dialect)
 		o.list = append(o.list, Other{Index: first + i, Label: label, Info: ir.SourceInfo{
 			Format: "openapi@" + minor, Path: sourcePathOf(keys[0]), Hash: ir.SourceHash(data),
-		}, Rules: rules, version: version, dialect: dialect})
+		}, Rows: rows, version: version, dialect: dialect})
 		o.pointers = append(o.pointers, pointersIn(ctx, read.trees, keys))
 		for _, key := range keys {
 			o.byName[key] = i

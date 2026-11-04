@@ -48,7 +48,7 @@ func loadSplit(t *testing.T, ext string) (lowering.Ctx, *load.Document) {
 		Data: []byte(splitRoot)}, load.Options{Reader: reader.Disk{}})
 	require.NoError(t, err)
 	require.NotNil(t, doc)
-	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	return lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc), doc
 }
 
@@ -102,7 +102,7 @@ func TestInDocument_PlacesWhatAnotherDocumentDeclares(t *testing.T) {
 	assert.False(t, ok, "a context given no load holds no documents")
 	none := *doc
 	none.Others = load.Others{}
-	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
 	same, ok := lowering.InDocument(unread, id)
 	assert.False(t, ok, "a document the compile did not list")
@@ -135,7 +135,7 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 
 	none := *doc
 	none.Others = load.Others{}
-	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	unread := lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(&none)
 	assert.False(t, lowering.SchemaRulesIn(unread, id).Defines("nullable"), "a document the compile did not list")
 	assert.False(t, unread.InScope(there.RefScope()).SchemaRules().Defines("nullable"))
@@ -155,7 +155,7 @@ func TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
 	assert.True(t, lowering.SchemaRulesOf(c, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Boolean))
 	assert.True(t, lowering.SchemaRulesOf(c, a.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
 		"the source's own schema reads its document's")
-	bare := lowering.New(0, c.Doc, c.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+	bare := lowering.New(0, c.Doc, c.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	assert.True(t, lowering.SchemaRulesOf(bare, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
 		"no load phase")
@@ -172,6 +172,24 @@ func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 	allocs := testing.AllocsPerRun(100, func() { defines = lowering.SchemaRulesIn(c, bind.Source).Defines("nullable") })
 	assert.Zero(t, allocs)
 	assert.False(t, defines, "the 3.1 source defines no nullable")
+}
+
+// TestWithLoaded_ReadsTheSourcesRowsFromTheLoad pins where a context over a
+// loaded document gets the source's rows: the load phase's own
+// (load.Document.Rows), held by identity, so building the context builds no
+// rule table, which alone allocates more than the whole context does. It runs
+// alone, since the allocation counts are the process's.
+func TestWithLoaded_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
+	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	if c.SchemaRules() != doc.Rows.Schema || lowering.EncodingRules(c) != doc.Rows.Encoding {
+		t.Error("the context read rows of its own, not the load phase's")
+	}
+	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })
+	built := testing.AllocsPerRun(10, func() {
+		_ = lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
+			lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+	})
+	assert.Less(t, built, table, "building the context built a rule table")
 }
 
 // TestIDsAt_NamesEachSourceEntrysDocument pins how the IDs of what each
