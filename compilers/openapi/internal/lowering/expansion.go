@@ -94,6 +94,14 @@ func Recopied(c Ctx, raw int) bool {
 	return c.expansion.spend(raw)
 }
 
+// ExpansionCrossed reports whether the copies made so far weigh past the
+// budget, for a lowering to ask before it makes one more: the document is then
+// refused (Ctx.ExpansionRefusal), so nothing more need copy. A zero context
+// crosses nothing.
+func ExpansionCrossed(c Ctx) bool {
+	return c.expansion != nil && c.expansion.spent.Exhausted()
+}
+
 // chainable is a reference-or-inline entry whose chain Declared reads: the
 // component aliases it passes through (resolve.Hops), each written as a node
 // of its own (marshaller.Model.GetCoreAny).

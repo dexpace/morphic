@@ -352,10 +352,13 @@ paths:
 	assert.True(t, lowering.Recopied(c, 3), "and three raw bytes beside it reach the budget")
 	_, refused := c.ExpansionRefusal()
 	assert.False(t, refused)
+	assert.False(t, lowering.ExpansionCrossed(c), "a budget reached is not crossed")
 	assert.False(t, lowering.Recopied(c, 1), "one more crosses it")
 	_, refused = c.ExpansionRefusal()
 	assert.True(t, refused)
+	assert.True(t, lowering.ExpansionCrossed(c))
 	assert.False(t, lowering.RecopiedAt(c, "/paths/~1a/parameters/0", param), "once crossed, nothing is admitted")
 
 	assert.True(t, lowering.Recopied(lowering.Ctx{}, 1<<40), "a zero context's expansion bounds nothing")
+	assert.False(t, lowering.ExpansionCrossed(lowering.Ctx{}))
 }

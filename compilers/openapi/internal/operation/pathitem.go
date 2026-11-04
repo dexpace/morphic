@@ -181,7 +181,7 @@ func mountPathItem(w walk, layers []layer, mount jsontext.Pointer, route opConte
 		// copies (recopied), as the fixed methods, which bound their own copies,
 		// are not; and none lowers once the budget is crossed.
 		charged := i > 0 && po.additional
-		if _, past := l.in.ExpansionRefusal(); charged && past {
+		if charged && lowering.ExpansionCrossed(l.in) {
 			break // the document is refused, so no copy past the budget lowers
 		}
 		opCtx := route
