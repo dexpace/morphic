@@ -204,7 +204,8 @@ it.
   a shared import in a fraction of runs, and a leak test failing 2 in 1000 runs passed every run
   once a print was added (#494, #560, #535).
 - **Probe.** `go test ./<pkg> -count=1000 -run '<Test>'`, plain and under `-race`: no failure for
-  the test, every run for its planted defect.
+  the test, every run for its planted defect, a planted race as
+  `references/mutation.md#kill-rate-for-a-scheduled-detector` measures it.
 
 ## Keep a test's verdict independent of platform and privilege
 `environment-independent-tests`
