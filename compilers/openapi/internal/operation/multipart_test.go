@@ -615,6 +615,9 @@ func TestPartEncoding_FlagsOfABodyWithNoModelPropertyComeFromTheSchema(t *testin
 	assert.True(t, file.Filename, "a binary part is a file")
 	assert.False(t, file.Multi)
 
+	encoded := onlyPartEncoding(t, `{enum: [x], properties: {file: {type: string, format: byte}}}`)
+	assert.True(t, encoded.Filename, "a base64 part carries a filename, as a typed one does (GitHub #1214)")
+
 	files := onlyPartEncoding(t,
 		`{enum: [x], properties: {file: {type: array, items: {type: string, format: binary}}}}`)
 	assert.True(t, files.Multi, "an array part repeats")

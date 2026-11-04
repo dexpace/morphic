@@ -243,9 +243,10 @@ func TestPartTypeFlags_DecidesOnlyTheKindsItReads(t *testing.T) {
 
 // TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles holds a repeated part's
 // Filename to its elements: bytes, through the aliases a hoisted position puts
-// over them, are files in a multipart body, a tuple's only where every element
-// it admits is, and neither a form body's nor a base64 element, nor a model,
-// nor an element that names no node, is read as one.
+// over them, one naming only a media type among them, are files in a multipart
+// body, a tuple's only where every element it admits is, and neither a form
+// body's nor a base64 element, nor a model, nor an element that names no node,
+// is read as one.
 func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 	t.Parallel()
 	l := newRawLowerer(&soa.OpenAPI{})
@@ -253,6 +254,7 @@ func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 	str := l.types.PrimRef(ir.PrimString)
 	l.types.Register("t/alias", &ir.Scalar{ID: "t/alias", Base: &bytes})
 	l.types.Register("t/base64", &ir.Scalar{ID: "t/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
+	l.types.Register("t/png", &ir.Scalar{ID: "t/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
 	l.types.Register("t/opaque", &ir.Scalar{ID: "t/opaque"})
 	l.types.Register("t/cycle", &ir.Scalar{ID: "t/cycle", Base: &ir.TypeRef{Target: "t/cycle"}})
 	l.types.Register("t/model", &ir.Model{ID: "t/model"})
@@ -265,6 +267,7 @@ func TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles(t *testing.T) {
 		{&ir.List{ID: "t/aliases", Elem: ir.TypeRef{Target: "t/alias"}}, true, true},
 		{&ir.List{ID: "t/form", Elem: bytes}, false, false},
 		{&ir.List{ID: "t/encoded", Elem: ir.TypeRef{Target: "t/base64"}}, true, false},
+		{&ir.List{ID: "t/pngs", Elem: ir.TypeRef{Target: "t/png"}}, true, true},
 		{&ir.List{ID: "t/opaques", Elem: ir.TypeRef{Target: "t/opaque"}}, true, false},
 		{&ir.List{ID: "t/cycles", Elem: ir.TypeRef{Target: "t/cycle"}}, true, false},
 		{&ir.List{ID: "t/strings", Elem: str}, true, false},
@@ -303,6 +306,7 @@ func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 	l.types.Register("t/tuple", &ir.Tuple{ID: "t/tuple", Elems: []ir.TypeRef{bytes}})
 	l.types.Register("t/model", &ir.Model{ID: "t/model"})
 	l.types.Register("t/base64", &ir.Scalar{ID: "t/base64", Base: &bytes, Encoding: &ir.Encoding{Name: "base64"}})
+	l.types.Register("t/png", &ir.Scalar{ID: "t/png", Base: &bytes, Encoding: &ir.Encoding{MediaType: "image/png"}})
 	l.types.Register("t/inner", unionOf("t/inner", bytes, files))
 	l.types.Register("t/self", unionOf("t/self", bytes, ir.TypeRef{Target: "t/self"}))
 	l.types.Register("t/diamond", unionOf("t/diamond", ir.TypeRef{Target: "t/inner"}, ir.TypeRef{Target: "t/inner"}))
@@ -331,6 +335,8 @@ func TestPartTypeFlags_AUnionReadsThroughItsMembers(t *testing.T) {
 		{"files alone", registered(l, unionOf("t/bytes", bytes, bytes)), true, false, true, true},
 		{"a form's files alone", "t/bytes", false, false, false, true},
 		{"base64 values", registered(l, unionOf("t/base64s", ir.TypeRef{Target: "t/base64"}, bytes)), true, false, false, true},
+		{"files naming their media type", registered(l, unionOf("t/pngs", ir.TypeRef{Target: "t/png"}, bytes)),
+			true, false, true, true},
 		{"a nested union and a file", registered(l, unionOf("t/nested", ir.TypeRef{Target: "t/inner"}, bytes)),
 			true, true, true, true},
 		{"a file or a tuple of files", registered(l, unionOf("t/filetuple", bytes, ir.TypeRef{Target: "t/tuple"})),
