@@ -284,6 +284,6 @@ throughout these documents.
     members differing only in case decode to two. Where the target's constants cannot hold the type,
     the member's value is reachable as the row's type, and a `datetime_offset` member the row's
     codec refuses, such as a leap second, fails only where its value is read. An `integer` member
-    past the default row's range draws `emitters/<target>/unrepresentable-member` and leaves the
-    enum's form as it would be without it, and every member is written as a value JSON compares
+    past the default row's range draws `emitters/<target>/unrepresentable-enum-member` and leaves
+    the enum's form as it would be without it, and every member is written as a value JSON compares
     equal to its wire form ([a member on the wire](../refine/enums.md#a-member-on-the-wire)).

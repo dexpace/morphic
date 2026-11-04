@@ -35,8 +35,10 @@ that row's type has no constants, over the members' wire text (below). A `Flags`
 bitset, open or closed, an open one keeping a bit no member names. Go cannot express other open
 enums, so any other enum `TypePlan.Open` marks, every one `Closed=false` declares among them
 ([enums](../../refine/enums.md)), lowers to that type + its consts + a passthrough that preserves
-unknown values and honors `FallbackMember` on decode, and any other lowers to that type + its consts
-with strict decode.
+unknown values, and any other lowers to that type + its consts with strict decode. Either decodes a
+value no member holds as its `FallbackMember` where the enum declares one, which is why `OpenEnums`
+leaves such a closed enum closed ([plan
+policy](../../plan/policy.md#an-enum-a-client-reads-is-open)).
 
 Go declares constants of boolean, numeric and string types alone, so an enum lowers over its
 members' wire forms ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)) where its
