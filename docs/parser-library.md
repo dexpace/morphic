@@ -620,8 +620,9 @@ components:
   - `annotation.DecidedKeywords` names `$comment`, `$dynamicAnchor` and `$dynamicRef`, which the
     unknown-key census leaves to other readers.
   - `annotation.UnknownKeywordsIn` reads every other unknown keyword's value from the raw node.
-  - `schema.restatesBody` and `schema.restatesProperty` read raw nodes, which hold these keywords,
-    rather than the model.
+  - `schema.bodyReading.keysRestate` judges every key a union branch writes, and every key of a
+    schema the branch writes for a property or an element, reading the raw node, which holds these
+    keywords, rather than the model.
 
 ### `null-schema-is-false`
 

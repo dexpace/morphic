@@ -32,3 +32,15 @@ components:
       allOf:
         - {$ref: '#/components/schemas/Untyped'}
         - {type: string, maxLength: 3}
+    # Under the $id beside its allOf, `item.json` names ItemB; under the
+    # nested wrapper's, ItemA. The nested branch's `not` would name ItemB once
+    # folded here, so it folds nothing and is kept whole, while the outer
+    # branch, read against the position's base, folds its own.
+    ItemA: {$id: 'https://ex.test/a/item.json', type: string}
+    ItemB: {$id: 'https://ex.test/b/item.json', type: integer}
+    Rebased:
+      $id: 'https://ex.test/b/rebased.json'
+      allOf:
+        - $id: 'https://ex.test/a/wrapper.json'
+          allOf: [{type: object, not: {$ref: 'item.json'}}]
+        - {type: object, not: {$ref: 'item.json'}}
