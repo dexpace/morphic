@@ -61,7 +61,9 @@ something by the key that the field does not hold: a group is named by its ID, a
 it, never by the words a document places it under, and an attempt count of 0 may be another
 generator's count of retries. The entry stays in `Unmodeled` either way, as a promotion leaves it
 ([promotion](../../ir/unmodeled.md#promotion)), so a consumer that disagrees with the mapping reads
-the entry instead.
+the entry instead. A key whose value draws that warning sets nothing, as a refused key does (below),
+so it neither beats another key nor conflicts with one, and a path item's key sets a field its
+operation's own key could not.
 
 ## The mapping is a configuration
 

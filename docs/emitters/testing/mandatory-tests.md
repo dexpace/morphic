@@ -241,8 +241,10 @@ throughout these documents.
     set it from neither; a key on a node it cannot configure, a tag's key the document holds, a
     value of the wrong shape or outside its field's vocabulary or range, a group named by words
     rather than its ID, a conflict and a key the document holds under a reason the reader refuses
-    are each reported under their codes, the entry staying in `Unmodeled`; and the default mapping,
-    which is empty, reads nothing ([embedded policy](../contract/embedded-policy.md)).
+    are each reported under their codes, the entry staying in `Unmodeled` and an operation's key
+    whose value is invalid, or which the reader refuses, leaving its path item's to set the field;
+    and the default mapping, which is empty, reads nothing ([embedded
+    policy](../contract/embedded-policy.md)).
 34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it a
     client setting, which every operation declaring it in that wire form sends unless the call gives
     its own; a call with neither is refused unsent; an operation declaring it at another wire form
