@@ -12,12 +12,13 @@ showed it, and survives an attempt to disprove it
 
 ## Setup
 
-Review the tree as it will land, in a throwaway worktree:
+Review the tree as it will land, in a throwaway worktree
+(`references/review-probes.md#review-head-in-own-ref`):
 
 ```bash
 base=$(gh pr view <N> --json baseRefName --jq .baseRefName)
-git fetch origin main "$base" && git fetch origin "pull/<N>/head"
-git worktree add --detach <dir> FETCH_HEAD && cd <dir>
+git fetch origin main "$base" "+pull/<N>/head:refs/rv<session>/<N>"
+git worktree add --detach <dir> refs/rv<session>/<N> && cd <dir>
 git merge --no-edit "origin/$base" && git merge --no-edit origin/main
 ```
 

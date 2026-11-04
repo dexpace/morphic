@@ -1124,7 +1124,8 @@ func TestResolve_AnObjectTheSourceDeclaresIsNotChargedToTheBudget(t *testing.T) 
 // operations checked. An object
 // reached both itself and inside another reached object draws each warning
 // once. A 3.2 document draws none; another document's object is held to the
-// source's version (GitHub #839), each warning placed at its pointer there.
+// version it declares, or the source's where it declares none, each warning
+// placed at its pointer there.
 func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 	t.Parallel()
 	const later = " openapi/later-version-construct"
@@ -1183,13 +1184,20 @@ func TestResolve_AReachedObjectIsHeldToTheLaterVersionTable(t *testing.T) {
 		})
 	}
 
-	t.Run("another document's object is held to the source's version", func(t *testing.T) {
+	const root31 = "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n" +
+		"components:\n  schemas:\n    Ref: {$ref: 'other.yaml#/x-lib/Pet'}\n    Cat: {type: object}\n"
+	t.Run("another document declaring no version is held to the source's", func(t *testing.T) {
 		t.Parallel()
 		dir := externalDir(t, map[string]string{"other.yaml": pet})
-		_, diags := loadExternal(t, dir, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\n"+
-			"components:\n  schemas:\n    Ref: {$ref: 'other.yaml#/x-lib/Pet'}\n    Cat: {type: object}\n", Options{})
+		_, diags := loadExternal(t, dir, root31, Options{})
 		assert.Empty(t, cmp.Diff([]string{"/x-lib/Pet/discriminator/defaultMapping" + later}, diagLines(diags)), "%+v", diags)
 		require.Len(t, diags, 1)
 		assert.Equal(t, 1, diags[0].Provenance.Source, "placed in other.yaml's entry")
+	})
+	t.Run("another document's object is held to the version it declares", func(t *testing.T) {
+		t.Parallel()
+		dir := externalDir(t, map[string]string{"other.yaml": "openapi: 3.2.0\ninfo: {title: O, version: \"1\"}\n" + pet})
+		_, diags := loadExternal(t, dir, root31, Options{})
+		assert.Empty(t, diags, "3.2 added defaultMapping")
 	})
 }

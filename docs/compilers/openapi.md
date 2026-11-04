@@ -35,18 +35,29 @@ gives the reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) 
 ### `openapi-versions`
 
 A document declaring `openapi: 3.0.x`, `3.1.x` or `3.2.x` is read as the minor its first two parts
-name, and every rule below that differs by minor follows that one. A version that is not three runs
-of digits, major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an
-`openapi/validation` error, of the class `validation-invalid-format` ([`validation`](#validation)),
-and the document still lowers under the minor it names. Any other
-version is not this compiler's. The engine refuses a document declaring one before any compiler
-runs, as it refuses a Swagger 2.0 document ([`swagger-lift`](#swagger-lift)), and the compiler,
-handed one directly, refuses it with an `openapi/unsupported-version` error and compiles to no
-Document.
+name, and every rule below that differs by minor follows that one. So is a document a reference
+reaches beside the source: its schemas are read in that minor's dialect, its Encoding Objects take
+that minor's defaults, its objects are held to that minor's table, and its `Document.Sources` entry
+names that minor. One declaring no version, such as a bare schema file, or a version the compiler
+does not read, such as `3.3.0` or a Swagger 2.0 file, is read at the source's minor, and the compile
+stands. A source declaring a version that is not three runs of digits, major, minor and patch, such
+as `3.0` or `3.1.0-rc1`, is reported as an `openapi/validation` error, of the class
+`validation-invalid-format` ([`validation`](#validation)), and still lowers under the minor it
+names; a document a reference reaches is read at the minor such a version names too, with no
+finding, since only what a reference reaches is judged. Any other version is not this compiler's.
+The engine refuses a document declaring one before any compiler runs, as it refuses a Swagger 2.0
+document ([`swagger-lift`](#swagger-lift)), and the compiler, handed one directly, refuses it with
+an `openapi/unsupported-version` error and compiles to no Document.
 
 - Codes: `openapi/unsupported-version`, `openapi/validation`
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
   `load.TestSupportedMinor_AcceptsOnlyTheThreeMinors`,
+  `e2e.TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares`,
+  `e2e.TestDocumentMinor_AnObjectIsHeldToItsDocumentsTable`,
+  `e2e.TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument`,
+  `e2e.TestDocumentMinor_AdmissionReadsEachSchemaInItsDialect`,
+  `e2e.TestDocumentMinor_DocumentsOfTwoMinorsAreEachReadAtTheirOwn`,
+  `e2e.TestDocumentMinor_AnEncodingDefaultsAtItsDocumentsMinor`,
   `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
   `detect.TestRecognize_AVersionThatIsNotServedIsStillADeclaration`
 
@@ -232,9 +243,10 @@ overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 The load phase holds the source to a table of the OpenAPI Specification's rules, at the minor it
 declares, and the parser's own validation does not run. Each row of the table cites the sentence of
 the specification it comes from. It gives every object's fields, the shape, values and syntax of
-each, which fields each minor requires, and the rules that bind fields together; what data cannot
-state is written as code beside it, such as a path template against its path parameters, a server
-URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
+each, which fields each minor requires, the rules that bind fields together, and the defaults of
+fields left unwritten that a lowering reads ([`multipart-encoding`](#multipart-encoding)); what data
+cannot state is written as code beside it, such as a path template against its path parameters, a
+server URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
 as `openapi/validation` suffixed with its class (`openapi/validation/validation-required-field`), at
 the node it is about, its message naming the object, the field, the minor and the section of the
 specification it cites. A finding never refuses the document,
@@ -267,7 +279,8 @@ stands ([`security-requirements`](#security-requirements)).
 The source is read as it writes it, an applied overlay's patch included, each object as the kind
 its position gives it. An object a `$ref` reaches that the source's own reading did not take as
 that kind, one under an `x-` key or in another document, is read as the kind the reference
-expects and held to the source's minor. A finding about it is placed at its node, in the entry of
+expects and held to the minor of the document that writes it
+([`openapi-versions`](#openapi-versions)). A finding about it is placed at its node, in the entry of
 `Document.Sources` for the document that writes that node, a file the source spells two ways being
 one document. One about a node of a document no entry lists goes to the least `$ref` reaching it,
 its message naming where in that document it lies. Each finding is made once: a node an alias or a
@@ -305,8 +318,6 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
-- Status: partly built: a document a reference reaches is held to the source's minor until which
-  minor governs it is settled (#839).
 
 ### `minor-required-fields`
 
@@ -332,15 +343,14 @@ the field.
   `oas.TestCheck_AtLeastOneSectionStandsInADocument`,
   `oas.TestCheck_EmptyStringsAreRefusedWhereTheGrammarSaysSo`,
   `oas.TestCheck_NamesSentInAHeaderOrACookieAreTokens`, `oas.TestCheck_AnHTTPSchemeIsAToken`
-- Status: open: which minor governs a document a reference reaches, held to the source's until it is
-  settled (#839).
 
 ### `later-version-construct`
 
 A document may write a field, or one value of a field, that a later minor of its format added to the
 object it sits on: a `name` on an OpenAPI 3.1 Server Object, `in: querystring` on a 3.0 Parameter
-Object. It lowers exactly as in a document declaring the minor that added it, and is reported once,
-at its own key, as an `openapi/later-version-construct` warning. That reading loses the least: from
+Object. It lowers exactly as in a document declaring the minor that added it, but for the one case
+set out below, whose keywords are read as the declared minor defines them, and is reported once, at
+its own key, as an `openapi/later-version-construct` warning. That reading loses the least: from
 the lowering and the diagnostic a consumer can still set the construct aside, while from a verbatim
 copy it could not rebuild the operation a `query` key declares. Except in the one case set out
 below, the declared minor gives the construct no meaning at all, so the lowering asserts nothing the
@@ -352,19 +362,29 @@ added and which [`reference-object-siblings`](#reference-object-siblings) folds 
 and every keyword beside a Schema Object's `$ref`, which 3.1 applies alongside the reference as JSON
 Schema 2020-12 conjoins them ([`ref-use-site`](#ref-use-site)). That is the one case: 3.0 reads
 either position as a Reference Object, which admits no key beside its `$ref` and says one SHALL be
-ignored, so a 3.0 document writing one is warned that it was read as 3.1 reads it. What the keyword
-then means is the 3.1 dialect's, so a `nullable` there, which no minor gives an effect beside a
-`$ref`, is read by the policy [`nullable`](#nullable) sets out. A keyword whose meaning differs
-between minors, such as `exclusiveMinimum`, follows the declared one
-([`constraints`](#constraints)).
+ignored, so a 3.0 document writing one is warned that it was applied as 3.1 applies it. It is then
+read as the declared minor's dialect defines it, the only reading that gives what the author wrote
+its meaning: a `nullable` there adds `null` to a `type` written beside it
+([`nullable`](#nullable)), an `exclusiveMinimum` there is a boolean modifying the bound beside it
+([`constraints`](#constraints)), and a `type: array` there requires `items` unless what the `$ref`
+lands on supplies one ([`missing-array-items`](#missing-array-items)).
 
 Whether a construct is a later minor's is asked in one place, the table [`validation`](#validation)
 holds a document to, which gives the minor each field and value was added in; no lowering asks it,
-so no field's treatment can depend on whether the parser happens to model it. The construct's value
-is held to the shape its table row gives it, and any object inside it to the table like any other.
+so no field's treatment can depend on whether the parser happens to model it. How a schema keyword
+reads at its document's minor is asked of the same table, the Schema Object's rows at that minor:
+whether it defines `nullable`, the shape `exclusiveMinimum` takes, and whether `items` is required
+beside `type: array`; and what an Encoding Object leaves unwritten defaults to is asked of the
+Encoding Object's rows, the `contentType` of a part writing no `type`
+([`multipart-encoding`](#multipart-encoding)). No lowering asks the version: outside format
+detection, which reads it to name the format a file declares, only the load phase and the table
+read the version a document declares, and `make lint` refuses the parser library's version field
+and accessor, and the table's reading of a version, anywhere else (a `forbidigo` rule in
+`.golangci.yml`). The construct's value is held to the shape its table row gives it, and any object
+inside it to the table like any other.
 The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, a Path
-Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering reads beside a
-3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
+Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering applies beside
+a 3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
 warned of as a later minor's construct as well, whatever it is, so no row of the table names them.
 An object a `$ref` reaches is judged as the source's own are, wherever it is written, and reported
 where [`validation`](#validation) places a finding about it. A
@@ -378,14 +398,14 @@ style it is written under ([`allow-empty-value`](#allow-empty-value)).
 - Cases: `later-version-constructs`, `reached-outside-model`, `schema-ref-siblings-30`
 - Codes: `openapi/later-version-construct`
 - Tests: `e2e.TestLaterVersionConstructs_LowerAsInTheVersionThatAddedThem`,
-  `e2e.TestSchemaRefSiblings_LowerAsIn31`,
+  `e2e.TestSchemaRefSiblings_ApplyAsIn31`, `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `oas.TestCheck_LaterConstructsAreWarnedOfInTheCompilersWords`,
   `oas.TestCheck_EveryKeyBesideA30SchemaRefIsALaterConstruct`,
   `oas.TestCheck_ValuesAddedLaterAreWarnedOf`,
   `oas.TestTable_AgreesWithTheConstructsLaterMinorsAdded`,
   `load.TestResolve_AReachedObjectIsHeldToTheLaterVersionTable`
 - Status: partly built: a JSON Schema 2020-12 keyword in a 3.0 schema lowers with no diagnostic
-  (#820). Open: which minor governs a document a reference reaches (#839).
+  (#820).
 
 ### `references`
 
@@ -918,8 +938,9 @@ lowers first, with no diagnostic. A chain of `$ref`s that never reaches a node w
 
 ### `ref-use-site`
 
-The keywords written beside a schema's `$ref`, which 3.1 admits and which are read the same way in a
-3.0 document ([`later-version-construct`](#later-version-construct)), and the annotations its target
+The keywords written beside a schema's `$ref`, which 3.1 admits and which are applied the same way in
+a 3.0 document, each read in its own document's dialect
+([`later-version-construct`](#later-version-construct)), and the annotations its target
 declares — documentation, deprecation, redaction, visibility and `default` — merge onto the property,
 parameter or header that references the target, field by field, a keyword the use site writes
 winning over the target's ([annotations](../ir/annotations.md#what-a-reference-carries-down)), and by
@@ -1088,8 +1109,8 @@ reference ([`union-null-variant`](#union-null-variant)).
 
 OpenAPI 3.0's `nullable: true` adds `null` to the `type` written in the same Schema Object, as
 `type: [T, "null"]` does from 3.1, and then conjoins as that does: 3.0.3 and 3.0.4 state it, as a
-clarification of every 3.0 release. With no `type` beside it, or beside a `$ref`, it has no effect,
-and 3.1 removed the keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
+clarification of every 3.0 release. With no `type` beside it, it has no effect, and 3.1 removed the
+keyword. Documents written to 3.0.0's looser wording, or carried to 3.1, still
 use it to say that a schema admits null, and write `{$ref: T, type: [object, "null"]}` for the
 nullable reference that `{$ref: T, nullable: true}` was meant to be. So the nullable-widening
 policy, on by default, reads such a null as widening what it is written on rather than conjoining
@@ -1105,9 +1126,8 @@ such null is reported once as an info `openapi/inferred-nullable`, at the `nulla
 keywords beside a `$ref`, at the schema that writes them, saying why its version does not admit it,
 whatever references its schema. The policy is the Go option `Options.NullableWidening`, whose
 `Disabled` reads the keywords only as their version defines them, and the text option
-`nullable-widening`, which `false` turns off. A
-`nullable` in a 3.1 or 3.2 schema, or beside a `$ref`, is then a keyword its dialect does not
-define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
+`nullable-widening`, which `false` turns off. A `nullable` in a 3.1 or 3.2 schema is then a keyword
+its dialect does not define, kept verbatim under `openapi:nullable` (`out_of_scope`) with an info
 `openapi/unknown-schema-keyword`, where [`unknown-keys`](#unknown-keys) keeps a keyword the schema
 model does not name.
 
@@ -1118,6 +1138,7 @@ model does not name.
   `schema.TestNullableWidening_EachShapeReadsByItsVersion`,
   `e2e.TestNullableWidening_AKeywordIsReportedOnceAtItself`,
   `e2e.TestNullableWidening_DisabledKeepsWhatTheDialectDoesNotDefine`,
+  `e2e.TestSchemaRefSiblings_ReadInTheDeclaredDialect`,
   `e2e.TestNullableWidening_ACompositionKeepsTheMarker`,
   `merge.TestIntersectNull_TheMarkerFollowsTheBit`,
   `schema.TestNullableWidening_ABranchWidensTheAllOfHoldingIt`
@@ -2332,9 +2353,14 @@ warning at the schema's own pointer, wherever it sits (a property, a parameter's
 a union branch) and whatever it lowers to (a `Tuple`, an enum of arrays), since the report reads the
 declaration and not the node. Nothing is dropped or degraded, so no `openapi/degraded-construct`
 accompanies it. `items: {}` is silent, as is every schema at 3.1 and 3.2, where `items` is optional.
-Nor is a schema reported beside a `$ref`, whose siblings 3.0 ignores, an inline `allOf` branch,
-which merges in place or restates what a refinement names, or a subschema kept verbatim, such as one
-under `not`; the branch a refinement lowers from is reported as the position it is
+A schema writing a `$ref` is held to the rule by the keywords beside it, which the lowering applies
+([`later-version-construct`](#later-version-construct)), where nothing they conjoin with writes an
+`items` either: beside a `$ref` landing on a schema that writes one, through an alias or an `allOf`
+as well, a `type: array` leaves the elements to it, and `{$ref: X, type: array}` is then as silent as
+`{allOf: [{$ref: X}, {type: array}]}`. An `items` written in a union's branches does not count, nor
+does `items: true`, which holds the elements to nothing. An inline `allOf` branch, which merges in
+place or restates what a refinement names, is not reported, nor is a subschema kept verbatim, such as
+one under `not`; the branch a refinement lowers from is reported as the position it is
 ([`allof-refinement`](#allof-refinement)).
 
 - Cases: `missing-array-items`
@@ -2715,6 +2741,8 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
 - Cases: `dialect-keywords`
 - Codes: `openapi/degraded-construct`
 - Tests: `schema.TestDialectKeywords_KeptOutOfScope`, `document.TestMeta_JSONSchemaDialectIsKept`
+- Status: open: a `$schema` naming another dialect, which OpenAPI 3.1 requires to choose the one a
+  schema is read in, and a `jsonSchemaDialect`, choose nothing (#1449).
 
 ### `vocabulary-coverage`
 
@@ -3043,8 +3071,6 @@ broken, once, where the parameter is written, whether anything lowers it or not.
 - Codes: `openapi/inapplicable-location-keyword`
 - Tests: `oas.TestCheck_AllowReservedWarnsWhereItHasNoEffect`,
   `oas.TestCheck_AllowReservedWordsWhereItAppliesAndWhereItDoesNot`
-- Status: open: which minor governs a parameter another document holds, held to the source's until
-  it is settled (#839).
 
 ### `parameter-schema-keywords`
 
@@ -3130,7 +3156,7 @@ the value, the length bounds `maxLength` and `minLength`, which OpenAPI applies 
 payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
 where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
-keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering reads one
+keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering applies one
 ([`later-version-construct`](#later-version-construct)); a chain is followed up to a bound of its
 own, and one longer says the body is something else. Such a body is a declared file on
 `application/octet-stream`, matched on the normalized key ([`media-types`](#media-types)), since RFC
@@ -3314,7 +3340,7 @@ any case.
 - Cases: `multipart-encoding`, `file-media`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
-  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
   `operation.TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes`,

@@ -26,14 +26,15 @@ import (
 // reached holds to the table what a reference reaches that the source's own
 // check never read as that kind: an object in another document (GitHub #545),
 // or one in the source outside its model, such as under an x-* key (GitHub
-// #759, #872). The reference names the kind it expects, and the version is the
-// source's.
+// #759, #872). The reference names the kind it expects, and the version is
+// that of the document holding it (versionOf).
 //
 // Only what a reference reaches is checked, so a shared file's unread content
 // fails no compile. Each finding is reported once (see checkAll), and what a
 // check spans is charged to a budget (see charge).
 type reached struct {
 	checker oas.Checker
+	// version is the source's, as the model reads it.
 	version string
 	// limit bounds what checks of one document's objects may span (see charge),
 	// and what each check reads.
@@ -213,7 +214,8 @@ func (v *reached) dropSeen(targets map[objectKey]reachedTarget) {
 
 // newReached returns the checker for the objects doc's references reach, under
 // opts' node and alias budgets; either one unbounded leaves the charge
-// unbounded. It holds them to the version doc declares. tree is the source's,
+// unbounded. It holds one in the source to the version doc declares, and one in
+// another document to that document's (versionOf). tree is the source's,
 // and judged what the table found in it, none of which is reported again.
 func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree, judged judgment) *reached {
 	limit := nodesAdmitted(opts)
@@ -222,7 +224,7 @@ func newReached(doc *soa.OpenAPI, opts Options, tree sourceTree, judged judgment
 		reported[oas.AsPlaced(d)] = true
 	}
 	return &reached{
-		checker:  oas.NewChecker(),
+		checker:  judged.checker,
 		ends:     newChainEnds(),
 		tree:     tree,
 		version:  doc.OpenAPI,
@@ -272,8 +274,9 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 		return d
 	}
 	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.home.pointer}
-	found := append(v.checker.Check(ctx, t.node, v.version, opts),
-		oas.CheckFormat(ctx, t.node, v.version, formatOptions(opts))...)
+	version := v.versionOf(t)
+	found := append(v.checker.Check(ctx, t.node, version, opts),
+		oas.CheckFormat(ctx, t.node, version, formatOptions(opts))...)
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
@@ -282,6 +285,17 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 		}
 	}
 	return diags
+}
+
+// versionOf returns the version t's object is held to: that of the document
+// holding it, read at the minor it declares (Other), as locatorFor places a
+// finding there, and the source's for an object in the source or in a
+// document no entry lists.
+func (v *reached) versionOf(t reachedTarget) string {
+	if o, listed := v.others.Named(t.home.doc); listed && !t.inSource {
+		return o.version
+	}
+	return v.version
 }
 
 // locatorFor returns where a finding about t's object is placed: where the

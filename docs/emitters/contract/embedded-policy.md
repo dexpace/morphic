@@ -12,14 +12,11 @@ policy](runtime-policy.md) and [shaping hints](shaping-hints.md), each a layer b
 ```go
 package embed
 
-type Mapping struct {
-    Keys     map[string]Target // an extension's key as Unmodeled holds it, such as
+type Mapping map[string]Target // an extension's key as Unmodeled holds it, such as
                                // "openapi:x-sdk-retries", → what it configures
-    Disabled bool              // reads nothing
-}
 
 type Target struct {
-    Tree string                // "policy" | "hint"
+    Tree Tree                  // the input the key configures
     Path []string              // the member path inside that tree's JSON form
                                // (runtime-policy.md#delivery, shaping-hints.md),
                                // such as ["retry", "maxAttempts"] or ["rename"]
@@ -29,6 +26,8 @@ type Layer struct {
     Policy policy.Layer                              // the lowest layer of runtime policy
     Hints  map[emitters.EntityID]emitters.ShapeHint  // the lowest layer of hints
 }
+
+type Tree string               // "policy" | "hint"
 
 func Read(doc *ir.Document, m Mapping) (Layer, []ir.Diagnostic)
 ```
@@ -52,24 +51,32 @@ tag's under `openapi:tags/<n>/`: it describes that object rather than the docume
 nothing until the IR carries it where the object lowers (#1221). Where two keys set one field of one
 node, an operation's own key beats its path item's, and any other pair is an error
 `emitters/embed/conflict` that sets the field from neither, since which to take is no fact the
-document states.
+document states. An operation's own key and its path item's both set the operation's entry, so a
+status one names in a retry list and the other in the other list would be one scope's status named
+twice; it stays only in the operation's list instead, as it would in a list set higher
+([retries](runtime-policy.md#the-canonical-vocabulary)).
 
 The value is decoded into the field `Path` names, as the tree's own JSON form reads it, refusing an
-unknown member. A value of the wrong shape is reported as a warning `emitters/embed/invalid-value`
-at the extension and never coerced, since the document means something by the key that the field
-does not hold: a group is named by its ID, as `Remount` takes it, never by the words a document
-places it under. The entry stays in `Unmodeled` either way, as a promotion leaves it
+unknown member. A value of the wrong shape, or one outside the field's vocabulary or range
+([layers](runtime-policy.md#layers-and-operations)), is reported as a warning
+`emitters/embed/invalid-value` at the extension and never coerced, since the document means
+something by the key that the field does not hold: a group is named by its ID, as `Remount` takes
+it, never by the words a document places it under, and an attempt count of 0 may be another
+generator's count of retries. The entry stays in `Unmodeled` either way, as a promotion leaves it
 ([promotion](../../ir/unmodeled.md#promotion)), so a consumer that disagrees with the mapping reads
-the entry instead.
+the entry instead. A key whose value draws that warning sets nothing, as a refused key does (below),
+so it neither beats another key nor conflicts with one, and a path item's key sets a field its
+operation's own key could not.
 
 ## The mapping is a configuration
 
-The reader runs by default, and its default mapping is empty. The compiler's promotion policy ships
-keys whose reading is a convention independent of any generator, such as `x-deprecated-reason`
-([`extension-promotion`](../../compilers/openapi.md#extension-promotion)). No key for a retry, a
-timeout or an SDK method name has one: each is a generator's own spelling, and its value's shape is
-that generator's. So a configuration names the keys its documents use and what each one sets, and a
-key it does not name stays where it was.
+The reader runs by default, and its default mapping is empty, which is also how a configuration
+turns it off: no switch beside the mapping says the same thing a second way. The compiler's
+promotion policy ships keys whose reading is a convention independent of any generator, such as
+`x-deprecated-reason` ([`extension-promotion`](../../compilers/openapi.md#extension-promotion)). No
+key for a retry, a timeout or an SDK method name has one: each is a generator's own spelling, and
+its value's shape is that generator's. So a configuration names the keys its documents use and what
+each one sets, and a key it does not name stays where it was.
 
 A mapping reads a key as `Unmodeled` holds it, the format's prefix included, and only from entries
 of two reasons: `vendor_extension`, whose key is the source's own spelling, and `out_of_scope`,
