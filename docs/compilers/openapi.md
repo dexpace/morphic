@@ -133,12 +133,12 @@ expanded, is refused as an `openapi/source-too-deep` error at the least pointer 
 passes the bound; one with more nodes than the scan indexes, as an `openapi/source-too-large`
 error; one whose aliases expand it past a fixed multiple of its own size, with a floor for a small
 document, as an `openapi/alias-amplification` error at the least pointer of the smallest structures
-past the ratio; and one neither of those two refuses whose nodes' JSON pointers, its aliases
-expanded, total past a fixed multiple of the bytes it writes, with a floor for a small document, as
-an `openapi/pointer-amplification` error at the document, since the compile spells a pointer for
-each node it reads and the IR's IDs embed them. An overlay is held to the same refusals before it
-is applied, and so is a document an external reference names, which fails the reference instead;
-each is read no further than the byte budget. The member budget of an enum is
+past the ratio; and one whose nesting and aliases the scan admits, but whose nodes' JSON pointers,
+its aliases expanded, total past a fixed multiple of the bytes it writes, with a floor for a small
+document, as an `openapi/pointer-amplification` error at the document, since the compile spells a
+pointer for each node it reads and the IR's IDs embed them. An overlay is held to the same refusals
+before it is applied, and so is a document an external reference names, which fails the reference
+instead; each is read no further than the byte budget. The member budget of an enum is
 [`enum-const`](#enum-const)'s.
 
 `MaxReferenceExpansion` bounds what the lowering copies through `$ref`s, the product of references
