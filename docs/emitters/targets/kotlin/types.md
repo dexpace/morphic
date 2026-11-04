@@ -43,5 +43,5 @@ the member's wire text wherever the row's type is no `Boolean`, primitive number
 cannot hold a member, as a `Long` holds none past its range, and its `value` is decoded through the
 row's codec when read, as a closed entry's is. A value class over the row's type would tell members
 apart or merge them unlike JSON: a `BigDecimal` keeps its scale, so `0.1` and `0.10` would be two, a
-`ByteArray` equals only itself, and a `Uuid`, a time or a `Duration` reads two texts as one value,
-a `uuid` in either case or `PT1H` and `PT60M`, and writes back a spelling of its own.
+`ByteArray` equals only itself, and a `Uuid` or a time type reads two texts as one value, a `uuid`
+in either case or `10:00:00` and `10:00:00.000`, and writes back a spelling of its own.
