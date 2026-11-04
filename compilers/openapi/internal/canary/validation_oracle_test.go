@@ -97,8 +97,8 @@ var validationReasons = map[string]string{
 		"rule it breaks counts them (3.1.2 §Parameter Object: 'The map MUST only contain one entry')",
 	"numeric-literal": "the library holds a numeric keyword to a float64 and checks a schema as JSON text, so it " +
 		"refuses a literal YAML reads as a number that JSON spells otherwise (.5, 5., 0644) or float64 cannot hold " +
-		"(1e999); the table leaves the shape of a bound to the schema lowering, which reads the literal exactly and " +
-		"reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
+		"(1e999); the table leaves the shape of a bound to the load phase, which reads the literal exactly, as the " +
+		"schema lowering does, and reports one that is no decimal a BigVal holds (docs/compilers/openapi.md#constraints)",
 	"declared-dialect": "the library holds a 3.1 or 3.2 schema to its version's 2020-12 meta-schema whatever " +
 		"dialect it names, and refuses what a draft spells otherwise, a draft 4 exclusive bound, a boolean " +
 		"modifying the bound beside it, or a tuple written as a list of items; the specification has a root's " +
