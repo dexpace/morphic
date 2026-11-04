@@ -38,9 +38,12 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   - On Multiplatform, among the Swift names a caller sees: every type name Swift's standard library
     and Foundation declare, which a Swift caller has in scope, a table of the options version as the
     naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so
-    the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own. A declaration
-    that meets a name of this bullet or the last only there keeps its Kotlin name and takes an
-    explicit Objective-C and Swift name, so no JVM name moves for Swift's sake.
+    the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own; and the
+    framework's own name, `Swift` and `Foundation`, which a caller writes to qualify a name
+    (`Probe.Client`). A module a caller imports by choice, such as SwiftUI, reserves nothing, since
+    a file importing it and the framework qualifies a name the two share. A declaration that meets a
+    name of this bullet or the last only there keeps its Kotlin name and takes an explicit
+    Objective-C and Swift name, so no JVM name moves for Swift's sake.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
 A unit's package segment is its words in lowercase, joined with no separator (`useraccounts`), as

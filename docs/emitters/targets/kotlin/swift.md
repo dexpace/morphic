@@ -28,7 +28,14 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   `Date`, `Data` or `URL` made the name ambiguous with Foundation's (`'Decimal' is ambiguous for
   type lookup in this context`), so importing the SDK broke code that never touched it. A
   declaration whose Swift name would be one of theirs takes an explicit one, the runtime's
-  `Optional`, `Duration` and `Decimal` among them ([naming](naming.md#reserved-names)).
+  `Optional`, `Duration` and `Decimal` among them. A caller settles an ambiguity by naming the
+  module (`Probe.Image`, `SwiftUI.Image`), which fails once a type takes the module's name: a class
+  `Probe` in the framework `Probe` turned `Probe.Client()` into `type 'Probe' has no member
+  'Client'`, and a class `Foundation` turned `Foundation.Date` into `'Date' is not a member type of
+  class 'Probe.Foundation'`. So the framework's own name, `Swift` and `Foundation` are reserved too,
+  while a module a caller imports by choice is left to qualification: a SwiftUI file's `let i:
+  Image` was ambiguous, and `SwiftUI.Image` and `Probe.Image` were not
+  ([naming](naming.md#reserved-names)).
 - The export names classes of its own after the framework, `ProbeBase` and `ProbeNumber` in
   Objective-C for a framework `Probe`, and boxes each Kotlin number in one (`KotlinInt` in Swift).
   Measured with Kotlin 2.4.0, a spec class `Base`, `MutableSet` or `MutableDictionary` was renamed
