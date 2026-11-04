@@ -39,7 +39,7 @@ type Capabilities struct {
     LowersKinds     []ir.TypeKind   // the kinds this emitter has an emit path for
     WriteIntegrate  bool            // supports additive merge into a live repo (../write-integrate.md)
     SurfaceVerify   bool            // produces a verify.Surface (../surface-verification.md)
-    Protocols       []plan.Protocol // the bindings it lowers (../plan/bindings.md)
+    Protocols       []plan.Protocol // the protocols whose bindings it lowers (../plan/bindings.md)
     Lifecycle       Lifecycle       // "hidden" | "experimental" | "stable" | "sunset"; required
     Successor       TargetKey       // the target replacing a sunset one; "" when none does
 }
