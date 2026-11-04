@@ -166,7 +166,7 @@ type Document struct {
 	MediaTypes MediaTypes
 	// Others is every document a reference read beside the source, in the
 	// order Document.Sources lists them after the source and its overlay, and
-	// Dialects the rows each schema naming its dialect governs.
+	// Dialects the rows each schema resource root naming its dialect governs.
 	Others   Others
 	Dialects Dialects
 	// Rows is what the table says at the minor the source declares, in the

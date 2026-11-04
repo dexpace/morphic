@@ -165,10 +165,10 @@ type loadResult struct {
 	names *naming.Namer
 	// others is every document a reference read beside the source, rows what
 	// the table says at the source's minor in its dialect (load.Document.Rows),
-	// and dialects the rows each schema naming its dialect governs: the load
-	// phase read them all off the one table it built, so no context builds
-	// another. Copies share them on purpose: nothing writes any after the load,
-	// so no lowering changes what another reads.
+	// and dialects the rows each schema resource root naming its dialect
+	// governs: the load phase read them all off the one table it built, so no
+	// context builds another. Copies share them on purpose: nothing writes any
+	// after the load, so no lowering changes what another reads.
 	others   load.Others
 	rows     load.Rows
 	dialects load.Dialects
@@ -484,8 +484,8 @@ func sourceRows(c Ctx) load.Rows {
 }
 
 // SchemaRulesOf returns the rows the schema whose node is n is read with: those
-// of the dialect the schema no other holds that holds it names, where one does
-// (load.Dialects), and c's otherwise (SchemaRules).
+// of the dialect the innermost schema resource root holding it names, where one
+// does (load.Dialects), and c's otherwise (SchemaRules).
 func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
 	if c.loaded != nil {
 		if r, ok := c.loaded.dialects.Of(n); ok {

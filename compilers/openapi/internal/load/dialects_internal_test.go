@@ -83,7 +83,7 @@ func (r documentsReader) ReadDocument(_ context.Context, req compilers.DocumentR
 
 // TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead pins
 // what the load phase hands the lowering of the dialects the documents name:
-// the rows of each schema no other holds that names one, for every node it
+// the rows of each schema resource root that names one, for every node it
 // holds, a document of schemas named at its root included, and an
 // openapi/unread-dialect warning at each `$schema` and jsonSchemaDialect
 // naming one the table has no rows for, in whichever document writes it. A

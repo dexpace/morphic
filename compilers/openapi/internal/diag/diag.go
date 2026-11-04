@@ -464,7 +464,7 @@ const (
 	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
 	// evident intent, and the mark keeps the declared one.
 	InferredNullable = "openapi/inferred-nullable"
-	// UnreadDialect reports a `$schema` on a schema no other holds, or a
+	// UnreadDialect reports a `$schema` on a schema resource root, or a
 	// jsonSchemaDialect, naming a JSON Schema dialect the rule table has no
 	// rows for, at it: the schemas it governs are read in the dialect their
 	// OpenAPI version names (docs/compilers/openapi.md#dialect-keywords).

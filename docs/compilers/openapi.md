@@ -2737,14 +2737,14 @@ rows for three dialects, each named by the id its meta-schema declares, with or 
 empty fragment: the OAS dialect, `https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema
 2020-12, `https://json-schema.org/draft/2020-12/schema`, whose keywords are the minor's own, and
 JSON Schema draft 4, `http://json-schema.org/draft-04/schema#`. A dialect changes the keywords
-alone: the fields OpenAPI adds to a Schema Object, `nullable` among them, and the rules it states of
-one stay the minor's. A reading the rows decide follows the schema's: draft 4 spells an exclusive
-bound as a boolean modifying the bound beside it ([`constraints`](#constraints)). A schema naming
-any other dialect by an absolute URI, a later draft or one of the author's, is read in its minor's
-own, with an `openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect` naming it;
-a value no absolute URI names is the rule table's finding alone ([`validation`](#validation)), and
-reads the same. A node an alias places at several positions is read in one dialect at all of them:
-that of one root whose tree holds it.
+alone: the fields OpenAPI adds to a Schema Object, such as `discriminator` and `xml`, and the rules
+it states of one stay the minor's. A reading the rows decide follows the schema's: draft 4 spells an
+exclusive bound as a boolean modifying the bound beside it ([`constraints`](#constraints)). A schema
+naming any other dialect by an absolute URI, a later draft or one of the author's, is read in its
+minor's own, with an `openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect`
+naming it; a value no absolute URI names is the rule table's finding alone
+([`validation`](#validation)), and reads the same. A node an alias places at several positions is
+read in one dialect at all of them: that of one root whose tree holds it.
 
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
