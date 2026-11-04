@@ -2741,13 +2741,16 @@ OAS dialect is also named by each dated id its meta-schema is published under:
 `https://spec.openapis.org/oas/3.2/dialect/2025-09-17` and `2026-02-26`, as OpenAPI lets tooling
 support values of `$schema` besides. JSON Schema draft 4, `http://json-schema.org/draft-04/schema#`,
 has keyword rows of its own. A dialect changes the keywords alone: the fields OpenAPI adds to a
-Schema Object, such as `discriminator` and `xml`, and the rules it states of one stay the minor's. A reading the rows decide follows the schema's: draft 4 spells an
-exclusive bound as a boolean modifying the bound beside it ([`constraints`](#constraints)). A schema
-naming any other dialect by an absolute URI, a later draft or one of the author's, is read in its
-minor's own, with an `openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect`
-naming it; a value no absolute URI names is the rule table's finding alone
-([`validation`](#validation)), and reads the same. A node an alias places at several positions is
-read in one dialect at all of them: that of one root whose tree holds it.
+Schema Object, such as `discriminator` and `xml`, and the rules it states of one stay the minor's. A
+reading the rows decide follows the schema's: draft 4 spells an exclusive bound as a boolean
+modifying the bound beside it ([`constraints`](#constraints)). A schema naming any other dialect by
+an absolute URI, a later draft or one of the author's, is read in its minor's own, with an
+`openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect` naming it. A value no
+absolute URI names chooses nothing, as though it were not written, and draws no such warning: the
+rule table reports it where it judges it ([`validation`](#validation)), which in a document a
+reference reaches is only what the reference reaches ([`openapi-versions`](#openapi-versions)). A
+node an alias places at several positions is read in one dialect at all of them: that of one root
+whose tree holds it.
 
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
@@ -2763,6 +2766,7 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `e2e.TestDocumentDialect_AReferenceReadsWhatItNamesInItsRootsDialect`,
   `e2e.TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot`,
   `e2e.TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn`,
+  `e2e.TestDocumentDialect_AValueNamingNoDialectChoosesNothing`,
   `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`

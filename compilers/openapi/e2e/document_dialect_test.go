@@ -189,6 +189,25 @@ func TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn(t *testing.T) {
 		lowerBounds(doc))
 }
 
+// TestDocumentDialect_AValueNamingNoDialectChoosesNothing pins that a `$schema`
+// no absolute URI names, whatever its shape, reads as though the schema wrote
+// none: in a document defaulting to draft 4, its boolean bound reads as draft
+// 4's, and nothing but validation's finding is reported of it.
+func TestDocumentDialect_AValueNamingNoDialectChoosesNothing(t *testing.T) {
+	t.Parallel()
+	const bound = "type: integer, minimum: 5, exclusiveMinimum: true}\n"
+	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: "+draft04+
+		"\npaths: {}\ncomponents:\n  schemas:\n    E: {$schema: '', "+bound+"    N: {$schema: 4, "+bound+
+		"    R: {$schema: 'rel/x', "+bound+"    M: {$schema: {x: 1}, "+bound)
+	assert.Empty(t, openapitest.PointersOf(diags, diag.ExclusiveBoundForm))
+	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
+	want := map[jsontext.Pointer][2]ir.BigVal{}
+	for _, name := range []string{"E", "N", "R", "M"} {
+		want[jsontext.Pointer("/components/schemas/"+name)] = [2]ir.BigVal{"", "5"}
+	}
+	assert.Equal(t, want, lowerBounds(doc))
+}
+
 // TestDocumentDialect_AMalformedDialectIsValidationsFinding pins that a
 // `$schema` or jsonSchemaDialect no absolute URI names is reported once, by the
 // rule table's validation, and draws no openapi/unread-dialect besides: it

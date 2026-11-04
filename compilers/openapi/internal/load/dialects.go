@@ -117,9 +117,10 @@ func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
 // table read names, and an openapi/unread-dialect warning for each absolute URI
 // naming one the table has no rows for, whose schemas read their minor's own:
 // at each such `$schema`, placed by place, and at each document's
-// jsonSchemaDialect, the source's among them. Validation
-// reports a value no absolute URI names. A document two names read is warned
-// of once.
+// jsonSchemaDialect, the source's among them. A value no absolute URI names
+// chooses nothing and draws none: validation reports it where it judges it,
+// which in a document a reference reaches is only what the reference reaches.
+// A document two names read is warned of once.
 func readDialects(table *bind.Table, others Others, d *dialects,
 	place func(bind.Position) ir.Provenance,
 ) (Dialects, []ir.Diagnostic) {
@@ -156,6 +157,11 @@ func readDialects(table *bind.Table, others Others, d *dialects,
 		// Innermost first: a root's pointer extends that of a root holding it,
 		// so it sorts after, and the list is in pointer order.
 		for _, root := range slices.Backward(table.Document(id).Dialects) {
+			if !oas.NamesDialect(root.URI) {
+				// It chooses nothing: the schema reads as though it wrote none,
+				// so a malformed value adds no reading to validation's finding.
+				continue
+			}
 			r := d.at(version, root.URI)
 			if r.unread {
 				unread(place(bind.Position{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema", root.URI)

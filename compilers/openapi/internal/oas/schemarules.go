@@ -29,9 +29,9 @@ type schemaRows struct {
 // the dialect a `$schema` or a jsonSchemaDialect names by its URI, and whether
 // that is an absolute URI naming a dialect the table has no rows for, which
 // reads as the minor's own. An empty dialect, any at 3.0, which defines neither
-// keyword, and one no absolute URI names, which validation reports, are the
-// minor's own too. A version the table does not cover, or a Spec holding no
-// Schema Object, has the zero rows.
+// keyword, and one no absolute URI names, which validation reports where it
+// judges the value, are the minor's own too. A version the table does not
+// cover, or a Spec holding no Schema Object, has the zero rows.
 func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bool) {
 	minor, ok := ParseMinor(version)
 	if !ok {
@@ -77,8 +77,13 @@ func dialectKeywords(minor Minor, dialect string) ([]Field, bool) {
 		}
 		return d.keywords(), false
 	}
-	return nil, validFormat(AbsoluteURI, dialect)
+	return nil, NamesDialect(dialect)
 }
+
+// NamesDialect reports whether a `$schema` or jsonSchemaDialect value names a
+// dialect at all: an absolute URI, as each must be. One that names none,
+// which validation reports, chooses nothing, as though it were not written.
+func NamesDialect(dialect string) bool { return validFormat(AbsoluteURI, dialect) }
 
 // Defines reports whether the Schema Object defines the field name: a keyword
 // of its dialect, or a field OpenAPI adds to it at the minor.

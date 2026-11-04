@@ -87,13 +87,15 @@ func (r documentsReader) ReadDocument(_ context.Context, req compilers.DocumentR
 // holds, a document of schemas named at its root included, and an
 // openapi/unread-dialect warning at each `$schema` and jsonSchemaDialect
 // naming one the table has no rows for, in whichever document writes it. A
-// schema below none reads no rows of its own.
+// schema below none, or below one whose `$schema` names no dialect, reads no
+// rows of its own.
 func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *testing.T) {
 	t.Parallel()
 	src := "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: 'https://example.com/source'\n" +
 		"paths: {}\ncomponents:\n  schemas:\n" +
 		"    T: {$schema: '" + draft04 + "', properties: {a: {type: integer}}}\n" +
 		"    U: {$schema: 'https://example.com/component'}\n" +
+		"    R: {$schema: 'rel/dialect', type: integer}\n" +
 		"    V: {$ref: 'o.yaml#/components/schemas/W'}\n" +
 		"    X: {$ref: 'defs.json#/definitions/E'}\n"
 	reader := documentsReader{
@@ -137,6 +139,8 @@ func TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead(t *test
 	assert.True(t, governed(node("T", "a")), "a subschema reads its root's")
 	_, ok = doc.Dialects.Of(node("V"))
 	assert.False(t, ok, "a schema below no root naming one reads its document's")
+	_, ok = doc.Dialects.Of(node("R"))
+	assert.False(t, ok, "a $schema naming no dialect chooses none")
 	r, ok := doc.Dialects.Of(node("U"))
 	assert.True(t, ok)
 	assert.True(t, r.Takes("exclusiveMinimum", oas.Number), "a dialect it cannot read reads as the minor's own")
