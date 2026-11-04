@@ -102,10 +102,11 @@ scalar under any other tag keeps it.
 
 ### `source-budgets`
 
-`Options.Limits` bounds how large a source the compiler lowers, each budget taking its default when
-unset and none when negative. A source past `MaxSourceBytes` is refused before it is parsed, as one
-past the budget rather than one of a size: `MaxSourceBytes` is the compiler's `SourceLimit`, so a
-caller may hand detection only its first bytes, one past the budget. A source whose YAML parses to
+`Options.Limits` bounds how large a source the compiler lowers, and how much its lowering copies,
+each budget taking its default when unset and none when negative. A source past `MaxSourceBytes` is
+refused before it is parsed, as one past the budget rather than one of a size: `MaxSourceBytes` is
+the compiler's `SourceLimit`, so a caller may hand detection only its first bytes, one past the
+budget. A source whose YAML parses to
 more than `MaxSourceNodes` nodes, or whose aliases add more than `MaxAliasSurplus` nodes to it, is
 refused before its model is built. Each is an `openapi/budget-exceeded` error, compiling to no
 Document. Past `MaxExternalDocuments`, a document an external reference names is not read, each
@@ -124,6 +125,25 @@ is applied, and so is a document an external reference names, which fails the re
 each is read no further than the byte budget. The member budget of an enum is
 [`enum-const`](#enum-const)'s.
 
+`MaxReferenceExpansion` bounds what the lowering copies through `$ref`s, the product of references
+and size the budgets above leave free. A declaration a `$ref` names, a schema or a link aside,
+lowers again at each `$ref` naming it, so each such `$ref` is charged what the declarations its
+chain names weigh: the one it ends at, and each component alias it passes through, whose fields
+beside its own `$ref` lower at every use too
+([`reference-object-siblings`](#reference-object-siblings),
+[`path-item-ref-fields`](#path-item-ref-fields)). A declaration weighs a node for each YAML node, a
+YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
+holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
+schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
+grammar cannot place the `$ref`'s position or reads no object a `$ref` names there. Every `$ref` is
+charged, the first to a declaration and one nested in another's among them, since each lowers a
+copy. A schema's `$ref` names one registry entry ([`schema-registry`](#schema-registry)) and a
+link's is kept as written, so neither is charged. Past the budget no `$ref` lowers, and the compile
+is refused as one `openapi/budget-exceeded` error at the source and no position in it, compiling to
+no Document, beside what the load phase found and nothing the lowering did: which `$ref` crossed the
+budget, and so what lowered before it, follows the walk's order. With no Document to list the
+documents `$ref`s read, what the load phase found in one of them is left out too.
+
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
   `openapi/alias-amplification`
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
@@ -133,10 +153,22 @@ each is read no further than the byte budget. The member budget of an enum is
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
   `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`,
-  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`
+  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`,
+  `openapi.TestCompile_ReferenceExpansionBindsOnlyPastTheLimit`,
+  `openapi.TestCompile_EveryCopiedDeclarationIsCharged`,
+  `openapi.TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull`,
+  `openapi.TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder`,
+  `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
+  `openapi.TestCompile_ASchemaIsChargedAsOneNode`,
+  `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `lowering.TestExpansion_ChargesEveryCopy`,
+  `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
+  `lowering.TestWeightOf_CountsASchemaAsOneNode`,
+  `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
+  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`
 - Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), and long keys nested a few hundred levels deep cost gigabytes within
-  every bound (#931).
+  document budget twice (#571), and long keys nested a few hundred levels deep (#931), a 3.2 path
+  item's own fields copied into each of its operations (#1428) and aliases of a long scalar (#1429)
+  cost gigabytes within every bound.
 
 ### `overlays`
 
