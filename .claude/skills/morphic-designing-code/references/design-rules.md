@@ -29,8 +29,8 @@ and stays simple. Each rule is a cost a later refactor or performance change had
   says which answer, and the context's documentation stops calling it immutable.
 - **Why.** The rule named none of the holders `lowering.Ctx` already shared, and a context
   documented as immutable gained one that changed an answer (#1436).
-- **Probe.** `awk '/^type (Ctx|loadResult|Promoter) struct/,/^}/' compilers/openapi/internal/lowering/*.go | grep -E '^[[:space:]]+[[:alnum:]_]+ +(\*|map\[)'`,
-  each holder among them read for both statements.
+- **Probe.** `awk '/^type (Ctx|loadResult|Promoter) struct/,/^}/' compilers/openapi/internal/lowering/*.go | grep -E '^[[:space:]]+[[:alnum:]_]+ '`
+  lists their fields, each holder among them read for both statements.
 
 ## Read a document once per run, through a shared walk or index
 `read-once-per-run`
