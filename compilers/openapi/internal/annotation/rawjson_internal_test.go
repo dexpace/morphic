@@ -7,6 +7,8 @@ import (
 	"encoding/json/jsontext"
 	"encoding/json/v2"
 	"fmt"
+	"math"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -327,17 +329,64 @@ func TestRawConv_RendersWithinItsNodeBudget(t *testing.T) {
 	const nodes = 1 + 2 + 2 // the mapping; a's list and its item; the copy of both b renders
 
 	within := rawConv{nodes: budget.New(budget.AtMost(nodes)), view: nodeview.New()}
-	got, err := within.node(doc.Content[0], 0)
+	got, err := within.node(nil, doc.Content[0], 0)
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"a": [1], "b": [1]}`, string(got))
 
 	past := rawConv{nodes: budget.New(budget.AtMost(nodes - 1)), view: nodeview.New()}
-	_, err = past.node(doc.Content[0], 0)
+	_, err = past.node(nil, doc.Content[0], 0)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), fmt.Sprintf("expands past %d nodes", nodes-1))
 
 	whole := newRawConv()
 	assert.Equal(t, budget.AtMost(maxRawNodes), whole.nodes.Limit(), "RawFromNode's conversion spends the whole budget")
+}
+
+// nestedNode is d mappings each nested in the one above it, each writing its
+// keys out of order so that rendering it sorts them.
+func nestedNode(d int) *yaml.Node {
+	n := ynode.Scalar("leaf")
+	for range d {
+		n = ynode.Map(ynode.Scalar("z"), n, ynode.Scalar("a"), ynode.Seq(ynode.Scalar("1")))
+	}
+	return n
+}
+
+// renderBytes returns the fewest bytes one RawFromNode of a node d levels deep
+// allocates, averaged over eight depths spread across the doubling from d, so
+// that a buffer growing in steps reads as the growth it averages to.
+func renderBytes(t *testing.T, d int) float64 {
+	t.Helper()
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(1))
+	const spread = 8
+	var total float64
+	for j := range spread {
+		node := nestedNode(int(math.Round(float64(d) * math.Exp2(float64(j)/spread))))
+		fewest := math.Inf(1)
+		for range 3 {
+			var before, after runtime.MemStats
+			runtime.ReadMemStats(&before)
+			_, err := RawFromNode(node)
+			runtime.ReadMemStats(&after)
+			require.NoError(t, err)
+			fewest = min(fewest, float64(after.TotalAlloc-before.TotalAlloc))
+		}
+		total += fewest / spread
+	}
+	return total
+}
+
+// TestRawFromNode_RendersInBytesLinearInTheNode holds what rendering a deep node
+// allocates to linear growth in its depth: from 2n levels to 4n it grows at most
+// 2.5 times what it grows from n to 2n. A level re-encoding or copying what the
+// levels below it rendered grows four times. It does not run in parallel, since
+// the count is process-wide.
+func TestRawFromNode_RendersInBytesLinearInTheNode(t *testing.T) {
+	var bytes [3]float64
+	for k, d := range []int{250, 500, 1000} {
+		bytes[k] = renderBytes(t, d)
+	}
+	assert.LessOrEqual(t, bytes[2]-bytes[1], 2.5*(bytes[1]-bytes[0]), "bytes around 250, 500, 1000 levels: %v", bytes)
 }
 
 // TestRawFromNode_RejectsMalformedNodes covers the node shapes no parser
@@ -557,7 +606,7 @@ func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 	t.Parallel()
 
 	c := newRawConv()
-	got, err := c.node(nil, 0)
+	got, err := c.node(nil, nil, 0)
 	require.Error(t, err, "a nil node is a caller bug, not an absent construct")
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "nil yaml node")
@@ -574,7 +623,7 @@ func TestRawConv_RefusesNodesNoCallerShouldPass(t *testing.T) {
 func TestSpliceNumber_RefusesANonJSONNumber(t *testing.T) {
 	t.Parallel()
 
-	got, err := spliceNumber("1p4", "1p4")
+	got, err := spliceNumber(nil, "1p4", "1p4")
 
 	require.Error(t, err, "1p4 is not a JSON number")
 	assert.Nil(t, got)
