@@ -89,8 +89,8 @@ type loading struct {
 	esc   *escapes
 	doc   *soa.OpenAPI
 	minor string
-	// dialects reads each document at its minor, the source's first, from the
-	// table judged gives, so a compile builds that table once.
+	// dialects reads the source and each document a reference reaches at its
+	// minor, off the table judged gives, so a compile builds that table once.
 	dialects *dialects
 	sibs     Siblings
 	media    MediaTypes

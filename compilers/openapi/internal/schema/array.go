@@ -102,9 +102,9 @@ func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer)
 
 // missingArrayItemsBesideRef is missingArrayItems for the keywords beside the
 // $ref js writes, which conjoin with what it lands on: a type array there
-// leaves its elements to that, so it is reported only where nothing the
-// conjunction reads writes items, as an inline allOf branch restating what a
-// refinement names is not. An items the reading found holds however much of
+// leaves its elements to that, so it is reported only where admission's
+// reading of the conjunction holds them to no items, which neither items: true
+// nor a union's branches do. An items the reading found holds however much of
 // the rest it read, and one cut short before reaching any leaves the keywords
 // held to the rule as they are written.
 func missingArrayItemsBesideRef(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {

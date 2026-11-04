@@ -9,8 +9,8 @@ import "github.com/dexpace/morphic/compilers/openapi/internal/oas"
 // reference reaches the one its declared version names, or the source's where
 // the table covers none, as for a bare schema file, which declares no version,
 // or a Swagger 2.0 one. It reads each minor's rows (Rows) from spec once, so
-// the documents read at a minor share them; a map keyed by minor
-// holds no more entries than the table has minors.
+// the documents read at a minor share them; a map keyed by minor holds no
+// more entries than the table has minors.
 type dialects struct {
 	spec oas.Spec
 	// version and minor are the source's, which the load phase has admitted.

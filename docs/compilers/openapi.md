@@ -36,18 +36,18 @@ gives the reason a code has no rule. [`CONTRIBUTING.md`](../../CONTRIBUTING.md) 
 
 A document declaring `openapi: 3.0.x`, `3.1.x` or `3.2.x` is read as the minor its first two parts
 name, and every rule below that differs by minor follows that one. So is a document a reference
-reaches beside the source: its schemas are read in that minor's dialect, its objects are held to
-that minor's table, and its `Document.Sources` entry names that minor. One declaring no version, such
-as a bare schema file, or a version the compiler does not read, such as `3.3.0` or a Swagger 2.0
-file, is read at the source's minor, and the compile stands. A source declaring a version that is
-not three runs of digits, major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an
-`openapi/validation` error, of the class `validation-invalid-format` ([`validation`](#validation)),
-and still lowers under the minor it names; a document a reference reaches is read at the minor such
-a version names too, with no finding, since only what a reference reaches is judged. Any other
-version is not this compiler's. The engine refuses a document declaring one before any compiler
-runs, as it refuses a Swagger 2.0 document ([`swagger-lift`](#swagger-lift)), and the compiler,
-handed one directly, refuses it with an `openapi/unsupported-version` error and compiles to no
-Document.
+reaches beside the source: its schemas are read in that minor's dialect, its Encoding Objects take
+that minor's defaults, its objects are held to that minor's table, and its `Document.Sources` entry
+names that minor. One declaring no version, such as a bare schema file, or a version the compiler
+does not read, such as `3.3.0` or a Swagger 2.0 file, is read at the source's minor, and the compile
+stands. A source declaring a version that is not three runs of digits, major, minor and patch, such
+as `3.0` or `3.1.0-rc1`, is reported as an `openapi/validation` error, of the class
+`validation-invalid-format` ([`validation`](#validation)), and still lowers under the minor it
+names; a document a reference reaches is read at the minor such a version names too, with no
+finding, since only what a reference reaches is judged. Any other version is not this compiler's.
+The engine refuses a document declaring one before any compiler runs, as it refuses a Swagger 2.0
+document ([`swagger-lift`](#swagger-lift)), and the compiler, handed one directly, refuses it with
+an `openapi/unsupported-version` error and compiles to no Document.
 
 - Codes: `openapi/unsupported-version`, `openapi/validation`
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
@@ -231,9 +231,10 @@ overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 The load phase holds the source to a table of the OpenAPI Specification's rules, at the minor it
 declares, and the parser's own validation does not run. Each row of the table cites the sentence of
 the specification it comes from. It gives every object's fields, the shape, values and syntax of
-each, which fields each minor requires, and the rules that bind fields together; what data cannot
-state is written as code beside it, such as a path template against its path parameters, a server
-URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
+each, which fields each minor requires, the rules that bind fields together, and the defaults of
+fields left unwritten that a lowering reads ([`multipart-encoding`](#multipart-encoding)); what data
+cannot state is written as code beside it, such as a path template against its path parameters, a
+server URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
 as `openapi/validation` suffixed with its class (`openapi/validation/validation-required-field`), at
 the node it is about, its message naming the object, the field, the minor and the section of the
 specification it cites. A finding never refuses the document,
@@ -2342,11 +2343,12 @@ declaration and not the node. Nothing is dropped or degraded, so no `openapi/deg
 accompanies it. `items: {}` is silent, as is every schema at 3.1 and 3.2, where `items` is optional.
 A schema writing a `$ref` is held to the rule by the keywords beside it, which the lowering applies
 ([`later-version-construct`](#later-version-construct)), where nothing they conjoin with writes an
-`items` either: beside a `$ref` landing on one, through an alias or an `allOf` as well, a
-`type: array` leaves the elements to it, and `{$ref: X, type: array}` is as silent as
-`{allOf: [{$ref: X}, {type: array}]}`. An inline `allOf` branch, which merges in place or restates
-what a refinement names, is not reported, nor is a subschema kept verbatim, such as one under `not`;
-the branch a refinement lowers from is reported as the position it is
+`items` either: beside a `$ref` landing on a schema that writes one, through an alias or an `allOf`
+as well, a `type: array` leaves the elements to it, and `{$ref: X, type: array}` is then as silent as
+`{allOf: [{$ref: X}, {type: array}]}`. An `items` written in a union's branches does not count, nor
+does `items: true`, which holds the elements to nothing. An inline `allOf` branch, which merges in
+place or restates what a refinement names, is not reported, nor is a subschema kept verbatim, such as
+one under `not`; the branch a refinement lowers from is reported as the position it is
 ([`allof-refinement`](#allof-refinement)).
 
 - Cases: `missing-array-items`
