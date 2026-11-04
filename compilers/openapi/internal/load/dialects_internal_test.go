@@ -213,10 +213,10 @@ func TestReadDialects_ReadsNothingOfADocumentNoSourceEntryHolds(t *testing.T) {
 	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
 }
 
-// TestDialects_ANodeTwoRootsHoldReadsTheFirsts pins that a node an alias places
-// under two schemas naming a dialect reads the rows of the first to govern it,
-// which readDialects asks in document and pointer order, and that each node is
-// read once, however many aliases place it.
+// TestDialects_ANodeTwoRootsHoldReadsTheFirsts pins that a node two roots
+// naming a dialect hold reads the rows of the first to govern it, which
+// readDialects asks innermost first, and that each node is read once, however
+// many aliases place it.
 func TestDialects_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	t.Parallel()
 	var tree yaml.Node
@@ -244,4 +244,30 @@ func TestDialects_ANodeTwoRootsHoldReadsTheFirsts(t *testing.T) {
 	assert.Len(t, d.byNode, 8, "A, its keys x and y, the shared node and its two scalars; B and its key z")
 	d.govern(nil, first)
 	assert.Len(t, d.byNode, 8, "no tree governs nothing")
+}
+
+// TestReadDialects_ANestedRootGovernsItsOwnTree pins that a resource an $id
+// embeds in another root reads the dialect its own `$schema` names, the
+// innermost root governing the nodes it holds, while the rest of the outer
+// root reads the outer's.
+func TestReadDialects_ANestedRootGovernsItsOwnTree(t *testing.T) {
+	t.Parallel()
+	doc, _, err := Load(t.Context(), 0, compilers.Source{Path: "/r/root.yaml", Data: []byte(
+		"openapi: 3.1.0\ninfo: {title: T, version: '1'}\npaths: {}\ncomponents:\n  schemas:\n" +
+			"    T: {$schema: 'https://json-schema.org/draft/2020-12/schema', properties: {\n" +
+			"      a: {$id: 'https://example.com/a', $schema: '" + draft04 + "', properties: {x: {type: integer}}},\n" +
+			"      b: {type: integer}}}\n",
+	)}, Options{})
+	require.NoError(t, err)
+	tSchema := doc.Doc.Components.GetSchemas().GetOrZero("T").GetSchema()
+	a := tSchema.GetProperties().GetOrZero("a").GetSchema()
+	boolean := func(s interface{ GetRootNode() *yaml.Node }) bool {
+		r, ok := doc.Dialects.Of(s.GetRootNode())
+		require.True(t, ok)
+		return r.Takes("exclusiveMinimum", oas.Boolean)
+	}
+	assert.True(t, boolean(a), "the embedded root reads its own")
+	assert.True(t, boolean(a.GetProperties().GetOrZero("x").GetSchema()), "and what it holds")
+	assert.False(t, boolean(tSchema), "the outer root reads its own")
+	assert.False(t, boolean(tSchema.GetProperties().GetOrZero("b").GetSchema()))
 }

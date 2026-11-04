@@ -83,8 +83,9 @@ type identifiers struct {
 	// than the view expands, so an identifier past the bound may be missing.
 	truncated map[DocID]bool
 	read      map[DocID]bool
-	// dialects is each schema no other schema holds that writes a `$schema`,
-	// by where it is (heldBySchema).
+	// dialects is each schema resource root that writes a `$schema`, by where
+	// it is: a schema no other holds (heldBySchema), or one whose $id roots a
+	// resource of its own.
 	dialects map[Position]DialectRoot
 }
 
@@ -120,9 +121,9 @@ func (ix *identifiers) document(doc DocID, r resource) int32 {
 }
 
 // declare notes what the schema n, read at at in the resource indexed in,
-// declares, the dialect its `$schema` names among it, and returns the index of
-// the resource its content is in: its own where it writes an $id naming
-// another URI (resources.enter).
+// declares, the dialect its `$schema` names among it where n roots a resource,
+// and returns the index of the resource its content is in: its own where it
+// writes an $id naming another URI (resources.enter).
 func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node) int32 {
 	held := ix.resources[in]
 	res, rooted, known := r.enter(held, n)
@@ -139,7 +140,7 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node)
 	}
 	view := r.docs.list[at.Doc].view
 	if uri, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), "$schema")); ok &&
-		!heldBySchema(r.docs.identityState(at.Doc), slices.Collect(at.Pointer.Tokens())) {
+		(rooted || !heldBySchema(r.docs.identityState(at.Doc), slices.Collect(at.Pointer.Tokens()))) {
 		ix.dialects[at] = DialectRoot{At: at, URI: uri, Node: nodeview.Deref(n)}
 	}
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor"} {

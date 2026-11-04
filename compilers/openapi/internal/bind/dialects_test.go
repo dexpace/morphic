@@ -92,3 +92,18 @@ func TestDialectRoots_ADocumentOfSchemasNamesItAtItsRoot(t *testing.T) {
 		})
 	}
 }
+
+// TestDialectRoots_AnEmbeddedResourceNamesItsOwn pins that a schema whose $id
+// roots a resource of its own is a dialect root wherever it is, as JSON Schema
+// lets an embedded resource name its dialect, and that one whose $id names its
+// own document, or that writes none, roots no resource and names nothing.
+func TestDialectRoots_AnEmbeddedResourceNamesItsOwn(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+"components:\n  schemas:\n"+
+		"    T: {$schema: "+d4+", properties: {a: {$id: 'https://example.com/a', $schema: 'https://example.com/inner'},\n"+
+		"      b: {$id: 'spec.yaml', $schema: 'https://example.com/self'}, c: {$schema: 'https://example.com/none'}}}\n", self)
+	assert.Equal(t, map[bind.Position]string{
+		at("/components/schemas/T"):              "http://json-schema.org/draft-04/schema#",
+		at("/components/schemas/T/properties/a"): "https://example.com/inner",
+	}, rootsOf(table))
+}

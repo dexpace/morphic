@@ -494,7 +494,7 @@ func dialectRead(keyword string) string {
 	case "$id":
 		return "is read only for reference resolution"
 	case "$schema":
-		return "is read only to choose the dialect of a 3.1 or 3.2 schema no other schema holds, " +
+		return "is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, " +
 			"never for reference resolution"
 	default:
 		return "is not honoured for reference resolution"

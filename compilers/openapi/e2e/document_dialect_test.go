@@ -54,12 +54,13 @@ func lowerBounds(doc *ir.Document) map[jsontext.Pointer][2]ir.BigVal {
 }
 
 // TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames pins GitHub #1449:
-// a 3.1 or 3.2 schema is read in the dialect the `$schema` of the schema no
-// other holds that holds it names, else its document's jsonSchemaDialect, else
+// a 3.1 or 3.2 schema is read in the dialect the `$schema` of the innermost
+// resource root holding it names, else its document's jsonSchemaDialect, else
 // its minor's own. Draft 4 spells an exclusive bound as a boolean modifying the
 // bound beside it, so `minimum: 5, exclusiveMinimum: true` means `x > 5`
 // there and is refused as a 3.1 bound elsewhere; a subschema reads its root's,
-// and a `$schema` below a root names nothing.
+// a resource an $id embeds names its own (GitHub #1458), and a `$schema` below
+// a root and in no such resource names nothing.
 func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 	t.Parallel()
 	const boolean = "{type: integer, minimum: 5, exclusiveMinimum: true}"
@@ -84,6 +85,15 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 			"    T: {type: object, properties: {a: {$schema: " + draft04 + ", type: integer, minimum: 5, exclusiveMinimum: true}}}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T/properties/a": {"5", ""}},
 			[]jsontext.Pointer{"/components/schemas/T/properties/a"}},
+		{"an $id-embedded resource names its own", openapitest.ComponentSpec(
+			"    T: {type: object, properties: {a: {$id: 'https://example.com/a', $schema: " + draft04 +
+				", type: integer, minimum: 5, exclusiveMinimum: true}}}\n"),
+			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T/properties/a": {"", "5"}}, nil},
+		{"an embedded resource over its root's", openapitest.ComponentSpec("    T: {$schema: " + draft04 +
+			", type: object, properties: {a: {$id: 'https://example.com/a', $schema: 'https://json-schema.org/draft/2020-12/schema'" +
+			", type: integer, exclusiveMinimum: 5}, b: " + boolean + "}}\n"),
+			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T/properties/a": {"", "5"}, "/components/schemas/T/properties/b": {"", "5"}},
+			nil},
 		{"a 3.0 document names no dialect", openapitest.ComponentSpecVer("3.0.3",
 			"    T: {$schema: 'https://json-schema.org/draft/2020-12/schema', type: integer, exclusiveMinimum: 5}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T"}},

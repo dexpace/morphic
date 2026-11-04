@@ -21,3 +21,11 @@ components:
       $schema: 'https://example.com/dialects/custom'
       type: integer
       exclusiveMinimum: 1
+    Embedding:
+      type: object
+      properties:
+        inner:
+          $id: 'https://example.com/schemas/inner'
+          $schema: 'https://json-schema.org/draft/2020-12/schema'
+          type: integer
+          exclusiveMinimum: 3

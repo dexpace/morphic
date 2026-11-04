@@ -5,6 +5,7 @@ package load
 
 import (
 	"encoding/json/jsontext"
+	"slices"
 
 	yaml "go.yaml.in/yaml/v3"
 
@@ -66,26 +67,28 @@ func (d *dialects) at(version, dialect string) dialectRows {
 	return d.rules[k]
 }
 
-// Dialects is the rows the schemas held by a schema naming its dialect
-// (bind.Document.Dialects) are read with, by each node of that schema's tree.
-// A schema no such schema holds reads its document's rows.
+// Dialects is the rows the schemas a resource root naming its dialect holds
+// (bind.Document.Dialects) are read with, by each node of that root's tree, a
+// root it holds governing its own. A schema no such root holds reads its
+// document's rows.
 type Dialects struct {
 	byNode map[*yaml.Node]oas.SchemaRules
 }
 
-// Of returns the rows the schema whose node is n is read with where a schema
-// holding it, itself included, names its dialect, and false where none does.
-// A node an alias places at several positions reads the first such schema's
-// at all of them, as the documents and their positions sort. No reading today
-// tells one valid node's two dialects apart (GitHub #1457).
+// Of returns the rows the schema whose node is n is read with where a root
+// holding it, itself included, names its dialect, the innermost such root's,
+// and false where none does. A node an alias places at several positions reads
+// one root's at all of them. No reading today tells one valid node's two
+// dialects apart (GitHub #1457).
 func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
 	r, ok := d.byNode[nodeview.Deref(n)]
 	return r, ok
 }
 
 // govern notes that every node of the tree under root, which aliases place
-// there included, reads rules, but those a schema before it governs already.
-// Each node is read once, so the walk is bounded by the document's nodes.
+// there included, reads rules, but those a root governed before it holds.
+// Roots are governed innermost first, so a nested root keeps its own. Each
+// node is read once, so the walk is bounded by the document's nodes.
 func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
 	stack := []*yaml.Node{root}
 	for len(stack) > 0 {
@@ -142,7 +145,9 @@ func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect s
 		if !ok {
 			continue
 		}
-		for _, root := range table.Document(id).Dialects {
+		// Innermost first: a root's pointer extends that of a root holding it,
+		// so it sorts after, and the list is in pointer order.
+		for _, root := range slices.Backward(table.Document(id).Dialects) {
 			r := d.at(version, root.URI)
 			if r.unread {
 				unread(place(bind.Position{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema", root.URI)

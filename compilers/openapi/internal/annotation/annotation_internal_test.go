@@ -204,7 +204,7 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	}
 	assert.Contains(t, said["/components/schemas/S/$id"], "is read only for reference resolution")
 	assert.Contains(t, said["/components/schemas/S/$schema"],
-		"is read only to choose the dialect of a 3.1 or 3.2 schema no other schema holds")
+		"is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots")
 	assert.Contains(t, said["/components/schemas/S/$vocabulary"], "is not honoured for reference resolution")
 }
 

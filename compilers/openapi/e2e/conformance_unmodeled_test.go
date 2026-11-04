@@ -895,8 +895,9 @@ func assertDialectKeywords(t *testing.T, doc *ir.Document, diags []ir.Diagnostic
 // (docs/compilers/openapi.md#dialect-keywords): the document's
 // jsonSchemaDialect, draft 4, where a schema names none, so a boolean bound
 // modifies the bound beside it; a root's own `$schema` over it, its subschemas
-// read alike, with or without the empty fragment; and a dialect the table has
-// no rows for read as 3.1's own, with a warning at the `$schema` naming it.
+// read alike, with or without the empty fragment; a resource an $id embeds
+// naming its own; and a dialect the table has no rows for read as 3.1's own,
+// with a warning at the `$schema` naming it.
 func assertSchemaDialects(t *testing.T, doc *ir.Document, diags []ir.Diagnostic) {
 	scalar := func(name string) *ir.Constraints {
 		s, ok := doc.Types[componentID(name)].(*ir.Scalar)
@@ -917,6 +918,13 @@ func assertSchemaDialects(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
 	require.NotNil(t, count)
 	assert.Nil(t, count.Max)
 	assert.Equal(t, ir.BigVal("100"), *count.ExclusiveMax)
+
+	embedding, ok := doc.Types[componentID("Embedding")].(*ir.Model)
+	require.True(t, ok)
+	require.Len(t, embedding.Properties, 1)
+	inner := embedding.Properties[0].Constraints
+	require.NotNil(t, inner)
+	assert.Equal(t, ir.BigVal("3"), *inner.ExclusiveMin, "2020-12's bound, inside a document defaulting to draft 4")
 
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/unread-dialect", "/components/schemas/Custom/$schema"))

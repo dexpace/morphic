@@ -123,6 +123,75 @@
         "uniqueItems": false
       }
     },
+    "t/openapi/components/schemas/Embedding": {
+      "kind": "model",
+      "id": "t/openapi/components/schemas/Embedding",
+      "name": {
+        "source": "Embedding",
+        "canonical": "embedding"
+      },
+      "anonymous": false,
+      "docs": {},
+      "sensitive": false,
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Embedding"
+      },
+      "properties": [
+        {
+          "id": "p/openapi/components/schemas/Embedding/properties/inner",
+          "name": {
+            "source": "inner",
+            "canonical": "inner"
+          },
+          "wireName": "inner",
+          "type": {
+            "target": "t/prim/integer",
+            "nullable": false
+          },
+          "required": false,
+          "clientOptional": false,
+          "defaultAdded": false,
+          "visibility": {
+            "none": false
+          },
+          "constraints": {
+            "exclusiveMin": "3",
+            "uniqueItems": false
+          },
+          "flatten": false,
+          "eventHeader": false,
+          "eventPayload": false,
+          "secret": false,
+          "docs": {},
+          "unmodeled": {
+            "openapi:$id": {
+              "reason": "out_of_scope",
+              "value": "https://example.com/schemas/inner",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Embedding/properties/inner/$id"
+              }
+            },
+            "openapi:$schema": {
+              "reason": "out_of_scope",
+              "value": "https://json-schema.org/draft/2020-12/schema",
+              "provenance": {
+                "source": 0,
+                "pointer": "/components/schemas/Embedding/properties/inner/$schema"
+              }
+            }
+          },
+          "provenance": {
+            "source": 0,
+            "pointer": "/components/schemas/Embedding/properties/inner"
+          }
+        }
+      ],
+      "abstract": false,
+      "positional": false,
+      "inputOnly": false
+    },
     "t/openapi/components/schemas/Legacy": {
       "kind": "model",
       "id": "t/openapi/components/schemas/Legacy",
@@ -256,7 +325,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of a 3.1 or 3.2 schema no other schema holds, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Bounded/$schema"
@@ -265,7 +334,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of a 3.1 or 3.2 schema no other schema holds, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Legacy/$schema"
@@ -274,10 +343,28 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of a 3.1 or 3.2 schema no other schema holds, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Custom/$schema"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$id identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Embedding/properties/inner/$id"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Embedding/properties/inner/$schema"
       }
     },
     {
@@ -294,7 +381,7 @@
     {
       "format": "openapi@3.1",
       "path": "schema-dialects.yaml",
-      "hash": "a605d40201dd9c7b661d4a5e4ee8ea9b751a5bc388c0732e67d0907ea436c3a5"
+      "hash": "df76c17dd42b06d077a5318e3676a184862767338bfcbacacd88a5586530e087"
     }
   ]
 }

@@ -9,10 +9,10 @@ import (
 	yaml "go.yaml.in/yaml/v3"
 )
 
-// DialectRoot is a schema no other schema holds that names its dialect: where
-// it is, its node, and the URI its `$schema` writes. OAS 3.1 has a `$schema`
-// choose the dialect of the schema it roots
-// (docs/compilers/openapi.md#dialect-keywords).
+// DialectRoot is a schema resource root that names its dialect: a schema no
+// other holds, or one whose $id roots a resource of its own; where it is, its
+// node, and the URI its `$schema` writes. OAS 3.1 has a `$schema` choose the
+// dialect of the resource it roots (docs/compilers/openapi.md#dialect-keywords).
 type DialectRoot struct {
 	Node *yaml.Node
 	URI  string
@@ -23,7 +23,7 @@ type DialectRoot struct {
 // a document's root read at s, the state the document is identified by: a
 // position below a Schema Object, or below the root of a document that is no
 // OpenAPI document, which holds every schema in it. The root of a resource an
-// $id embeds is held so, and names no dialect yet (GitHub #1458).
+// $id embeds is held so, and roots a resource all the same.
 func heldBySchema(s state, tokens []string) bool {
 	for _, token := range tokens {
 		if s == sSchema || s == sLoose {

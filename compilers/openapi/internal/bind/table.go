@@ -379,8 +379,8 @@ func (b *binder) attribute(t *Table) map[Position]Position {
 // Document is a document a table read: its name and its root node. Unreached
 // reports that only a pass that did not stand asked for it, so that nothing the
 // table holds is in it: a reference read it as a location before a later
-// document declared that URI. Dialects is each schema in it no other schema
-// holds that names its dialect, in pointer order.
+// document declared that URI. Dialects is each schema resource root in it
+// that names its dialect, in pointer order.
 type Document struct {
 	Name      string
 	Root      *yaml.Node
