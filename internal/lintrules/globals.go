@@ -16,7 +16,7 @@ import (
 // package under ir, pass, compilers or emitters: a stage holds no mutable state
 // (invariant 5), which is what engine.Engine's concurrent use rests on.
 // Whoever declares the variable, a write is an assignment, ++ or --, an element
-// or field, the address taken, a pointer method called, or delete, clear, copy
+// or field, the address taken, a method that can write called, or delete, clear, copy
 // or append on it, directly or through a local alias. Reads stay legal.
 //
 // The rule reads one package's syntax, so what it cannot see is listed on the
@@ -49,24 +49,23 @@ func (l layout) runGlobalWrites(pass *analysis.Pass) (any, error) {
 
 // afterInit returns the code of f that can run once initialization is over:
 // the body of each function and method but init, and each outermost function
-// literal in a declaration at package level, which can be called later. A
-// literal inside init is init's.
+// literal in a declaration at package level or in init, which can be called
+// later.
 func afterInit(f *ast.File) []ast.Node {
 	var roots []ast.Node
 	for _, d := range f.Decls {
 		fn, isFunc := d.(*ast.FuncDecl)
-		switch {
-		case !isFunc:
-			ast.Inspect(d, func(n ast.Node) bool {
-				lit, isLit := n.(*ast.FuncLit)
-				if isLit {
-					roots = append(roots, lit.Body)
-				}
-				return !isLit
-			})
-		case fn.Body != nil && (fn.Recv != nil || fn.Name.Name != "init"):
+		if isFunc && fn.Body != nil && (fn.Recv != nil || fn.Name.Name != "init") {
 			roots = append(roots, fn.Body)
+			continue
 		}
+		ast.Inspect(d, func(n ast.Node) bool {
+			lit, isLit := n.(*ast.FuncLit)
+			if isLit {
+				roots = append(roots, lit.Body)
+			}
+			return !isLit
+		})
 	}
 	return roots
 }
@@ -153,14 +152,12 @@ func (s globalScope) addressOf(n *ast.UnaryExpr) {
 	}
 }
 
-// pointerMethod reports a method call or method value that makes Go take the
-// address of an operand rooted at a package-level variable: a pointer-receiver
-// method on a value, whether the method is promoted or not, and whether the
-// path to the value crosses a pointer or not. A variable holding a pointer is
-// out of reach, as is a value-receiver method on a named map or slice: the
-// receiver is the variable's value, and the method's own contract decides
-// whether the call is safe, as for (*regexp.Regexp).MatchString. Such a method
-// can write: a counter behind new(atomic.Int64) passes.
+// pointerMethod reports a method call or method value on an operand rooted at a
+// package-level variable, when the method's receiver is a pointer, map or
+// slice, through which it can write what the variable holds. Two receivers known
+// to be read-only stay legal, and an unlisted one draws until it is listed. A
+// method on a struct value or an interface is out of reach, though it can write
+// through a map, slice or pointer the value holds.
 func (s globalScope) pointerMethod(n *ast.SelectorExpr) {
 	sel, ok := s.pass.TypesInfo.Selections[n]
 	if !ok {
@@ -170,29 +167,13 @@ func (s globalScope) pointerMethod(n *ast.SelectorExpr) {
 	if !ok {
 		return // a field
 	}
-	if _, ptr := types.Unalias(fn.Signature().Recv().Type()).(*types.Pointer); !ptr || !receiverIsValue(sel) {
+	recv := fn.Signature().Recv().Type()
+	if !aliasable(recv) || slices.Contains([]string{"*encoding/base64.Encoding", "*regexp.Regexp"}, types.TypeString(recv, nil)) {
 		return
 	}
 	if r, ok := s.rooted(n.X); ok {
-		s.report(n.Sel.Pos(), "calls a pointer method on", r)
+		s.report(n.Sel.Pos(), "calls a method that can write", r)
 	}
-}
-
-// receiverIsValue reports whether the operand a method selection calls its
-// method on, after the embedded fields it promotes the method through, is not
-// a pointer, so that a pointer-receiver method is handed its address.
-func receiverIsValue(sel *types.Selection) bool {
-	t := sel.Recv()
-	path := sel.Index()
-	for _, i := range path[:len(path)-1] {
-		if p, ok := t.Underlying().(*types.Pointer); ok {
-			t = p.Elem()
-		}
-		st, _ := t.Underlying().(*types.Struct) // only a struct embeds
-		t = st.Field(i).Type()
-	}
-	_, ptr := t.Underlying().(*types.Pointer)
-	return !ptr
 }
 
 // builtin reports delete, clear, copy and append on an operand rooted at a
@@ -409,8 +390,9 @@ func pair(lhs, rhs []ast.Expr) []given {
 
 // aliasable reports whether a local of type t shares what it was given: a map,
 // a slice or a pointer. A struct, an array, an interface, a channel and a
-// function are copies or out of reach, and an alias held in one, or reached
-// through a conversion, a type assertion or a function result, is out of sight.
+// function are copies or out of reach, and an alias held in one, or in a slice
+// or map literal, or reached through a conversion, a type assertion or a
+// function result, is out of sight.
 func aliasable(t types.Type) bool {
 	switch t.Underlying().(type) {
 	case *types.Map, *types.Slice, *types.Pointer:

@@ -1,6 +1,7 @@
 package pass
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"regexp"
@@ -46,6 +47,7 @@ var (
 	names                    = map[string]int{}
 	lists                    = map[string][]int{}
 	items                    []int
+	rows                     [][]int
 	pending                  [2]int
 	ledger                   tally
 	boxed                    holder
@@ -63,8 +65,8 @@ var (
 	errNone                  = errors.New("none")
 )
 
-// hook and hooks write from function literals in their initializers, which run
-// after initialization, as init's do not.
+// hook and hooks write from function literals in their initializers, which can
+// run after initialization, as init's own statements do not.
 var hook = func() {
 	counter++ // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
 }
@@ -78,7 +80,10 @@ func init() {
 }
 
 func init() {
-	func() { counter-- }()
+	func() { counter-- }() // want "globalwrites: decrements the package-level variable counter; keep the state in a local or an argument"
+	hook = func() {
+		counter++ // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
+	}
 }
 
 // Assigns writes each variable by assignment.
@@ -130,27 +135,24 @@ func Addresses() {
 	_ = &(counter) // want "globalwrites: takes the address of the package-level variable counter; keep the state in a local or an argument"
 }
 
-// Methods calls pointer methods on values, and not on pointers.
+// Methods calls methods that can write, and not those that cannot.
 func Methods() {
-	ledger.Add()      // want "globalwrites: calls a pointer method on the package-level variable ledger; keep the state in a local or an argument"
-	add := ledger.Add // want "globalwrites: calls a pointer method on the package-level variable ledger; keep the state in a local or an argument"
-	boxed.Add()       // want "globalwrites: calls a pointer method on the package-level variable boxed; keep the state in a local or an argument"
-	shelf.Add()       // want "globalwrites: calls a pointer method on the package-level variable shelf; keep the state in a local or an argument"
-	shelf.tally.Add() // want "globalwrites: calls a pointer method on the package-level variable shelf; keep the state in a local or an argument"
-	tallies[0].Add()  // want "globalwrites: calls a pointer method on the package-level variable tallies; keep the state in a local or an argument"
+	ledger.Add()      // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	add := ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	boxed.Add()       // want "globalwrites: calls a method that can write the package-level variable boxed; keep the state in a local or an argument"
+	shelf.Add()       // want "globalwrites: calls a method that can write the package-level variable shelf; keep the state in a local or an argument"
+	shelf.tally.Add() // want "globalwrites: calls a method that can write the package-level variable shelf; keep the state in a local or an argument"
+	tallies[0].Add()  // want "globalwrites: calls a method that can write the package-level variable tallies; keep the state in a local or an argument"
 	_ = add
-	ledger.Peek() // want "globalwrites: calls a pointer method on the package-level variable ledger; keep the state in a local or an argument"
-	boxedPtr.Add()
-	// A stated limit, not a read: a pointer variable's method can write, and
-	// the rule leaves it to the method's own contract.
-	cursor.Add()
-	// The same limit for a value-receiver method on a named map, whose receiver
-	// is the variable's value.
-	store.Set("a")
+	ledger.Peek()  // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	boxedPtr.Add() // want "globalwrites: calls a method that can write the package-level variable boxedPtr; keep the state in a local or an argument"
+	cursor.Add()   // want "globalwrites: calls a method that can write the package-level variable cursor; keep the state in a local or an argument"
+	store.Set("a") // want "globalwrites: calls a method that can write the package-level variable store; keep the state in a local or an argument"
 	_ = ledger.Get()
 	_ = tally.Get(ledger)
 	_ = (*tally).Add
 	_ = matcher.MatchString("x")
+	_ = base64.StdEncoding.EncodeToString(nil)
 }
 
 // Builtins writes through delete, clear, copy and append.
@@ -194,14 +196,17 @@ func Aliases(k string) {
 	}
 	m = nil
 	l := slab
-	l.Push(1) // want "globalwrites: calls a pointer method on the package-level variable slab through its alias l; keep the state in a local or an argument"
+	l.Push(1) // want "globalwrites: calls a method that can write the package-level variable slab through its alias l; keep the state in a local or an argument"
 	for p := range byPtr {
 		p.n = 1 // want "globalwrites: writes an element or field of the package-level variable byPtr through its alias p; keep the state in a local or an argument"
 	}
 	x, y := names, items
-	y[0] = 2 // want "globalwrites: writes an element or field of the package-level variable items through its alias y; keep the state in a local or an argument"
+	x["b"] = 3 // want "globalwrites: writes an element or field of the package-level variable names through its alias x; keep the state in a local or an argument"
+	y[0] = 2   // want "globalwrites: writes an element or field of the package-level variable items through its alias y; keep the state in a local or an argument"
 	_, _ = ok, k
-	_ = x
+	for _, row := range rows {
+		row[0] = 1 // want "globalwrites: writes an element or field of the package-level variable rows through its alias row; keep the state in a local or an argument"
+	}
 }
 
 // Chain writes through an alias that is bound before its source is.
@@ -214,6 +219,10 @@ func Chain(k int) {
 	var m1 map[string]int
 	(m1) = names
 	m1["a"] = 1 // want "globalwrites: writes an element or field of the package-level variable names through its alias m1; keep the state in a local or an argument"
+
+	var both = names
+	both = shared.Table
+	both["a"] = 1 // want "globalwrites: writes an element or field of the package-level variable names through its alias both; keep the state in a local or an argument"
 }
 
 // Literal writes from a function literal.
