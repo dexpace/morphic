@@ -17,6 +17,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/load"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/compilers/openapi/internal/overlay"
 	"github.com/dexpace/morphic/engine/reader"
 	"github.com/dexpace/morphic/ir"
@@ -151,6 +152,24 @@ func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 	allocs := testing.AllocsPerRun(100, func() { defines = lowering.SchemaRulesIn(c, bind.Source).Defines("nullable") })
 	assert.Zero(t, allocs)
 	assert.False(t, defines, "the 3.1 source defines no nullable")
+}
+
+// TestWithLoaded_ReadsTheSourcesRowsFromTheLoad pins where a context over a
+// loaded document gets the source's rows: the load phase's own
+// (load.Document.Rules), held by identity, so building the context builds no
+// rule table, which alone allocates more than the whole context does. It runs
+// alone, since the allocation counts are the process's.
+func TestWithLoaded_ReadsTheSourcesRowsFromTheLoad(t *testing.T) {
+	c, doc := loadSplit(t, "X: {type: string}\nP: {name: p, in: query}\n")
+	if c.SchemaRules() != doc.Rules {
+		t.Error("the context read rows of its own, not the load phase's")
+	}
+	table := testing.AllocsPerRun(10, func() { _ = oas.Table() })
+	built := testing.AllocsPerRun(10, func() {
+		_ = lowering.New(0, doc.Doc, doc.Source, "", lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{},
+			lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(doc)
+	})
+	assert.Less(t, built, table, "building the context built a rule table")
 }
 
 // TestIDsAt_NamesEachSourceEntrysDocument pins how the IDs of what each

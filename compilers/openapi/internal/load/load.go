@@ -167,6 +167,10 @@ type Document struct {
 	// Others is every document a reference read beside the source, in the
 	// order Document.Sources lists them after the source and its overlay.
 	Others Others
+	// Rules is the Schema Object's rows at the minor the source declares, which
+	// its schemas are read with, from the table the load judged it against: a
+	// document of Others read at that minor shares them.
+	Rules oas.SchemaRules
 }
 
 // Load parses, validates, and resolves one source document. Spec problems
@@ -382,9 +386,10 @@ func buildRecovered(build func() (*soa.OpenAPI, error)) (*soa.OpenAPI, error) {
 }
 
 // SchemaRules returns the Schema Object's rows at the minor doc declares
-// (oas.Spec.SchemaRules), which the lowering reads doc's schemas with, and the
-// zero rows for a nil doc or one declaring a version the table does not cover.
-// It is where the lowering's dialect question meets the version, so no lowering
+// (oas.Spec.SchemaRules), and the zero rows for a nil doc or one declaring a
+// version the table does not cover. It builds the table, so it serves a
+// lowering given no load phase, which has no Document.Rules to read: it is
+// where that lowering's dialect question meets the version, so no lowering
 // reads the version itself.
 func SchemaRules(doc *soa.OpenAPI) oas.SchemaRules {
 	return oas.Table().SchemaRules(doc.GetOpenAPI())

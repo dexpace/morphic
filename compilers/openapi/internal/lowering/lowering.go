@@ -86,12 +86,6 @@ type Ctx struct {
 	// holds the struct to.
 	schemas map[string]bool
 
-	// rules is the Schema Object's rows at the minor the source declares, read
-	// once by New, so no copy of the context reads the version again; another
-	// document's are its load.Other's (SchemaRules). It is one word, which keeps
-	// RefScope's closure in its size class.
-	rules oas.SchemaRules
-
 	// NullableWidening is the nullable-widening policy. It sits before foreign so
 	// the two share a word: RefScope copies the whole context into a closure,
 	// whose size class a field more would move.
@@ -167,8 +161,12 @@ type loadResult struct {
 	// names names the nodes built at the positions of the documents the
 	// bindings read, remembering each name (NameAt).
 	names *naming.Namer
-	// others is every document a reference read beside the source.
+	// others is every document a reference read beside the source, and rules
+	// the Schema Object's rows the source's schemas are read with
+	// (load.Document.Rules): the load phase read both off the one table it
+	// built, so no context builds another.
 	others load.Others
+	rules  oas.SchemaRules
 	// reads holds those readings in the scope fields they fill: Holds over the
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
 	// $refs.
@@ -202,7 +200,6 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		Grouping:         grouping,
 		Limits:           limits,
 		schemas:          declaredSchemaNames(doc),
-		rules:            load.SchemaRules(doc),
 		streaming:        streamingSet(streaming),
 		binary:           binarySet(binary),
 		promoter:         newPromoter(promotions),
@@ -271,7 +268,7 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others,
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rules: doc.Rules,
 		names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}, readings: map[any]any{}}
@@ -444,10 +441,11 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
 // SchemaRules returns the Schema Object's rows a schema c lowers is read with:
 // those of the document whose content c reads, which its scope names
-// (load.Other.Rules), the source's for its own. A reading that differs between
-// minors, such as a boolean exclusiveMinimum, a required `items` or the effect
-// `nullable` has, asks these rather than the version. A version the table does
-// not cover, and a context with no document, answer with the zero rows.
+// (load.Other.Rules), the source's for its own (sourceRules). A reading that
+// differs between minors, such as a boolean exclusiveMinimum, a required
+// `items` or the effect `nullable` has, asks these rather than the version. A
+// version the table does not cover, and a context with no document, answer
+// with the zero rows.
 //
 // The scope, not home, names that document: Declared can read one document's
 // content at another's positions.
@@ -457,7 +455,17 @@ func (c Ctx) SchemaRules() oas.SchemaRules {
 			return o.Rules
 		}
 	}
-	return c.rules
+	return sourceRules(c)
+}
+
+// sourceRules returns the rows the source's schemas are read with: those the
+// load phase read, or, in a context given no load phase, those of the version
+// c.Doc declares, which builds the table on each call.
+func sourceRules(c Ctx) oas.SchemaRules {
+	if c.loaded == nil {
+		return load.SchemaRules(c.Doc)
+	}
+	return c.loaded.rules
 }
 
 // SchemaRulesIn returns the rows the schemas document id of the bindings'
@@ -468,7 +476,7 @@ func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 	if _, o, ok := otherIn(c, id); ok {
 		return o.Rules
 	}
-	return c.rules
+	return sourceRules(c)
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's

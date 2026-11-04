@@ -5,12 +5,12 @@ package load
 
 import "github.com/dexpace/morphic/compilers/openapi/internal/oas"
 
-// dialects reads the minor a document a reference reaches is read at: the one
-// its declared version names, or the source's where the table covers none, as
-// for a bare schema file, which declares no version, or a Swagger 2.0 one. It
-// reads each minor's Schema Object rows from spec once, so the documents
-// declaring a minor share them; a map keyed by minor holds no more entries
-// than the table has minors.
+// dialects reads the minor a document is read at: the source's, and for one a
+// reference reaches the one its declared version names, or the source's where
+// the table covers none, as for a bare schema file, which declares no version,
+// or a Swagger 2.0 one. It reads each minor's Schema Object rows from spec
+// once, so the documents read at a minor share them; a map keyed by minor
+// holds no more entries than the table has minors.
 type dialects struct {
 	spec oas.Spec
 	// version and minor are the source's, which the load phase has admitted.
@@ -33,4 +33,10 @@ func (d *dialects) of(declared string) (version, minor string, rules oas.SchemaR
 	}
 	d.rules[minor] = d.spec.SchemaRules(version)
 	return version, minor, d.rules[minor]
+}
+
+// own returns the Schema Object's rows at the source's minor.
+func (d *dialects) own() oas.SchemaRules {
+	_, _, rules := d.of(d.version)
+	return rules
 }

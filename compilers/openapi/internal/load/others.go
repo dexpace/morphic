@@ -118,7 +118,7 @@ func unreachedKeys(table *bind.Table, resolved map[string]bool) map[string]bool 
 // changes; two names one label reaches, a file spelled two ways, are one
 // document, as RFC 3986 reads a path. Each is read at the minor it declares,
 // one declaring none the table covers at the source's (dialects).
-func newOthers(ctx context.Context, read *externalReads, first int, source dialects, unused map[string]bool) Others {
+func newOthers(ctx context.Context, read *externalReads, first int, source *dialects, unused map[string]bool) Others {
 	read.mu.Lock()
 	defer read.mu.Unlock()
 	byLabel := map[string][]string{}

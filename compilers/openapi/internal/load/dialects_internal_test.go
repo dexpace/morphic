@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 )
@@ -31,4 +32,31 @@ func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 	if _, _, again := d.of("3.0.0"); again != r30 {
 		t.Error("a second document declaring 3.0 built the minor's rows again")
 	}
+}
+
+// TestLoad_TheSourceSharesItsRowsWithADocumentOfItsMinor pins that the load
+// phase reads the source's Schema Object rows off the one table it judged the
+// source against, as it reads each other document's: a document declaring the
+// source's minor holds the same rows, by identity, and one of another minor
+// rows of its own.
+func TestLoad_TheSourceSharesItsRowsWithADocumentOfItsMinor(t *testing.T) {
+	t.Parallel()
+	declaring := func(version string) string {
+		return "openapi: " + version + "\ninfo: {title: E, version: \"1\"}\npaths: {}\n" +
+			"components: {schemas: {S: {type: string}}}\n"
+	}
+	dir := externalDir(t, map[string]string{"same.yaml": declaring("3.1.1"), "other.yaml": declaring("3.0.3")})
+	doc, _ := loadExternal(t, dir, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\npaths: {}\ncomponents:\n"+
+		"  schemas:\n    A: {$ref: 'same.yaml#/components/schemas/S'}\n    B: {$ref: 'other.yaml#/components/schemas/S'}\n",
+		Options{})
+	rules := map[string]oas.SchemaRules{}
+	for _, o := range doc.Others.List() {
+		rules[o.Label] = o.Rules
+	}
+	require.Len(t, rules, 2, "both documents are read")
+	if rules["same.yaml"] != doc.Rules {
+		t.Error("the source's rows were built apart from those of a document of its minor")
+	}
+	assert.True(t, rules["other.yaml"].Defines("nullable"))
+	assert.False(t, doc.Rules.Defines("nullable"))
 }
