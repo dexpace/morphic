@@ -56,14 +56,14 @@ func declaring(version string) string {
 // minorResponse is a response every minor admits.
 const minorResponse = "{description: ok}"
 
-// compileMinors compiles root beside ext, read from memory, with the
-// nullable-widening policy off where off says.
-func compileMinors(t *testing.T, root, ext string, off bool) (*ir.Document, []ir.Diagnostic) {
+// compileMinors compiles root beside ext, read from memory, under the
+// nullable-widening policy widening.
+func compileMinors(t *testing.T, root, ext string, widening openapi.NullableWidening) (*ir.Document, []ir.Diagnostic) {
 	t.Helper()
 	dir := t.TempDir()
 	memory, err := reader.NewMemory([]compilers.Source{{Path: filepath.Join(dir, "ext.yaml"), Data: []byte(ext)}})
 	require.NoError(t, err)
-	opts := openapi.Options{AllowExternalRefs: true, NullableWidening: openapi.NullableWidening{Disabled: off}}
+	opts := openapi.Options{AllowExternalRefs: true, NullableWidening: widening}
 	doc, diags, err := openapi.New().Compile(t.Context(),
 		[]compilers.Source{{Path: filepath.Join(dir, "root.yaml"), Data: []byte(root)}},
 		compilers.Options{Reader: memory, FormatOptions: opts})
@@ -107,55 +107,48 @@ func TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares(t *testing.T) {
 	t.Parallel()
 	const exclusive30 = "    S: {type: integer, minimum: 5, exclusiveMinimum: true}\n"
 	const exclusive31 = "    S: {type: integer, exclusiveMinimum: 5}\n"
-	boundOnS := func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-		t.Helper()
-		assert.Equal(t, map[jsontext.Pointer]ir.BigVal{"/components/schemas/S": "5"}, extBounds(doc))
-	}
+	onS := map[jsontext.Pointer]ir.BigVal{"/components/schemas/S": "5"}
+	none := map[jsontext.Pointer]ir.BigVal{}
 	for _, tc := range []struct {
 		name, root, ext, format string
-		check                   func(t *testing.T, doc *ir.Document, diags []ir.Diagnostic)
+		// bounds is each exclusive lower bound ext.yaml's scalars carry, by
+		// position, and items where ext.yaml draws a missing-items warning.
+		bounds map[jsontext.Pointer]ir.BigVal
+		items  []jsontext.Pointer
 	}{
 		{"a 3.0 root reaching a 3.1 response", minorRoot("3.0.3"),
 			minorExt(declaring("3.1.0"), exclusive31,
 				"{description: ok, content: {application/json: {schema: {type: integer, exclusiveMinimum: 5}}}}"),
-			"openapi@3.1", func(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
-				assert.Equal(t, map[jsontext.Pointer]ir.BigVal{
-					"/components/schemas/S": "5", "/components/responses/R/content/application~1json/schema": "5",
-				}, extBounds(doc))
-			}},
+			"openapi@3.1", map[jsontext.Pointer]ir.BigVal{
+				"/components/schemas/S": "5", "/components/responses/R/content/application~1json/schema": "5",
+			}, nil},
 		{"a 3.1 root reaching a 3.0 schema", minorRoot("3.1.0"), minorExt(declaring("3.0.3"), exclusive30, minorResponse),
-			"openapi@3.0", boundOnS},
+			"openapi@3.0", onS, nil},
 		{"a 3.0 array without items reached from 3.1", minorRoot("3.1.0"),
-			minorExt(declaring("3.0.3"), "    S: {type: array}\n", minorResponse), "openapi@3.0",
-			func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
-				assert.Equal(t, []jsontext.Pointer{"/components/schemas/S"}, extFindings(diags, diag.MissingArrayItems))
-			}},
+			minorExt(declaring("3.0.3"), "    S: {type: array}\n", minorResponse), "openapi@3.0", none,
+			[]jsontext.Pointer{"/components/schemas/S"}},
 		{"a 3.1 array without items reached from 3.0", minorRoot("3.0.3"),
-			minorExt(declaring("3.1.0"), "    S: {type: array}\n", minorResponse), "openapi@3.1",
-			func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
-				assert.Empty(t, openapitest.PointersOf(diags, diag.MissingArrayItems))
-			}},
-		{"a 3.2 response reached from 3.1", minorRoot("3.1.0"),
+			minorExt(declaring("3.1.0"), "    S: {type: array}\n", minorResponse), "openapi@3.1", none, nil},
+		{"a 3.2 response with no description reached from 3.1", minorRoot("3.1.0"),
 			minorExt(declaring("3.2.0"), exclusive31, "{content: {application/json: {schema: {type: string}}}}"),
-			"openapi@3.2", func(t *testing.T, _ *ir.Document, diags []ir.Diagnostic) {
-				assert.Empty(t, openapitest.PointersOf(diags, diag.Validation+"/validation-required-field"))
-			}},
+			"openapi@3.2", onS, nil},
 		{"a bare file reached from 3.0", minorRoot("3.0.3"), minorExt("", exclusive30, minorResponse), "openapi@3.0",
-			boundOnS},
+			onS, nil},
 		{"a bare file reached from 3.1", minorRoot("3.1.0"), minorExt("", exclusive31, minorResponse), "openapi@3.1",
-			boundOnS},
+			onS, nil},
 		{"a version the table does not cover", minorRoot("3.1.0"), minorExt(declaring("3.3.0"), exclusive31, minorResponse),
-			"openapi@3.1", boundOnS},
+			"openapi@3.1", onS, nil},
 		{"a Swagger 2.0 file", minorRoot("3.1.0"),
 			minorExt("swagger: \"2.0\"\ninfo: {title: Ext, version: \"1\"}\npaths: {}\n", exclusive31, minorResponse),
-			"openapi@3.1", boundOnS},
+			"openapi@3.1", onS, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileMinors(t, tc.root, tc.ext, false)
+			doc, diags := compileMinors(t, tc.root, tc.ext, openapi.NullableWidening{})
 			openapitest.RequireNoErrorDiags(t, diags)
 			assert.Equal(t, tc.format, doc.Sources[1].Format)
-			tc.check(t, doc, diags)
+			assert.Equal(t, tc.bounds, extBounds(doc))
+			assert.Equal(t, tc.items, extFindings(diags, diag.MissingArrayItems))
 		})
 	}
 }
@@ -167,7 +160,7 @@ func TestDocumentMinor_AnObjectIsHeldToItsDocumentsTable(t *testing.T) {
 	t.Parallel()
 	_, diags := compileMinors(t, minorRoot("3.2.0"),
 		minorExt(declaring("3.1.0"), "    S: {type: string}\n", "{content: {application/json: {schema: {type: string}}}}"),
-		false)
+		openapi.NullableWidening{})
 	var found []string
 	for _, d := range diags {
 		if d.Code == diag.Validation+"/validation-required-field" {
@@ -210,7 +203,7 @@ func TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			doc, diags := compileMinors(t, tc.root, tc.ext, true)
+			doc, diags := compileMinors(t, tc.root, tc.ext, openapi.NullableWidening{Disabled: true})
 			openapitest.RequireNoErrorDiags(t, diags)
 			p := holderProps(t, doc)["p"].Type
 			assert.Equal(t, tc.nullable, p.Nullable)
@@ -242,7 +235,8 @@ components:
         p: {$ref: '#/components/schemas/H'}
 `
 	defaultOf := func(alias string) *ir.Value {
-		doc, diags := compileMinors(t, root, minorExt(declaring("3.1.0"), alias+"    U: {default: null}\n", minorResponse), false)
+		ext := minorExt(declaring("3.1.0"), alias+"    U: {default: null}\n", minorResponse)
+		doc, diags := compileMinors(t, root, ext, openapi.NullableWidening{})
 		openapitest.RequireNoErrorDiags(t, diags)
 		m, ok := doc.Types[componentID("M")].(*ir.Model)
 		require.True(t, ok)
@@ -286,7 +280,7 @@ components:
 	require.NoError(t, err)
 	require.NotNil(t, doc)
 	openapitest.RequireNoErrorDiags(t, diags)
-	var formats []string
+	formats := make([]string, 0, len(doc.Sources))
 	for _, src := range doc.Sources {
 		formats = append(formats, src.Format)
 	}

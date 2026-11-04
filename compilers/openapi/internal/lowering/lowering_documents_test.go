@@ -147,12 +147,10 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 // process's.
 func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
 	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
-	allocs := testing.AllocsPerRun(100, func() {
-		if lowering.SchemaRulesIn(c, bind.Source).Defines("nullable") {
-			t.Fatal("the 3.1 source defines no nullable")
-		}
-	})
+	var defines bool
+	allocs := testing.AllocsPerRun(100, func() { defines = lowering.SchemaRulesIn(c, bind.Source).Defines("nullable") })
 	assert.Zero(t, allocs)
+	assert.False(t, defines, "the 3.1 source defines no nullable")
 }
 
 // TestIDsAt_NamesEachSourceEntrysDocument pins how the IDs of what each

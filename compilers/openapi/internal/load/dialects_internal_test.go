@@ -27,5 +27,5 @@ func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 		assert.False(t, r.Defines("nullable"), "%q", declared)
 	}
 	_, _, again := d.of("3.0.0")
-	assert.Equal(t, r30, again, "the minor's rows are built once")
+	assert.True(t, again == r30, "the minor's rows are built once")
 }
