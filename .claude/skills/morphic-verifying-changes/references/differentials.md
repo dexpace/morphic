@@ -146,6 +146,31 @@ whether the answer means anything.
 - **Probe.** `<bin> <args> > out 2> err; echo $?` for each invocation on each build, then `diff` the
   two transcripts.
 
+## Answer an unchanged build's reruns from the IR cache
+`cached-control`
+
+- **Rule.** A build rerun over one spec, such as `main`'s side of repeated sweeps, takes
+  `--cache-dir <dir>`, after `--` for `scripts/sweep.py`; a build of changed code misses, so only
+  an unchanged side gains. The key holds the spec's path and the working directory, so keep both
+  fixed. A cost measurement never takes the flag, as it would time the hit.
+- **Why.** Golden `validate` on one thread, the collector on, took 103.7G instructions (101.1 to
+  104.5) uncached and 9.47G (9.46 to 9.58) on a hit (#1304), diagnostics identical (spec
+  @d04a1ddd, morphic @c1d984a06).
+- **Probe.** Run twice over one cache directory and once without: the outputs match, and the
+  directory's `stored.ledger` holds one line per build and spec.
+
+## Keep the IR cache from a build its key cannot name
+`cache-key-names-the-executable`
+
+- **Rule.** A binary selecting its mutant by an environment variable never takes `--cache-dir`, and
+  no binary is rebuilt while a run of it starts with the flag.
+- **Why.** The key names a build by its executable's bytes and holds no environment (#1304): a run
+  setting `ZZMUT=1`, which selected a mutant, got the document an unset run had stored, and an unset
+  run got the mutant's when the mutant ran first (morphic @c1d984a06). A run that starts as its
+  binary is replaced stores under the new build (#1318).
+- **Probe.** Plant a mutant behind a variable and run it set and unset over one cache directory:
+  both runs print the first one's document.
+
 ## A real-world corpus guards against regressions; it does not prove a fix
 `corpus-is-a-guard`
 
