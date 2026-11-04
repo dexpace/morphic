@@ -67,7 +67,7 @@ func lowerUnder(t *testing.T, spec string, limit budget.Limit) ([]ir.Operation, 
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).WithLoaded(loadedDoc)
 	schemes, _ := auth.LowerSecuritySchemes(c)
 	svc, _, _ := operation.LowerService(t.Context(), c, compile.NewTypes(), servers.NewRegistry(), schemes)
-	var ops []ir.Operation
+	ops := make([]ir.Operation, 0, 3)
 	for _, g := range svc.Groups {
 		ops = append(ops, g.Operations...)
 	}
