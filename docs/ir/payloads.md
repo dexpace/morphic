@@ -57,7 +57,8 @@ type Content struct {
 type PartEncoding struct {
     ContentTypes []string          // media type(s) of this part
     Headers      []Header          // per-part headers
-    Multi        bool              // part repeats (array member → repeated parts)
+    Multi        bool              // part repeats, or may: an array member, or a union with a
+                                   // list among its variants → repeated parts
     Filename     bool              // part carries a filename (file part)
     Inferred     Inferred          // "" = the source declares the part a file; else the heuristics
                                    // that read Filename in (OpenAPI's binary media types), so a

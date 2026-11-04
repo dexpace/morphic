@@ -3232,17 +3232,23 @@ a scalar whose bases end in one of those or in no base, they are read off that t
 `allOf` merge settled on, of the declaration the key names: `Multi` where it ends in a list or
 tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`) or, in a multipart body, in
 a list or tuple every element of which ends in `bytes` no encoding such as `format: byte`
-re-encodes, a tuple's rest included where elements may follow its prefix. For a property
-of any other kind, such as a union, enum, literal, model or map, and for a body with no model, they
-are read from every declaration of the part's name: `Multi` where any is an array, `Filename` where
-any is a `string` with `format` `binary` or `byte`. In a multipart body a part is a file too where
-every declaration of it, or each element of an array it declares, its `prefixItems` and the
-`items` after them, `items: false` admitting none, reads so as a body's schema does
-([`file-bodies`](#file-bodies)): one declaring raw bytes; one leaving its media type to say, where
-its encoding entry's `contentType` names only `application/octet-stream` or media types the binary
-policy names ([`binary-media`](#binary-media)), `PartEncoding.Inferred` being `binary-media-type`
-where it names one of the latter; and, from OpenAPI 3.1 and with no `contentType`, one writing no
-`type`, whose default content type OpenAPI makes `application/octet-stream`. A `string` part with
+re-encodes, a tuple's rest included where elements may follow its prefix. A union is read off its
+variants, through the unions nested in them, each as such a type is and one of another kind as
+neither: `Multi` where any is, since a part that may repeat travels as repeated parts, and
+`Filename` where every one is. For a property of any other kind, such as an enum, literal, model or
+map, for a union reaching more nested unions than a bound of its own, and for a body with no model,
+they are read from every declaration of the part's name: `Multi` where any is an array, or writes
+no `type` and a union with an array among its branches, `Filename` where any is a `string` with
+`format` `binary` or `byte`. In a multipart body a part is a file too where every declaration of
+it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an array through each of its
+elements, its `prefixItems` and the `items` after them, `items: false` admitting none, and a union
+writing no `type` beside it with an array among its branches through each branch as a body's union
+branch is read, an array branch through its elements: one declaring raw bytes; one leaving its
+media type to say, where its encoding entry's `contentType` names only `application/octet-stream`
+or media types the binary policy names ([`binary-media`](#binary-media)),
+`PartEncoding.Inferred` being `binary-media-type` where it names one of the latter; and, from
+OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose default content type OpenAPI
+makes `application/octet-stream`. A `string` part with
 neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
 default disagrees, and an array writing no `items` says nothing of its elements past its prefix, so
 neither is a file. A part is entered only when its `PartEncoding` holds something, so a body that
@@ -3274,12 +3280,13 @@ any case.
   `operation.TestPartEncodings_CappedEntryReachedByAnotherPath`,
   `operation.TestPartEncodings_CutPastReachedPart`,
   `operation.TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles`,
+  `operation.TestPartTypeFlags_AUnionReadsThroughItsMembers`,
+  `operation.TestPartEncoding_AMergedUnionReadsThroughItsVariants`,
   `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); a part's own
-  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); a part
-  declared as a union whose branches are files or lists of files is no file part (#1448); and an
+  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); and an
   encoding under a media type it does not apply to is kept in no form (#1047).
 
 ### `encoding-allow-reserved`

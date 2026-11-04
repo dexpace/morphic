@@ -314,7 +314,69 @@ func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), prop *ir.Property, pe ir
 	return pe
 }
 
-// partTypeFlags reads the structural flags of a part from its type: multi when
+// partTypeFlags reads the structural flags of a part from its type, as
+// memberFlags does, or, for a union, from each of its members (unionMembers):
+// multi where any is, since a part that may repeat travels as repeated parts,
+// and file where every one is, a member memberFlags cannot answer for being
+// neither. decided is false where memberFlags cannot answer, or the union's
+// members are not read.
+func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
+	td, found := node(ref.Target)
+	union, isUnion := td.(*ir.Union)
+	if !found || !isUnion {
+		return memberFlags(node, ref, multipart)
+	}
+	members, ok := unionMembers(node, union)
+	if !ok {
+		return false, false, false
+	}
+	file = len(members) > 0
+	for _, member := range members {
+		memberMulti, memberFile, _ := memberFlags(node, member, multipart)
+		multi, file = multi || memberMulti, file && memberFile
+	}
+	return multi, file, true
+}
+
+// maxPartUnions bounds the unions unionMembers reads through (styleguide
+// bounded-everything rule). A part reaching more is read off its declarations,
+// as a part of a kind memberFlags cannot answer for is.
+const maxPartUnions = 64
+
+// unionMembers returns the variants of union through the unions nested in it,
+// each read once, so a union naming itself ends. ok is false where a variant
+// names no node or more than maxPartUnions unions are read.
+func unionMembers(node func(ir.TypeID) (ir.TypeDef, bool), union *ir.Union) (members []ir.TypeRef, ok bool) {
+	pending := []*ir.Union{union}
+	seen := map[ir.TypeID]bool{}
+	for range maxPartUnions {
+		if len(pending) == 0 {
+			return members, true
+		}
+		next := pending[0]
+		pending = pending[1:]
+		for _, v := range next.Variants {
+			td, found := node(v.Type.Target)
+			if !found {
+				return nil, false
+			}
+			nested, isUnion := td.(*ir.Union)
+			switch {
+			case !isUnion:
+				members = append(members, v.Type)
+			case !seen[v.Type.Target]:
+				seen[v.Type.Target] = true
+				pending = append(pending, nested)
+			}
+		}
+	}
+	if len(pending) > 0 {
+		return nil, false
+	}
+	return members, true
+}
+
+// memberFlags reads the structural flags of a part from its type: multi when
 // it is a list or tuple, file when it is bytes, following the alias scalars a
 // hoisted position or `format: byte` puts over the primitive, or, in a
 // multipart body, a list or tuple whose every element is raw bytes (rawBytes,
@@ -322,7 +384,7 @@ func partFlags(node func(ir.TypeID) (ir.TypeDef, bool), prop *ir.Property, pe ir
 // files (GitHub #1214). decided reports that the walk judged the type; false
 // means the type is a kind it cannot answer for. The walk is bounded by
 // maxBodyAliasHops.
-func partTypeFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
+func memberFlags(node func(ir.TypeID) (ir.TypeDef, bool), ref ir.TypeRef, multipart bool) (multi, file, decided bool) {
 	id := ref.Target
 	for range maxBodyAliasHops {
 		td, found := node(id)
@@ -365,7 +427,7 @@ func buildPartEncoding(c lowering.Ctx, ts *compile.Types, part bodyPart, encMap 
 	}
 	for _, js := range part.schemas {
 		if ps := schemaOf(c.Bindings(), js); ps != nil {
-			pe.Multi = pe.Multi || schemaIsArray(ps)
+			pe.Multi = pe.Multi || declaresArray(c.Bindings(), ps)
 			pe.Filename = pe.Filename || schemaIsFilePart(ps)
 		}
 	}
@@ -380,6 +442,19 @@ func schemaIsFilePart(s *oas3.Schema) bool {
 		return false
 	}
 	return slices.Contains(s.GetType(), oas3.SchemaTypeString)
+}
+
+// declaresArray reports whether s declares a repeated part: the array type on
+// s, or, where s writes no type of its own, which would hold beside every
+// branch, on a branch of a union it writes, a part that may repeat traveling as
+// repeated parts.
+func declaresArray(refs *typed.Bindings, s *oas3.Schema) bool {
+	if len(withoutNull(s.GetType())) > 0 {
+		return schemaIsArray(s)
+	}
+	return slices.ContainsFunc(slices.Concat(s.GetAnyOf(), s.GetOneOf()), func(branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+		return schemaIsArray(schemaOf(refs, branch))
+	})
 }
 
 // schemaIsArray reports whether a schema declares the array type (a repeated

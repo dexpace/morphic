@@ -48,6 +48,9 @@ func assertMultipartEncoding(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) 
 	}
 	assert.True(t, sawFile, "binary file part carries Filename")
 	assert.True(t, sawMulti, "array part carries Multi")
+	labels, ok := enc[ir.PropID("p/openapi/paths/~1upload/post/requestBody/content/multipart~1form-data/schema/properties/labels")]
+	assert.True(t, ok, "a part of one value or a list of them has an entry")
+	assert.Equal(t, ir.PartEncoding{Multi: true}, labels, "and repeats")
 	assertPartHeaders(t, doc, fileHeaders)
 	assertFormPartStyle(t, doc)
 	assertComposedPartEncoding(t, doc)
@@ -196,6 +199,7 @@ func assertFileMedia(t *testing.T, doc *ir.Document, _ []ir.Diagnostic) {
 	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["files"])
 	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["attachments"])
 	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["pair"])
+	assert.Equal(t, ir.PartEncoding{Multi: true, Filename: true}, parts["fileOrFiles"], "one file or a list of them")
 	assert.Equal(t, ir.PartEncoding{ContentTypes: []string{"image/png", "image/jpeg"}, Filename: true,
 		Inferred: "binary-media-type"}, parts["profileImage"])
 	assert.NotContains(t, parts, "avatar", "a string part is text, whatever media type it names")

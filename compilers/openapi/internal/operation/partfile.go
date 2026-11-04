@@ -33,23 +33,15 @@ func (f partFile) apply(pe ir.PartEncoding) ir.PartEncoding {
 
 // readPartFile reads part, a part of a multipart body or not as multipart says,
 // as a file (docs/compilers/openapi.md#multipart-encoding): every declaration
-// of it, or each element of an array or tuple it declares (partElements), must
-// read so, as fileFor judges it. Only a multipart part can carry raw bytes. A
-// union is read as a body's is, so one with a list of files among its branches
-// is no file (GitHub #1448).
+// of it must read so (readDeclaration), as fileFor judges it. Only a multipart
+// part can carry raw bytes.
 func readPartFile(c lowering.Ctx, part bodyPart, contentTypes []string, multipart bool) partFile {
 	if !multipart || len(part.schemas) == 0 {
 		return partFile{}
 	}
 	least := readsBinary
 	for _, js := range part.schemas {
-		elems, ok := partElements(c, js)
-		if !ok {
-			return partFile{}
-		}
-		for _, elem := range elems {
-			least = min(least, readFile(c, elem))
-		}
+		least = min(least, readDeclaration(c, js))
 	}
 	return fileFor(c, least, contentTypes)
 }
@@ -72,25 +64,82 @@ func fileFor(c lowering.Ctx, least fileReading, contentTypes []string) partFile 
 	}
 }
 
-// partElements returns the schemas the values of a part declared by js have:
-// an array's prefixItems and the items following them, items false admitting
-// none, else js alone. An array writing no items is not read, so ok is false:
-// what the elements past its prefix are is left unsaid, not said to be
-// anything. Neither is one admitting no element at all.
-func partElements(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) ([]*oas3.JSONSchema[oas3.Referenceable], bool) {
+// readDeclaration reads js, one declaration of a part, as a file: an array
+// through its elements (readElements); a union with an array among its
+// branches as a body's union is read, an array branch through its elements
+// (readArrayUnion); else as a body's schema is (readFile).
+func readDeclaration(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable]) fileReading {
 	s := schemaOf(c.Bindings(), js)
-	if s == nil || !slices.Equal(withoutNull(s.GetType()), []oas3.SchemaType{oas3.SchemaTypeArray}) {
-		return []*oas3.JSONSchema[oas3.Referenceable]{js}, true
+	switch {
+	case isArraySchema(s):
+		return readElements(c, s)
+	case unionOfArrays(c, js, s):
+		return readArrayUnion(c, slices.Concat(s.GetAnyOf(), s.GetOneOf()))
+	default:
+		return readFile(c, js)
 	}
+}
+
+// isArraySchema reports whether s writes the type array, alone or with null.
+func isArraySchema(s *oas3.Schema) bool {
+	return s != nil && slices.Equal(withoutNull(s.GetType()), []oas3.SchemaType{oas3.SchemaTypeArray})
+}
+
+// readElements reads the elements of the array s as one: its prefixItems and
+// the items following them, items false admitting none. An array writing no
+// items reads as other, as one admitting no element does: what its elements
+// past its prefix are is left unsaid, not said to be anything.
+func readElements(c lowering.Ctx, s *oas3.Schema) fileReading {
 	items := s.GetItems()
 	if !annotation.Written(items) {
-		return nil, false
+		return readsOther
 	}
 	elems := slices.Clone(s.GetPrefixItems())
 	if !annotation.IsFalseSchema(items) {
 		elems = append(elems, items)
 	}
-	return elems, len(elems) > 0
+	if len(elems) == 0 {
+		return readsOther
+	}
+	least := readsBinary
+	for _, elem := range elems {
+		least = min(least, readFile(c, elem))
+	}
+	return least
+}
+
+// unionOfArrays reports whether s, which js declares, is a union with an array
+// among its branches, writing beside it, and beside each $ref to it, only what a
+// file's schema may (openKeyword) and no type, which would hold beside every
+// branch. Any other union is read as a body's is (readFile).
+func unionOfArrays(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema) bool {
+	if s == nil || len(withoutNull(s.GetType())) > 0 || !writesOnlyOpenKeywords(s, true /* unions */) ||
+		!besideRefsOpen(c.Bindings(), js) {
+		return false
+	}
+	return slices.ContainsFunc(slices.Concat(s.GetAnyOf(), s.GetOneOf()), func(branch *oas3.JSONSchema[oas3.Referenceable]) bool {
+		return isArraySchema(schemaOf(c.Bindings(), branch))
+	})
+}
+
+// readArrayUnion reads the branches of a union with an array among them as
+// readUnion does, the least of them, an array branch through its elements
+// (readElements) and any other as one branch (readBranch). A branch admitting
+// only null is passed over; an array branch is never one, so some branch is
+// read.
+func readArrayUnion(c lowering.Ctx, branches []*oas3.JSONSchema[oas3.Referenceable]) fileReading {
+	least := readsBinary
+	for _, branch := range branches {
+		bs := schemaOf(c.Bindings(), branch)
+		switch {
+		case admitsOnlyNull(bs):
+		case isArraySchema(bs):
+			least = min(least, readElements(c, bs))
+		default:
+			least = min(least, readBranch(c, branch))
+		}
+	}
+	return least
 }
 
 // partContentFile reads a part whose schema leaves its media type to say, and

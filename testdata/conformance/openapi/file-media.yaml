@@ -61,6 +61,11 @@ paths:
                     - {type: string, format: binary}
                     - {type: string, format: binary}
                   items: false
+                # One file or a list of them: file parts that may repeat.
+                fileOrFiles:
+                  oneOf:
+                    - {type: string, format: binary}
+                    - {type: array, items: {type: string, format: binary}}
                 # A part whose encoding names only binary media types.
                 profileImage: {}
                 # contentMediaType without contentEncoding leaves the part

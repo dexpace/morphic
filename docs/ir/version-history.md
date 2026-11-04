@@ -285,8 +285,11 @@ it sees. Changes made together in one bump are listed together under it.
   schemas and raw bytes; a schema declaring `format: binary` with no `type`; a multipart part, or
   each element of an array part (its `prefixItems` and the `items` after them), declaring raw bytes,
   writing no `type` from 3.1, or saying no more than that it is a string while its encoding entry
-  names `application/octet-stream` alone; and each item of a multipart sequential body read so off
-  `itemSchema` and `itemEncoding`, with an `ItemEncoding` saying so where none is written. Marked
+  names `application/octet-stream` alone; a union part whose every value is one of those, read off
+  its variants, or each branch of its declaration, an array branch through its elements; and each
+  item of a multipart sequential body read so off `itemSchema` and `itemEncoding`, with an
+  `ItemEncoding` saying so where none is written. A union part with a list or tuple among its
+  variants, file or not, has `Multi`. Marked
   `binary-media-type`: such a body, or such a part or item through its encoding's `contentType`, on
   a media type the compiler's binary policy names
   ([`binary-media`](../compilers/openapi.md#binary-media)). A `false` schema on

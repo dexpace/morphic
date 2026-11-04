@@ -15,9 +15,10 @@ import (
 )
 
 // filePart compiles a version body of media type mediaType whose one part, file,
-// is declared part and encoded encoding ("" for no entry), under opts, beside a
-// component Blob of raw bytes. It returns the part's entry, ok false where it
-// has none.
+// is declared part and encoded encoding ("" for no entry), under opts, beside
+// components Blob of raw bytes, Untypeds, an array of untyped items, and
+// Untyped, a union of an untyped value and Untypeds. It returns the part's
+// entry, ok false where it has none.
 func filePart(t *testing.T, version, mediaType, part, encoding string, opts openapi.Options) (ir.PartEncoding, bool) {
 	t.Helper()
 	enc := ""
@@ -35,6 +36,8 @@ func filePart(t *testing.T, version, mediaType, part, encoding string, opts open
 components:
   schemas:
     Blob: {type: string, format: binary}
+    Untypeds: {type: array, items: {}}
+    Untyped: {oneOf: [{}, {$ref: '#/components/schemas/Untypeds'}]}
 `), opts)
 	entries := openapitest.FindOp(t, doc, "upload").Request.Contents[0].Encoding
 	require.LessOrEqual(t, len(entries), 1, "one part is at most one entry")
@@ -49,7 +52,9 @@ components:
 // version's default media type, in a multipart body: raw bytes, an array or a
 // tuple of them, an untyped part from 3.1 and a part whose encoding names only
 // binary types are files, and a part saying it is text is none, as a
-// url-encoded one never is beyond what its own bytes say (GitHub #1214).
+// url-encoded one never is beyond what its own bytes say (GitHub #1214). A
+// union with an array among its branches repeats, and is files where each of
+// its values reads so, an array branch's through its elements.
 func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 	t.Parallel()
 	const (
@@ -57,6 +62,7 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 		multipart = "multipart/form-data"
 		form      = "application/x-www-form-urlencoded"
 		binary    = "{type: string, format: binary}"
+		strings   = "{oneOf: [{type: string}, {type: array, items: {type: string}}]}"
 	)
 	disabled := openapi.Options{BinaryMedia: openapi.BinaryMedia{Disabled: true}}
 	for _, tc := range []struct {
@@ -119,6 +125,43 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 		{"a union of raw bytes and a string", "3.1.0", multipart, "{oneOf: [" + binary + ", {type: string}]}", "",
 			openapi.Options{}, false, false, ""},
 		{"a string around an untyped union", "3.1.0", multipart, "{type: string, anyOf: [{}, {maxLength: 9}]}", "",
+			openapi.Options{}, false, false, ""},
+		{"a union of a file and an array of files", "3.1.0", multipart,
+			"{oneOf: [" + binary + ", {type: array, items: " + binary + "}]}", "", openapi.Options{}, true, true, ""},
+		{"a form's union of a file and an array of files", "3.1.0", form,
+			"{oneOf: [" + binary + ", {type: array, items: " + binary + "}]}", "", openapi.Options{}, false, true, ""},
+		{"a union of a string and an array of strings", "3.1.0", multipart, strings, "", openapi.Options{}, false, true, ""},
+		{"a form's union of a string and an array of strings", "3.1.0", form, strings, "", openapi.Options{}, false, true, ""},
+		{"a union of strings of a binary type", "3.1.0", multipart, strings, "{contentType: image/png}",
+			openapi.Options{}, true, true, marker},
+		{"a union of untyped values", "3.1.0", multipart, "{anyOf: [{}, {type: array, items: {}}]}", "",
+			openapi.Options{}, true, true, ""},
+		{"a union of untyped values in 3.0", "3.0.3", multipart, "{anyOf: [{}, {type: array, items: {}}]}", "",
+			openapi.Options{}, false, true, ""},
+		{"a union of null and an array of untyped values", "3.1.0", multipart,
+			"{anyOf: [{type: 'null'}, {type: array, items: {}}]}", "", openapi.Options{}, true, true, ""},
+		{"a union with a true branch and an array", "3.1.0", multipart, "{oneOf: [true, {type: array, items: {}}]}", "",
+			openapi.Options{}, true, true, ""},
+		{"a union of null alone", "3.1.0", multipart, "{anyOf: [{type: 'null'}]}", "", openapi.Options{}, false, false, ""},
+		{"a union with an array and a nested union", "3.1.0", multipart,
+			"{oneOf: [{anyOf: [{}, {}]}, {type: array, items: {}}]}", "", openapi.Options{}, false, true, ""},
+		{"a union with an array writing no items", "3.1.0", multipart, "{oneOf: [{}, {type: array}]}", "",
+			openapi.Options{}, false, true, ""},
+		{"a union with an array beside contentEncoding", "3.1.0", multipart,
+			"{oneOf: [{}, {type: array, items: {}}], contentEncoding: base64}", "", openapi.Options{}, false, true, ""},
+		{"an object written beside a union with an array", "3.1.0", multipart,
+			"{type: object, oneOf: [{}, {type: array, items: {}}]}", "", openapi.Options{}, false, false, ""},
+		{"a union with a $ref to an array", "3.1.0", multipart,
+			"{oneOf: [{}, {$ref: '#/components/schemas/Untypeds'}]}", "", openapi.Options{}, true, true, ""},
+		{"a $ref to a union with an array", "3.1.0", multipart, "{$ref: '#/components/schemas/Untyped'}", "",
+			openapi.Options{}, true, true, ""},
+		{"a $ref to a union with an array beside contentEncoding", "3.1.0", multipart,
+			"{$ref: '#/components/schemas/Untyped', contentEncoding: base64}", "", openapi.Options{}, false, true, ""},
+		{"a type array with an array", "3.1.0", multipart, "{type: [array, string], items: {type: string}}", "",
+			openapi.Options{}, false, true, ""},
+		{"a type array of binary", "3.1.0", multipart, "{type: [string, integer], format: binary}", "",
+			openapi.Options{}, true, false, ""},
+		{"a type array of base64 and an integer", "3.1.0", multipart, "{type: [string, integer], format: byte}", "",
 			openapi.Options{}, false, false, ""},
 		{"a binary type with the policy off", "3.1.0", multipart, "{}", "{contentType: image/png}",
 			disabled, false, false, ""},
