@@ -29,6 +29,11 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
   sake. Which unit the runtime renders into is #1489's to decide.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
+A unit's package segment is its words in lowercase, joined with no separator (`useraccounts`), as
+Go's package names are. So two units whose words break differently render alike and collide ([output
+units](../../refine/output-units.md)), and no two differ in letter case alone, which a
+case-insensitive file system would make one directory.
+
 None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
 takes the escape below, which kotlinc accepts in a `package` and an `import` alike: `fun`, `object`,
 `when`, `is`, `in` and `typealias`, backticked, compile for the JVM, JS and macOS Native and link
