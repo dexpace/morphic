@@ -95,7 +95,10 @@ writes ([plan policy](../plan/policy.md#an-enum-a-client-reads-is-open)).
 ## Delivery
 
 Canonical `Defaults(version)` + deep-partial overrides. Arrays replace entirely (not concat) — an
-explicit, documented rule. A layer a configuration writes is read as a target's options are ([target
+explicit, documented rule — so each retry list resolves on its own, and only then does `Resolve`
+keep a status both name in the one set higher ([retries](#the-canonical-vocabulary)). Placing it at
+each merge instead would lose one a layer moves into a list a higher layer then replaces, leaving it
+in neither. A layer a configuration writes is read as a target's options are ([target
 options](options.md)): strictly, as JSON naming each field in lower camel case
 (`retry.maxAttempts`), and over the defaults of the version the project's configuration states, so a
 default that changes is a new version and an existing configuration keeps generating what it did.
@@ -128,7 +131,8 @@ type Resolved struct {
     Ops      map[ir.OpID]Policy         // each operation some layer names, resolved whole
 }
 
-// Resolve merges the layers, lowest first, over Defaults(version).
+// Resolve merges the layers, lowest first, over Defaults(version), and then keeps a status
+// both retry lists name only in the one set higher (above).
 func Resolve(doc *ir.Document, version int,
     embedded, project, emitter Layer) (Resolved, []ir.Diagnostic)
 ```
