@@ -29,6 +29,13 @@ A Multiplatform SDK reaches iOS through the Objective-C export, which shapes the
   type lookup in this context`), so importing the SDK broke code that never touched it. A
   declaration whose Swift name would be one of theirs takes an explicit one, the runtime's
   `Optional`, `Duration` and `Decimal` among them ([naming](naming.md#reserved-names)).
+- The export names classes of its own after the framework, `ProbeBase` and `ProbeNumber` in
+  Objective-C for a framework `Probe`, and boxes each Kotlin number in one (`KotlinInt` in Swift).
+  Measured with Kotlin 2.4.0, a spec class `Base`, `MutableSet` or `MutableDictionary` was renamed
+  beside them (`ProbeBase_`), but one named `Number` or a boxed number's, `Int`, `Double` or `ULong`
+  among them, took the same Objective-C name, and the framework failed to link (`Linking globals
+  named 'OBJC_METACLASS_$_ProbeNumber': symbol multiply defined!`). With an explicit `@ObjCName` it
+  linked, so each of these names is reserved ([naming](naming.md#reserved-names)).
 - Default arguments do not reach Swift, which is one reason models and request types are built
   through a builder rather than a constructor with defaults.
 - An exception reaches Swift only as `@Throws` declares it: any other terminates the app, and a

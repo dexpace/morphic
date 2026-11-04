@@ -29,17 +29,18 @@ What each [scope](../../refine/reserved-names.md) reserves in Kotlin:
     one unit's code happens to write, so adding an operation renames no model.
   - Each Windows device name above, in any letter case, as the JVM writes a top-level class to a
     file of its name, `Aux.class`, which Windows refuses whatever the extension.
-  - On Multiplatform, what the Swift names a caller sees must avoid. Every unit's declarations share
-    one Objective-C namespace, a nested one's name joined to its outer's ([Swift](swift.md)), so
-    each name above that the target declares is reserved there in every unit, and so is the joined
-    name of each public class the target nests in a type, such as `UserBuilder` and `UserCompanion`
-    beside a model `User` and `PaymentUnknown` beside a union `Payment`. A Swift caller also has
-    Swift's standard library and Foundation in scope, so every type name those declare is reserved
-    there too, the target's own names included: the runtime's `Optional`, `Duration` and `Decimal`
-    take Swift names of their own. Those type names are a table of the options version, as the
-    naming tables are ([naming policy](../../refine/naming.md)). A declaration that meets one only
-    there keeps its Kotlin name and takes an explicit Objective-C and Swift name, so no JVM name
-    moves for Swift's sake.
+  - On Multiplatform, in the Objective-C namespace every unit's declarations share, a nested one's
+    name joined to its outer's ([Swift](swift.md)): each name above that the target declares, in
+    every unit; the joined name of each public class the target nests in a type, such as
+    `UserBuilder` and `UserCompanion` beside a model `User` and `PaymentUnknown` beside a union
+    `Payment`; and the names the export gives classes of its own, `Base`, `MutableSet`,
+    `MutableDictionary`, `Number` and each boxed number's, such as `Int`, `Double` and `ULong`.
+  - On Multiplatform, among the Swift names a caller sees: every type name Swift's standard library
+    and Foundation declare, which a Swift caller has in scope, a table of the options version as the
+    naming tables are ([naming policy](../../refine/naming.md)), the target's own names included, so
+    the runtime's `Optional`, `Duration` and `Decimal` take Swift names of their own. A declaration
+    that meets a name of this bullet or the last only there keeps its Kotlin name and takes an
+    explicit Objective-C and Swift name, so no JVM name moves for Swift's sake.
 - **A type**: `equals`, `hashCode`, `toString`, `Builder` and `Companion`.
 
 A unit's package segment is its words in lowercase, joined with no separator (`useraccounts`), as
