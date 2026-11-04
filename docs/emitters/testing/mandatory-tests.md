@@ -26,10 +26,12 @@ throughout these documents.
    at a document-wide setting and at an operation's, in every layer. A project's document-wide
    setting beats a per-operation one the document embeds, an operation's own setting beats its
    layer's document-wide one, an operation ID no operation has is reported, an embedded value a
-   higher layer replaces draws an info naming both, and a value a configuration writes outside a
-   field's vocabulary or range, a `MaxAttempts` of 0 and a status both retry lists name among them,
-   is an error, an operation's giving way to its layer's document-wide value
-   ([layers](../contract/runtime-policy.md#layers-and-operations)).
+   higher layer replaces draws an info naming both, a value a configuration writes outside a field's
+   vocabulary or range, a `MaxAttempts` of 0 and a status both of one layer's retry lists name at
+   one scope among them, is an error, an operation's giving way to its layer's document-wide value,
+   and a status a higher layer names in one retry list is taken out of the other
+   ([layers](../contract/runtime-policy.md#layers-and-operations),
+   [retries](../contract/runtime-policy.md#the-canonical-vocabulary)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
