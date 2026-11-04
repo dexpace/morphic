@@ -140,6 +140,21 @@ func TestSchemaRules_FollowTheDocumentTheScopeReads(t *testing.T) {
 	assert.False(t, unread.InScope(there.RefScope()).SchemaRules().Defines("nullable"))
 }
 
+// TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost pins the cost of the question
+// the schema readers ask of every schema they read across the bindings: the
+// source's rows come without a lookup, where one by its name would parse it as
+// a URL on each miss. It runs alone, since the allocation counts are the
+// process's.
+func TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost(t *testing.T) {
+	c, _ := loadSplit(t, "openapi: 3.0.3\nX: {type: string}\nP: {name: p, in: query}\n")
+	allocs := testing.AllocsPerRun(100, func() {
+		if lowering.SchemaRulesIn(c, bind.Source).Defines("nullable") {
+			t.Fatal("the 3.1 source defines no nullable")
+		}
+	})
+	assert.Zero(t, allocs)
+}
+
 // TestIDsAt_NamesEachSourceEntrysDocument pins how the IDs of what each
 // Document.Sources entry declares are qualified: the source's and its
 // overlay's bare, and another document's by its label, which OtherIDs lists
