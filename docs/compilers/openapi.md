@@ -351,8 +351,8 @@ ignored, so a 3.0 document writing one is warned that it was applied as 3.1 appl
 read as the declared minor's dialect defines it, the only reading that gives what the author wrote
 its meaning: a `nullable` there adds `null` to a `type` written beside it
 ([`nullable`](#nullable)), an `exclusiveMinimum` there is a boolean modifying the bound beside it
-([`constraints`](#constraints)), and a `type: array` there requires `items`
-([`missing-array-items`](#missing-array-items)).
+([`constraints`](#constraints)), and a `type: array` there requires `items` unless what the `$ref`
+lands on writes one ([`missing-array-items`](#missing-array-items)).
 
 Whether a construct is a later minor's is asked in one place, the table [`validation`](#validation)
 holds a document to, which gives the minor each field and value was added in; no lowering asks it,
@@ -2339,9 +2339,12 @@ a union branch) and whatever it lowers to (a `Tuple`, an enum of arrays), since 
 declaration and not the node. Nothing is dropped or degraded, so no `openapi/degraded-construct`
 accompanies it. `items: {}` is silent, as is every schema at 3.1 and 3.2, where `items` is optional.
 A schema writing a `$ref` is held to the rule by the keywords beside it, which the lowering applies
-([`later-version-construct`](#later-version-construct)). Nor is an inline `allOf` branch reported,
-which merges in place or restates what a refinement names, or a subschema kept verbatim, such as one
-under `not`; the branch a refinement lowers from is reported as the position it is
+([`later-version-construct`](#later-version-construct)), where nothing they conjoin with writes an
+`items` either: beside a `$ref` landing on one, through an alias or an `allOf` as well, a
+`type: array` leaves the elements to it, and `{$ref: X, type: array}` is as silent as
+`{allOf: [{$ref: X}, {type: array}]}`. An inline `allOf` branch, which merges in place or restates
+what a refinement names, is not reported, nor is a subschema kept verbatim, such as one under `not`;
+the branch a refinement lowers from is reported as the position it is
 ([`allof-refinement`](#allof-refinement)).
 
 - Cases: `missing-array-items`

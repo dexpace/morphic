@@ -136,9 +136,9 @@ func TestLower_ListWithoutItems(t *testing.T) {
 
 // TestLower_MissingArrayItems pins which declarations the 3.0 rule reports and
 // where. Every schema writing type array and no items is reported at its own
-// pointer, whatever it lowers to, a $ref site's keywords included; a written
-// items, a type that is not array, a subschema kept verbatim and a 2020-12
-// document are not. Reports
+// pointer, whatever it lowers to, a $ref site's keywords included where what
+// it lands on writes none either; a written items, a type that is not array, a
+// subschema kept verbatim and a 2020-12 document are not. Reports
 // are counted as the lowering returns them, before compile.Diags drops
 // repeats, and each row lowers each declaration once, so a doubled report
 // reddens.
@@ -191,6 +191,17 @@ func TestLower_MissingArrayItems(t *testing.T) {
 			schemas: holder + "        l: {$ref: '#/components/schemas/L'}\n" +
 				"    L: {$ref: '#/components/schemas/S', type: array}\n    S: {type: string}\n",
 			want: []string{"/components/schemas/L"}},
+		{name: "a $ref site over a target writing items is silent", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/X', type: array}\n    X: {type: array, items: {type: string}}\n"},
+		{name: "the same written as an allOf is silent", version: "3.0.3",
+			schemas: "    L: {allOf: [{$ref: '#/components/schemas/X'}, {type: array}]}\n" +
+				"    X: {type: array, items: {type: string}}\n"},
+		{name: "a $ref site over an alias whose end writes items is silent", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/M', type: array}\n    M: {$ref: '#/components/schemas/X'}\n" +
+				"    X: {allOf: [{type: array, items: {type: string}}]}\n"},
+		{name: "a $ref site over an untyped target", version: "3.0.3",
+			schemas: "    L: {$ref: '#/components/schemas/A', type: array}\n    A: {}\n",
+			want:    []string{"/components/schemas/L"}},
 		{name: "a $ref site's sibling type in 3.1 is silent", version: "3.1.0",
 			schemas: "    L: {$ref: '#/components/schemas/S', type: array}\n    S: {type: string}\n"},
 		{name: "an array kept verbatim under not is silent", version: "3.0.3",
