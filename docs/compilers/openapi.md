@@ -471,8 +471,11 @@ key of no schema vocabulary hold schemas, and within one a keyword reads as it d
 so one in a literal, a value or an extension declares none, and the document's root may be a schema
 or a map of them. An `$id` gives its base to what is written below it by the same reading, wherever
 it is read. A schema read in JSON Schema draft 4 ([`dialect-keywords`](#dialect-keywords)) spells
-it `id`, its `$id` then naming nothing, and a document fetched over the network is refused for an
-`id` naming a `file:` URI, as for an `$id` reaching a local file. In drafts 4, 6 and 7 one naming a
+it `id`, its `$id` then naming nothing, and a document fetched over the network whose `$schema` or
+`jsonSchemaDialect` names draft 4 is refused for an `id` naming a location on disk, as a `file:` URI
+or a drive letter does, as for an `$id` reaching a local file, even one an example writes, since the
+check reads no grammar. In a document naming no such dialect no `id` is an identifier, so none is
+refused for one. In drafts 4, 6 and 7 one naming a
 fragment alone, `#name`, declares that plain name as an `$anchor` does, which is why the load phase
 holds an `$id`'s format to the schema's dialect rather than to the rule table's 2020-12 row;
 `definitions` holds schemas as `$defs` does, and so does `dependencies` where a value is one. A
