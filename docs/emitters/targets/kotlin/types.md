@@ -37,12 +37,13 @@ decodes the last, where the first is canonical; it throws on a name no entry has
 enum keeps `@SerialName` only where it is a `string` one holding each value once and declaring no
 `FallbackMember`, and every other one but a flags one and an open `string` one, a value class over
 `String`, codes through a generated `KSerializer`. It writes each member's wire form, the value
-type's JSON kind where it has no `WireName`, and decodes by comparing as JSON does, a value two
-members hold as the first. A closed one is an `enum class` whose entry holds the member as the row's
-type, `val value: LocalDate`, decoded through the row's codec when first read wherever Kotlin can
-write no `const val` of the type, as of a `LocalDate`. A member the codec refuses, such as a leap
-second `java.time` cannot hold, then fails where it is read, as Go's `Value` returns its error, and
-not wherever the class loads. A member a row's width cannot hold has no entry ([a member on the
+type's JSON kind where it has no `WireName`, and decodes by comparing as JSON does, members holding
+one value taking the first's form both ways. A closed one is an `enum class` whose entry holds its
+wire text, `val wire: String`, and the member as the row's type, `val value: LocalDate`, decoded
+from that text through the row's codec when first read wherever Kotlin can write no `const val` of
+the type, as of a `LocalDate`. A member the codec refuses, such as a leap second `java.time` cannot
+hold, then fails where it is read, as Go's `Value` returns its error, and not wherever the class
+loads. A member a row's width cannot hold has no entry ([a member on the
 wire](../../refine/enums.md#a-member-on-the-wire)), as a `Long` literal past its range does not
 compile.
 

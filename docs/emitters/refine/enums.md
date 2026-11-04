@@ -26,11 +26,12 @@ writes. Every emitter writes that form, and an SDK and a mock compare a value wi
 with their combinations for a `Flags` enum, as JSON compares values, which is what an `enum` keyword
 compares, whatever `format` says: numbers by value, exactly unless a row's width rounds them
 (below), so `0.1` and `0.10` are one value, and everything else by its text, so two `uuid` members
-differing only in case are two. A value two members hold, as `allow_alias` declares and `0.1` beside
-`0.10` is, decodes as the first of them, which slice order makes canonical. Where text carries a
-member, in a parameter, a header or a form field, it travels as its wire form's text, a string's
-characters or a number's or a boolean's literal, never as a name the target gives the member, and is
-read back by the same comparison.
+differing only in case are two. Members holding one value, as `allow_alias` declares and `0.1`
+beside `0.10` do, are one: a value matching any of their wire forms decodes as the first of them,
+and each writes the first's, since slice order names the canonical one for serialization. Where text
+carries a member, in a parameter, a header or a form field, it travels as its wire form's text, a
+string's characters or a number's or a boolean's literal, never as a name the target gives the
+member, and is read back by the same comparison.
 
 A target whose enum form holds only some value types lowers the others over the wire form
 ([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)), never over a form
