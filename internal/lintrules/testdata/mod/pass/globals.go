@@ -13,9 +13,10 @@ import (
 
 type tally struct{ n int }
 
-func (t *tally) Add()    { t.n++ }
-func (t tally) Get() int { return t.n }
-func (t *tally) init()   { counter = 3 } // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
+func (t *tally) Add()         { t.n++ }
+func (t tally) Get() int      { return t.n }
+func (t *tally) Self() *tally { return t }
+func (t *tally) init()        { counter = 3 } // want "globalwrites: assigns the package-level variable counter; keep the state in a local or an argument"
 
 // ptrAlias spells *tally, and a method declared on it takes the pointer.
 type ptrAlias = *tally
@@ -30,7 +31,13 @@ type (
 )
 
 func (r registry) Set(k string) { r[k] = 1 }
+func (r registry) Size() int    { return len(r) }
 func (s *stack) Push(v int)     { *s = append(*s, v) }
+
+// column is a named slice with a value receiver.
+type column []int
+
+func (c column) Set() { c[0] = 1 }
 
 type holder struct{ tally }
 
@@ -59,11 +66,27 @@ var (
 	queue                    chan []int
 	store                    = registry{}
 	slab                     stack
+	col                      column
+	captured                 = map[string]int{}
+	capturedHook             func()
+	storedInit               func()
+	storedAlias              func()
+	storedDecl               = ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	readDecl                 = ledger.Get
+	calledDecl               = store.Size()
 	grid                     *[2][]int
 	feed                     func(yield func([]int) bool)
 	matcher                  = regexp.MustCompile(`x`)
 	errNone                  = errors.New("none")
 )
+
+var viaCall = ledger.Self().n // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+
+// chained writes from a literal behind the method it calls.
+var chained = func() tally {
+	counter++ // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
+	return tally{}
+}().Get()
 
 // hook and hooks write from function literals in their initializers, which can
 // run after initialization, as init's own statements do not.
@@ -80,6 +103,15 @@ func init() {
 }
 
 func init() {
+	m := captured
+	capturedHook = func() {
+		m["a"]++ // want "globalwrites: writes an element or field of the package-level variable captured through its alias m; keep the state in a local or an argument"
+	}
+	m["b"] = 1
+	q := cursor
+	storedAlias = q.Add     // want "globalwrites: calls a method that can write the package-level variable cursor through its alias q; keep the state in a local or an argument"
+	storedInit = ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
+	ledger.Add()
 	func() { counter-- }() // want "globalwrites: decrements the package-level variable counter; keep the state in a local or an argument"
 	hook = func() {
 		counter++ // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
@@ -148,6 +180,7 @@ func Methods() {
 	boxedPtr.Add() // want "globalwrites: calls a method that can write the package-level variable boxedPtr; keep the state in a local or an argument"
 	cursor.Add()   // want "globalwrites: calls a method that can write the package-level variable cursor; keep the state in a local or an argument"
 	store.Set("a") // want "globalwrites: calls a method that can write the package-level variable store; keep the state in a local or an argument"
+	col.Set()      // want "globalwrites: calls a method that can write the package-level variable col; keep the state in a local or an argument"
 	_ = ledger.Get()
 	_ = tally.Get(ledger)
 	_ = (*tally).Add
