@@ -313,7 +313,7 @@ func (b *binder) table(t *Table) *Table {
 		}
 	}
 	t.loops, t.steps, t.limit, t.exhausted = b.loops, b.work.steps.Spent(), b.work.steps.Limit(), b.work.steps.Exhausted()
-	t.ends, t.roots, t.res, t.ids = b.find.ends, b.find.roots, b.resources, b.ids
+	t.ends, t.roots, t.bases, t.ids = b.find.ends, b.find.roots, newBases(b.resources), b.ids
 	for id, d := range b.docs.list {
 		reached := b.docs.reached[DocID(id)]
 		t.docs = append(t.docs, Document{Name: d.name, Root: d.root, Unreached: !reached})
@@ -400,7 +400,7 @@ type Table struct {
 	limit     budget.Limit
 	exhausted bool
 	truncated bool
-	res       resources
+	bases     *bases
 	ids       *identifiers
 }
 
@@ -480,8 +480,7 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 	if t == nil {
 		return false, true
 	}
-	path, _ := t.res.docs.path(p)
-	res, known := t.res.holding(p, path, true /* schema */)
+	res, known := t.bases.holding(p)
 	return res.id, known
 }
 
@@ -489,15 +488,12 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 // against, its own $id counted: its document's, or the resource's an $id at or
 // above it names. Two schemas with one base read every reference they write
 // alike. It is false where a schema on the way may hide an $id past the merge
-// bound, and a nil table knows none. Each call walks from the document's root,
-// so asking at every level of a deep schema costs the square of its depth
-// (GitHub #1431).
+// bound, and a nil table knows none.
 func (t *Table) Base(p Position) (string, bool) {
 	if t == nil {
 		return "", false
 	}
-	path, _ := t.res.docs.path(p)
-	res, known := t.res.holding(p, path, true /* schema */)
+	res, known := t.bases.holding(p)
 	return res.uri, known
 }
 
