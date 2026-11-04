@@ -206,10 +206,10 @@ func foldsReference(bs *oas3.Schema) bool {
 
 // readsAtPosition reports whether the inline allOf branch e reads its $refs
 // against the base the position holding the allOf does, so what it writes means
-// there what it means where it is written: an $id at or above it naming another
-// URI gives the same spelling another schema. The position is e's site less e's
-// path from it, as the allOf may be read where a $ref landed. A base the
-// bindings cannot tell is no match.
+// there what it means where it is written: an identifier at or above it naming
+// another URI gives the same spelling another schema. The position is e's site
+// less e's path from it, as the allOf may be read where a $ref landed. A base
+// the bindings cannot tell is no match.
 func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 	site, placed := c.Bindings().Site(e.schema)
 	at := bind.Position{Doc: site.Doc, Pointer: jsontext.Pointer(strings.TrimSuffix(string(site.Pointer), string(e.pointer)))}

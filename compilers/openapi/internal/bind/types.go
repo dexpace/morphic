@@ -112,7 +112,8 @@ const (
 	// NoTarget is a pointer that names no node of its document.
 	NoTarget
 	// NoResourceTarget is a pointer that names no node of the schema resource
-	// an $id names, which it is read from; Hop.Detail is the resource's URI.
+	// an identifier names, which it is read from; Hop.Detail is the resource's
+	// URI.
 	NoResourceTarget
 	// NotSchema is a node no schema reference may name: an object of the
 	// grammar, or a value that is neither a mapping nor a boolean.
@@ -122,13 +123,14 @@ const (
 	// only load words a failure by it, as a schema's NotSchema is worded.
 	NotObject
 	// NoAnchor is a plain-name fragment no schema of the resource it names
-	// declares as its $anchor or $dynamicAnchor.
+	// declares as its $anchor, its $dynamicAnchor or, in a draft before
+	// 2019-09, an identifier naming that fragment alone (DialectRule.Fragments).
 	NoAnchor
 	// DuplicateAnchor is a plain-name fragment two or more schemas of the
 	// resource it names declare, so it names none.
 	DuplicateAnchor
-	// DuplicateID is a URI two or more schemas declare as their $id, so it
-	// names none; Hop.Detail is the URI.
+	// DuplicateID is a URI two or more schemas declare as their identifier, a
+	// $id or draft 4's id, so it names none; Hop.Detail is the URI.
 	DuplicateID
 	// BadPointer is a fragment that is no JSON pointer and no $anchor name: an
 	// invalid escape, bytes that are not UTF-8, or a second '#', which RFC
@@ -138,10 +140,10 @@ const (
 	// for.
 	NoDefinition
 	// OwnDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
-	// for, which the schema writing it defines: its own definitions answer
-	// only where an $id makes it a resource of its own, whose root the pointer
-	// is then read from (resources.holding), as OAS 3.1 reads one with none
-	// against the document.
+	// for, which the schema writing it defines: its own definitions answer only
+	// where an identifier makes it a resource of its own, whose root the
+	// pointer is then read from (resources.holding), as OAS 3.1 reads one with
+	// none against the document.
 	OwnDefinition
 	// RawDefinition is a "#/$defs/..." pointer the $defs rule finds nothing
 	// for, which raw YAML above it defines: raw YAML holds no schema of the
@@ -273,12 +275,14 @@ func (h Hop) Why() string {
 	case NotObject:
 		return "it names a position that holds no " + h.Detail
 	case NoAnchor:
-		return "no schema of the resource it names declares that name as its $anchor, its $dynamicAnchor or, in a draft before 2019-09, an identifier naming that fragment alone"
+		return "no schema of the resource it names declares that name as its $anchor, its $dynamicAnchor " +
+			"or, in a draft before 2019-09, an identifier naming that fragment alone"
 	case DuplicateAnchor:
-		return "two or more schemas of the resource it names declare that name as their $anchor or " +
-			"$dynamicAnchor, so it names none of them"
+		return "two or more schemas of the resource it names declare that name as their $anchor, their " +
+			"$dynamicAnchor or, in a draft before 2019-09, an identifier naming that fragment alone, so it " +
+			"names none of them"
 	case DuplicateID:
-		return "two or more schemas declare " + h.Detail + " as their $id, so it names none of them"
+		return "two or more schemas declare " + h.Detail + " as their identifier, so it names none of them"
 	case BadPointer:
 		return "its fragment is no JSON pointer"
 	case NoDefinition:
@@ -286,7 +290,7 @@ func (h Hop) Why() string {
 			"holds one by that name"
 	case OwnDefinition:
 		return "the schema writing it defines that name, but a schema's own definitions answer a " +
-			"\"#/$defs/...\" pointer only where an $id makes it a resource of its own, and neither the " +
+			"\"#/$defs/...\" pointer only where an identifier makes it a resource of its own, and neither the " +
 			"document's root nor a schema of the model above it holds one"
 	case RawDefinition:
 		return "raw YAML above it, such as an extension's value, defines that name, but raw YAML holds no " +

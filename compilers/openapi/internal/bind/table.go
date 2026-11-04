@@ -505,9 +505,10 @@ func (t *Table) DynamicAnchors(id DocID, name string) ([]Position, bool) {
 	return sites, !t.exhausted && !t.ids.truncated[id]
 }
 
-// InOwnResource reports whether the schema at p, its own $id counted, lies in a
-// resource an $id names rather than in its document's, and whether that is
-// known: false where a schema on the way may hide an $id past the merge bound.
+// InOwnResource reports whether the schema at p, its own identifier counted,
+// lies in a resource an identifier names rather than in its document's, and
+// whether that is known: false where a schema on the way may hide one past the
+// merge bound.
 func (t *Table) InOwnResource(p Position) (own, known bool) {
 	if t == nil {
 		return false, true
@@ -518,12 +519,12 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 }
 
 // Base returns the URI a reference written in the schema at p resolves
-// against, its own $id counted: its document's, or the resource's an $id at or
-// above it names. Two schemas with one base read every reference they write
-// alike. It is false where a schema on the way may hide an $id past the merge
-// bound, and a nil table knows none. Each call walks from the document's root,
-// so asking at every level of a deep schema costs the square of its depth
-// (GitHub #1431).
+// against, its own identifier counted: its document's, or the resource's an
+// identifier at or above it names. Two schemas with one base read every
+// reference they write alike. It is false where a schema on the way may hide
+// one past the merge bound, and a nil table knows none. Each call walks from
+// the document's root, so asking at every level of a deep schema costs the
+// square of its depth (GitHub #1431).
 func (t *Table) Base(p Position) (string, bool) {
 	if t == nil {
 		return "", false

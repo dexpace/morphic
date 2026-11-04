@@ -164,17 +164,17 @@ func dynamicChainVerdict(c lowering.Ctx, at, from bind.Position) (string, bool) 
 }
 
 // oneResource reports whether the schema at p lies in its document's own schema
-// resource, or says why it does not, or may not: a merge past the bound can hide
-// an $id, which must not read as none, or the reference would expand across a
-// boundary the IR cannot express (GitHub #401).
+// resource, or says why it does not, or may not: a merge past the bound can
+// hide an identifier, which must not read as none, or the reference would
+// expand across a boundary the IR cannot express (GitHub #401).
 func oneResource(c lowering.Ctx, p bind.Position) (string, bool) {
 	own, known := c.Bindings().Table().InOwnResource(p)
 	switch {
 	case !known:
 		return fmt.Sprintf("a schema at or above %q merges past the levels the compiler expands, which may hide an "+
-			"$id starting a schema resource of its own", p.Pointer), false
+			"identifier starting a schema resource of its own", p.Pointer), false
 	case own:
-		return fmt.Sprintf("an $id at or above %q starts a schema resource of its own, "+
+		return fmt.Sprintf("an identifier at or above %q starts a schema resource of its own, "+
 			"and the IR resolves no resource base URIs", p.Pointer), false
 	default:
 		return "", true

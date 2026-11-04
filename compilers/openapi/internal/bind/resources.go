@@ -467,12 +467,12 @@ func scalarOf(n *yaml.Node) (string, bool) {
 }
 
 // holding is the resource the position p, reached along path, is in: the one
-// each schema on path enters in turn (enter), from its document's own.
-// With schema, p is read as a schema whatever the grammar reads it as, as a
-// $ref site is, so its own $id counts. Where named, a schema of the documents
-// names its dialect, and each schema on path is read in the one the schema
-// holding it enters (enterIn); else every schema is read in its document's.
-// known is false where a schema on path may hide an $id past the merge bound.
+// each schema on path enters in turn (enter), from its document's own. With
+// schema, p is read as a schema whatever the grammar reads it as, as a $ref
+// site is, so its own $id counts. Where named, a schema of the documents names
+// its dialect, and each schema on path is read in the one the schema holding it
+// enters (enterIn); else every schema is read in its document's. known is false
+// where a schema on path may hide an identifier past the merge bound.
 func (r resources) holding(p Position, path []*yaml.Node, schema, named bool) (resource, bool) {
 	res, known := r.document(p.Doc), true
 	s, tokens := r.docs.identityState(p.Doc), slices.Collect(p.Pointer.Tokens())
