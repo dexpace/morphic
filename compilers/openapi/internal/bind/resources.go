@@ -139,8 +139,8 @@ func (ix *identifiers) declare(r resources, in int32, at Position, n *yaml.Node)
 		in = ix.own[at.Doc]
 	}
 	view := r.docs.list[at.Doc].view
-	if uri, ok := scalarOf(view.ChildByToken(nodeview.Deref(n), "$schema")); ok &&
-		(rooted || !heldBySchema(r.docs.identityState(at.Doc), slices.Collect(at.Pointer.Tokens()))) {
+	uri, written := scalarOf(view.ChildByToken(nodeview.Deref(n), "$schema"))
+	if written && (rooted || !heldBySchema(r.docs.identityState(at.Doc), slices.Collect(at.Pointer.Tokens()))) {
 		ix.dialects[at] = DialectRoot{At: at, URI: uri, Node: nodeview.Deref(n)}
 	}
 	for _, keyword := range []string{"$anchor", "$dynamicAnchor"} {

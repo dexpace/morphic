@@ -63,7 +63,7 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 // nil where it reads minor's, and whether it is an absolute URI the table has
 // no rows for. A dialect is compared without a trailing empty fragment, which
 // draft 4's id writes and 2020-12's does not, as `$schema` values spell both.
-func dialectKeywords(minor Minor, dialect string) ([]Field, bool) {
+func dialectKeywords(minor Minor, dialect string) (keywords []Field, unread bool) {
 	if dialect == "" || minor == V30 {
 		return nil, false
 	}

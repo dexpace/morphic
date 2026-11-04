@@ -78,7 +78,8 @@ func (d *dialects) at(version, dialect string) dialectRows {
 // Dialects is the rows the schemas a resource root naming its dialect holds
 // (bind.Document.Dialects) are read with, by each node of that root's tree, a
 // root it holds governing its own. A schema no such root holds reads its
-// document's rows.
+// document's rows. Nothing writes it once the load phase returns it, so every
+// context copying it may read it at once.
 type Dialects struct {
 	byNode map[*yaml.Node]oas.SchemaRules
 }

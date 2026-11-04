@@ -411,7 +411,7 @@ func RowsOf(doc *soa.OpenAPI) Rows {
 // rowsAt returns what spec says at the minor version names, in dialect, and
 // whether dialect is one spec has no Schema Object rows for
 // (oas.Spec.SchemaRules).
-func rowsAt(spec oas.Spec, version, dialect string) (Rows, bool) {
+func rowsAt(spec oas.Spec, version, dialect string) (rows Rows, unread bool) {
 	schema, unread := spec.SchemaRules(version, dialect)
 	return Rows{Schema: schema, Encoding: spec.EncodingRules(version)}, unread
 }
