@@ -116,7 +116,9 @@ func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
 // refusal of the whole patched tree is placed: a source of 30 levels under
 // 10,000-byte keys passes the pointer bound alone, and an overlay of 3,000
 // short entries passes it too, but grafted at the bottom of the source's spine
-// they total past it. The overlay caused it, so the refusal is at the overlay.
+// they total past it. The overlay caused it, so the refusal is at the overlay,
+// and says it reads the tree the overlay leaves, which the overlay's own
+// document does not write.
 func TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay(t *testing.T) {
 	t.Parallel()
 	var source strings.Builder
@@ -144,6 +146,7 @@ func TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay(t *testing.T)
 	i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.PointerAmplification })
 	require.GreaterOrEqual(t, i, 0, "the grafted tree is refused on its pointers: %v", diags)
 	assert.Equal(t, ir.Provenance{Source: 1}, diags[i].Provenance, "the overlay grafted what passes the bound")
+	assert.True(t, strings.HasSuffix(diags[i].Message, ", once the overlay applies"), diags[i].Message)
 }
 
 // TestExternal_AdmitRefusesANestingPastTheBound pins that a document an

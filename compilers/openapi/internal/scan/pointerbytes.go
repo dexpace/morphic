@@ -49,8 +49,8 @@ func pointerAmplificationWithin(locate Locator, idx sourceindex.Index, allowance
 		return ir.Diagnostic{}, false
 	}
 	return diag.Newf(ir.SeverityError, diag.PointerAmplification, locate(nil),
-		"the pointers naming this document's nodes total %d bytes, past the %d-byte allowance "+
-			"for a document writing %d bytes", idx.PointerBytes(), allowance, idx.Written()), true
+		"the JSON pointers naming the document's nodes total %d bytes, past the %d-byte allowance "+
+			"for the %d bytes it writes", idx.PointerBytes(), allowance, idx.Written()), true
 }
 
 // pointerAllowance is the pointer bytes a document writing written bytes may

@@ -210,7 +210,8 @@ is, and so are an overlay naming no file and one naming an http(s) URL, since no
 compile onto the network. Once applied, the pre-parse refusals and the node budgets hold the patched
 tree as they hold the source, and validation and every lowering read it. A refusal at a node the
 overlay grafted names the overlay, and so does a refusal of the whole patched tree, such as its
-pointers' bytes, since the source passed the same refusals alone. Each action is charged the
+pointers' bytes, since the source passed the same refusals alone; its message says it reads the
+tree the overlay leaves, which the overlay's own refusal does not. Each action is charged the
 nodes it can build before it runs: one whose charge would carry the tree, counted afresh, past
 `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing it would build built,
 so it is refused while the tree is past the budget whatever a later action removes. An action that

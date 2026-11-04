@@ -37,8 +37,8 @@ func TestPointerAmplification_RefusesPastTheAllowanceAndNotAtIt(t *testing.T) {
 	assert.Equal(t, diag.PointerAmplification, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)
 	assert.Equal(t, locate(nil), d.Provenance)
-	assert.Equal(t, fmt.Sprintf("the pointers naming this document's nodes total %d bytes, "+
-		"past the %d-byte allowance for a document writing %d bytes", pointers, pointers-1, written), d.Message)
+	assert.Equal(t, fmt.Sprintf("the JSON pointers naming the document's nodes total %d bytes, "+
+		"past the %d-byte allowance for the %d bytes it writes", pointers, pointers-1, written), d.Message)
 }
 
 // TestPointerAmplification_ReadsTheRatioAndItsFloor pins the allowance PointerAmplification reads: a

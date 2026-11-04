@@ -50,7 +50,7 @@ func TestLoad_RefusesLongKeysNestedDeepBeforeBuildingTheModel(t *testing.T) {
 	assert.Equal(t, diag.PointerAmplification, d.Code)
 	assert.Equal(t, ir.SeverityError, d.Severity)
 	assert.Equal(t, ir.Provenance{Source: 4}, d.Provenance, "at the document")
-	assert.Contains(t, d.Message, "the pointers naming this document's nodes total ")
+	assert.Contains(t, d.Message, "the JSON pointers naming the document's nodes total ")
 }
 
 // TestLoad_ReportsAShapeOnceItsNestingRefuses pins that a document refused for
@@ -79,6 +79,7 @@ func TestLoad_RefusesAnOverlaySpellingPastItsAllowance(t *testing.T) {
 	require.Len(t, diags, 1, "%+v", diags)
 	assert.Equal(t, diag.PointerAmplification, diags[0].Code)
 	assert.Equal(t, ir.Provenance{Source: 1}, diags[0].Provenance, "the overlay is the document past its allowance")
+	assert.NotContains(t, diags[0].Message, "once the overlay applies", "the overlay's own document is refused")
 }
 
 // TestExternal_AdmitRefusesPointersPastTheAllowance pins that a document an
@@ -93,5 +94,5 @@ func TestExternal_AdmitRefusesPointersPastTheAllowance(t *testing.T) {
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refused")
-	assert.Contains(t, err.Error(), "the pointers naming this document's nodes total ")
+	assert.Contains(t, err.Error(), "the JSON pointers naming the document's nodes total ")
 }
