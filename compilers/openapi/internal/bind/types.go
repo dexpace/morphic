@@ -235,12 +235,13 @@ type Loop struct {
 	Site    Position
 }
 
-// Landing is a position some hop reads as a schema though the parser's model
+// Landing is a position the table reads as a schema though the parser's model
 // holds none there, which a schema has to be built for: raw YAML in the
-// source, or a node of another document, whose Name it is in. Site is the
-// least position whose chain reaches it, a $ref's, a mapping value's or an
-// expanding $dynamicRef's, in whichever document; Reached is false when none
-// does, as where the budget cut the reading.
+// source, or a node of another document, whose Name it is in, that some hop
+// reads, or a tuple's entry or rest, which the model has no member for. Site
+// is the least position whose chain reaches it, a $ref's, a mapping value's or
+// an expanding $dynamicRef's, in whichever document, or the schema writing the
+// tuple; Reached is false when none does, as where the budget cut the reading.
 type Landing struct {
 	At      Position
 	Name    string

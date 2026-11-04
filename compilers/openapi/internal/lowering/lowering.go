@@ -416,7 +416,7 @@ func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 // reads, which its scope names (load.Other.Rules), the source's for its own. A
 // reading only a minor decides, such as a required `items` or the effect
 // `nullable` has, asks these rather than the version; a keyword's shape, which
-// a schema's dialect decides, asks SchemaRulesOf. A version the table does not
+// a schema's dialect decides, asks SchemaRulesAt. A version the table does not
 // cover, and a context with no document, answer with the zero rows.
 //
 // The scope, not home, names that document: Declared can read one document's
@@ -430,9 +430,22 @@ func (c Ctx) SchemaRules() oas.SchemaRules {
 	return c.rules
 }
 
-// SchemaRulesOf returns the rows the schema whose node is n is read with: those
-// of the dialect the schema no other holds that holds it names, where one does
-// (load.Dialects), and c's otherwise (SchemaRules).
+// SchemaRulesAt returns the rows the schema at pointer of c's document is read
+// with: those of the dialect the innermost resource root at or above it names,
+// where one does (load.Dialects.At), and c's otherwise (SchemaRules), as where
+// c reads another document's content at the source's positions.
+func SchemaRulesAt(c Ctx, pointer jsontext.Pointer) oas.SchemaRules {
+	if at, placed := c.Position(pointer); placed && c.loaded != nil {
+		if r, ok := c.loaded.dialects.At(at); ok {
+			return r
+		}
+	}
+	return c.SchemaRules()
+}
+
+// SchemaRulesOf is SchemaRulesAt for a reading that has the schema's node n
+// and not where it is, reading an aliased node in one dialect wherever it is
+// placed (load.Dialects.Of).
 func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
 	if c.loaded != nil {
 		if r, ok := c.loaded.dialects.Of(n); ok {

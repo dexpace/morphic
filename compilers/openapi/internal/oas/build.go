@@ -96,6 +96,18 @@ func (f Field) shapeOwnedBy(pkg string) Field {
 	return f
 }
 
+// formatOwnedBy names the package that judges the field's format.
+func (f Field) formatOwnedBy(pkg string) Field {
+	f.FormatOwner = pkg
+	return f
+}
+
+// listOwnedBy names the package that judges a list written for the field.
+func (f Field) listOwnedBy(pkg string) Field {
+	f.ListOwner = pkg
+	return f
+}
+
 // keyword marks the field a JSON Schema keyword.
 func (f Field) keyword() Field {
 	f.Keyword = true

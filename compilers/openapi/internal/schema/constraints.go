@@ -40,7 +40,8 @@ func ConstraintsOf(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, voices []ann
 // exclusiveIsBoolean reports whether s spells an exclusive bound as a boolean
 // modifying the bound beside it, the shape 3.0's rows and draft 4's give
 // exclusiveMinimum, rather than as the bound itself. A keyword's shape is the
-// dialect's, which a schema can name, so it is asked of s's rows
+// dialect's, which a schema can name, so it is asked of s's rows, by its node,
+// as the agreement reads a conjunct's bounds where nothing says where it is
 // (lowering.SchemaRulesOf). The exclusiveMaximum row agrees in every row set
 // (oas.TestSchemaRules_AnswerAsTheTableDoes), so one answer reads both.
 func exclusiveIsBoolean(c lowering.Ctx, s *oas3.Schema) bool {

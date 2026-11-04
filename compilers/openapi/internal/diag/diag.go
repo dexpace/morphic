@@ -428,10 +428,10 @@ const (
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
-	// on, or a keyword beside a 3.0 schema's $ref, applied as in 3.1 and read as
-	// 3.0 defines it. It is lowered as in a document declaring that minor, the
-	// reading that loses least: with this diagnostic a consumer can set it aside,
-	// and from a verbatim copy could not recover the lowering
+	// on, or a keyword beside the $ref of a schema whose 3.0 minor or JSON
+	// Schema dialect ignores it, which 3.1 and 2019-09 apply. It is lowered as
+	// the later version reads it, the reading that loses least: a consumer can
+	// set it aside, and could not recover it from a verbatim copy
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
 	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
@@ -471,6 +471,13 @@ const (
 	// OpenAPI version names (docs/compilers/openapi.md#dialect-keywords).
 	// Warning: a keyword written in that dialect may read otherwise there.
 	UnreadDialect = "openapi/unread-dialect"
+	// InvalidItemsList reports `items` written as a list, a tuple as JSON
+	// Schema's drafts before 2020-12 spell one, in a schema whose dialect takes
+	// no list there, at it. The rule table's check leaves such a list to the
+	// load phase, which knows the schema's dialect once its references are
+	// bound (docs/compilers/openapi.md#tuples). Error, as the table's mismatch
+	// is.
+	InvalidItemsList = "openapi/invalid-items-list"
 )
 
 // Newf builds an ir.Diagnostic with a formatted message. It is the single

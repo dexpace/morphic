@@ -258,6 +258,12 @@ testdata/conformance/openapi/relaxed-required-fields.yaml	13:16	validation-requi
 testdata/conformance/openapi/relaxed-required-fields.yaml	18:7	validation-required-field	library	relaxed-requirement
 testdata/conformance/openapi/schema-dialects.yaml	10:25	validation-type-mismatch	library	declared-dialect
 testdata/conformance/openapi/schema-dialects.yaml	19:64	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/schema-drafts.yaml	8:7	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/schema-drafts.yaml	8:7	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/schema-drafts.yaml	10:14	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/schema-drafts.yaml	13:7	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/schema-drafts.yaml	13:7	validation-type-mismatch	library	declared-dialect
+testdata/conformance/openapi/schema-drafts.yaml	15:14	validation-type-mismatch	library	declared-dialect
 testdata/conformance/openapi/schema-ref-siblings-30.yaml	12:63	later-version-construct	compiler	ref-siblings
 testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:67	later-version-construct	compiler	ref-siblings
 testdata/conformance/openapi/schema-ref-siblings-30.yaml	16:95	later-version-construct	compiler	ref-siblings

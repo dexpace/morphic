@@ -5,6 +5,7 @@ package schema
 
 import (
 	"encoding/json/jsontext"
+	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
 
@@ -35,6 +36,7 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 	// A rule about the declaration holds the keywords beside its $ref as it holds
 	// a body's (schemaBody).
 	diags = append(missingArrayItems(c, s, pointer), diags...)
+	diags = append(diags, ignoredRefFields(c, s, pointer)...)
 	unhomed := refSiteUnhomedKeywords(s, nil)
 	hasUnion := declaresUnion(s)
 	ref, homeDiags := homeDeclaration(c, ts, s, target, pointer, home, len(unhomed) > 0 || hasUnion)
@@ -47,6 +49,28 @@ func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Refe
 		diags = append(diags, preserveUnionSiblings(c, ts, ref.Target, s, pointer, ir.ReasonDegradedLowering, refSiteUnionWhy)...)
 	}
 	return ref, diags
+}
+
+// ignoredRefFields warns of each keyword s writes beside its $ref where the
+// dialect s is read in ignores them, as the JSON Schema drafts before 2019-09
+// do: each is applied as 2020-12 applies it, the reading that loses least, as a
+// 3.0 schema's are (docs/compilers/openapi.md#later-version-construct). Its
+// `$schema`, which names that dialect, and an extension, which is OpenAPI's,
+// draw none.
+func ignoredRefFields(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
+	if !lowering.SchemaRulesAt(c, pointer).IgnoresRefFields() {
+		return nil
+	}
+	var diags []ir.Diagnostic
+	for _, key := range rawMappingKeys(s.GetRootNode()) {
+		if key == "$ref" || key == "$schema" || strings.HasPrefix(key, "x-") {
+			continue
+		}
+		diags = append(diags, c.DiagAt(ir.SeverityWarning, diag.LaterVersionConstruct, pointer+ids.Ptr(key),
+			"keyword %q beside a $ref is ignored by the JSON Schema dialect this schema names and applied "+
+				"from 2019-09; it is applied as in 2020-12", key))
+	}
+	return diags
 }
 
 // PreserveRefSiteKeywords keeps, on a carrier's own Unmodeled, the keywords a

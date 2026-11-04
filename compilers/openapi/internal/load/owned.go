@@ -46,11 +46,19 @@ func ownedFindings(owned []oas.Owned, rules func(oas.Owned) oas.SchemaRules) []i
 
 // ownedFinding returns the error about o read with rules, the rows of the
 // dialect the schema writing it is read in, and false where it is sound: an
-// exclusive bound in the other form than the rows give it, and a bound, a
-// boolean exclusive bound aside, no decimal spells, quoted or not
-// (value.NumericLiteral).
+// `$id` of another format than the rows give it (oas.SchemaRules.FormatFinding),
+// an `items` written as a list where the rows read no tuple, an exclusive bound
+// in the other form than the rows give it, and a bound, a boolean exclusive
+// bound aside, no decimal spells, quoted or not (value.NumericLiteral).
 func ownedFinding(o oas.Owned, rules oas.SchemaRules) (ir.Diagnostic, bool) {
 	switch o.Field {
+	case "$id":
+		return rules.FormatFinding(o)
+	case "items":
+		if o.Value.Kind != yaml.SequenceNode || rules.Takes("items", oas.List) {
+			return ir.Diagnostic{}, false
+		}
+		return o.Finding(diag.InvalidItemsList, "items must be a schema in this schema's dialect, not a list"), true
 	case "exclusiveMinimum", "exclusiveMaximum":
 		boolean := rules.Takes(o.Field, oas.Boolean)
 		if written := o.Value.Kind == yaml.ScalarNode && o.Value.Tag == "!!bool"; written != boolean {

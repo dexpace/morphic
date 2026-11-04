@@ -6,6 +6,9 @@ package oas
 import (
 	"slices"
 	"strings"
+
+	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/ir"
 )
 
 // SchemaRules is the Schema Object's rows at one minor in one dialect: how a
@@ -85,6 +88,19 @@ func (s Spec) dialectOf(minor Minor, id string) (dialect, bool) {
 // than their minor, ignores the keywords a schema writes beside its `$ref`, as
 // the JSON Schema drafts before 2019-09 do.
 func (r SchemaRules) IgnoresRefFields() bool { return r.rows != nil && r.rows.ignoresRefFields }
+
+// FormatFinding returns the finding about o, a string value of a field whose
+// format the rows' dialect decides (Field.FormatOwner), where it is not of the
+// format the rows give the field, and false where it is, or the rows give the
+// field none.
+func (r SchemaRules) FormatFinding(o Owned) (ir.Diagnostic, bool) {
+	f, ok := r.field(o.Field)
+	if !ok || f.Format == FormatNone || validFormat(f.Format, o.Value.Value) {
+		return ir.Diagnostic{}, false
+	}
+	return o.Finding(diag.Validation+"/"+classFormat, "Schema Object field %q must be %s in this schema's dialect",
+		o.Field, describeFormat(f.Format)), true
+}
 
 // Defines reports whether the Schema Object defines the field name: a keyword
 // of its dialect, or a field OpenAPI adds to it at the minor.

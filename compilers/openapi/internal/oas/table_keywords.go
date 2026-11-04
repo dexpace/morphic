@@ -80,7 +80,7 @@ func keywords30() []Field {
 			admits(vals("array", "boolean", "integer", "number", "object", "string")...),
 		schemasOf("allOf", s, composed), schemasOf("oneOf", s, composed), schemasOf("anyOf", s, composed),
 		schemaOf("not", s, composed),
-		schemaOf("items", s, adjust("Value MUST be an object and not an array.")),
+		schemaOf("items", s, adjust("Value MUST be an object and not an array.")).listOwnedBy(ownerLoad),
 		schemaMapOf("properties", s, adjust("Property definitions MUST be a [Schema Object](#schema-object) and not a standard JSON Schema (inline or referenced).")),
 		schemaOf("additionalProperties", s, adjust("Value can be boolean or object.")).also(Boolean, s),
 		keyword("description", String, s, adjust("[CommonMark syntax](https://spec.commonmark.org/) MAY be used for rich text representation.")),
@@ -101,7 +101,7 @@ func dialectCore() []Field {
 	cite := sectioned("Schema Object")(V31, dialectSentence)
 	s := From(V31)
 	return []Field{
-		keyword("$id", String, s, cite).formatted(ResourceURI),
+		keyword("$id", String, s, cite).formatted(ResourceURI).formatOwnedBy(ownerLoad),
 		keyword("$schema", String, s, cite).formatted(AbsoluteURI),
 		keyword("$ref", String, s, cite).formatted(URI),
 		keyword("$anchor", String, s, cite).formatted(AnchorName).nonEmpty(s),
@@ -124,6 +124,11 @@ func dialectApplicators() []Field {
 	singles := make([]Field, len(single))
 	for i, name := range single {
 		singles[i] = schemaOf(name, s, cite)
+		if name == "items" {
+			// A list of items is a tuple in a draft a schema can name, which the
+			// load phase judges in its dialect.
+			singles[i] = singles[i].listOwnedBy(ownerLoad)
+		}
 	}
 	return slices.Concat([]Field{
 		schemasOf("prefixItems", s, cite),

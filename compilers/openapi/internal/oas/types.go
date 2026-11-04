@@ -161,6 +161,15 @@ type Field struct {
 	Owner string
 	// ShapeOwner is the package that reports a value of the wrong shape.
 	ShapeOwner string
+	// ListOwner is the package that judges a list written where the field
+	// holds one schema: a tuple, as a JSON Schema draft a schema names spells
+	// one, which the check, run before any schema's dialect is known, cannot
+	// tell from a mistake.
+	ListOwner string
+	// FormatOwner is the package that judges the value's format, which the
+	// dialect a schema is read in decides, as draft 7's `$id` may name a
+	// fragment that 2020-12's may not.
+	FormatOwner string
 	// Values is the values admitted, if the field is enumerated.
 	Values []Value
 	// Alts are the other shapes the field admits.

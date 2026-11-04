@@ -58,6 +58,24 @@ type Config struct {
 	// Limit bounds the work, in steps (see MaxSteps). Unset, it is unbounded,
 	// as the zero budget.Limit is.
 	Limit budget.Limit
+	// Dialect returns how a schema of document name read in dialect, the URI
+	// a `$schema` or a jsonSchemaDialect names, or "" for none, names its
+	// resource and holds its subschemas (DialectRule). Nil, or the zero rule,
+	// reads it as JSON Schema 2020-12 does.
+	Dialect func(name, dialect string) DialectRule
+}
+
+// DialectRule is what the table reads otherwise in a dialect than in 2020-12.
+// Keyword holds a schema's identifier, `$id`, or `id` in JSON Schema draft 4,
+// where empty reads `$id`. With Fragments an identifier naming a fragment
+// alone declares that plain name, with Definitions a schema's `definitions`
+// holds schemas, as the drafts before 2019-09 have them, and with Tuples an
+// `items` written as a list is a tuple, as those before 2020-12 have it.
+type DialectRule struct {
+	Keyword     string
+	Fragments   bool
+	Definitions bool
+	Tuples      bool
 }
 
 // ErrEmptyDocument is the failure of Config.Open, or of the tree it returns,
@@ -325,6 +343,11 @@ func (b *binder) table(t *Table) *Table {
 		site, reached := reach[at]
 		t.landings = append(t.landings, Landing{At: at, Name: t.docs[at.Doc].Name, Site: site, Reached: reached})
 	}
+	for at, holder := range b.find.tupled {
+		if !b.find.landings[at] {
+			t.landings = append(t.landings, Landing{At: at, Name: t.docs[at.Doc].Name, Site: holder, Reached: true})
+		}
+	}
 	slices.SortFunc(t.landings, func(x, y Landing) int { return t.compare(x.At, y.At) })
 	return t
 }
@@ -484,7 +507,7 @@ func (t *Table) InOwnResource(p Position) (own, known bool) {
 		return false, true
 	}
 	path, _ := t.res.docs.path(p)
-	res, known := t.res.holding(p, path, true /* schema */)
+	res, known := t.res.holding(p, path, true /* schema */, len(t.ids.dialects) > 0)
 	return res.id, known
 }
 
@@ -500,7 +523,7 @@ func (t *Table) Base(p Position) (string, bool) {
 		return "", false
 	}
 	path, _ := t.res.docs.path(p)
-	res, known := t.res.holding(p, path, true /* schema */)
+	res, known := t.res.holding(p, path, true /* schema */, len(t.ids.dialects) > 0)
 	return res.uri, known
 }
 

@@ -197,3 +197,25 @@ func versionOf(table *bind.Table, others Others, d *dialects, id bind.DocID) (st
 	o, ok := others.Named(table.Document(id).Name)
 	return o.version, ok
 }
+
+// dialectRuleOf returns what the binder reads otherwise in the dialect rules
+// are of than in 2020-12 (bind.DialectRule): a schema's identifier under
+// `$id`, or under draft 4's `id` where the rows define it alone; an identifier
+// naming a fragment alone as an anchor where they define one but no `$anchor`,
+// as the drafts before 2019-09 spell one; `definitions` as a map of schemas
+// where they define it; and `items` written as a list as a tuple where they
+// take one. The rows of a minor that defines no identifier, as 3.0's, say
+// nothing of it, and `$id` is read.
+func dialectRuleOf(rules oas.SchemaRules) bind.DialectRule {
+	rule := bind.DialectRule{Definitions: rules.Takes("definitions", oas.Map), Tuples: rules.Takes("items", oas.List)}
+	switch {
+	case rules.Defines("$id"):
+		rule.Keyword = "$id"
+	case rules.Defines("id"):
+		rule.Keyword = "id"
+	default:
+		return rule
+	}
+	rule.Fragments = !rules.Defines("$anchor")
+	return rule
+}

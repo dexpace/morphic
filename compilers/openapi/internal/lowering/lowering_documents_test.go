@@ -4,6 +4,7 @@
 package lowering_test
 
 import (
+	"encoding/json/jsontext"
 	"os"
 	"path/filepath"
 	"testing"
@@ -159,6 +160,29 @@ func TestSchemaRulesOf_ReadsTheDialectTheSchemaHoldingItNames(t *testing.T) {
 		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
 	assert.True(t, lowering.SchemaRulesOf(bare, x.GetSchema().GetRootNode()).Takes("exclusiveMinimum", oas.Number),
 		"no load phase")
+}
+
+// TestSchemaRulesAt_ReadsTheDialectOfWhereASchemaIs pins whose rows a schema
+// is read with by where it is: those of the dialect the root at or above it
+// names, here a document of schemas naming draft 4 at its root, read in that
+// document's context; the context's own where none is, as for the source's A;
+// and the context's where it places no position, as InScope reads another
+// document's content at the source's. A context with no load phase knows no
+// root.
+func TestSchemaRulesAt_ReadsTheDialectOfWhereASchemaIs(t *testing.T) {
+	t.Parallel()
+	c, _ := loadSplit(t, "$schema: 'http://json-schema.org/draft-04/schema#'\nX: {type: integer}\nP: {name: p, in: query}\n")
+	there, ok := lowering.InDocument(c, extDoc(t, c))
+	require.True(t, ok)
+	boolean := func(c lowering.Ctx, at jsontext.Pointer) bool {
+		return lowering.SchemaRulesAt(c, at).Takes("exclusiveMinimum", oas.Boolean)
+	}
+	assert.True(t, boolean(there, "/X"), "ext.yaml's root names draft 4")
+	assert.False(t, boolean(c, "/components/schemas/A"), "the source's own schema reads its document's")
+	assert.False(t, boolean(there.InScope(there.RefScope()), "/X"), "no position, the scope's document's rows")
+	bare := lowering.New(0, c.Doc, c.Source, "", lowering.Limits{}, lowering.StreamingMedia{},
+		lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{})
+	assert.False(t, boolean(bare, "/X"), "no load phase")
 }
 
 // TestSchemaRulesIn_AsksTheSourcesRowsAtNoCost pins the cost of the question

@@ -157,12 +157,13 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	return out
 }
 
-// idWrappers returns where the flattened wrappers of comp writing an $id are,
-// each an $id that may give what it holds another base than the position's.
+// idWrappers returns where the flattened wrappers of comp writing an
+// identifier are (writesIdentifier), each one that may give what it holds
+// another base than the position's.
 func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
 	out := map[jsontext.Pointer]bool{}
 	for _, e := range comp.branches {
-		if e.wrapper && annotation.RawPropertyNode(e.schema.GetSchema(), "$id") != nil {
+		if e.wrapper && writesIdentifier(e.schema.GetSchema()) {
 			out[e.pointer] = true
 		}
 	}
@@ -170,12 +171,12 @@ func idWrappers(comp allOfComposition) map[jsontext.Pointer]bool {
 }
 
 // underID reports whether bs, the inline allOf branch e, or a wrapper holding
-// it writes an $id. Only such an $id can give the branch another base than the
+// it writes an identifier. Only one can give the branch another base than the
 // position holding the allOf, so a branch under none reads at the position
 // without a base being looked up. The wrappers holding e are the prefixes of
 // its pointer, as many as MaxAllOfFlattenDepth allows, so each is looked up.
 func underID(e allOfBranch, bs *oas3.Schema, wrappers map[jsontext.Pointer]bool) bool {
-	if annotation.RawPropertyNode(bs, "$id") != nil {
+	if writesIdentifier(bs) {
 		return true
 	}
 	p := string(e.pointer)
@@ -185,6 +186,13 @@ func underID(e allOfBranch, bs *oas3.Schema, wrappers map[jsontext.Pointer]bool)
 		}
 	}
 	return false
+}
+
+// writesIdentifier reports whether s writes `$id`, or `id`, draft 4's
+// spelling of it. Either may name a resource, and the base a lookup returns
+// says whether it does, so one that names none costs that lookup alone.
+func writesIdentifier(s *oas3.Schema) bool {
+	return annotation.RawPropertyNode(s, "$id") != nil || annotation.RawPropertyNode(s, "id") != nil
 }
 
 // foldsReference reports whether what bs folds writes a relative $ref, the one
@@ -219,8 +227,8 @@ func unfoldedWhy(speaks, rebased bool, bs *oas3.Schema, residue []string) string
 	case speaks || !disagreed(bs, residue):
 		return ""
 	case rebased:
-		return "this inline allOf branch reads its $refs against another base than the position does, as an $id " +
-			"at or above it names another URI, so nothing it writes folds; the branch (" +
+		return "this inline allOf branch reads its $refs against another base than the position does, as an " +
+			"identifier at or above it names another URI, so nothing it writes folds; the branch (" +
 			strings.Join(residue, ", ") + ") is kept verbatim under Unmodeled"
 	default:
 		return disagreedWhy(residue)

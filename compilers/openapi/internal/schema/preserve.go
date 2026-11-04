@@ -10,6 +10,7 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
 	"github.com/dexpace/morphic/compilers/openapi/internal/lowering"
+	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
 )
 
@@ -29,12 +30,38 @@ import (
 // It is the last thing an attachment does, as annotation.UnknownKeywordsIn
 // requires, so it is called here rather than inside annotation.Read:
 // $dynamicRef has no field in the schema model either and is decided by
-// recordUnexpandedDynamicRef, which runs after Read and keeps nothing once the
-// reference has expanded. A census running before it could not tell that from
-// an unread keyword.
-func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
-	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt)
+// recordUnexpandedDynamicRef, which runs after Read. td is the node the
+// position lowered to, nil for none of its own, which may hold a tuple's rest
+// (tupleRest).
+func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
+	rules := lowering.SchemaRulesAt(c, pointer)
+	var diags []ir.Diagnostic
+	if rules.Defines("dependencies") {
+		// The drafts before 2019-09 spell dependentSchemas and dependentRequired
+		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
+		diags = annotation.PreserveValidationOnlyKeyword(p, s, "dependencies", pointer, c.ProvenanceAt)
+	}
+	taken := tupleRest(c, s, pointer, td)
+	if rules.Defines("id") && !rules.Defines("$id") {
+		// Draft 4's spelling of $id, kept as $id is.
+		diags = append(diags, annotation.PreserveDialectKeyword(p, s, "id", pointer, c.ProvenanceAt)...)
+	}
+	if rules.Takes("definitions", oas.Map) {
+		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
+		taken = append(taken, "definitions")
+	}
+	diags = append(diags, annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt, taken...)...)
 	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.ProvenanceAt)...)
+}
+
+// tupleRest returns `additionalItems` where td, the node s lowered to at
+// pointer, is the tuple an `items` list reads as (listedTuple), which holds it
+// as its rest, and nothing otherwise.
+func tupleRest(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer, td ir.TypeDef) []string {
+	if _, tuple := listedTuple(c, s, pointer); !tuple || !isKind(td, ir.KindTuple) {
+		return nil
+	}
+	return []string{"additionalItems"}
 }
 
 // undefinedKeywords returns the keywords s writes that the schema model names

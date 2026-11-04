@@ -185,6 +185,7 @@ func conformanceCases() []conformanceCase {
 		{"dependent-required", assertDependentRequired},
 		{"dialect-keywords", assertDialectKeywords},
 		{"schema-dialects", assertSchemaDialects},
+		{"schema-drafts", assertSchemaDrafts},
 		{"dynamic-ref", assertDynamicRef},
 		{"keywords-at-every-outcome", assertKeywordsAtEveryOutcome},
 		{"unknown-keywords-at-shared-nodes", assertUnknownKeywordsAtSharedNodes},

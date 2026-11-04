@@ -175,7 +175,7 @@ func attachDeclaredAnnotations(c lowering.Ctx, ts *compile.Types, s *oas3.Schema
 	}
 	diags = append(diags, recordUnplacedContent(c, &common.Unmodeled, s, td, pointer)...)
 	diags = append(diags, recordUnexpandedDynamicRef(c, &common.Unmodeled, s, pointer)...)
-	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer)...)
+	return append(diags, PreserveUnknownKeywords(c, &common.Unmodeled, s, pointer, td)...)
 }
 
 // recordDeclarationResidue keeps, on the node pointer owns, every keyword the

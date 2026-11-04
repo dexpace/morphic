@@ -222,8 +222,8 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	if l.reader != nil {
 		resolved = l.reader.read.keys()
 	}
-	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.media, l.self, l.reader, l.pass.ends())
 	source := &dialects{spec: l.judged.checker.Spec(), version: l.doc.OpenAPI, minor: l.minor}
+	l.bound = bindSchemas(ctx, l.doc, l.sibs, l.media, l.self, l.reader, l.pass.ends(), source)
 	if l.reader != nil {
 		first := l.srcIndex + 1
 		if l.origin.Applied() {

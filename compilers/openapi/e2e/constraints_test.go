@@ -154,7 +154,8 @@ func TestCompile_HoistedSubSchemaConstraintsPreserved(t *testing.T) {
 }
 
 // TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema pins where a bound's
-// shape is judged: at every schema the rule table's check reads, in that schema's dialect, so one the lowering never reads, under
+// shape and an items list are judged: at every schema the rule table's check
+// reads, in that schema's dialect, so one the lowering never reads, under
 // `not`, `if`, `propertyNames` or `contains`, beside an `enum`, or in a schema
 // with no type, is reported as one it does, at the keyword, and an aliased
 // value once. A draft 4 schema's numeric exclusive bound is refused under `not`
@@ -169,6 +170,7 @@ func TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema(t *testing.T) {
 			"    C: {type: array, contains: {exclusiveMinimum: true}}\n"+
 			"    E: {enum: [1], exclusiveMinimum: true}\n"+
 			"    U: {minimum: abc}\n"+
+			"    L: {not: {type: array, items: [{type: string}]}}\n"+
 			"    A: {type: object, properties: {a: &bad {exclusiveMinimum: true}, b: *bad}}\n"+
 			"    D: {$schema: "+draft04+", not: {minimum: 1, exclusiveMinimum: 5}}\n"))
 	assert.Equal(t, []jsontext.Pointer{
@@ -182,6 +184,7 @@ func TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema(t *testing.T) {
 	}, openapitest.PointersOf(diags, diag.ExclusiveBoundForm))
 	assert.Equal(t, []jsontext.Pointer{"/components/schemas/M/not/minimum", "/components/schemas/U/minimum"},
 		openapitest.PointersOf(diags, diag.NumericPrecision))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/L/not/items"}, openapitest.PointersOf(diags, diag.InvalidItemsList))
 
 	_, diags = compileMinors(t, minorRoot("3.1.0"), minorExt("openapi: 3.1.0\ninfo: {title: E, version: '1'}\n",
 		"    S: {$schema: "+draft04+", type: integer, not: {exclusiveMinimum: 5}}\n", "{description: ok}"),
