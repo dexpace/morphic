@@ -94,7 +94,7 @@ func patch(ctx context.Context, srcIndex int, root *yaml.Node, opts Options) (ov
 // It re-runs the pre-parse refusals afterwards, because an overlay action can
 // graft what they refuse, such as nesting past the bound. They locate through
 // the attribution the application produced, so a refusal on a grafted node
-// names the overlay, not a position the node lacks.
+// names the overlay, not a position the node lacks (patchedLocator).
 func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Options, pre []ir.Diagnostic,
 ) (overlay.Origin, []ir.Diagnostic) {
 	if diag.HasError(pre) {
@@ -109,7 +109,21 @@ func applyOverlay(ctx context.Context, srcIndex int, root *yaml.Node, opts Optio
 	if diag.HasError(diags) {
 		return overlay.Origin{}, diags
 	}
-	return origin, append(diags, refusals(ctx, locator(srcIndex, origin, scan.Pointers(ctx, root)), root, opts)...)
+	locate := patchedLocator(locator(srcIndex, origin, scan.Pointers(ctx, root)), opts.OverlaySrcIndex)
+	return origin, append(diags, refusals(ctx, locate, root, opts)...)
+}
+
+// patchedLocator places a refusal of the patched tree: one at a node as place
+// does, and one of the whole tree, such as its pointers' bytes, at the overlay,
+// whose actions caused it, since the source passed the same refusals before
+// the overlay applied (loading.preParse).
+func patchedLocator(place scan.Locator, overlayIndex int) scan.Locator {
+	return func(n *yaml.Node) ir.Provenance {
+		if n == nil {
+			return ir.Provenance{Source: overlayIndex}
+		}
+		return place(n)
+	}
 }
 
 // overlayRefusals holds an overlay to the source's refusals, under the same

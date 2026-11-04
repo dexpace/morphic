@@ -112,6 +112,40 @@ func TestLoad_RefusesANestingAnOverlayGrafted(t *testing.T) {
 	assert.Equal(t, jsontext.Pointer(want), d.Provenance.Pointer)
 }
 
+// TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay pins where a
+// refusal of the whole patched tree is placed: a source of 30 levels under
+// 10,000-byte keys passes the pointer bound alone, and an overlay of 3,000
+// short entries passes it too, but grafted at the bottom of the source's spine
+// they total past it. The overlay caused it, so the refusal is at the overlay.
+func TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay(t *testing.T) {
+	t.Parallel()
+	var source strings.Builder
+	source.WriteString(minimal31 + "components:\n  schemas:\n    A:\n")
+	indent := 6
+	for i := range 30 {
+		// A key this long is written explicitly: an implicit one is held to 1,024 characters.
+		fmt.Fprintf(&source, "%[1]stype: object\n%[1]sproperties:\n%[1]s  ? %[2]s%[3]d\n%[1]s  :\n",
+			strings.Repeat(" ", indent), strings.Repeat("p", 10_000), i%10)
+		indent += 4
+	}
+	fmt.Fprintf(&source, "%[1]stype: object\n%[1]sx-leaf: {}\n", strings.Repeat(" ", indent))
+	var update strings.Builder
+	for i := range 3000 {
+		fmt.Fprintf(&update, "      k%d: v\n", i)
+	}
+	alone, _, err := Load(t.Context(), 0, openapitest.SourceOf(source.String()), Options{})
+	require.NoError(t, err)
+	require.NotNil(t, alone, "the source passes the bound alone")
+
+	got, diags, err := Load(t.Context(), 0, openapitest.SourceOf(source.String()),
+		overlayOptions("  - target: $..['x-leaf']\n    update:\n"+update.String()))
+	require.NoError(t, err)
+	assert.Nil(t, got)
+	i := slices.IndexFunc(diags, func(d ir.Diagnostic) bool { return d.Code == diag.PointerAmplification })
+	require.GreaterOrEqual(t, i, 0, "the grafted tree is refused on its pointers: %v", diags)
+	assert.Equal(t, ir.Provenance{Source: 1}, diags[i].Provenance, "the overlay grafted what passes the bound")
+}
+
 // TestExternal_AdmitRefusesANestingPastTheBound pins that a document an
 // external reference names is held to the source's bound, its finding the
 // reason the reference fails.

@@ -208,7 +208,9 @@ from the local file `Overlay.Path` names, through the caller's reader and unconf
 caller named it and not the spec. One the reader cannot read is a Go error, as an unreadable spec
 is, and so are an overlay naming no file and one naming an http(s) URL, since no setting takes a
 compile onto the network. Once applied, the pre-parse refusals and the node budgets hold the patched
-tree as they hold the source, and validation and every lowering read it. Each action is charged the
+tree as they hold the source, and validation and every lowering read it. A refusal at a node the
+overlay grafted names the overlay, and so does a refusal of the whole patched tree, such as its
+pointers' bytes, since the source passed the same refusals alone. Each action is charged the
 nodes it can build before it runs: one whose charge would carry the tree, counted afresh, past
 `MaxSourceNodes` is refused as an `openapi/budget-exceeded` error with nothing it would build built,
 so it is refused while the tree is past the budget whatever a later action removes. An action that
@@ -239,7 +241,8 @@ overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `e2e.TestCompile_OverlayIsRecordedAsASource`, `load.TestLoad_AnOverlayBuildsWithinTheNodeBudget`,
   `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
-  `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`
+  `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`,
+  `load.TestLoad_APointerAmplificationAnOverlayGraftedNamesTheOverlay`
 - Status: partly built: an Overlay 1.0.0 document's RFC 9535 filter selector fails to apply (#651).
   Open: whether lax application should report an action that matches nothing (#652), how an update
   merges a nested array (#653), and whether an overlay that replaces a value the source declares is
