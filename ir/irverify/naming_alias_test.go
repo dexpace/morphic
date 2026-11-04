@@ -75,7 +75,9 @@ func TestVerify_BlankAliasIsAViolation(t *testing.T) {
 		"variation selector supplement": "\U000e0100",
 		"mongolian selector":            "\u180b",
 		"mongolian selector four":       "\u180f",
-		"invisible mix":                 "\u200b\t\ufeff\u3164",
+		// Other_Default_Ignorable, directly below the excluded U+FFF9.
+		"reserved before annotation": "\ufff8",
+		"invisible mix":              "\u200b\t\ufeff\u3164",
 	}
 	for name, alias := range blanks {
 		t.Run(name, func(t *testing.T) {
@@ -100,13 +102,13 @@ func TestVerify_InvisibleRuneBesideAVisibleOneIsNotBlank(t *testing.T) {
 // TestVerify_BlankLookingGraphicAliasIsNotBlank holds the other side. U+2800
 // BRAILLE PATTERN BLANK renders as whitespace but is a graphic character
 // Unicode does not classify as invisible, so the rule leaves it alone rather
-// than deciding on its own account what looks empty. So are the format
-// characters Unicode takes out of Default_Ignorable_Code_Point because they
-// render: a prepended concatenation mark, an interlinear annotation character
-// and an Egyptian hieroglyph format control.
+// than deciding on its own account what looks empty. It leaves alone, too, the
+// format characters Unicode takes out of Default_Ignorable_Code_Point because
+// they render: a prepended concatenation mark, an interlinear annotation
+// character and an Egyptian hieroglyph format control.
 func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
 	t.Parallel()
-	graphics := map[string]string{
+	visible := map[string]string{
 		"braille blank":       "\u2800",
 		"arabic number sign":  "\u0600",
 		"arabic end of ayah":  "\u06dd",
@@ -119,7 +121,7 @@ func TestVerify_BlankLookingGraphicAliasIsNotBlank(t *testing.T) {
 		"egyptian format":     "\U00013430",
 		"egyptian last":       "\U0001343f",
 	}
-	for name, alias := range graphics {
+	for name, alias := range visible {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			assert.Empty(t, aliasViolations(t, alias))

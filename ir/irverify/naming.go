@@ -339,8 +339,10 @@ func isInvisible(r rune) bool {
 		unicode.Is(unicode.Variation_Selector, r)
 }
 
-// The Cf ranges Unicode takes out of Default_Ignorable_Code_Point that package
-// unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F.
+// The Cf ranges Unicode 17.0.0 takes out of Default_Ignorable_Code_Point that
+// package unicode has no table for: U+FFF9..U+FFFB and U+13430..U+1343F. The
+// second grew at Unicode 15.0, so a Go release that moves unicode.Version needs
+// both rechecked against DerivedCoreProperties.txt.
 const (
 	interlinearFirst, interlinearLast       = '\uFFF9', '\uFFFB'
 	egyptianFormatFirst, egyptianFormatLast = '\U00013430', '\U0001343F'
