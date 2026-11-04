@@ -307,6 +307,9 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
+- Status: partly built: a schema read in a JSON Schema draft ([`dialect-keywords`](#dialect-keywords))
+  is held to its minor's keyword rows, so a keyword the draft constrains otherwise passes as 2020-12
+  admits it (#1466).
 
 ### `minor-required-fields`
 
@@ -2774,8 +2777,9 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
 - Status: partly built: a keyword a draft before 2020-12 spells otherwise, such as `items` written as
   a list, `additionalItems`, `dependencies`, `definitions`, `id`, or the keywords beside a `$ref`, is
   read as 2020-12 reads it, and the table has no rows for drafts 6, 7 and 2019-09, which reading them
-  would also have an aliased node read per position (#1457); and the rule table's check holds a
-  schema read in a draft to its minor's keyword rows (#1466).
+  would also have an aliased node read per position (#1457); the rule table's check holds a schema
+  read in a draft to its minor's keyword rows (#1466); and an `$id` naming its document by the 3.2
+  `$self` roots a resource of its own, as the document is known by its location alone (#863).
 
 ### `vocabulary-coverage`
 

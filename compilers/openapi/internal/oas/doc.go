@@ -5,9 +5,9 @@
 // that checks a source tree against them at the minor it declares.
 //
 // The table states, for every object of OpenAPI 3.0, 3.1 and 3.2, each field
-// with the minors that define and require it, the rules binding fields
-// together, and the defaults of unwritten ones, each row citing the sentence
-// it comes from.
+// with the minors defining and requiring it, the rules binding fields,
+// unwritten fields' defaults, and the dialects a Schema Object can name, each
+// row citing its sentence.
 //
 // A rule another package already reports names it as owner: the table states
 // it and the engine skips it. Unknown keys are not reported here.
