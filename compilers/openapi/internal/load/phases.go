@@ -235,6 +235,8 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 	var unread []ir.Diagnostic
 	l.dialects, unread = readDialects(l.bound.bindings.Table(), l.bound.others, source, l.doc.GetJSONSchemaDialect(),
 		l.bound.placer(l.at))
+	l.judged = judgeOwned(l.judged, l.dialects)
+	l.self.judged = l.judged
 	l.placeSite = sitePlacer(l.at, l.bound.others)
 	l.resolved = slices.Concat(l.pass.diags(l.placeSite), stillUnprepared(l.placeSite, l.missed), unread)
 	return false, nil
@@ -244,7 +246,7 @@ func (l *loading) bindRefs(ctx context.Context) (bool, error) {
 // document resolved, since a rebuild discards a first resolution's objects.
 func (l *loading) reach(ctx context.Context) (bool, error) {
 	l.reached = validateReached(ctx, l.at, l.bound, l.doc, l.sibs, l.media, l.opts, l.self,
-		l.pass.elsewhere(l.placeSite))
+		l.pass.elsewhere(l.placeSite), l.dialects)
 	return false, nil
 }
 

@@ -107,3 +107,28 @@ func TestDialectRoots_AnEmbeddedResourceNamesItsOwn(t *testing.T) {
 		at("/components/schemas/T/properties/a"): "https://example.com/inner",
 	}, rootsOf(table))
 }
+
+// TestDialectAt_ReadsTheInnermostRootAtOrAboveAPosition pins the lookup every
+// reading of a schema's dialect shares: the root at the position or the
+// nearest above it in its document, and none where no root holds it.
+func TestDialectAt_ReadsTheInnermostRootAtOrAboveAPosition(t *testing.T) {
+	t.Parallel()
+	roots := map[bind.Position]string{{Pointer: "/a"}: "outer", {Pointer: "/a/b"}: "inner", {Doc: 1, Pointer: ""}: "other"}
+	for _, tc := range []struct {
+		at   bind.Position
+		want string
+	}{
+		{bind.Position{Pointer: "/a"}, "outer"},
+		{bind.Position{Pointer: "/a/c/d"}, "outer"},
+		{bind.Position{Pointer: "/a/b/c"}, "inner"},
+		{bind.Position{Pointer: "/ab"}, ""},
+		{bind.Position{Pointer: ""}, ""},
+		{bind.Position{Doc: 1, Pointer: "/a/b"}, "other"},
+	} {
+		got, ok := bind.DialectAt(roots, tc.at)
+		assert.Equal(t, tc.want, got, "%v", tc.at)
+		assert.Equal(t, tc.want != "", ok, "%v", tc.at)
+	}
+	_, ok := bind.DialectAt(map[bind.Position]string{}, bind.Position{Pointer: "/a"})
+	assert.False(t, ok, "no roots hold anything")
+}

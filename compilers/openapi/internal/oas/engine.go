@@ -49,6 +49,12 @@ type Options struct {
 	// pointer it was read at, through an alias or a merge key, name that
 	// pointer, under Root.
 	ReadAt bool
+	// Owned, when set, is handed each value of a Schema Object field whose
+	// shape the table leaves to another package (Field.ShapeOwner,
+	// Field.ListOwner), which the check does not judge: a shape a schema's
+	// dialect decides, known only once its references are bound, or a bound's
+	// decimal. Unset, no check judges it.
+	Owned func(Owned)
 }
 
 // Checker judges documents against the table.
@@ -74,7 +80,7 @@ func (c Checker) Check(ctx context.Context, root *yaml.Node, declared string, op
 	}
 	w := &walker{ctx: ctx, spec: c.spec, minor: minor, view: nodeview.New(), work: budget.New(opts.Budget)}
 	w.locate, w.declared, w.seen = opts.Locate, declared, opts.Seen
-	w.readAt, w.rootAt, w.said = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}
+	w.readAt, w.rootAt, w.said, w.owned = opts.ReadAt, opts.Root, map[ir.Diagnostic]bool{}, opts.Owned
 	if w.locate == nil {
 		w.locate = func(jsontext.Pointer) ir.Provenance { return ir.Provenance{} }
 	}
@@ -100,6 +106,7 @@ type walker struct {
 	work    budget.Budget
 	stopped bool
 	seen    func(Kind, *yaml.Node)
+	owned   func(Owned)
 	reporter
 }
 

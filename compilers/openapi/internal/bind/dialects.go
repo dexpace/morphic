@@ -46,3 +46,21 @@ func dialectsByDocument(roots map[Position]DialectRoot) map[DocID][]DialectRoot 
 	}
 	return out
 }
+
+// DialectAt returns the innermost of roots, a dialect root by where it is, at
+// p or holding it in p's document, and false where none does: the root whose
+// `$schema` names the dialect the schema at p is read in. A position reads it
+// by where it is, not by its node, so a node an alias places under two roots
+// reads each one's at each.
+func DialectAt[V any](roots map[Position]V, p Position) (V, bool) {
+	for ptr := p.Pointer; len(roots) > 0; ptr = ptr.Parent() {
+		if r, ok := roots[Position{Doc: p.Doc, Pointer: ptr}]; ok {
+			return r, true
+		}
+		if ptr == "" {
+			break
+		}
+	}
+	var none V
+	return none, false
+}

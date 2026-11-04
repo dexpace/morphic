@@ -28,10 +28,13 @@ type objectKey struct {
 // objects it read, so the validation of what a reference reaches skips them.
 // checker is the table it judged against, built once a load, which judges
 // what the references reach and gives each document's Schema Object rows.
+// owned is each value it left to the load phase (oas.Options.Owned), which
+// is judged once the dialect of each schema is known (ownedFindings).
 type judgment struct {
 	checker oas.Checker
 	diags   []ir.Diagnostic
 	seen    map[objectKey]bool
+	owned   []oas.Owned
 }
 
 // declaredVersion returns the version the document at root writes under
@@ -76,6 +79,7 @@ func judgeSource(ctx context.Context, root *yaml.Node, tree sourceTree, within b
 			j.seen[objectKey{node: nodeview.Deref(node), kind: kind}] = true
 		},
 		ReadAt: true,
+		Owned:  func(o oas.Owned) { j.owned = append(j.owned, o) },
 	}
 	j.diags = append(j.checker.Check(ctx, root, version, opts),
 		oas.CheckFormat(ctx, root, version, formatOptions(opts))...)

@@ -19,16 +19,22 @@ import (
 )
 
 // value checks the value a field is written with: its shape, then what its
-// shape allows, then the objects it holds. A field whose shape another package
-// owns is left to it, bar a number outside the field's range, such as a
-// multipleOf of 0, which that package reads as the number it is, quoted or not,
-// and a null, which that package reads as the field left out.
+// shape allows, then the objects it holds. A value of a field whose shape
+// another package owns is handed to it (Options.Owned), bar a number outside
+// the field's range, such as a multipleOf of 0, which that package reads as the
+// number it is, quoted or not, and a null, which that package reads as the
+// field left out.
 func (w *walker) value(f frame, fld Field, val *yaml.Node, depth int) {
 	node := nodeview.Deref(val)
 	ptr := f.at.ptr.AppendToken(fld.Name)
 	shape, ok := w.shapeOf(fld, node)
+	owned := fld.ShapeOwner != "" && !isNull(node) && (ok || !outOfRange(fld.Shape, node))
+	if owned && w.owned != nil {
+		w.owned(Owned{Field: fld.Name, Value: node, Schema: w.rootAt + f.at.ptr, at: ptr, locate: w.locate,
+			rootAt: w.rootAt, readAt: w.readAt})
+	}
 	if !ok {
-		if fld.ShapeOwner == "" || outOfRange(fld.Shape, node) || isNull(node) {
+		if !owned {
 			w.mismatch(f, fld, node, ptr)
 		}
 		return

@@ -76,7 +76,7 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 			"    T: {$schema: "+draft04+", type: object, properties: {a: "+boolean+"}}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T/properties/a": {"", "5"}}, nil},
 		{"draft 4 refuses a 3.1 bound", openapitest.ComponentSpec("    T: {$schema: " + draft04 + ", type: integer, exclusiveMinimum: 5}\n"),
-			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T"}},
+			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T/exclusiveMinimum"}},
 		{"jsonSchemaDialect is the default", "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: " + draft04 +
 			"\npaths: {}\ncomponents:\n  schemas:\n    T: " + boolean +
 			"\n    U: {$schema: 'https://json-schema.org/draft/2020-12/schema', type: integer, exclusiveMinimum: 5}\n",
@@ -84,7 +84,7 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 		{"a $schema below a root names nothing", openapitest.ComponentSpec(
 			"    T: {type: object, properties: {a: {$schema: " + draft04 + ", type: integer, minimum: 5, exclusiveMinimum: true}}}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T/properties/a": {"5", ""}},
-			[]jsontext.Pointer{"/components/schemas/T/properties/a"}},
+			[]jsontext.Pointer{"/components/schemas/T/properties/a/exclusiveMinimum"}},
 		{"an $id-embedded resource names its own", openapitest.ComponentSpec(
 			"    T: {type: object, properties: {a: {$id: 'https://example.com/a', $schema: " + draft04 +
 				", type: integer, minimum: 5, exclusiveMinimum: true}}}\n"),
@@ -96,7 +96,7 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 			nil},
 		{"a 3.0 document names no dialect", openapitest.ComponentSpecVer("3.0.3",
 			"    T: {$schema: 'https://json-schema.org/draft/2020-12/schema', type: integer, exclusiveMinimum: 5}\n"),
-			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T"}},
+			map[jsontext.Pointer][2]ir.BigVal{}, []jsontext.Pointer{"/components/schemas/T/exclusiveMinimum"}},
 		{"beside a $ref", openapitest.ComponentSpec("    B: {type: integer}\n" +
 			"    T: {$schema: " + draft04 + ", $ref: '#/components/schemas/B', minimum: 5, exclusiveMinimum: true}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}}, nil},

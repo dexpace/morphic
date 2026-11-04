@@ -46,6 +46,9 @@ type reached struct {
 	// and others one about another document's (see locatorFor).
 	tree   sourceTree
 	others Others
+	// dialects gives the rows each schema checked is read with, which judge
+	// the values the check leaves to the load phase (ownedFindings).
+	dialects Dialects
 	// seen holds the objects the source's own check read as their kind.
 	seen map[objectKey]bool
 	// reported holds every finding already reported, the source's own included.
@@ -81,10 +84,10 @@ func (t reachedTarget) at() refSite { return refSite{doc: t.siteDoc, pointer: t.
 // reported once, where it is placed (see locatorFor), and none the source's
 // own check made.
 func validateReached(ctx context.Context, at func(jsontext.Pointer) ir.Provenance, b bound, doc *soa.OpenAPI,
-	sibs Siblings, media MediaTypes, opts Options, self sourceDocument, away []awayRef,
+	sibs Siblings, media MediaTypes, opts Options, self sourceDocument, away []awayRef, dialects Dialects,
 ) []ir.Diagnostic {
 	checks := newReached(doc, opts, self.tree, self.judged)
-	checks.esc, checks.others = self.escapes, b.others
+	checks.esc, checks.others, checks.dialects = self.escapes, b.others, dialects
 	table := b.bindings.Table()
 	targets := builtTargets(b.built, b.placer(at), func(id bind.DocID) string { return table.Document(id).Name })
 	for _, a := range away {
@@ -270,10 +273,15 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 	if d, over := v.charge(ctx, site, t.doc, t.node); over {
 		return d
 	}
-	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.home.pointer}
+	var owned []oas.Owned
+	opts := oas.Options{Start: t.kind, Budget: v.limit, Locate: v.locatorFor(t), ReadAt: true, Root: t.home.pointer,
+		Owned: func(o oas.Owned) { owned = append(owned, o) }}
 	version := v.versionOf(t)
 	found := append(v.checker.Check(ctx, t.node, version, opts),
 		oas.CheckFormat(ctx, t.node, version, formatOptions(opts))...)
+	found = append(found, ownedFindings(owned, func(o oas.Owned) oas.SchemaRules {
+		return v.dialects.rowsAt(v.positionOf(t, o.Schema))
+	})...)
 	var diags []ir.Diagnostic
 	for _, d := range found {
 		if key := identity(d, t.doc); !v.reported[key] {
@@ -282,6 +290,15 @@ func (v *reached) check(ctx context.Context, site ir.Provenance, t reachedTarget
 		}
 	}
 	return diags
+}
+
+// positionOf returns where pointer of the document holding t's object is in
+// the bindings' table, the source's for one no document of it names.
+func (v *reached) positionOf(t reachedTarget, pointer jsontext.Pointer) bind.Position {
+	if id, named := v.dialects.byName[t.home.doc]; named && !t.inSource {
+		return bind.Position{Doc: id, Pointer: pointer}
+	}
+	return bind.Position{Doc: bind.Source, Pointer: pointer}
 }
 
 // versionOf returns the version t's object is held to: that of the document

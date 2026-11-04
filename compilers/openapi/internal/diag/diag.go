@@ -145,12 +145,14 @@ const (
 	// requirement on enum is a SHOULD.
 	DuplicateEnumValue = "openapi/duplicate-enum-value"
 	// NumericPrecision reports a numeric bound literal that is not a finite
-	// number (error severity: Morphic owns these keywords, so this is the sole
-	// diagnostic for the defect — see boundLiteralDiag).
+	// number, at every schema the load phase's check reads (error severity:
+	// Morphic owns these keywords, so this is the sole diagnostic for the
+	// defect — see load.ownedFinding).
 	NumericPrecision = "openapi/invalid-numeric-literal"
 	// ExclusiveBoundForm reports an exclusiveMinimum/exclusiveMaximum whose value
 	// form is wrong for the schema's dialect (a boolean under 2020-12, or a
-	// number under 3.0's or draft 4's) — see exclusiveFormDiag.
+	// number under 3.0's or draft 4's), at every schema the load phase's check
+	// reads — see load.ownedFinding.
 	ExclusiveBoundForm = "openapi/invalid-exclusive-bound"
 	// InvalidStatusKey reports a responses-map key that names no status: not a
 	// 100–599 code, not one of the 1XX–5XX wildcard ranges, not "default". The

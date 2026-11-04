@@ -198,8 +198,10 @@ var rules = map[string][]string{
 	// and the library's pointer walk, directly and through navigation, to tell a
 	// hop that walked a document's bytes and to walk a document as it does, and
 	// the library's core models to tell its marshaller of the media type
-	// reference it builds (load.MediaTypes). It reaches nothing that lowers — at
-	// this point there is no document to lower.
+	// reference it builds (load.MediaTypes). It reaches value to judge a bound's
+	// decimal as the lowering reads it, for the values oas leaves to it
+	// (load.ownedFinding). It reaches nothing that lowers — at this point there
+	// is no document to lower.
 	"compilers/openapi/internal/load": {module + "/ir", module + "/compilers",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -213,6 +215,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/resolve",
 		module + "/compilers/openapi/internal/scan",
 		module + "/compilers/openapi/internal/sourceindex",
+		module + "/compilers/openapi/internal/value",
 		"github.com/speakeasy-api/openapi/jsonpointer",
 		"github.com/speakeasy-api/openapi/jsonschema/oas3",
 		"github.com/speakeasy-api/openapi/marshaller",

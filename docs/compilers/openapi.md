@@ -2542,8 +2542,8 @@ the target is; and
 `minProperties` and `maxProperties` per [`additional-properties`](#additional-properties). A bound
 is read off the raw node, never the parser's `float64`, so its `BigVal` keeps every digit the
 literal wrote ([`values`](#values)), a quoted one as the decimal it spells; one that is no decimal
-literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the schema
-that wrote it. Exclusive bounds follow the schema's dialect
+literal a `BigVal` holds is dropped with an `openapi/invalid-numeric-literal` error at the keyword.
+Exclusive bounds follow the schema's dialect
 ([`dialect-keywords`](#dialect-keywords)). In 3.0's, and in JSON Schema draft 4's, the boolean
 modifies the bound beside it: `true` moves that bound to `ExclusiveMin` or `ExclusiveMax` and clears
 `Min` or `Max`, so a 3.0 document and its 3.1 translation lower alike, `false` states nothing, and
@@ -2552,7 +2552,11 @@ or `openapi:exclusiveMaximum` (`degraded_lowering`) with an `openapi/degraded-co
 2020-12's, the dialect 3.1 and 3.2 name, the keyword is a bound of its own, kept beside `Min`/`Max`
 when both are declared, a field apiece and no `Unmodeled` entry
 ([constraints](../ir/constraints.md)). The other dialect's form (a boolean in 2020-12's, a number in
-3.0's or draft 4's) is dropped with an `openapi/invalid-exclusive-bound` error. A bound beside a
+3.0's or draft 4's) is dropped with an `openapi/invalid-exclusive-bound` error at the keyword. Both
+errors are the load phase's, once each schema's dialect is known, at every schema the
+[`validation`](#validation) check reads, which the rule table leaves these keywords' shape to: one
+under `not`, `if` or `propertyNames`, or beside an `enum`, is reported as one the lowering reads,
+and an aliased value once. A bound beside a
 node with no `Constraints` field to take it (an `Enum`, a `Literal`, a `List` for a value bound) is
 kept verbatim under `openapi:<keyword>`
 (`degraded_lowering`) with an info `openapi/degraded-construct` naming the node it lowered to, as
@@ -2563,7 +2567,10 @@ which a bool cannot tell from one never written, and a count that does not fit i
 - Cases: `constraints`, `numeric-precision`, `ref-collection-bounds`
 - Codes: `openapi/invalid-numeric-literal`, `openapi/invalid-exclusive-bound`,
   `openapi/degraded-construct`
-- Tests: `schema.TestConstraints_ExclusiveBoolean30`,
+- Tests: `e2e.TestOwnedShapes_AreReportedWhereverTheCheckReadsASchema`,
+  `load.TestOwnedFinding_JudgesEachValueInItsSchemasDialect`,
+  `load.TestOwnedFindings_ReportAnAliasedValueOnce`,
+  `schema.TestConstraints_ExclusiveBoolean30`,
   `schema.TestConstraints_ExclusiveWrongDialectForm`,
   `schema.TestConstraints_LosslessNumericLiterals`,
   `schema.TestConstraints_ABoundPastTheExponentRangeIsRefused`,
