@@ -298,3 +298,32 @@ func TestLoad_TheSourceSharesItsRowsWithADocumentOfItsMinor(t *testing.T) {
 	assert.True(t, rows["other.yaml"].Schema.Defines("nullable"))
 	assert.False(t, doc.Rows.Schema.Defines("nullable"))
 }
+
+// TestLoad_TheSourcesRowsAreThoseOfItsJSONSchemaDialect pins that the rows the
+// load phase hands over for the source are in the dialect its jsonSchemaDialect
+// names, shared, by identity, with a document of its minor naming the same one,
+// and apart from those of one naming none.
+func TestLoad_TheSourcesRowsAreThoseOfItsJSONSchemaDialect(t *testing.T) {
+	t.Parallel()
+	named := "jsonSchemaDialect: '" + draft04 + "'\n"
+	declaring := func(dialect string) string {
+		return "openapi: 3.1.1\ninfo: {title: E, version: \"1\"}\n" + dialect + "paths: {}\n" +
+			"components: {schemas: {S: {type: string}}}\n"
+	}
+	dir := externalDir(t, map[string]string{"named.yaml": declaring(named), "none.yaml": declaring("")})
+	doc, _ := loadExternal(t, dir, "openapi: 3.1.0\ninfo: {title: T, version: \"1\"}\n"+named+"paths: {}\n"+
+		"components:\n  schemas:\n    A: {$ref: 'named.yaml#/components/schemas/S'}\n"+
+		"    B: {$ref: 'none.yaml#/components/schemas/S'}\n", Options{})
+	rows := map[string]Rows{}
+	for _, o := range doc.Others.List() {
+		rows[o.Label] = o.Rows
+	}
+	require.Len(t, rows, 2, "both documents are read")
+	assert.True(t, doc.Rows.Schema.Takes("exclusiveMinimum", oas.Boolean), "the source's rows are draft 4's")
+	if rows["named.yaml"] != doc.Rows {
+		t.Error("the source's rows were built apart from those of a document naming its dialect")
+	}
+	if rows["none.yaml"] == doc.Rows {
+		t.Error("a document naming no dialect shares the rows of the source's")
+	}
+}

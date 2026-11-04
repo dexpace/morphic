@@ -103,6 +103,10 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 		{"across an allOf", openapitest.ComponentSpec("    T: {$schema: " + draft04 +
 			", allOf: [{type: integer, minimum: 1, exclusiveMinimum: true}, {type: integer, minimum: 3}]}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"3", "1"}}, nil},
+		{"an allOf reads each branch in its own", "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: " +
+			draft04 + "\npaths: {}\ncomponents:\n  schemas:\n    T: {allOf: [{$id: 'https://example.com/a', " +
+			"$schema: 'https://json-schema.org/draft/2020-12/schema', type: integer, exclusiveMinimum: 2}, " + boolean + "]}\n",
+			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
