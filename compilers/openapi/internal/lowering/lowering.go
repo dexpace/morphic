@@ -81,10 +81,11 @@ type Ctx struct {
 	// holds the struct to.
 	schemas map[string]bool
 
-	// rules is the Schema Object's rows at the minor the source declares, read
-	// once by New, so no copy of the context reads the version again; another
-	// document's are its load.Other's (SchemaRules). It is one word, which keeps
-	// RefScope's closure in its size class.
+	// rules is the Schema Object's rows at the minor the source declares, in the
+	// dialect its jsonSchemaDialect names, read once by New, so no copy of the
+	// context reads the version again; another document's are its load.Other's
+	// (SchemaRules). It is one word, which keeps RefScope's closure in its size
+	// class.
 	rules oas.SchemaRules
 
 	// NullableWidening is the nullable-widening policy. It sits before foreign so
@@ -411,12 +412,12 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 // this name. A name it does not declare is not a resolvable $ref target.
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
-// SchemaRules returns the Schema Object's rows a schema c lowers is read with:
-// those of the document whose content c reads, which its scope names
-// (load.Other.Rules), the source's for its own. A reading that differs between
-// minors, such as a boolean exclusiveMinimum, a required `items` or the effect
-// `nullable` has, asks these rather than the version. A version the table does
-// not cover, and a context with no document, answer with the zero rows.
+// SchemaRules returns the Schema Object's rows of the document whose content c
+// reads, which its scope names (load.Other.Rules), the source's for its own. A
+// reading only a minor decides, such as a required `items` or the effect
+// `nullable` has, asks these rather than the version; a keyword's shape, which
+// a schema's dialect decides, asks SchemaRulesOf. A version the table does not
+// cover, and a context with no document, answer with the zero rows.
 //
 // The scope, not home, names that document: Declared can read one document's
 // content at another's positions.
