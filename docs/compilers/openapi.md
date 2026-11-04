@@ -2125,9 +2125,9 @@ as one whose branches declare shape.
   `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`
 - Status: partly built: a multi-typed base's discriminator routes to no subtype (#853), and a union
   beside a composition the bounds cut short degrades even where each branch restates only what the
-  body itself writes (#1423). Open: keeping a
-  discriminated `oneOf` a union when structural keywords sit beside it (#594), and distributing a
-  union's inline branches when properties sit beside it (#661).
+  body itself writes (#1423). Open: keeping a discriminated `oneOf` a union when structural keywords
+  sit beside it (#594), and distributing a union's inline branches when properties sit beside it
+  (#661).
 
 ### `union-beside-ref`
 

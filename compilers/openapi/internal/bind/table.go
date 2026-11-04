@@ -387,7 +387,8 @@ type Document struct {
 
 // Table is every schema reference a source holds, where each lands and where
 // its chain ends, the loops among them, and what the reading cost. It is built
-// once and never written after.
+// once, and no answer it gives changes after: only its base lookups write, to
+// remember the walks they make (bases).
 type Table struct {
 	entries   map[Position]Entry
 	roots     map[Position]state
@@ -400,8 +401,11 @@ type Table struct {
 	limit     budget.Limit
 	exhausted bool
 	truncated bool
-	bases     *bases
-	ids       *identifiers
+	// bases remembers each walk Base and InOwnResource make, filled as they
+	// ask. It changes no answer, each being what a walk from the root gives,
+	// and nothing guards it, as only the lowering asks, on one goroutine.
+	bases *bases
+	ids   *identifiers
 }
 
 // Entry returns the entry of the $ref written at site, and false for a
