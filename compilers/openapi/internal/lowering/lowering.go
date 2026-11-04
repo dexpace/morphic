@@ -159,7 +159,9 @@ type loadResult struct {
 	// as a $ref, modelled and resolved with the document (MediaTypeUse).
 	media load.MediaTypes
 	// names names the nodes built at the positions of the documents the
-	// bindings read, remembering each name (NameAt).
+	// bindings read, remembering each name (NameAt). Copies share it on
+	// purpose: a name reads only those documents, which no lowering changes,
+	// so what one copy remembers is what another would read.
 	names *naming.Namer
 	// others is every document a reference read beside the source, and rows
 	// what the table says at the source's minor (load.Document.Rows): the load
