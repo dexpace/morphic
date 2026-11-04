@@ -116,15 +116,20 @@ linters:
         # compiler's rule table, which a lowering asks through its context
         # (docs/compilers/openapi.md#later-version-construct): a lowering that
         # reads the version a document declares states a fact a second time.
-        # The parser library's version field and accessor, and the table's
-        # reading of a version, are refused outside the load phase, the table
-        # and tests, which exclusions below excuse. An assignment to the field
-        # is refused as a read is, and nothing outside the load phase writes a
-        # parsed document; a struct literal naming it is no use. A member
-        # promoted through an embedding of the library's document is not seen,
-        # and nothing embeds it.
+        # The parser library's version field and accessor, its core model's
+        # field, and the table's reading of a version, are refused outside the
+        # load phase, the table and tests, which exclusions below excuse. An
+        # assignment to a field is refused as a read is, and nothing outside the
+        # load phase writes a parsed document; a struct literal naming it is no
+        # use. A member promoted through an embedding of the library's document
+        # is not seen, and nothing embeds it. The version as the YAML tree or
+        # the IR's SourceInfo.Format spells it is beyond a pattern, and nothing
+        # outside the load phase reads either.
         - pattern: ^openapi\.OpenAPI\.(OpenAPI|GetOpenAPI)$
           pkg: ^github\.com/speakeasy-api/openapi/openapi$
+          msg: ask the rule table how a document's version reads, not the version
+        - pattern: ^core\.OpenAPI\.OpenAPI$
+          pkg: ^github\.com/speakeasy-api/openapi/openapi/core$
           msg: ask the rule table how a document's version reads, not the version
         - pattern: ^oas\.ParseMinor$
           pkg: /compilers/openapi/internal/oas$

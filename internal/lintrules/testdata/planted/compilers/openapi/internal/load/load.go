@@ -7,7 +7,8 @@ package load
 
 import soa "github.com/speakeasy-api/openapi/openapi"
 
-// Declared reads the version doc declares, as the load phase does.
-func Declared(doc *soa.OpenAPI) (string, string) {
-	return doc.OpenAPI, doc.GetOpenAPI()
+// Declared reads the version doc declares, as the load phase does, its core
+// model's spelling among them.
+func Declared(doc *soa.OpenAPI) (string, string, string) {
+	return doc.OpenAPI, doc.GetOpenAPI(), doc.GetCore().OpenAPI.Value
 }
