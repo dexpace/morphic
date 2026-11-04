@@ -3081,7 +3081,9 @@ refinement ([`allof-refinement`](#allof-refinement)) to the schema deciding it, 
 type. It leaves the media type to say where it is absent, `true`, or writes no keyword but `type` as
 `string`, alone or with `null`, the annotations `title`, `description`, `$comment`, `example`,
 `examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
-the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary payload's octets,
+the identifiers `$id`, `$anchor` and `$dynamicAnchor` and the store `$defs`, which say nothing of
+the value, the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary
+payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
 where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
 keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering reads one

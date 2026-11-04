@@ -197,14 +197,16 @@ func writesOnly(s *oas3.Schema, allowed func(string) bool) bool {
 }
 
 // openKeyword reports whether a schema writing key can still leave its media
-// type to say how its value travels: an annotation, a length bound, which
-// OpenAPI applies to a binary payload's octets, contentMediaType, which a media
-// type set by the content's key or an encoding entry overrides, its own
-// extensions, type, which readOpen reads, and a union, where unions says so.
+// type to say how its value travels: an annotation, an identifier or a store of
+// schemas, which say nothing of the value, a length bound, which OpenAPI
+// applies to a binary payload's octets, contentMediaType, which a media type
+// set by the content's key or an encoding entry overrides, its own extensions,
+// type, which readOpen reads, and a union, where unions says so.
 func openKeyword(key string, unions bool) bool {
 	switch key {
-	case "type", "$comment", "contentMediaType", "default", "deprecated", "description", "example", "examples",
-		"externalDocs", "maxLength", "minLength", "nullable", "readOnly", "title", "writeOnly", "xml":
+	case "type", "$anchor", "$comment", "$defs", "$dynamicAnchor", "$id", "contentMediaType", "default",
+		"deprecated", "description", "example", "examples", "externalDocs", "maxLength", "minLength", "nullable",
+		"readOnly", "title", "writeOnly", "xml":
 		return true
 	case "anyOf", "oneOf":
 		return unions
