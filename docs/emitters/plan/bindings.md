@@ -15,7 +15,7 @@ type BindingView struct {
     All      []ProtoBinding  // every binding, primary first (transcoding, dual HTTP+RPC)
 }
 type ProtoBinding struct {
-    Protocol string          // "http" | "grpc" | "message" | "graphql" | "otp"
+    Protocol Protocol        // the protocol the binding below is for
     Params   []ParamBind     // neutralized param placement (one per bound param, per location)
     ResponseBodyPath *ir.PropPath // HTTPBinding.ResponseBodyPath: the response body is this
                                   // sub-field of the payload; nil = the whole payload
@@ -27,8 +27,7 @@ type ProtoBinding struct {
 }
 type ParamBind struct {
     Param    ir.ParamID      // the bound Operation.Params entry; one name may be two params
-    Where    string          // path | query | querystring | header | cookie | body |
-                             // body_property | host
+    Where    ir.HTTPLocation // where it is sent, in HTTPParamBinding.Location's vocabulary
     WireName string          // never a rendered identifier (INV4)
     Style    string; Explode *bool; Prefix string   // form/label/matrix/deepObject serialization
     AllowReserved, AllowEmptyValue bool             // the binding's escaping and empty-value facts
@@ -36,6 +35,7 @@ type ParamBind struct {
     BodyPath []ir.PropID     // body_property: where in the body model the param lands
 }
 type MsgView struct { Channel ir.ChannelID; Direction ir.MsgDirection; Reply *ir.Reply; Messages []ir.MessageID }
+type Protocol string         // "http" | "grpc" | "message" | "graphql" | "otp"
 ```
 
 The traces in these documents exercise `Protocol == "http"`; the RPC/message/OTP arms exist in the

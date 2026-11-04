@@ -36,12 +36,12 @@ type Retry struct {
     Backoff       Backoff    // {Initial, Multiplier, Max, Jitter}
     Throttled     Backoff    // the backoff after a failure marked throttling
                              // (../operations/errors.md)
-    WhenUncertain RetryWhen  // which operations send again a request that got no response or an
+    WhenUncertain RetryScope // which operations send again a request that got no response or an
                              // Uncertain status (below)
     RetryAfter    bool       // default on: wait what a Retry-After header asks, up to Backoff.Max
 }
 
-type RetryWhen string        // "never" | "idempotent" (default) | "always"
+type RetryScope string       // "never" | "idempotent" (default) | "always"
 
 type Redirects struct {
     Max int                  // default 10; past it, or at 0, a 3xx is returned as the response;
@@ -141,7 +141,7 @@ otherwise lose its settings in silence, and a warning rather than an error since
 policy may serve several documents. Where a higher layer replaces what the document embeds, an info
 `emitters/policy/embedded-overridden` names the setting, both values and the operation, so the
 document's author can see it was overruled. A value outside a field's vocabulary or range, such as a
-`RetryWhen` other than the three its comment names or a `MaxAttempts` below 1, is an error
+`RetryScope` other than the three its comment names or a `MaxAttempts` below 1, is an error
 `emitters/policy/invalid`, and the field resolves as if that layer left it unset. The engine
 resolves the layers once for each emitter, since each brings its own top layer, and reports a
 diagnostic the embedded and project layers alone draw once for the run, as the plan's are reported.
