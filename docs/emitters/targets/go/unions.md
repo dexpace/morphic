@@ -57,15 +57,27 @@ type Target struct {        // anyOf: [Zone, Account], which one value can fit
 ```
 
 - **A pointer per variant**, whatever the variant's Go type, so nil means "does not admit it" for a
-  slice or a string too. Each field is named as the variant's wrapper in a closed sum is, so two
-  variants that lower to one Go type stay apart.
-- **The struct declares the codec pair**, as a closed sum's struct does. `UnmarshalJSONFrom` buffers
-  the value (`dec.ReadValue()`), decodes it into each variant under `dec.Options()`, and keeps each
-  that admits it: the decode succeeds, and the unexported presence check generated beside the
-  variant's `Validate`, which reads no `Constraints`, finds every required member. `MarshalJSONTo`
-  writes the merge.
-- **`Validate` reports a struct with no field set**, and validates each field that is. With no sum
-  to close, it has no marker, no wrapper and no switch-completeness test.
+  slice or a string too. Each field takes the variant's part of the name its wrapper takes in a
+  closed sum, `Zone` where the wrapper would be `TargetZone`, so two variants that lower to one Go
+  type stay apart, and yields to the methods and the fallback the struct declares itself ([reserved
+  names](naming.md#reserved-names)): Go refuses a field and a method of one name.
+- **The struct declares the codec pair**, as a closed sum's struct does. `UnmarshalJSONFrom` reads
+  the value once (`dec.ReadValue()`) and decides which variants admit it by a check generated from
+  the IR over that value, which reads nullability and required members where json/v2 does not. It
+  decodes each variant that admits it through the variant's own codec, under `dec.Options()` and an
+  unmarshaler for each inclusive union the value can reach. That unmarshaler keys a position by its
+  type and its offset in the outermost value, so a position one variant decoded is handed to the
+  next rather than decoded again. It is joined after the caller's own (`json.JoinUnmarshalers` over
+  `json.GetOption(dec.Options(), json.WithUnmarshalers)`), which keep their precedence: a second
+  `WithUnmarshalers` would replace them, and a caller's unmarshaler would stop applying inside the
+  variants. Every type keeps its one codec, which reaches a variant in another unit with no exported
+  helper, and each variant still reads the bytes beneath it. `MarshalJSONTo` writes the merge and
+  runs each set field's admission check over it.
+- **`Validate` passes when a set field's `Validate` passes**, reports every set field's failures
+  when none does, and reports a struct with no field set. With no sum to close, it has no marker, no
+  wrapper and no switch-completeness test.
+- **`String` redacts** a member any set field holds as `Secret` or at a `Sensitive` type, in every
+  set field it renders.
 
 ## Discriminators
 

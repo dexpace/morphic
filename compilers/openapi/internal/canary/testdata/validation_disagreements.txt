@@ -267,6 +267,8 @@ testdata/conformance/openapi/security-unresolved.yaml	102:7	validation-required-
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/xml-nodetype-32.yaml	7:7	validation-invalid-schema	library	old-grammar
 testdata/conformance/openapi/yaml-merge-keys.yaml	41:30	validation-allowed-values	library	over-strict
+testdata/conformance/openapi/yaml-timestamp-scalars.yaml	6:12	validation-type-mismatch	library	plain-date
+testdata/conformance/openapi/yaml-timestamp-scalars.yaml	11:16	validation-type-mismatch	library	plain-date
 testdata/dangling/openapi/f07-discriminator.yaml	13:10	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f31-discriminator-empty-name.yaml	17:7	validation-invalid-syntax	compiler	component-names
 testdata/dangling/openapi/f32-ref-noncanonical-escape.yaml	7:7	validation-invalid-syntax	compiler	component-names

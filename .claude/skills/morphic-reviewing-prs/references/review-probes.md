@@ -10,38 +10,57 @@ defect, keep a `main` control.
 - **Rule.** In the first round, before any corpus run: diff old against new semantics at every named
   bound, re-plant every mutation the PR lists and plant your own at each new branch, call or
   argument it skips, ask which input class the corpus cannot contain (deep nesting, oversized
-  documents, aliasing), and grep for mutable globals and layering breaks.
+  documents, aliasing), compile each new distinction where what it compares ignores its property
+  (`.claude/skills/morphic-verifying-changes/references/assertions-and-reach.md#distinction-where-nothing-depends`),
+  and grep for mutable globals and layering breaks.
 - **Why.** Three rounds that took their agenda from the PR body found only body defects. A fourth
   that read the new file found two code defects in it (#340). Each mutant #1153 listed reddened a
-  test, while dropping an argument its new code passed reddened none.
+  test, while dropping an argument its new code passed reddened none. At #1406's a4dda68a its
+  listed mutants reddened tests too, and its suite passed while its new checks fired on text
+  writing no `$ref`.
+
+## Weigh a change's design against the alternatives it gave up
+`weigh-against-alternatives`
+
+- **Rule.** Before judging a mechanism's details, name what the change must deliver (a defect
+  fixed, sites covered, regressions guarded) and its alternatives: the issue's proposals, a
+  narrower scope and no mechanism. Probe or prototype each on `main` for what it keeps, and weigh
+  lines, scope, reliance on undocumented behaviour and the planned work it constrains
+  (`gh issue list --state all --limit 1000 --search "<the mechanism's vocabulary>"`). One keeping
+  as much at a measured lower cost is a finding, its prototype attached.
+- **Why.** #1233's rounds checked a 479-line archtest rule's completeness (#1401) while the tree
+  built commands in two forms and #704 plans code it would trip; none asked what its breadth bought.
+- **Probe.** The report lists each alternative, what it keeps, its cost and the run measuring it;
+  a mechanism weighed against none is unreviewed.
 
 ## Check every class of claim in full, in the first round
 `sweep-each-claim-class`
 
-- **Rule.** Before the first finding, list the change's classes of claim and check every member:
-  each name against the tree, citation against the item it cites, statement about code on `main`,
-  statement about a library against its `docs/parser-library.md` entry, quoted command run from
-  the root, script in each context it runs in (a subdirectory, each platform branch), body sentence
-  on the final tree, each construct a rule settles
-  (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
+- **Rule.** Before the first finding, list the change's claim classes and check every member: each
+  name against the tree, citation against the item it cites, no claim resting on an open PR's head
+  (`gh pr view <N> --json state,headRefOid`), statement about `main`'s code, library statement
+  against its `docs/parser-library.md` entry, quoted command run from the root, script run in each
+  context (a subdirectory, each platform branch), body sentence on the final tree, each construct a
+  rule settles (`references/review-probes.md#tracker-on-what-a-rule-settles`) and each edited rule
   (`references/review-probes.md#edited-rule-against-its-neighbours`). A class checked by sample is
   reported unreviewed, never clean.
-- **Why.** A review of #1143 took nine rounds, each sampling a class: citations were read for 58 of
-  203 rules before all 383, and a misattribution sat in the rest.
-- **Probe.** The report gives each class and the members checked; fewer than its size is a round
-  still open.
+- **Why.** #1143's review took nine rounds, each sampling a class, as a misattribution sat
+  unsampled. Whys pinned claims to moving open PRs (#1409, #1425).
+- **Probe.** The report gives each class and the members checked; fewer than all is a round still
+  open.
 
-## Read an edited rule against the rules governing the same act
+## Read an edited rule against those on its acts and constructs
 `edited-rule-against-its-neighbours`
 
 - **Rule.** For a change to `.claude/skills` or `CLAUDE.md`, name the acts each edited rule governs
-  (commit, push, merge, review, plant a mutant), grep both for the other rules governing each act,
-  and read each pair for an instruction one gives and the other forbids, keeping the best of both
-  where they do. A script finds a pair but not a conflict, so this stays a reader's.
-- **Why.** Two rules one PR edited each held against the tree, while one gated a push on reading
-  what a checklist printed and the other on an exit status in the same command (#1153, #1160).
-- **Probe.** The report lists each edited rule, its acts and the rules read against it; a rule with
-  none is a round still open.
+  (commit, push, review) and constructs it names (a keyword, a field, a check), grep both for other
+  rules on each, and read each pair for an instruction one gives and the other forbids, keeping the
+  best of both where they do. A script finds a pair, not a conflict.
+- **Why.** Two rules a PR edited held against the tree, while one gated a push on reading a
+  checklist's output and the other on its exit status in one command (#1153, #1160). A search by
+  act missed a rule on the same construct (#1426).
+- **Probe.** The report lists each edited rule, its acts and constructs and the rules read against
+  it; a rule with none is a round still open.
 
 ## Try to disprove a finding before reporting it
 `disprove-each-finding`
@@ -98,21 +117,23 @@ defect, keep a `main` control.
 
 - **Rule.** When asked to post, write one comment per defect, naming the rule it breaks, and link
   code by full SHA, as a line on a moving branch drifts. Offer a committable suggestion only if it
-  fixes the defect alone, passes the checks it touches and breaks no rule governing the same act:
-  otherwise describe the fix.
+  fixes the defect alone, passes the checks it touches and breaks no rule on the same act or
+  construct: otherwise describe the fix.
 - **Why.** A suggested Probe said to delete a hit in a commit body, which a pushed branch cannot do,
   and a suggested regex missed a generic no test row held (#1169).
-- **Probe.** Apply each suggestion in a throwaway worktree and run the checks it touches.
+- **Probe.** Apply each suggestion in a throwaway worktree, run the checks it touches, and give it
+  `references/review-probes.md#review-own-fixes`.
 
 ## Review with no `origin`, or in a repository you must not write to
 `review-without-origin`
 
-- **Rule.** With no `origin`, fetch `main` and `pull/<N>/head` by URL into refs of your own, and
-  read `origin/main` as yours in the setup and the push checklist. Where the repository must stay
-  unwritten, `git worktree add` is out: take
+- **Rule.** With no `origin`, fetch `main` by URL as the remote-tracking branch `origin/main`, the
+  name the setup, the push checklist and its scripts read, and `pull/<N>/head` into a ref of your
+  own. Where the repository must stay unwritten, `git worktree add` is out: take
   `.claude/skills/morphic-verifying-changes/references/mutation.md#plant-in-an-unpacked-copy`.
 - **Why.** Reviews of #1233, #1235 and #1238 each improvised these, and one wrote the worktree
-  metadata its round had ruled out.
+  metadata its round had ruled out. `subjects.py` exits 2 when `main` sits in a ref of another name
+  (#1403).
 - **Probe.** In a new `git init`, run both fetches, then `git for-each-ref`.
 
 ## Search the tracker for each construct a rule settles
@@ -132,29 +153,61 @@ defect, keep a `main` control.
 ## Give a normative document's rules something that can disagree with them
 `review-design-rules`
 
-- **Rule.** A document describing code that does not exist has no output to compare. So read each
-  rule it states against the cases of every other, and against a format or protocol it was not
-  written for; run the rules as a program over compiled specs, a planted defect showing the run
-  reacts; check each premise
+- **Rule.** With no output to compare, read each rule against every other's cases and a format
+  it was not written for; run the rules as a program
+  (`references/review-probes.md#program-from-the-document`); check each premise
   (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#measure-the-premise`); and run
   each sample as printed under the document's own checks.
 - **Why.** Names and citations were clean while a fallback overrode a gRPC stream's framing and a
   union of event shapes was misread, and `go vet` refused a sample that compiled (#1167, #1168).
-- **Probe.** The report lists each rule with what could have disagreed with it; a rule with nothing
-  is unreviewed.
+- **Probe.** The report gives the matrix of `references/review-probes.md#design-review-matrix`.
 
-## A fix the review makes is reviewed before it is pushed
+## Write a design document's rules as a program before reading the author's
+`program-from-the-document`
+
+- **Rule.** Implement every clause of the rules from the document alone, before reading the
+  author's program, and read each fact `ir` or `ir/irfacts` derives (a flattening, exposed
+  properties, an alias read) through its exported function, from a scratch module whose `go.mod`
+  replaces this repository's module with the tree under review. Run both programs over compiled
+  specs, a plant showing each reacts, and read each item they disagree on against the document.
+- **Why.** Rerunning the author's program reproduced its count, and one written from the document
+  did not (#1356). A flattening written by hand kept a member's first declaration and counted 2,039
+  enveloped bodies leaving `result` optional or nullable, where `ir.FlattenedProperties` gives
+  1,418 (#1356).
+- **Probe.** The report names each item the programs disagree on, or says they agree on every one.
+
+## Report a design review as a matrix of each rule's inputs and consumers
+`design-review-matrix`
+
+- **Rule.** Cross each rule's inputs
+  (`.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#design-rule-over-its-document`)
+  with its consumers: each target's codec and type-table requirements, output units, every
+  artifact the plan feeds (the SDK and those `docs/emitters/docs-and-mock.md` names), lifecycles
+  and directions, later documents and other formats. Every cell gets a result and its run, or why it
+  cannot change the answer; one reason may settle a row or column, such as an input no consumer
+  reads. Claim nothing is left only on a full matrix.
+- **Why.** Each round of #1329's review after the first found defects a rule should have caught in
+  the first, unlisted inputs and consumers' requirements among them, as reports checked a few
+  cases per rule, asking nothing of the rest (#1402).
+- **Probe.** Count the cells and those settled; a cell short is a round still open.
+
+## A fix a review hands on is reviewed before it leaves
 `review-own-fixes`
 
-- **Rule.** When a review fixes what it finds, give each fix's own diff the passes, sweep its
-  mechanism, and reread what it adds as unreviewed
+- **Rule.** Give each fix a review pushes, posts as a patch or offers as a suggestion each pass
+  its own diff can affect, written rules included, sweep its mechanism, and reread what it adds as
+  unreviewed
   (`.claude/skills/morphic-shipping-prs/references/commits-and-prs.md#reread-prose-after-a-redesign`).
-  Push a round's fixes once, behind the push checklist, then rerun the setup.
-- **Why.** Later rounds of #1143's review kept finding defects its own fixes had added: a PR-body
-  example the scripts listed as a closing reference, a command that failed from the repository
-  root, and a sentence saying the lint ran on every branch.
-- **Probe.** Before the push, read `git diff <round's base>..HEAD` with the passes, and run the
-  push checklist on it.
+  A fix to a mechanism a design document specifies first takes
+  `.claude/skills/morphic-changing-the-ir/references/ir-lessons.md#prototype-against-every-requirement`
+  and its row of `references/review-probes.md#design-review-matrix`. Push a round's fixes once,
+  behind the push checklist, as `git push origin HEAD:<branch>` from the detached setup, then rerun
+  the setup.
+- **Why.** #1143's later rounds found defects its own fixes had added, such as a command failing
+  from the root. #1233's author applied a posted redesign verbatim, and a later round found five
+  nits in it (#1411).
+- **Probe.** Before pushing or posting, apply the fixes in a throwaway worktree and read
+  `git diff <round's base>..HEAD` with those passes.
 
 ## Review the tree as it will merge
 `recheck-against-final-tree`

@@ -6,13 +6,18 @@ canary. A behaviour found that the page lacks is added there.
 ## Find every reader of a construct before changing how it is read
 `every-reader`
 
-- **Rule.** Before changing which `allOf` branches compose, how deep a walk goes, or how a keyword
-  is read, find every package that reads the same keyword through its own walk (`GetAllOf()` outside
-  `compilers/openapi/internal/schema`) and make each agree in predicate and in bound.
-- **Why.** The multipart part reader in `compilers/openapi/internal/operation` walks `allOf` with
-  its own bound and drifted from the schema lowering, dropping an `encoding` silently (#998).
-- **Probe.** A multipart body with an `encoding` entry for a part inside the changed shape, on
-  `main` and on the branch.
+- **Rule.** Before changing which `allOf` branches compose, a walk's depth, or how a keyword is
+  read, make each package outside the changed one reading it agree in predicate and in bound,
+  `<Getter>` as `oas3.Schema` names it (`GetRef`):
+  `git grep -nF -e '<Getter>()' -e '"<keyword>"' -- 'compilers/openapi/*.go' ':!*_test.go' ':(exclude,glob)compilers/openapi/internal/<package>/*'`.
+- **Why.** The multipart reader in `compilers/openapi/internal/operation` walked `allOf` with its own
+  bound and dropped an `encoding` silently (#998). #1278's `oneOf` change held in both spellings at
+  each position, and that key is read where its getter is not (#1397). As a regex, `"$ref"` matched
+  no reader (#1403).
+- **Probe.** Compile the old and new spelling at every position
+  (`references/lossless-and-diagnostics.md#same-construct-at-every-position`), on `main` and the
+  branch: each spelling takes one verdict across them. For `allOf`, one is a multipart body
+  encoding a part inside the changed shape.
 
 ## Enumerate a source object's fields against their readers
 `fields-vs-readers`
@@ -27,13 +32,48 @@ canary. A behaviour found that the page lacks is added there.
 `reuse-library-readings`
 
 - **Rule.** Call the library's functions for every reading it already implements (reference parsing,
-  anchors, URI resolution) and `nodeview.View` for tree reads. Key a per-node map by a set when an
-  alias can make one node several schemas. A guard that must agree with the resolver makes the call
-  the resolver makes.
+  anchors, URI resolution) and `nodeview.View` for tree reads, but compare two schemas as
+  `references/openapi-lessons.md#compare-raw-nodes` says. Call a `yml` function `nodeview` lacks
+  directly, under its own allowlist entry
+  (`.claude/skills/morphic-designing-code/references/design-rules.md#no-forwarding-layer`). Key a
+  per-node map by a set when an alias can make one node several schemas. A guard that must agree
+  with the resolver makes the call the resolver makes.
 - **Why.** Each miss of a reach check was a re-derived reading (#563). `View` and the resolver
-  disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`).
+  disagree on a key written twice (#763, `docs/parser-library.md#duplicate-key`). #1278 widened an
+  allowlist for `yml`, no rule saying whether a wrapper should stand instead.
 - **Probe.** Generate documents with a vocabulary of spellings (percent-encoding, a second `#`, `.`
   and `..`, aliases, `<<`) and run each through the raw resolver in a bounded subprocess.
+
+## Compare two schemas by rendering their raw nodes
+`compare-raw-nodes`
+
+- **Rule.** Compare two schemas by their `annotation.RawFromNode` renderings, which read merges as
+  the parser does and sort keys, a failed one unequal to all, as far as text decides
+  (`references/openapi-lessons.md#text-decides-under-one-base`), not by `Schema.IsEqual`, whose
+  model misses keywords (`docs/parser-library.md#unmodeled-keywords`), or `yml.EqualNodes`. In
+  `schema`, call `sameText` in `compilers/openapi/internal/schema/admission.go`, which renders each
+  schema once a run; elsewhere, render each node once.
+- **Why.** `IsEqual` calls a schema writing `dependentRequired` equal to one without it. #1278's
+  restated-branch check compared with `yml.EqualNodes`, degrading a union whose branch wrote the
+  body's property through `<<` or in another key order.
+- **Probe.** Compare `{x: {<<: {a: 1}}}` and `{<<: {description: d, type: string}}` with their
+  plain spellings, and two schemas differing only in `dependentRequired` or each writing a key
+  twice: the first two match or err safely, the others differ.
+
+## Trust a comparison of text only as far as text decides
+`text-decides-under-one-base`
+
+- **Rule.** Text alike writing a relative `$ref` or `$dynamicRef` (`annotation.WritesReference`)
+  names one schema only under one base URI; text writing none, or only absolute ones, says the same
+  under any. Text apart can name one schema, as a `$ref` and its target do. So trust an "equal" of
+  text writing a relative one only under one base, and an "unequal" only where a false one errs
+  safely.
+- **Why.** Inline `allOf` branches under different `$id` bases fold a keyword they spell alike
+  (#1408), and checking the base of text writing no `$ref` kept a bound out of `Constraints`
+  (#1406).
+- **Probe.** In #1408's spec, `S` spells a `$ref` alike under two bases where `T` spells one
+  absolutely: a comparison holding the rule lowers the two alike, and each as `main` does with the
+  `$ref` deleted.
 
 ## Moving work out of the library moves its duties
 `library-duties`
@@ -125,15 +165,30 @@ canary. A behaviour found that the page lacks is added there.
 ## Take a new bound's outcome from the rule entry for its kind
 `bound-outcome-from-the-rules`
 
-- **Rule.** A new bound in load or binding takes the outcome, refusal or warning, that
-  `docs/compilers/openapi.md#source-budgets` or `docs/compilers/openapi.md#references` gives a
-  bound of its kind, and joins that entry in the same change. A bound that stops a walk is
-  reported; a cut result never reads as a clean one.
+- **Rule.** A new bound of a kind `docs/compilers/openapi.md#source-budgets` or
+  `docs/compilers/openapi.md#references` holds, in whichever phase, takes the outcome, refusal or
+  warning, the entry gives that kind, and joins the entry in the same change. A bound that stops a
+  walk is reported; a cut result never reads as a clean one.
 - **Why.** Outcomes moved with the code: the reference-chain bounds that warned and let the compile
   go on are gone (#1016), nesting past the scan's bound is refused (#905), and changing one bound
   against its siblings broke a test two packages away (#563).
 - **Probe.** Compile a document at the bound and one past it; read each diagnostic's code, severity
-  and pointer, and whether a Document came back.
+  and pointer, and whether a Document came back. A refusal also takes
+  `references/openapi-lessons.md#refusal-findings-in-its-table`.
+
+## A refusal after a `$ref` has read a document keeps its findings in its source table
+`refusal-findings-in-its-table`
+
+- **Rule.** A compile returning no Document has its findings held to `SourceTable`, which names the
+  source and its overlay and no document a `$ref` read, so every finding of a refusal made after a
+  `$ref` has read a document must index that table. Compile such a refusal through the engine on a
+  document whose `$ref` reads another drawing a load finding, and have a test hold
+  `ir.FirstOutsideTable(diags, len(SourceTable(...)))` false on it.
+- **Why.** The contract check runs in `compilers.Detection.Compile`, which a test calling
+  `openapi.New().Compile` never meets: an expansion refusal passed every compile-level test while
+  the engine failed on a load finding in the document a `$ref` read (#1432).
+- **Probe.** `morphic validate` past the refusal's trigger on such a document exits 1 with the
+  refusal, not 2 with a broken contract.
 
 ## A conformance case must survive every reader of the corpus
 `conformance-case`
@@ -246,15 +301,16 @@ canary. A behaviour found that the page lacks is added there.
 ## Probe every raw-YAML reader with alias, anchor, merge-key, tag and quoted spellings
 `yaml-alias-anchor-merge-spellings`
 
-- **Rule.** Any code that reads raw YAML nodes or mirrors the parser's rules must resolve aliases,
-  anchors, merge keys and tags the way the parser does, and must not treat quoted or aliased
-  non-special spellings as special. Prefer the raw node or the library call over a hand-written copy
-  of the rule.
-- **Why.** Readers matched keys by raw node text or skipped anchor-valued pairs, so aliased,
-  anchored or merged entries were dropped with exit 0, while quoted '<<' keys raised a false cycle
-  (#500, #356).
-- **Probe.** Feed each touched reader a fixture set: key as alias, value as alias, anchored entry,
-  '<<' merge, quoted '<<', !!merge tag; diff IR and diagnostics against the plain spelling.
+- **Rule.** Code reading raw YAML or mirroring the parser resolves aliases, anchors, merge keys and
+  tags as the parser does, treats no quoted or aliased spelling specially, and calls the library or
+  reads the raw node rather than copy a rule. The model and rule table part at a scalar the parser
+  tags as no string (`docs/parser-library.md#undecoded-scalar`).
+- **Why.** Aliased, anchored or merged entries dropped silently, and a quoted `<<` raised a false
+  cycle (#500, #356). Plain dates read as nothing through grids writing none (#1226, #1280), and
+  then a plain `<<` value (#1371).
+- **Probe.** Feed each touched reader key and value as alias, an anchored entry, `<<`, quoted `<<`,
+  `!!merge`, and at each string position a plain date or `<<`, `!!binary` and a local tag; diff IR
+  and diagnostics against the ordinary spelling.
 
 ## Make every input route reach the new guard, path or oracle
 `every-input-route-reaches-the-guard`

@@ -486,7 +486,7 @@ type escapedSource struct {
 func escapeSource(t *testing.T, src string) escapedSource {
 	t.Helper()
 	root := decodeRoot(t, src)
-	releaseAnchors(t.Context(), root)
+	readyForModel(t.Context(), root)
 	esc := newEscapes(nil)
 	esc.escape(t.Context(), root)
 	doc, err := unmarshal(t.Context(), []byte(src), root)

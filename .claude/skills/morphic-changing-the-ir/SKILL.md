@@ -19,8 +19,9 @@ representation they take, and architecture §2.5 says how a change lands.
 3. Name the job a consumer does with the shape and the fact about real input it rests on, and
    count that fact (`references/ir-lessons.md#measure-the-premise`).
 4. Weigh designs that differ in that fact, one of them outside the issue's framing
-   (`references/ir-lessons.md#weigh-the-framing`), and write each loser's reason in `docs/ir` beside
-   the winner.
+   (`references/ir-lessons.md#weigh-the-framing`), prototyping each emitter mechanism against its
+   layer's requirements (`references/ir-lessons.md#prototype-against-every-requirement`), and write
+   each loser's reason in `docs/ir` beside the winner.
 5. Name the check that will hold it: an `irverify` rule, a codec test or a lint rule.
 
 Passes follow architecture §2.2: where validate runs, how a pass takes settings, and which passes
@@ -57,4 +58,4 @@ cannot be turned off.
 
 - `references/ir-lessons.md`: version collisions, the hand lists a new field meets, new namespaces,
   invariants a type held, values a field's readers assume, design rules over their own document,
-  and what the verifier and codecs must reach.
+  what shapes a declaration, and what the verifier and codecs must reach.

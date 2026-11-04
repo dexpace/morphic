@@ -18,7 +18,7 @@ between stages. The IR itself is specified in the [IR design](./ir/README.md).
                         ┌── IR passes (IR → IR) ───┐
                         │  link · dedup · filter   │
                         │  version-slice · overlay │
-                        │  validate                │
+                        │  names · validate        │
                         └──────────┬───────────────┘
                                    ▼
                  ┌────────────── emitters ───────────────┐
@@ -91,9 +91,9 @@ document, so the table is what its diagnostics index.
 Internal phases every compiler follows (each format implements them its own way):
 
 1. **Load & bundle** — read every document the source's references name, through the caller's
-   reader, and resolve references across them. Each document read is a `Document.Sources` entry,
-   and original positions (document + JSON pointer / line-col) are preserved for provenance, so
-   what another document declares is lowered where it declares it.
+   reader, and resolve references across them. Each document a reference reaches is a
+   `Document.Sources` entry, and original positions (document + JSON pointer / line-col) are
+   preserved for provenance, so what another document declares is lowered where it declares it.
 2. **Normalize within the format** — collapse format-version differences before IR construction:
    Swagger 2.0 is lifted to the OpenAPI 3.x shape (`body`/`formData` params → request body,
    `host`+`basePath` → servers); OpenAPI 3.0 `nullable` and 3.1 `type: [T, "null"]` both become
@@ -351,6 +351,11 @@ Built, and in the default list:
   is a warning, and a `host` binding is additive ([http-binding](./ir/http-binding.md)).
   Structural problems are errors, which fail the run at the default threshold (§4); style issues are
   warnings.
+- **names** — what a document's names leave to its targets, which no IR rule forbids: two entities
+  of one scope whose names any target may render alike, which it can then tell apart only by ID, as
+  a warning, and a name with no word character, which a target names from its characters,
+  as an info ([naming](./ir/naming.md#names-one-scope-shares)). An analysis, it renames nothing, and
+  it runs after every transform, before `validate`, which stays last.
 
 Designed, not yet built:
 
@@ -399,7 +404,7 @@ converged on independently:
    no policy. This list is the decision set oagen's emitters demonstrably needed, computed once and
    shared across all languages, less two kinds of entry ([plan fact or refine
    fact](./emitters/plan/plan-or-refine.md)): what the IR already states, such as body presence and
-   idempotency, which a refiner reads there; and what varies by language, such as oagen's
+   the idempotency token, which a refiner reads there; and what varies by language, such as oagen's
    parameter-passing shape (positional vs inside an options object), which is each target's.
 2. **Refine** — per-language lowering: reserved words, casing, union representation strategy
    (native union vs sealed interface vs wrapper class), enum strategy for open enums, interface
@@ -442,12 +447,13 @@ logical exception-kind and fault, doc-URL template), **telemetry** (request-
 ID and client-telemetry headers), **logging** (a closed lifecycle-event list), **user-agent**
 construction (identifier template, app-info enrichment), **idempotency injection** (header name,
 auto-generate rules), **pagination pacing** (auto-page delay), and **request guards** (option
-keys that must not appear as params — misuse detection), widened by connection-error retries,
-`Retry-After` and **redirects**. Delivery model: canonical defaults + deep-partial layers, the
-policy a document embeds below the project's and the project's below each emitter's, each with
-per-operation overrides (`docs/emitters/contract/runtime-policy.md`). Precedence rule: *declared
-IR facts win over policy defaults* — `ErrorCase.Retryable/Fault` and `Operation.Idempotency` come
-from the spec; policy fills in where the spec is silent, never the reverse.
+keys that must not appear as params — misuse detection), widened by retries after an uncertain
+outcome, `Retry-After` and **redirects**. Delivery model: versioned defaults + deep-partial layers,
+the policy a document embeds below the project's and the project's below the one it sets for each
+emitter, each with per-operation overrides (`docs/emitters/contract/runtime-policy.md`). Precedence
+rule: *declared IR facts win over policy defaults* — `ErrorCase.Retryable/Fault` and
+`Operation.Idempotency` come from the spec; policy fills in where the spec is silent, never the
+reverse.
 
 ### 2.5 Changing the IR
 
@@ -557,7 +563,6 @@ morphic/
 │   │       ├── detect/     #             a source recognized from its bytes, on load's parse
 │   │       ├── merge/      #             allOf property reconciliation
 │   │       ├── naming/     #             each node's name, from its coordinate alone
-│   │       ├── anchors/    #             the $dynamicAnchor index a $dynamicRef expands against
 │   │       ├── lowering/   #             the immutable context every lowering reads
 │   │       ├── schema/     #             the schema walk, composition, preservation
 │   │       ├── auth/       #             security schemes and requirements
@@ -566,7 +571,7 @@ morphic/
 │   │       ├── document/   #             info, and what the document keeps verbatim
 │   │       └── canary/ openapitest/ ynode/ # tests only: library canaries, fixtures, YAML nodes
 │   ├── typespec/ smithy/ graphql/ asyncapi/ protobuf/ otp/   (future)
-├── pass/                   # Layer 1 — IR → IR passes (validate, dedup, filter, slice, overlay).
+├── pass/                   # Layer 1 — IR passes: validate, names, dedup, filter, slice, overlay.
 ├── emitters/               # Layer 2 — emitter contract, plan layer, registry (future).
 ├── engine/                 # Layer 3 — orchestration: detect format, run compiler, passes, emitters.
 │   ├── cache/              #           Keeps a run's entries on disk, and names the build.
@@ -577,6 +582,7 @@ morphic/
 ├── internal/census/        #           Counts which IR facts a set of documents sets (tooling).
 ├── internal/conformance/   #           Holds each registered format to its matrix column (tooling, tests only).
 ├── internal/decls/         #           Type-checked reads of declarations, for tests (tooling).
+├── internal/exectest/      #           The one way a test builds a child command (tooling, tests only).
 ├── internal/harness/       #           Bug-catching oracle sweep over a spec corpus (tooling).
 ├── internal/jsonshape/     #           The IR's JSON shape: IRVersion's pin and the census read it (tooling).
 ├── internal/keydoc/        #           Reader of the keyed documents and their citations (tooling).

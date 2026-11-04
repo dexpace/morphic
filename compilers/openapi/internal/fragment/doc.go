@@ -2,7 +2,8 @@
 // Licensed under the MIT License. See LICENSE in the repository root for details.
 
 // Package fragment is the one place the compiler reads a $ref fragment as a
-// JSON pointer and spells one for the resolver (GitHub #911).
+// JSON pointer and spells one for the resolver (GitHub #911), and tells an
+// absolute reference, which no base moves, from a relative one.
 //
 // A fragment is percent-decoded and nothing else (RFC 3986 section 3.5,
 // RFC 6901 section 6), so '+' names itself. The resolver query-unescapes it,

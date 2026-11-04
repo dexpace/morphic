@@ -41,7 +41,11 @@ applies decides.
    at most the shared unit, the shared unit imports none, and only the root, which nothing imports,
    holds a type that may reach into a group. A type moves between a group's unit and the shared unit
    only when the set of groups reaching it changes, which takes a change to the operations that
-   reach it.
+   reach it. An operation a hint places in another group, by `Remount` or `AlsoMount` ([shaping
+   hints](../contract/shaping-hints.md)), counts as each group whose client gets a method for it,
+   so what it reaches goes where a type those groups reach goes: two groups mounting each other's
+   operations would otherwise import each other. Placement reads the hints for that alone, and
+   changing one moves the types its operation reaches.
 
 The root unit's name is the options'. A group's unit is the group's name rendered for a package
 under the root, the shared unit is `shared` under the root, and a partition's unit is the name its
@@ -53,9 +57,9 @@ derives from another lands in that one's unit — a visibility shape
 ([visibility](models.md#visibility-projections--n-wire-shapes)) in its type's, a union's interface,
 wrappers and fallback in the union's, an operation's request and headers types in the operation's —
 and a unit is a namespace of its own, so two declarations collide only within one ([reserved
-names](reserved-names.md)). A wrapper imports a variant another unit holds, which is how a union
-reaches into the shared unit. A service-wide error's headers type lands where a type all its groups
-reach does. T-18 holds placement to these rules.
+names](reserved-names.md)). A wrapper, or an inclusive union's field, imports a variant another unit
+holds, which is how a union reaches into the shared unit. A service-wide error's headers type lands
+where a type all its groups reach does. T-18 holds placement to these rules.
 
 ## The size check
 

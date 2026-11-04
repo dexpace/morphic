@@ -418,22 +418,22 @@ components:
 
 // TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported pins that no scheme
 // of kind unresolved goes unreported, with no requirement naming it to draw an
-// error instead. The model holds no reference for such a $ref
-// (docs/parser-library.md#undecoded-scalar), so the load phase meets none and this
-// report is the only one.
+// error instead. The model holds no reference for a $ref under a tag outside
+// YAML's JSON schema ruleset (docs/parser-library.md#undecoded-scalar), so the
+// load phase meets none and this report is the only one. A plain date is tagged
+// a string before the model is built, and is the load phase's to report.
 func TestLowerSecuritySchemes_ARefTheModelDoesNotDecodeIsReported(t *testing.T) {
 	t.Parallel()
 	for written, text := range map[string]string{
-		"2021-01-01":    "2021-01-01",
 		"!!binary aGk=": "aGk=",
 		"!local tagged": "tagged",
-		"*date":         "2021-01-01",
+		"*tagged":       "tagged",
 	} {
 		t.Run(written, func(t *testing.T) {
 			t.Parallel()
 			doc, _, diags := serviceSpec(t, `openapi: 3.1.0
 info: {title: T, version: "1"}
-x-date: &date 2021-01-01
+x-tagged: &tagged !local tagged
 paths: {}
 components:
   securitySchemes:
