@@ -27,8 +27,11 @@ type EmitterInput struct {
     Doc     *ir.Document          // the ABI — the ONLY structural input (INV1)
     Facts   *irfacts.Index        // what Doc implies: subtypes, usage, recursion (docs/ir/derived-facts.md), indexed ONCE by the engine, shared with the plan (below)
     Plan    *plan.Plan            // language-neutral decisions, computed ONCE by the engine (../plan/overview.md)
-    Policy  policy.Policy         // runtime/SDK behavior — a SEPARATE tree, never in the IR (INV10; runtime-policy.md)
-    Hints   map[EntityID]ShapeHint// SDK-shaping hints keyed by IR stable ID (shaping-hints.md)
+    Policy  policy.Resolved       // runtime/SDK behavior per operation, its layers resolved —
+                                  // a SEPARATE tree, never in the IR (INV10; runtime-policy.md,
+                                  // embedded-policy.md)
+    Hints   map[EntityID]ShapeHint// SDK-shaping hints keyed by IR stable ID, their layers resolved
+                                  // (shaping-hints.md)
     Scope   *Scope                // nil = whole document; else "emit only these" — full Doc still
                                   // consumed so global decisions stay byte-identical
     Prior   *PriorState           // prior manifest + prior surface for write/integrate; nil first run
