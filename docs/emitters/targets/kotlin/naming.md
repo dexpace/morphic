@@ -35,10 +35,10 @@ units](../../refine/output-units.md)), and no two differ in letter case alone, w
 case-insensitive file system would make one directory.
 
 None of a hard keyword, `kotlin` and `java` is a units name. A hard keyword as a package segment
-takes the escape below, which kotlinc accepts in a `package` and an `import` alike: `fun`, `object`,
-`when`, `is`, `in` and `typealias`, backticked, compile for the JVM, JS and macOS Native and link
-into a framework, and those with `class`, `val`, `interface`, `as`, `true`, `null`, `this`, `super`,
-`package`, `return`, `throw` and `try` on the JVM. kotlinc refuses `kotlin` as a package's first
+takes the escape below, which kotlinc accepts in a `package` and an `import` alike: every hard
+keyword, backticked, compiles on the JVM, and `fun`, `object`, `when`, `is`, `in` and `typealias`
+also compile for JS and macOS Native and link into a framework. A soft or modifier keyword (`value`,
+`data`, `import`, `internal`) needs no escape there. kotlinc refuses `kotlin` as a package's first
 segment ("Only the Kotlin standard library is allowed to use the 'kotlin' package"), and the JVM
 refuses to load a class whose package begins with `java` (`SecurityException: Prohibited package
 name`). Only a name the options give a unit can begin a package, the root's above all, so one that
