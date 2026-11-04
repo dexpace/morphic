@@ -118,9 +118,11 @@ linters:
         # reads the version a document declares states a fact a second time.
         # The parser library's version field and accessor, and the table's
         # reading of a version, are refused outside the load phase, the table
-        # and tests, which exclusions below excuse. A member promoted through
-        # an embedding of the library's document is not seen, and nothing
-        # embeds it.
+        # and tests, which exclusions below excuse. An assignment to the field
+        # is refused as a read is, and nothing outside the load phase writes a
+        # parsed document; a struct literal naming it is no use. A member
+        # promoted through an embedding of the library's document is not seen,
+        # and nothing embeds it.
         - pattern: ^openapi\.OpenAPI\.(OpenAPI|GetOpenAPI)$
           pkg: ^github\.com/speakeasy-api/openapi/openapi$
           msg: ask the rule table how a document's version reads, not the version
