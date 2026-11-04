@@ -3252,7 +3252,9 @@ declaring raw bytes; one leaving its media type to say, where its encoding entry
 names only `application/octet-stream` or media types the binary policy names
 ([`binary-media`](#binary-media)), `PartEncoding.Inferred` being `binary-media-type` where it names
 one of the latter; and, from OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose
-default content type OpenAPI makes `application/octet-stream`. A `string` part with
+default content type OpenAPI makes `application/octet-stream`, a union being read so only where
+each of its branches, an array's through its elements, writes no `type` or declares raw bytes, so
+that `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with
 neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
 default disagrees, and an array writing no `items` says nothing of its elements past its prefix, so
 neither is a file. A part is entered only when its `PartEncoding` holds something, so a body that

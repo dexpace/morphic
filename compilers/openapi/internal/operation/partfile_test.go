@@ -147,6 +147,8 @@ func TestReadPartFile_ReadsDeclarationsEncodingAndVersion(t *testing.T) {
 			openapi.Options{}, true, true, marker},
 		{"a union of untyped values", "3.1.0", multipart, "{anyOf: [{}, {type: array, items: {}}]}", "",
 			openapi.Options{}, true, true, ""},
+		{"a union of an untyped value and a string", "3.1.0", multipart, "{anyOf: [{}, {type: string}]}", "",
+			openapi.Options{}, false, false, ""},
 		{"a union of untyped values in 3.0", "3.0.3", multipart, "{anyOf: [{}, {type: array, items: {}}]}", "",
 			openapi.Options{}, false, true, ""},
 		{"a union of null and an array of untyped values", "3.1.0", multipart,
