@@ -44,20 +44,21 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 
 	got, err := openapi.New().DecodeOptions(compilers.OptionSet{
 		Settings: map[string]string{
-			"grouping":               "path-prefix",
-			"allow-external-refs":    "true",
-			"overlay":                "patch.yaml",
-			"overlay-lax":            "true",
-			"nullable-widening":      "false",
-			"streaming-media":        "application/vnd.acme.frames; charset=utf-8, +frames",
-			"streaming-inference":    "false",
-			"binary-media":           "image/*, application/vnd.acme.blob, +zip",
-			"binary-inference":       "false",
-			"max-source-bytes":       "11",
-			"max-source-nodes":       "-1",
-			"max-enum-members":       "0",
-			"max-alias-surplus":      "+13",
-			"max-external-documents": "14",
+			"grouping":                "path-prefix",
+			"allow-external-refs":     "true",
+			"overlay":                 "patch.yaml",
+			"overlay-lax":             "true",
+			"nullable-widening":       "false",
+			"streaming-media":         "application/vnd.acme.frames; charset=utf-8, +frames",
+			"streaming-inference":     "false",
+			"binary-media":            "image/*, application/vnd.acme.blob, +zip",
+			"binary-inference":        "false",
+			"max-source-bytes":        "11",
+			"max-source-nodes":        "-1",
+			"max-enum-members":        "0",
+			"max-alias-surplus":       "+13",
+			"max-external-documents":  "14",
+			"max-reference-expansion": "15",
 		},
 	})
 	require.NoError(t, err)
@@ -79,8 +80,8 @@ func TestDecodeOptions_TextReachesEveryField(t *testing.T) {
 		Disabled:   true,
 		MediaTypes: []string{"image/*", "application/vnd.acme.blob", "+zip"},
 	}, opts.BinaryMedia, "the list as the Go field reads it, and binary-inference=false turns it off")
-	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14},
-		opts.Limits, "each budget as the Go field reads it, 0 left for the default")
+	assert.Equal(t, openapi.Limits{MaxSourceBytes: 11, MaxSourceNodes: -1, MaxAliasSurplus: 13, MaxExternalDocuments: 14,
+		MaxReferenceExpansion: 15}, opts.Limits, "each budget as the Go field reads it, 0 left for the default")
 }
 
 // TestLimitOptions_NameEveryBudget holds the text vocabulary to Limits itself:
@@ -121,8 +122,9 @@ func TestDecodeOptions_Refusals(t *testing.T) {
 	}{
 		{"unknown name", map[string]string{"gruoping": "tags"},
 			`unknown option "gruoping" (known: allow-external-refs, binary-inference, binary-media, grouping, ` +
-				`max-alias-surplus, max-enum-members, max-external-documents, max-source-bytes, max-source-nodes, ` +
-				`nullable-widening, overlay, overlay-lax, streaming-inference, streaming-media)`},
+				`max-alias-surplus, max-enum-members, max-external-documents, max-reference-expansion, ` +
+				`max-source-bytes, max-source-nodes, nullable-widening, overlay, overlay-lax, streaming-inference, ` +
+				`streaming-media)`},
 		{"non-integer budget", map[string]string{"max-source-bytes": "64MiB"},
 			`"max-source-bytes": want an integer (0 for the default, negative for none), got "64MiB"`},
 		{"budget past an int", map[string]string{"max-source-nodes": "99999999999999999999"},
