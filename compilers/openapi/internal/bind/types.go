@@ -273,7 +273,7 @@ func (h Hop) Why() string {
 	case NotObject:
 		return "it names a position that holds no " + h.Detail
 	case NoAnchor:
-		return "no schema of the resource it names declares that name as its $anchor or $dynamicAnchor"
+		return "no schema of the resource it names declares that name as its $anchor, its $dynamicAnchor or, in a draft before 2019-09, an identifier naming that fragment alone"
 	case DuplicateAnchor:
 		return "two or more schemas of the resource it names declare that name as their $anchor or " +
 			"$dynamicAnchor, so it names none of them"

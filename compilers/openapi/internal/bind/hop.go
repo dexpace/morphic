@@ -152,7 +152,7 @@ func (b *binder) land(site Position, path []*yaml.Node, to resource, ref string,
 	pointer := fragment.Pointer(ref)
 	switch {
 	case pointer != "" && !strings.HasPrefix(string(pointer), "/"):
-		if isAnchorName(string(pointer)) {
+		if isAnchorName(string(pointer)) || isPlainName(string(pointer)) {
 			return b.anchored(to, string(pointer), h)
 		}
 		return reading{}, BadPointer
@@ -264,6 +264,30 @@ func DynamicFragment(ref string) (name, why string, ok bool) {
 		return "", fmt.Sprintf("%q is not valid percent-encoded text: %s", ref, err.Error()), false
 	}
 	return name, "", true
+}
+
+// anchorNamed reports whether s is a name an anchor can declare in a schema
+// read as rule says: by the drafts' plain-name grammar or by 2020-12's.
+func anchorNamed(rule DialectRule, s string) bool {
+	if rule.PlainNames {
+		return isPlainName(s)
+	}
+	return isAnchorName(s)
+}
+
+// isPlainName reports whether s is a plain name the JSON Schema drafts before
+// 2020-12 declare an anchor by (draft-handrews-json-schema-02 §8.2.3): a
+// letter, then letters, digits, '-', '_', ':' and '.'.
+func isPlainName(s string) bool {
+	for i, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '_' || c == ':' || c == '.'):
+		default:
+			return false
+		}
+	}
+	return s != ""
 }
 
 // isAnchorName reports whether s is a name a $anchor can declare, by JSON

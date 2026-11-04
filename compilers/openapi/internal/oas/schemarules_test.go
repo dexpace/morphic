@@ -164,3 +164,15 @@ func TestSchemaRules_EachDraftReadsItsOwnKeywords(t *testing.T) {
 	assert.False(t, rulesOf("3.0.3", "").IgnoresRefFields(), "3.0's own rows: the minor, not a dialect, ignores them")
 	assert.False(t, oas.SchemaRules{}.IgnoresRefFields())
 }
+
+// TestSchemaRules_FormattedNamesTheFormatARowGives pins the format a row gives
+// a field: 2019-09's $anchor the drafts' plain-name grammar, 2020-12's its own,
+// and a field the rows do not define none.
+func TestSchemaRules_FormattedNamesTheFormatARowGives(t *testing.T) {
+	t.Parallel()
+	d2019 := rulesOf("3.1.0", "https://json-schema.org/draft/2019-09/schema")
+	assert.True(t, d2019.Formatted("$anchor", oas.PlainName))
+	assert.False(t, rulesOf("3.1.0", "").Formatted("$anchor", oas.PlainName))
+	assert.True(t, rulesOf("3.1.0", "").Formatted("$anchor", oas.AnchorName))
+	assert.False(t, d2019.Formatted("nonesuch", oas.PlainName), "a field the rows do not define")
+}

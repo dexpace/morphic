@@ -63,7 +63,7 @@ func TestTuples_AListOfItemsHoldsSchemas(t *testing.T) {
 }
 
 // d4Rule is how a draft 4 schema names its resource and holds its subschemas.
-var d4Rule = bind.DialectRule{Keyword: "id", Fragments: true, Definitions: true, Tuples: true}
+var d4Rule = bind.DialectRule{Keyword: "id", Fragments: true, Definitions: true, PlainNames: true, Tuples: true}
 
 // draftRule answers with d4Rule for a schema naming draft 4, and the zero rule
 // for any other.
@@ -199,4 +199,22 @@ func TestDialectRule_ARootReadsItsOwnIdentifiersInItsDialect(t *testing.T) {
 		require.Equal(t, bind.Resolved, e.Hop.Status, "%s: %s", site, e.Hop.Why())
 		assert.Equal(t, at(want), e.Hop.Target, site)
 	}
+}
+
+// TestDialectRule_AnAnchorTakesItsDialectsGrammar pins the name an identifier
+// naming a fragment alone declares under a rule reading the drafts' plain-name
+// grammar: `a:b`, which 2020-12's refuses, so a $ref naming it resolves there
+// and not where the document's own dialect reads it.
+func TestDialectRule_AnAnchorTakesItsDialectsGrammar(t *testing.T) {
+	t.Parallel()
+	src := head + "components:\n  schemas:\n" +
+		"    T: {$schema: 'http://json-schema.org/draft-04/schema#', id: 'https://example.com/t',\n" +
+		"      properties: {a: {$ref: '#a:b'}}, definitions: {L: {id: '#a:b'}}}\n" +
+		"    U: {properties: {a: {$ref: '#c:d'}}, $defs: {L: {$anchor: 'c:d'}}}\n"
+	table := bound(t, src, draftRule(self))
+	e := entryAt(t, table, "/components/schemas/T/properties/a")
+	require.Equal(t, bind.Resolved, e.Hop.Status, e.Hop.Why())
+	assert.Equal(t, at("/components/schemas/T/definitions/L"), e.Hop.Target)
+	assert.Equal(t, bind.NoAnchor, entryAt(t, table, "/components/schemas/U/properties/a").Hop.Reason,
+		"2020-12 declares no anchor its grammar refuses, and a $ref naming one finds none")
 }

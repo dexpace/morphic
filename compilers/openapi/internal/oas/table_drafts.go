@@ -119,7 +119,7 @@ func draft2019Keywords() []Field {
 		keyword("$schema", String, s, c(`8.1.1. The "$schema" Keyword`, `The value of this keyword MUST be a URI [RFC3986] (containing a scheme) and this URI MUST be normalized.`)).formatted(AbsoluteURI),
 		keyword("$vocabulary", RawMap, s, c(`8.1.2. The "$vocabulary" Keyword`, `The value of this keyword MUST be an object.`)),
 		keyword("$id", String, s, c(`8.2.2. The "$id" Keyword`, `If present, the value for this keyword MUST be a string, and MUST`)).formatted(URI),
-		keyword("$anchor", String, s, c(`8.2.3. Defining location-independent identifiers with "$anchor"`, `If present, the value of this keyword MUST be a string`)),
+		keyword("$anchor", String, s, c(`8.2.3. Defining location-independent identifiers with "$anchor"`, `If present, the value of this keyword MUST be a string, which MUST start with a letter ([A-Za-z]), followed by any number of letters, digits ([0-9]), hyphens ("-"), underscores ("_"), colons (":"), or periods (".").`)).formatted(PlainName),
 		keyword("$ref", String, s, c(`8.2.4.1. Direct References with "$ref"`, `The value of the "$ref" property MUST be a string which is a URI`)).formatted(URI),
 		keyword("$recursiveRef", String, s, c(`8.2.4.2.1. Dynamically recursive references with "$recursiveRef"`, `The value of the "$recursiveRef" property MUST be a string which is a URI-reference.`)).formatted(URI),
 		keyword("$recursiveAnchor", Boolean, s, c(`8.2.4.2.2. Enabling Recursion with "$recursiveAnchor"`, `The value of the "$recursiveAnchor" property MUST be a boolean.`)),

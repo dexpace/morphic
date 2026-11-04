@@ -88,3 +88,32 @@ func TestSchemaRules_FormatFindingJudgesAnIDInItsDialect(t *testing.T) {
 		}
 	}
 }
+
+// TestSchemaRules_FormatFindingJudgesAnAnchorInItsDialect pins the grammar of
+// an anchor's name, which the check leaves to its caller: 2020-12's, a letter
+// or '_', then letters, digits, '-', '_' and '.', and 2019-09's, a letter, then
+// letters, digits, '-', '_', ':' and '.'. 2019-09 has no $dynamicAnchor to judge.
+func TestSchemaRules_FormatFindingJudgesAnAnchorInItsDialect(t *testing.T) {
+	const draft2019 = "https://json-schema.org/draft/2019-09/schema"
+	for _, tc := range []struct {
+		field, name, dialect string
+		refused              bool
+	}{
+		{"$anchor", "_a1.b-c", "", false},
+		{"$anchor", "1a", "", true},
+		{"$anchor", "a:b", draft2020, true},
+		{"$anchor", "a:b", draft2019, false},
+		{"$anchor", "_x", draft2019, true},
+		{"$dynamicAnchor", "a:b", "", true},
+		{"$dynamicAnchor", "a:b", draft2019, false},
+	} {
+		var n yaml.Node
+		require.NoError(t, yaml.Unmarshal([]byte("openapi: 3.1.0\ninfo: {title: t, version: v}\ncomponents:\n  schemas:\n"+
+			"    S: {"+tc.field+": '"+tc.name+"'}\n"), &n))
+		var owned []oas.Owned
+		oas.NewChecker().Check(t.Context(), &n, "3.1.0", oas.Options{Owned: func(o oas.Owned) { owned = append(owned, o) }})
+		require.Len(t, owned, 1, "%s %s", tc.field, tc.name)
+		_, bad := rulesOf("3.1.0", tc.dialect).FormatFinding(owned[0])
+		assert.Equal(t, tc.refused, bad, "%s %q in %q", tc.field, tc.name, tc.dialect)
+	}
+}

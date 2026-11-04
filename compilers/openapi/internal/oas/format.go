@@ -43,6 +43,8 @@ func validFormat(format Format, s string) bool {
 	case ResourceURI:
 		u := validURI(s)
 		return u != nil && u.Fragment == ""
+	case PlainName:
+		return validPlainName(s)
 	default:
 		return true
 	}
@@ -119,6 +121,21 @@ func validAnchorName(s string) bool {
 		switch {
 		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c == '_':
 		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '.'):
+		default:
+			return false
+		}
+	}
+	return s != ""
+}
+
+// validPlainName reports whether s is a plain name a draft before 2020-12
+// declares an anchor by. The binder reads a declaration in such a draft by the
+// same grammar (bind.isPlainName).
+func validPlainName(s string) bool {
+	for i, c := range s {
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+		case i > 0 && (c >= '0' && c <= '9' || c == '-' || c == '_' || c == ':' || c == '.'):
 		default:
 			return false
 		}

@@ -20,3 +20,19 @@ func TestIsAnchorName(t *testing.T) {
 		assert.Equal(t, want, isAnchorName(name), "%q", name)
 	}
 }
+
+// TestIsPlainName pins the plain names the JSON Schema drafts before 2020-12
+// declare an anchor by: a letter, then letters, digits, '-', '_', ':' and '.',
+// so a colon is one and a leading '_' is not, and anchorNamed reads by it
+// where the dialect's rule says so.
+func TestIsPlainName(t *testing.T) {
+	t.Parallel()
+	for name, want := range map[string]bool{
+		"a": true, "a:b": true, "Z9-_.:": true, "": false, "_": false, "1a": false, "-a": false, "a b": false,
+		"a/b": false, "é": false,
+	} {
+		assert.Equal(t, want, isPlainName(name), "%q", name)
+		assert.Equal(t, want, anchorNamed(DialectRule{PlainNames: true}, name), "%q", name)
+		assert.Equal(t, isAnchorName(name), anchorNamed(DialectRule{}, name), "%q", name)
+	}
+}

@@ -418,8 +418,9 @@ names the schema writing the `$id`; under none, `#` names the document's root. A
 fragment names the schema of that resource declaring it as its `$anchor` or `$dynamicAnchor`, in the
 source or another document, so a name under an `$id` is that `$id`'s resource's and not its
 document's, and a URI an `$id` declares names that schema, as one a `$ref`'s document part names; a
-name or a URI two schemas declare names neither, and a name 2020-12's grammar refuses is declared by
-none ([`validation`](#validation) reports it). Identifiers are read only where a schema is placed:
+name or a URI two schemas declare names neither, and a name its schema's dialect's grammar refuses
+is declared by none, the load phase reporting it: 2020-12's admits a leading `_` and no `:`, the
+drafts before it the reverse. Identifiers are read only where a schema is placed:
 by the OpenAPI grammar in the source and in another document whose root names an `openapi` version,
 so one in an example, an extension or the fields beside a reference object's `$ref` declares none. A
 document that names none has no grammar, so it is read as a document of schemas: its root and any
@@ -518,6 +519,8 @@ references that closes on itself is [`reference-cycles`](#reference-cycles)'.
   `openapi/validation`
 - Tests: `e2e.TestCompile_ExternalFileRefIsNotReadByDefault`,
   `e2e.TestOlderDrafts_AnIDNamesAResource`,
+  `e2e.TestOlderDrafts_AnAnchorTakesItsDraftsGrammar`,
+  `bind.TestDialectRule_AnAnchorTakesItsDialectsGrammar`,
   `bind.TestDialectRule_ReadsWhatADialectSpellsOtherwise`,
   `bind.TestDialectRule_ANestedSchemaNamesItsDialectAtAResourceRoot`,
   `bind.TestDialectRule_AWalkStartsInTheDialectAboveIt`,

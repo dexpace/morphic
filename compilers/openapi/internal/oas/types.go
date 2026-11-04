@@ -109,6 +109,10 @@ const (
 	// ResourceURI is a URI reference whose fragment, if any, is empty, as a
 	// $id must be (JSON Schema 2020-12 §8.2.1).
 	ResourceURI
+	// PlainName is a plain name as the JSON Schema drafts before 2020-12 write
+	// one: a letter, then letters, digits, '-', '_', ':' and '.'
+	// (draft-handrews-json-schema-02 §8.2.3).
+	PlainName
 )
 
 // Level is how firmly the specification states a rule.
@@ -168,7 +172,7 @@ type Field struct {
 	ListOwner string
 	// FormatOwner is the package that judges the value's format, which the
 	// dialect a schema is read in decides, as draft 7's `$id` may name a
-	// fragment that 2020-12's may not.
+	// fragment that 2020-12's may not, and 2019-09's `$anchor` a colon.
 	FormatOwner string
 	// Values is the values admitted, if the field is enumerated.
 	Values []Value

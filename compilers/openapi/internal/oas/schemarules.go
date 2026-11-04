@@ -89,6 +89,12 @@ func (s Spec) dialectOf(minor Minor, id string) (dialect, bool) {
 // the JSON Schema drafts before 2019-09 do.
 func (r SchemaRules) IgnoresRefFields() bool { return r.rows != nil && r.rows.ignoresRefFields }
 
+// Formatted reports whether the rows give the field name the format f.
+func (r SchemaRules) Formatted(name string, f Format) bool {
+	fld, ok := r.field(name)
+	return ok && fld.Format == f
+}
+
 // FormatFinding returns the finding about o, a string value of a field whose
 // format the rows' dialect decides (Field.FormatOwner), where it is not of the
 // format the rows give the field, and false where it is, or the rows give the

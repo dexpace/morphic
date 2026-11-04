@@ -178,3 +178,36 @@ func TestOlderDrafts_AnAliasedNodeIsReadInTheDialectOfEachPosition(t *testing.T)
 	assert.Equal(t, ir.ReasonValidationOnly, reason("D4/properties/dep"))
 	assert.Equal(t, ir.ReasonOutOfScope, reason("Now/properties/dep"))
 }
+
+// TestOlderDrafts_AnAnchorTakesItsDraftsGrammar pins an anchor's name, read in
+// its schema's dialect: the drafts before 2020-12 admit a colon and no leading
+// '_', 2020-12 the reverse, so 2019-09's `$anchor: a:b` and draft 7's
+// `$id: '#a:b'` each declare a name a $ref resolves to, where 2020-12's
+// `$anchor: a:b` and 2019-09's `$anchor: _x` are refused.
+func TestOlderDrafts_AnAnchorTakesItsDraftsGrammar(t *testing.T) {
+	t.Parallel()
+	schema := func(name, draft, defs, decl, anchor string) string {
+		head := "    " + name + ":\n"
+		if draft != "" {
+			head += "      $schema: " + draft + "\n"
+		}
+		declared := anchor
+		if decl == "$id" {
+			declared = "#" + anchor
+		}
+		return head + "      type: object\n      properties: {a: {$ref: '#" + anchor + "'}}\n" +
+			"      " + defs + ": {L: {" + decl + ": '" + declared + "', type: string}}\n"
+	}
+	_, diags := parseFull(t, openapitest.ComponentSpec(schema("A", draft2019, "$defs", "$anchor", "a:b")+
+		schema("S", draft07, "definitions", "$id", "e:f")+
+		schema("N", "", "$defs", "$anchor", "c:d")+
+		schema("U", draft2019, "$defs", "$anchor", "_x")))
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/N/$defs/L/$anchor", "/components/schemas/U/$defs/L/$anchor"},
+		openapitest.PointersOf(diags, diag.Validation+"/validation-invalid-format"))
+	refs := unresolvedRefs(diags)
+	unresolved := make([]jsontext.Pointer, 0, len(refs))
+	for _, d := range refs {
+		unresolved = append(unresolved, d.Provenance.Pointer)
+	}
+	assert.ElementsMatch(t, []jsontext.Pointer{"/components/schemas/N/properties/a", "/components/schemas/U/properties/a"}, unresolved)
+}

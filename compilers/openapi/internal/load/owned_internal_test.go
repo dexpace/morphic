@@ -40,7 +40,8 @@ func ownedOf(t *testing.T, schemas string) []oas.Owned {
 // each value the check leaves to the load phase, read with the rows of the
 // dialect its schema is read in: a bound no decimal spells, an exclusive bound
 // in the other form, a list of items where the rows read no tuple, and an
-// `$id` of another format than the rows give it, each an error at the keyword;
+// identifier or anchor of another format than the rows give it, each an error
+// at the keyword;
 // a sound value, or a field the phase judges nothing of, none.
 func TestOwnedFinding_JudgesEachValueInItsSchemasDialect(t *testing.T) {
 	t.Parallel()
@@ -67,6 +68,8 @@ func TestOwnedFinding_JudgesEachValueInItsSchemasDialect(t *testing.T) {
 		{"a list of items in 2020-12", "{items: [{type: string}]}", own, diag.InvalidItemsList},
 		{"a fragment id in 2020-12", "{$id: '#leaf'}", own, diag.Validation + "/validation-invalid-format"},
 		{"a fragment id in draft 7", "{$id: '#leaf'}", d7, ""},
+		{"an anchor with a colon in 2020-12", "{$anchor: 'a:b'}", own, diag.Validation + "/validation-invalid-format"},
+		{"an anchor with a colon in 2019-09", "{$anchor: 'a:b'}", rows("3.1.0", "https://json-schema.org/draft/2019-09/schema"), ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
