@@ -77,7 +77,8 @@ type Dependency struct {
   not checked by the SDK, which the server still checks, reported once per key as an info
   `emitters/<target>/unchecked-constraint`. A row's codec goes with its type, so a declaration
   standing over the type keeps it by naming that type again rather than defining a new one
-  ([scalars](../refine/scalars.md)), and a type only a user's row names is taken to have methods.
+  ([scalars](../refine/scalars.md)), and a type only a user's row names is taken to have methods and
+  no constants.
 - **Imports and dependencies.** `ComputeImports` adds a row's `Imports` to every file that spells
   its type, and the dependency-manifest artifact requires each `Dependency.Module` a row in use
   names, at the highest `MinVersion` those rows name, compared as the target's build tool compares

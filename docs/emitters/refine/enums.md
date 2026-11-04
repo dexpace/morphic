@@ -39,5 +39,5 @@ heuristic, keeps an enum over that width, so adding a member never changes the e
 member past the width's range has no constant, and members apart only beyond its precision hold
 one value there, decoding as the first of them. Each such member is reported as a warning
 `emitters/<target>/unrepresentable-member` at its enum, naming the member, since a member has no
-provenance of its own. A configuration that wants every member maps the kind exactly, which lowers
-the enum over its wire text.
+provenance of its own. A configuration that wants every member maps the kind exactly, which no
+width bounds.

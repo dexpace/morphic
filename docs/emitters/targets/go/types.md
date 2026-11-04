@@ -40,15 +40,15 @@ with strict decode.
 
 Go declares constants of boolean, numeric and string types alone, so an enum lowers over its
 members' wire forms ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)) where its
-`ValueType`'s row is none of them: under the built-in rows a `bytes`, `date`, `time`, `datetime`,
-`datetime_offset`, `duration`, `uuid`, `decimal`, `decimal128` or `any` enum, and an `integer`,
-`float` or `number` one where a row maps them exactly. A type only a user's row names is taken to
-have no constants. Such an enum is a named type over `string`, each constant the wire text of the
-first member holding its value, whose codec writes that text as the value type's JSON kind, a
-number for a numeric kind, and decodes by comparing as JSON does, so the constant of a decimal
-`0.1` is the value a `0.10` decodes to. A method returns the value as the row's type, decoding the
-text through the row's codec, as [the type table](../../contract/type-table.md) builds any literal
-of a mapped type:
+`ValueType`'s row is none of them: a `bytes`, `date`, `time`, `datetime`, `datetime_offset`,
+`duration`, `uuid`, `decimal`, `decimal128` or `any` enum under the built-in rows, an `integer`,
+`float` or `number` one where a row maps them exactly, and any one whose row names a type only a
+user's row knows, which [the type table](../../contract/type-table.md) takes to have no constants.
+Such an enum is a named type over `string`, each constant the wire text of the first member holding
+its value, whose codec writes that text as the value type's JSON kind, a number for a numeric kind,
+and decodes by comparing as JSON does, so the constant of a decimal `0.1` is the value a `0.10`
+decodes to. A method returns the value as the row's type, decoding the text through the row's codec,
+as [the type table](../../contract/type-table.md) builds any literal of a mapped type:
 
 ```go
 type Day string                          // date, enum: ["2020-01-01"]
