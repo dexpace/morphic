@@ -11,10 +11,11 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 )
 
-// DialectRoot is a schema resource root that names its dialect: a schema no
-// other holds, or one whose $id roots a resource of its own; where it is, its
-// node, and the URI its `$schema` writes. OAS 3.1 has a `$schema` choose the
-// dialect of the resource it roots (docs/compilers/openapi.md#dialect-keywords).
+// DialectRoot is a schema resource root writing a `$schema`: a schema no other
+// holds, or one whose $id roots a resource of its own; where it is, its node,
+// and the value its `$schema` writes, which names its dialect where it is an
+// absolute URI. OAS 3.1 has a `$schema` choose the dialect of the resource it
+// roots (docs/compilers/openapi.md#dialect-keywords).
 type DialectRoot struct {
 	Node *yaml.Node
 	URI  string

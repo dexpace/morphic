@@ -78,8 +78,8 @@ func bindSchemas(ctx context.Context, doc *soa.OpenAPI, sibs Siblings, media Med
 			if name != self.path {
 				declared = declaredVersion(opened[name])
 			}
-			_, _, rules := d.of(declared, dialect)
-			return dialectRuleOf(rules)
+			_, _, rows := d.of(declared, dialect)
+			return dialectRuleOf(rows.Schema)
 		}}
 	if reader != nil {
 		cfg.Open = func(name string) (*yaml.Node, error) {

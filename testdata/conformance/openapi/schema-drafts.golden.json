@@ -418,7 +418,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Pair/$schema"
@@ -427,7 +427,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Open/$schema"
@@ -436,7 +436,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Paired/$schema"
@@ -463,7 +463,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Labelled/$schema"
@@ -472,7 +472,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Applied/$schema"
@@ -490,7 +490,7 @@
     {
       "severity": "info",
       "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, never for reference resolution",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Named/$schema"

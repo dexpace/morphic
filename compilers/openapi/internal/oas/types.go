@@ -132,9 +132,43 @@ const (
 type Cite struct {
 	Section  string
 	Sentence string
-	Text     string
 	Minor    Minor
+	Text     Text
 }
+
+// Text is a specification text other than OpenAPI's that a Cite quotes. The
+// zero Text is OpenAPI's own. It is one byte, beside Minor, so a Cite, which
+// every row of the table holds, grows by nothing for naming one.
+type Text uint8
+
+// The texts beside OpenAPI's: the Internet-Drafts the keywords of the JSON
+// Schema drafts come from, the dialects a Schema Object can be read in beside
+// its minor's own.
+const (
+	// TextDraft04Core is draft-zyp-json-schema-04, draft 4's core text.
+	TextDraft04Core Text = 1 + iota
+	// TextDraft04Validation is draft-fge-json-schema-validation-00, draft 4's
+	// validation text.
+	TextDraft04Validation
+	// TextJSONReference03 is draft-pbryan-zyp-json-ref-03, the JSON Reference
+	// text draft 4's $ref comes from.
+	TextJSONReference03
+	// TextDraft06Core is draft-wright-json-schema-01, draft 6's core text.
+	TextDraft06Core
+	// TextDraft06Validation is draft-wright-json-schema-validation-01, draft
+	// 6's validation text.
+	TextDraft06Validation
+	// TextDraft07Core is draft-handrews-json-schema-01, draft 7's core text.
+	TextDraft07Core
+	// TextDraft07Validation is draft-handrews-json-schema-validation-01, draft
+	// 7's validation text.
+	TextDraft07Validation
+	// TextDraft2019Core is draft-handrews-json-schema-02, 2019-09's core text.
+	TextDraft2019Core
+	// TextDraft2019Validation is draft-handrews-json-schema-validation-02,
+	// 2019-09's validation text.
+	TextDraft2019Validation
+)
 
 // Term is one condition on the object a rule judges: the sibling field Field
 // holds one of In. The field "$key" is the key the parent holds the object
@@ -157,6 +191,26 @@ type Alt struct {
 	Shape Shape
 	Span  Span
 }
+
+// Default is a value the field Field takes where its object leaves it
+// unwritten, at the minors Span holds, for a value of the case Case names.
+type Default struct {
+	Field string
+	Value string
+	Cites []Cite
+	Span  Span
+	Case  DefaultCase
+}
+
+// DefaultCase is the case a Default holds in: what the value the object
+// applies to is, as the specification's table of defaults keys it.
+type DefaultCase int
+
+// The cases a Default holds in.
+const (
+	// DefaultUntyped is a value whose schema writes no type.
+	DefaultUntyped DefaultCase = 1 + iota
+)
 
 // Field is one field of an object.
 type Field struct {
@@ -284,13 +338,15 @@ type Rule struct {
 	Format Format
 }
 
-// Object is one OpenAPI object: its fields, its pattern fields and its rules.
+// Object is one OpenAPI object: its fields, its pattern fields, its rules and
+// the defaults of its fields.
 type Object struct {
 	// Name is the specification's title for the object: "Info Object".
 	Name      string
 	Fields    []Field
 	Patterned []Pattern
 	Rules     []Rule
+	Defaults  []Default
 	// Referenceable is the minors at which a Reference Object may stand in
 	// the object's place.
 	Referenceable Span
@@ -309,12 +365,12 @@ type Object struct {
 	Extensible bool
 }
 
-// Spec is the table: every object of the specification, and the JSON Schema
-// dialects a Schema Object can be read in.
+// Spec is the table: every object of the specification. The JSON Schema
+// dialects a Schema Object can be read in are schemaDialects', read only for a
+// schema naming one (Spec.SchemaRules).
 type Spec struct {
-	objects  []Object
-	index    map[Kind]int
-	dialects []dialect
+	objects []Object
+	index   map[Kind]int
 }
 
 // Object returns the object of kind k.
@@ -337,5 +393,5 @@ func Table() Spec {
 	for i, o := range objs {
 		index[o.Kind] = i
 	}
-	return Spec{objects: objs, index: index, dialects: schemaDialects()}
+	return Spec{objects: objs, index: index}
 }

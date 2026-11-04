@@ -274,9 +274,11 @@ var rules = map[string][]string{
 	// and so must reach neither, which is why it sits here rather than with either
 	// one. It reaches load for the schema bindings the load phase built, which its
 	// scope reads, and for the rows a document's schemas are read with, which oas
-	// states: the dialect question is asked of the table, never of the version,
-	// and yaml for the node a schema's rows are found by. It reaches naming for
-	// what each position is called, and budget for the limits it holds.
+	// states: the dialect question is asked of the table, never of the version.
+	// It reaches naming for what each position is called, and budget for the
+	// limits it holds. It reaches nodeview and yaml to weigh the declaration a
+	// $ref names, which a reference's lowering copies, and yaml for the node a
+	// schema's rows are found by.
 	"compilers/openapi/internal/lowering": {module + "/ir",
 		module + "/compilers/openapi/internal/bind",
 		module + "/compilers/openapi/internal/bind/typed",
@@ -285,6 +287,7 @@ var rules = map[string][]string{
 		module + "/compilers/openapi/internal/ids",
 		module + "/compilers/openapi/internal/load",
 		module + "/compilers/openapi/internal/naming",
+		module + "/compilers/openapi/internal/nodeview",
 		module + "/compilers/openapi/internal/oas",
 		module + "/compilers/openapi/internal/overlay",
 		module + "/compilers/openapi/internal/resolve",
@@ -472,19 +475,21 @@ var rules = map[string][]string{
 	"internal/lintrules": {"golang.org/x/tools/go/analysis", "golang.org/x/tools/go/types/typeutil"},
 	// What the analyzers refuse, planted in a tree laid out like the module. It
 	// reaches what the rules are about: ir's types, the framework, the parser
-	// library's reference readings and its document's version, and its own
-	// packages, look-alikes of ir and compile among them.
+	// library's reference readings, and its own packages, look-alikes of ir and
+	// compile among them.
 	"internal/lintrules/testdata/mod": {module + "/ir", module + "/compilers/compile",
 		module + "/internal/lintrules/testdata/mod" + subtreeSuffix,
-		"github.com/speakeasy-api/openapi/expression", "github.com/speakeasy-api/openapi/openapi",
-		"github.com/speakeasy-api/openapi/references"},
+		"github.com/speakeasy-api/openapi/expression", "github.com/speakeasy-api/openapi/references"},
 	// Beside that tree, so no rule holds it.
-	"internal/lintrules/testdata/outside": {module + "/ir", "github.com/speakeasy-api/openapi/openapi"},
+	"internal/lintrules/testdata/outside": {module + "/ir"},
 	// What the rules .golangci.yml configures refuse, planted for
 	// scripts/lint-planted.sh, and what cmd/morphic-vet refuses, planted for
-	// scripts/vet-rules.sh.
-	"internal/lintrules/testdata/planted": {module + "/ir"},
-	"internal/lintrules/testdata/reach":   {module + "/ir"},
+	// scripts/vet-rules.sh. It reaches the parser library's document, whose
+	// version a rule confines, and its own look-alikes of the OpenAPI
+	// compiler's packages, laid out as the rule's paths name them.
+	"internal/lintrules/testdata/planted": {module + "/ir",
+		module + "/internal/lintrules/testdata/planted" + subtreeSuffix, "github.com/speakeasy-api/openapi/openapi"},
+	"internal/lintrules/testdata/reach": {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

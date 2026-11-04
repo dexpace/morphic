@@ -16,17 +16,19 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// dialects reads the minor a document a reference reaches is read at: the one
-// its declared version names, or the source's where the table covers none, as
-// for a bare schema file, which declares no version, or a Swagger 2.0 one. It
-// reads the Schema Object's rows of each dialect at each minor from spec once,
-// so the documents and the schemas naming one share them; a map keyed by both
-// holds no more entries than the table has minors times the dialects named.
+// dialects reads the minor a document is read at: the source's, and for one a
+// reference reaches the one its declared version names, or the source's where
+// the table covers none, as for a bare schema file, which declares no version,
+// or a Swagger 2.0 one. It reads each dialect's rows (Rows) at each minor from
+// spec once, so the documents and the schemas naming one share them; a map
+// keyed by both holds no more entries than the table has minors times the
+// dialects named.
 type dialects struct {
 	spec oas.Spec
-	// version and minor are the source's, which the load phase has admitted.
-	version, minor string
-	rules          map[dialectKey]dialectRows
+	// version and minor are the source's, which the load phase has admitted,
+	// and dialect its jsonSchemaDialect.
+	version, minor, dialect string
+	rows                    map[dialectKey]dialectRows
 }
 
 // dialectKey is a minor and the dialect its rows are read in, as written.
@@ -35,42 +37,49 @@ type dialectKey struct {
 }
 
 // dialectRows is a dialect's rows at a minor, and whether it is one the table
-// has no rows for (oas.Spec.SchemaRules).
+// has no Schema Object rows for (oas.Spec.SchemaRules).
 type dialectRows struct {
-	rules  oas.SchemaRules
+	rows   Rows
 	unread bool
 }
 
 // of returns the version a document declaring declared is held to, its minor,
-// and the rows its schemas are read with where none names a dialect of its
-// own: those of dialect, its jsonSchemaDialect.
-func (d *dialects) of(declared, dialect string) (version, minor string, rules oas.SchemaRules) {
+// and what the table says at that minor in dialect, its jsonSchemaDialect,
+// which its schemas are read with where none names a dialect of its own.
+func (d *dialects) of(declared, dialect string) (version, minor string, rows Rows) {
 	version, minor = d.version, d.minor
-	if m, ok := SupportedMinor(declared); ok {
+	if m, ok := supportedMinor(declared); ok {
 		version, minor = declared, m
 	}
-	return version, minor, d.at(version, dialect).rules
+	return version, minor, d.at(version, dialect).rows
+}
+
+// own returns what the table says at the source's minor, in the dialect its
+// jsonSchemaDialect names.
+func (d *dialects) own() Rows {
+	return d.at(d.version, d.dialect).rows
 }
 
 // at returns dialect's rows at the minor version names.
 func (d *dialects) at(version, dialect string) dialectRows {
-	minor, _ := SupportedMinor(version)
+	minor, _ := supportedMinor(version)
 	k := dialectKey{minor: minor, dialect: dialect}
-	if r, built := d.rules[k]; built {
+	if r, built := d.rows[k]; built {
 		return r
 	}
-	if d.rules == nil {
-		d.rules = map[dialectKey]dialectRows{}
+	if d.rows == nil {
+		d.rows = map[dialectKey]dialectRows{}
 	}
-	rules, unread := d.spec.SchemaRules(version, dialect)
-	d.rules[k] = dialectRows{rules: rules, unread: unread}
-	return d.rules[k]
+	rows, unread := rowsAt(d.spec, version, dialect)
+	d.rows[k] = dialectRows{rows: rows, unread: unread}
+	return d.rows[k]
 }
 
 // Dialects is the rows the schemas a resource root naming its dialect holds
 // (bind.Document.Dialects) are read with: by where each is (At), and by each
 // node of that root's tree (Of), a root it holds governing its own. A schema
-// no such root holds reads its document's rows.
+// no such root holds reads its document's rows. Nothing writes it once the
+// load phase returns it, so every context copying it may read it at once.
 type Dialects struct {
 	byRoot map[bind.Position]oas.SchemaRules
 	byNode map[*yaml.Node]oas.SchemaRules
@@ -101,9 +110,11 @@ func (d Dialects) rowsAt(p bind.Position) oas.SchemaRules {
 }
 
 // Of is At for a reading that has the schema's node and not where it is. A
-// node an alias places at several positions reads one root's at all of them,
-// so only a reading no valid node answers otherwise in another dialect asks it,
-// as an exclusive bound valid in draft 4 is malformed in 2020-12.
+// node an alias places at several positions reads at all of them the rows of
+// the root last in pointer order among those whose trees hold it, as
+// readDialects governs them, so only a reading no valid node answers otherwise
+// in another dialect asks it, as an exclusive bound valid in draft 4 is
+// malformed in 2020-12.
 func (d Dialects) Of(n *yaml.Node) (oas.SchemaRules, bool) {
 	r, ok := d.byNode[nodeview.Deref(n)]
 	return r, ok
@@ -133,10 +144,11 @@ func (d Dialects) govern(root *yaml.Node, rules oas.SchemaRules) {
 // table read names, and an openapi/unread-dialect warning for each absolute URI
 // naming one the table has no rows for, whose schemas read their minor's own:
 // at each such `$schema`, placed by place, and at each document's
-// jsonSchemaDialect, the source's, sourceDialect, among them. Validation
-// reports a value no absolute URI names. A document two names read is warned
-// of once.
-func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect string,
+// jsonSchemaDialect, the source's among them. A value no absolute URI names
+// chooses nothing and draws none: validation reports it where it judges it,
+// which in a document a reference reaches is only what the reference reaches.
+// A document two names read is warned of once.
+func readDialects(table *bind.Table, others Others, d *dialects,
 	place func(bind.Position) ir.Provenance,
 ) (Dialects, []ir.Diagnostic) {
 	var diags []ir.Diagnostic
@@ -155,8 +167,8 @@ func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect s
 				"read in the dialect their OpenAPI version names", keyword, dialect))
 	}
 	at := jsontext.Pointer("").AppendToken("jsonSchemaDialect")
-	if d.at(d.version, sourceDialect).unread {
-		unread(place(bind.Position{Doc: bind.Source, Pointer: at}), "jsonSchemaDialect", sourceDialect)
+	if d.at(d.version, d.dialect).unread {
+		unread(place(bind.Position{Doc: bind.Source, Pointer: at}), "jsonSchemaDialect", d.dialect)
 	}
 	for _, o := range others.List() {
 		if d.at(o.version, o.dialect).unread {
@@ -164,7 +176,7 @@ func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect s
 		}
 	}
 	out := Dialects{byRoot: map[bind.Position]oas.SchemaRules{}, byNode: map[*yaml.Node]oas.SchemaRules{},
-		byDoc: map[bind.DocID]oas.SchemaRules{bind.Source: d.at(d.version, sourceDialect).rules}, byName: map[string]bind.DocID{}}
+		byDoc: map[bind.DocID]oas.SchemaRules{bind.Source: d.at(d.version, d.dialect).rows.Schema}, byName: map[string]bind.DocID{}}
 	for id := range bind.DocID(table.Documents()) {
 		out.byName[table.Document(id).Name] = id
 		version, ok := versionOf(table, others, d, id)
@@ -172,17 +184,22 @@ func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect s
 			continue
 		}
 		if o, listed := others.Named(table.Document(id).Name); listed && id != bind.Source {
-			out.byDoc[id] = d.at(o.version, o.dialect).rules
+			out.byDoc[id] = d.at(o.version, o.dialect).rows.Schema
 		}
 		// Innermost first: a root's pointer extends that of a root holding it,
 		// so it sorts after, and the list is in pointer order.
 		for _, root := range slices.Backward(table.Document(id).Dialects) {
+			if !oas.NamesDialect(root.URI) {
+				// It chooses nothing: the schema reads as though it wrote none,
+				// so a malformed value adds no reading to validation's finding.
+				continue
+			}
 			r := d.at(version, root.URI)
 			if r.unread {
 				unread(place(bind.Position{Doc: id, Pointer: root.At.Pointer.AppendToken("$schema")}), "$schema", root.URI)
 			}
-			out.byRoot[root.At] = r.rules
-			out.govern(root.Node, r.rules)
+			out.byRoot[root.At] = r.rows.Schema
+			out.govern(root.Node, r.rows.Schema)
 		}
 	}
 	return out, diags

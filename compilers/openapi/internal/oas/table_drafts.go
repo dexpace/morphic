@@ -7,7 +7,7 @@ package oas
 // its validation text's, each defined at every minor that lets a schema
 // declare a dialect.
 func draft06Keywords() []Field {
-	c, v := jsonSchemaText("draft-wright-json-schema-01"), jsonSchemaText("draft-wright-json-schema-validation-01")
+	c, v := jsonSchemaText(TextDraft06Core), jsonSchemaText(TextDraft06Validation)
 	s := From(V31)
 	return []Field{
 		keyword("$schema", String, s, c(`7. The "$schema" keyword`, `The value of this keyword MUST be a URI [RFC3986] (containing a scheme) and this URI MUST be normalized.`)).formatted(AbsoluteURI),
@@ -56,7 +56,7 @@ func draft06Keywords() []Field {
 // its validation text's, each defined at every minor that lets a schema
 // declare a dialect.
 func draft07Keywords() []Field {
-	c, v := jsonSchemaText("draft-handrews-json-schema-01"), jsonSchemaText("draft-handrews-json-schema-validation-01")
+	c, v := jsonSchemaText(TextDraft07Core), jsonSchemaText(TextDraft07Validation)
 	s := From(V31)
 	return []Field{
 		keyword("$schema", String, s, c(`7. The "$schema" Keyword`, `The value of this keyword MUST be a URI [RFC3986] (containing a scheme) and this URI MUST be normalized.`)).formatted(AbsoluteURI),
@@ -113,7 +113,7 @@ func draft07Keywords() []Field {
 // its validation text's, each defined at every minor that lets a schema
 // declare a dialect.
 func draft2019Keywords() []Field {
-	c, v := jsonSchemaText("draft-handrews-json-schema-02"), jsonSchemaText("draft-handrews-json-schema-validation-02")
+	c, v := jsonSchemaText(TextDraft2019Core), jsonSchemaText(TextDraft2019Validation)
 	s := From(V31)
 	return []Field{
 		keyword("$schema", String, s, c(`8.1.1. The "$schema" Keyword`, `The value of this keyword MUST be a URI [RFC3986] (containing a scheme) and this URI MUST be normalized.`)).formatted(AbsoluteURI),

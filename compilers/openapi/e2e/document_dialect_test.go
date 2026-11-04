@@ -103,6 +103,13 @@ func TestDocumentDialect_ASchemaIsReadInTheDialectItsRootNames(t *testing.T) {
 		{"across an allOf", openapitest.ComponentSpec("    T: {$schema: " + draft04 +
 			", allOf: [{type: integer, minimum: 1, exclusiveMinimum: true}, {type: integer, minimum: 3}]}\n"),
 			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"3", "1"}}, nil},
+		{"the OAS dialect by an id it is published under", openapitest.ComponentSpecVer("3.2.0",
+			"    T: {$schema: 'https://spec.openapis.org/oas/3.2/dialect/2025-09-17', type: integer, exclusiveMinimum: 5}\n"),
+			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}}, nil},
+		{"an allOf reads each branch in its own", "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: " +
+			draft04 + "\npaths: {}\ncomponents:\n  schemas:\n    T: {allOf: [{$id: 'https://example.com/a', " +
+			"$schema: 'https://json-schema.org/draft/2020-12/schema', type: integer, exclusiveMinimum: 2}, " + boolean + "]}\n",
+			map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}}, nil},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -180,6 +187,25 @@ func TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn(t *testing.T) {
 	openapitest.AssertHasCode(t, diags, diag.UnreadDialect, ir.SeverityWarning)
 	assert.Equal(t, map[jsontext.Pointer][2]ir.BigVal{"/components/schemas/T": {"", "5"}, "/components/schemas/U": {"", "6"}},
 		lowerBounds(doc))
+}
+
+// TestDocumentDialect_AValueNamingNoDialectChoosesNothing pins that a `$schema`
+// no absolute URI names, whatever its shape, reads as though the schema wrote
+// none: in a document defaulting to draft 4, its boolean bound reads as draft
+// 4's, and nothing but validation's finding is reported of it.
+func TestDocumentDialect_AValueNamingNoDialectChoosesNothing(t *testing.T) {
+	t.Parallel()
+	const bound = "type: integer, minimum: 5, exclusiveMinimum: true}\n"
+	doc, diags := parseFull(t, "openapi: 3.1.0\ninfo: {title: T, version: '1'}\njsonSchemaDialect: "+draft04+
+		"\npaths: {}\ncomponents:\n  schemas:\n    E: {$schema: '', "+bound+"    N: {$schema: 4, "+bound+
+		"    R: {$schema: 'rel/x', "+bound+"    M: {$schema: {x: 1}, "+bound)
+	assert.Empty(t, openapitest.PointersOf(diags, diag.ExclusiveBoundForm))
+	assert.False(t, openapitest.HasDiag(diags, diag.UnreadDialect))
+	want := map[jsontext.Pointer][2]ir.BigVal{}
+	for _, name := range []string{"E", "N", "R", "M"} {
+		want[jsontext.Pointer("/components/schemas/"+name)] = [2]ir.BigVal{"", "5"}
+	}
+	assert.Equal(t, want, lowerBounds(doc))
 }
 
 // TestDocumentDialect_AMalformedDialectIsValidationsFinding pins that a

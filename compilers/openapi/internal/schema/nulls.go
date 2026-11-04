@@ -238,14 +238,15 @@ func (n *nulls) lands(js *oas3.JSONSchema[oas3.Referenceable]) nullReading {
 		aliases = append(aliases, nullHop{s: hop.GetSchema(), nullable: definesNullableIn(n.c, at.Doc)})
 		hop, at = n.refs.DeclaredAt(hop)
 	}
-	outer := n.nullable
+	// Each read below is in its own document's dialect, and the walk returns to
+	// its own on every way out.
+	defer func(outer bool) { n.nullable = outer }(n.nullable)
 	n.nullable = definesNullableIn(n.c, e.Chain.End.Doc)
 	r := n.conjunct(n.refs.At(e.Chain.End), nullSite{})
 	for _, a := range slices.Backward(aliases) {
 		n.nullable = a.nullable
 		r = n.usage(a.s, r, nullSite{})
 	}
-	n.nullable = outer
 	return r
 }
 

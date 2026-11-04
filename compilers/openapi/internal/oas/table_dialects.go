@@ -5,41 +5,49 @@ package oas
 
 // dialect is a JSON Schema dialect a 3.1 or 3.2 Schema Object can declare,
 // through its `$schema` or its document's jsonSchemaDialect: the URI naming
-// it, the keywords it reads in place of the minor's, or none where they are
-// the minor's own, and whether it ignores the keywords beside a `$ref`, as the
-// drafts before 2019-09 do.
+// it, what builds the keywords it reads in place of the minor's, nil where
+// they are the minor's own, and whether it ignores the keywords beside a
+// `$ref`, as the drafts before 2019-09 do. The keywords are built only for a
+// dialect a schema names, so a compile naming none pays for no row of one.
 type dialect struct {
 	id               string
-	keywords         []Field
+	keywords         func() []Field
 	cites            []Cite
 	ignoresRefFields bool
 }
 
 // schemaDialects are the dialects the table has rows for: the OAS dialect and
 // JSON Schema 2020-12, whose keywords are the minor's, and the JSON Schema
-// drafts before them. Each is named by the id its meta-schema declares.
+// drafts before them. Each is named by the id its meta-schema declares: the
+// OAS dialect's by the one OpenAPI names, and by each dated one its
+// meta-schema is published under for 3.1 and 3.2, as tooling may support
+// values of `$schema` besides.
 func schemaDialects() []dialect {
 	c := sectioned("Schema Object")
 	defined := c(V31, "in addition to the vocabularies as specified in the JSON Schema Specification Draft 2020-12")
 	others := c(V31, "This allows use of Schema Objects which comply with other drafts of JSON Schema than the default Draft 2020-12 support.")
-	ignored := func(text, section, sentence string) Cite { return jsonSchemaText(text)(section, sentence) }
+	published := []Cite{c(V31, "and MAY support additional values of `$schema`.")}
 	return []dialect{
 		{id: "https://spec.openapis.org/oas/3.1/dialect/base", cites: []Cite{c(V31, "The OpenAPI Schema Object dialect for this "+
 			"version of the specification is identified by the URI `https://spec.openapis.org/oas/3.1/dialect/base`")}},
+		{id: "https://spec.openapis.org/oas/3.1/dialect/2024-10-25", cites: published},
+		{id: "https://spec.openapis.org/oas/3.1/dialect/2024-11-10", cites: published},
+		{id: "https://spec.openapis.org/oas/3.2/dialect/2025-09-17", cites: published},
+		{id: "https://spec.openapis.org/oas/3.2/dialect/2026-02-26", cites: published},
 		{id: "https://json-schema.org/draft/2020-12/schema", cites: []Cite{defined}},
-		{id: "https://json-schema.org/draft/2019-09/schema", keywords: draft2019Keywords(), cites: []Cite{others}},
-		{id: "http://json-schema.org/draft-07/schema#", keywords: draft07Keywords(), ignoresRefFields: true, cites: []Cite{others,
-			ignored("draft-handrews-json-schema-01", `8.3. Schema References With "$ref"`, `All other properties in a "$ref" object MUST be ignored.`)}},
-		{id: "http://json-schema.org/draft-06/schema#", keywords: draft06Keywords(), ignoresRefFields: true, cites: []Cite{others,
-			ignored("draft-wright-json-schema-01", `8. Schema references with $ref`, `All other properties in a "$ref" object MUST be ignored.`)}},
-		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords(), ignoresRefFields: true, cites: []Cite{others,
-			ignored("draft-pbryan-zyp-json-ref-03", "3. Syntax", `Any members other than "$ref" in a JSON Reference object SHALL be ignored.`)}},
+		{id: "https://json-schema.org/draft/2019-09/schema", keywords: draft2019Keywords, cites: []Cite{others}},
+		{id: "http://json-schema.org/draft-07/schema#", keywords: draft07Keywords, ignoresRefFields: true, cites: []Cite{others,
+			jsonSchemaText(TextDraft07Core)(`8.3. Schema References With "$ref"`, `All other properties in a "$ref" object MUST be ignored.`)}},
+		{id: "http://json-schema.org/draft-06/schema#", keywords: draft06Keywords, ignoresRefFields: true, cites: []Cite{others,
+			jsonSchemaText(TextDraft06Core)(`8. Schema references with $ref`, `All other properties in a "$ref" object MUST be ignored.`)}},
+		{id: "http://json-schema.org/draft-04/schema#", keywords: draft04Keywords, ignoresRefFields: true, cites: []Cite{others,
+			jsonSchemaText(TextJSONReference03)("3. Syntax", `Any members other than "$ref" in a JSON Reference object SHALL be ignored.`)}},
 	}
 }
 
 // jsonSchemaText returns a constructor of citations of the JSON Schema text
 // named, under one of its headings.
-func jsonSchemaText(text string) func(section, sentence string) Cite {
+func jsonSchemaText(text Text) func(section, sentence string) Cite {
 	return func(section, sentence string) Cite {
 		return Cite{Text: text, Section: section, Sentence: sentence}
 	}
@@ -49,9 +57,9 @@ func jsonSchemaText(text string) func(section, sentence string) Cite {
 // its validation text's. Each is defined at every minor that lets a schema
 // declare a dialect.
 func draft04Keywords() []Field {
-	core := jsonSchemaText("draft-zyp-json-schema-04")
-	ref := jsonSchemaText("draft-pbryan-zyp-json-ref-03")("3. Syntax", "A JSON Reference is a JSON object, which contains a member named")
-	v := jsonSchemaText("draft-fge-json-schema-validation-00")
+	core := jsonSchemaText(TextDraft04Core)
+	ref := jsonSchemaText(TextJSONReference03)("3. Syntax", "A JSON Reference is a JSON object, which contains a member named")
+	v := jsonSchemaText(TextDraft04Validation)
 	s := From(V31)
 	integer := "The value of this keyword MUST be an integer."
 	return []Field{

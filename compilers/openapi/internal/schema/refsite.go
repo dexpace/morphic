@@ -34,8 +34,8 @@ import (
 func refSiteRef(c lowering.Ctx, ts *compile.Types, js *oas3.JSONSchema[oas3.Referenceable], s *oas3.Schema, pointer jsontext.Pointer, home annotation.Home) (ir.TypeRef, []ir.Diagnostic) {
 	target, diags := refTypeRef(c, ts, js, pointer)
 	// A rule about the declaration holds the keywords beside its $ref as it holds
-	// a body's (schemaBody).
-	diags = append(missingArrayItems(c, s, pointer), diags...)
+	// a body's (schemaBody), with what the $ref lands on.
+	diags = append(missingArrayItemsBesideRef(c, js, pointer), diags...)
 	diags = append(diags, ignoredRefFields(c, s, pointer)...)
 	unhomed := refSiteUnhomedKeywords(s, nil)
 	hasUnion := declaresUnion(s)

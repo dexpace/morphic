@@ -493,8 +493,10 @@ var DialectKeywords = []string{"$id", "$schema", "$vocabulary"}
 // dialectRead is what keyword, one of DialectKeywords or draft 4's `id`, is
 // read for beyond being kept, its schema naming its identifier by identifier:
 // an identifier for reference resolution alone, `$id` for nothing where the
-// dialect spells it `id`, $schema for the dialect a schema it roots is read in
+// dialect spells it `id`, $schema for the dialect of a schema resource it roots
 // (docs/compilers/openapi.md#dialect-keywords), and $vocabulary for nothing.
+// The words hold at every site, as the reader cannot tell a root: a $schema
+// rooting no resource, or in a 3.0 document, chooses nothing.
 func dialectRead(keyword, identifier string) string {
 	switch {
 	case keyword == "$id" && identifier == "id":
@@ -502,8 +504,8 @@ func dialectRead(keyword, identifier string) string {
 	case keyword == "$id", keyword == "id":
 		return "is read only for reference resolution"
 	case keyword == "$schema":
-		return "is read only to choose the dialect of the 3.1 or 3.2 schema resource it roots, " +
-			"never for reference resolution"
+		return "is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose " +
+			"that resource's dialect, never for reference resolution"
 	default:
 		return "is not honoured for reference resolution"
 	}

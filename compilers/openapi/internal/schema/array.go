@@ -162,8 +162,8 @@ func collectionConstraints(s *oas3.Schema) *ir.Constraints {
 // It reads the declaration, never what it lowered to, so an array that lowers
 // to a tuple, an enum or an allOf is held to the rule as a List is; that a 3.0
 // prefixItems lowers at all is GitHub #820. `items: {}` is silent, as is a
-// list. A $ref site's keywords are held to it; a subschema kept verbatim, such
-// as one under `not`, never reaches it.
+// list. missingArrayItemsBesideRef holds a $ref site's keywords to it; a
+// subschema kept verbatim, such as one under `not`, never reaches it.
 func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) []ir.Diagnostic {
 	if _, listed := listedItems(s); listed || annotation.Written(s.GetItems()) ||
 		!slices.Contains(s.GetType(), oas3.SchemaTypeArray) ||
@@ -173,4 +173,23 @@ func missingArrayItems(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer)
 	return []ir.Diagnostic{c.DiagAt(ir.SeverityWarning, diag.MissingArrayItems, pointer,
 		"OpenAPI 3.0 requires items when type is array, and this schema writes none, "+
 			"so only its other keywords constrain its elements")}
+}
+
+// missingArrayItemsBesideRef is missingArrayItems for the keywords beside the
+// $ref js writes, which conjoin with what it lands on: a type array there
+// leaves its elements to that, so it is reported only where admission's
+// reading of the conjunction holds them to no items, which neither items: true
+// nor a union's branches do. An items the reading found holds however much of
+// the rest it read, and one cut short before reaching any leaves the keywords
+// held to the rule as they are written.
+func missingArrayItemsBesideRef(c lowering.Ctx, js *oas3.JSONSchema[oas3.Referenceable], pointer jsontext.Pointer) []ir.Diagnostic {
+	diags := missingArrayItems(c, js.GetSchema(), pointer)
+	if len(diags) == 0 {
+		return nil
+	}
+	w := newAdmission(c)
+	if w.whole(js).items != nil {
+		return nil
+	}
+	return diags
 }

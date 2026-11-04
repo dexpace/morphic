@@ -5,7 +5,6 @@ package operation
 
 import (
 	"encoding/json/jsontext"
-	"slices"
 	"strings"
 
 	"github.com/speakeasy-api/openapi/jsonschema/oas3"
@@ -124,12 +123,12 @@ func lowerContent(d mediaDecl, ts *compile.Types, mt string) (ir.Content, []ir.D
 	if len(ex) > 0 {
 		content.Examples = ex
 	}
-	switch {
-	case isBinaryBody(c, mt, media.GetSchema()):
-		content.File = &ir.FileInfo{IsText: false, ContentTypes: []string{mt}}
-		content.Type = fileBodyType(ts, content.Type)
+	switch file := bodyFile(c, mt, readFile(c, media.GetSchema())); {
+	case file != nil:
+		content.File = file
+		content.Type = fileBodyType(ts, file, content.Type)
 	case isFormContent(mt):
-		enc, encUnmodeled, encDiags := partEncodings(c, ts, media, mediaPtr, content.Type.Target)
+		enc, encUnmodeled, encDiags := partEncodings(c, ts, media, mt, mediaPtr, content.Type.Target)
 		diags = append(diags, encDiags...)
 		if enc != nil {
 			content.Encoding = enc
@@ -149,37 +148,30 @@ func lowerContent(d mediaDecl, ts *compile.Types, mt string) (ir.Content, []ir.D
 		annotation.UnknownKeysIn(&content.Unmodeled, media, c.ProvenanceAt, mediaPtr, taken...)...)
 }
 
-// fileBodyType is the type of a file body that lowered to declared: the
-// declaration itself, so its docs, bounds and examples stay reachable, unless
-// it states nothing, where the media type alone says the body is bytes.
-func fileBodyType(ts *compile.Types, declared ir.TypeRef) ir.TypeRef {
-	if declared.Target == ir.PrimTypeID(ir.PrimAny) {
-		return ts.PrimRef(ir.PrimBytes)
+// fileBodyType is the type of the file body file whose schema lowered to
+// declared: the declaration itself, so its docs, bounds and examples stay
+// reachable, unless it states nothing and the file is declared, where the
+// media type alone says the body is bytes. A file the binary policy read keeps
+// the top type, so a consumer dropping the guess finds what the schema said.
+// The bytes keep what the reference says of null.
+func fileBodyType(ts *compile.Types, file *ir.FileInfo, declared ir.TypeRef) ir.TypeRef {
+	if declared.Target != ir.PrimTypeID(ir.PrimAny) || file.Inferred != "" {
+		return declared
 	}
+	declared.Target = ts.PrimID(ir.PrimBytes)
 	return declared
 }
 
 // isFormContent reports whether a media type is multipart or url-encoded form
 // content, whose parts carry per-property encoding.
 func isFormContent(mt string) bool {
-	mt = lowering.NormalizeMediaType(mt)
-	return strings.HasPrefix(mt, "multipart/") || mt == "application/x-www-form-urlencoded"
+	return isMultipart(mt) || lowering.NormalizeMediaType(mt) == "application/x-www-form-urlencoded"
 }
 
-// isBinaryBody reports whether a content entry is a binary file body: a
-// string+binary schema, the schema a refinement is a use of included, or an
-// absent or boolean schema on application/octet-stream.
-func isBinaryBody(c lowering.Ctx, mt string, js *oas3.JSONSchema[oas3.Referenceable]) bool {
-	s := schemaOf(c.Bindings(), js)
-	if s == nil {
-		return lowering.NormalizeMediaType(mt) == "application/octet-stream"
-	}
-	return schemaIsBinary(schema.DecidingSchema(c, s))
-}
-
-// schemaIsBinary reports whether a schema is a string+binary body.
-func schemaIsBinary(s *oas3.Schema) bool {
-	return s.GetFormat() == "binary" && slices.Contains(s.GetType(), oas3.SchemaTypeString)
+// isMultipart reports whether a media type is a multipart one, whose parts can
+// carry raw bytes, as a url-encoded body's cannot.
+func isMultipart(mt string) bool {
+	return strings.HasPrefix(lowering.NormalizeMediaType(mt), "multipart/")
 }
 
 // schemaOf returns the concrete Schema of a schema-or-ref-or-bool position,

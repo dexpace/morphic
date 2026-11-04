@@ -24,7 +24,7 @@ IR bug (INV9), not a compiler change.
 | `Model` whose `Base` is no model, not a decorator | — |
 | `AdditionalProps` / `Additional` | pattern channel |
 | `Union` (four wire shapes, [unions](unions.md)) | `WireName`/`WireID` per variant; an unknown variant's value; every variant an inclusive union's value admits |
-| `Enum` open/closed/flags | member `WireName` |
+| `Enum` open/closed/flags | member `WireName`; each member's wire form, compared as JSON compares values ([a member on the wire](enums.md#a-member-on-the-wire)) |
 | `List`/`MapT`/`Tuple` | packed/expanded |
 | `Literal` | — |
 | `External` | — |

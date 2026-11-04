@@ -38,16 +38,17 @@ A document declaring `openapi: 3.0.x`, `3.1.x` or `3.2.x` is read as the minor i
 name, and every rule below that differs by minor follows that one. So is a document a reference
 reaches beside the source: its schemas are read in that minor's dialect, where neither its
 `jsonSchemaDialect` nor a schema's `$schema` names another ([`dialect-keywords`](#dialect-keywords)),
-its objects are held to that minor's table, and its `Document.Sources` entry names that minor. One declaring no version, such
-as a bare schema file, or a version the compiler does not read, such as `3.3.0` or a Swagger 2.0
-file, is read at the source's minor, and the compile stands. A version that is not three runs
-of digits, major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an
-`openapi/validation` error, of the class `validation-invalid-format` ([`validation`](#validation)),
-and the document still lowers under the minor it names. Any other
-version is not this compiler's. The engine refuses a document declaring one before any compiler
-runs, as it refuses a Swagger 2.0 document ([`swagger-lift`](#swagger-lift)), and the compiler,
-handed one directly, refuses it with an `openapi/unsupported-version` error and compiles to no
-Document.
+its Encoding Objects take that minor's defaults, its objects are held to that minor's table, and its
+`Document.Sources` entry names that minor. One declaring no version, such as a bare schema file, or
+a version the compiler does not read, such as `3.3.0` or a Swagger 2.0 file, is read at the source's
+minor, and the compile stands. A source declaring a version that is not three runs of digits, major,
+minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an `openapi/validation` error, of the
+class `validation-invalid-format` ([`validation`](#validation)), and still lowers under the minor it
+names; a document a reference reaches is read at the minor such a version names too, with no
+finding, since only what a reference reaches is judged. Any other version is not this compiler's.
+The engine refuses a document declaring one before any compiler runs, as it refuses a Swagger 2.0
+document ([`swagger-lift`](#swagger-lift)), and the compiler, handed one directly, refuses it with
+an `openapi/unsupported-version` error and compiles to no Document.
 
 - Codes: `openapi/unsupported-version`, `openapi/validation`
 - Tests: `openapi.TestCompile_UnsupportedVersion`,
@@ -57,6 +58,7 @@ Document.
   `e2e.TestDocumentMinor_ANullIsReadInTheDialectOfItsDocument`,
   `e2e.TestDocumentMinor_AdmissionReadsEachSchemaInItsDialect`,
   `e2e.TestDocumentMinor_DocumentsOfTwoMinorsAreEachReadAtTheirOwn`,
+  `e2e.TestDocumentMinor_AnEncodingDefaultsAtItsDocumentsMinor`,
   `oas.TestCheck_TheOpenAPIFieldIsAVersionNumber`,
   `detect.TestRecognize_AVersionThatIsNotServedIsStillADeclaration`
 
@@ -112,10 +114,11 @@ scalar under any other tag keeps it.
 
 ### `source-budgets`
 
-`Options.Limits` bounds how large a source the compiler lowers, each budget taking its default when
-unset and none when negative. A source past `MaxSourceBytes` is refused before it is parsed, as one
-past the budget rather than one of a size: `MaxSourceBytes` is the compiler's `SourceLimit`, so a
-caller may hand detection only its first bytes, one past the budget. A source whose YAML parses to
+`Options.Limits` bounds how large a source the compiler lowers, and how much its lowering copies,
+each budget taking its default when unset and none when negative. A source past `MaxSourceBytes` is
+refused before it is parsed, as one past the budget rather than one of a size: `MaxSourceBytes` is
+the compiler's `SourceLimit`, so a caller may hand detection only its first bytes, one past the
+budget. A source whose YAML parses to
 more than `MaxSourceNodes` nodes, or whose aliases add more than `MaxAliasSurplus` nodes to it, is
 refused before its model is built. Each is an `openapi/budget-exceeded` error, compiling to no
 Document. Past `MaxExternalDocuments`, a document an external reference names is not read, each
@@ -134,6 +137,25 @@ is applied, and so is a document an external reference names, which fails the re
 each is read no further than the byte budget. The member budget of an enum is
 [`enum-const`](#enum-const)'s.
 
+`MaxReferenceExpansion` bounds what the lowering copies through `$ref`s, the product of references
+and size the budgets above leave free. A declaration a `$ref` names, a schema or a link aside,
+lowers again at each `$ref` naming it, so each such `$ref` is charged what the declarations its
+chain names weigh: the one it ends at, and each component alias it passes through, whose fields
+beside its own `$ref` lower at every use too
+([`reference-object-siblings`](#reference-object-siblings),
+[`path-item-ref-fields`](#path-item-ref-fields)). A declaration weighs a node for each YAML node, a
+YAML alias as a copy of what it names, and a byte for each byte of scalar text, but a schema it
+holds weighs one node whatever the schema holds: it lowers once, to the type every copy refers to. A
+schema is weighed whole beneath a merge key, which the grammar reads as raw YAML, and wherever the
+grammar cannot place the `$ref`'s position or reads no object a `$ref` names there. Every `$ref` is
+charged, the first to a declaration and one nested in another's among them, since each lowers a
+copy. A schema's `$ref` names one registry entry ([`schema-registry`](#schema-registry)) and a
+link's is kept as written, so neither is charged. Past the budget no `$ref` lowers, and the compile
+is refused as one `openapi/budget-exceeded` error at the source and no position in it, compiling to
+no Document, beside what the load phase found and nothing the lowering did: which `$ref` crossed the
+budget, and so what lowered before it, follows the walk's order. With no Document to list the
+documents `$ref`s read, what the load phase found in one of them is left out too.
+
 - Codes: `openapi/budget-exceeded`, `openapi/source-too-deep`, `openapi/source-too-large`,
   `openapi/alias-amplification`
 - Tests: `openapi.TestCompile_SourceByteBudgetBindsOnlyPastTheLimit`,
@@ -143,10 +165,22 @@ each is read no further than the byte budget. The member budget of an enum is
   `load.TestLoad_RefusesANestingPastTheBoundBeforeBuildingTheModel`,
   `load.TestLoad_ADocumentTooLargeToIndexIsRefused`,
   `openapi.TestCompile_TheDocumentBudgetIsTheCallersToSet`,
-  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`
+  `load.TestJudgeSource_ReadsEveryObjectTheCompilerAdmits`, `oas.TestCheck_WorkIsBounded`,
+  `openapi.TestCompile_ReferenceExpansionBindsOnlyPastTheLimit`,
+  `openapi.TestCompile_EveryCopiedDeclarationIsCharged`,
+  `openapi.TestCompile_AReferenceIntoAnotherDeclarationIsChargedInFull`,
+  `openapi.TestCompile_AReferenceExpansionRefusalIsTheSameInEitherOrder`,
+  `openapi.TestCompile_AReferenceExpansionRefusalKeepsWhatItsTableCanPlace`,
+  `openapi.TestCompile_ASchemaIsChargedAsOneNode`,
+  `openapi.TestCompile_AnAliasIsChargedBesideItsEnd`, `lowering.TestExpansion_ChargesEveryCopy`,
+  `lowering.TestWeightOf_CostsTheBudgetNotTheDeclaration`,
+  `lowering.TestWeightOf_CountsASchemaAsOneNode`,
+  `lowering.TestDeclared_ChargesEachDeclarationOfAChain`,
+  `lowering.TestDeclared_ResolvesNoReferencePastTheExpansionBudget`
 - Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), and long keys nested a few hundred levels deep cost gigabytes within
-  every bound (#931).
+  document budget twice (#571), and long keys nested a few hundred levels deep (#931), a 3.2 path
+  item's own fields copied into each of its operations (#1428) and aliases of a long scalar (#1429)
+  cost gigabytes within every bound.
 
 ### `overlays`
 
@@ -198,9 +232,10 @@ overlay, reported as an `openapi/overlay-origin-incomplete` warning.
 The load phase holds the source to a table of the OpenAPI Specification's rules, at the minor it
 declares, and the parser's own validation does not run. Each row of the table cites the sentence of
 the specification it comes from. It gives every object's fields, the shape, values and syntax of
-each, which fields each minor requires, and the rules that bind fields together; what data cannot
-state is written as code beside it, such as a path template against its path parameters, a server
-URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
+each, which fields each minor requires, the rules that bind fields together, and the defaults of
+fields left unwritten that a lowering reads ([`multipart-encoding`](#multipart-encoding)); what data
+cannot state is written as code beside it, such as a path template against its path parameters, a
+server URL against its variables, a tag's parent, and where an encoding applies. Each finding is reported
 as `openapi/validation` suffixed with its class (`openapi/validation/validation-required-field`), at
 the node it is about, its message naming the object, the field, the minor and the section of the
 specification it cites. A finding never refuses the document,
@@ -272,6 +307,9 @@ gives it no effect is [`allow-reserved-locations`](#allow-reserved-locations)' a
   `load.TestResolve_AReachedFindingNamesThePositionThatReadIt`,
   `e2e.TestCompile_AFindingInAnExternalDocumentKeepsItsRule`,
   `canary.TestValidationOracle_AgreesWithTheLibrary`
+- Status: partly built: a schema read in a JSON Schema draft ([`dialect-keywords`](#dialect-keywords))
+  is held to its minor's keyword rows, so a keyword the draft constrains otherwise passes as 2020-12
+  admits it (#1466).
 
 ### `minor-required-fields`
 
@@ -302,8 +340,9 @@ the field.
 
 A document may write a field, or one value of a field, that a later minor of its format added to the
 object it sits on: a `name` on an OpenAPI 3.1 Server Object, `in: querystring` on a 3.0 Parameter
-Object. It lowers exactly as in a document declaring the minor that added it, and is reported once,
-at its own key, as an `openapi/later-version-construct` warning. That reading loses the least: from
+Object. It lowers exactly as in a document declaring the minor that added it, but for the one case
+set out below, whose keywords are read as the declared minor defines them, and is reported once, at
+its own key, as an `openapi/later-version-construct` warning. That reading loses the least: from
 the lowering and the diagnostic a consumer can still set the construct aside, while from a verbatim
 copy it could not rebuild the operation a `query` key declares. Except in the one case set out
 below, the declared minor gives the construct no meaning at all, so the lowering asserts nothing the
@@ -319,18 +358,22 @@ ignored, so a 3.0 document writing one is warned that it was applied as 3.1 appl
 read as the declared minor's dialect defines it, the only reading that gives what the author wrote
 its meaning: a `nullable` there adds `null` to a `type` written beside it
 ([`nullable`](#nullable)), an `exclusiveMinimum` there is a boolean modifying the bound beside it
-([`constraints`](#constraints)), and a `type: array` there requires `items`
-([`missing-array-items`](#missing-array-items)).
+([`constraints`](#constraints)), and a `type: array` there requires `items` unless what the `$ref`
+lands on supplies one ([`missing-array-items`](#missing-array-items)).
 
 Whether a construct is a later minor's is asked in one place, the table [`validation`](#validation)
 holds a document to, which gives the minor each field and value was added in; no lowering asks it,
 so no field's treatment can depend on whether the parser happens to model it. How a schema keyword
 reads at its document's minor is asked of the same table, the Schema Object's rows at that minor:
 whether it defines `nullable`, the shape `exclusiveMinimum` takes, and whether `items` is required
-beside `type: array`. No lowering asks the version: nothing outside the load phase and the table
-reads the version a document declares, and `make vet` refuses a reading anywhere else (the
-`versionreadings` analyzer). The construct's value
-is held to the shape its table row gives it, and any object inside it to the table like any other.
+beside `type: array`; and what an Encoding Object leaves unwritten defaults to is asked of the
+Encoding Object's rows, the `contentType` of a part writing no `type`
+([`multipart-encoding`](#multipart-encoding)). No lowering asks the version: outside format
+detection, which reads it to name the format a file declares, only the load phase and the table
+read the version a document declares, and `make lint` refuses the parser library's version field
+and accessor, and the table's reading of a version, anywhere else (a `forbidigo` rule in
+`.golangci.yml`). The construct's value is held to the shape its table row gives it, and any object
+inside it to the table like any other.
 The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, a Path
 Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering applies beside
 a 3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is
@@ -2324,9 +2367,13 @@ a union branch) and whatever it lowers to (a `Tuple`, an enum of arrays), since 
 declaration and not the node. Nothing is dropped or degraded, so no `openapi/degraded-construct`
 accompanies it. `items: {}` is silent, as is every schema at 3.1 and 3.2, where `items` is optional.
 A schema writing a `$ref` is held to the rule by the keywords beside it, which the lowering applies
-([`later-version-construct`](#later-version-construct)). Nor is an inline `allOf` branch reported,
-which merges in place or restates what a refinement names, or a subschema kept verbatim, such as one
-under `not`; the branch a refinement lowers from is reported as the position it is
+([`later-version-construct`](#later-version-construct)), where nothing they conjoin with writes an
+`items` either: beside a `$ref` landing on a schema that writes one, through an alias or an `allOf`
+as well, a `type: array` leaves the elements to it, and `{$ref: X, type: array}` is then as silent as
+`{allOf: [{$ref: X}, {type: array}]}`. An `items` written in a union's branches does not count, nor
+does `items: true`, which holds the elements to nothing. An inline `allOf` branch, which merges in
+place or restates what a refinement names, is not reported, nor is a subschema kept verbatim, such as
+one under `not`; the branch a refinement lowers from is reported as the position it is
 ([`allof-refinement`](#allof-refinement)).
 
 - Cases: `missing-array-items`
@@ -2736,26 +2783,34 @@ Schema lets an embedded resource name its dialect. Else it is read in its docume
 `jsonSchemaDialect`, and else in its minor's own, the OAS dialect. A `$schema` on any other schema
 chooses nothing, since JSON Schema writes one at a resource's root, and an `$id` naming its own
 document roots no resource. A 3.0 document defines neither keyword, so its schemas are read in 3.0's
-dialect whatever either names. The rule table has rows for six dialects, each named by the id its
-meta-schema declares, with or without a trailing empty fragment: the OAS dialect,
+dialect whatever either names. The rule table has rows for each dialect named here by the id its
+meta-schema declares, with or without a trailing empty fragment. The OAS dialect,
 `https://spec.openapis.org/oas/3.1/dialect/base`, and JSON Schema 2020-12,
-`https://json-schema.org/draft/2020-12/schema`, whose keywords are the minor's own, and JSON Schema
-2019-09, `https://json-schema.org/draft/2019-09/schema`, draft 7,
-`http://json-schema.org/draft-07/schema#`, draft 6, `http://json-schema.org/draft-06/schema#`, and
-draft 4, `http://json-schema.org/draft-04/schema#`. A dialect changes the keywords alone: the fields
-OpenAPI adds to a Schema Object, `nullable` among them, and the rules it states of one stay the
-minor's. A reading the rows decide follows the schema's: draft 4 spells an exclusive bound as a
-boolean modifying the bound beside it ([`constraints`](#constraints)), the drafts before 2020-12 a
-tuple as a list of `items` ([`tuples`](#tuples)), those before 2019-09 `dependencies`
-([`validation-only`](#validation-only)) and an identifier naming a fragment alone
+`https://json-schema.org/draft/2020-12/schema`, read as the minor's own keywords, and the OAS
+dialect is also named by each dated id its meta-schema is published under:
+`https://spec.openapis.org/oas/3.1/dialect/2024-10-25` and `2024-11-10`, and
+`https://spec.openapis.org/oas/3.2/dialect/2025-09-17` and `2026-02-26`, as OpenAPI lets tooling
+support values of `$schema` besides. JSON Schema 2019-09,
+`https://json-schema.org/draft/2019-09/schema`, draft 7, `http://json-schema.org/draft-07/schema#`,
+draft 6, `http://json-schema.org/draft-06/schema#`, and draft 4,
+`http://json-schema.org/draft-04/schema#`, have keyword rows of their own. A dialect changes the
+keywords alone: the fields OpenAPI adds to a Schema Object, such as `discriminator` and `xml`, and
+the rules it states of one stay the minor's. A reading the rows decide follows the schema's: draft 4
+spells an exclusive bound as a boolean modifying the bound beside it ([`constraints`](#constraints)),
+the drafts before 2020-12 a tuple as a list of `items` ([`tuples`](#tuples)), those before 2019-09
+`dependencies` ([`validation-only`](#validation-only)) and an identifier naming a fragment alone
 ([`references`](#references)), draft 4 the identifier as `id`, and drafts 4, 6 and 7 ignore the
 keywords beside a `$ref` ([`later-version-construct`](#later-version-construct)). A schema naming
 any other dialect by an absolute URI, an earlier draft or one of the author's, is read in its
 minor's own, with an `openapi/unread-dialect` warning at the `$schema` or the `jsonSchemaDialect`
-naming it; a value no absolute URI names is the rule table's finding alone
-([`validation`](#validation)), and reads the same. A schema is read in the dialect of where it is,
-so a node an alias places under two roots is read in each one's at each, bar the exclusive bounds an
-`allOf` reads across its branches to fold them, which a node reads in one root's at every position.
+naming it. A value no absolute URI names chooses nothing, as though it were not written, and draws
+no such warning: the rule table reports it where it judges it ([`validation`](#validation)), which
+in a document a reference reaches is only what the reference reaches
+([`openapi-versions`](#openapi-versions)). A schema is read in the dialect of where it is, so a node
+an alias places under two roots is read in each one's at each, bar the exclusive bounds an `allOf`
+reads across its branches to fold them, which a node reads in one root's at every position: that of
+the root last in pointer order among those whose trees hold it, which for a node no alias places is
+the innermost.
 
 `$comment` is dropped outright — 2020-12 §8.3 forbids presenting it to end users, so no emitter may
 see it. `$dynamicAnchor` is consumed as a reference target rather than carried as content — it is
@@ -2771,15 +2826,17 @@ an `$anchor`. `$anchor` is consumed the same way: a `$ref` naming one that
   `e2e.TestDocumentDialect_AReferenceReadsWhatItNamesInItsRootsDialect`,
   `e2e.TestDocumentDialect_ADocumentOfSchemasNamesItsDialectAtItsRoot`,
   `e2e.TestDocumentDialect_ADialectWithNoRowsIsReadAsTheMinorsOwn`,
+  `e2e.TestDocumentDialect_AValueNamingNoDialectChoosesNothing`,
   `oas.TestSchemaRules_ADialectNamesItsKeywordsAlone`,
   `bind.TestDialectRoots_ASchemaNoOtherHoldsNamesItsDialect`,
   `load.TestReadDialects_GovernsWhatEachRootHoldsAndWarnsOfWhatItCannotRead`
 - Status: partly built: the rule table's check holds a schema to its minor's keywords whatever its
   dialect, bar the shapes it leaves to the load phase ([`constraints`](#constraints),
-  [`tuples`](#tuples)), and holds a `definitions` entry no `$ref` reaches to none (#1466); and a
-  keyword 2020-12 added, such as `prefixItems`, is read as 2020-12 reads it in a draft's schema too
-  (#820); and 2019-09's `$recursiveRef` is kept verbatim, never expanded as its `$dynamicRef` is
-  (#1475).
+  [`tuples`](#tuples)), and holds a `definitions` entry no `$ref` reaches to none (#1466); a keyword
+  2020-12 added, such as `prefixItems`, is read as 2020-12 reads it in a draft's schema too (#820);
+  2019-09's `$recursiveRef` is kept verbatim, never expanded as its `$dynamicRef` is (#1475); and an
+  identifier naming its document by the 3.2 `$self` roots a resource of its own, as the document is
+  known by its location alone (#863).
 
 ### `vocabulary-coverage`
 
@@ -3176,26 +3233,69 @@ all three and its `x-*`, reported as an `openapi/empty-request-content` warning 
 
 ### `file-bodies`
 
-A content entry whose schema is `type: string` with `format: binary`, read through a `$ref` or a
-refinement ([`allof-refinement`](#allof-refinement)) and whatever its media type, or whose schema is
-absent or boolean on `application/octet-stream`, matched
-on the normalized key ([`media-types`](#media-types)), lowers to `Content.File` with `IsText` false
-and `ContentTypes` the key as written, so that a body to stream is not read as a model.
-`Content.Type` stays what the schema lowered to, which keeps its docs, bounds and examples
-reachable, and is the non-nullable `bytes` primitive only where the schema is absent or `true` and
-states nothing. No other `FileInfo` field is set. The same holds for a response and an error case.
-An `octet-stream` entry with a schema that is not `string` with `binary`, a `format: byte` or
-`contentMediaType` string, and a schema-less entry on any other media type are ordinary Contents.
+A content entry is a file body, `Content.File` with `IsText` false and `ContentTypes` the key as
+written, where its schema declares raw bytes or leaves its media type to say, so that a body to
+stream is not read as a model. The schema is read through a `$ref`, and through the branches of an
+`anyOf` or `oneOf` it writes, as the least any of them admits: a branch admitting no value but
+`null`, or none as `false` does, is passed over, and one that is itself such a union says the body
+is something else. A schema declares
+raw bytes with `format: binary` on a `type` that includes `string` or on none, and no
+`contentEncoding`, which makes them encoded text as the type lowering reads it, read through a
+refinement ([`allof-refinement`](#allof-refinement)) to the schema deciding it, whatever the media
+type. It leaves the media type to say where it is absent, `true`, or writes no keyword but `type` as
+`string`, alone or with `null`, the annotations `title`, `description`, `$comment`, `example`,
+`examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
+the identifiers `$id`, `$anchor` and `$dynamicAnchor` and the store `$defs`, which say nothing of
+the value, the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary
+payload's octets,
+`contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
+where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
+keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering applies one
+([`later-version-construct`](#later-version-construct)); a chain is followed up to a bound of its
+own, and one longer says the body is something else. Such a body is a declared file on
+`application/octet-stream`, matched on the normalized key ([`media-types`](#media-types)), since RFC
+2046 defines that type as arbitrary octets, and a file the binary policy reads on a media type it
+names ([`binary-media`](#binary-media)), where `FileInfo.Inferred` is `binary-media-type`. Any other
+keyword, such as a `format` naming a text form, `contentEncoding`, `enum`, `allOf` or an object's,
+or a `false` schema, makes the content an ordinary Content whatever its media type, as is a body
+leaving its media type to say under one neither names. `Content.Type` stays what the schema lowered
+to, which keeps its docs, bounds and examples reachable. Where a declared file's schema states
+nothing at all it is `bytes` instead, with what the reference says of null, since the media type
+alone says the body is bytes; a file the policy read keeps the top type, so a consumer setting the
+guess aside finds what the schema said. No other `FileInfo` field is set. The same holds for a
+response and an error case.
 
-- Cases: `file-body`
+- Cases: `file-body`, `file-media`
 - Tests: `operation.TestContent_BinaryOctetStreamBody`,
   `operation.TestContent_MixedCaseOctetStreamBodyIsFile`,
   `operation.TestContent_BinaryRefBodyDetectedAsFile`,
   `operation.TestContent_ARefinedBinaryBodyIsAFile`,
-  `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`
-- Status: partly built: the 3.1 idioms for a file, `contentMediaType` without `contentEncoding` and
-  a schema-less entry on a media type other than `application/octet-stream`, are not recognized
-  (#605).
+  `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`,
+  `operation.TestBodyFile_ReadsTheSchemaAndTheMediaType`,
+  `operation.TestBodyFile_ReadsAChainOfRefsUpToItsBound`,
+  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`
+
+### `binary-media`
+
+The binary policy names the media types under which a body or a multipart part whose schema leaves
+its media type to say is a file ([`file-bodies`](#file-bodies),
+[`multipart-encoding`](#multipart-encoding)): by default `application/gzip`, `application/pdf`,
+`application/vnd.tcpdump.pcap`, `application/wasm`, `application/zip`, `audio/*`, `font/*`,
+`image/*` and `video/*`, matched on the normalized key ([`media-types`](#media-types)) at every
+minor. OpenAPI says any binary media type marks binary content, but no registry says which media
+types are binary, so the reading is a guess and each file it makes carries `binary-media-type` in
+its `Inferred`. An entry `type/*` matches each media type of that type whose subtype has no
+structured suffix, since a suffix names the syntax a body is written in: `image/*` matches
+`image/png`, not `image/svg+xml`. An entry starting with `+` names a structured suffix.
+`application/octet-stream` is no entry: a file it carries is declared, whatever the policy says. The
+policy is the Go option `Options.BinaryMedia`: `Disabled` turns the reading off, and `MediaTypes`
+replaces the default list instead of extending it. The `binary-media` setting sets `MediaTypes`, its
+entries separated by commas, and refuses one that is neither a media type nor a suffix, and
+`binary-inference=false` sets `Disabled`.
+
+- Cases: `file-media`
+- Tests: `lowering.TestMediaTypeBinary_AnswersFromThePolicy`,
+  `openapi.TestDecodeOptions_TextReachesEveryField`
 
 ### `example-values`
 
@@ -3213,21 +3313,27 @@ as an info `openapi/degraded-construct` at it. A schema's examples are
 ### `item-schema`
 
 3.2's `itemSchema` lowers to `Content.Item`, the type of each item of a sequential body, and
-`itemEncoding` to `Content.ItemEncoding`. Beside a positional `prefixEncoding`, a single every-item
-encoding cannot state ordinals, so `itemEncoding` and `prefixEncoding` are both kept verbatim in the
-content's `Unmodeled`, under `openapi:itemEncoding` and `openapi:prefixEncoding` (`no_ir_home`),
-reported as one info `openapi/degraded-construct` at the content, while `itemSchema` still lowers to
-`Content.Item`. On a media type whose body is one document, JSON's or XML's by name or `+json` or
-`+xml` suffix, and which the streaming policy ([`streaming-media`](#streaming-media)) does not name,
-`itemSchema` has no sequence to describe: it lowers all the same, with a warning
-`openapi/item-schema-on-document` at it. Which other media types repeat a structure is no closed
-set, so nothing else draws one.
+`itemEncoding` to `Content.ItemEncoding`, with `Multi` set. In a multipart body its `Filename`, and
+the `Inferred` beside it, are read off `itemSchema` and the `itemEncoding`'s `contentType` as a
+multipart part's declaration is read ([`multipart-encoding`](#multipart-encoding)), an item being
+one value where an array part is many, so an array item is no file; an item no `itemSchema`
+describes is none either. A multipart body whose items read as files gets an `ItemEncoding` saying
+so where it writes no `itemEncoding`, as a file part gets an entry. Beside a positional
+`prefixEncoding`, a single every-item encoding cannot state ordinals, so `itemEncoding` and
+`prefixEncoding` are both kept verbatim in the content's `Unmodeled`, under `openapi:itemEncoding`
+and `openapi:prefixEncoding` (`no_ir_home`), reported as one info `openapi/degraded-construct` at
+the content, while `itemSchema` still lowers to `Content.Item`. On a media type whose body is one
+document, JSON's or XML's by name or `+json` or `+xml` suffix, and which the streaming policy
+([`streaming-media`](#streaming-media)) does not name, `itemSchema` has no sequence to describe: it
+lowers all the same, with a warning `openapi/item-schema-on-document` at it. Which other media types
+repeat a structure is no closed set, so nothing else draws one.
 
-- Cases: `sequential-media`
+- Cases: `sequential-media`, `file-items-32`
 - Codes: `openapi/degraded-construct`, `openapi/item-schema-on-document`
 - Tests: `operation.TestStreaming_AnItemSchemaOnOneDocumentIsReported`,
   `operation.TestStreaming_AnItemSchemaIsItsFrameWhateverItHolds`,
-  `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`
+  `lowering.TestHoldsOneDocument_AnswersOnlyForJSONAndXML`,
+  `operation.TestItemFile_ReadsTheItemAsAPartDeclarationIs`
 
 ### `streaming-media`
 
@@ -3288,14 +3394,34 @@ since a part reached only past it has no entry. `contentType` lowers to `Content
 and trimmed with empty items dropped, and one naming no media type is an `openapi/validation` error
 ([`validation`](#validation)); `headers` to `Headers`, lowered as a response's are; and `style` and
 `explode` to `Style` and `Explode` as declared, nothing defaulted. `Multi` and `Filename` come from
-the part and never from the `encoding` map, read once every type has lowered. Where the body model
-has the property and its type is a list, a tuple, a primitive, or a scalar whose bases end in one of
-those or in no base, they are read off that type, the one the `allOf` merge settled on, of the
-declaration the key names: `Multi` where it ends in a list or tuple, `Filename` where it ends in
-`bytes` (`format` `binary` or `byte`). For a property of any other kind, such as a union, enum,
-literal, model or map, and for a body with no model, they are read from every declaration of the
-part's name: `Multi` where any is an array, `Filename` where any is a `string` with `format`
-`binary` or `byte`. A part is entered only when its `PartEncoding` holds something, so a body that
+the part, read once every type has lowered, and `Filename` also from the media types its encoding
+entry names. Where the body model has the property and its type is a list, a tuple, a primitive, or
+a scalar whose bases end in one of those or in no base, they are read off that type, the one the
+`allOf` merge settled on, of the declaration the key names: `Multi` where it ends in a list or
+tuple, `Filename` where it ends in `bytes` (`format` `binary` or `byte`) or, in a multipart body, in
+a list or tuple every element of which ends in `bytes` no encoding such as `format: byte`
+re-encodes, a tuple's rest included where elements may follow its prefix. A union is read off its
+variants, through the unions nested in them, each as such a type is and one of another kind as
+neither: `Multi` where any is, since a part that may repeat travels as repeated parts, and, in a
+multipart body, `Filename` where every one is `bytes` no encoding re-encodes or a list or tuple of
+them. For a property of any other kind, such as an enum, literal, model or
+map, for a union reaching more nested unions than a bound of its own, and for a body with no model,
+they are read from every declaration of the part's name: `Multi` where any is an array, or writes
+no `type` and a union with an array among its branches, `Filename` where any is a `string` with
+`format` `binary` or `byte`. In a multipart body a part is a file too where every declaration of
+it reads so as a body's schema does ([`file-bodies`](#file-bodies)), an array through each of its
+elements, its `prefixItems` and the `items` after them, `items: false` admitting none, as is an
+array branch of a union it writes, whose other branches are read as a body's union branches are: one
+declaring raw bytes; one leaving its media type to say, where its encoding entry's `contentType`
+names only `application/octet-stream` or media types the binary policy names
+([`binary-media`](#binary-media)), `PartEncoding.Inferred` being `binary-media-type` where it names
+one of the latter; and, from OpenAPI 3.1 and with no `contentType`, one writing no `type`, whose
+default content type OpenAPI makes `application/octet-stream`, a union being read so only where
+each of its branches, an array's through its elements, writes no `type` or declares raw bytes, so
+that `{anyOf: [{}, {type: string}]}` reads as a string. A `string` part with
+neither is `text/plain`, whatever its `contentMediaType`, which OpenAPI ignores where an encoding's
+default disagrees, and an array writing no `items` says nothing of its elements past its prefix, so
+neither is a file. A part is entered only when its `PartEncoding` holds something, so a body that
 declares no encoding still gets entries for its array and file parts, and an entry declaring nothing
 leaves none. What an Encoding Object writes beyond those fields is
 [`encoding-allow-reserved`](#encoding-allow-reserved). An encoding written where OpenAPI gives it no
@@ -3305,10 +3431,10 @@ form, which lowers nowhere, or before 3.2 outside a request body, and a 3.2 `pre
 `itemEncoding` under one that is not multipart. A media type is read without its parameters and in
 any case.
 
-- Cases: `multipart-encoding`
+- Cases: `multipart-encoding`, `file-media`
 - Codes: `openapi/degraded-construct`, `openapi/validation`
 - Tests: `operation.TestContent_MultipartPartEncoding`,
-  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`,
+  `oas.TestCheck_EncodingsApplyWhereTheSpecificationSays`, `oas.TestEncodingRules_AnswerAsTheTableDoes`,
   `operation.TestContent_ArrayMultipartPartMulti`,
   `operation.TestPartEncodings_MixinPartIsKeyedOnTheMixin`,
   `operation.TestPartEncodings_KeyedOnTheDeclarationTheFlatteningTakes`,
@@ -3322,12 +3448,16 @@ any case.
   `operation.TestPartEncodings_RefHopBoundIsReported`,
   `operation.TestPartEncodings_ShorterPathReentersTarget`,
   `operation.TestPartEncodings_CappedEntryReachedByAnotherPath`,
-  `operation.TestPartEncodings_CutPastReachedPart`
+  `operation.TestPartEncodings_CutPastReachedPart`,
+  `operation.TestPartTypeFlags_AListOrTupleOfRawBytesIsFiles`,
+  `operation.TestPartTypeFlags_AUnionReadsThroughItsMembers`,
+  `operation.TestPartEncoding_AMergedUnionReadsThroughItsVariants`,
+  `operation.TestReadPartFile_ReadsDeclarationsEncodingAndVersion`
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
-  is keyed by a property no node holds, which validation then refuses (#744); an array of files is
-  not marked as files (#605); and an encoding under a media type it does not apply to is kept in no
-  form (#1047).
+  is keyed by a property no node holds, which validation then refuses (#744); a part's own
+  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); and an
+  encoding under a media type it does not apply to is kept in no form (#1047).
 
 ### `encoding-allow-reserved`
 

@@ -21,14 +21,14 @@ import (
 	"github.com/dexpace/morphic/ir"
 )
 
-// Ctx is everything a lowering may read and none may change: the parsed
-// document, the caller's policies, the identity of the source, and the indexes
-// derived from them once at entry.
+// Ctx is everything a lowering may read: the parsed document, the caller's
+// policies, the identity of the source, and the indexes derived from them once
+// at entry.
 //
-// It is a value, so a function that takes one takes a copy, and every lowering
-// takes it as a parameter (#177): there is no shared holder to write through.
-// The maps stay unexported because a copy shares a map, so an exported one
-// would let a callee write through it.
+// It is a value: a function taking one takes a copy, and every lowering takes
+// it as a parameter (#177). Of what copies share, only expansion changes an
+// answer: past its budget, no $ref resolves. The maps stay unexported because
+// a copy shares a map, which an exported one would let a callee write through.
 //
 // Call sites bind it to c, never ctx, which the styleguide reserves for the
 // context.Context a Compile takes.
@@ -43,8 +43,8 @@ type Ctx struct {
 	SrcIndex int
 	// Grouping selects how operations are grouped into OperationGroups. It is one
 	// of the caller policies the context carries, beside the budgets, the
-	// streaming media list, the promotion mapping and NullableWidening; everything
-	// else here is a fact about the document.
+	// streaming and binary media lists, the promotion mapping and
+	// NullableWidening; everything else here is a fact about the document.
 	//
 	// It arrives as the caller wrote it, normalized or not — the compiler's
 	// Options fills an unset one in before building a context, but nothing here
@@ -65,6 +65,11 @@ type Ctx struct {
 	// copy would share, as with the other maps here.
 	streaming map[string]bool
 
+	// binary is the binary media-type policy, normalized into the set
+	// MediaTypeBinary answers from, and nil when the caller disabled it. It is
+	// unexported for the reason streaming is.
+	binary map[string]bool
+
 	// promoter is the vendor-extension promotion policy, normalized, and read
 	// through Promoter. It is unexported for the reason streaming is: it holds a
 	// map. It sits behind one pointer for the reason loaded does: RefScope copies
@@ -80,13 +85,6 @@ type Ctx struct {
 	// rather than merely discouraged, which is what TestCtx_HasNoExportedMap
 	// holds the struct to.
 	schemas map[string]bool
-
-	// rules is the Schema Object's rows at the minor the source declares, in the
-	// dialect its jsonSchemaDialect names, read once by New, so no copy of the
-	// context reads the version again; another document's are its load.Other's
-	// (SchemaRules). It is one word, which keeps RefScope's closure in its size
-	// class.
-	rules oas.SchemaRules
 
 	// NullableWidening is the nullable-widening policy. It sits before foreign so
 	// the two share a word: RefScope copies the whole context into a closure,
@@ -142,6 +140,12 @@ type Ctx struct {
 	// private, so a lowering writes it only through Once. Nil in a zero context,
 	// which keeps nothing.
 	Kept *KeptOnce
+
+	// expansion charges each $ref Declared resolves what the declarations its
+	// chain names weigh. Copies share it on purpose: the budget is the run's, so
+	// once it is crossed no copy lowers a $ref, and the run is refused
+	// (ExpansionRefusal). Nil in a zero context, which bounds nothing.
+	expansion *expansion
 }
 
 // loadResult holds what a context reads of the load phase (see WithLoaded): the
@@ -155,11 +159,18 @@ type loadResult struct {
 	// as a $ref, modelled and resolved with the document (MediaTypeUse).
 	media load.MediaTypes
 	// names names the nodes built at the positions of the documents the
-	// bindings read, remembering each name (NameAt).
+	// bindings read, remembering each name (NameAt). Copies share it on
+	// purpose: a name reads only those documents, which no lowering changes,
+	// so what one copy remembers is what another would read.
 	names *naming.Namer
-	// others is every document a reference read beside the source, and
-	// dialects the rows each schema naming its dialect governs.
+	// others is every document a reference read beside the source, rows what
+	// the table says at the source's minor in its dialect (load.Document.Rows),
+	// and dialects the rows each schema resource root naming its dialect
+	// governs: the load phase read them all off the one table it built, so no
+	// context builds another. Copies share them on purpose: nothing writes any
+	// after the load, so no lowering changes what another reads.
 	others   load.Others
+	rows     load.Rows
 	dialects load.Dialects
 	// reads holds those readings in the scope fields they fill: Holds over the
 	// raw YAML, Beside and Writes over siblings, Bindings over the schema
@@ -179,14 +190,14 @@ type scopedPosition struct {
 	at      bind.Position
 }
 
-// New derives the immutable context for one loaded source.
+// New derives the context for one loaded source.
 //
 // The schema-name index is built here, not on first use, so every reader sees
 // the same set whatever the source order: a $ref resolved mid-lowering must see
-// a component declared later. The streaming policy is normalized here so
-// readers cannot disagree about a media type, and the promotion policy is
-// copied so no lowering can write through the context into the caller's map.
-func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
+// a component declared later. The streaming and binary policies are normalized
+// here so readers cannot disagree about a media type, and the promotion policy
+// is copied so no lowering can write through the context into the caller's map.
+func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStrategy, limits Limits, streaming StreamingMedia, binary BinaryMedia, promotions ExtensionPromotions, nullable NullableWidening, origin overlay.Origin) Ctx {
 	return Ctx{
 		Doc:              doc,
 		Source:           src,
@@ -194,8 +205,8 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		Grouping:         grouping,
 		Limits:           limits,
 		schemas:          declaredSchemaNames(doc),
-		rules:            load.SchemaRules(doc),
 		streaming:        streamingSet(streaming),
+		binary:           binarySet(binary),
 		promoter:         newPromoter(promotions),
 		NullableWidening: nullable,
 		overlay:          origin,
@@ -203,7 +214,17 @@ func New(srcIndex int, doc *soa.OpenAPI, src ir.SourceInfo, grouping GroupingStr
 		typePositions: map[scopedPosition]bind.Position{},
 		reached:       resolve.NewReached(),
 		Kept:          &KeptOnce{read: map[string]bool{}, entries: ir.Unmodeled{}},
+		expansion:     newExpansion(limits.MaxReferenceExpansion),
 	}
+}
+
+// ExpansionRefusal returns the error refusing the document when the copies its
+// $refs made weighed past [Limits.MaxReferenceExpansion], and false when they
+// did not. It is meant to be asked once every lowering has returned: a $ref
+// past the budget lowers nothing, so a crossing after the question goes
+// unreported.
+func (c Ctx) ExpansionRefusal() (ir.Diagnostic, bool) {
+	return c.expansion.refusal(c.SrcIndex)
 }
 
 // Promoter returns the vendor-extension promotion policy this context carries,
@@ -252,8 +273,8 @@ func (c Ctx) Sources() []ir.SourceInfo {
 // both, so no context carries one without the other. The copy remembers no
 // TypePosition answer or name of c's, which read c's bindings and documents.
 func (c Ctx) WithLoaded(doc *load.Document) Ctx {
-	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, dialects: doc.Dialects,
-		names: naming.New(doc.Bindings.Table()),
+	c.loaded = &loadResult{siblings: doc.Siblings, media: doc.MediaTypes, others: doc.Others, rows: doc.Rows,
+		dialects: doc.Dialects, names: naming.New(doc.Bindings.Table()),
 		reads: resolve.Scope{Holds: doc.Holds, Beside: doc.Siblings.Beside, Writes: doc.Siblings.Writes,
 			Bindings: doc.Bindings}, readings: map[any]any{}}
 	c.typePositions = map[scopedPosition]bind.Position{}
@@ -351,12 +372,23 @@ func Within[T, S any, R interface {
 // Otherwise it is the context of the document the chain ends in (InDocument)
 // and the position the bindings' table places the end at (bind.Table.Through),
 // the source's included for a reference another document writes (GitHub
-// #751). A chain the table places no end for keeps the use site.
-func Declared[T, S any, R interface {
-	*S
-	resolve.Referenced[T, S]
+// #751), or the use site where it places none. Past
+// [Limits.MaxReferenceExpansion] a $ref resolves to nothing
+// ([Ctx.ExpansionRefusal]).
+func Declared[T, S any, R chainable[T, S], P interface {
+	*T
+	GetRootNode() *yaml.Node
 }](c Ctx, ref R, usePtr jsontext.Pointer) (*T, Ctx, jsontext.Pointer) {
 	obj, decl := resolve.ObjectAt[T, S](c.RefScope(), ref, usePtr)
+	// The caller lowers a copy of what a $ref's chain names, so each is charged
+	// what that weighs. One past the budget resolves to nothing, as an unresolved
+	// $ref does, so no caller lowers another copy and none costs anything. An
+	// inline entry is not charged, though a path item's own parameters reach
+	// each of its operations here, which 3.2 leaves unbounded (GitHub #1428).
+	if obj != nil && ref.GetReference() != "" &&
+		!c.expansion.admit(readingOf(c, usePtr), copied[T, S](c, ref, P(obj).GetRootNode())...) {
+		return nil, c, usePtr
+	}
 	in := Within[T, S](c, ref)
 	if there, at, ok := declaredElsewhere(c, obj != nil && (in.foreign || c.home != 0), usePtr); ok {
 		return obj, there, at
@@ -413,27 +445,48 @@ func declaredSchemaNames(doc *soa.OpenAPI) map[string]bool {
 func (c Ctx) DeclaresSchema(name string) bool { return c.schemas[name] }
 
 // SchemaRules returns the Schema Object's rows of the document whose content c
-// reads, which its scope names (load.Other.Rules), the source's for its own. A
-// reading only a minor decides, such as a required `items` or the effect
-// `nullable` has, asks these rather than the version; a keyword's shape, which
-// a schema's dialect decides, asks SchemaRulesAt. A version the table does not
-// cover, and a context with no document, answer with the zero rows.
+// reads (rowsOf). A reading only a minor decides, such as a required `items` or
+// the effect `nullable` has, asks these rather than the version; a keyword's
+// shape, which a schema's dialect decides, asks SchemaRulesAt. A version the
+// table does not cover, and a context with no document, answer with the zero
+// rows.
+func (c Ctx) SchemaRules() oas.SchemaRules { return rowsOf(c).Schema }
+
+// EncodingRules returns the Encoding Object's rows an encoding c lowers is read
+// with (rowsOf), as SchemaRules returns the Schema Object's: what a part takes
+// where its encoding leaves a field unwritten.
+func EncodingRules(c Ctx) oas.EncodingRules { return rowsOf(c).Encoding }
+
+// rowsOf returns what the table says at the minor of the document whose
+// content c reads, in the dialect its jsonSchemaDialect names, which its scope
+// names (load.Other.Rows), the source's for its own (sourceRows).
 //
 // The scope, not home, names that document: Declared can read one document's
 // content at another's positions.
-func (c Ctx) SchemaRules() oas.SchemaRules {
+func rowsOf(c Ctx) load.Rows {
 	if c.foreign && c.loaded != nil {
 		if o, ok := c.loaded.others.Named(c.holder); ok {
-			return o.Rules
+			return o.Rows
 		}
 	}
-	return c.rules
+	return sourceRows(c)
+}
+
+// sourceRows returns what the table says at the source's minor, in its
+// dialect: what the load phase read, or, in a context given no load phase,
+// what it says at the version and the jsonSchemaDialect c.Doc declares, which
+// builds the table on each call.
+func sourceRows(c Ctx) load.Rows {
+	if c.loaded == nil {
+		return load.RowsOf(c.Doc)
+	}
+	return c.loaded.rows
 }
 
 // SchemaRulesAt returns the rows the schema at pointer of c's document is read
-// with: those of the dialect the innermost resource root at or above it names,
-// where one does (load.Dialects.At), and c's otherwise (SchemaRules), as where
-// c reads another document's content at the source's positions.
+// with: those of the dialect the innermost schema resource root at or above it
+// names, where one does (load.Dialects.At), and c's otherwise (SchemaRules),
+// as where c reads another document's content at the source's positions.
 func SchemaRulesAt(c Ctx, pointer jsontext.Pointer) oas.SchemaRules {
 	if at, placed := c.Position(pointer); placed && c.loaded != nil {
 		if r, ok := c.loaded.dialects.At(at); ok {
@@ -461,9 +514,9 @@ func SchemaRulesOf(c Ctx, n *yaml.Node) oas.SchemaRules {
 // compile did not read beside it.
 func SchemaRulesIn(c Ctx, id bind.DocID) oas.SchemaRules {
 	if _, o, ok := otherIn(c, id); ok {
-		return o.Rules
+		return o.Rows.Schema
 	}
-	return c.rules
+	return sourceRows(c).Schema
 }
 
 // RefScope is the context seen as a reference-resolution scope: the document's

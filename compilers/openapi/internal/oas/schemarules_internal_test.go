@@ -39,19 +39,22 @@ func TestDialects_EveryRowCitesItsText(t *testing.T) {
 	dialects := schemaDialects()
 	assert.NotEmpty(t, dialects)
 	for _, d := range dialects {
-		assert.True(t, slices.ContainsFunc(d.cites, func(c Cite) bool { return c.Minor == V31 && c.Text == "" }),
+		assert.True(t, slices.ContainsFunc(d.cites, func(c Cite) bool { return c.Minor == V31 && c.Text == 0 }),
 			"%s cites the OpenAPI sentence admitting it", d.id)
 		for _, c := range d.cites {
 			assert.NotEmpty(t, c.Sentence, d.id)
-			assert.NotEqual(t, c.Text == "", c.Minor == 0, "%s cites one text: OpenAPI's at a minor, or another", d.id)
+			assert.NotEqual(t, c.Text == 0, c.Minor == 0, "%s cites one text: OpenAPI's at a minor, or another", d.id)
 		}
-		for _, f := range d.keywords {
+		if d.keywords == nil {
+			continue
+		}
+		for _, f := range d.keywords() {
 			assert.True(t, f.Keyword, "%s %s", d.id, f.Name)
 			assert.Equal(t, From(V31), f.Defined, "%s %s", d.id, f.Name)
 			assert.NotEmpty(t, f.Cites, "%s %s", d.id, f.Name)
 			for _, c := range f.Cites {
 				assert.Zero(t, c.Minor, "%s %s cites no OpenAPI minor", d.id, f.Name)
-				assert.NotEmpty(t, c.Text, "%s %s", d.id, f.Name)
+				assert.NotZero(t, c.Text, "%s %s", d.id, f.Name)
 				assert.NotEmpty(t, c.Section, "%s %s", d.id, f.Name)
 				assert.NotEmpty(t, c.Sentence, "%s %s", d.id, f.Name)
 			}

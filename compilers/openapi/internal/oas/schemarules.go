@@ -35,9 +35,9 @@ type schemaRows struct {
 // the dialect a `$schema` or a jsonSchemaDialect names by its URI, and whether
 // that is an absolute URI naming a dialect the table has no rows for, which
 // reads as the minor's own. An empty dialect, any at 3.0, which defines neither
-// keyword, and one no absolute URI names, which validation reports, are the
-// minor's own too. A version the table does not cover, or a Spec holding no
-// Schema Object, has the zero rows.
+// keyword, and one no absolute URI names, which validation reports where it
+// judges the value, are the minor's own too. A version the table does not
+// cover, or a Spec holding no Schema Object, has the zero rows.
 func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bool) {
 	minor, ok := ParseMinor(version)
 	if !ok {
@@ -47,9 +47,12 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 	if !ok {
 		return SchemaRules{}, false
 	}
-	d, unread := s.dialectOf(minor, dialect)
-	keywords := d.keywords
-	rows := &schemaRows{fields: map[string]Field{}, minor: minor, ignoresRefFields: d.ignoresRefFields}
+	d, unread := dialectOf(minor, dialect)
+	var keywords []Field
+	if d.keywords != nil {
+		keywords = d.keywords()
+	}
+	rows := &schemaRows{fields: make(map[string]Field, len(obj.Fields)), minor: minor, ignoresRefFields: d.ignoresRefFields}
 	for _, f := range obj.Fields {
 		if f.Defined.Holds(minor) && (keywords == nil || !f.Keyword) {
 			rows.fields[f.Name] = f
@@ -71,17 +74,17 @@ func (s Spec) SchemaRules(version, dialect string) (rules SchemaRules, unread bo
 // has rows for, and whether id is an absolute URI the table has no rows for. A
 // dialect is compared without a trailing empty fragment, which draft 4's id
 // writes and 2020-12's does not, as `$schema` values spell both.
-func (s Spec) dialectOf(minor Minor, id string) (dialect, bool) {
+func dialectOf(minor Minor, id string) (d dialect, unread bool) {
 	if id == "" || minor == V30 {
 		return dialect{}, false
 	}
 	trimmed := strings.TrimSuffix(id, "#")
-	for _, d := range s.dialects {
-		if strings.TrimSuffix(d.id, "#") == trimmed {
-			return d, false
+	for _, known := range schemaDialects() {
+		if strings.TrimSuffix(known.id, "#") == trimmed {
+			return known, false
 		}
 	}
-	return dialect{}, validFormat(AbsoluteURI, id)
+	return dialect{}, NamesDialect(id)
 }
 
 // IgnoresRefFields reports whether the dialect the rows are read in, rather
@@ -121,6 +124,11 @@ func (r SchemaRules) FormatFinding(o Owned) (ir.Diagnostic, bool) {
 	return o.Finding(diag.Validation+"/"+classFormat, "Schema Object field %q must be %s in this schema's dialect",
 		o.Field, describeFormat(f.Format)), true
 }
+
+// NamesDialect reports whether a `$schema` or jsonSchemaDialect value names a
+// dialect at all: an absolute URI, as each must be. One that names none,
+// which validation reports, chooses nothing, as though it were not written.
+func NamesDialect(dialect string) bool { return validFormat(AbsoluteURI, dialect) }
 
 // Defines reports whether the Schema Object defines the field name: a keyword
 // of its dialect, or a field OpenAPI adds to it at the minor.

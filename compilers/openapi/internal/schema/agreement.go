@@ -55,7 +55,10 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 			continue
 		}
 		if !read {
-			// What it reports and keeps, the lowering reports and keeps where it reads it.
+			// What it reports and keeps, the lowering reports and keeps where it
+			// reads it, which it never does for a branch kept apart: one whose
+			// bound reads as none beside another rendered otherwise goes
+			// unreported (GitHub #1494).
 			cons, _, _ = annotation.Constraints(conjunct, exclusiveIsBoolean(a.c, conjunct), "", unlocated)
 			read = true
 		}

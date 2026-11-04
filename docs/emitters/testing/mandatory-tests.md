@@ -25,9 +25,15 @@ throughout these documents.
 9. **T-9 · Policy precedence** — declared `Retryable`/`Fault`/`Idempotency` override policy defaults
    at a document-wide setting and at an operation's, in every layer. A project's document-wide
    setting beats a per-operation one the document embeds, an operation's own setting beats its
-   layer's document-wide one, an operation ID no operation has is reported, and an embedded value a
-   higher layer replaces draws an info naming both
-   ([layers](../contract/runtime-policy.md#layers-and-operations)).
+   layer's document-wide one, an operation ID no operation has is reported, an embedded value a
+   higher layer replaces, or a status a higher layer's retry list takes from an embedded one, draws
+   an info naming both, a value a configuration writes outside a field's vocabulary or range, a
+   `MaxAttempts` of 0 and a status both of one layer's retry lists name at one scope among them, is
+   an error, an operation's giving way to its layer's document-wide value, and a status both
+   resolved retry lists name stays only in the one a higher layer set, while one a layer moves into
+   a list a higher layer replaces stays in the other
+   ([layers](../contract/runtime-policy.md#layers-and-operations),
+   [retries](../contract/runtime-policy.md#the-canonical-vocabulary)).
 10. **T-10 · Step-trace golden** — the ordered refine step list produces a pinned, deterministic
     trace (guards implicit inter-step coupling).
 11. **T-11 · Architecture import-graph** — the layering in [package layout](../packages.md).
@@ -233,12 +239,14 @@ throughout these documents.
     on an operation and on a parameter configures the document, each of that path item's operations,
     that operation and that parameter's hint, a `hint` key at an OpenAPI document's root configures
     its one service, and one reading an `out_of_scope` entry reads it as a `vendor_extension` one;
-    an operation's own key beats its path item's for one field, and two other keys setting one field
-    set it from neither; a key on a node it cannot configure, a tag's key the document holds, a
-    value of the wrong shape, a group named by words rather than its ID, a conflict and a key the
+    an operation's own key beats its path item's for one field, and for a status their retry lists
+    both name, and two other keys setting one field set it from neither; a key on a node it cannot
+    configure, a tag's key the document holds, a value of the wrong shape or outside its field's
+    vocabulary or range, a group named by words rather than its ID, a conflict and a key the
     document holds under a reason the reader refuses are each reported under their codes, the entry
-    staying in `Unmodeled`; the default mapping reads nothing, and `Disabled` reads nothing however
-    the mapping is written ([embedded policy](../contract/embedded-policy.md)).
+    staying in `Unmodeled` and an operation's key whose value is invalid, or which the reader
+    refuses, leaving its path item's to set the field; and the default mapping, which is empty,
+    reads nothing ([embedded policy](../contract/embedded-policy.md)).
 34. **T-34 · Client settings** — on every target, a service hint naming a path parameter makes it a
     client setting, which every operation declaring it in that wire form sends unless the call gives
     its own; a call with neither is refused unsent; an operation declaring it at another wire form
@@ -276,3 +284,17 @@ throughout these documents.
     `https` to `http` and the redirect past `Redirects.Max` are returned as the response; a redirect
     to another origin carries none of the client's credentials ([runtime
     policy](../contract/runtime-policy.md#the-canonical-vocabulary)).
+38. **T-38 · Enums over every value type** — on every target, an enum of each primitive a
+    `ValueType` can name, `bool`, `integer`, `number`, `decimal`, `date`, `uuid` and `bytes` among
+    them, closed and open, encodes each member with no `WireName` as its value type's JSON kind and
+    decodes it back to the constant of the first member holding its value, a number spelled with
+    trailing zeros included and a `string` enum repeating a value among them, and two members
+    holding one value under two `WireName`s write the first's and read either as it, while two
+    `uuid` members differing only in case decode to two, and a member sent in a query parameter and
+    read from a response header travels as its wire form's text. Where the target's constants cannot
+    hold the type, the member's value is reachable as the row's type, and a `datetime_offset` member
+    the row's codec refuses, such as a leap second, fails only where its value is read. An `integer`
+    member past the default row's range draws `emitters/<target>/unrepresentable-enum-member` and
+    leaves the enum's form as it would be without it, and every member is written as a value JSON
+    compares equal to the wire form of the first member holding its value ([a member on the
+    wire](../refine/enums.md#a-member-on-the-wire)).

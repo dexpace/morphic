@@ -257,9 +257,10 @@ const (
 	AliasAmplification = "openapi/alias-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
 	// most: a document's bytes or nodes (an overlay's included), alias nodes, an
-	// enum's members (GitHub #75), external documents. Fixed bounds cover load's
-	// schema $refs, chains through other documents and rule checks, detection's
-	// merges, and the declarations of one field the allOf merge judges.
+	// enum's members (GitHub #75), external documents, what $refs copy. Fixed
+	// bounds cover load's schema $refs, chains through other documents and rule
+	// checks, detection's merges, and the declarations of one field the allOf
+	// merge judges.
 	//
 	// None is the input's fault, unlike AliasAmplification's bomb. Each is an
 	// error: the document is refused, validation stops, an enum loses its members
@@ -428,14 +429,15 @@ const (
 	MissingArrayItems = "openapi/missing-array-items"
 	// LaterVersionConstruct reports a field, or a value of one, that a later
 	// OpenAPI minor than the document declares added to the object it is written
-	// on, or a keyword beside the $ref of a schema whose 3.0 minor or JSON
-	// Schema dialect ignores it, which 3.1 and 2019-09 apply. It is lowered as
-	// the later version reads it, the reading that loses least: a consumer can
-	// set it aside, and could not recover it from a verbatim copy
+	// on, lowered as in a document declaring that minor, or a keyword beside a
+	// $ref that its schema's 3.0 minor or dialect ignores, applied as later
+	// versions apply one and read in its schema's minor and dialect. Either
+	// reading loses least: a consumer can set the construct aside, and could not
+	// recover the lowering from a verbatim copy
 	// (docs/compilers/openapi.md#later-version-construct).
 	//
-	// Warning, as UnknownObjectKey is: an object's key set is closed, so the
-	// document is invalid for the version it declares, but it still lowers.
+	// A warning: the construct lowers, though the version or dialect it is
+	// written in reads it otherwise.
 	LaterVersionConstruct = "openapi/later-version-construct"
 	// ItemSchemaOnDocument reports an itemSchema on a media type whose body is one
 	// document, so it has no sequence of items to describe
@@ -465,7 +467,7 @@ const (
 	// (docs/compilers/openapi.md#nullable). Info: the reading is the document's
 	// evident intent, and the mark keeps the declared one.
 	InferredNullable = "openapi/inferred-nullable"
-	// UnreadDialect reports a `$schema` on a schema no other holds, or a
+	// UnreadDialect reports a `$schema` on a schema resource root, or a
 	// jsonSchemaDialect, naming a JSON Schema dialect the rule table has no
 	// rows for, at it: the schemas it governs are read in the dialect their
 	// OpenAPI version names (docs/compilers/openapi.md#dialect-keywords).

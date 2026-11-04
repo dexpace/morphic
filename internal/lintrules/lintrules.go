@@ -21,7 +21,6 @@ const (
 	irPath         = Module + "/ir"
 	compilePath    = Module + "/compilers/compile"
 	referencesPath = "github.com/speakeasy-api/openapi/references"
-	soaPath        = "github.com/speakeasy-api/openapi/openapi"
 )
 
 // Analyzers returns the rules, built afresh, with their scopes read against
@@ -37,8 +36,7 @@ type layout struct{ root string }
 
 func (l layout) analyzers() []*analysis.Analyzer {
 	return []*analysis.Analyzer{
-		l.registryWrites(), l.serviceTreeWrites(), l.fragmentReadings(), l.versionReadings(), l.nameChannels(),
-		l.idDerivations(),
+		l.registryWrites(), l.serviceTreeWrites(), l.fragmentReadings(), l.nameChannels(), l.idDerivations(),
 	}
 }
 
