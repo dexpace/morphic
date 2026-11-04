@@ -194,8 +194,10 @@ one of them is left out too.
   `openapi.TestCompile_AnItemsParameterIsWeighedInItsOwnDocument`,
   `operation.TestLowerService_NoAdditionalOperationLowersPastTheBudget`
 - Status: partly built: an external object reached after its contents is charged against the
-  document budget twice (#571), and aliases of a long scalar (#1429) cost gigabytes within every
-  bound.
+  document budget twice (#571), aliases of a long scalar (#1429) cost gigabytes within every
+  bound, and the pointer bound counts the values a compile keeps verbatim, an example or an
+  extension, whose nodes it never names one by one, so a document whose values nest long keys deep
+  is refused though it would compile cheaply (#1499).
 
 ### `overlays`
 

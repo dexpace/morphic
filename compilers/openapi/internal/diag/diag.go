@@ -256,10 +256,11 @@ const (
 	// PointerAmplification reports a document whose nodes' JSON pointers, the
 	// keys and indexes on the way to each, total past a fixed multiple of the
 	// bytes it writes (scan's maxPointerAmplification, with a floor for small
-	// documents). A compile spells a pointer for every node it reads, and the
-	// IR's IDs embed them, so long keys nested deep cost gigabytes inside every
-	// other bound (GitHub #931). It refuses the document before the parser builds
-	// it, at the document, and like AliasAmplification no setting admits one.
+	// documents). A compile spells a pointer for every node of the model it
+	// reads, and the IR's IDs embed them, so long keys nested deep cost gigabytes
+	// inside every other bound (GitHub #931). It refuses the document before the
+	// parser builds it, at the document, and like AliasAmplification no setting
+	// admits one. Values kept verbatim are counted too (GitHub #1499).
 	PointerAmplification = "openapi/pointer-amplification"
 	// BudgetExceeded reports an input that crossed a budget. openapi.Limits sets
 	// most: a document's bytes or nodes (an overlay's included), alias nodes, an
