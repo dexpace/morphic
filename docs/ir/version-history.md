@@ -275,3 +275,23 @@ it sees. Changes made together in one bump are listed together under it.
     symbols an emitter generates from such a hint are renamed.
 
   A consumer pinned to 0.30.0 refuses the document as another generation's.
+- **0.32.0** — `FileInfo` and `PartEncoding` gained `Inferred`, the heuristics that read a body or a
+  multipart part as a file ([payloads](./payloads.md)), held to `Filename` on a part
+  (`ir/part-encoding-inferred-not-filename`). The OpenAPI compiler reads more of the specification's
+  file idioms ([`file-bodies`](../compilers/openapi.md#file-bodies),
+  [`multipart-encoding`](../compilers/openapi.md#multipart-encoding),
+  [`item-schema`](../compilers/openapi.md#item-schema)). As declared files: a body on
+  `application/octet-stream` whose schema says no more than that it is a string, or a union of such
+  schemas and raw bytes; a schema declaring `format: binary` with no `type`; a multipart part, or
+  each element of an array part (its `prefixItems` and the `items` after them), declaring raw bytes,
+  writing no `type` from 3.1, or saying no more than that it is a string while its encoding entry
+  names `application/octet-stream` alone; a union part whose every value is one of those, read off
+  its variants, or each branch of its declaration, an array branch through its elements; and each
+  item of a multipart sequential body read so off `itemSchema` and `itemEncoding`, with an
+  `ItemEncoding` saying so where none is written. A union part with a list or tuple among its
+  variants, file or not, has `Multi`. Marked
+  `binary-media-type`: such a body, or such a part or item through its encoding's `contentType`, on
+  a media type the compiler's binary policy names
+  ([`binary-media`](../compilers/openapi.md#binary-media)). A `false` schema on
+  `application/octet-stream` is no longer a file, nor is `format: binary` beside a
+  `contentEncoding`. A consumer pinned to 0.31.0 refuses the document as another generation's.

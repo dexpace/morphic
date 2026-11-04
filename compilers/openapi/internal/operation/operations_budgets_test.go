@@ -39,7 +39,7 @@ webhooks:
 	require.NoError(t, err)
 	require.NotNil(t, loadedDoc)
 	c := lowering.New(0, loadedDoc.Doc, loadedDoc.Source, lowering.GroupByTags,
-		lowering.Limits{}, lowering.StreamingMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
+		lowering.Limits{}, lowering.StreamingMedia{}, lowering.BinaryMedia{}, lowering.ExtensionPromotions{}, lowering.NullableWidening{}, overlay.Origin{}).
 		WithLoaded(loadedDoc)
 
 	schemes, _ := auth.LowerSecuritySchemes(c)
