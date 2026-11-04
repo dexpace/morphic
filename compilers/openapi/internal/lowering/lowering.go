@@ -166,6 +166,8 @@ type loadResult struct {
 	// others is every document a reference read beside the source, and rows
 	// what the table says at the source's minor (load.Document.Rows): the load
 	// phase read both off the one table it built, so no context builds another.
+	// Copies share them on purpose: nothing writes either after the load, so
+	// no lowering changes what another reads.
 	others load.Others
 	rows   load.Rows
 	// reads holds those readings in the scope fields they fill: Holds over the

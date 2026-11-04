@@ -355,7 +355,7 @@ read as the declared minor's dialect defines it, the only reading that gives wha
 its meaning: a `nullable` there adds `null` to a `type` written beside it
 ([`nullable`](#nullable)), an `exclusiveMinimum` there is a boolean modifying the bound beside it
 ([`constraints`](#constraints)), and a `type: array` there requires `items` unless what the `$ref`
-lands on writes one ([`missing-array-items`](#missing-array-items)).
+lands on supplies one ([`missing-array-items`](#missing-array-items)).
 
 Whether a construct is a later minor's is asked in one place, the table [`validation`](#validation)
 holds a document to, which gives the minor each field and value was added in; no lowering asks it,
@@ -3144,7 +3144,7 @@ the value, the length bounds `maxLength` and `minLength`, which OpenAPI applies 
 payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
 where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
-keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering reads one
+keyword holds with what the `$ref` names, beside a 3.0 `$ref` too as the schema lowering applies one
 ([`later-version-construct`](#later-version-construct)); a chain is followed up to a bound of its
 own, and one longer says the body is something else. Such a body is a declared file on
 `application/octet-stream`, matched on the normalized key ([`media-types`](#media-types)), since RFC
