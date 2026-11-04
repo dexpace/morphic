@@ -69,6 +69,23 @@ OpenAPI's limit on YAML tags forbids, refuses the source before the parser reads
 `openapi/tagged-mapping` error at the tagged mapping with the least pointer, and it compiles to no
 Document. A tagged scalar is not refused here; what it lowers to is [`values`](#values)'.
 
+A source, each document a reference reads and an [overlay](#overlays) that is one JSON text is read
+as JSON, into the tree the YAML parser builds for the same text
+([`json-as-yaml`](../parser-library.md#json-as-yaml)), because that parser refuses or misreads some
+JSON that RFC 8259 allows. It refuses a character outside the Basic Multilingual Plane written as a
+surrogate pair of `\u` escapes, a `\/` escape, a key whose `:` stands more than 1,024 characters
+past the key's start (a key of more than 1,022 characters written `"key":`), a raw DEL, U+FFFE,
+U+FFFF or a C1 control other than U+0085 in a string, and a tab before the root value or on a line
+after the one it ends on, and it reads a raw U+0085 as a space. Each compiles as the same text
+written with the characters themselves, at the positions the text writes: a line ends at LF, CR or
+CR LF alone, as JSON tools and editors end one, so a raw U+0085, U+2028 or U+2029 in a string ends
+none, where the parser ends a line at each, and a column counts characters. An escape that names
+half of a surrogate pair, one not paired with the other half it needs, names no character: it
+refuses the source as an `openapi/undecodable-source` error, the document a reference names as an
+`openapi/unresolved-ref` error, and an overlay as an `openapi/invalid-overlay` error, each with a
+message that names the escape as written and the line and column it begins at. Text that is not one
+JSON text, YAML or JSON followed by anything else, is read as YAML, as before, its errors included.
+
 A date such as `2021-01-01`, and a `<<` anywhere but as a mapping's key, written with no tag or
 under YAML's non-specific `!`, are the strings they spell, in the source and in each document read
 beside it. YAML 1.2, which OpenAPI recommends, has no timestamp or merge type: its core schema reads
@@ -82,7 +99,7 @@ scalar under any other tag keeps it.
 
 - Cases: `yaml-timestamp-scalars`
 - Codes: `openapi/undecodable-source`, `openapi/stream-documents-dropped`, `openapi/tagged-mapping`,
-  `openapi/budget-exceeded`
+  `openapi/budget-exceeded`, `openapi/unresolved-ref`, `openapi/invalid-overlay`
 - Tests: `detect.TestRecognize_ABrokenDocumentIsReportedAtAnySize`,
   `openapi.TestDetect_ReadsTheVersionTheCompileReads`,
   `detect.TestRecognize_AReadCutShortIsReported`,
@@ -95,10 +112,34 @@ scalar under any other tag keeps it.
   `e2e.TestCompile_APlainDateInAnExternalDocumentCompilesAsItsTwin`,
   `e2e.TestCompile_APlainDateAnOverlayWritesCompilesAsItsTwin`,
   `e2e.TestCompile_ADateTaggedOutrightKeepsItsTag`,
-  `load.TestResolveExternal_RecoversAPlainDateBehindARespelledURL`, `load.TestUnready`
-- Status: partly built: a JSON source holding a surrogate-pair escape is refused as undecodable
-  (#900). A scalar or a sequence under a tag outside YAML's JSON schema ruleset is not reported,
-  and where the model reads a string or a list it reads as left out (#1368).
+  `load.TestResolveExternal_RecoversAPlainDateBehindARespelledURL`, `load.TestUnready`,
+  `jsontree.TestRead_BuildsTheTreeYAMLBuilds`, `jsontree.TestRead_ReadsWhatYAMLRefusesOrMisreads`,
+  `jsontree.TestRead_ReportsALoneSurrogateWhereItIsWritten`,
+  `jsontree.TestRead_DeclinesWhatIsNotOneJSONText`,
+  `jsontree.TestRead_ReadsNestingAtTheDecoderBound`, `jsontree.TestRead_StopsOnceTheContextIsDone`,
+  `jsontree.TestRead_ReportsExactlyTheSurrogateEscapesAsHalves`,
+  `jsontree.TestRead_ReadsAnEscapeBesideAFaultAsALoneOneDoes`,
+  `jsontree.TestRead_KeepsTheDecodersReasonWhenItDeclines`,
+  `load.TestDecode_ReadsAJSONSourceAsJSON`, `load.TestDecode_ReturnsALoneSurrogateAsItIs`,
+  `load.TestDecode_AJSONTextBesideAStreamIsReadAsYAML`, `load.TestParseTree_ReadsJSONAsJSON`,
+  `load.TestReadJSON_ADoneContextEndsTheReadWithoutAYAMLParse`,
+  `load.TestReadJSON_AContextDoneByTheEndOfTheReadIsCtxsError`,
+  `load.TestResolveExternal_AJSONDocumentBehindARespelledURLIsStillRefused`,
+  `detect.TestRecognize_AJSONSourceWritingASurrogatePairIsRecognized`,
+  `detect.TestRecognize_ALoneSurrogateIsReportedWhereItIsWritten`,
+  `e2e.TestCompile_AnEscapedJSONSourceCompilesAsItsLiteralTwin`,
+  `e2e.TestCompile_AJSONSourceWithATabBeforeTheRootCompilesAsItsTwin`,
+  `e2e.TestCompile_AJSONSourceWithAKeyPastTheYAMLLimitCompiles`,
+  `e2e.TestCompile_AJSONExternalDocumentCompilesAsItsLiteralTwin`,
+  `e2e.TestCompile_ALoneSurrogateIsRefusedWhereItIsWritten`,
+  `e2e.TestCompile_APositionAfterAnEscapeCountsItAsWritten`
+- Status: partly built: a JSON text is read as JSON where the compiler parses it, not where the
+  resolver parses a document itself, as it does for a URL that net/url respells, an upper-case
+  scheme among them: a reference to a JSON document the YAML parser refuses is then unresolved
+  (#NEW-RESOLVER-JSON). The order oracle in `internal/harness` parses a source as YAML to permute
+  it, and silently skips one only the JSON reader reads (#NEW-ORDER-JSON). A scalar or a sequence
+  under a tag outside YAML's JSON schema ruleset is not reported, and where the model reads a string
+  or a list it reads as left out (#1368).
 
 ### `source-budgets`
 
@@ -185,18 +226,21 @@ so it is refused while the tree is past the budget whatever a later action remov
 builds nothing, such as a remove, is applied however large the tree, since the budget holds the tree
 the overlay leaves. The overlay becomes a second entry in `Document.Sources`, and every position it
 introduced or rewrote names that entry as its `Provenance.Source`, while a position it left alone
-keeps the source's line and column. An overlay that does not parse, or is not a valid Overlay — no
-version, no actions, an action naming no target — is refused as an `openapi/invalid-overlay` error
-and nothing is applied. One the parser cannot apply as written, or whose grafted content expands
-past the walk's node budget, is refused as an `openapi/overlay-failed` error. Either way the source
-compiles to no Document rather than lowering a tree the caller believes was patched. Application is
-strict unless `Overlay.Lax` is set: each action that changed nothing, or relies on JSONPath
-behaviour the overlay did not opt into, is reported as an `openapi/overlay-action` warning naming
-the action, and the compile proceeds; an action whose selector matches nothing is reported the same
-way and refuses the overlay as `openapi/overlay-failed`. Lax application reports none of these, and
-refuses only an overlay it cannot apply. Where the walk that attributes positions to the overlay
-runs out of its node budget, the overlay is applied and every position names the source, as with no
-overlay, reported as an `openapi/overlay-origin-incomplete` warning.
+keeps the source's line and column. An overlay that is one JSON text is read as JSON, as a source is
+([`yaml-decoding`](#yaml-decoding)), so the characters and escapes the YAML parser refuses compile
+as the characters they name. An overlay that does not parse, including one writing half of a
+surrogate pair, or is not a valid Overlay — no version, no actions, an action naming no target — is
+refused as an `openapi/invalid-overlay` error and nothing is applied. One the parser cannot apply as
+written, or whose grafted content expands past the walk's node budget, is refused as an
+`openapi/overlay-failed` error. Either way the source compiles to no Document rather than lowering a
+tree the caller believes was patched. Application is strict unless `Overlay.Lax` is set: each action
+that changed nothing, or relies on JSONPath behaviour the overlay did not opt into, is reported as
+an `openapi/overlay-action` warning naming the action, and the compile proceeds; an action whose
+selector matches nothing is reported the same way and refuses the overlay as
+`openapi/overlay-failed`. Lax application reports none of these, and refuses only an overlay it
+cannot apply. Where the walk that attributes positions to the overlay runs out of its node budget,
+the overlay is applied and every position names the source, as with no overlay, reported as an
+`openapi/overlay-origin-incomplete` warning.
 
 - Codes: `openapi/invalid-overlay`, `openapi/overlay-failed`, `openapi/overlay-action`,
   `openapi/overlay-origin-incomplete`, `openapi/budget-exceeded`
@@ -209,7 +253,10 @@ overlay, reported as an `openapi/overlay-origin-incomplete` warning.
   `e2e.TestCompile_OverlayIsRecordedAsASource`, `load.TestLoad_AnOverlayBuildsWithinTheNodeBudget`,
   `overlay.TestSequence_ChargesAnActionToTheBudgetsEdge`,
   `overlay.TestSequence_ChargesAnActionAfterARemoveOnTheTreeItLeft`,
-  `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`
+  `load.TestLoad_TheNodeBudgetReadsTheTreeTheOverlayLeaves`,
+  `overlay.TestParseDocument_ReadsWhatTheLibraryReads`,
+  `overlay.TestParseDocument_ReadsWhatTheLibraryRefuses`,
+  `e2e.TestCompile_AJSONOverlayAppliesAsItsLiteralTwin`
 - Status: partly built: an Overlay 1.0.0 document's RFC 9535 filter selector fails to apply (#651).
   Open: whether lax application should report an action that matches nothing (#652), how an update
   merges a nested array (#653), and whether an overlay that replaces a value the source declares is

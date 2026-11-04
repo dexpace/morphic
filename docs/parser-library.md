@@ -568,6 +568,38 @@ components:
   - `value.Classify` reads a scalar by the tag the parser gave it.
   - `value.NumericLiteral` gives an `!!int` the number its prefix means.
 
+### `json-as-yaml`
+
+The parser reads a JSON text with its YAML scanner, which refuses some JSON that RFC 8259 allows
+and misreads some it does not refuse. It refuses a character outside the Basic Multilingual Plane
+written as a pair of `\u` escapes, since YAML spells one `\U` and eight digits; a `\/` escape; a key
+whose `:` stands more than 1,024 characters past the key's start (a key of more than 1,022
+characters written `"key":`); a raw DEL, U+FFFE, U+FFFF or a C1 control other than U+0085 in a
+string; and a tab before the root value or on a line after the one it ends on. It refuses half of a
+pair as it refuses a whole one, and every message names no position within the line. It reads a raw
+U+0085 in a string as a space, and, as YAML 1.1 does, counts U+0085, U+2028 and U+2029 as line ends,
+where JSON tools count LF, CR and CR LF alone. The library parses the source, an overlay and each
+document a reference names with it, so each meets the refusal or the misreading
+([`yaml-decoding`](compilers/openapi.md#yaml-decoding)).
+
+```json
+{"description": "x\ud83d\ude00"}
+```
+
+The compiler reads a text that is one JSON text itself, into the tree the parser builds for the
+same text ([`scalar-resolution`](#scalar-resolution) gives a scalar its tag, and
+[`duplicate-key`](#duplicate-key) leaves a name written twice in the tree), and leaves any other
+text to the parser.
+
+- Verified at: v1.26.3
+- Pinned by: `TestLibraryBehaviour/json-as-yaml`
+- Code:
+  - `jsontree.Read` reads a JSON text into the parser's tree, and refuses half of a pair with the
+    escape and its position.
+  - `load.readJSON` reads a source, and an external document, as JSON first.
+  - `overlay.parseDocument` reads an overlay as JSON first and decodes the tree the library's
+    overlay type decodes.
+
 ### `undecoded-scalar`
 
 The model decodes a string from a scalar the YAML decoder takes for one: a string, or a number or

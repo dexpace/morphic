@@ -15,20 +15,25 @@ import (
 
 	"github.com/dexpace/morphic/compilers"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
+	"github.com/dexpace/morphic/compilers/openapi/internal/jsontree"
 	"github.com/dexpace/morphic/ir"
 )
 
 // decodeStream parses source bytes into the node tree of the document the
 // compile lowers, the first with content, and reads what follows so extra
-// documents are reported, not dropped. The error is the parser's own, which
-// detection quotes and Load wraps as ErrParse, or ctx's (contextReader).
+// documents are reported, not dropped. A source that is one JSON text is read by
+// readJSON. The error is the parser's own, which detection quotes and Load
+// wraps as ErrParse, or ctx's.
 //
 // It is split from unmarshal so an overlay can patch the tree in between;
 // re-parsing after serialising would renumber every line. It bounds no alias
-// expansion, because a node tree holds an alias as one node, and scan's weigher
-// refuses a billion-laughs document. It needs no recover: yaml.v3 turns its own
-// faults into errors.
+// expansion; scan's weigher refuses a billion-laughs document. It needs no
+// recover: yaml.v3 turns its own faults into errors.
 func decodeStream(ctx context.Context, data []byte) (*yaml.Node, tail, error) {
+	if root, read, err := readJSON(ctx, data); read || err != nil {
+		return root, tail{}, err
+	}
+
 	dec := yaml.NewDecoder(contextReader{ctx: ctx, r: bytes.NewReader(data)})
 	root, err := firstWithContent(dec)
 	if err != nil {
@@ -40,6 +45,23 @@ func decodeStream(ctx context.Context, data []byte) (*yaml.Node, tail, error) {
 		return nil, tail{}, err
 	}
 	return root, rest, nil
+}
+
+// readJSON reads data as JSON, into the tree the YAML parser builds for the same
+// text (docs/parser-library.md#json-as-yaml), when data is one JSON text, and
+// reports whether it did. Any other data is left to the YAML parser. The error
+// is ctx's, or a *jsontree.LoneSurrogateError, which no YAML reading would
+// spare: both end the read.
+func readJSON(ctx context.Context, data []byte) (root *yaml.Node, read bool, err error) {
+	root, err = jsontree.Read(ctx, data)
+	switch {
+	case err == nil:
+		return root, true, nil
+	case errors.Is(err, jsontree.ErrNotJSON):
+		return nil, false, nil
+	default:
+		return nil, false, stopped(ctx, err)
+	}
 }
 
 // Parsed is a source's decoded form, produced once and used twice: detection

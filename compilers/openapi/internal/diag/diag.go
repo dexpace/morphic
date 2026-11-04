@@ -86,11 +86,13 @@ const (
 	// reported.
 	StreamDocumentsDropped = "openapi/stream-documents-dropped"
 	// UndecodableSource reports a source that declares one of this compiler's
-	// discriminating keys and does not parse as YAML or JSON. It is reported from
-	// detection rather than from the compile, because a document that cannot be
-	// parsed never reaches one: without it the engine could only say no compiler
-	// recognized the source, which is wrong twice over — this compiler did
-	// recognize it, and the reason it declined is the parse error it holds.
+	// discriminating keys and does not parse as YAML or JSON, or is JSON that
+	// writes half of a UTF-16 surrogate pair, whose message then names the
+	// escape and its position. It is reported from detection rather than from
+	// the compile, because a document that cannot be parsed never reaches one:
+	// without it the engine could only say no compiler recognized the source,
+	// which is wrong twice over — this compiler did recognize it, and the reason
+	// it declined is the parse error it holds.
 	UndecodableSource = "openapi/undecodable-source"
 	// OverlayInvalid reports an overlay document that could not be parsed, or that
 	// parsed but is not a valid Overlay — a missing version, no actions, an action

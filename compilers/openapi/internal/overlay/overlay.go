@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json/jsontext"
+	"errors"
 	"strconv"
 
 	soaoverlay "github.com/speakeasy-api/openapi/overlay"
@@ -15,6 +16,7 @@ import (
 	"github.com/dexpace/morphic/compilers/openapi/internal/budget"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
 	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
+	"github.com/dexpace/morphic/compilers/openapi/internal/jsontree"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/ir"
 )
@@ -167,7 +169,7 @@ func Apply(ctx context.Context, index int, root *yaml.Node, opts Options) (Origi
 func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, walks budget.Limit) (Origin, []ir.Diagnostic) {
 	at := ir.Provenance{Source: index}
 
-	doc, err := soaoverlay.ParseReader(bytes.NewReader(opts.Data))
+	doc, err := parseDocument(ctx, opts.Data)
 	if err != nil {
 		return Origin{}, []ir.Diagnostic{diag.Newf(ir.SeverityError, diag.OverlayInvalid, at,
 			"cannot parse overlay: %s", diag.OneLine(err))}
@@ -205,6 +207,28 @@ func applyWithin(ctx context.Context, index int, root *yaml.Node, opts Options, 
 			"overlay applied, but the document exceeds %d nodes; every position keeps the source as its origin", walks.Cap()))
 	}
 	return Origin{index: index, source: sourceInfo(doc, opts), applied: true, pointers: pointers, nodes: nodes}, diags
+}
+
+// parseDocument parses data as the library parses an overlay document, except
+// that bytes that are one JSON text are read as JSON, into the tree the YAML
+// parser builds for them (docs/parser-library.md#json-as-yaml), and decoded
+// from that as the library decodes the tree it parses. Anything else is the
+// library's to parse, as is every error but a done ctx and a lone surrogate
+// escape.
+func parseDocument(ctx context.Context, data []byte) (*soaoverlay.Overlay, error) {
+	root, err := jsontree.Read(ctx, data)
+	if errors.Is(err, jsontree.ErrNotJSON) {
+		return soaoverlay.ParseReader(bytes.NewReader(data))
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var doc soaoverlay.Overlay
+	if err := root.Decode(&doc); err != nil {
+		return nil, err
+	}
+	return &doc, nil
 }
 
 // applyRecovered runs apply, the overlay's application, behind diag.Catch and
