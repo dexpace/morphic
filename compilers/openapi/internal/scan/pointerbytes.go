@@ -17,10 +17,11 @@ import (
 // node it reads, so long keys nested deep cost gigabytes inside every other
 // bound (GitHub #931).
 //
-// The highest ratio among the 2,336 specs the real-world sweep and the
-// repository's own testdata read in November 2026 is 36.6, a conformance case
-// writing a 250-byte path; Cloudflare's measures 8.9 and Stripe's 8.7. 128 is
-// the margin maxAliasAmplification keeps.
+// Of 2,332 specs the real-world sweep and the repository's own testdata held
+// in November 2026, the 1,955 real ones measure 14.9 at most, and the highest
+// of the rest but an alias bomb's, which its own refusal stops, is 36.6, a
+// conformance case writing a 250-byte path. Cloudflare's measures 8.9 and
+// Stripe's 8.7. 128 is the margin maxAliasAmplification keeps.
 const maxPointerAmplification = 128
 
 // minPointerBytes is the pointer bytes granted whatever a document's size, so
