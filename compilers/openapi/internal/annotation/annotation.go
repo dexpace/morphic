@@ -516,22 +516,24 @@ func dialectRead(keyword, identifier string) string {
 // those DialectKeywords names, and draft 4's `id` where identifier says s is
 // read in a dialect spelling its identifier so.
 func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, identifier string) (ir.Unmodeled, []ir.Diagnostic) {
-	keywords := DialectKeywords
-	if identifier == "id" {
-		keywords = append([]string{"id"}, DialectKeywords...)
-	}
 	var p ir.Unmodeled
 	var diags []ir.Diagnostic
-	for _, keyword := range keywords {
+	keep := func(keyword string) {
 		kept, keptDiags := PreserveSchemaKeyword(&p, s, keyword, ir.ReasonOutOfScope, pointer, locate)
 		diags = append(diags, keptDiags...)
 		if !kept {
-			continue
+			return
 		}
 		diags = append(diags, diag.Newf(ir.SeverityInfo, diag.DegradedConstruct, locate(pointer+ids.Ptr(keyword)),
 			"%s identifies or configures a JSON Schema resource rather than describing data; "+
 				"the IR models no such axis, so it is kept verbatim under Unmodeled and %s", keyword,
 			dialectRead(keyword, identifier)))
+	}
+	if identifier == "id" {
+		keep("id")
+	}
+	for _, keyword := range DialectKeywords {
+		keep(keyword)
 	}
 	return p, diags
 }
