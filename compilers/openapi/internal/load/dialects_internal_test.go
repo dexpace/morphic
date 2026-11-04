@@ -26,6 +26,9 @@ func TestDialects_ReadADocumentAtTheMinorItDeclares(t *testing.T) {
 		assert.Equal(t, []string{"3.1.0", "3.1"}, []string{version, minor}, "%q", declared)
 		assert.False(t, r.Defines("nullable"), "%q", declared)
 	}
-	_, _, again := d.of("3.0.0")
-	assert.True(t, again == r30, "the minor's rows are built once")
+	// Identity, not equality: rows built twice would be equal, and the claim is
+	// that a minor's rows are built once.
+	if _, _, again := d.of("3.0.0"); again != r30 {
+		t.Error("a second document declaring 3.0 built the minor's rows again")
+	}
 }
