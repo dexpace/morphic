@@ -407,10 +407,10 @@ func rowsAt(spec oas.Spec, version string) Rows {
 	return Rows{Schema: spec.SchemaRules(version), Encoding: spec.EncodingRules(version)}
 }
 
-// SupportedMinor returns the normalized major.minor prefix of an OpenAPI version
+// supportedMinor returns the normalized major.minor prefix of an OpenAPI version
 // string and whether the compiler supports it: a minor the rule table covers
 // (oas.ParseMinor), so no document is compiled that the table holds to nothing.
-func SupportedMinor(version string) (string, bool) {
+func supportedMinor(version string) (string, bool) {
 	m, ok := oas.ParseMinor(version)
 	if !ok {
 		return "", false

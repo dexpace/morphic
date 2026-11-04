@@ -175,7 +175,7 @@ func (l *loading) buildModel(ctx context.Context) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("openapi: unmarshal source %d: %w", l.srcIndex, err)
 	}
-	minor, ok := SupportedMinor(doc.OpenAPI)
+	minor, ok := supportedMinor(doc.OpenAPI)
 	if !ok {
 		l.early = append(l.early, diag.Newf(ir.SeverityError, diag.UnsupportedVersion,
 			ir.Provenance{Source: l.srcIndex},

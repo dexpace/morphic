@@ -361,10 +361,12 @@ reads at its document's minor is asked of the same table, the Schema Object's ro
 whether it defines `nullable`, the shape `exclusiveMinimum` takes, and whether `items` is required
 beside `type: array`; and what an Encoding Object leaves unwritten defaults to is asked of the
 Encoding Object's rows, the `contentType` of a part writing no `type`
-([`multipart-encoding`](#multipart-encoding)). No lowering asks the version: nothing outside the load phase and the table
-reads the version a document declares, and `make vet` refuses a reading anywhere else (the
-`versionreadings` analyzer). The construct's value
-is held to the shape its table row gives it, and any object inside it to the table like any other.
+([`multipart-encoding`](#multipart-encoding)). No lowering asks the version: outside format
+detection, which reads it to name the format a file declares, only the load phase and the table
+read the version a document declares, and `make lint` refuses the parser library's version field
+and accessor, and the table's reading of a version, anywhere else (a `forbidigo` rule in
+`.golangci.yml`). The construct's value is held to the shape its table row gives it, and any object
+inside it to the table like any other.
 The keys beside a `$ref` are judged as the object they belong to: a Reference Object's, a Path
 Item's own fields beside its `$ref`, or a schema's keywords, which the schema lowering applies beside
 a 3.0 `$ref` too. Those are held to 3.0's keywords as written and, since 3.0 ignores them, each is

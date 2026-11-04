@@ -471,19 +471,21 @@ var rules = map[string][]string{
 	"internal/lintrules": {"golang.org/x/tools/go/analysis", "golang.org/x/tools/go/types/typeutil"},
 	// What the analyzers refuse, planted in a tree laid out like the module. It
 	// reaches what the rules are about: ir's types, the framework, the parser
-	// library's reference readings and its document's version, and its own
-	// packages, look-alikes of ir and compile among them.
+	// library's reference readings, and its own packages, look-alikes of ir and
+	// compile among them.
 	"internal/lintrules/testdata/mod": {module + "/ir", module + "/compilers/compile",
 		module + "/internal/lintrules/testdata/mod" + subtreeSuffix,
-		"github.com/speakeasy-api/openapi/expression", "github.com/speakeasy-api/openapi/openapi",
-		"github.com/speakeasy-api/openapi/references"},
+		"github.com/speakeasy-api/openapi/expression", "github.com/speakeasy-api/openapi/references"},
 	// Beside that tree, so no rule holds it.
-	"internal/lintrules/testdata/outside": {module + "/ir", "github.com/speakeasy-api/openapi/openapi"},
+	"internal/lintrules/testdata/outside": {module + "/ir"},
 	// What the rules .golangci.yml configures refuse, planted for
 	// scripts/lint-planted.sh, and what cmd/morphic-vet refuses, planted for
-	// scripts/vet-rules.sh.
-	"internal/lintrules/testdata/planted": {module + "/ir"},
-	"internal/lintrules/testdata/reach":   {module + "/ir"},
+	// scripts/vet-rules.sh. It reaches the parser library's document, whose
+	// version a rule confines, and its own look-alikes of the OpenAPI
+	// compiler's packages, laid out as the rule's paths name them.
+	"internal/lintrules/testdata/planted": {module + "/ir",
+		module + "/internal/lintrules/testdata/planted" + subtreeSuffix, "github.com/speakeasy-api/openapi/openapi"},
+	"internal/lintrules/testdata/reach": {module + "/ir"},
 }
 
 // exempt names the production packages deliberately outside the layering rules,

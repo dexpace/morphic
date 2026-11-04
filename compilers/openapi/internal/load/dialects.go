@@ -22,7 +22,7 @@ type dialects struct {
 // and what the table says at that minor.
 func (d *dialects) of(declared string) (version, minor string, rows Rows) {
 	version, minor = d.version, d.minor
-	if m, ok := SupportedMinor(declared); ok {
+	if m, ok := supportedMinor(declared); ok {
 		version, minor = declared, m
 	}
 	if r, built := d.rows[minor]; built {
