@@ -39,8 +39,8 @@ type column []int
 
 func (c column) Set() { c[0] = 1 }
 
-// Named kinds of every underlying type, each with a value receiver that only
-// reads.
+// Named array, integer, channel and function types, each with a value receiver
+// that only reads.
 type (
 	pair  [2]int
 	level int
@@ -169,7 +169,7 @@ func Compounds() {
 	counter--     // want "globalwrites: decrements the package-level variable counter; keep the state in a local or an argument"
 }
 
-// Elements writes what a variable holds, by every path to it.
+// Elements writes what a variable holds, through an index, a field and a pointer.
 func Elements() {
 	names["a"] = 1        // want "globalwrites: writes an element or field of the package-level variable names; keep the state in a local or an argument"
 	names["a"]++          // want "globalwrites: writes an element or field of the package-level variable names; keep the state in a local or an argument"
@@ -349,8 +349,8 @@ func Copies() {
 	b[0] = 1
 }
 
-// ReadsNamedKinds calls methods that only read, on variables of every named
-// kind whose method takes a value receiver.
+// ReadsNamedKinds calls the read-only value-receiver methods of a named array,
+// integer, channel and function type on package-level variables of them.
 func ReadsNamedKinds() int {
 	stepper.Run()
 	return couple.First() + depth.Next() + piped.Len()
