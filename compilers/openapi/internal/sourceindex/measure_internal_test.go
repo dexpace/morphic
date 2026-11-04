@@ -176,3 +176,26 @@ func TestShape_SaturatesItsCounts(t *testing.T) {
 	huge := shape{nodes: math.MaxInt, pointers: math.MaxInt}
 	assert.Equal(t, shape{nesting: 1, nodes: math.MaxInt, pointers: math.MaxInt}, shape{nesting: 1, nodes: 1}.holding(huge, 5))
 }
+
+// TestEdge_ReadsTreesNoParseProduces pins edge on the hand-built shapes the
+// walk still meets: a pair whose key is nil spells a separator alone, and a
+// document node nested in a tree adds no token to what it holds. The index
+// and the measure agree on each.
+func TestEdge_ReadsTreesNoParseProduces(t *testing.T) {
+	t.Parallel()
+	nested := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{ynode.Scalar("x")}}
+	for name, tc := range map[string]struct {
+		root *yaml.Node
+		want int
+	}{
+		"nil key":         {ynode.Map(nil, ynode.Scalar("v")), len("/")},
+		"nested document": {ynode.Seq(nested), len("/0") + len("/0")},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			idx := Build(t.Context(), tc.root, MaxIndexedNodes)
+			assert.Equal(t, tc.want, idx.PointerBytes())
+			assert.Equal(t, tc.want, NewMeasure(MaxIndexedNodes).shapeOf(t.Context(), idx.Root()).pointers)
+		})
+	}
+}

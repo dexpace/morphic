@@ -328,3 +328,34 @@ func TestReadingOf_ReadsTheObjectTheUseSiteWrites(t *testing.T) {
 	assert.Equal(t, bind.Reading{}, lowering.ReadingOf(c.InScope(resolve.Scope{Foreign: true}), "/paths/~1a/get/parameters/0"),
 		"what another document holds, read at the source's coordinates, has no position of its own")
 }
+
+// TestRecopied_ChargesTheRunsExpansion pins the two charges a copy made with
+// no $ref adds to the budget: a declaration, weighed as the grammar reads its
+// position, here a path item's parameter weighing 25 as paramP's does, and raw
+// bytes beside it. Past the budget the run is refused, and a zero context
+// bounds nothing.
+func TestRecopied_ChargesTheRunsExpansion(t *testing.T) {
+	t.Parallel()
+	const src = `openapi: 3.2.0
+info: {title: T, version: "1"}
+paths:
+  /a:
+    parameters: [{name: q, in: query, schema: {type: string}}]
+    get: {responses: {"200": {description: ok}}}
+`
+	c := loaded(t, src, budget.AtMost(25+3))
+	a, ok := c.Doc.Paths.Get("/a")
+	require.True(t, ok)
+	param := a.GetObject().Parameters[0].GetObject().GetRootNode()
+
+	assert.True(t, lowering.RecopiedAt(c, "/paths/~1a/parameters/0", param), "a copy weighing 25 is within 28")
+	assert.True(t, lowering.Recopied(c, 3), "and three raw bytes beside it reach the budget")
+	_, refused := c.ExpansionRefusal()
+	assert.False(t, refused)
+	assert.False(t, lowering.Recopied(c, 1), "one more crosses it")
+	_, refused = c.ExpansionRefusal()
+	assert.True(t, refused)
+	assert.False(t, lowering.RecopiedAt(c, "/paths/~1a/parameters/0", param), "once crossed, nothing is admitted")
+
+	assert.True(t, lowering.Recopied(lowering.Ctx{}, 1<<40), "a zero context's expansion bounds nothing")
+}

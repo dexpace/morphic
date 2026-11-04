@@ -4,7 +4,6 @@
 package operation
 
 import (
-	"math"
 	"strings"
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/annotation"
@@ -21,7 +20,7 @@ import (
 // operations times what the item declares (GitHub #1428). It reports whether
 // the copies so far are within the budget, read in c, the mount's context.
 func recopied(c lowering.Ctx, kept, servers int, taken []sourcedParam) bool {
-	if !lowering.Recopied(c, sum(kept, servers)) {
+	if !lowering.Recopied(c, kept+servers) {
 		return false
 	}
 	for _, sp := range taken {
@@ -41,12 +40,13 @@ func recopied(c lowering.Ctx, kept, servers int, taken []sourcedParam) bool {
 
 // keptWeight returns what a copy of kept weighs: for each entry, the keyword
 // the item wrote, past the scope pathItemScope puts it under, a byte for the
-// key and the raw value held, so a copy weighs about what its source does.
+// key and the raw value held, so a copy weighs about what its source does. It
+// sums the lengths of what memory holds, which no int overflows.
 func keptWeight(kept ir.Unmodeled) int {
 	prefix := annotation.EntryKey(pathItemScope, "")
 	weight := 0
 	for key, entry := range kept {
-		weight = sum(weight, len(strings.TrimPrefix(key, prefix))+1+len(entry.Value))
+		weight += len(strings.TrimPrefix(key, prefix)) + 1 + len(entry.Value)
 	}
 	return weight
 }
@@ -56,15 +56,7 @@ func keptWeight(kept ir.Unmodeled) int {
 func serversWeight(named []ir.ServerID) int {
 	weight := 0
 	for _, id := range named {
-		weight = sum(weight, len(id))
+		weight += len(id)
 	}
 	return weight
-}
-
-// sum is a+b for weights that are not negative, held at math.MaxInt.
-func sum(a, b int) int {
-	if a > math.MaxInt-b {
-		return math.MaxInt
-	}
-	return a + b
 }

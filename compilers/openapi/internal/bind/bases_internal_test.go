@@ -151,9 +151,11 @@ func TestBases_AnswerAsAWalkFromTheRoot(t *testing.T) {
 			t.Parallel()
 			probe, all := fixture(t)
 			require.NotEmpty(t, probe.docs)
-			orders := [][]Position{all, reversed(all)}
+			const shuffles = 4
+			orders := make([][]Position, 0, 2+shuffles)
+			orders = append(orders, all, reversed(all))
 			rng := rand.New(rand.NewPCG(1, 2))
-			for range 4 {
+			for range shuffles {
 				shuffled := slices.Clone(all)
 				rng.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
 				orders = append(orders, shuffled)
