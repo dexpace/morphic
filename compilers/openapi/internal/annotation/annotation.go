@@ -521,7 +521,7 @@ func dialectAt(s *oas3.Schema, pointer jsontext.Pointer, locate Locator, identif
 		keywords = append([]string{"id"}, DialectKeywords...)
 	}
 	var p ir.Unmodeled
-	diags := make([]ir.Diagnostic, 0, len(keywords))
+	var diags []ir.Diagnostic
 	for _, keyword := range keywords {
 		kept, keptDiags := PreserveSchemaKeyword(&p, s, keyword, ir.ReasonOutOfScope, pointer, locate)
 		diags = append(diags, keptDiags...)

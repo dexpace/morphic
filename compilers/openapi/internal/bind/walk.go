@@ -106,7 +106,7 @@ func (w *finder) walk(r root, mark bool) {
 			f.dialect = rootDialect(w.ids, f.at, f.dialect)
 		}
 		w.tupleOf(n, f)
-		stack = append(stack, w.children(n, f)...)
+		stack = w.pushChildren(stack, n, f)
 	}
 }
 
@@ -130,7 +130,7 @@ func (w *finder) identify(id DocID) {
 		if n == nil || !modelled(f.state) {
 			continue
 		}
-		stack = append(stack, w.children(n, w.declared(n, f))...)
+		stack = w.pushChildren(stack, n, w.declared(n, f))
 	}
 }
 
@@ -277,23 +277,24 @@ func containsHash(value string) bool {
 	return slices.Contains([]byte(value), '#')
 }
 
-// children are the positions directly below f, whose node is n.
-func (w *finder) children(n *yaml.Node, f frame) []frame {
-	var out []frame
+// pushChildren returns stack with the positions directly below f, whose node is
+// n, appended in order, so a walk reads its children with no slice of their
+// own.
+func (w *finder) pushChildren(stack []frame, n *yaml.Node, f frame) []frame {
 	switch n.Kind {
 	case yaml.MappingNode:
 		for _, p := range w.docs.list[f.at.Doc].view.MappingPairs(n) {
-			out = append(out, frame{node: p.Val, at: f.at.below(p.Key),
+			stack = append(stack, frame{node: p.Val, at: f.at.below(p.Key),
 				state: stepIn(w.docs, f.at.Doc, n, f.state, p.Key, f.dialect), res: f.res, inert: f.inert, dialect: f.dialect})
 		}
 	case yaml.SequenceNode:
 		for i, c := range n.Content {
 			token := strconv.Itoa(i)
-			out = append(out, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
+			stack = append(stack, frame{node: c, at: f.at.below(token), state: step(f.state, token), res: f.res,
 				inert: f.inert, dialect: f.dialect})
 		}
 	}
-	return out
+	return stack
 }
 
 // below is the position token names under p.
