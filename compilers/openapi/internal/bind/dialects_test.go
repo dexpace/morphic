@@ -107,3 +107,22 @@ func TestDialectRoots_AnEmbeddedResourceNamesItsOwn(t *testing.T) {
 		at("/components/schemas/T/properties/a"): "https://example.com/inner",
 	}, rootsOf(table))
 }
+
+// TestDialectRoots_ADocumentListsItsRootsInPointerOrder pins the order
+// bind.Document.Dialects lists a document's roots in, whatever order the
+// source declares them: by pointer, so a root holding another comes before it,
+// which the load phase relies on to govern the inner first. Six roots make a
+// list left in the order a map yields them fail but once in hundreds of runs.
+func TestDialectRoots_ADocumentListsItsRootsInPointerOrder(t *testing.T) {
+	t.Parallel()
+	table := bound(t, head+"components:\n  schemas:\n"+
+		"    E: {$schema: "+d4+"}\n    D: {$schema: "+d4+"}\n"+
+		"    C: {$schema: "+d4+", properties: {x: {$id: 'https://example.com/x', $schema: "+d4+"}}}\n"+
+		"    B: {$schema: "+d4+"}\n    A: {$schema: "+d4+"}\n", self)
+	got := make([]jsontext.Pointer, 0, len(table.Document(bind.Source).Dialects))
+	for _, r := range table.Document(bind.Source).Dialects {
+		got = append(got, r.At.Pointer)
+	}
+	assert.Equal(t, []jsontext.Pointer{"/components/schemas/A", "/components/schemas/B", "/components/schemas/C",
+		"/components/schemas/C/properties/x", "/components/schemas/D", "/components/schemas/E"}, got)
+}
