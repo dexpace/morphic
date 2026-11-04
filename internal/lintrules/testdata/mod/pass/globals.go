@@ -89,7 +89,7 @@ var chained = func() tally {
 }().Get()
 
 // hook and hooks write from function literals in their initializers, which can
-// run after initialization, as init's own statements do not.
+// run after initialization, as init's own statements, bar a go statement, do not.
 var hook = func() {
 	counter++ // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
 }
@@ -112,6 +112,8 @@ func init() {
 	storedAlias = q.Add     // want "globalwrites: calls a method that can write the package-level variable cursor through its alias q; keep the state in a local or an argument"
 	storedInit = ledger.Add // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	ledger.Add()
+	(ledger.Add)()
+	go ledger.Add()        // want "globalwrites: calls a method that can write the package-level variable ledger; keep the state in a local or an argument"
 	func() { counter-- }() // want "globalwrites: decrements the package-level variable counter; keep the state in a local or an argument"
 	hook = func() {
 		counter++ // want "globalwrites: increments the package-level variable counter; keep the state in a local or an argument"
@@ -184,7 +186,7 @@ func Methods() {
 	_ = ledger.Get()
 	_ = tally.Get(ledger)
 	_ = (*tally).Add
-	_ = matcher.MatchString("x")
+	_ = matcher.MatchString("x") // want "globalwrites: calls a method that can write the package-level variable matcher; keep the state in a local or an argument"
 	_ = base64.StdEncoding.EncodeToString(nil)
 }
 

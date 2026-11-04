@@ -13,15 +13,16 @@ import (
 )
 
 // globalWrites refuses writing a package-level variable, outside init, in a
-// package under ir, pass, compilers or emitters: a stage holds no mutable state
-// (invariant 5), which is what engine.Engine's concurrent use rests on.
-// Whoever declares the variable, a write is an assignment, ++ or --, an element
-// or field, the address taken, a method that can write called, or delete, clear,
-// copy or append on it, directly or through a local alias. Reads stay legal.
+// package under ir, pass, compilers or emitters (invariant 5): an assignment,
+// ++ or --, an element or field, the address taken, a method that can write, or
+// delete, clear, copy or append, directly or through a local alias.
 //
-// The rule reads one package's syntax, so what it cannot see is listed on the
-// function that owns each limit: check, rooted, aliasable, addressOf,
-// pointerMethod and builtin.
+// # Out of reach
+//
+// The rule reports writes it sees, and code init stores or starts. Any other
+// way code bound at initialization can run later and write is out of reach: a
+// callback handed to another package, a value kept in a struct field and
+// called elsewhere, reflection. Each owner states its limit.
 func (l layout) globalWrites() *analysis.Analyzer {
 	return &analysis.Analyzer{
 		Name: "globalwrites",
@@ -52,10 +53,12 @@ func (l layout) runGlobalWrites(pass *analysis.Pass) (any, error) {
 
 // afterInit returns the code of d that can run once initialization is over: the
 // body of a function or method but init, and in a declaration at package level
-// or in init, which run once, each outermost function literal and each selector
-// not called there, as a method value is, since either can be stored and called
-// later. What lies beneath such a selector is checked with it, so a method
-// called there draws though it runs once.
+// or in init, which run once, each outermost function literal, each go
+// statement and each selector not called there, as a method value is, since any
+// of them can outlive initialization. What lies beneath such a selector is
+// checked with it, so a method called there draws though it runs once. A method
+// called there that keeps its receiver, as one returning a closure does, is out
+// of reach.
 func afterInit(d ast.Decl) []ast.Node {
 	if fn, isFunc := d.(*ast.FuncDecl); isFunc && fn.Body != nil && (fn.Recv != nil || fn.Name.Name != "init") {
 		return []ast.Node{fn.Body}
@@ -66,6 +69,9 @@ func afterInit(d ast.Decl) []ast.Node {
 		switch n := n.(type) {
 		case *ast.FuncLit:
 			roots = append(roots, n.Body)
+			return false
+		case *ast.GoStmt:
+			roots = append(roots, n.Call)
 			return false
 		case *ast.CallExpr:
 			called[ast.Unparen(n.Fun)] = true
@@ -166,8 +172,8 @@ func (s globalScope) addressOf(n *ast.UnaryExpr) {
 
 // pointerMethod reports a method call or method value on an operand rooted at a
 // package-level variable, when the method's receiver is a pointer, map or
-// slice, through which it can write what the variable holds. Two listed
-// receivers stay legal, though regexp's Longest and UnmarshalText write, and an
+// slice, through which it can write what the variable holds. The one listed
+// receiver, *encoding/base64.Encoding, is read-only and stays legal, and an
 // unlisted one draws until it is listed. A method on a struct or array value or
 // an interface is out of reach, though it can write through a map, slice or
 // pointer the value holds.
@@ -181,7 +187,7 @@ func (s globalScope) pointerMethod(n *ast.SelectorExpr) {
 		return // a field
 	}
 	recv := fn.Signature().Recv().Type()
-	if !aliasable(recv) || slices.Contains([]string{"*encoding/base64.Encoding", "*regexp.Regexp"}, types.TypeString(recv, nil)) {
+	if !aliasable(recv) || types.TypeString(recv, nil) == "*encoding/base64.Encoding" {
 		return
 	}
 	if r, ok := s.rooted(n.X); ok {
