@@ -3,11 +3,13 @@
 `Reserved()` holds the language's keywords and predeclared names, reserved everywhere. Generated
 code binds names of its own too, and a spec name rendered equal to one of them shadows it or fails
 to compile, so each scope reserves what the code generated into it binds as well, and the units'
-scope what a unit cannot be named:
+scope and a unit's what a unit or a top-level declaration cannot be named:
 
 - **The units** ([output units](output-units.md)), whose names are a scope of their own: `shared`,
-  the shared unit's, and the names a target's toolchain treats apart.
-- **A unit**: the names the target declares at its top level beside the spec's.
+  the shared unit's, and the names a target's toolchain, or a file system it writes to, treats
+  apart.
+- **A unit**: the names the target declares at its top level beside the spec's, and those a
+  top-level declaration cannot take, as a file system can refuse the file it is written to.
 - **A type**: the members the target gives every model.
 - **A union's variants**: `Unknown`, the fallback's name ([unions](unions.md)), which a variant the
   spec names so yields to.
