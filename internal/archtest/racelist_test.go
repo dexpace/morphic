@@ -85,9 +85,9 @@ var raceExempt = map[string]string{
 // racePipelineOnly names the pipeline directories whose goroutine or sync
 // import `make race` leaves off its list, each with the reason. They are not
 // exempt: `make race-pipeline` races them with every other package under a
-// root, so a race only their own tests reach is found only by a run of that
-// target, which no job starts yet, and not on the pull request. It is a set of
-// deferrals, not a second list of targets.
+// root, so a race only their own tests reach is found after merge, by the run
+// of that target each push to main makes, and not on the pull request. It is a
+// set of deferrals, not a second list of targets.
 var racePipelineOnly = map[string]string{
 	"compilers/openapi/e2e": "its two goroutines each run one Compile while the test waits under " +
 		"a deadline (amplification_test.go), adding nothing to its parallel tests, which run " +

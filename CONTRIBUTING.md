@@ -15,10 +15,11 @@ rather than restating them.
   type-check this module, reporting `typecheck` errors rather than findings, so install that
   version with the toolchain you build with:
   `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(make print-lint-version)`.
-- **The gate.** `make gate` runs every check CI runs, in the order CI runs them. Coverage is gated
-  at exactly 100% of statements, counted from the profile, so `go test ./...` passing is not
-  evidence the gate passes. While iterating, run one package (`go test ./compilers/openapi/...`) or
-  one test (`go test ./ir -run TestName`), and `make coverage` or `make lint` on their own.
+- **The gate.** `make gate` runs every check CI runs on a pull request, in the order CI runs them.
+  Coverage is gated at exactly 100% of statements, counted from the profile, so `go test ./...`
+  passing is not evidence the gate passes. While iterating, run one package
+  (`go test ./compilers/openapi/...`) or one test (`go test ./ir -run TestName`), and
+  `make coverage` or `make lint` on their own.
 - **Conventions.** Branch names, commit messages and pull requests follow the root guidance's
   [Commits & pull requests](CLAUDE.md#commits--pull-requests); Go code follows its style section.
 
@@ -314,8 +315,8 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
    the package's `TestMain`. `make race-pipeline` runs the compiler under `-race` whatever it does,
    since `scripts/race-pipeline-roots.txt` lists `./compilers/...`, and a package under `compilers/`
-   may not be exempt from it. That target is outside the gate and no job starts it yet, so a race
-   only the compiler's own tests reach is found only by a run of it, and not on the pull request.
+   may not be exempt from it. That target is outside `make gate`, and each push to `main` runs it,
+   so a race only the compiler's own tests reach is found after merge, and not on the pull request.
    A compiler package with a lock or a goroutine also needs a line in `scripts/race-packages.txt`,
    which `make race` runs on every pull request, or a `racePipelineOnly` entry in
    `internal/archtest` with its reason.

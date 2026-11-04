@@ -1,16 +1,17 @@
 # The gate, defined once.
 #
 # .github/workflows/gate.yml runs these targets, split across two jobs that run
-# side by side, so `make gate` and CI are the same commands by construction
-# rather than by two lists that agree until somebody edits one. Add a check here,
-# then a step that calls it to one of the jobs.
+# side by side, so `make gate` and a pull request's run are the same commands by
+# construction rather than by two lists that agree until somebody edits one. A
+# push to main adds `make race-pipeline`, which `make gate` leaves out. Add a
+# check here, then a step that calls it to one of the jobs.
 #
 #   make            the whole gate, one check at a time
 #   make coverage   the suite once, at exactly 100% coverage
 #   make race       the packages in scripts/race-packages.txt, under -race
 #   make race-pipeline   those and every package under the roots in
-#                   scripts/race-pipeline-roots.txt, under -race; no job
-#                   runs it yet, and it is outside the gate
+#                   scripts/race-pipeline-roots.txt, under -race; each push
+#                   to main runs it, and it is outside `make gate`
 #   make bench      benchmark timings (the gate only smoke-runs them)
 #   make fuzz FUZZTIME=5m    a longer search than the gate's
 
@@ -192,9 +193,9 @@ race:
 
 # The same run over every package under the roots too: their tests run the
 # pipeline on parallel goroutines, and a race on a path only those tests take is
-# found here and nowhere else. It is outside `gate` and no job runs it yet, so
-# such a race is found only by a run of this target, and not on the pull
-# request. It reaches the plant through the same script and command.
+# found here and nowhere else. It is outside `gate`, and each push to main runs
+# it, so such a race is found after merge and not on the pull request. It
+# reaches the plant through the same script and command.
 race-pipeline:
 	@test -n "$(strip $(RACE_PACKAGES))" || { \
 		echo "make race-pipeline: scripts/race-packages.txt lists no package" >&2; exit 1; }

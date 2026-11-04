@@ -308,7 +308,7 @@ These all exist already — extend them rather than building a parallel mechanis
   `.Go(...)` call (`sync.WaitGroup.Go`, `errgroup.Group.Go`) appears. It finds only a goroutine
   blocked on an unreachable primitive — not a running one, nor one a global still holds; whether
   `goleak` should cover those too is #568. Beside it, `make race` runs the packages on
-  `scripts/race-packages.txt` under `-race`, and `make race-pipeline`, outside the gate, adds every
+  `scripts/race-packages.txt` under `-race`, and `make race-pipeline`, outside `make gate`, adds every
   package under the roots `scripts/race-pipeline-roots.txt` names (`ir/`, `pass` and `compilers/`).
   `TestRaceList_NamesEveryConcurrentPackage` holds both files to the tree. Outside the roots, a
   package belongs on the list when a non-test file imports `sync` or `sync/atomic`, any file starts
@@ -316,8 +316,8 @@ These all exist already — extend them rather than building a parallel mechanis
   `t.Parallel()`. Under a root only the first two count, and a package showing one is on the list or
   is a `racePipelineOnly` entry in the test with its reason. A package off the list elsewhere is a
   `raceExempt` entry with its reason, which no package under a root may be. So a race that only a
-  pipeline package's own tests reach is found only by a run of `make race-pipeline`, which no job
-  starts yet, and not on the pull request; a race that only an exempt package's own tests reach is
+  pipeline package's own tests reach is found after merge, by the `make race-pipeline` each push to
+  `main` runs, and not on the pull request; a race that only an exempt package's own tests reach is
   found by neither run.
 
 Beyond those, "verify by executing" below has consequences specific enough to write down as
@@ -436,11 +436,13 @@ Before claiming any Go work done, run and pass the gate:
 make gate
 ```
 
-That is not a summary of CI — it is what CI runs. Every check in `.github/workflows/gate.yml` runs a
-`Makefile` target bar `lint`, which the golangci-lint action runs at the version the `Makefile`
-pins, so the local command and CI are the same commands; CI splits them across two jobs that run
-side by side. Read the `Makefile` for the step list rather than restating it here; `make coverage`,
-`make fuzz`, `make bench` and the rest are individually runnable while iterating.
+That is not a summary of CI — it is what CI runs on a pull request. Every check in
+`.github/workflows/gate.yml` runs a `Makefile` target bar `lint`, which the golangci-lint action
+runs at the version the `Makefile` pins, so the local command and a pull request's run are the same
+commands; a push to `main` also runs `make race-pipeline`, which `make gate` does not. CI splits the
+checks across two jobs that run side by side. Read the `Makefile` for the step list rather than
+restating it here; `make coverage`, `make fuzz`, `make bench` and the rest are individually runnable
+while iterating.
 
 **Coverage is a gate at exactly 100%, not a target.** `cmd/morphic-covergate` counts
 statements from the profile rather than reading `go test`'s rounded percentage, so one uncovered

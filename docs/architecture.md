@@ -709,16 +709,16 @@ something a caller asks for with `none`, never a default.
   set that grows is noticed rather than measured), the method-per-type cap, and that no function is
   reached by tests alone, bar the test-support packages and the API kept, by name, for a caller to
   come, and that the two race runs match the tree. `make race` runs the packages on
-  `scripts/race-packages.txt` under `-race`, and `make race-pipeline`, outside the gate, adds every
+  `scripts/race-packages.txt` under `-race`, and `make race-pipeline`, outside `make gate`, adds every
   package under the roots of `scripts/race-pipeline-roots.txt` (`ir/`, `pass` and `compilers/`).
   Outside the roots, a package is on the list when a non-test file imports `sync` or `sync/atomic`,
   any file starts a goroutine (a `go` statement or a single-argument `.Go(...)` call), or a test
   calls `t.Parallel()`. Under a root only the first two count, and a package showing one is on the
   list or is a `racePipelineOnly` entry of the test with its reason. A package off the list
   elsewhere is a `raceExempt` entry with its reason, which no package under a root may have. A race
-  that only a pipeline package's own tests reach is found only by a run of `make race-pipeline`,
-  which no job starts yet, and not on the pull request; one that only an exempt package's own tests
-  reach is found by neither run.
+  that only a pipeline package's own tests reach is found after merge, by the `make race-pipeline`
+  each push to `main` runs, and not on the pull request; one that only an exempt package's own
+  tests reach is found by neither run.
 - **Lint rules** (`.golangci.yml`; `internal/lintrules`, under `make vet`): what a linter can
   hold — which packages may build or write an `ir.TypeRegistry`, derive a name or build an ID, that
   no pipeline stage prints or logs, and that a switch over an IR enum names every member. Each rule
