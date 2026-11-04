@@ -10,7 +10,6 @@ import (
 
 	"github.com/dexpace/morphic/compilers/openapi/internal/bind"
 	"github.com/dexpace/morphic/compilers/openapi/internal/diag"
-	"github.com/dexpace/morphic/compilers/openapi/internal/ids"
 	"github.com/dexpace/morphic/compilers/openapi/internal/nodeview"
 	"github.com/dexpace/morphic/compilers/openapi/internal/oas"
 	"github.com/dexpace/morphic/ir"
@@ -128,7 +127,7 @@ func readDialects(table *bind.Table, others Others, d *dialects, sourceDialect s
 			"%s names %q, a JSON Schema dialect the compiler has no rows for, so the schemas it governs are "+
 				"read in the dialect their OpenAPI version names", keyword, dialect))
 	}
-	at := ids.Ptr("jsonSchemaDialect")
+	at := jsontext.Pointer("").AppendToken("jsonSchemaDialect")
 	if d.at(d.version, sourceDialect).unread {
 		unread(place(bind.Position{Doc: bind.Source, Pointer: at}), "jsonSchemaDialect", sourceDialect)
 	}
