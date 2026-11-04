@@ -17,11 +17,13 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # The gate runs as two jobs side by side. Every check is a Makefile target, and
-# `make gate` runs them all. The fuzz search is the third job, which runs only on
-# a schedule or by hand and which `make gate` leaves out.
+# `make gate` runs them all, bar the step only a push to main runs: `make
+# race-pipeline`, after the cache save. The fuzz search is the third job, which
+# runs only on a schedule or by hand and which `make gate` leaves out.
 #
 # Two steps read a cached test result: coverage in the suite job and race in the
-# checks job. The rest of the checks job runs go test only with -bench, and the
+# checks job. race-pipeline, on a push alone, runs after the suite job clears
+# the results and so finds none to read. The rest of the checks job runs go test only with -bench, and the
 # fuzz search job only with -fuzz, neither of which go help test lists as
 # cacheable. So each of the two jobs first sets each tracked file's time from its
 # content, because Go keys a cached test result on the size, mode and time of
@@ -157,12 +159,16 @@ jobs:
       # .git a new time that the tests listing the module root hash. Nothing may
       # run git between this step and the test step.
       - *date-files
-      # Voids the restored results before coverage, the one test step here, as
-      # the clear in the checks job does before race.
+      # Voids the restored results before coverage, the one test step a pull
+      # request runs here, as the clear in the checks job does before race.
       - *clear-results
       - name: coverage
         run: make coverage
       - *save
+      # After the save, so a race found here costs no pull request its cache.
+      - name: race, the whole pipeline
+        if: github.event_name == 'push'
+        run: make race-pipeline
 
   # The search keeps what it finds between nights: Go holds a found input in
   # $GOCACHE/fuzz, and this job restores and saves that directory alone, under a

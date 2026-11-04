@@ -47,6 +47,16 @@ below, which keeps its bytes as they arrived — a degrade, never a whole-docume
 ([T-7](../testing/mandatory-tests.md)). That graceful-degradation margin is exactly what the ABI
 seam buys and the fused-pipeline generator cannot have.
 
+A `oneOf` value is valid in exactly one variant, yet two variants can admit it, since admitting
+leaves constraints to validation ([below](#a-value-several-variants-admit)) and a `pattern` may be
+all that tells two string variants apart. So the variant recognition names holds the value where it
+admits it and meets its constraints. Otherwise each variant is tried in declaration order, as an
+inclusive union's are, and the value is held by the first that admits it and meets its constraints,
+or, where none meets them, by the first that admits it. Under `TypePlan.Strict` ([plan
+policy](../plan/policy.md)) the variants are tried so whatever recognition names, and a value two of
+them admit is a coded decode error unless its constraints single one out. A `pattern` a target drops
+([constraints](constraints.md)) counts as met there, as its validation counts it.
+
 ## A null a variant admits
 
 On an untagged union, `null` is the union's value, never a variant's. A variant admits `null` when

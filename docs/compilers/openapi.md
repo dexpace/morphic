@@ -1223,12 +1223,16 @@ something ([annotations](../ir/annotations.md#one-structural-home-per-declaratio
 that says nothing beyond its `$ref` is that `$ref`, with no node and no diagnostic. An inline branch's
 keywords fold as [`allof-inline-residue`](#allof-inline-residue) says. A `type`, a `format`, an `enum`,
 a `const` or `items`, on a branch or beside the `allOf`, that the principal already says is consumed,
-so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. One saying more is kept: a branch whole
-under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the `allOf` under
-`openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the branch or at the
-position. A `$ref` a value set beats is kept the same way, and its target still speaks for the
-position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set takes it, and
-still lowers, though nothing else names it, as a position no component holds lowers for a `$ref`.
+so `{allOf: [{$ref: Port}], type: integer}` keeps nothing. Two schemas written alike in one document
+say the same where every relative `$ref` in them reads against one base: under an `$id` naming
+another URI, the same spelling may name another schema, while an absolute one names the same
+wherever it is read. A copy in another document is read apart. One saying
+more is kept: a branch whole under `openapi:allOf/<n>` (`degraded_lowering`), a keyword beside the
+`allOf` under `openapi:<keyword>`, each reported as an info `openapi/degraded-construct`, at the
+branch or at the position. A `$ref` a value set beats is kept the same way, and its target still
+speaks for the position ([`ref-use-site`](#ref-use-site)), its `default` only where the value set
+takes it, and still lowers, though nothing else names it, as a position no component holds lowers
+for a `$ref`.
 
 Over a target that admits no object, `{allOf: [{$ref: T}], K}` lowers as 3.1's `{$ref: T, K}` where
 `K` is annotations and value bounds. The two part on a structural keyword, which a `$ref` site keeps
@@ -1269,7 +1273,9 @@ keeping such an `allOf` a decorator for emitters to collapse is weighed in
   `schema.TestRefinement_FlattensAsItsFlatSpelling`,
   `schema.TestRefinement_PastItsBudgetStaysAComposition`,
   `schema.TestRefinement_PastItsConjunctBoundStaysAComposition`,
-  `schema.TestRefinement_ACappedBranchStaysAComposition`
+  `schema.TestRefinement_ACappedBranchStaysAComposition`,
+  `schema.TestRefinement_RawTextIsComparedAgainstOneBase`,
+  `e2e.TestExternalContent_ARefinementReadsACopyInAnotherDocumentApart`
 - Status: partly built: a `oneOf` or `anyOf` on a branch or beside the `allOf` stays a composition
   (#661), a structural keyword beside a 3.1 `$ref` keeps what the same keyword here consumes
   (#1067), and an `allOf` an `enum` or a `const` beside it passes over stays verbatim (#1309).
@@ -1316,7 +1322,11 @@ agree where they meet, as a redeclared field's do
 folds to `3`, and `multipleOf: 4` beside `multipleOf: 6` to `12`, whatever their order, a number
 written two ways keeping the first spelling. Two `pattern`s have no one value, and neither has a 3.0
 `exclusiveMinimum` with no bound beside it, which fills no field, so each disagrees with another
-written differently.
+written differently. A branch whose folding keywords write a relative `$ref` it reads against
+another base than the position does, an `$id` at or above it naming another URI, folds nothing
+either, since that `$ref` would name another schema read at the position; it stays whole, with its
+report, and is no conjunct the others are compared with. One writing none there, or only absolute
+ones, reads the same at the position, so an `$id` alone keeps nothing it writes from folding.
 
 A branch declaring anything no reader consumes is kept verbatim in
 `Unmodeled["openapi:<path>"]` under `degraded_lowering` — the *whole* branch, consumed keywords
@@ -1359,7 +1369,10 @@ every entry reads that one twice.
   `schema.TestVoices_BoundsMeetInEveryOrder`,
   `schema.TestVoices_KeywordsOneEntryHoldsDisagreeAsOne`,
   `schema.TestVoices_UnevaluatedFalseStaysTheModels`,
-  `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`
+  `schema.TestVoices_ADistributedCompositionKeepsEveryBranch`,
+  `schema.TestAllOf_ABranchReadAgainstAnotherBaseFoldsNothing`,
+  `schema.TestAllOf_ABranchWritingNoRelativeReferenceFoldsUnderAnyBase`,
+  `schema.TestRefinement_ABranchReadAgainstAnotherBaseFoldsNothing`
 - Status: partly built: a collection bound on an inline branch of a refinement stays with its
   branch, which folds none, where one beside the `allOf` reaches `Constraints`, whatever the
   principal: `{type: array, items: …, allOf: [{maxItems: 2}]}` keeps its branch beside a `List` that
@@ -1402,7 +1415,12 @@ whether hoisted inline, and the provenance of the node and of what it keeps unde
 one type where both were written inline at the field's own declarations, in their document, as the
 same declaration written twice; a node declared elsewhere, a component or a schema a `$ref` reaches
 in this document or another, wins over an inline copy of itself in either order, and two such nodes
-are two types the source declared apart, which overlap. Two lists, or two maps with one key, compare
+are two types the source declared apart, which overlap. A copy is one type with the other node, or
+gives way to it, only where what the two keep under `Unmodeled` writes no relative `$ref`, or both
+read it against one base where each is written: under an `$id` naming another URI, or in another
+document, a `$ref` spelled alike names another schema, so the two were declared apart and overlap.
+Two lists,
+or two maps with one key, compare
 by element or value, nested up to a bound, and the narrower one wins only where it admits null no
 more widely than the other, its bounds say all the other's do, and the other holds nothing else the
 winner lacks, read as two `Scalar`s are but where each was declared: no encoding, documentation,
@@ -1526,7 +1544,9 @@ declaration wrote, whose multiples are exactly those both admit. `pattern`, `pat
 to set one keeps it, as does `multipleOf` for two steps past 1,024 significant digits between them
 or a multiple past what a `BigVal` holds. The title, description, external links, deprecation, XML
 hints and each `Unmodeled` key fold over every declaration, the first to give one keeping it, and a
-declaration giving one differently is reported and kept.
+declaration giving one differently is reported and kept. An entry two declarations write alike is
+one where it writes no relative `$ref`, or both read it against one base: under an `$id` naming
+another URI, a `$ref` spelled alike names another schema.
 
 A field keeping the first declaration's identity keeps that declaration's provenance, and either way
 it names the heuristic that promoted its deprecation or its redaction from an extension, wherever
@@ -1709,7 +1729,13 @@ field's first 64 at most; each later one is kept verbatim, unjudged, under an
   `e2e.TestExternalContent_ANodeAnotherDocumentHoistsIsNoCopyOfAnInlineOne`,
   `e2e.TestExternalContent_ACopyInAnotherDocumentIsJudgedThere`,
   `schema.TestAllOf_ARedeclarationIsJudgedOnceTheComponentsHaveLowered`,
-  `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`
+  `e2e.TestCompile_AReferenceLeavesItsTargetToItsOwnerInEitherOrder`,
+  `merge.TestFold_UnmodeledAlikeUnderAnotherBaseIsKept`,
+  `merge.TestTypeJudge_CopiesUnderAnotherBaseOverlap`,
+  `schema.TestAllOf_RedeclarationsUnderAnotherBaseStayApart`,
+  `schema.TestAllOf_RedeclarationsWritingNoRelativeReferenceFoldUnderAnyBase`,
+  `schema.TestAllOf_ACopyOfAComponentUnderAnotherBaseStaysApart`,
+  `e2e.TestExternalContent_ACopyOfAnotherDocumentsComponentStaysApart`
 - Status: partly built: two distinct nodes of related kinds (`format: hex` against `format: byte`,
   two enums whose members fit each other's kind, two different literals), a list or map whose
   broader side carries detail the narrower lacks, a `Scalar` hoisted for `time` that holds a
@@ -1956,22 +1982,60 @@ A union whose branches declare no shape at all (`oneOf: [{required: [a]}, {requi
 a degradation and is not one of the five: it narrows the body without reshaping it, which is
 validation logic, so it is kept under `validation_only` with the keyword family of
 [boundaries](../ir/boundaries.md#validation-only-constructs) and reported as an info
-`openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)). A branch
-that repeats the body declares none either: it writes nothing but `type`, `nullable`, `properties`,
-`required`, `not`, `title` and `description`, where `required` and `not` narrow as they do in a bare
-branch whatever they hold; the `type` it writes, if any, is the body's, with `nullable` agreeing;
-and each property it writes is one the schema's own `properties` declares, written alike as a
-schema object (a boolean schema has no keywords to repeat), or written in nothing but `$ref`,
-`type`, `format` and `nullable`, each as the body's declaration writes it, with the two agreeing on
-`$ref` and `nullable`. So `{type: string}` in a branch repeats `{type: string, minLength: 1}` in the
-body. A branch writing any other keyword, such as `{type: string, const: a}`, `minLength`, `items`
-or `format`, does not repeat the body, so it is judged as written: one that writes a `type`, a
-`properties` or another keyword declaring shape falls to the five shapes above, even beside a
-`not`, and one that only narrows, as `{required: [a], minProperties: 2}` does, stays validation
-logic. A `not` written inside a property repeats the body only where the property is written
-alike. A property the schema only composes through `allOf` has no one declaration to repeat, so it
-does not repeat the body. Declarations are compared as written, so one spelling its keywords in
-another order is not alike.
+`openapi/validation-only-keyword` at the schema ([`validation-only`](#validation-only)). A `$ref`
+branch declares shape and a boolean one declares none. An inline branch declares shape where one
+keyword it writes does, and a keyword is judged alike whether the branch writes it alone or beside
+the body's own `type`, so repeating the body never changes a verdict:
+
+1. A keyword that documents the instance (`title`, `description`, `$comment`, `deprecated`,
+   `examples`, `example`, `externalDocs` or an `x-` extension), names the schema (`$anchor`,
+   `$dynamicAnchor`), holds schemas it does not apply (`$defs`), says whether it may be null
+   (`nullable`), or only narrows what the body shapes declares none, whatever it holds. The
+   narrowing keywords are `required`, the value constraints and collection bounds of
+   [`constraints`](#constraints), and the validation-only keywords of
+   [boundaries](../ir/boundaries.md#validation-only-constructs), an `unevaluatedProperties` other
+   than `false` among them. A keyword written `null` is left out
+   ([`null-keywords`](#null-keywords)).
+2. `type`, `format`, `enum` and `const` declare none where every value the body admits holds to
+   them, null aside for `type`, read as [`allof-refinement`](#allof-refinement) reads what a
+   conjunct admits: from the body's own keywords and its `allOf`, across each `$ref`, leaving out
+   the unions the body itself writes. So `type: object` beside an object body declares none, nor
+   does `type: [object, 'null']`, a `type` naming only `null` contributes the null and nothing else,
+   and `format: date` beside a bare `type: string` declares shape. `format: password` asks for
+   redaction and names no form ([`password`](#password)), so it declares none, as an `x-sensitive`
+   asking the same declares none by point 1: an SDK reads neither reason's entry, so a secret one
+   branch alone writes is lost to it either way.
+3. `properties` and `items` declare none where each property the branch writes, and its element,
+   restates the body's declarations of it: those in the body's own `properties` or `items`, and in
+   a schema its `allOf` composes, through any nesting and across `$ref`s, but not in a union's
+   branch. A schema restates its declarations where it is a boolean, which says nothing or only
+   forbids what it is written for; where one of them is written alike against one base, as
+   [`allof-refinement`](#allof-refinement) compares two schemas; where they admit nothing together;
+   or where each key it writes says nothing they do not say together, by points 1, 2 and 4 read
+   against what they admit together, a `$ref` landing on a schema they compose through `allOf`
+   conjuncts and `$ref`s, and its own `properties` and `items` restating what they declare of those
+   in turn. The keywords beside a `$ref` conjoin with it at every version
+   ([`ref-use-site`](#ref-use-site)). So `{type: string}` restates
+   `{type: string, format: uri, minLength: 1}`, `{type: string, minLength: 2}` restates
+   `{type: string}`, `{type: string, format: uri}` restates `{type: string}` declared beside
+   `{format: uri}` but not `{type: string}` alone, and `{$ref: X}` restates
+   `{allOf: [{$ref: X}], description: d}`. A property or element none of the body's declarations
+   names is new shape.
+4. An `allOf` declares none where each conjunct declares none, judged as the schema writing it is,
+   so `{allOf: [{required: [a]}]}` reads as `{required: [a]}`. A `$ref` conjunct of a branch itself
+   declares shape, as a `$ref` branch does.
+5. Every other keyword declares shape: `prefixItems`, `additionalProperties`, `patternProperties`,
+   an `unevaluatedProperties` of `false`, a nested `oneOf` or `anyOf`, `$dynamicRef`,
+   `discriminator`, `readOnly`, `writeOnly`, `default`, `xml`, the content vocabulary, `$id`,
+   `$schema`, `$vocabulary` and any keyword of no vocabulary.
+
+A branch declaring shape falls to the five shapes above. The branches and the body are read within
+the bounds of [`allof-refinement`](#allof-refinement), which a union's branches share, an `enum`
+a branch writes counting its members, and the body only as far as they need: a branch writing only
+keywords point 1 names reads none of it, the declarations of what a schema nests are read only
+where it nests something, and what the body declares of one property or element is read once,
+however many branches restate it. A read that does not finish says nothing, so its union is judged
+as one whose branches declare shape.
 
 - Cases: `allof-oneof-cooccurrence`, `discriminated-union-beside-model`, `unhomed-keywords`,
   `keywords-at-every-outcome`, `union-restated-branches`
@@ -1983,13 +2047,16 @@ another order is not alike.
   `schema.TestOneOf_CoDeclaredRestatingBranchDeclaresNoShape`,
   `schema.TestOneOf_CoDeclaredBranchSayingMoreDeclaresShape`,
   `schema.TestOneOf_CoDeclaredBranchSayingMoreBesideANonModel`,
-  `schema.TestOneOf_CoDeclaredBranchWritingNotIsValidationLogicAtEachPosition`
-- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853); a branch
-  writing only `items`, `prefixItems` or `$dynamicRef` is kept as validation logic (#1393); and a
-  branch repeating the body degrades the union beside a keyword declaring no shape (#1394), or
-  where the property it repeats is composed through `allOf` (#1395). Open: keeping a discriminated
-  `oneOf` a union when structural keywords sit beside it (#594), and distributing a union's inline
-  branches when properties sit beside it (#661).
+  `schema.TestOneOf_CoDeclaredBranchKeywordIsJudgedAloneAsBesideTheType`,
+  `schema.TestOneOf_CoDeclaredUnionReadPastItsBudgetDeclaresShape`,
+  `schema.TestOneOf_CoDeclaredRestatementReadsReferencesAgainstTheirBase`,
+  `schema.TestOneOf_CoDeclaredShapelessBranchesAreValidationLogicAtEachPosition`
+- Status: partly built: a multi-typed base's discriminator routes to no subtype (#853); a union
+  beside a composition the bounds cut short degrades even where each branch restates only what the
+  body itself writes (#1423); and comparing a nested schema's text renders it again at each level,
+  so restating one many levels deep costs about the cube of its depth (#1424). Open: keeping a
+  discriminated `oneOf` a union when structural keywords sit beside it (#594), and distributing a
+  union's inline branches when properties sit beside it (#661).
 
 ### `union-beside-ref`
 

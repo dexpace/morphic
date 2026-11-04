@@ -310,6 +310,15 @@ func assertAllOfInlineResidue(t *testing.T, doc *ir.Document, diags []ir.Diagnos
 	assert.Equal(t, []ir.Severity{ir.SeverityWarning},
 		diagsAt(diags, "openapi/degraded-construct", "/components/schemas/Contradicted/allOf/1"),
 		"a branch excluding object contradicts the composed model and is a warning")
+
+	rebased, ok := doc.Types[componentID("Rebased")].(*ir.Model)
+	require.True(t, ok)
+	entry = unmodeledEntry(t, rebased.Unmodeled, "openapi:allOf/0/allOf/0")
+	assert.JSONEq(t, `{"type":"object","not":{"$ref":"item.json"}}`, string(entry.Value),
+		"a branch read against another base folds nothing")
+	assert.JSONEq(t, `{"$ref":"item.json"}`, string(unmodeledEntry(t, rebased.Unmodeled, "openapi:not").Value),
+		"the outer branch, read against the position's base, folds its not")
+	assert.NotContains(t, rebased.Unmodeled, "openapi:allOf/1", "and so is not kept")
 }
 
 // assertAllOfConflictingType pins what an unsatisfiable redeclaration leaves in

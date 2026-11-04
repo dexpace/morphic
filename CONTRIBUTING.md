@@ -15,7 +15,7 @@ rather than restating them.
   type-check this module, reporting `typecheck` errors rather than findings, so install that
   version with the toolchain you build with:
   `go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(make print-lint-version)`.
-- **The gate.** `make gate` runs every check a pull request's CI runs, in the order CI runs them;
+- **The gate.** `make gate` runs every check CI runs on a pull request, in the order CI runs them;
   the fuzz search runs nightly instead, and `make fuzz` runs it by hand. Coverage is gated at
   exactly 100% of statements, counted from the profile, so `go test ./...` passing is not evidence
   the gate passes. While iterating, run one package (`go test ./compilers/openapi/...`) or
@@ -313,9 +313,13 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    registered compiler takes it, with every oracle, so registering the compiler in step 4 is all
    it takes to be swept. Order-invariance permutes YAML and JSON mappings, so a source that is
    neither is not permuted; write that check yourself. A goroutine needs `internal/leakcheck` in
-   the package's `TestMain`. `make race` already runs the compiler under `-race`, since
-   `scripts/race-packages.txt` lists `./compilers/...`, and a package under `compilers/` may not be
-   exempt from it.
+   the package's `TestMain`. `make race-pipeline` runs the compiler under `-race` whatever it does,
+   since `scripts/race-pipeline-roots.txt` lists `./compilers/...`, and a package under `compilers/`
+   may not be exempt from it. That target is outside `make gate`, and each push to `main` runs it,
+   so a race only the compiler's own tests reach is found after merge, and not on the pull request.
+   A compiler package with a lock or a goroutine also needs a line in `scripts/race-packages.txt`,
+   which `make race` runs on every pull request, or a `racePipelineOnly` entry in
+   `internal/archtest` with its reason.
    `morphic compile --verify <spec>` holds your compiler's document, and every pass's, to the same
    invariants while you write it. A compiler composing hints also writes a spec holding one position
    for each way it composes one, as `testdata/golden/openapi/hint_positions.yaml` does, and adds its
@@ -323,7 +327,8 @@ A compiler lowers one source format into an IR document ([`architecture.md`](doc
    renders ([ir-version](docs/ir/ir-version.md)); nothing fails if that is missed.
    *Fails if missed:* `TestHarness_InRepoCorpus`, which sweeps the corpus and requires every
    fixture in it to be listed, so one that no registered compiler recognizes fails there instead of
-   dropping out of the sweep, and `TestGoroutineLeak_EveryGoStatementHasALeakCheck`.
+   dropping out of the sweep, `TestGoroutineLeak_EveryGoStatementHasALeakCheck`, and
+   `TestRaceList_NamesEveryConcurrentPackage`.
 6. **Write its lowering specification** at `docs/compilers/<format>.md`, and link it from
    `docs/compilers/planned-lowerings.md`: move the format's list there into the new document, or add
    a row for a format that page does not list. The `TestLoweringSpec` tests read
