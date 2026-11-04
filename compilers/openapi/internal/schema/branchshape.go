@@ -139,7 +139,7 @@ type nested struct {
 // tree once: bounded by the size of a tree the load phase holds
 // (docs/compilers/openapi.md#source-budgets), while what each restates is read
 // within admission's budget. Comparing a nested schema's text renders it again
-// at each level (GitHub #1424).
+// at each level, so restating one d levels deep renders about d squared nodes.
 func (r *bodyReading) restates(top claim) bool {
 	claims := []claim{top}
 	for len(claims) > 0 {
