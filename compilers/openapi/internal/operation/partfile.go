@@ -34,7 +34,9 @@ func (f partFile) apply(pe ir.PartEncoding) ir.PartEncoding {
 // readPartFile reads part, a part of a multipart body or not as multipart says,
 // as a file (docs/compilers/openapi.md#multipart-encoding): every declaration
 // of it, or each element of an array or tuple it declares (partElements), must
-// read so, as fileFor judges it. Only a multipart part can carry raw bytes.
+// read so, as fileFor judges it. Only a multipart part can carry raw bytes. A
+// union is read as a body's is, so one with a list of files among its branches
+// is no file (GitHub #1448).
 func readPartFile(c lowering.Ctx, part bodyPart, contentTypes []string, multipart bool) partFile {
 	if !multipart || len(part.schemas) == 0 {
 		return partFile{}

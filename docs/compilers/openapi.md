@@ -3278,7 +3278,8 @@ any case.
 - Status: partly built: an `encoding` key that names no property, or one declared only inside a
   `oneOf` or `anyOf` branch, is dropped with no diagnostic (#604); on a multi-typed body the entry
   is keyed by a property no node holds, which validation then refuses (#744); a part's own
-  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); and an
+  `format: byte`, and a part of a url-encoded body, is marked as carrying a filename (#1214); a part
+  declared as a union whose branches are files or lists of files is no file part (#1448); and an
   encoding under a media type it does not apply to is kept in no form (#1047).
 
 ### `encoding-allow-reserved`
