@@ -100,9 +100,10 @@ func extBounds(doc *ir.Document) map[jsontext.Pointer]ir.BigVal {
 // TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares pins GitHub #839:
 // a document a reference reaches is read at the minor it declares, its schemas
 // in that minor's dialect, its objects held to that minor's table and its
-// Document.Sources entry naming it, in either direction between two minors. A
-// document declaring no version, or one the compiler does not read, is read
-// at the source's, and the compile still stands.
+// Document.Sources entry naming it, in either direction between two minors, a
+// version of two parts drawing no finding. A document declaring no version, or
+// one the compiler does not read, is read at the source's, and the compile
+// still stands.
 func TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares(t *testing.T) {
 	t.Parallel()
 	const exclusive30 = "    S: {type: integer, minimum: 5, exclusiveMinimum: true}\n"
@@ -138,6 +139,8 @@ func TestDocumentMinor_EachDocumentIsReadAtTheMinorItDeclares(t *testing.T) {
 			onS, nil},
 		{"a version the table does not cover", minorRoot("3.1.0"), minorExt(declaring("3.3.0"), exclusive31, minorResponse),
 			"openapi@3.1", onS, nil},
+		{"a version of two parts, which is judged only in the source", minorRoot("3.0.3"),
+			minorExt(declaring(`"3.1"`), exclusive31, minorResponse), "openapi@3.1", onS, nil},
 		{"a Swagger 2.0 file", minorRoot("3.1.0"),
 			minorExt("swagger: \"2.0\"\ninfo: {title: Ext, version: \"1\"}\npaths: {}\n", exclusive31, minorResponse),
 			"openapi@3.1", onS, nil},

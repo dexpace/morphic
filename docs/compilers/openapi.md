@@ -39,10 +39,11 @@ name, and every rule below that differs by minor follows that one. So is a docum
 reaches beside the source: its schemas are read in that minor's dialect, its objects are held to
 that minor's table, and its `Document.Sources` entry names that minor. One declaring no version, such
 as a bare schema file, or a version the compiler does not read, such as `3.3.0` or a Swagger 2.0
-file, is read at the source's minor, and the compile stands. A version that is not three runs
-of digits, major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an
+file, is read at the source's minor, and the compile stands. A source declaring a version that is
+not three runs of digits, major, minor and patch, such as `3.0` or `3.1.0-rc1`, is reported as an
 `openapi/validation` error, of the class `validation-invalid-format` ([`validation`](#validation)),
-and the document still lowers under the minor it names. Any other
+and still lowers under the minor it names; a document a reference reaches is read at the minor such
+a version names too, with no finding, since only what a reference reaches is judged. Any other
 version is not this compiler's. The engine refuses a document declaring one before any compiler
 runs, as it refuses a Swagger 2.0 document ([`swagger-lift`](#swagger-lift)), and the compiler,
 handed one directly, refuses it with an `openapi/unsupported-version` error and compiles to no
@@ -334,8 +335,9 @@ the field.
 
 A document may write a field, or one value of a field, that a later minor of its format added to the
 object it sits on: a `name` on an OpenAPI 3.1 Server Object, `in: querystring` on a 3.0 Parameter
-Object. It lowers exactly as in a document declaring the minor that added it, and is reported once,
-at its own key, as an `openapi/later-version-construct` warning. That reading loses the least: from
+Object. It lowers exactly as in a document declaring the minor that added it, but for the one case
+set out below, whose keywords are read as the declared minor defines them, and is reported once, at
+its own key, as an `openapi/later-version-construct` warning. That reading loses the least: from
 the lowering and the diagnostic a consumer can still set the construct aside, while from a verbatim
 copy it could not rebuild the operation a `query` key declares. Except in the one case set out
 below, the declared minor gives the construct no meaning at all, so the lowering asserts nothing the

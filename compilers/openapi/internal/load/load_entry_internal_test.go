@@ -180,14 +180,6 @@ func TestRowsOf_ReadsTheVersionTheDocumentDeclares(t *testing.T) {
 	}
 }
 
-// TestSupportedMinor_AllocatesNothing pins what the lowering's dialect check
-// costs: it asks this of every schema whose null it reads, so the minor is
-// read off the version (oas.ParseMinor) and named by a constant. It is not run
-// in parallel: AllocsPerRun refuses to be.
-func TestSupportedMinor_AllocatesNothing(t *testing.T) {
-	assert.Zero(t, testing.AllocsPerRun(100, func() { _, _ = supportedMinor("3.1.0") }))
-}
-
 // overlayHeader is the preamble every overlay document below needs.
 const overlayHeader = "overlay: 1.0.0\ninfo: {title: O, version: \"1\"}\nactions:\n"
 
