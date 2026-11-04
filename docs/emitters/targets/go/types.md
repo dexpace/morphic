@@ -49,8 +49,8 @@ user's row knows, which [the type table](../../contract/type-table.md) takes to 
 Such an enum is a named type over `string`, each constant the wire text of the first member holding
 its value, whose codec writes that text as the value type's JSON kind, a number for a numeric kind,
 and decodes by comparing as JSON does, so the constant of a decimal `0.1` is the value a `0.10`
-decodes to. A method returns the value as the row's type, decoding the text through the row's codec,
-as [the type table](../../contract/type-table.md) builds any literal of a mapped type:
+decodes to. A method returns the value as the row's type, decoding its wire form as json/v2 decodes
+that type, as [the type table](../../contract/type-table.md) builds any literal of a mapped type:
 
 ```go
 type Day string                          // date, enum: ["2020-01-01"]

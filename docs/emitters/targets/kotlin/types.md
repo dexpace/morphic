@@ -25,7 +25,9 @@ the root's type, and its serializer, in every signature.
 ## Enums
 
 An enum's forms are in the [lowering table](lowering.md). A Kotlin entry lives in its enum class and
-takes the member's name alone (`ACTIVE`, as the naming policy cases it).
+takes the member's name alone (`ACTIVE`, as the naming policy cases it), which need not be the
+member's wire text, so a parameter or a header writes an entry's wire form and not its `name` or
+`toString()` ([a member on the wire](../../refine/enums.md#a-member-on-the-wire)).
 
 `kotlinx.serialization` writes an `enum class` as a string, its entry's `@SerialName`, which is a
 member's wire form only for a `string` enum ([a member on the

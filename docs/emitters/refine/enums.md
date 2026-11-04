@@ -27,8 +27,12 @@ with their combinations for a `Flags` enum, as JSON compares values, which is wh
 compares, whatever `format` says: numbers by value, exactly unless a row's width rounds them
 (below), so `0.1` and `0.10` are one value, and everything else by its text, so two `uuid` members
 differing only in case are two. A value two members hold, as `allow_alias` declares and `0.1` beside
-`0.10` is, decodes as the first of them, which slice order makes canonical. A target whose enum form
-holds only some value types lowers the others over the wire form
+`0.10` is, decodes as the first of them, which slice order makes canonical. Where text carries a
+member, in a parameter, a header or a form field, it travels as its wire form's text, a string's
+characters or a number's or a boolean's literal, never as a name the target gives the member, and is
+read back by the same comparison.
+
+A target whose enum form holds only some value types lowers the others over the wire form
 ([Go](../targets/go/types.md#enums), [Kotlin](../targets/kotlin/types.md#enums)), never over a form
 that changes what JSON compares: a `bool` enum written as the string `"true"`, or a `uuid` enum over
 a type that reads one in either case as one value. On the golden spec (spec @319dc756, morphic
