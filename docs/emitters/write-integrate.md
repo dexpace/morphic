@@ -133,10 +133,11 @@ type Entry struct {
   becomes last, is neither pruned nor taken for a user's edit. Its manifest is a `Generations` even
   for an unsliced document, whose one label is `""`, and where a prior holds no entry for the last
   label, as when a document gains, loses or renames versions, that run takes the prior's entry
-  holding the files spanning versions, its last label's or its `""` one, so the names the site last
-  shipped carry over. A prior is read as a `Generations` where it holds `snapshots`, a member no
-  `Manifest` has, else as a `Manifest`, which a target gaining `CrossVersion` reads as its `""`
-  entry and one losing it reads as the entry holding the spanning files.
+  holding the files spanning versions, the one entry listing a path outside its own label's
+  directory, else its `""` one, so the names the site last shipped carry over. A prior is read as a
+  `Generations` where it holds `snapshots`, a member no `Manifest` has, else as a `Manifest`, which
+  a target gaining `CrossVersion` reads as its `""` entry and one losing it reads as the entry
+  holding the spanning files.
 - **Behavior and steps.** `Options` is the version whose defaults this SDK keeps until its owner
   moves it ([target options](contract/options.md)), and `Steps` names the version of each step
   that shaped it, which #702 plans so that a regeneration can say which steps moved.

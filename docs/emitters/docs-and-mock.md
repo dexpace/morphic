@@ -68,19 +68,23 @@ operation sends or returns, is rendered once, unprojected, as an SDK declares it
 what it holds](plan/types.md#a-shape-reaches-what-it-holds)).
 
 A table lists every member its model's flattening holds, each name `TypePlan.Undeclared` lists among
-them as a required row typed as the catch-all types it, with no anchor since it has no `PropID`, and
-anchors a member only where the model declaring it is rendered; another table holding it, a
-subtype's for an inherited member, links there. A model rendered as several tables anchors each
-member in the first of them, in `TypePlan.Shapes`' order, that holds it, and the others link there,
-since a route holds one anchor for each `PropID`. A member no table of its declaring model holds, as
-one of a base no shape reaches while a subtype's table holds it, is anchored in the first table, in
-the byte order of their `TypeID`s, of a model whose flattening holds it. Each table has an anchor of
-its own, its model's anchor joined to its shape's name, so two tables on one page never share one
-and a switcher reaches it in another version from the page `Routes` gives; the collision check reads
-the anchors within a page too, and a link to the model names the shape it shows, so an operation's
-patch body links to the patch table, never to one marking required what the patch relaxes. An
-anonymous model another composes in place is no table of its own: its members are rows of the
-composing model's table, anchored there, so no member is anchored twice.
+them as a row typed as the catch-all types it, required save in a patch shape's table, which relaxes
+it as it relaxes any member, with no anchor since it has no `PropID`, and anchors a member only
+where the model declaring it is rendered; another table holding it, a subtype's for an inherited
+member, links there. A model rendered as several tables anchors each member in the first of them, in
+`TypePlan.Shapes`' order, that holds it, and the others link there, since a route holds one anchor
+for each `PropID`. A member no table of its declaring model holds, as one of a base reached only in
+shapes that leave the member out while a subtype's table holds it, is anchored in the first table,
+in the byte order of their `TypeID`s, of a model whose flattening holds it. Each table has an anchor
+of its own, its model's anchor joined to a suffix its shape gives, the lifecycles of its `Filter` in
+order and `patch` for a patch shape, a table shared by coinciding shapes taking the first's and an
+unprojected one none, so a link to a shape another version renders on no table of its own lands on
+the page, so two tables on one page never share one and a switcher reaches it in another version
+from the page `Routes` gives; the collision check reads the anchors within a page too, and a link to
+the model names the shape it shows, so an operation's patch body links to the patch table, never to
+one marking required what the patch relaxes. An anonymous model another composes in place is no
+table of its own: its members are rows of the composing model's table, anchored there, so no member
+is anchored twice.
 
 A reference is read through `TypePlan.Alias`, as every consumer reads one
 ([decorators](refine/decorators.md)). A decorator has no page, table or anchor: a reference to it, a
@@ -100,7 +104,8 @@ synthesized; an SDK's tests and the mock still send it. A sample's placeholder i
 to write, since the call is its code and the docs never edit it.
 
 A description is the spec author's text, CommonMark that may hold raw HTML: `Docs.Description`,
-`Example.Description` and `Link.Description` alike. A generated site that passed that HTML through
+which the IR states is CommonMark, and `Example.Description` and `Link.Description`, which the docs
+read as CommonMark too, since OpenAPI writes them so. A generated site that passed that HTML through
 would publish whatever markup or script the document holds, and one that rendered all of it as text
 would show a Smithy model's `<p>` and `<code>` on every page. So pages and agent documents
 ([below](#documents-for-agents)) render it through an allowlist: `p`, `br`, `b`, `strong`, `i`,
@@ -108,18 +113,22 @@ would show a Smithy model's `<p>` and `<code>` on every page. So pages and agent
 `th`, `td`, `dl`, `dt`, `dd`, `h1` to `h6` and `hr` with no attribute, `a` with an `href` and `img`
 with a `src` and, optionally, an `alt`, each URL held to the rule below, render as themselves, read,
 its inline raw HTML and its HTML blocks alike, by an HTML tokenizer, one that splits tags from text
-without building a tree, as `x/net/html`'s `Tokenizer` does, against a stack of its own. A text
-token is decoded and written escaped. A listed start tag opens an element, `br`, `hr` and `img`
-opening none, written with its listed attributes decoded, checked and escaped; a listed end tag
-closes the element on top when it matches; and a `p`, `li`, `dt`, `dd`, `tr`, `td` or `th` on top
-closes when a sibling opens or its parent closes, as HTML closes them. Every other token, a tag, an
-end tag or a comment, is written escaped from its raw bytes, so a stray `</td>` renders as text
-rather than closing the page's own table, a placeholder such as `<key>` keeps its place, and what is
-still open closes where the description ends. A refused `a` is its text, both its tags dropped, and
-a refused `img` its `alt`, else its tag as text. A tag that opens only inside a parent, `tr`, `td`,
-`th`, `thead`, `tbody`, `li`, `dt` or `dd`, opens only with that parent on top of the description's
-stack, and otherwise renders as text, so a description in a schema table's cell cannot add a cell, a
-row or an item to the page's own table or list. An HTML parser's tree-building fragment mode is no
+without building a tree, as `x/net/html`'s `Tokenizer` does, against a stack of its own, the
+tokenizer never entering the raw-text mode HTML gives `title`, `textarea`, `script`, `style` and
+their kin, since none of them is listed (with `x/net/html`, `NextIsNotRawText` after each start
+tag), so an unlisted `<title>` cannot swallow the rest of the description. A text token is decoded
+and written escaped. A listed start tag, or a self-closing one, which HTML opens as a start tag,
+opens an element, `br`, `hr` and `img` opening none, written from its name with its listed
+attributes decoded, checked and escaped, never from its raw bytes; a listed end tag closes the
+element on top when it matches; and a `p`, `li`, `dt`, `dd`, `tr`, `td` or `th` on top closes when a
+sibling opens or its parent closes, as HTML closes them. Every other token, a tag, an end tag or a
+comment, is written escaped from its raw bytes, so a stray `</td>` renders as text rather than
+closing the page's own table, a placeholder such as `<key>` keeps its place, and what is still open
+closes where the description ends. A refused `a` is its text, both its tags dropped, and a refused
+`img` its `alt`, else its tag as text. A tag that opens only inside a parent, `tr`, `td`, `th`,
+`thead`, `tbody`, `li`, `dt` or `dd`, opens only with that parent on top of the description's stack,
+and otherwise renders as text, so a description in a schema table's cell cannot add a cell, a row or
+an item to the page's own table or list. An HTML parser's tree-building fragment mode is no
 substitute: it drops a stray end tag and turns `<key>` into an element holding the rest of the text.
 Any other tag, attribute or comment renders as text, a custom element such as `<note>` among them.
 On the golden spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by
@@ -134,19 +143,19 @@ A link or an image in that text, and a URL the document gives, such as an `Exter
 way: a `javascript:` destination runs when it is followed. A destination is checked once its
 character references are decoded, by HTML's rules in an attribute and CommonMark's in a link, so
 `&#106;avascript:` is refused too, and written escaped again. So a page or an agent document writes
-a destination only where it is absolute under `http`, `https` or `mailto`, or a relative path in a
-description, which points into the site the author wrote for and is resolved against the base the
-docs options give that site, as OpenAPI resolves a description's links in the context they are
-rendered in. A fragment alone names a place on one of that site's pages, which no base names, and a
-relative URL in a field of its own, such as an `ExternalDocs` link's, resolves against a server URL,
-which may be one of several or templated, or the document's own location, which may be a local file,
-so no one base serves it. Any other destination, and a relative path with no base set, renders as
-its link's text, with a warning `emitters/docs/link-unwritten` naming it. `Document.TermsOfService`
-holds a URL or text, so a value that parses as no absolute URL is rendered as text, never resolved.
-On the golden spec, at those revisions, the links in `Docs` descriptions are 988 under `https`, 7
-under `http`, one an `https` autolink, and 14 relative, 8 of them a fragment alone, such as
-`#requests`, and 6 a path, such as `/api/resources/filters/`, which would otherwise break on a
-generated site.
+a destination only where it is absolute under `http`, `https` or, for a link, `mailto`, or a
+relative path in a description, which points into the site the author wrote for and is resolved
+against the base the docs options give that site, as OpenAPI resolves a description's links in the
+context they are rendered in. A fragment alone names a place on one of that site's pages, which no
+base names, and a relative URL in a field of its own, such as an `ExternalDocs` link's, resolves
+against a server URL, which may be one of several or templated, or the document's own location,
+which may be a local file, so no one base serves it. Any other destination, and a relative path with
+no base set, renders as its link's text, with a warning `emitters/docs/link-unwritten` naming it.
+`Document.TermsOfService` holds a URL or text, so a value that parses as no absolute URL is rendered
+as text, never resolved. On the golden spec, at those revisions, the links in `Docs` descriptions
+are 988 under `https`, 7 under `http`, one an `https` autolink, and 14 relative, 8 of them a
+fragment alone, such as `#requests`, and 6 a path, such as `/api/resources/filters/`, which would
+otherwise break on a generated site.
 
 ## Routes and links
 
@@ -314,21 +323,21 @@ member and operation:
   each member the shape requires and the example lacks, that member's own first value, an
   `Undeclared` name's from its catch-all type's set, which marks what is shown `Inferred` and labels
   it generated, its declared members kept as written. So a response-form example serves a create
-  shape, a patch body's may leave out a required member, and no shape is left without one. A union
-  value several variants admit is refused where the union is `TypePlan.Strict`, which decodes it as
-  no variant, and elsewhere shown as the first of them, in source order. `plan.Shown` does this, the
-  one projection every consumer reads an example through, and reports an example it cannot complete,
-  a required member's set being empty, so the consumer takes the set's next one, or reports as an
-  empty set does when none is left. One they refuse is reported as a warning
-  `emitters/plan/example-refused` and left out, so every consumer falls to the next set alike: an
-  SDK's test sending it would be refused by the mock, as by the API. On the golden spec (spec
-  @57b5196b, morphic @ab953d45), a declared example fails its own type in at least 295 types: in 292
-  no member of the enum, each closed, holds it, such as `json` against `JSON` and `CSV`, and in 3 it
-  is longer than `maxLength`. One declaring none that adds no constraint to its type's takes its
-  type's set, so a property shows the value its type does, save an enum member, which takes its own
-  value. A position whose type is a decorator takes its own examples, else the nearest decorator's
-  along the chain, as `CollapseAliases` folds them, else, where it adds no constraint, the set of
-  the type its `Alias` names.
+  shape, a patch body's may leave out a required member, and no shape is left without one. `Build`
+  refuses a union value several variants admit where the union is `TypePlan.Strict`, which decodes
+  it as no variant, reporting it once as above, and `Shown` shows such a value elsewhere as the
+  first of them, in source order. `plan.Shown` does this, the one projection every consumer reads an
+  example through, and reports an example it cannot complete, a required member's set being empty,
+  so the consumer takes the set's next one, or reports as an empty set does when none is left. One
+  they refuse is reported as a warning `emitters/plan/example-refused` and left out, so every
+  consumer falls to the next set alike: an SDK's test sending it would be refused by the mock, as by
+  the API. On the golden spec (spec @57b5196b, morphic @ab953d45), a declared example fails its own
+  type in at least 295 types: in 292 no member of the enum, each closed, holds it, such as `json`
+  against `JSON` and `CSV`, and in 3 it is longer than `maxLength`. One declaring none that adds no
+  constraint to its type's takes its type's set, so a property shows the value its type does, save
+  an enum member, which takes its own value. A position whose type is a decorator takes its own
+  examples, else the nearest decorator's along the chain, as `CollapseAliases` folds them, else,
+  where it adds no constraint, the set of the type its `Alias` names.
 - **Assembled for an operation.** An operation declaring no success scenario, one ending in no
   `Error`, takes one after those it declares, where every required input's set holds a value, built
   from the sets of its required parameters and of the optional ones whose set is declared rather
