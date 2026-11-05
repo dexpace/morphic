@@ -52,13 +52,14 @@ unreached <cells>; reopened <cells>, each with what its clearance lacked
 `review-without-origin`
 
 - **Rule.** With no `origin`, fetch `main` by URL as the remote-tracking branch `origin/main`, the
-  name the setup, the push checklist and its scripts read, and `pull/<N>/head` into a ref of your
-  own, and set `GH_REPO=<owner>/<repo>`, which `gh` and its placeholders read without a remote.
-  Where the repository must stay unwritten, review in a local clone, holding the branch's history
-  and writing only its directory: `git clone <repo> <dir>`, then
-  `git -C <dir> update-ref refs/remotes/origin/main <base>`.
-- **Why.** The reviews of #1233, #1235 and #1238 each improvised these, one writing metadata its
-  round ruled out. `subjects.py` exits 2 when `main` sits in a ref of another name (#1403). With no
+  name the setup, push checklist and scripts read, and `pull/<N>/head` into a ref of your own, and
+  set `GH_REPO=<owner>/<repo>`, which `gh` and its placeholders read without a remote. Where the
+  repository must stay unwritten, review in a local clone, which holds the history and writes only
+  its directory: `git clone <repo> <dir>`,
+  `git -C <dir> update-ref refs/remotes/origin/main <base>`, then
+  `git -C <dir> switch --detach <head>`.
+- **Why.** #1233's, #1235's and #1238's reviews improvised these, one writing metadata its round
+  ruled out. `subjects.py` exits 2 when `main` sits in a ref of another name (#1403). With no
   remote, `gh` found no repository; an unpacked copy, no history (#1537).
 - **Probe.** In a new `git init`, run both fetches, then `git for-each-ref`.
 

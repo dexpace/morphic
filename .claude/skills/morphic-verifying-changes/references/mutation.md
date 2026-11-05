@@ -59,8 +59,8 @@ yourself. These rules are the ways that reading still lies.
 `a-kill-in-a-row-run-alone`
 
 - **Rule.** Where a table's rows share state, such as a directory or a fixture, run each row a
-  mutant fails on its own (`go test -run '<Test>/<row>'`) before counting it: a row failing only
-  after another left state behind is fallout, not a kill.
+  mutant fails on its own (`go test -run "<Test>/<row>"`, as a row name may hold a quote) before
+  counting it: a row failing only after another left state behind is fallout, not a kill.
 - **Why.** A plant at `cmd/morphic/dashes.go:93` failed four rows of
   `TestRun_SingleDashLongFlagsAreRefused`, and two of them passed when run alone, failing only on a
   file the first row left behind (#1538, #1516 at 9aa24431).
@@ -128,10 +128,10 @@ yourself. These rules are the ways that reading still lies.
 ## Rebuild a plant set nobody kept, rather than carrying its result over
 `rebuild-lost-plants`
 
-- **Rule.** A PR body cites plants by count and class, and the script that made them is gone. When
-  a merge or a review asks for them again, rebuild a set from the conditions the change adds and run
-  it once before merge, even after a merge that touched only comments: a count carries nothing
-  over.
+- **Rule.** Where a PR body cites plants only by count and class, and the script that made them is
+  gone, rebuild a set from the conditions the change adds when a merge or a review asks for them
+  again, and run it once before merge, even after a merge that touched only comments: a count
+  carries nothing over.
 - **Why.** A body cited 70 plants by class and the repository held none; a set rebuilt from the diff
   found a check no test held, which none of them had planted (#1191, #1216).
 - **Probe.** `git grep -l '<condition the change adds>' <head> -- '*.py' '*.sh' '*.txt'` shows

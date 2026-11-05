@@ -526,16 +526,17 @@ class Linter:
             self.report(f, line, why or f"{path} holds no rule {key}")
 
     def check_cited_from_outside(self) -> None:
-        """Hold each rule a Markdown or Go file outside the skills cites by its full path, as
-        CLAUDE.md does, to the rule its file holds: no other check reads those citations. Files
-        under a testdata directory are inputs, not prose, and are left out."""
+        """Hold each rule a tracked file outside the skills cites by its full path, as CLAUDE.md
+        does, to the rule its file holds: no other check reads those citations. A binary file is
+        left out, and one never naming a skill's path is passed over unread, for speed alone."""
         for rel in self.known:
-            if (rel.startswith(".claude/skills/") or "/testdata/" in f"/{rel}"
-                    or not rel.endswith((".md", ".go"))):
+            if rel.startswith(".claude/skills/"):
                 continue
             f = self.root / rel
-            text = f.read_text(errors="replace") if f.is_file() else ""
-            for i, line in enumerate(text.split("\n"), 1):
+            data = f.read_bytes() if f.is_file() else b""
+            if b"\0" in data or b".claude/skills/" not in data:
+                continue
+            for i, line in enumerate(data.decode(errors="replace").split("\n"), 1):
                 for path, key in RULE_CITE.findall(line):
                     if path.startswith(".claude/skills/"):
                         self.check_cite(f, i, path, self.root / path, key)

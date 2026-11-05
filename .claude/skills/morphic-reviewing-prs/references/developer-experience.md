@@ -33,8 +33,8 @@ finding breaks.
 - **Why.** Byte-identical moves shipped false comments: 8 in #1064, 4 in #1073, 22 in #1099. A
   cross-package move broke comments in files it never touched (#1104). A move of a function and a
   variable into `internal/testspec` left its `doc.go` saying it holds only constants (#1540).
-- **Probe.** `git diff --name-only --diff-filter=AM origin/main...HEAD -- '*.go'` names each
-  package gaining code; read each one's `doc.go`.
+- **Probe.** `git diff --name-only --diff-filter=AMR origin/main...HEAD -- '*.go'` names each file
+  that gained code, a move included; read the `doc.go` in each one's directory.
 
 ## Moved prose leans on what stayed behind
 `moved-prose`

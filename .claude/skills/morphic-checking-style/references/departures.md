@@ -124,11 +124,12 @@ the rule here rather than reading it across.
   unexported field or `Equal` method, which `cmp` alone calls; any other takes `cmp.Diff` with a
   direction key (rule 6.15), and no test calls `reflect.DeepEqual`.
 - **Why.** Such a value lacks the rule's reasons: the two agree on nil against empty, order and NaN,
-  and `assert.Equal` labels both sides where a bare `cmp.Diff` labels neither (#1206). Literal
-  slices and maps take this way twice as often as `cmp.Diff` is called (#1246). Name greps passed
-  117 calls on values with unexported fields (#1533, #1534).
-- **Probe.** `go doc -u <package> <type>` shows no unexported field or `Equal` method on each type
-  an added `assert.Equal` compares or its fields hold;
+  and `assert.Equal` labels both sides, a bare `cmp.Diff` neither (#1206). Literal slices and maps
+  take this way twice as often as `cmp.Diff` is called (#1246). Name greps passed 117 calls on
+  values with unexported fields (#1533, #1534).
+- **Probe.** The program of
+  `.claude/skills/morphic-verifying-changes/references/sweep-every-site.md#sweep-a-typed-mechanism-by-type`
+  finds no `assert.Equal` a change adds on a value holding an unexported field or `Equal` method;
   `git grep -n 'reflect\.DeepEqual(' -- '*_test.go'` names no call.
 
 ## Alias a type to name it at a boundary or to shorten it
