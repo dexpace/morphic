@@ -349,9 +349,11 @@ throughout these documents.
     visibility marker one table for every shape but a patch, and a type no shape reaches one
     unprojected table; each member anchored once, where the model declaring it is rendered, an
     inherited one linked there and an anonymous model composed in place no table of its own; each
-    example through the shape it is shown in, a write-only member in no response's; and a
-    placeholder for every value `Secret` or `Sensitive` marks, on pages, in agent documents and in
-    samples. Every declared type but a primitive has a page, and so does an anonymous model, union
+    example through the shape it is shown in, a write-only member in no response's; a placeholder
+    for every value `Secret` or `Sensitive` marks, on pages, in agent documents and in samples, a
+    sample's written by its SDK target; and raw HTML in a description rendered as text on pages and
+    in agent documents alike, a bare `<br>` as a line break and a placeholder such as `<key>` kept
+    visible. Every declared type but a primitive has a page, and so does an anonymous model, union
     or enum more than one reference reaches through anonymous containers, so no type is rendered in
     two places; a decorator has no page, table or anchor of its own, renders and links as its
     `Alias` and folds its annotations onto the position, so a 3.0 decorator and the 3.1 `$ref`
@@ -361,14 +363,14 @@ throughout these documents.
     changed; every link and `Docs.Refs` span resolves through the route plan; a version switcher
     links one entity across snapshots, from the tables `Router` returns, marks the run's `Snapshot`
     current, and an entity a version lacks to that version's page saying so. Agent documents and
-    `llms.txt` share the pages' URLs, escape spec text and pass no raw HTML, mark an operation safe
-    or idempotent from `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint
-    is set. A sample comes from each SDK target, for each operation it emits, in each language its
-    callers write, Kotlin and Swift from a Multiplatform one, a missing one a diagnostic of that
-    target's, and a target whose generation writes nothing still returns its samples; a sample's
-    values are its operation's declared scenario's `Input` where it has one; a snapshot no SDK
-    target is run on draws no missing-sample diagnostic; and a docs generation whose samples, routes
-    or snapshot label changed, its own inputs unchanged, is a new generation ([docs and
+    `llms.txt` share the pages' URLs, escape spec text, mark an operation safe or idempotent from
+    `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint is set. A sample
+    comes from each SDK target, for each operation it emits, in each language its callers write,
+    Kotlin and Swift from a Multiplatform one, a missing one a diagnostic of that target's, and a
+    target whose generation writes nothing still returns its samples; a sample's values are its
+    operation's declared scenario's `Input` where it has one; a snapshot no SDK target is run on
+    draws no missing-sample diagnostic; and a docs generation whose samples, routes or snapshot
+    label changed, its own inputs unchanged, is a new generation ([docs and
     mocks](../docs-and-mock.md)).
 42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored; a
     property or a parameter declaring none and adding no constraint takes its type's set, an

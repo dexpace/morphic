@@ -81,7 +81,17 @@ An example is shown through the shape it is shown in, so a response's example ho
 member and a request's no read-only one. A value `Property.Secret`, `Parameter.Secret` or
 `TypeCommon.Sensitive` marks is redacted in docs ([properties](../ir/properties.md)), so pages,
 agent documents and samples show a placeholder in its place, whether the value was declared or
-synthesized; an SDK's tests and the mock still send it.
+synthesized; an SDK's tests and the mock still send it. A sample's placeholder is the SDK target's
+to write, since the call is its code and the docs never edit it.
+
+A description is the spec author's text, and a generated site that passed its raw HTML through would
+publish whatever markup or script the document holds. So pages, like agent documents
+([below](#documents-for-agents)), render raw HTML in a description as text, save a bare `<br>`,
+written with or without its `/` and with no attribute, which renders as a line break. On the golden
+spec (spec @57b5196b, morphic @ab953d45), descriptions hold 45 raw HTML tags by CommonMark's
+grammar, outside code: 11 a `<br/>`, one an `<img>`, and 33 placeholders such as `<key>` and
+`<uuid>`, which a browser handed them would parse as elements, so the placeholder would vanish from
+the page.
 
 ## Routes and links
 
@@ -148,7 +158,8 @@ disagree about a URL:
   can set through the [embedded reader](contract/embedded-policy.md). No IR fact states it, and a
   method cannot: `DELETE` and `PUT` are idempotent and may destroy.
 - **Spec text is escaped.** A heading or a list item built from a summary or a description is
-  escaped for Markdown, and raw HTML in a description is rendered as text, never passed through.
+  escaped for Markdown, and raw HTML in a description is rendered as text, never passed through, a
+  bare `<br>` as a line break, as on the pages (above).
 
 ## Samples come from the SDK emitters
 
@@ -168,7 +179,8 @@ own options can change them. A sample a target cannot render is a coded diagnost
 never an empty code block on the page, and so is one for an operation whose required input holds no
 example. A sample's values are its operation's first example's `Input` (below): a scenario the
 operation declares in `Operation.Examples`, as a Smithy or TypeSpec document can, else one assembled
-from each input's set, a body's from the elected request content's and a parameter's from its own.
+from each input's set, a body's from the elected request content's and a parameter's from its own. A
+value `Secret` or `Sensitive` marks is written as the target's placeholder for it (above).
 
 ## One set of examples
 
