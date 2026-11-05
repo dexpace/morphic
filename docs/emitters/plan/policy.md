@@ -44,16 +44,17 @@ guard against a heuristic silently defaulting on and quietly making the plan non
 
 ## The policy is data
 
-Every field is a value from a closed vocabulary the plan package defines, and none is a function.
-So a policy encodes, compares and hashes as what it says, and `Plan.Version` hashes it
-([the plan](overview.md#the-plans-version)). A function has no bytes to hash: its printed form is
-an address that changes every run, and skipping it gives two policies that pick different responses
-one version. A heuristic the vocabulary lacks is added to it, in this package, so it ships in a new
-build, which the plan cache keys on ([the plan](overview.md#the-plans-version)). A strategy
-registered from outside by name and version was weighed and refused: a function may close over what
-a run sets, so neither its name and version nor the build fixes what it does, and two runs that pick
-differently would share a key. So was a caller-supplied ID hashed in the policy's place, which fails
-the same way when the caller forgets to change it.
+Every field is a value from a closed vocabulary the plan package defines, or a count such as an
+example bound, and none is a function. So a policy encodes, compares and hashes as what it says, and
+`Plan.Version` hashes it ([the plan](overview.md#the-plans-version)). A function has no bytes to
+hash: its printed form is an address that changes every run, and skipping it gives two policies that
+pick different responses one version. A heuristic the vocabulary lacks is added to it, in this
+package, so it ships in a new build, which the plan cache keys on ([the
+plan](overview.md#the-plans-version)). A strategy registered from outside by name and version was
+weighed and refused: a function may close over what a run sets, so neither its name and version nor
+the build fixes what it does, and two runs that pick differently would share a key. So was a
+caller-supplied ID hashed in the policy's place, which fails the same way when the caller forgets to
+change it.
 
 A configuration is read as a target's options are ([target options](../contract/options.md)):
 strictly, and over the defaults of the version it states, which `DefaultPolicy(version)` returns,

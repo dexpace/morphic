@@ -48,16 +48,27 @@ the IR.
 
 The primary response and content are an SDK's ergonomic choice: a method returns one. A reader of
 the docs needs every answer the API gives, so the docs emitter renders every `Response`, every
-`ErrorCase` and every `Content` the operation declares, the primary response first and the elected
-content first within each, and those choices order the page and decide nothing else. A type is
-rendered once for each shape its `TypePlan.Shapes` lists
-([ModelShape](plan/types.md#modelshape--visibility-projection)), each table holding the members
-visible in that shape and marking those it requires. So a write-only property is in no read
-shape's table and a read-only one in no create shape's, and a model one operation creates and
-another patches has a table for each, since a patch body's members are optional and a member
-visible only at creation is absent from it. A direction alone would merge those two. A type no
-shape reaches, one no operation sends or returns, is rendered once, unprojected, as an SDK
-declares it ([a shape reaches what it holds](plan/types.md#a-shape-reaches-what-it-holds)).
+`ErrorCase`, the `Default` that answers the statuses they do not name, and every `Content` each
+declares, the primary response first and the elected content first within each, and those choices
+order the page and decide nothing else. A type is rendered once for each projection its
+`TypePlan.Shapes` gives it ([ModelShape](plan/types.md#modelshape--visibility-projection)), each
+table holding the members visible in that shape and marking those it requires, and shapes whose
+projections coincide share one table, as they share one declaration
+([models](refine/models.md#visibility-projections--n-wire-shapes)). So a write-only property is in
+no read shape's table and a read-only one in no create shape's, and a model one operation creates
+and another patches has a table for each, since a patch body's members are optional and a member
+visible only at creation is absent from it. A direction alone would merge those two. A model whose
+own members and those of the models it holds carry no visibility marker has one table for every
+shape but a patch, and on the golden spec (spec @57b5196b, morphic @ab953d45) 17,305 of 17,872
+models carry none on their own members, so a table per shape would repeat itself for any of them two
+shapes but a patch reach. A type no shape reaches, one no operation sends or returns, is rendered
+once, unprojected, as an SDK declares it ([a shape reaches what it
+holds](plan/types.md#a-shape-reaches-what-it-holds)).
+
+A table lists every member its model's flattening holds, and anchors a member only where the model
+declaring it is rendered; another table holding it, a subtype's for an inherited member, links
+there. An anonymous model another composes in place is no table of its own: its members are rows
+of the composing model's table, anchored there, so no member is anchored twice.
 
 An example is shown through the shape it is shown in, so a response's example holds no write-only
 member and a request's no read-only one. A value `Property.Secret`, `Parameter.Secret` or
@@ -87,9 +98,9 @@ a way to show one entity across API versions. Each is decided by data, never by 
   resolution identifiers take ([naming](refine/naming.md)): three pairs of the golden spec's
   declared types share their canonical words, which the SDKs resolve as well.
 - **A total route plan.** Every `OpID` and every type with a page gets a route, every type rendered
-  on another's page an anchor there, and every `PropID` an anchor on the page its model is rendered
-  on. Anything left without one is a coded diagnostic, and a recursive type is linked by its ID,
-  never inlined to a depth and cut.
+  on another's page an anchor there, and every `PropID` an anchor where the model declaring it is
+  rendered (above). Anything left without one is a coded diagnostic, and a recursive type is linked
+  by its ID, never inlined to a depth and cut.
 - **Collisions are refused.** Two entities whose routes resolve to one URL are an error
   diagnostic naming both, never a page that overwrites another and never a page dropped. The check
   runs on the URLs the templates produce, over every kind of route in one table, so no template can
@@ -144,8 +155,10 @@ generation writes nothing ([write / integrate](write-integrate.md#what-the-manif
 a docs run handed none would drop them. A docs generation is a new one whenever the samples it is
 handed change, as an SDK target's own options can change them. A sample a target cannot render is
 a coded diagnostic of that target's, never an empty code block on the page, and so is one for an
-operation whose required input holds no example. Each sample's values are the first of each input's
-example set (below): a body's its request content's, a parameter's its own.
+operation whose required input holds no example. A sample's values are its operation's first
+example's `Input` (below): a scenario the operation declares in `Operation.Examples`, as a Smithy
+or TypeSpec document can, else one assembled from each input's set, a body's from the elected
+request content's and a parameter's from its own.
 
 ## One set of examples
 
@@ -153,15 +166,19 @@ READMEs, samples, generated tests and mock responses all need example values, an
 synthesize its own where the document declares none, so the docs would show values the SDK's own
 tests never sent, and every regeneration could change them. So the plan holds one set,
 `Plan.Examples`, keyed by the ID of each type, property (a header among them), parameter, enum
-member, message and operation:
+member and operation:
 
 - **Declared first.** An entity's own `Examples` are its set, labelled authored in the docs. One
   declaring none that adds no constraint to its type's takes its type's set, so a property shows
-  the value its type does. A content and a variant have no ID, so each one's set is its declared
-  examples, read from the IR, else its type's; the docs, the samples and the mock read a body's
-  examples from its content's set. Contents are where a document most often declares a body's
-  examples: on the golden spec (spec @57b5196b, morphic @ab953d45), 435 request, response and
-  error contents declare 651 examples.
+  the value its type does, and an operation declaring no scenario takes one assembled from its
+  inputs' sets and its return content's.
+- **Positions with no key.** A content and a variant have no ID, and a message's ID carries no kind
+  prefix yet to keep it apart from the other classes in one map
+  ([IDs](../ir/identity.md#what-irverify-holds), #1527). So each one's set is its declared examples,
+  read from the IR, else its type's, a message's its payload content's, and the docs, the samples
+  and the mock read a body's examples from its content's set. Contents are where a document most
+  often declares a body's examples: on the golden spec (spec @57b5196b, morphic @ab953d45), 435
+  request, response and error contents declare 651 examples.
 - **Synthesized only where no declared set applies**, under `plan.Policy.Examples`: a value valid
   against the entity's type and constraints, marked `Inferred` and labelled generated. A model or
   list synthesized holds, for each member or item, the first value of that member's own set: a
@@ -221,11 +238,11 @@ depends on it. What it needs is almost all IR and plan facts:
 | Completing an ID from a list call | `ResourceInfo` and its collection operations |
 
 Command names, positional arguments, `@file` inputs and hidden commands are presentation, so they
-are [shaping hints](contract/shaping-hints.md) keyed by ID. Flag constraints are derived at refine
-from the union's branches by `PropID`, never by a property's leaf name: a leaf name derives no
-conflict between `{origin: {host}}` and `{proxy: {host}}`, and lets two branches' `host` merge into
-one flag. Flag names collide as identifiers do and are told apart by the same ID-keyed resolution
-([naming](refine/naming.md)), so `foo_bar` and a nested `foo.bar` do not both become `--foo-bar`. A
-body field nested at any depth, or with `.` in its name, is a flag like any other, and a union
-beside properties, or a top-level `anyOf` body, still yields flags, its branches' constraints among
-them.
+are [shaping hints](contract/shaping-hints.md) keyed by ID, `Rename` and the `Extra` members a CLI
+target defines. Flag constraints are derived at refine from the union's branches by `PropID`, never
+by a property's leaf name: a leaf name derives no conflict between `{origin: {host}}` and
+`{proxy: {host}}`, and lets two branches' `host` merge into one flag. Flag names collide as
+identifiers do and are told apart by the same ID-keyed resolution ([naming](refine/naming.md)), so
+`foo_bar` and a nested `foo.bar` do not both become `--foo-bar`. A body field nested at any depth,
+or with `.` in its name, is a flag like any other, and a union beside properties, or a top-level
+`anyOf` body, still yields flags, its branches' constraints among them.

@@ -341,30 +341,36 @@ throughout these documents.
     frozen before its entity's path variable is renamed gains no twin, and its table of contents
     lists the user's headings; and a manifest of an older `Schema` is migrated, one of a newer
     refused with nothing written ([write / integrate](../write-integrate.md)).
-41. **T-41 · Docs** — the docs emitter renders every response, error case and content an operation
-    declares, the primary response and the elected content first; a table for each shape a type's
-    `TypePlan.Shapes` lists, marking the members it requires, a write-only property in no read
-    shape's, a model created by one operation and patched by another given a table for each, and a
-    type no shape reaches one unprojected table; each example through the shape it is shown in, a
-    write-only member in no response's; and a placeholder for every value `Secret` or `Sensitive`
-    marks, on pages, in agent documents and in samples. Every declared type but a primitive has a
-    page, and so does an anonymous model, union or enum more than one reference reaches through
-    anonymous containers, so no type is rendered in two places; every property is anchored where its
-    model is rendered, a recursive type is linked by its ID and never inlined, and an entity left
-    without a route is a coded diagnostic. Two slugs colliding in one template's scope are told
-    apart by ID, and two entities resolving to one URL are an error naming both, also when the URL
-    templates are changed; every link and `Docs.Refs` span resolves through the route plan; a
-    version switcher links one entity across snapshots, from the tables `Router` returns, and an
-    entity a version lacks to that version's page saying so. Agent documents and `llms.txt` share
-    the pages' URLs, escape spec text and pass no raw HTML, mark an operation safe or idempotent
-    from `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint is set. A
-    sample comes from each SDK target in each language its callers write, Kotlin and Swift from a
-    Multiplatform one, a missing one a diagnostic, and a target whose generation writes nothing
-    still returns its samples; and a docs generation whose samples or routes changed, its own inputs
-    unchanged, is a new generation ([docs and mocks](../docs-and-mock.md)).
+41. **T-41 · Docs** — the docs emitter renders every response, error case, default response and
+    content an operation declares, the primary response and the elected content first; a table for
+    each projection a type's `TypePlan.Shapes` gives it, marking the members it requires, a
+    write-only property in no read shape's, a model created by one operation and patched by another
+    given a table for each, a model whose members and those of the models it holds carry no
+    visibility marker one table for every shape but a patch, and a type no shape reaches one
+    unprojected table; each member anchored once, where the model declaring it is rendered, an
+    inherited one linked there and an anonymous model composed in place no table of its own; each
+    example through the shape it is shown in, a write-only member in no response's; and a
+    placeholder for every value `Secret` or `Sensitive` marks, on pages, in agent documents and in
+    samples. Every declared type but a primitive has a page, and so does an anonymous model, union
+    or enum more than one reference reaches through anonymous containers, so no type is rendered in
+    two places; a recursive type is linked by its ID and never inlined, and an entity left without a
+    route is a coded diagnostic. Two slugs colliding in one template's scope are told apart by ID,
+    and two entities resolving to one URL are an error naming both, also when the URL templates are
+    changed; every link and `Docs.Refs` span resolves through the route plan; a version switcher
+    links one entity across snapshots, from the tables `Router` returns, and an entity a version
+    lacks to that version's page saying so. Agent documents and `llms.txt` share the pages' URLs,
+    escape spec text and pass no raw HTML, mark an operation safe or idempotent from
+    `OpPlan.Effects`, and warn of destruction only where the `Destructive` hint is set. A sample
+    comes from each SDK target, for each operation it emits, in each language its callers write,
+    Kotlin and Swift from a Multiplatform one, a missing one a diagnostic of that target's, and a
+    target whose generation writes nothing still returns its samples; a sample's values are its
+    operation's declared scenario's `Input` where it has one; and a docs generation whose samples or
+    routes changed, its own inputs unchanged, is a new generation ([docs and
+    mocks](../docs-and-mock.md)).
 42. **T-42 · One set of examples** — a declared example is used everywhere and labelled authored; a
-    property, a parameter or a message declaring none and adding no constraint takes its type's
-    set, and a content's or a variant's set is its own declared examples, else its type's, which
+    property or a parameter declaring none and adding no constraint takes its type's set, an
+    operation declaring no scenario one assembled from its inputs' and its return content's, and a
+    content's, a variant's or a message's set is its own declared examples, else its type's, which
     the docs, the samples and the mock read a body's examples from. Where none applies, the value
     synthesized is valid against its constraints, marked `Inferred`, identical across regenerations
     and in both declaration orders, seeded from its ID where no correlation key identifies it, and
@@ -374,5 +380,5 @@ throughout these documents.
     entries of a list or map past its minimum, so a required member nested deeper than `MaxDepth`
     and a `minItems` or `minProps` above `MaxItems` are met; one the synthesizer cannot make valid,
     a required cycle among them, or holding more than `plan.MaxExampleValues` values is reported and
-    left out; and a negative bound is `emitters/plan/policy-invalid`
-    ([one set of examples](../docs-and-mock.md#one-set-of-examples)).
+    left out; and a negative bound is `emitters/plan/policy-invalid` ([one set of
+    examples](../docs-and-mock.md#one-set-of-examples)).
