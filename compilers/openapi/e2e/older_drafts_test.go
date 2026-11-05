@@ -144,8 +144,9 @@ func TestOlderDrafts_AMalformedTupleIsReportedAsItsTwinIs(t *testing.T) {
 }
 
 // TestOlderDrafts_DependenciesAreValidationOnly pins `dependencies` in each
-// draft that defines it, 4, 6 and 7, kept as a validation-only keyword, and in
-// 2019-09 and 2020-12, which split it, as an unknown keyword.
+// draft that defines it, 4, 6 and 7, kept as a validation-only keyword, and
+// folded from an inline allOf branch as its 2020-12 twins are, and in 2019-09
+// and 2020-12, which split it, as an unknown keyword, which keeps its branch.
 func TestOlderDrafts_DependenciesAreValidationOnly(t *testing.T) {
 	t.Parallel()
 	for draft, want := range map[string]ir.UnmodeledReason{
@@ -155,12 +156,17 @@ func TestOlderDrafts_DependenciesAreValidationOnly(t *testing.T) {
 		t.Run(draft, func(t *testing.T) {
 			t.Parallel()
 			doc, diags := parseFull(t, openapitest.ComponentSpec(
-				"    D: {$schema: "+draft+", type: object, dependencies: {a: [b]}}\n"))
+				"    D: {$schema: "+draft+", type: object, dependencies: {a: [b]}}\n"+
+					"    F: {$schema: "+draft+", type: object, allOf: [{dependencies: {a: [b]}}]}\n"))
 			openapitest.RequireNoErrorDiags(t, diags)
 			d, ok := doc.Types[componentID("D")].(*ir.Model)
 			require.True(t, ok)
 			assert.Equal(t, want, unmodeledEntry(t, d.Unmodeled, "openapi:dependencies").Reason)
 			assert.Equal(t, want == ir.ReasonValidationOnly, openapitest.HasDiag(diags, diag.ValidationOnlyKeyword))
+			f, ok := doc.Types[componentID("F")].(*ir.Model)
+			require.True(t, ok)
+			_, folded := f.Unmodeled["openapi:dependencies"]
+			assert.Equal(t, want == ir.ReasonValidationOnly, folded, "an allOf branch's folds as dependentRequired does")
 		})
 	}
 }

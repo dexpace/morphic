@@ -51,13 +51,15 @@ func (u Use) Site(s *oas3.Schema) annotation.Site {
 	return annotation.Site{Kind: annotation.Reference, Node: s, Voices: u.Voices, Referents: u.Referents}
 }
 
-// SiteAt is Site for s written at pointer, saying how the dialect s is read in
-// reads its identifier, which annotation.Read keeps: the keyword naming it, and
-// whether the dialect ignores it beside a $ref s writes, as the binder does.
+// SiteAt is Site for s written at pointer, saying what the dialect s is read
+// in spells otherwise, which annotation.Read keeps: the keyword naming its
+// identifier, whether the dialect ignores it beside a $ref s writes, as the
+// binder does, and whether it defines `dependencies`.
 func (u Use) SiteAt(c lowering.Ctx, s *oas3.Schema, pointer jsontext.Pointer) annotation.Site {
 	site := u.Site(s)
 	rules := lowering.SchemaRulesAt(c, pointer)
-	site.Identifier = annotation.Identifier{Keyword: rules.Identifier(), Ignored: rules.IgnoresRefFields() && writesRef(s)}
+	site.Dialect = annotation.Dialect{Identifier: rules.Identifier(), IdentifierIgnored: rules.IgnoresRefFields() && writesRef(s),
+		Dependencies: rules.Defines("dependencies")}
 	return site
 }
 

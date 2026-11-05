@@ -3276,7 +3276,8 @@ type. It leaves the media type to say where it is absent, `true`, or writes no k
 `string`, alone or with `null`, the annotations `title`, `description`, `$comment`, `example`,
 `examples`, `default`, `deprecated`, `readOnly`, `writeOnly`, `externalDocs`, `xml` and `nullable`,
 the identifiers `$id`, `$anchor` and `$dynamicAnchor` and the store `$defs`, which say nothing of
-the value, the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary
+the value, as a JSON Schema draft's spellings of them do where the schema's dialect defines one,
+draft 4's `id`, the drafts' `definitions` and 2019-09's `$recursiveAnchor`, the length bounds `maxLength` and `minLength`, which OpenAPI applies to a binary
 payload's octets,
 `contentMediaType`, which a media type set by the content's key overrides, and its own `x-*`, and
 where each `$ref` on its chain writes beside it no keyword but those, `type` aside, since such a
@@ -3303,7 +3304,8 @@ response and an error case.
   `operation.TestContent_AFileBodyKeepsTheSchemaItWrites`,
   `operation.TestBodyFile_ReadsTheSchemaAndTheMediaType`,
   `operation.TestBodyFile_ReadsAChainOfRefsUpToItsBound`,
-  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`
+  `operation.TestBodyFile_ReadsKeywordsBesideA30Ref`,
+  `operation.TestBodyFile_ReadsADraftsSpellingAsItsTwin`
 
 ### `binary-media`
 

@@ -29,10 +29,11 @@ var foldKeywords = []string{
 	"nullable", "not", "dependentSchemas", "dependentRequired", "propertyNames",
 }
 
-// foldEntry returns the one entry a position keeps keyword in once s folds, and
-// false for a keyword no fold reads. Keywords one entry holds fold as one, so a
-// branch's `then` and another's `if` cannot overwrite each other.
-func foldEntry(s *oas3.Schema, keyword string) (string, bool) {
+// foldEntry returns the one entry a position keeps keyword in once s, a schema
+// of c, folds, and false for a keyword no fold reads. Keywords one entry holds
+// fold as one, so a branch's `then` and another's `if` cannot overwrite each
+// other, and a draft's spelling folds as its twin does (TwinKeyword).
+func foldEntry(c lowering.Ctx, s *oas3.Schema, keyword string) (string, bool) {
 	switch keyword {
 	case "example", "examples":
 		return "examples", true
@@ -49,8 +50,9 @@ func foldEntry(s *oas3.Schema, keyword string) (string, bool) {
 	case "format":
 		return keyword, annotation.DeclaresRedaction(s)
 	}
-	fold := strings.HasPrefix(keyword, "x-") || slices.Contains(foldKeywords, keyword) ||
-		slices.Contains(valueConstraintKeywords, keyword)
+	twin := TwinKeyword(c, s, keyword)
+	fold := strings.HasPrefix(keyword, "x-") || slices.Contains(foldKeywords, twin) ||
+		slices.Contains(valueConstraintKeywords, twin)
 	return keyword, fold
 }
 
@@ -139,7 +141,7 @@ func readVoices(c lowering.Ctx, s *oas3.Schema) voicing {
 	ids := idWrappers(comp)
 	for i, e := range comp.branches {
 		if bs := e.schema.GetSchema(); bs != nil && isInlineBranch(e.schema) {
-			if out.rebased[i] = underID(e, bs, ids) && foldsReference(bs) && !readsAtPosition(c, e); !out.rebased[i] {
+			if out.rebased[i] = underID(e, bs, ids) && foldsReference(c, bs) && !readsAtPosition(c, e); !out.rebased[i] {
 				writes[i] = a.write(bs)
 			}
 		}
@@ -197,9 +199,9 @@ func writesIdentifier(s *oas3.Schema) bool {
 
 // foldsReference reports whether what bs folds writes a relative $ref, the one
 // text a base changes: a branch writing none in it says the same at any base.
-func foldsReference(bs *oas3.Schema) bool {
+func foldsReference(c lowering.Ctx, bs *oas3.Schema) bool {
 	return slices.ContainsFunc(rawMappingKeys(bs.GetRootNode()), func(keyword string) bool {
-		entry, fold := foldEntry(bs, keyword)
+		entry, fold := foldEntry(c, bs, keyword)
 		return fold && annotation.WritesReference(foldValue(bs, entry).raw)
 	})
 }
@@ -222,9 +224,9 @@ func readsAtPosition(c lowering.Ctx, e allOfBranch) bool {
 // what it keeps, and is "" where the branch spoke or writes nothing folding
 // reads: what it folds writes a relative $ref it reads against another base
 // than the position, or the conjuncts disagree on an entry it writes.
-func unfoldedWhy(speaks, rebased bool, bs *oas3.Schema, residue []string) string {
+func unfoldedWhy(c lowering.Ctx, speaks, rebased bool, bs *oas3.Schema, residue []string) string {
 	switch {
-	case speaks || !disagreed(bs, residue):
+	case speaks || !disagreed(c, bs, residue):
 		return ""
 	case rebased:
 		return "this inline allOf branch reads its $refs against another base than the position does, as an " +
@@ -245,9 +247,9 @@ func disagreedWhy(residue []string) string {
 // disagreed reports whether residue, what a branch that did not fold keeps of bs,
 // holds a keyword folding reads: voicesAmong passes over a branch for writing none
 // or for a disagreement, and this tells them apart.
-func disagreed(bs *oas3.Schema, residue []string) bool {
+func disagreed(c lowering.Ctx, bs *oas3.Schema, residue []string) bool {
 	return slices.ContainsFunc(residue, func(keyword string) bool {
-		_, fold := foldEntry(bs, keyword)
+		_, fold := foldEntry(c, bs, keyword)
 		return fold
 	})
 }
@@ -262,7 +264,7 @@ func folds(c lowering.Ctx, bs *oas3.Schema, keyword string, bounds bool) bool {
 	if slices.Contains(valueConstraintKeywords, keyword) {
 		return bounds
 	}
-	_, fold := foldEntry(bs, keyword)
+	_, fold := foldEntry(c, bs, keyword)
 	return fold
 }
 

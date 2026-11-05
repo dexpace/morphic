@@ -534,20 +534,20 @@
     },
     {
       "severity": "info",
-      "code": "openapi/degraded-construct",
-      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
-      "provenance": {
-        "source": 0,
-        "pointer": "/components/schemas/Paired/$schema"
-      }
-    },
-    {
-      "severity": "info",
       "code": "openapi/validation-only-keyword",
       "message": "validation-only keyword \"dependencies\" kept verbatim under Unmodeled",
       "provenance": {
         "source": 0,
         "pointer": "/components/schemas/Paired"
+      }
+    },
+    {
+      "severity": "info",
+      "code": "openapi/degraded-construct",
+      "message": "$schema identifies or configures a JSON Schema resource rather than describing data; the IR models no such axis, so it is kept verbatim under Unmodeled and is read only where it roots a schema resource of a 3.1 or 3.2 document, to choose that resource's dialect, never for reference resolution",
+      "provenance": {
+        "source": 0,
+        "pointer": "/components/schemas/Paired/$schema"
       }
     },
     {

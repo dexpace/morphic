@@ -30,23 +30,17 @@ import (
 // It is the last thing an attachment does, as annotation.UnknownKeywordsIn
 // requires, so it is called here rather than inside annotation.Read:
 // $dynamicRef has no field in the schema model either and is decided by
-// recordUnexpandedDynamicRef, which runs after Read. td is the node the
+// recordUnexpandedDynamicRef, which runs after Read; a draft's `dependencies`
+// is Read's (annotation.Dialect). td is the node the
 // position lowered to, nil for none of its own, which may hold a tuple's rest
 // (tupleRest).
 func PreserveUnknownKeywords(c lowering.Ctx, p *ir.Unmodeled, s *oas3.Schema, pointer jsontext.Pointer, td ir.TypeDef) []ir.Diagnostic {
-	rules := lowering.SchemaRulesAt(c, pointer)
-	var diags []ir.Diagnostic
-	if rules.Defines("dependencies") {
-		// The drafts before 2019-09 spell dependentSchemas and dependentRequired
-		// as one keyword, kept as they are (docs/compilers/openapi.md#validation-only).
-		diags = annotation.PreserveValidationOnlyKeyword(p, s, "dependencies", pointer, c.ProvenanceAt)
-	}
 	taken := tupleRest(c, s, pointer, td)
-	if rules.Takes("definitions", oas.Map) {
+	if lowering.SchemaRulesAt(c, pointer).Takes("definitions", oas.Map) {
 		// The drafts' spelling of $defs, whose entries lower where a $ref names one.
 		taken = append(taken, "definitions")
 	}
-	diags = append(diags, annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt, taken...)...)
+	diags := annotation.UnknownKeywordsIn(p, s, pointer, c.ProvenanceAt, taken...)
 	return append(diags, annotation.UndefinedKeywordsIn(p, s, undefinedKeywords(c, s), pointer, c.ProvenanceAt)...)
 }
 

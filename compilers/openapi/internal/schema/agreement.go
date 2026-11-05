@@ -40,7 +40,7 @@ func (a *agreement) write(conjunct *oas3.Schema) []string {
 	var cons *ir.Constraints
 	read := false
 	for _, keyword := range rawMappingKeys(conjunct.GetRootNode()) {
-		entry, fold := foldEntry(conjunct, keyword)
+		entry, fold := foldEntry(a.c, conjunct, keyword)
 		if !fold || annotation.WritesKeywordLeftOut(conjunct, keyword) {
 			continue
 		}

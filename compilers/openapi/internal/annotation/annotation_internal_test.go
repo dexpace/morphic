@@ -175,7 +175,7 @@ func TestDialectAt_KeepsEachKeywordOutOfScope(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", sourced(0), Identifier{})
+	got, diags := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
 
 	require.Len(t, got, 2, "one entry per keyword written")
 	for _, keyword := range []string{"$id", "$schema"} {
@@ -196,7 +196,7 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\n$schema: 'https://example.com/dialect'\n"+
 		"$vocabulary: {'https://example.com/v': true}\ntype: string\n")
-	_, diags := dialectAt(s, "/components/schemas/S", sourced(0), Identifier{})
+	_, diags := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
 	require.Len(t, diags, 3)
 	said := map[jsontext.Pointer]string{}
 	for _, d := range diags {
@@ -216,24 +216,24 @@ func TestDialectAt_SaysWhatEachKeywordIsReadFor(t *testing.T) {
 func TestDialectAt_ReadsTheIdentifierTheDialectSpells(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "id: 'urn:example:a'\n$id: 'urn:example:b'\ntype: string\n")
-	saidOf := func(identifier Identifier) (ir.Unmodeled, map[jsontext.Pointer]string) {
-		got, diags := dialectAt(s, "/components/schemas/S", sourced(0), identifier)
+	saidOf := func(dialect Dialect) (ir.Unmodeled, map[jsontext.Pointer]string) {
+		got, diags := dialectAt(s, "/components/schemas/S", sourced(0), dialect)
 		said := map[jsontext.Pointer]string{}
 		for _, d := range diags {
 			said[d.Provenance.Pointer] = d.Message
 		}
 		return got, said
 	}
-	got, said := saidOf(Identifier{Keyword: "id"})
+	got, said := saidOf(Dialect{Identifier: "id"})
 	for _, keyword := range []string{"id", "$id"} {
 		assert.Equal(t, ir.ReasonOutOfScope, got["openapi:"+keyword].Reason, keyword)
 	}
 	assert.Contains(t, said["/components/schemas/S/id"], "is read only for reference resolution")
 	assert.Contains(t, said["/components/schemas/S/$id"], "is read for nothing")
-	_, said = saidOf(Identifier{Keyword: "id", Ignored: true})
+	_, said = saidOf(Dialect{Identifier: "id", IdentifierIgnored: true})
 	assert.Contains(t, said["/components/schemas/S/id"], "is read for nothing, as this schema's dialect ignores")
 	assert.Contains(t, said["/components/schemas/S/$id"], "spells an identifier id")
-	plain, _ := dialectAt(s, "/components/schemas/S", sourced(0), Identifier{})
+	plain, _ := dialectAt(s, "/components/schemas/S", sourced(0), Dialect{})
 	assert.NotContains(t, plain, "openapi:id", "where `$id` is the identifier, `id` is an unknown keyword's to keep")
 }
 
@@ -245,7 +245,7 @@ func TestDialectAt_AttributesTheKeywordRatherThanTheSchema(t *testing.T) {
 	t.Parallel()
 	s := schemaFromYAML(t, "$id: 'urn:example:a'\ntype: string\n")
 
-	got, diags := dialectAt(s, "/components/schemas/S", overlaid("/components/schemas/S/$id"), Identifier{})
+	got, diags := dialectAt(s, "/components/schemas/S", overlaid("/components/schemas/S/$id"), Dialect{})
 
 	entry, ok := got["openapi:$id"]
 	require.True(t, ok)
